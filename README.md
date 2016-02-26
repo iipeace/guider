@@ -1,2 +1,2 @@
 # guider
-thread profiiler based on ftrace
+system profiiler based on ftrace
