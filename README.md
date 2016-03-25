@@ -1,2 +1,2 @@
 # guider
-system profiiler based on ftrace
+performance profiiler based on ftrace
