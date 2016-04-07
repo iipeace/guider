@@ -1,7 +1,24 @@
 # guider
 Are you struggle to improve system performance or to find root cause that makes system abnormal?
-guider is made to measure system resource usage and to give user hints to improve system performance.
+guider is made to measure system resource usage per thread and to give user hints to improve system performance.
 you can use this tool if only some ftrace options are enabled in linux kernel.
+
+guider persues three characteristics.
+>1. easy to use: just runs by linux shell and python without install or setting
+>2. measure correct: measure time in ms and size in MB
+>3. integrate function: print cpu / memory / disk usage per thread in a page 
+
+
+How to use
+=======
+
+```
+input command as bellow for starting profile
+# guider.py record 
+
+input "Ctrl + c" key for finishing profile
+```
+
 
 Requirement
 =======
@@ -11,6 +28,7 @@ Requirement
 - python (>= 2.7)
 - root permission in shell
 ```
+
 
 Kernel Configuration
 =======
@@ -23,6 +41,7 @@ Kernel Configuration
 + CONFIG_TRACE_IRQFLAGS_SUPPORT
 + CONFIG_USER_STACKTRACE_SUPPORT (optional)
 ```
+
 
 Options
 =======
