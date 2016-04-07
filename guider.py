@@ -1,9 +1,6 @@
 #!/usr/bin/python
 
 '''
-guider is made to measure system resource usage and to give user hints to improve system performance.
-you can use this tool if only some ftrace options are enabled in linux kernel (higher than 2.6.27).
-
 - feature 
     preemption time in interval 
     user-defined stamp(RESET) in interval 
@@ -15,11 +12,11 @@ you can use this tool if only some ftrace options are enabled in linux kernel (h
     vmstat 
     mmiotrace 
     memblock for reserved mem info
+    cpu_frequency
 - option 
     total time for function profile 
     print thread list for function profile in default 
     specific event disable 
-    kconfig option 
     trim profiled data
 - bug 
     cpu usage by governor
@@ -903,6 +900,7 @@ class SystemInfo:
     pipeEnable = False 
     depEnable = False
     sysEnable = False
+    compareEnable = False
     functionEnable = False
     intervalEnable = 0
 
@@ -951,8 +949,12 @@ class SystemInfo:
 
     @staticmethod
     def newHandler(signum, frame):
-        os.system('echo EVENT_RESTART > /dev/kmsg')
-        print 'restart recording... [ STOP(ctrl + c) ]'
+        if SystemInfo.compareEnable is False:
+            SystemInfo.writeEvent("EVENT_MARK")
+        else:
+            SystemInfo.writeEvent("EVENT_RESTART")
+            print 'restart recording... [ STOP(ctrl + c) ]'
+
         time.sleep(1024)
 
 
@@ -1080,12 +1082,22 @@ class SystemInfo:
     @staticmethod
     def writeEvent(message):
         if SystemInfo.eventLogFD == None:
-                SystemInfo.eventLogFD = open(SystemInfo.eventLogFile, 'w')
+                if SystemInfo.eventLogFile is None:
+                        SystemInfo.eventLogFile = str(SystemInfo.getMountPath()) + '/tracing/trace_marker'
+
+                try: SystemInfo.eventLogFD = open(SystemInfo.eventLogFile, 'w')
+                except: print "[Error] Fail to open %s for writing event\n" % SystemInfo.eventLogFD
 
         if SystemInfo.eventLogFD != None:
-                SystemInfo.eventLogFD.write(message)
+                try:
+                        SystemInfo.eventLogFD.write(message)
+                        print '[Info] Marked user-defined event'
+                        SystemInfo.eventLogFD.close()
+                        SystemInfo.eventLogFD = None
+                except:
+                        print "[Error] Fail to write %s event\n" % (message)
         else:
-                print "[Error] event %s couldn't be open\n" % (message)
+                print "[Error] Fail to write %s event because there is no file descriptor\n" % (message)
 
 
     @staticmethod
@@ -1093,8 +1105,8 @@ class SystemInfo:
         if SystemInfo.pipeForPrint == None and SystemInfo.selectMenu == None and SystemInfo.printFile == None: 
                 try: SystemInfo.pipeForPrint = os.popen('less', 'w')
                 except: 
-                    print "[Error] less can not be found, use -o option to save output to file\n"
-                    sys.exit(0)
+                        print "[Error] less can not be found, use -o option to save output to file\n"
+                        sys.exit(0)
 
                 if SystemInfo.ttyEnable == True:
                         SystemInfo.setTtyCols(SystemInfo.ttyCols)
@@ -1221,6 +1233,8 @@ class SystemInfo:
                                 SystemInfo.rootPath = sys.argv[n].lstrip('-j')
                         elif sys.argv[n][1] == 'b':
                                 None
+                        elif sys.argv[n][1] == 'c':
+                                None
                         elif sys.argv[n][1] == 's':
                                 None
                         elif sys.argv[n][1] == 'r':
@@ -1288,6 +1302,9 @@ class SystemInfo:
                                     SystemInfo.outputFile = SystemInfo.outputFile.replace('//', '/')
                             elif sys.argv[n][1] == 'w':
                                     SystemInfo.depEnable = True
+                            elif sys.argv[n][1] == 'c':
+                                    SystemInfo.compareEnable = True
+                                    print "[Info] compare mode"
                             elif sys.argv[n][1] == 't':
                                     SystemInfo.sysEnable = True
                                     SystemInfo.syscallList = sys.argv[n].lstrip('-t').split(',')
@@ -1763,6 +1780,7 @@ class ThreadInfo:
         self.lastJob = {}
         self.preemptData = []
         self.suspendData = []
+        self.markData = []
         self.consoleData = []
 
         self.stopFlag = False
@@ -1929,7 +1947,7 @@ class ThreadInfo:
                 cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + str(self.threadData[t]['reqBlock']) + ' ' + \
                 str(self.threadData[t]['cpuRank']) + ' ' + str(self.threadData[t]['usage']) + '\n')
 
-        SystemInfo.pipePrint("%s.tc is wrote successfully" % eventInput)
+        SystemInfo.pipePrint("%s.tc is written successfully" % eventInput)
 
 
 
@@ -2068,7 +2086,7 @@ class ThreadInfo:
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
                         "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
-                        (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
+                        (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                         value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
@@ -2091,7 +2109,7 @@ class ThreadInfo:
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
                         "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
-                        (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
+                        (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                         value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
@@ -2219,14 +2237,22 @@ class ThreadInfo:
 
         # Total timeline #
         timeLine = ''
-        checkSuspend = ' '
         for icount in range(1, int(float(self.totalTime) / SystemInfo.intervalEnable) + 2):
+                checkEvent = ' '
+
+                # check suspend event #
                 for val in self.suspendData:
                     if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val[0]) < float(self.startTime) + 1 + icount * SystemInfo.intervalEnable:
-                        if val[1] == 'S': checkSuspend = '!' 
-                        else: checkSuspend = '>' 
-                    else: checkSuspend = ' '
-                timeLine += '%s%2d ' % (checkSuspend, icount * SystemInfo.intervalEnable)
+                        if val[1] == 'S': checkEvent = '!' 
+                        else: checkEvent = '>' 
+
+                # check mark event #
+                for val in self.markData:
+                    if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val) < float(self.startTime) + 1 + icount * SystemInfo.intervalEnable:
+                        checkEvent = 'v'
+
+                timeLine += '%s%2d ' % (checkEvent, icount * SystemInfo.intervalEnable)
+
         SystemInfo.pipePrint("%16s(%5s/%5s): %s" % ('Name', 'Tid', 'Pid', timeLine))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.clearPrint()
@@ -3336,14 +3362,13 @@ class ThreadInfo:
                                         self.lastJob = {}
                                         self.preemptData = []
                                         self.suspendData = []
+                                        self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
-                                        ei.addEvent(time, event)
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
-                                        ei.addEvent(time, event)
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3357,9 +3382,11 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
-                                        ei.addEvent(time, event)
-                                # process event #
-                                else: ei.addEvent(time, event)
+                                # saving mark event #
+                                elif event == 'MARK':
+                                        self.markData.append(time)
+
+                                ei.addEvent(time, event)
                         else: self.consoleData.append([d['thread'], core, time, etc])
 
                 elif func == "tracing_mark_write":
@@ -3383,14 +3410,13 @@ class ThreadInfo:
                                         self.lastJob = {}
                                         self.preemptData = []
                                         self.suspendData = []
+                                        self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
-                                        ei.addEvent(time, event)
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
-                                        ei.addEvent(time, event)
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3404,9 +3430,11 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
-                                        ei.addEvent(time, event)
-                                # process event #
-                                else: ei.addEvent(time, event)
+                                # saving mark event #
+                                elif event == 'MARK':
+                                        self.markData.append(time)
+
+                                ei.addEvent(time, event)
 
                 # save last job per core #
                 try: self.lastJob[core]
@@ -3484,7 +3512,7 @@ if __name__ == '__main__':
 				sys.exit(0)
 		else:
 			signal.signal(signal.SIGINT, SystemInfo.stopHandler)
-			signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
+                        signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
 
 		# start recording #
 		print 'start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]'
