@@ -4,10 +4,27 @@
 guider is made to measure system resource usage and to give user hints to improve system performance.
 you can use this tool if only some ftrace options are enabled in linux kernel (higher than 2.6.27).
 
-toDo: 
-- feature: pagemap event for lru, user/kernel usage, file page analysis, mali(gpu_memory,utilization), module event, vmstat, mmiotrace, memblock for reserved mem info
-- option: total time for function profile, print thread list for function profile in default, specific event disable, kconfig option, trim profiled data
-- bug: cpu usage by cpu governor
+- feature 
+    preemption time in interval 
+    user-defined stamp(RESET) in interval 
+    pagemap event for lru 
+    user/kernel usage 
+    file page analysis 
+    mali(gpu_memory,utilization) 
+    module event 
+    vmstat 
+    mmiotrace 
+    memblock for reserved mem info
+- option 
+    total time for function profile 
+    print thread list for function profile in default 
+    specific event disable 
+    kconfig option 
+    trim profiled data
+- bug 
+    cpu usage by governor
+- perf 
+    dict mapping for each events
 '''
 
 __author__ = "Peace Lee"
@@ -17,7 +34,6 @@ __license__ = "GPLv2"
 __version__ = "2.0.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
-__status__ = "Production"
 
 
 
@@ -1766,8 +1782,9 @@ class ThreadInfo:
                 'start': float(0), 'stop': float(0), 'readCnt': int(0), 'readStart': float(0), 'maxRuntime': float(0), 'coreSchedCnt': int(0), \
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), 'futexCnt': int(0), 'futexEnter': float(0), \
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
-                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'lastWakeup': float(0), \
-                'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), 'tgid': '-'*5}
+                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
+                'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
+                'maxPreempted': float(0),'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), 'ioUsage': float(0), \
@@ -1805,7 +1822,7 @@ class ThreadInfo:
                 self.parse(l)
                 if self.stopFlag == True: break
 
-        # process usage of threads in last interval #
+        # calculate usage of threads in last interval #
         if SystemInfo.intervalEnable > 0:
                 if float(self.finishTime) -  float(self.startTime) - float(SystemInfo.intervalNow) > 0:
                         lastInterval = float(self.finishTime) -  float(self.startTime) - float(SystemInfo.intervalNow)
@@ -1821,24 +1838,19 @@ class ThreadInfo:
                                 try: self.intervalData[index]['toTal']
                                 except: self.intervalData[index]['toTal'] = {'totalIo': int(0), 'totalMem': int(0), 'totalKmem': int(0)}
 
+                                self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
+                                self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
+                                self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
+                                self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
+                                self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
+
                                 if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
                                         self.intervalData[index][key]['cpuUsage'] = float(self.threadData[key]['usage'])
-                                        self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
-                                        self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                         self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                         self.intervalData[index][key]['ioUsage'] = float(self.threadData[key]['reqBlock'])
-                                        self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
                                         self.intervalData[index][key]['memUsage'] = float(self.threadData[key]['nrPages'])
-                                        self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
                                         self.intervalData[index][key]['kmemUsage'] = float(self.threadData[key]['remainKmem'])
-                                        self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
                                 else:
-                                        self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
-                                        self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
-                                        self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
-                                        self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
-                                        self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-
                                         try: self.intervalData[index - 1][key]
                                         except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
 
@@ -1931,13 +1943,13 @@ class ThreadInfo:
         SystemInfo.pipePrint("%s %0s[ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]" % \
         ('[Thread Info]', '', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, self.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^29}|{1:_^29}|{2:_^22}|{3:_^26}|{4:_^29}|{5:_^14}|".\
-                format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info", "ETC Info"))
-        SystemInfo.pipePrint("{0:^29}|{1:^29}|{2:^22}|{3:^26}|{4:^29}|{5:^14}|".\
+        SystemInfo.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
+                format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
+        SystemInfo.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
                 format("", "", "", "", "", ""))
-        SystemInfo.pipePrint("%16s(%5s/%5s)|%5s(%5s)|%5s(%3s)|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s|%3s|%3s|%3s|%3s|%4s(%2s)|%5s(%4s)|%2s|" % \
-        ('Name', 'Tid', 'Pid', 'Usage', '%', 'Delay', 'Pri', ' IRQ ', 'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
-        'Sum', 'Usr', 'Buf', 'Rcl', 'Wst', 'DRcl', 'Nr', 'Futex', 'Cnt', 'Lf'))
+        SystemInfo.pipePrint("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s|%3s)|%4s(%2s)|" % \
+        ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', 'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
+        'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemInfo.pipePrint(twoLine)
 
         # process idle time #
@@ -1975,12 +1987,15 @@ class ThreadInfo:
                         if value['lastOff'] > 0:
                             value['offTime'] += float(self.finishTime) - value['lastOff']
                         SystemInfo.addPrint(\
-                            "%16s(%5s/%5s)|%5.2f(%5s)|%5.2f(%3s)|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s|%3s|%3s|%3s|%3d|%4.2f(%2d)|%5.2f(%4d)|%s%s|\n" \
-                            % (value['comm'], '0', '0', self.totalTime - value['usage'], str(round(float(usagePercent), 1)), round(float(value['offTime']), 7), \
-                            0, value['irq'], value['offCnt'], '-', '-', '-', value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                            value['writeBlockCnt'], value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                            value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
-                            value['dReclaimWait'], value['dReclaimCnt'], 0, 0, '-', '-'))
+                            "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s|%3s)|%4.2f(%2d)|\n" \
+                            % (value['comm'], '0', '0', '-', '-', \
+                            self.totalTime - value['usage'], str(round(float(usagePercent), 1)), round(float(value['offTime']), 7), 0, 0, value['irq'], \
+                            value['offCnt'], '-', '-', '-', \
+                            value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
+                            (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                            value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                            (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
+                            value['dReclaimWait'], value['dReclaimCnt']))
                         count += 1
                 else:
                     # convert priority #
@@ -2007,12 +2022,15 @@ class ThreadInfo:
                         value['cpuRank'] = count + 1
                         count += 1
                 SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%5.2f(%5s)|%5.2f(%3s)|%5.2f|%5d|%5d|%5d|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s|%3d|%3d|%3s|%3d|%4.2f(%2d)|%5.2f(%4d)|%s%s|\n" % \
-                        (value['comm'], key, value['tgid'], value['usage'], str(round(float(usagePercent), 1)), value['cpuWait'], value['pri'], value['irq'], \
-                        value['yield'], value['preempted'], value['preemption'], value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                        value['writeBlockCnt'], value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
-                        value['dReclaimWait'], value['dReclaimCnt'], value['futexTotal'], value['futexCnt'], value['new'], value['die']))
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
+                        value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                        value['yield'], value['preempted'], value['preemption'], value['migrate'], \
+                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
+                        (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                        value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                        value['dReclaimWait'], value['dReclaimCnt']))
                 
         SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
         SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -2049,12 +2067,15 @@ class ThreadInfo:
                 count += 1
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%5.2f(%5s)|%5.2f(%3s)|%5.2f|%5d|%5d|%5d|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s|%3d|%3d|%3s|%3d|%4.2f(%2d)|%5.2f(%4d)|%s%s|\n" % \
-                        (value['comm'], key, value['ptid'], value['usage'], str(round(float(usagePercent), 1)), value['cpuWait'], value['pri'], value['irq'], \
-                        value['yield'], value['preempted'], value['preemption'], value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                        value['writeBlockCnt'], value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
-                        value['dReclaimWait'], value['dReclaimCnt'], value['futexTotal'], value['futexCnt'], value['new'], value['die']))
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
+                        value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                        value['yield'], value['preempted'], value['preemption'], value['migrate'], \
+                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
+                        (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                        value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                        value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
                 SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'New', count))
                 SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -2069,12 +2090,15 @@ class ThreadInfo:
                 usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%5.2f(%5s)|%5.2f(%3s)|%5.2f|%5d|%5d|%5d|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s|%3d|%3d|%3s|%3d|%4.2f(%2d)|%5.2f(%4d)|%s%s|\n" % \
-                        (value['comm'], key, value['tgid'], value['usage'], str(round(float(usagePercent), 1)), value['cpuWait'], value['pri'], value['irq'], \
-                        value['yield'], value['preempted'], value['preemption'], value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                        value['writeBlockCnt'], value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
-                        value['dReclaimWait'], value['dReclaimCnt'], value['futexTotal'], value['futexCnt'], value['new'], value['die']))
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
+                        value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                        value['yield'], value['preempted'], value['preemption'], value['migrate'], \
+                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
+                        (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                        value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                        value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
                 SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
                 SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -2449,7 +2473,7 @@ class ThreadInfo:
                 if SystemInfo.tgidEnable is True:
                         self.threadData[thread]['tgid'] = d['tgid']
 
-                # process usage of threads is longtime running between interval #
+                # calculate usage of threads is longtime running between interval #
                 if SystemInfo.intervalEnable > 0:
                         try:
                                 for key,value in sorted(self.lastTid.items()):
@@ -2462,7 +2486,7 @@ class ThreadInfo:
                         self.startTime = time
                 else:
                         self.finishTime = time
-                        # process usage of threads between interval #
+                        # calculate usage of threads between interval #
                         if SystemInfo.intervalEnable > 0:
                                 if float(time) - float(self.startTime) > float(SystemInfo.intervalNow + SystemInfo.intervalEnable):
                                         SystemInfo.intervalNow += SystemInfo.intervalEnable
@@ -2477,24 +2501,19 @@ class ThreadInfo:
                                                 try: self.intervalData[index]['toTal']
                                                 except: self.intervalData[index]['toTal'] = {'totalIo': int(0), 'totalMem': int(0), 'totalKmem': int(0)}
 
+                                                self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
+                                                self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
+                                                self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
+                                                self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
+                                                self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
+
                                                 if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
                                                         self.intervalData[index][key]['cpuUsage'] = float(self.threadData[key]['usage'])
-                                                        self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
                                                         self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                                                        self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                                         self.intervalData[index][key]['ioUsage'] = float(self.threadData[key]['reqBlock'])
-                                                        self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
                                                         self.intervalData[index][key]['memUsage'] = float(self.threadData[key]['nrPages'])
-                                                        self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
                                                         self.intervalData[index][key]['kmemUsage'] = float(self.threadData[key]['remainKmem'])
-                                                        self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
                                                 else:
-                                                        self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
-                                                        self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
-                                                        self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
-                                                        self.intervalData[index][key]['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
-                                                        self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-
                                                         try: self.intervalData[index - 1][key]
                                                         except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
 
@@ -2640,14 +2659,13 @@ class ThreadInfo:
                                         self.threadData[next_id]['stop'] = 0
                                 else:
                                         if self.threadData[next_id]['lastStatus'] == 'P':
-                                                self.threadData[next_id]['cpuWait'] +=  self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
+                                                preemptedTime = self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
+                                                self.threadData[next_id]['cpuWait'] +=  preemptedTime
+                                                if preemptedTime > self.threadData[next_id]['maxPreempted']:
+                                                    self.threadData[next_id]['maxPreempted'] = preemptedTime
 
                                                 try: self.preemptData[SystemInfo.preemptGroup.index(next_id)][0] = False
                                                 except: None
-
-                                if self.threadData[next_id]['lastWakeup'] > 0:
-                                        self.threadData[next_id]['cpuWait'] += float(time) - self.threadData[next_id]['lastWakeup']
-                                        self.threadData[next_id]['lastWakeup'] = 0
 
                 elif func == "irq_handler_entry":
                         m = re.match('^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
@@ -2784,7 +2802,10 @@ class ThreadInfo:
                                     pageType = 'CACHE'
                                     self.threadData[thread]['cachePages'] += pow(2, order)
                                     self.threadData[coreId]['cachePages'] += pow(2, order)
-                                else: pageType = 'KERNEL'
+                                else: 
+                                    pageType = 'KERNEL'
+                                    self.threadData[thread]['kernelPages'] += pow(2, order)
+                                    self.threadData[coreId]['kernelPages'] += pow(2, order)
 
                                 # make PTE in page table #
                                 for cnt in range(0, pow(2, order)):
@@ -2831,6 +2852,9 @@ class ThreadInfo:
                                                 elif self.pageTable[pfnv]['type'] is 'USER':
                                                         self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
                                                         self.threadData[coreId]['userPages'] -= 1
+                                                elif self.pageTable[pfnv]['type'] is 'KERNEL':
+                                                        self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
+                                                        self.threadData[coreId]['kernelPages'] -= 1
 
                                                 del self.pageTable[pfnv]
                                         except: 
@@ -3413,8 +3437,8 @@ class ThreadInfo:
 
 if __name__ == '__main__':
 
-	oneLine = "-"*155
-	twoLine = "="*155
+	oneLine = "-"*154
+	twoLine = "="*154
 
 	# parse parameter #
 	if len(sys.argv) <= 1:
