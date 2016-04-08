@@ -68,6 +68,6 @@ Options
 -t[trace_syscall:syscallNums]
 
 -f[show_functionUsage:event]
--l[input_addr2linePath]
--j[input_targetRootPath]
+-l[input_addr2linePath:file]
+-j[input_targetRootPath:dir]
 ```
