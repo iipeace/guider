@@ -2,8 +2,6 @@
 
 '''
 - feature 
-    preemption time in interval 
-    user-defined stamp(RESET) in interval 
     pagemap event for lru 
     user/kernel usage 
     file page analysis 
@@ -1806,8 +1804,8 @@ class ThreadInfo:
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), 'ioUsage': float(0), \
-                'totalIoUsage': float(0),'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), 'kmemUsage': float(0), \
-                'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0)}
+                'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), 'kmemUsage': float(0), \
+                'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), 'totalPreempted': float(0)}
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), 'time': '0', 'waste': int(0), 'core': int(0)}
         self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -1857,6 +1855,7 @@ class ThreadInfo:
                                 except: self.intervalData[index]['toTal'] = {'totalIo': int(0), 'totalMem': int(0), 'totalKmem': int(0)}
 
                                 self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
+                                self.intervalData[index][key]['totalPreempted'] = float(self.threadData[key]['cpuWait'])
                                 self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                 self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
                                 self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
@@ -1864,6 +1863,7 @@ class ThreadInfo:
 
                                 if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
                                         self.intervalData[index][key]['cpuUsage'] = float(self.threadData[key]['usage'])
+                                        self.intervalData[index][key]['preempted'] = float(self.threadData[key]['cpuWait'])
                                         self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                         self.intervalData[index][key]['ioUsage'] = float(self.threadData[key]['reqBlock'])
                                         self.intervalData[index][key]['memUsage'] = float(self.threadData[key]['nrPages'])
@@ -1872,12 +1872,24 @@ class ThreadInfo:
                                         try: self.intervalData[index - 1][key]
                                         except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
 
+                                        # calculated time exceed interval #
                                         if self.intervalData[index - 1][key]['totalUsage'] == 0 and \
                                                 float(self.threadData[key]['usage']) > SystemInfo.intervalEnable:
-                                                    self.intervalData[index][key]['cpuUsage'] = \
-                                                            self.threadData[key]['usage'] = float(self.threadData[key]['usage']) - index
+                                                    self.intervalData[index][key]['cpuUsage'] = self.threadData[key]['usage'] = \
+                                                            float(self.threadData[key]['usage']) - SystemInfo.intervalEnable
+                                                    self.intervalData[index - 1][key]['cpuUsage'] = SystemInfo.intervalEnable
                                         else: self.intervalData[index][key]['cpuUsage'] = \
                                                 float(self.threadData[key]['usage']) - self.intervalData[index - 1][key]['totalUsage']
+
+                                        # calculated time exceed interval #
+                                        if self.intervalData[index - 1][key]['totalPreempted'] == 0 and \
+                                                float(self.threadData[key]['cpuWait']) > SystemInfo.intervalEnable:
+                                                    self.intervalData[index][key]['preempted'] = self.threadData[key]['cpuWait'] = \
+                                                            float(self.threadData[key]['cpuWait']) - SystemInfo.intervalEnable
+                                                    self.intervalData[index - 1][key]['preempted'] = SystemInfo.intervalEnable
+                                        else: self.intervalData[index][key]['preempted'] = \
+                                                float(self.threadData[key]['cpuWait']) - self.intervalData[index - 1][key]['totalPreempted']
+
                                         self.intervalData[index][key]['coreSchedCnt'] = \
                                                 float(self.threadData[key]['coreSchedCnt']) - self.intervalData[index - 1][key]['totalCoreSchedCnt']
                                         self.intervalData[index][key]['ioUsage'] = \
@@ -1965,7 +1977,7 @@ class ThreadInfo:
                 format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
         SystemInfo.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
                 format("", "", "", "", "", ""))
-        SystemInfo.pipePrint("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s|%3s)|%4s(%2s)|" % \
+        SystemInfo.pipePrint("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s)|%3s|%4s(%2s)|" % \
         ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', 'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
         'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemInfo.pipePrint(twoLine)
@@ -2005,7 +2017,7 @@ class ThreadInfo:
                         if value['lastOff'] > 0:
                             value['offTime'] += float(self.finishTime) - value['lastOff']
                         SystemInfo.addPrint(\
-                            "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s|%3s)|%4.2f(%2d)|\n" \
+                            "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s)|%3s|%4.2f(%2d)|\n" \
                             % (value['comm'], '0', '0', '-', '-', \
                             self.totalTime - value['usage'], str(round(float(usagePercent), 1)), round(float(value['offTime']), 7), 0, 0, value['irq'], \
                             value['offCnt'], '-', '-', '-', \
@@ -2040,7 +2052,7 @@ class ThreadInfo:
                         value['cpuRank'] = count + 1
                         count += 1
                 SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
                         (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2085,7 +2097,7 @@ class ThreadInfo:
                 count += 1
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
                         (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2108,7 +2120,7 @@ class ThreadInfo:
                 usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
+                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
                         (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2327,9 +2339,7 @@ class ThreadInfo:
                                 plot(range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-') 
                                 SystemInfo.graphLabels.append(value['comm'])
 
-                        try: self.intervalData[icount][key]
-                        except: self.intervalData[icount][key] = dict(self.init_intervalData)
-                        if self.intervalData[icount][key]['totalUsage'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
+                        if value['usage'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
                                 break;
 
         if SystemInfo.graphEnable == True:
@@ -2342,6 +2352,27 @@ class ThreadInfo:
                 clf()
 
         SystemInfo.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
+        SystemInfo.pipePrint(SystemInfo.bufferString)
+        SystemInfo.pipePrint(oneLine)
+
+        # Preempted timeline #
+        SystemInfo.clearPrint()
+        for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
+                if key[0:2] != '0[':
+                        icount = 0
+                        timeLine = ''
+                        for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
+                                try: self.intervalData[icount][key]
+                                except:
+                                        timeLine += '%3d ' % 0
+                                        continue
+                                timeLine += '%3d ' % (self.intervalData[icount][key]['preempted'] / float(SystemInfo.intervalEnable) * 100)
+                        SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+
+                        if value['cpuWait'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
+                                break;
+
+        SystemInfo.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
         SystemInfo.pipePrint(SystemInfo.bufferString)
         SystemInfo.pipePrint(oneLine)
 
@@ -2365,9 +2396,7 @@ class ThreadInfo:
                                 plot(range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-') 
                                 SystemInfo.graphLabels.append(value['comm'])
 
-                        try: self.intervalData[icount][key]
-                        except: self.intervalData[icount][key] = dict(self.init_intervalData)
-                        if self.intervalData[icount][key]['totalIoUsage'] * 512 / 1024 / 1024 < 1 and SystemInfo.showAll == False:
+                        if value['readBlock'] < 1 and SystemInfo.showAll == False:
                                 break;
 
         if SystemInfo.graphEnable == True:
@@ -2404,9 +2433,7 @@ class ThreadInfo:
                                                 (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-') 
                                         SystemInfo.graphLabels.append(value['comm'])
 
-                                try: self.intervalData[icount][key]
-                                except: self.intervalData[icount][key] = dict(self.init_intervalData)
-                                if self.intervalData[icount][key]['totalMemUsage'] < 1024 and SystemInfo.showAll == False:
+                                if (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024) < 1 and SystemInfo.showAll == False:
                                         break;
 
                 SystemInfo.pipePrint("%s# %s\n" % ('', 'MEM(MB)'))
@@ -2499,7 +2526,7 @@ class ThreadInfo:
                 if SystemInfo.tgidEnable is True:
                         self.threadData[thread]['tgid'] = d['tgid']
 
-                # calculate usage of threads is longtime running between interval #
+                # calculate usage of threads had been running longer than interval #
                 if SystemInfo.intervalEnable > 0:
                         try:
                                 for key,value in sorted(self.lastTid.items()):
@@ -2512,7 +2539,7 @@ class ThreadInfo:
                         self.startTime = time
                 else:
                         self.finishTime = time
-                        # calculate usage of threads between interval #
+                        # calculate usage of threads in interval #
                         if SystemInfo.intervalEnable > 0:
                                 if float(time) - float(self.startTime) > float(SystemInfo.intervalNow + SystemInfo.intervalEnable):
                                         SystemInfo.intervalNow += SystemInfo.intervalEnable
@@ -2528,6 +2555,7 @@ class ThreadInfo:
                                                 except: self.intervalData[index]['toTal'] = {'totalIo': int(0), 'totalMem': int(0), 'totalKmem': int(0)}
 
                                                 self.intervalData[index][key]['totalUsage'] = float(self.threadData[key]['usage'])
+                                                self.intervalData[index][key]['totalPreempted'] = float(self.threadData[key]['cpuWait'])
                                                 self.intervalData[index][key]['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                                 self.intervalData[index][key]['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
                                                 self.intervalData[index][key]['totalMemUsage'] = float(self.threadData[key]['nrPages'])
@@ -2535,6 +2563,7 @@ class ThreadInfo:
 
                                                 if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
                                                         self.intervalData[index][key]['cpuUsage'] = float(self.threadData[key]['usage'])
+                                                        self.intervalData[index][key]['preempted'] = float(self.threadData[key]['cpuWait'])
                                                         self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                                                         self.intervalData[index][key]['ioUsage'] = float(self.threadData[key]['reqBlock'])
                                                         self.intervalData[index][key]['memUsage'] = float(self.threadData[key]['nrPages'])
@@ -2545,8 +2574,14 @@ class ThreadInfo:
 
                                                         self.intervalData[index][key]['cpuUsage'] = \
                                                                 float(self.threadData[key]['usage']) - self.intervalData[index - 1][key]['totalUsage']
+                                                        # fix cpu usage of thread that had been running for long time #
                                                         if self.intervalData[index][key]['cpuUsage'] > SystemInfo.intervalEnable:
                                                                 self.intervalData[index][key]['cpuUsage'] = SystemInfo.intervalEnable
+                                                        self.intervalData[index][key]['preempted'] = \
+                                                                float(self.threadData[key]['cpuWait']) - self.intervalData[index - 1][key]['totalPreempted']
+                                                        # fix preempted time of thread that had been preempted for long time #
+                                                        if self.intervalData[index][key]['preempted'] > SystemInfo.intervalEnable:
+                                                                self.intervalData[index][key]['preempted'] = SystemInfo.intervalEnable
                                                         self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt']) - \
                                                                 self.intervalData[index - 1][key]['totalCoreSchedCnt']
                                                         self.intervalData[index][key]['ioUsage'] = \
@@ -2558,8 +2593,8 @@ class ThreadInfo:
 
                                                 self.intervalData[index][key]['cpuPer'] = \
                                                         round(self.intervalData[index][key]['cpuUsage'], 7) / float(SystemInfo.intervalEnable) * 100
-                                                self.intervalData[index]['toTal']['totalIo'] += self.intervalData[index][key]['ioUsage']
 
+                                                self.intervalData[index]['toTal']['totalIo'] += self.intervalData[index][key]['ioUsage']
                                                 # except for core threads because nrPages of core threads are already used for per-core memory usage
                                                 if key[0:2] == '0[': continue
                                                 self.intervalData[index]['toTal']['totalMem'] += self.intervalData[index][key]['memUsage']
@@ -3365,10 +3400,12 @@ class ThreadInfo:
                                         self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
+                                        return
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
+                                        return
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3382,6 +3419,7 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
+                                        return
                                 # saving mark event #
                                 elif event == 'MARK':
                                         self.markData.append(time)
@@ -3413,10 +3451,12 @@ class ThreadInfo:
                                         self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
+                                        return
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
+                                        return
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3430,6 +3470,7 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
+                                        return
                                 # saving mark event #
                                 elif event == 'MARK':
                                         self.markData.append(time)
@@ -3474,10 +3515,10 @@ if __name__ == '__main__':
                 print('Usage: \n\t# guider [command] [options]\n')
                 print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
                 print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
-                print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]')
+                print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[run_compareMode]')
                 print('\n\t-a[show_allThreads]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms]\n\t-q[make_taskchain]')
                 print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
-                print('\n\t-f[show_functionUsage:event]\n\t-l[input_addr2linePath]\n\t-j[input_targetRootPath]')
+                print('\n\t-f[show_functionUsage:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
                 print('\n')
                 
 		sys.exit(0)
