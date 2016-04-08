@@ -2097,11 +2097,7 @@ class ThreadInfo:
                 count += 1
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-<<<<<<< HEAD
                         "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
-=======
-                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                         (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2124,11 +2120,7 @@ class ThreadInfo:
                 usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
                 if SystemInfo.showAll == True:
                         SystemInfo.addPrint(\
-<<<<<<< HEAD
                         "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
-=======
-                        "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d|%3d)|%4.2f(%2d)|\n" % \
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                         (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                         value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                         value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -3408,18 +3400,12 @@ class ThreadInfo:
                                         self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3433,10 +3419,7 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # saving mark event #
                                 elif event == 'MARK':
                                         self.markData.append(time)
@@ -3468,18 +3451,12 @@ class ThreadInfo:
                                         self.markData = []
                                         self.consoleData = []
                                         self.startTime = time
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # finish data processing #
                                 elif event == 'STOP':
                                         self.finishTime = time
                                         self.stopFlag = True
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # restart data processing for compare #
                                 elif event == 'RESTART':
                                         self.threadDataOld = self.threadData
@@ -3493,10 +3470,7 @@ class ThreadInfo:
 
                                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                                         self.startTime = time
-<<<<<<< HEAD
                                         return
-=======
->>>>>>> c0d1aa55bc2217d7a8eae4a79d8491c08e40dd83
                                 # saving mark event #
                                 elif event == 'MARK':
                                         self.markData.append(time)
