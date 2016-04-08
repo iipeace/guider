@@ -4,9 +4,9 @@ guider is made to measure system resource usage per thread and to give user hint
 you can use this tool if only some ftrace options are enabled in linux kernel.
 
 guider persues three characteristics.
->1. easy to use: just runs by linux shell and python without install or setting
+>1. easy to use: just run by linux shell without install or setting
 >2. measure correct: measure time in ms and size in MB
->3. integrate function: print cpu / memory / disk usage per thread in a page 
+>3. integrate function: show cpu / memory / disk usage per thread in a page 
 
 
 How to use
