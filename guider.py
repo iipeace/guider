@@ -605,7 +605,7 @@ class FunctionInfo:
 
 
     def printUsage(self):
-            # Print profiled thread list #
+        # Print profiled thread list #
         warnMsg = "[Warning] Profiled thread should be only one, otherwise profile result will be wrong"
         SystemInfo.pipePrint('[Thread Info]')
         SystemInfo.pipePrint(twoLine)
@@ -1981,7 +1981,7 @@ class ThreadInfo:
        # print total information after sorting by time of cpu usage #
         count = 0
         SystemInfo.clearPrint()
-        for key,value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
+        for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
             if key[0:2] == '0[':
                 # change the name of swapper thread to CORE #
                 value['comm'] = value['comm'].replace("swapper", "CORE");
@@ -2246,7 +2246,7 @@ class ThreadInfo:
         SystemInfo.pipePrint("%16s(%5s/%5s): %s" % ('Name', 'Tid', 'Pid', timeLine))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.clearPrint()
-        for key,value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
+        for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
             # total CPU in timeline #
             if key[0:2] == '0[':
                 icount = 0
