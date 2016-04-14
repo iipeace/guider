@@ -1955,7 +1955,7 @@ class ThreadInfo:
                 format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
         SystemInfo.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
                 format("", "", "", "", "", ""))
-        SystemInfo.pipePrint("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s)|%3s|%4s(%2s)|" % \
+        SystemInfo.pipePrint("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4s(%2s)|" % \
         ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', 'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
         'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemInfo.pipePrint(twoLine)
@@ -1995,7 +1995,7 @@ class ThreadInfo:
                 if value['lastOff'] > 0:
                     value['offTime'] += float(self.finishTime) - value['lastOff']
                 SystemInfo.addPrint(\
-                    "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s|%3s)|%3s|%4.2f(%2d)|\n" \
+                    "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4.2f(%2d)|\n" \
                     % (value['comm'], '0', '0', '-', '-', \
                     self.totalTime - value['usage'], str(round(float(usagePercent), 1)), round(float(value['offTime']), 7), 0, 0, value['irq'], \
                     value['offCnt'], '-', '-', '-', \
@@ -2030,7 +2030,7 @@ class ThreadInfo:
                 value['cpuRank'] = count + 1
                 count += 1
             SystemInfo.addPrint(\
-                    "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
+                    "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n" % \
                     (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2075,7 +2075,7 @@ class ThreadInfo:
             count += 1
             if SystemInfo.showAll == True:
                 SystemInfo.addPrint(\
-                "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
+                "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n" % \
                 (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                 value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2098,7 +2098,7 @@ class ThreadInfo:
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
             if SystemInfo.showAll == True:
                 SystemInfo.addPrint(\
-                "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d|%3d)|%3d|%4.2f(%2d)|\n" % \
+                "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n" % \
                 (value['comm'], key, value['ptid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                 value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
@@ -2874,13 +2874,14 @@ class ThreadInfo:
                     pfn = int(d['pfn'])
                     order = int(d['order'])
 
-                    self.threadData[thread]['nrPages'] -= pow(2, order)
-                    self.threadData[coreId]['nrPages'] -= pow(2, order)
-
                     for cnt in range(0, pow(2, order)):
                         pfnv = pfn + cnt
 
-                        try:
+                        try: 
+                            self.pageTable[pfnv]
+                            self.threadData[thread]['nrPages'] -= 1
+                            self.threadData[coreId]['nrPages'] -= 1
+
                             if thread != self.pageTable[pfnv]['tid']:
                                 self.threadData[self.pageTable[pfnv]['tid']]['reclaimedPages'] += 1
                                 self.threadData[coreId]['reclaimedPages'] += 1
@@ -2895,9 +2896,10 @@ class ThreadInfo:
                                 self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
                                 self.threadData[coreId]['kernelPages'] -= 1
 
+                            self.pageTable[pfnv] = {}
                             del self.pageTable[pfnv]
                         except:
-                            # this freed page is not logged #
+                            # this page is allocated before starting profile #
                             None
 
             elif func == "mm_filemap_delete_from_page_cache":
@@ -2913,7 +2915,7 @@ class ThreadInfo:
                     pfn = int(d['pfn'])
 
                     try: self.pageTable[pfn]['type'] = 'CACHE'
-                    except: self.threadData[thread]['cachePages'] -= 1
+                    except: None
 
             elif func == "kmalloc":
                 m = re.match('^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+bytes_req=(?P<req>[0-9]+)\s+bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
@@ -2960,7 +2962,7 @@ class ThreadInfo:
                         self.threadData[self.kmemTable[ptr]['tid']]['wasteKmem'] -= self.kmemTable[ptr]['waste']
                         self.threadData[self.kmemTable[ptr]['core']]['wasteKmem'] -= self.kmemTable[ptr]['waste']
                     except:
-                        # this alloed object is not logged or this object is allocated before profile start
+                        # this allocated object is not logged or this object is allocated before starting profile
                         return
 
             elif func == "sched_wakeup":
