@@ -1778,7 +1778,7 @@ class ThreadInfo:
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0),'tgid': '-'*5}
+                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), 'ioUsage': float(0), \
@@ -2001,7 +2001,7 @@ class ThreadInfo:
                     value['offCnt'], '-', '-', '-', \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                     (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                     (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
                     value['dReclaimWait'], value['dReclaimCnt']))
                 count += 1
@@ -2036,7 +2036,7 @@ class ThreadInfo:
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                     (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                     value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                     value['dReclaimWait'], value['dReclaimCnt']))
 
@@ -2081,7 +2081,7 @@ class ThreadInfo:
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                 value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                 (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                 value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                 value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
@@ -2104,7 +2104,7 @@ class ThreadInfo:
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                 value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                 (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024, \
+                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                 value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                 value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
@@ -2232,13 +2232,15 @@ class ThreadInfo:
 
             # check suspend event #
             for val in self.suspendData:
-                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val[0]) < float(self.startTime) + 1 + icount * SystemInfo.intervalEnable:
+                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val[0]) < \
+                        float(self.startTime) + SystemInfo.intervalEnable + icount * SystemInfo.intervalEnable:
                     if val[1] == 'S': checkEvent = '!'
                     else: checkEvent = '>'
 
             # check mark event #
             for val in self.markData:
-                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val) < float(self.startTime) + 1 + icount * SystemInfo.intervalEnable:
+                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val) < \
+                        float(self.startTime) + SystemInfo.intervalEnable + icount * SystemInfo.intervalEnable:
                     checkEvent = 'v'
 
             timeLine += '%s%2d ' % (checkEvent, icount * SystemInfo.intervalEnable)
@@ -2900,7 +2902,8 @@ class ThreadInfo:
                             del self.pageTable[pfnv]
                         except:
                             # this page is allocated before starting profile #
-                            None
+                            self.threadData[thread]['anonReclaimedPages'] += 1
+                            self.threadData[coreId]['anonReclaimedPages'] += 1
 
             elif func == "mm_filemap_delete_from_page_cache":
                 m = re.match('^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)', etc)
