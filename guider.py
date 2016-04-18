@@ -2880,8 +2880,7 @@ class ThreadInfo:
                         pfnv = pfn + cnt
 
                         try: 
-                            self.pageTable[pfnv]
-                            self.threadData[thread]['nrPages'] -= 1
+                            self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
                             self.threadData[coreId]['nrPages'] -= 1
 
                             if thread != self.pageTable[pfnv]['tid']:
