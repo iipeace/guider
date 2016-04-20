@@ -2229,18 +2229,19 @@ class ThreadInfo:
         timeLine = ''
         for icount in range(1, int(float(self.totalTime) / SystemInfo.intervalEnable) + 2):
             checkEvent = ' '
+            cnt = icount - 1
 
             # check suspend event #
             for val in self.suspendData:
-                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val[0]) < \
-                        float(self.startTime) + SystemInfo.intervalEnable + icount * SystemInfo.intervalEnable:
+                if float(self.startTime) + cnt * SystemInfo.intervalEnable < float(val[0]) < \
+                        float(self.startTime) + ((cnt + 1) * SystemInfo.intervalEnable):
                     if val[1] == 'S': checkEvent = '!'
                     else: checkEvent = '>'
 
             # check mark event #
             for val in self.markData:
-                if float(self.startTime) + icount * SystemInfo.intervalEnable < float(val) < \
-                        float(self.startTime) + SystemInfo.intervalEnable + icount * SystemInfo.intervalEnable:
+                if float(self.startTime) + cnt * SystemInfo.intervalEnable < float(val) < \
+                        float(self.startTime) + ((cnt + 1) * SystemInfo.intervalEnable):
                     checkEvent = 'v'
 
             timeLine += '%s%2d ' % (checkEvent, icount * SystemInfo.intervalEnable)
