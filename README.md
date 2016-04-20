@@ -57,6 +57,7 @@ Options
 
 -e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]
 -d[disable_options:t(ty)]
+-c[run_compareMode]
 
 -a[show_allThreads]
 -i[set_interval:sec]
