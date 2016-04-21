@@ -57,7 +57,7 @@ Options
 
 -e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]
 -d[disable_options:t(ty)]
--c[run_compareMode]
+-c[ready_compareUsage]
 
 -a[show_allThreads]
 -i[set_interval:sec]
@@ -68,7 +68,9 @@ Options
 -p[show_preemptInfo:tids]
 -t[trace_syscall:syscallNums]
 
--f[show_functionUsage:event]
+-f[run_functionProfileMode:event]
 -l[input_addr2linePath:file]
 -j[input_targetRootPath:dir]
+
+-m[run_pageProfileMode]
 ```
