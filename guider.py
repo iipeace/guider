@@ -20,9 +20,18 @@ try:
     import os
     import shutil
     import gc
+    import imp
 except ImportError, e:
     print "[Error] Fail to import default libs because %s" % e
     sys.exit(0)
+
+try:
+    import ctypes
+    from ctypes import *
+    from ctypes.util import find_library
+except:
+    None
+
 
 
 
@@ -840,6 +849,34 @@ class FunctionInfo:
 
 
 
+class PageInfo:
+    def __init__(self):
+        try:
+            imp.find_module('ctypes')
+        except:
+            print '[Error] Fail to import ctypes module'
+            sys.exit(0)
+
+        # find and load the library
+        libguider = cdll.LoadLibrary('libguider.so')
+
+        # set the argument type
+        libguider.get_loadpages.argtypes = [ctypes.c_int]
+        # set the return type
+        libguider.get_loadpages.restype = POINTER(ctypes.c_ubyte)
+
+        # open binary file to check page whether it is on memory or not
+        fd = open("/lib/x86_64-linux-gnu/libc-2.15.so", "r")
+
+        res = libguider.get_loadpages(fd.fileno())
+
+        for index in range(400):
+            print res[index],
+
+
+
+
+
 class SystemInfo:
 
     maxCore = 0
@@ -878,6 +915,7 @@ class SystemInfo:
     sysEnable = False
     compareEnable = False
     functionEnable = False
+    pageEnable = False
     intervalEnable = 0
 
     repeatInterval = 0
@@ -1215,6 +1253,8 @@ class SystemInfo:
                     None
                 elif sys.argv[n][1] == 'r':
                     None
+                elif sys.argv[n][1] == 'm':
+                    None
                 else:
                     print "[Error] unrecognized option -%s" % (sys.argv[n][1])
                     if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
@@ -1281,6 +1321,8 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'c':
                     SystemInfo.compareEnable = True
                     print "[Info] compare mode"
+                elif sys.argv[n][1] == 'm':
+                    SystemInfo.pageEnable = True
                 elif sys.argv[n][1] == 't':
                     SystemInfo.sysEnable = True
                     SystemInfo.syscallList = sys.argv[n].lstrip('-t').split(',')
@@ -3498,10 +3540,11 @@ if __name__ == '__main__':
         print('Usage: \n\t# guider [command] [options]\n')
         print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
         print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
-        print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[run_compareMode]')
+        print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_compareUsage]')
         print('\n\t-a[show_allThreads]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms]\n\t-q[make_taskchain]')
         print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
-        print('\n\t-f[show_functionUsage:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
+        print('\n\t-f[run_functionProfileMode:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
+        print('\n\t-m[run_pageProfileMode]')
         print('\n')
 
         sys.exit(0)
@@ -3524,6 +3567,8 @@ if __name__ == '__main__':
         if SystemInfo.functionEnable is not False:
             print "[Info] function profile mode"
             #si.runPeriodProc()
+        elif SystemInfo.pageEnable is not False:
+            print "[Info] file profile mode"
         else:
             print "[Info] thread profile mode"
 
@@ -3593,6 +3638,10 @@ if __name__ == '__main__':
     SystemInfo.parseAddOption()
 
     ThreadInfo.getInitTime(SystemInfo.inputFile)
+
+    # create Page Info #
+    if SystemInfo.pageEnable is not False:
+        pi = PageInfo()
 
     # create Function Info #
     if SystemInfo.functionEnable is not False:
