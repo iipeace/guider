@@ -7,7 +7,7 @@
 
 static unsigned char *table = NULL;
 
-unsigned char *get_loadpagemap(int fd) {
+unsigned char *get_loadPageMap(int fd) {
 	int idx;
 	void *file_mmap;
 	struct stat file_stat;

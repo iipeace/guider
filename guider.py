@@ -37,7 +37,6 @@ except:
 
 
 class ConfigInfo:
-
     taskChainEnable = None
 
     @staticmethod
@@ -589,8 +588,8 @@ class FunctionInfo:
 
 
 
-    def parseMaps(self, string):
-        m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<ignore1>.\S+) (?P<ignore2>.\S+) (?P<ignore3>.\S+)\s*(?P<binName>.\S+)', string)
+    def parseMapLine(self, string):
+        m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
         if m is not None:
             d = m.groupdict()
             self.mapData.append({'startAddr': d['startAddr'], 'endAddr': d['endAddr'], 'binName': d['binName']})
@@ -851,34 +850,131 @@ class FunctionInfo:
 
 class PageInfo:
     def __init__(self):
+        self.libguider = None
+        self.libguiderPath = './libguider.so'
+        self.procPath = '/proc'
+
+        self.threadData = {}
+        self.fileData = {}
+
+        self.init_threadData = {'comm': '', 'pid': int(0), 'map': None}
+        self.init_fileData = {'pagemap': None}
+        self.init_mapData = {'offset': int(0), 'size': int(0)}
+
         try:
             imp.find_module('ctypes')
         except:
             print '[Error] Fail to import ctypes module'
             sys.exit(0)
 
-        # find and load the library
-        libguider = cdll.LoadLibrary('libguider.so')
+        try:
+            # find and load the library
+            self.libguider = cdll.LoadLibrary(self.libguiderPath)
+        except:
+            print '[Error] Fail to open %s' % self.libguiderPath
+            sys.exit(0)
 
-        # set the argument type
-        libguider.get_loadpagemap.argtypes = [ctypes.c_int]
-        # set the return type
-        libguider.get_loadpagemap.restype = POINTER(ctypes.c_ubyte)
+        # set the argument type #
+        self.libguider.get_loadPageMap.argtypes = [ctypes.c_int]
+        # set the return type #
+        self.libguider.get_loadPageMap.restype = POINTER(ctypes.c_ubyte)
 
-        # open binary file to check page whether it is on memory or not
-        fd = open("/lib/x86_64-linux-gnu/libc-2.15.so", "r")
+        # start profile #
+        self.scanProcs()
 
-        res = libguider.get_loadpagemap(fd.fileno())
+
+
+    def scanProcs(self):
+        # scan comms include words in SystemInfo.showGroup #
+        try:
+            pids = os.listdir(self.procPath)
+            for pid in pids:
+                try: int(pid)
+                except: continue
+                    
+                # make path of tid #
+                procPath = os.path.join(self.procPath, pid)
+                taskPath = os.path.join(procPath, 'task')
+                tids = os.listdir(taskPath)
+
+                for tid in tids:
+                    try: int(tid)
+                    except: continue
+
+                    # make path of comm #
+                    threadPath = os.path.join(taskPath, tid)
+                    commPath = os.path.join(threadPath, 'comm')
+
+                    try:
+                        fd = open(commPath, 'r')
+                        comm = fd.readline()
+                    except:
+                        print '[Error] Fail to open %s' % (commPath)
+                        continue
+
+                    if len(SystemInfo.showGroup) > 0:
+                        for val in SystemInfo.showGroup:
+                            if comm.rfind(val) != -1 or tid.rfind(val) != -1:
+                                self.makeThreadInfo(tid, comm, threadPath)
+                    else:
+                        self.makeThreadInfo(tid, comm, threadPath)
+        except:
+            print '[Error] Fail to open %s' % self.procPath
+
+
+
+    def makeThreadInfo(self, tid, comm, path):
+        # access threadData to check whether it is already exist or not #
+
+        # open and read maps of thread #
+
+        # parse and merge lines in maps #
+
+        # get loadPageTable #
+
+        # save loadPageTable to fileData #
+
+        # copy a part of loadPageTable to inside of related threadData for checking whether pages on map are on memory or not #
+
+        None
+
+
+
+    def parseMapLine(self, string):
+        m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
+        if m is not None:
+            d = m.groupdict()
+
+            mapData = dict(self.init_mapData)
+
+            # search same file in list and merge it / append it to list #
+            if data['binName'].rfind('.so') != -1 or data['binName'].rfind('/') != -1:
+                offset = d['offset']
+                size = int(data['endAddr'], 16) - int(data['startAddr'], 16)
+
+
+
+    def getPageMap(self, filename):
+        try:
+            # open binary file to check page whether it is on memory or not #
+            fd = open(filename, "r")
+            size = os.stat(filename).st_size
+        except: 
+            print '[Error] Fail to open or stat %s' % filename
+
+        # call mincore by c library #
+        pagemap = self.libguider.get_loadPageMap(fd.fileno())
+
+        fd.close()
 
         for index in range(400):
-            print res[index],
+            print pagemap[index],
 
 
 
 
 
 class SystemInfo:
-
     maxCore = 0
     bufferSize = '40960'
     ttyRows = '50'
@@ -940,6 +1036,8 @@ class SystemInfo:
     sysEpollwait = '252'
     sysRecv = '291'
     sysFutex = '240'
+
+
 
     def __init__(self):
         self.memData = {}
@@ -3583,6 +3681,11 @@ if __name__ == '__main__':
             signal.signal(signal.SIGINT, SystemInfo.stopHandler)
             signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
 
+        # create Page Info #
+        if SystemInfo.pageEnable is not False:
+            pi = PageInfo()
+            sys.exit(0)
+
         # start recording #
         print 'start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]'
         si.runRecordStartCmd()
@@ -3638,10 +3741,6 @@ if __name__ == '__main__':
     SystemInfo.parseAddOption()
 
     ThreadInfo.getInitTime(SystemInfo.inputFile)
-
-    # create Page Info #
-    if SystemInfo.pageEnable is not False:
-        pi = PageInfo()
 
     # create Function Info #
     if SystemInfo.functionEnable is not False:
