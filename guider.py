@@ -854,12 +854,12 @@ class PageInfo:
         self.libguiderPath = './libguider.so'
         self.procPath = '/proc'
 
-        self.threadData = {}
+        self.procData = {}
         self.fileData = {}
 
-        self.init_threadData = {'comm': '', 'pid': int(0), 'map': None}
-        self.init_fileData = {'pagemap': None}
-        self.init_mapData = {'offset': int(0), 'size': int(0)}
+        self.init_procData = {'comm': '', 'tids': [], 'procMap': None}
+        self.init_mapData = {'offset': int(0), 'size': int(0), 'pageMap': None}
+        self.init_fileData = {'fileMap': None}
 
         try:
             imp.find_module('ctypes')
@@ -881,6 +881,21 @@ class PageInfo:
 
         # start profile #
         self.scanProcs()
+
+
+
+    def printUsage(self):
+        # print per thread info #
+		None
+
+        # print per file info #
+		None
+
+
+
+    def printIntervalInfo(self):
+        # print interval info #
+		None
 
 
 
@@ -915,27 +930,25 @@ class PageInfo:
                     if len(SystemInfo.showGroup) > 0:
                         for val in SystemInfo.showGroup:
                             if comm.rfind(val) != -1 or tid.rfind(val) != -1:
-                                self.makeThreadInfo(tid, comm, threadPath)
+								# make pid info #
+								# call makeMapInfo if pid is not made yet #
+                                self.makeMapInfo(tid, comm, threadPath)
+								# make tid info #
                     else:
-                        self.makeThreadInfo(tid, comm, threadPath)
+						# make pid info #
+						# call makeMapInfo if pid is not made yet #
+                        self.makeMapInfo(tid, comm, threadPath)
+						# make tid info #
         except:
             print '[Error] Fail to open %s' % self.procPath
 
 
 
-    def makeThreadInfo(self, tid, comm, path):
-        # access threadData to check whether it is already exist or not #
+    def makeMapInfo(self, tid, comm, path):
+        # open, parse, merge, save info of objects in maps per pid #
+        None
 
-        # open and read maps of thread #
-
-        # parse and merge lines in maps #
-
-        # get loadPageTable #
-
-        # save loadPageTable to fileData #
-
-        # copy a part of loadPageTable to inside of related threadData for checking whether pages on map are on memory or not #
-
+        # open object, call getPageMap, copy loadPageTable #
         None
 
 
