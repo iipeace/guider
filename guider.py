@@ -854,10 +854,11 @@ class PageInfo:
         self.libguiderPath = './libguider.so'
         self.procPath = '/proc'
 
-        self.procData = {}
+        self.threadData = {}
         self.fileData = {}
+        self.interval = []
 
-        self.init_procData = {'comm': '', 'tids': [], 'procMap': None}
+        self.init_threadData = {'comm': '', 'tids': [], 'procMap': None}
         self.init_mapData = {'offset': int(0), 'size': int(0), 'pageMap': None}
         self.init_fileData = {'fileMap': None}
 
@@ -882,19 +883,32 @@ class PageInfo:
         # start profile #
         self.scanProcs()
 
+        while True:
+			signal.pause()
+			self.scanProcs()
+			if SystemInfo.pageEnable is False:
+				break
+		
+        self.printUsage()
+
+        self.printIntervalInfo()
+
 
 
     def printUsage(self):
-        # print per thread info #
+        # print per file info (common, in, out) #
 		None
 
-        # print per file info #
+        # print per thread info (common, in, out) #
 		None
 
 
 
     def printIntervalInfo(self):
-        # print interval info #
+        # print interval info per file (common, in, out) #
+		None
+
+        # print interval info per thread (common, in, out) #
 		None
 
 
@@ -930,15 +944,25 @@ class PageInfo:
                     if len(SystemInfo.showGroup) > 0:
                         for val in SystemInfo.showGroup:
                             if comm.rfind(val) != -1 or tid.rfind(val) != -1:
-								# make pid info #
-								# call makeMapInfo if pid is not made yet #
-                                self.makeMapInfo(tid, comm, threadPath)
-								# make tid info #
+								try:
+									# access threadInfo by pid #	
+									None
+								except:
+									# make pid info #
+									# call makeMapInfo if pid is not made yet #
+									self.makeMapInfo(tid, comm, threadPath)
+
+								# make tid info and share map with process #
                     else:
-						# make pid info #
-						# call makeMapInfo if pid is not made yet #
-                        self.makeMapInfo(tid, comm, threadPath)
-						# make tid info #
+						try:
+							# access threadInfo by pid #	
+							None
+						except:
+							# make pid info #
+							# call makeMapInfo if pid is not made yet #
+							self.makeMapInfo(tid, comm, threadPath)
+
+						# make tid info and share map with process #
         except:
             print '[Error] Fail to open %s' % self.procPath
 
@@ -946,10 +970,10 @@ class PageInfo:
 
     def makeMapInfo(self, tid, comm, path):
         # open, parse, merge, save info of objects in maps per pid #
-        None
+		None
 
-        # open object, call getPageMap, copy loadPageTable #
-        None
+        # open object, call getFilePageMap, copy loadPageTable #
+		None
 
 
 
@@ -967,7 +991,7 @@ class PageInfo:
 
 
 
-    def getPageMap(self, filename):
+    def getFilePageMap(self, filename):
         try:
             # open binary file to check page whether it is on memory or not #
             fd = open(filename, "r")
@@ -1068,6 +1092,9 @@ class SystemInfo:
     def stopHandler(signum, frame):
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         SystemInfo.runRecordStopCmd()
+
+        if SystemInfo.pageEnable is not False:
+			SystemInfo.pageEnable = False
         print 'ready to analyze... [ STOP(ctrl + c) ]'
 
 
@@ -3699,7 +3726,7 @@ if __name__ == '__main__':
             pi = PageInfo()
             sys.exit(0)
 
-        # start recording #
+        # start recording for thread profile #
         print 'start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]'
         si.runRecordStartCmd()
 
