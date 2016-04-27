@@ -1958,7 +1958,7 @@ class ThreadInfo:
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'tgid': '-'*5}
+                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), 'ioUsage': float(0), \
@@ -1996,6 +1996,12 @@ class ThreadInfo:
             self.parse(l)
             if self.stopFlag == True: break
 
+        # add comsumed time of jobs not finished yet to each threads #
+        for idx, val in self.lastTid.items():
+			# cpu resource #
+            self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
+			# block resource #
+
         # calculate usage of threads in last interval #
         if SystemInfo.intervalEnable > 0:
             if float(self.finishTime) -  float(self.startTime) - float(SystemInfo.intervalNow) > 0:
@@ -2030,7 +2036,7 @@ class ThreadInfo:
                         try: self.intervalData[index - 1][key]
                         except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
 
-                        # calculated time exceed interval #
+                        # fix cpu time exceed interval #
                         if self.intervalData[index - 1][key]['totalUsage'] == 0 and \
                                 float(self.threadData[key]['usage']) > SystemInfo.intervalEnable:
                             self.intervalData[index][key]['cpuUsage'] = self.threadData[key]['usage'] = \
@@ -2039,7 +2045,7 @@ class ThreadInfo:
                         else: self.intervalData[index][key]['cpuUsage'] = \
                                 float(self.threadData[key]['usage']) - self.intervalData[index - 1][key]['totalUsage']
 
-                        # calculated time exceed interval #
+                        # fix preempted time exceed interval #
                         if self.intervalData[index - 1][key]['totalPreempted'] == 0 and \
                                 float(self.threadData[key]['cpuWait']) > SystemInfo.intervalEnable:
                             self.intervalData[index][key]['preempted'] = self.threadData[key]['cpuWait'] = \
@@ -2735,14 +2741,16 @@ class ThreadInfo:
 
                                 self.intervalData[index][key]['cpuUsage'] = \
                                         float(self.threadData[key]['usage']) - self.intervalData[index - 1][key]['totalUsage']
-                                # fix cpu usage of thread that had been running for long time #
+                                # fix cpu time exceed interval #
                                 if self.intervalData[index][key]['cpuUsage'] > SystemInfo.intervalEnable:
-                                    self.intervalData[index][key]['cpuUsage'] = SystemInfo.intervalEnable
+                                    print index, key, self.threadData[key]['comm'], self.intervalData[index][key]['cpuUsage'] , SystemInfo.intervalEnable
+                                    #self.intervalData[index][key]['cpuUsage'] = SystemInfo.intervalEnable
                                 self.intervalData[index][key]['preempted'] = \
                                         float(self.threadData[key]['cpuWait']) - self.intervalData[index - 1][key]['totalPreempted']
-                                # fix preempted time of thread that had been preempted for long time #
+                                # fix preempted time exceed interval #
                                 if self.intervalData[index][key]['preempted'] > SystemInfo.intervalEnable:
-                                    self.intervalData[index][key]['preempted'] = SystemInfo.intervalEnable
+                                    print index, key, self.threadData[key]['comm'], self.intervalData[index][key]['preempted'] , SystemInfo.intervalEnable
+                                    #self.intervalData[index][key]['preempted'] = SystemInfo.intervalEnable
                                 self.intervalData[index][key]['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt']) - \
                                         self.intervalData[index - 1][key]['totalCoreSchedCnt']
                                 self.intervalData[index][key]['ioUsage'] = \
@@ -2812,30 +2820,26 @@ class ThreadInfo:
                     self.threadData[prev_id]['stop'] = float(time)
                     self.threadData[next_id]['start'] = float(time)
 
-                    # update pid of thread to highest #
+                    # update priority of thread to highest #
                     if self.threadData[prev_id]['pri'] == '0' or int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
                         self.threadData[prev_id]['pri'] = d['prev_prio']
                     if self.threadData[next_id]['pri'] == '0' or int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
-                    # process time of prev_process #
+                    # calculate running time of prev_process #
                     if self.threadData[prev_id]['start'] <= 0:
-                        # there is no start time of prev_id #
-                        self.threadData[prev_id]['start'] = 0
+                        # calculate running time of prev_process started before starting to profile #
+                        self.threadData[prev_id]['usage'] = float(time) - float(self.startTime)
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                         self.threadData[prev_id]['usage'] += diff
                         if self.threadData[prev_id]['maxRuntime'] < diff:
                             self.threadData[prev_id]['maxRuntime'] = diff
 
-                    # calculate correct total cpu usage #
-                    if prev_id[0:2] == '0[' and self.threadData['0[' + core + ']']['coreSchedCnt'] == 0:
-                        self.threadData['0[' + core + ']']['usage'] = float(time) - float(self.startTime)
-
                     # update core sched count #
                     self.threadData['0[' + core + ']']['coreSchedCnt'] += 1
 
-                    # process preempted time #
+                    # calculate preempted time #
                     if SystemInfo.preemptGroup != None:
                         for value in SystemInfo.preemptGroup:
                             index = SystemInfo.preemptGroup.index(value)
@@ -2863,7 +2867,7 @@ class ThreadInfo:
                                 except: self.preemptData[index][1][next_id] = dict(self.init_preemptData)
 
                                 self.preemptData[index][2] = float(time)
-                                self.preemptData[index][3] = core
+                                self.preempttata[index][3] = core
 
                     elif d['prev_state'][0] == 'S':
                         self.threadData[prev_id]['yield'] += 1
@@ -2874,10 +2878,10 @@ class ThreadInfo:
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
 
-                    # process time of next_process #
+                    # calculate time of next_process #
                     self.lastTid[core] = next_id
                     if self.threadData[next_id]['stop'] <= 0:
-                        # there is no stop time of next_id #
+                        # no stop time of next_id #
                         self.threadData[next_id]['stop'] = 0
                     else:
                         if self.threadData[next_id]['lastStatus'] == 'P':
@@ -3523,14 +3527,17 @@ class ThreadInfo:
 
                     tid = '0[' + d['cpu_id']+ ']'
 
+                    if self.threadData[tid]['lastIdleStatus'] == int(d['state']): return
+                    else: self.threadData[tid]['lastIdleStatus'] = int(d['state'])
+						
                     if self.threadData[tid]['coreSchedCnt'] == 0 and self.threadData[tid]['offTime'] == 0:
                         self.threadData[tid]['offTime'] = float(time) - float(self.startTime)
 
-                    # Wake core up
+                    # Wake core up, the number 3 of condition is not corret
                     if int(d['state']) < 3:
                         self.threadData[tid]['offCnt'] += 1
                         self.threadData[tid]['lastOff'] = float(time)
-                    # Sleep core
+                    # Start to sleep
                     else:
                         if self.threadData[tid]['lastOff'] > 0:
                             self.threadData[tid]['offTime'] += float(time) - self.threadData[tid]['lastOff']
