@@ -1959,12 +1959,13 @@ class ThreadInfo:
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'tgid': '-'*5}
+                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
-        self.init_intervalData = {'time': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), 'ioUsage': float(0), \
-                'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), 'kmemUsage': float(0), \
-                'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), 'totalPreempted': float(0)}
+        self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), \
+                'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), \
+                'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), \
+                'totalPreempted': float(0)}
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), 'time': '0', 'waste': int(0), 'core': int(0)}
         self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -2657,11 +2658,13 @@ class ThreadInfo:
                             intervalThread = self.intervalData[index][key]
 
                             if self.finishTime == '0':
-                                try: self.intervalData[nextIndex]
-                                except: self.intervalData.append({})
-                                try: self.intervalData[nextIndex][key]
-                                except: self.intervalData[nextIndex][key] = dict(self.init_intervalData)
-                                nextIntervalThread = self.intervalData[nextIndex][key]
+                                intervalThread['firstLogTime'] = float(time)
+
+                            try: self.intervalData[nextIndex]
+                            except: self.intervalData.append({})
+                            try: self.intervalData[nextIndex][key]
+                            except: self.intervalData[nextIndex][key] = dict(self.init_intervalData)
+                            nextIntervalThread = self.intervalData[nextIndex][key]
 
                             intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
                             intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
@@ -2672,8 +2675,7 @@ class ThreadInfo:
 
 							# add time not calculated yet in this interval to related threads #
                             for idx, val in self.lastTidPerCore.items():
-							    if key == val:
-							        intervalThread['totalUsage'] += (float(time) - float(self.threadData[val]['start']))
+							    intervalThread['totalUsage'] += (float(time) - float(self.threadData[val]['start']))
 
 							# first interval #
                             if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
@@ -2699,17 +2701,61 @@ class ThreadInfo:
 
                             # fix cpu time exceed interval #
                             if intervalThread['cpuUsage'] > SystemInfo.intervalEnable:
+                                remainTime = intervalThread['cpuUsage']
+
+                                if nextIndex * SystemInfo.intervalEnable < intervalThread['cpuUsage']:
+                                    nextIntervalThread['cpuUsage'] += (intervalThread['cpuUsage'] - nextIndex * SystemInfo.intervalEnable)
+                                    intervalThread['cpuUsage'] = nextIndex * SystemInfo.intervalEnable
+                                    remainTime = intervalThread['cpuUsage']
+
+                                for idx in range(int(intervalThread['cpuUsage'] / SystemInfo.intervalEnable), -1, -1):
+                                    try: self.intervalData[idx][key]
+                                    except: self.intervalData[idx][key] = dict(self.init_intervalData)
+                                    longRunCore = self.threadData[key]['longRunCore']
+                                    if longRunCore >= 0:
+                                        longRunCoreId = '0[' + longRunCore + ']'
+                                        try: self.intervalData[idx][longRunCoreId]
+                                        except: self.intervalData[idx][longRunCoreId] = dict(self.init_intervalData)
+
+                                    self.intervalData[idx][key]['cpuUsage'] = SystemInfo.intervalEnable
+                                    self.intervalData[idx][key]['cpuPer'] = 100
+                                    remainTime -= SystemInfo.intervalEnable
+
                                 nextIntervalThread['cpuUsage'] = intervalThread['cpuUsage'] - SystemInfo.intervalEnable
                                 intervalThread['cpuUsage'] = SystemInfo.intervalEnable
+
                             # fix preempted time exceed interval #
                             if intervalThread['preempted'] > SystemInfo.intervalEnable:
+                                remainTime = intervalThread['preempted']
+
+                                if nextIndex * SystemInfo.intervalEnable < intervalThread['preempted']:
+                                    nextIntervalThread['preempted'] += (intervalThread['preempted'] - nextIndex * SystemInfo.intervalEnable)
+                                    intervalThread['preempted'] = nextIndex * SystemInfo.intervalEnable
+                                    remainTime = intervalThread['preempted']
+
+                                for idx in range(int(intervalThread['preempted'] / SystemInfo.intervalEnable), -1, -1):
+                                    try: self.intervalData[idx][key]
+                                    except: self.intervalData[idx][key] = dict(self.init_intervalData)
+
+                                    self.intervalData[idx][key]['preempted'] = SystemInfo.intervalEnable
+                                    remainTime -= SystemInfo.intervalEnable
+
                                 nextIntervalThread['preempted'] = intervalThread['preempted'] - SystemInfo.intervalEnable
                                 intervalThread['preempted'] = SystemInfo.intervalEnable
 
+							# get real interval #
+                            if self.finishTime == '0':
+							    # first interval #
+                                if float(time) - float(self.startTime) < SystemInfo.intervalEnable * 2:
+                                    thisInterval = float(time) - float(self.startTime)
+							    # mid interval #
+                                else: thisInterval = SystemInfo.intervalEnable
 							# last interval #
-                            if self.finishTime == '0': lastInterval = float(SystemInfo.intervalEnable)
-                            else: lastInterval = float(time) - float(self.startTime) - SystemInfo.intervalNow + SystemInfo.intervalEnable
-                            intervalThread['cpuPer'] = intervalThread['cpuUsage'] / lastInterval * 100
+                            else: thisInterval = float(time) - prevIntervalThread['firstLogTime']
+
+                            if intervalThread['cpuUsage'] > thisInterval:
+                                intervalThread['cpuUsage'] = thisInterval
+                            intervalThread['cpuPer'] = intervalThread['cpuUsage'] / thisInterval * 100
 
                             self.intervalData[index]['toTal']['totalIo'] += self.intervalData[index][key]['ioUsage']
 
@@ -2776,14 +2822,20 @@ class ThreadInfo:
                         self.threadData[next_id]['pri'] = d['next_prio']
 
                     # calculate running time of prev_process #
+                    diff = 0
                     if self.threadData[prev_id]['start'] <= 0:
                         # calculate running time of prev_process started before starting to profile #
-                        self.threadData[prev_id]['usage'] = float(time) - float(self.startTime)
+                        diff = float(time) - float(self.startTime)
+                        self.threadData[prev_id]['usage'] = diff
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                         self.threadData[prev_id]['usage'] += diff
+
                         if self.threadData[prev_id]['maxRuntime'] < diff:
                             self.threadData[prev_id]['maxRuntime'] = diff
+
+                    if diff > int(SystemInfo.intervalEnable):
+                        self.threadData[prev_id]['longRunCore'] = core
 
                     # update core sched count #
                     self.threadData['0[' + core + ']']['coreSchedCnt'] += 1
