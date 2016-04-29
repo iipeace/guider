@@ -2897,7 +2897,7 @@ class ThreadInfo:
                                 except: self.preemptData[index][1][next_id] = dict(self.init_preemptData)
 
                                 self.preemptData[index][2] = float(time)
-                                self.preempttata[index][3] = core
+                                self.preemptData[index][3] = core
 
                     elif d['prev_state'][0] == 'S':
                         self.threadData[prev_id]['yield'] += 1
