@@ -4,7 +4,6 @@ syntax on
 set ai
 set si
 set cindent
-set ignorecase
 set hlsearch 
 set fileencodings=utf-8,euc-kr
 set bs=indent,eol,start

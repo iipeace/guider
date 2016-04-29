@@ -1095,7 +1095,7 @@ class SystemInfo:
 
         if SystemInfo.pageEnable is not False:
 			SystemInfo.pageEnable = False
-        print 'ready to analyze... [ STOP(ctrl + c) ]'
+        print 'ready to save and analyze... [ STOP(ctrl + c) ]'
 
 
 
@@ -2363,13 +2363,18 @@ class ThreadInfo:
                         float(self.startTime) + ((cnt + 1) * SystemInfo.intervalEnable):
                     checkEvent = 'v'
 
-            timeLine += '%s%2d ' % (checkEvent, icount * SystemInfo.intervalEnable)
+            # print timeline #
+            if icount * SystemInfo.intervalEnable < float(self.totalTime):
+                timeLine += '%s%2d ' % (checkEvent, icount * SystemInfo.intervalEnable)
+            else:
+                timeLine += '%s%.2f ' % (checkEvent, self.totalTime)
 
         SystemInfo.pipePrint("%16s(%5s/%5s): %s" % ('Name', 'Tid', 'Pid', timeLine))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.clearPrint()
+
+        # total CPU in timeline #
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
-            # total CPU in timeline #
             if key[0:2] == '0[':
                 icount = 0
                 timeLine = ''
@@ -2378,6 +2383,7 @@ class ThreadInfo:
                     except:
                         timeLine += '%3s ' % '0'
                         continue
+
                     timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
@@ -2686,8 +2692,7 @@ class ThreadInfo:
                                 intervalThread['ioUsage'] = float(self.threadData[key]['reqBlock'])
                                 intervalThread['memUsage'] = float(self.threadData[key]['nrPages'])
                                 intervalThread['kmemUsage'] = float(self.threadData[key]['remainKmem'])
-
-							# mid interval #
+							# normal intervals #
                             else:
                                 try: self.intervalData[index - 1][key]
                                 except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
@@ -2700,13 +2705,16 @@ class ThreadInfo:
                                 intervalThread['memUsage'] = intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
                                 intervalThread['kmemUsage'] = intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
 
-                            # fix cpu time exceed interval #
+                            # fix cpu usage exceed this interval #
                             self.thisInterval = SystemInfo.intervalEnable
-                            if intervalThread['cpuUsage'] > SystemInfo.intervalEnable:
+                            if intervalThread['cpuUsage'] > SystemInfo.intervalEnable or self.finishTime != '0':
+                                # first interval #
                                 if index == 0:
                                     self.thisInterval = float(time) - float(self.startTime)
+                                # normal intervals #
                                 elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
                                     self.thisInterval = float(time) - float(self.intervalData[index - 1][key]['firstLogTime'])
+                                # long time running intervals #
                                 else: 
                                     for idx in range(index - 1, -1, -1):
                                         if float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
@@ -2715,12 +2723,15 @@ class ThreadInfo:
                                     if self.thisInterval != SystemInfo.intervalEnable:
                                         self.thisInterval = float(time) - float(self.startTime)
 
+                                # recalculate previous intervals if there was no context switching since profile start #
                                 remainTime = intervalThread['cpuUsage']
                                 if intervalThread['cpuUsage'] > self.thisInterval:
-                                    # recalculate previous intervals if there was no context switching since profile start #
                                     for idx in range(int(intervalThread['cpuUsage'] / SystemInfo.intervalEnable), -1, -1):
                                         try: self.intervalData[idx][key]
                                         except: self.intervalData[idx][key] = dict(self.init_intervalData)
+                                        try: self.intervalData[idx - 1][key]
+                                        except: self.intervalData[idx - 1][key] = dict(self.init_intervalData)
+                                        prevIntervalData = self.intervalData[idx - 1][key]
 
                                         # make previous intervals of core there was no context switching #
                                         longRunCore = self.threadData[key]['longRunCore']
@@ -2729,22 +2740,55 @@ class ThreadInfo:
                                             try: self.intervalData[idx][longRunCoreId]
                                             except: self.intervalData[idx][longRunCoreId] = dict(self.init_intervalData)
 
-                                        if remainTime > SystemInfo.intervalEnable:
-                                            self.intervalData[idx][key]['cpuUsage'] = SystemInfo.intervalEnable
-                                            self.intervalData[idx][key]['cpuPer'] = 100
+                                        if remainTime >= SystemInfo.intervalEnable:
+                                            remainTime = int(remainTime / SystemInfo.intervalEnable) * SystemInfo.intervalEnable
+                                            prevIntervalData['cpuUsage'] = SystemInfo.intervalEnable
+                                            prevIntervalData['cpuPer'] = 100
                                         else:
-                                            self.intervalData[idx][key]['cpuUsage'] = remainTime
-                                            self.intervalData[idx][key]['cpuPer'] = remainTime / SystemInfo.intervalEnable * 100
+                                            if prevIntervalData['cpuUsage'] > remainTime:
+                                                remainTime = prevIntervalData['cpuUsage']
+                                            else:
+                                                prevIntervalData['cpuUsage'] = remainTime
+                                            prevIntervalData['cpuPer'] = remainTime / SystemInfo.intervalEnable * 100
                                             
-                                        print key, idx, self.intervalData[idx][key]['cpuUsage'], remainTime
-
                                         remainTime -= SystemInfo.intervalEnable
 
+                            # add remainter of cpu usage exceed interval in this interval to previous interval #
+                            if SystemInfo.intervalNow - SystemInfo.intervalEnable > 0 and self.thisInterval > SystemInfo.intervalEnable:
+                                diff = self.thisInterval - SystemInfo.intervalEnable
+                                if prevIntervalThread['cpuUsage'] + diff > SystemInfo.intervalEnable:
+                                    diff = SystemInfo.intervalEnable - prevIntervalThread['cpuUsage']  
+
+                                prevIntervalThread['cpuUsage'] += diff
+                                prevIntervalThread['cpuPer'] = prevIntervalThread['cpuUsage'] / SystemInfo.intervalEnable * 100
+
+                            # calculate percentage of cpu usage of this thread in this interval #
                             intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
 
+                            # fix preempted time exceed this interval #
+                            if intervalThread['preempted'] > SystemInfo.intervalEnable:
+                                # recalculate previous intervals if there was no context switching since profile start #
+                                remainTime = intervalThread['preempted']
+                                if intervalThread['preempted'] > self.thisInterval:
+                                    for idx in range(index + 1, -1, -1):
+                                        try: self.intervalData[idx][key]
+                                        except: self.intervalData[idx][key] = dict(self.init_intervalData)
+                                        try: self.intervalData[idx - 1][key]
+                                        except: self.intervalData[idx - 1][key] = dict(self.init_intervalData)
+
+                                        if remainTime >= SystemInfo.intervalEnable:
+                                            self.intervalData[idx - 1][key]['preempted'] = SystemInfo.intervalEnable
+                                        else:
+                                            self.intervalData[idx - 1][key]['preempted'] += remainTime
+                                            
+                                        remainTime -= SystemInfo.intervalEnable
+                                        if remainTime <= 0:
+                                            break
+
+                            # calculate block usage of this thread in this interval #
                             self.intervalData[index]['toTal']['totalIo'] += self.intervalData[index][key]['ioUsage']
 
-                            # except for core threads because nrPages of core threads are already used for per-core memory usage
+                            # calculate memory usage of this thread in this interval except for core threads because its already calculated #
                             if key[0:2] == '0[': continue
                             self.intervalData[index]['toTal']['totalMem'] += self.intervalData[index][key]['memUsage']
                             self.intervalData[index]['toTal']['totalKmem'] += self.intervalData[index][key]['kmemUsage']
