@@ -190,18 +190,15 @@ class FunctionInfo:
         self.userSymData = {}
         self.kernelSymData = {}
         self.threadData = {}
-        self.userCallData = []
-        # userCallData = [userLastPos, stack[], pageCnt, blockCnt] #
-        self.kernelCallData = []
-        # kernelCallData = [userLastPos, stack[], pageCnt, blockCnt] #
+        self.userCallData = [] # [userLastPos, stack[], pageCnt, blockCnt] #
+        self.kernelCallData = [] # [userLastPos, stack[], pageCnt, blockCnt] #
 
         self.init_threadData = \
                 {'comm': '', 'tgid': '-'*5, 'target': False}
         self.init_posData = \
                 {'symbol': '', 'binary': '', 'offset': hex(0), 'posCnt': int(0), 'totalCnt': int(0), 'src': '', 'blockCnt': int(0), 'pageCnt': int(0)}
         self.init_SymData = \
-                {'pos': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'stack': None}
-        # stack = [cnt, stack[]] #
+                {'pos': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'stack': None} # stack = [cnt, stack[]] #
 
         # Open log file #
         try: logFd = open(logFile, 'r')
@@ -654,7 +651,7 @@ class FunctionInfo:
 
                 if len(stack[1]) == 0: symbolStack = '\tNone'
                 else:
-                        # Make stack info by symbol for print #
+                    # Make stack info by symbol for print #
                     symbolStack = ''
                     for pos in stack[1]:
                         if self.posData[pos]['symbol'] == '': symbolStack +=  ' <- ' + hex(int(pos, 16)) + '[' + self.posData[pos]['binary'] + ']'
@@ -733,7 +730,7 @@ class FunctionInfo:
 
         SystemInfo.pipePrint('\n' + twoLine + '\n')
 
-       # Print mem usage in kernel space #
+        # Print mem usage in kernel space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[MEM Info] (kernel)')
         SystemInfo.pipePrint(twoLine)
@@ -1004,6 +1001,7 @@ class PageInfo:
 
         fd.close()
 
+        # print for devel #
         for index in range(400):
             print pagemap[index],
 
@@ -1262,7 +1260,6 @@ class SystemInfo:
 
             if SystemInfo.ttyEnable == True:
                 SystemInfo.setTtyCols(SystemInfo.ttyCols)
-                #SystemInfo.setTtyRows('45')
 
         if SystemInfo.pipeForPrint != None:
             try: SystemInfo.pipeForPrint.write(line + '\n')
@@ -1573,8 +1570,7 @@ class SystemInfo:
             print "[Error] Fail to open %s" % pipePath
             sys.exit(0)
 
-        #try: fd = os.open(filePath, os.O_DIRECT | os.O_RDWR | os.O_TRUNC | os.O_CREAT)
-        try: fd = open(filePath, 'w')
+        try: fd = open(filePath, 'w') # use os.O_DIRECT | os.O_RDWR | os.O_TRUNC | os.O_CREAT #
         except:
             print "[Error] Fail to open %s" % filePath
             sys.exit(0)
@@ -1883,8 +1879,7 @@ class EventInfo:
             name = event.split('_')[0]
             ID = event.split('_')[1]
 
-        try: self.eventData[name]
-        # {'list': [ID, time, number], 'summary': [ID, cnt, avr, min, max, first, last]}
+        try: self.eventData[name] # {'list': [ID, time, number], 'summary': [ID, cnt, avr, min, max, first, last]} #
         except: self.eventData[name] = {'list': [], 'summary': []}
 
         self.eventData[name]['list'].append([ID, time, sum(t[0] == ID for t in self.eventData[name]['list']) + 1])
@@ -1917,7 +1912,8 @@ class EventInfo:
                 string = ''
                 for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
                     string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
-                SystemInfo.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
+                SystemInfo.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % \
+                        (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
 
 
 
@@ -2001,9 +1997,8 @@ class ThreadInfo:
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
-			# cpu resource #
             self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
-			# block resource #
+			# toDo: add time that had been blocking to read blocks from disk #
 
         f.close()
 
@@ -2479,7 +2474,7 @@ class ThreadInfo:
         SystemInfo.pipePrint(SystemInfo.bufferString)
         SystemInfo.pipePrint(oneLine)
 
-        # IO timeline #
+        # Block timeline #
         SystemInfo.clearPrint()
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
             if key[0:2] != '0[':
@@ -3148,7 +3143,7 @@ class ThreadInfo:
 
                     try:
                         self.kmemTable[ptr]
-                        # some allocated object is not freed
+                        # some allocated object is not freed #
                     except: self.kmemTable[ptr] = dict(self.init_kmallocData)
 
                     self.kmemTable[ptr]['tid'] = thread
@@ -3179,7 +3174,7 @@ class ThreadInfo:
                         self.threadData[self.kmemTable[ptr]['tid']]['wasteKmem'] -= self.kmemTable[ptr]['waste']
                         self.threadData[self.kmemTable[ptr]['core']]['wasteKmem'] -= self.kmemTable[ptr]['waste']
                     except:
-                        # this allocated object is not logged or this object is allocated before starting profile
+                        # this allocated object is not logged or this object is allocated before starting profile #
                         return
 
             elif func == "sched_wakeup":
@@ -3563,17 +3558,18 @@ class ThreadInfo:
                     if self.threadData[tid]['coreSchedCnt'] == 0 and self.threadData[tid]['offTime'] == 0:
                         self.threadData[tid]['offTime'] = float(time) - float(self.startTime)
 
-                    # Wake core up, the number 3 of condition is not corret
+                    # Wake core up, but the number 3 as this condition is not certain #
                     if int(d['state']) < 3:
                         self.threadData[tid]['offCnt'] += 1
                         self.threadData[tid]['lastOff'] = float(time)
-                    # Start to sleep
+                    # Start to sleep #
                     else:
                         if self.threadData[tid]['lastOff'] > 0:
                             self.threadData[tid]['offTime'] += float(time) - self.threadData[tid]['lastOff']
                             self.threadData[tid]['lastOff'] = float(0)
 
             elif func == "cpu_frequency":
+                # toDo: calculate power consumption for DFVS system #
                 None
 
             elif func == "console":
@@ -3731,17 +3727,18 @@ if __name__ == '__main__':
     if SystemInfo.isRecordMode() is True:
         SystemInfo.inputFile = '/sys/kernel/debug/tracing/trace'
 
-        # set this process RT priority #
+        # set this process to RT priority #
         SystemInfo.setRtPriority('90')
 
-        # save system information
+        # save system information #`
         si = SystemInfo()
 
         SystemInfo.parseRecordOption()
 
         if SystemInfo.functionEnable is not False:
             print "[Info] function profile mode"
-            #si.runPeriodProc()
+            # si.runPeriodProc()
+            # toDo: make periodic event every 100us for specific thread #
         elif SystemInfo.pageEnable is not False:
             print "[Info] file profile mode"
         else:
