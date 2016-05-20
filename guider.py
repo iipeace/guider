@@ -88,18 +88,24 @@ class FunctionInfo:
         self.ioEnabled = False
 
         self.sort = 'sym'
+        self.curMode = ''
+        self.prevMode = ''
 
         self.startTime = '0'
         self.finishTime = '0'
         self.totalTime = 0
         self.logSize = 0
+        self.dbgEventLine = 0
         self.totalTick = 0
 
         self.nowEvent = None
         self.savedEvent = None
+        self.nestedEvent = None
         self.nowCnt= 0
         self.savedCnt = 0
+        self.nestedCnt = 0
         self.periodicEventCnt = 0
+        self.nested = 0
 
         self.mapData = []
         self.posData = {}
@@ -110,7 +116,7 @@ class FunctionInfo:
         self.kernelCallData = [] # [userLastPos, stack[], pageCnt, blockCnt] #
 
         self.init_threadData = \
-                {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0)}
+                {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False}
         self.init_posData = \
                 {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'totalCnt': int(0), \
                 'src': '', 'blockCnt': int(0), 'pageCnt': int(0)}
@@ -118,18 +124,18 @@ class FunctionInfo:
                 {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'stack': None, 'symStack': None} \
                 # stack = [cpuCnt, stack[], pageCnt, blockCnt] #
 
+        # Check target thread setting #
+        if len(SystemInfo.showGroup) != 1:
+            print "[Error] wrong option with -f, use -g option with only one tid / comm / nothing"
+            sys.exit(0)
+        else:
+            self.target = SystemInfo.showGroup[0]
+
         # Open log file #
         try: logFd = open(logFile, 'r')
         except:
-            print "[Error] Fail to open %s for creating userCallStack information" % logFile
+            print "[Error] Fail to open %s to create callstack information" % logFile
             sys.exit(0)
-
-        recStat = False
-        userCallStack = []
-        kernelCallStack = []
-        userLastPos = ''
-        kernelLastPos = ''
-        curMode = ''
 
         # Get binary and offset info #
         lines = logFd.readlines()
@@ -147,155 +153,27 @@ class FunctionInfo:
             print "[Error] Fail to recognize root path for target, use also -j option with the path of root"
             sys.exit(0)
 
+        # Register None pos #
+        self.posData['0'] = dict(self.init_posData)
+
         # Parse logs #
-        for l in lines:
-            self.logSize += len(l)
-
-            ret = self.parseLog(l, SystemInfo.showGroup)
-
-            if self.savedEvent is None:
-                self.savedEvent = self.nowEvent
-
-            # Save full stack #
-            if ret is True:
-                if (len(userCallStack) > 0 and userLastPos != '') or (len(kernelCallStack) > 0 and kernelLastPos != ''):
-                    if self.savedEvent == 'C':
-                        if len(kernelCallStack) > 0 and len(userCallStack) > 0:
-                            self.periodicEventCnt += 1
-
-                            del kernelCallStack[0]
-                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0])
-                            kernelCallStack = []
-                            kernelLastPos = ''
-
-                            del userCallStack[0]
-                            self.userCallData.append([userLastPos, userCallStack, 0, 0])
-                            userCallStack = []
-                            userLastPos = ''
-                    elif self.savedEvent == 'M':
-                        if len(kernelCallStack) > 0 and len(userCallStack) > 0:
-                            del kernelCallStack[0]
-                            self.posData[kernelLastPos]['pageCnt'] += self.savedCnt
-                            self.kernelCallData.append([kernelLastPos, kernelCallStack, self.savedCnt, 0])
-                            kernelCallStack = []
-                            kernelLastPos = ''
-
-                            del userCallStack[0]
-                            self.posData[userLastPos]['pageCnt'] += self.savedCnt
-                            self.userCallData.append([userLastPos, userCallStack, self.savedCnt, 0])
-                            self.savedCnt = 0
-                            userCallStack = []
-                            userLastPos = ''
-                    elif self.savedEvent == 'I':
-                        if len(kernelCallStack) > 0 and len(userCallStack):
-                            del kernelCallStack[0]
-                            self.posData[kernelLastPos]['blockCnt'] += self.savedCnt
-                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, self.savedCnt])
-                            kernelCallStack = []
-                            kernelLastPos = ''
-
-                            del userCallStack[0]
-                            self.posData[userLastPos]['blockCnt'] += self.savedCnt
-                            self.userCallData.append([userLastPos, userCallStack, 0, self.savedCnt])
-                            self.savedCnt = 0
-                            userCallStack = []
-                            userLastPos = ''
-                    else: None
-
-                recStat = True
-            # Ignore this log because its not related to our target thread #
-            elif ret is False:
-                recStat = False
-                continue
-            # Save pos into target callstack #
-            elif recStat is True:
-                (pos, path, offset) = ret
-
-                # Register pos #
-                try: self.posData[pos]
-                except: self.posData[pos] = dict(self.init_posData)
-
-                # user mode #
-                if self.curMode is 'user':
-                    # Set path #
-                    if path is not None:
-                        self.posData[pos]['origBin'] = path
-                        self.posData[pos]['binary'] = SystemInfo.rootPath + path
-                        self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
-                    # Set offset #
-                    if offset is not None and path.rfind('.so') >= 0:
-                        self.posData[pos]['offset'] = offset
-
-                    # Save pos #
-                    if len(userCallStack) == 0:
-                        userLastPos = pos
-                        if self.nowEvent == 'C':
-                            self.posData[pos]['posCnt'] += 1
-
-                    userCallStack.append(pos)
-                # kernel mode #
-                elif self.curMode is 'kernel':
-                    # Save pos #
-                    if len(kernelCallStack) == 0:
-                        kernelLastPos = pos
-                        if self.nowEvent == 'C':
-                            self.posData[pos]['posCnt'] += 1
-
-                    self.posData[pos]['symbol'] = path
-
-                    kernelCallStack.append(pos)
-                # wrong mode #
-                else:
-                    print '[Warning] wrong current mode %s' % self.curMode
-
-                # Increase total call count #
-                if self.nowEvent == 'C':
-                    self.posData[pos]['totalCnt'] += 1
-
-        binPath = ''
-        offsetList = []
+        self.parseLogs(lines, SystemInfo.showGroup[0])
 
         # Check whether data of target thread is collected or nothing #
-        if len(self.userCallData) == 0 and len(self.kernelCallData) == 0:
-            print "[Error] No data related to %s" % SystemInfo.showGroup[0]
+        if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) != 0:
+            print "[Error] No data related to %s" % self.target
             sys.exit(0)
 
-        # Get symbols and source pos #
-        for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-            if value['binary'] == '':
-                # user pos without offset #
-                if value['symbol'] == '' or value['symbol'] == '??': 
-                    # toDo: find binary and symbol of pos #
-                    value['binary'] = '??'
-                    value['origBin'] = '??'
-                    value['symbol'] = idx
-                continue
+        # Get symbols from call address #
+        self.getSymbols()
 
-            # Get symbols from address list of previous binary #
-            if binPath != value['binary']:
-                if binPath != '':
-                    # Get symbols #
-                    self.getSymbolInfo(binPath, offsetList)
-                    offsetList = []
+        # Merge callstacks by symbol and address #
+        self.mergeStacks()
 
-                if value['offset'] == hex(0): offsetList.append(idx)
-                else: offsetList.append(value['offset'])
 
-                # Set new binPath to find symbol from address #
-                binPath = value['binary']
-            # add address to offsetList #
-            else:
-                # not relocatable binary #
-                if value['offset'] == hex(0):
-                    offsetList.append(idx)
-                # relocatable binary #
-                else:
-                    offsetList.append(value['offset'])
 
-        # Get symbols and source path from last binary #
-        if binPath != '': self.getSymbolInfo(binPath, offsetList)
-
-        # Make user symbol table for summary based on all call stacks #
+    def mergeStacks(self):
+        # Merge user call data by symbol or address #
         for val in self.userCallData:
             pos = val[0]
             stack = val[1]
@@ -338,17 +216,24 @@ class FunctionInfo:
                 for addr in stack:
                     tempSym = self.posData[addr]['symbol']
 
+                    # No symbol data #
+                    if tempSym == '': 
+                        if self.posData[addr]['origBin'] == '??':
+                            tempSym = '%x' % int(self.posData[addr]['pos'], 16)
+                        else:
+                            tempSym = '%x' % int(self.posData[addr]['offset'], 16)
+
                     try: self.userSymData[tempSym]
                     except:
                         self.userSymData[tempSym] = dict(self.init_SymData)
                         self.userSymData[tempSym]['stack'] = []
                         self.userSymData[tempSym]['symStack'] = []
-                        self.userSymData[tempSym]['pos'] = pos
+                        self.userSymData[tempSym]['pos'] = addr
                         self.userSymData[tempSym]['origBin'] = self.posData[addr]['origBin']
 
                     tempSymStack.append(tempSym)
 
-                # Change input stack #
+                # Switch input stack to symbol stack #
                 stack = tempSymStack
                 targetStack = self.userSymData[sym]['symStack']
             elif self.sort is 'pos':
@@ -374,7 +259,7 @@ class FunctionInfo:
                 if found == False:
                     targetStack.append([cpuCnt, stack, pageCnt, blockCnt])
 
-        # Make kernel symbol table for summary based on all call stacks #
+        # Merge kernel call data by address #
         for val in self.kernelCallData:
             pos = val[0]
             stack = val[1]
@@ -425,6 +310,47 @@ class FunctionInfo:
 
 
 
+    def getSymbols(self):
+        binPath = ''
+        offsetList = []
+
+        # Get symbols and source pos #
+        for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+            if value['binary'] == '':
+                # user pos without offset #
+                if value['symbol'] == '' or value['symbol'] == '??': 
+                    # toDo: find binary and symbol of pos #
+                    value['binary'] = '??'
+                    value['origBin'] = '??'
+                    value['symbol'] = idx
+                continue
+
+            # Get symbols from address list of previous binary #
+            if binPath != value['binary']:
+                if binPath != '':
+                    # Get symbols #
+                    self.getSymbolInfo(binPath, offsetList)
+                    offsetList = []
+
+                if value['offset'] == hex(0): offsetList.append(idx)
+                else: offsetList.append(value['offset'])
+
+                # Set new binPath to find symbol from address #
+                binPath = value['binary']
+            # add address to offsetList #
+            else:
+                # not relocatable binary #
+                if value['offset'] == hex(0):
+                    offsetList.append(idx)
+                # relocatable binary #
+                else:
+                    offsetList.append(value['offset'])
+
+        # Get symbols and source path from last binary #
+        if binPath != '': self.getSymbolInfo(binPath, offsetList)
+
+
+
     def getSymbolInfo(self, binPath, offsetList):
         try:
             import subprocess
@@ -441,13 +367,13 @@ class FunctionInfo:
             print "[Warning] Fail to find %s" % binPath
             for addr in offsetList: 
                 if relocated is False:
-                    self.posData[addr]['symbol'] = 'N/A'
-                    self.posData[addr]['src'] = 'N/A'
+                    self.posData[addr]['symbol'] = 'NoFile'
+                    self.posData[addr]['src'] = 'NoFile'
                 else:
                     for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
                         if value['binary'] == binPath and value['offset'] == hex(int(addr, 16)):
-                            self.posData[idx]['symbol'] = 'N/A'
-                            self.posData[idx]['src'] = 'N/A'
+                            self.posData[idx]['symbol'] = 'NoFile'
+                            self.posData[idx]['src'] = 'NoFile'
                             break
             return
 
@@ -495,57 +421,311 @@ class FunctionInfo:
 
 
 
-    def parseLog(self, string, desc):
+    def parseLogs(self, lines, desc):
+        recStat = False
+        userLastPos = ''
+        userCallStack = []
+        kernelLastPos = ''
+        kernelCallStack = []
+        bakKernelLastPos = ''
+        bakKernelCallStack = []
+
+        for l in lines:
+            self.logSize += len(l)
+            self.dbgEventLine += 1
+
+            ret = self.parseStackLog(l, desc)
+
+            if self.savedEvent is None:
+                self.savedEvent = self.nowEvent
+
+            # Save full stack to callData table #
+            if ret is True:
+                # stack of kernel thread #
+                if self.prevMode != self.curMode == 'kernel' and len(userCallStack) == 0 and len(kernelCallStack) > 0:
+                    # Set userLastPos to None #
+                    userLastPos = '0'
+                    userCallStack.append('0')
+
+                # complicated situation ;( #
+                elif self.prevMode == self.curMode:
+                    # previous user stack loss or nested interval #
+                    if self.curMode is 'kernel':
+                        # nested interval #
+                        if self.nowEvent is 'C':
+                            # Backup kernel stack #
+                            bakKernelLastPos = kernelLastPos
+                            bakKernelCallStack = kernelCallStack
+
+                            # Initialize both stacks #
+                            userLastPos = '0'
+                            userCallStack = []
+                            kernelLastPos = '0'
+                            kernelCallStack = []
+                        # previous user stack loss #
+                        else:
+                            # Set userLastPos to None #
+                            userLastPos = '0'
+                            userCallStack.append('0')
+                    # nested interval #
+                    elif self.curMode is 'user':
+                        # Swap event and cnt #
+                        tempEvent = self.nowEvent
+                        self.nowEvent = self.savedEvent
+                        self.savedEvent = tempEvent
+                        tempCnt = self.nowCnt
+                        self.nowCnt = self.savedCnt
+                        self.savedCnt = tempCnt
+
+                # Save both stacks of previous event before starting to record new kernel stack #
+                if (len(userCallStack) > 0 and userLastPos != '') and (len(kernelCallStack) > 0 and kernelLastPos != ''):
+                    del kernelCallStack[0], userCallStack[0]
+
+                    # Check whether there is nested event or not #
+                    if self.nested > 0:
+                        targetEvent = self.nestedEvent
+                        targetCnt = self.nestedCnt
+
+                        # Swap event and cnt #
+                        tempEvent = self.nowEvent
+                        self.nowEvent = self.savedEvent
+                        self.savedEvent = tempEvent
+                        tempCnt = self.nowCnt
+                        self.nowCnt = self.savedCnt
+                        self.savedCnt = tempCnt
+                    else:
+                        targetEvent = self.savedEvent
+                        targetCnt = self.savedCnt
+
+                    # Save full stack of previous event #
+                    if targetEvent == 'C':
+                        self.periodicEventCnt += 1
+
+                        self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0])
+                        self.userCallData.append([userLastPos, userCallStack, 0, 0])
+                    elif targetEvent == 'MA':
+                        self.posData[kernelLastPos]['pageCnt'] += targetCnt
+                        self.posData[userLastPos]['pageCnt'] += targetCnt
+
+                        self.kernelCallData.append([kernelLastPos, kernelCallStack, targetCnt, 0])
+                        self.userCallData.append([userLastPos, userCallStack, targetCnt, 0])
+
+                        self.savedCnt = 0
+                    elif targetEvent == 'B':
+                        self.posData[kernelLastPos]['blockCnt'] += targetCnt
+                        self.posData[userLastPos]['blockCnt'] += targetCnt
+
+                        self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, targetCnt])
+                        self.userCallData.append([userLastPos, userCallStack, 0, targetCnt])
+
+                        self.savedCnt = 0
+                    else: 
+                        self.savedCnt = 0
+
+                    # Recover previous kernel stack after finishing nested event #
+                    if self.prevMode == self.curMode == 'user' and bakKernelLastPos != '0':
+                        kernelLastPos = bakKernelLastPos
+                        kernelCallStack = bakKernelCallStack
+                        bakKernelLastPos = '0'
+                        bakKernelCallStack = []
+                    else:
+                        kernelLastPos = ''
+                        kernelCallStack = []
+
+                    userLastPos = ''
+                    userCallStack = []
+                    self.nestedEvent = ''
+                    self.nestedCnt = 0
+
+                # On stack recording switch #
+                recStat = True
+            # Ignore this log because its not event or stack info related to target thread #
+            elif ret is False:
+                recStat = False
+                continue
+            # Save pos into target stack #
+            elif recStat is True:
+                (pos, path, offset) = ret
+
+                if self.nested > 0:
+                    targetEvent = self.savedEvent
+                else:
+                    targetEvent = self.nowEvent
+
+                # Register pos #
+                try: self.posData[pos]
+                except: self.posData[pos] = dict(self.init_posData)
+
+                # user mode #
+                if self.curMode is 'user':
+                    # Set path #
+                    if path is not None:
+                        self.posData[pos]['origBin'] = path
+                        self.posData[pos]['binary'] = SystemInfo.rootPath + path
+                        self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
+
+                        # Set offset #
+                        if offset is not None and path.rfind('.so') >= 0:
+                            self.posData[pos]['offset'] = offset
+
+                    # Save pos #
+                    if len(userCallStack) == 0:
+                        userLastPos = pos
+                        if targetEvent == 'C':
+                            self.posData[pos]['posCnt'] += 1
+
+                    userCallStack.append(pos)
+                # kernel mode #
+                elif self.curMode is 'kernel':
+                    # Save pos #
+                    if len(kernelCallStack) == 0:
+                        kernelLastPos = pos
+                        if targetEvent  == 'C':
+                            self.posData[pos]['posCnt'] += 1
+
+                    self.posData[pos]['symbol'] = path
+
+                    kernelCallStack.append(pos)
+                # wrong mode #
+                else:
+                    print '[Warning] wrong current mode %s' % self.curMode
+
+                # Increase total call count #
+                if self.nowEvent == 'C':
+                    self.posData[pos]['totalCnt'] += 1
+
+
+
+    def parseStackLog(self, string, desc):
         SystemInfo.printProgress()
+
         # Filter for event #
         if SystemInfo.tgidEnable is True:
-            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
         else:
             m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+
         if m is not None:
             d = m.groupdict()
 
+            # Set time #
             if self.startTime == '0':
                 self.startTime = d['time']
             else:
                 self.finishTime = d['time']
 
+            # Make thread entry #
             thread = d['thread']
             try: self.threadData[thread]
             except:
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
 
-            # calculate a total of resource usage #
-            if d['func'] == "hrtimer_start:":
-                m = re.match('^\s*hrtimer=(?P<timer>\S+)\s+function=(?P<func>\S+)', d['etc'])
+            # Calculate a total of cpu usage #
+            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
+                self.totalTick += 1
+                self.threadData[thread]['cpuTick'] += 1
+
+                # Set max core to calculate cpu usage of thread #
+                core = int(d['core'])
+                if SystemInfo.maxCore < core:
+                    SystemInfo.maxCore = core
+            elif d['func'] == "sched_process_free:":
+                m = re.match('^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', d['etc'])
                 if m is not None:
-                    f = m.groupdict()
+                    p = m.groupdict()
 
-                    if f['func'] == 'tick_sched_timer':
-                        self.totalTick += 1
-                        self.threadData[thread]['cpuTick'] += 1
+                    pid = p['pid']
 
-                        core = int(d['core'])
-                        if SystemInfo.maxCore < core:
-                            SystemInfo.maxCore = core
+                    try: self.threadData[pid]
+                    except:
+                        self.threadData[pid] = dict(self.init_threadData)
+                        self.threadData[pid]['comm'] = p['comm']
 
+                    self.threadData[pid]['die'] = True
+
+            # Save tgid(pid) #
             if SystemInfo.tgidEnable is True:
                 self.threadData[thread]['tgid'] = d['tgid']
 
-            # Filter for tid #
-            try:
-                if int(desc[0]) == int(d['thread']): None
-                elif d['comm'].rfind(desc[0]) != -1: None
-                else: return False
-            except:
-                if d['comm'].rfind(desc[0]) != -1: None
-                else: return False
+            # tid filter #
+            if len(desc) == 0:
+                return False
+            if int(desc) != int(d['thread']) and d['comm'].rfind(desc) == -1: 
+                return False
+            else:
+                self.threadData[thread]['target'] = True
 
+            # ToDo: find shorter periodic event for sampling #
+            # cpu tick event #
+            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
+                self.cpuEnabled = True
+                self.nestedEvent = self.savedEvent
+                self.savedEvent = self.nowEvent
+                self.nowEvent = 'C'
 
-            self.threadData[thread]['target'] = True
+                self.nestedCnt = self.savedCnt
+                self.savedCnt = self.nowCnt
+                self.nowCnt = 0
 
-            if SystemInfo.targetEvent is not None and d['func'] == SystemInfo.targetEvent + ':':
+                self.nested += 1
+
+                return False
+
+            # memory allocation event #
+            elif d['func'] == "mm_page_alloc:":
+                m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
+                if m is not None:
+                    d = m.groupdict()
+
+                    self.memEnabled = True
+                    self.nestedEvent = self.savedEvent
+                    self.savedEvent = self.nowEvent
+                    self.nowEvent = 'MA'
+
+                    self.nestedCnt = self.savedCnt
+                    self.savedCnt = self.nowCnt
+                    self.nowCnt = pow(2, int(d['order']))
+
+                    self.nested += 1
+
+                return False
+
+            # block request event #
+            elif d['func'] == "block_bio_remap:":
+                m = re.match('^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
+                if m is not None:
+                    d = m.groupdict()
+
+                    if d['operation'][0] == 'R':
+                        self.ioEnabled = True
+                        self.nestedEvent = self.savedEvent
+                        self.savedEvent = self.nowEvent
+                        self.nowEvent = 'B'
+
+                        self.nestedCnt = self.savedCnt
+                        self.savedCnt = self.nowCnt
+                        self.nowCnt = int(d['size'])
+
+                        self.nested += 1
+
+                return False
+
+            # starting to record user stack #
+            elif d['func'] == "<user": 
+                self.prevMode = self.curMode
+                self.curMode = 'user'
+                return True
+
+            # starting to record kernel stack #
+            elif d['func'] == "<stack":
+                self.prevMode = self.curMode
+                self.curMode = 'kernel'
+                self.nested -= 1
+                return True
+
+            # user-define event #
+            elif SystemInfo.targetEvent is not None and d['func'] == SystemInfo.targetEvent + ':':
                 self.cpuEnabled = True
                 self.savedEvent = self.nowEvent
                 self.nowEvent = 'C'
@@ -554,55 +734,18 @@ class FunctionInfo:
 
                 return False
 
-            elif d['func'] == "hrtimer_start:":
-                m = re.match('^\s*hrtimer=(?P<timer>\S+)\s+function=(?P<func>\S+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    # ToDo: find shorter periodic event for sampling #
-                    if d['func'] == 'tick_sched_timer':
-                        self.cpuEnabled = True
-                        self.savedEvent = self.nowEvent
-                        self.nowEvent = 'C'
-                        self.savedCnt = self.nowCnt
-                        self.nowCnt = 0
-
-                return False
-
-            elif d['func'] == "mm_page_alloc:":
-                m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    self.memEnabled = True
-                    self.savedEvent = self.nowEvent
-                    self.nowEvent = 'M'
-                    self.savedCnt = self.nowCnt
-                    self.nowCnt = pow(2, int(d['order']))
-
-                return False
-
-            elif d['func'] == "block_bio_remap:":
-                m = re.match('^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    if d['operation'][0] == 'R':
-                        self.ioEnabled = True
-                        self.savedEvent = self.nowEvent
-                        self.nowEvent = 'I'
-                        self.savedCnt = self.nowCnt
-                        self.nowCnt = int(d['size'])
-
-                return False
-
-            elif d['func'] == "<user": 
-                self.curMode = 'user'
-                return True
-            elif d['func'] == "<stack":
-                self.curMode = 'kernel'
-                return True
+            # ignore event #
             else: 
+                self.nestedEvent = self.savedEvent
+                self.savedEvent = self.nowEvent
+                self.nowEvent = 'I'
+
+                self.nestedCnt = self.savedCnt
+                self.savedCnt = self.nowCnt
+                self.nowCnt = 0
+
+                self.nested += 1
+
                 return False
 
         # parse call stack #
@@ -658,272 +801,47 @@ class FunctionInfo:
 
 
     def printUsage(self):
-        # Print profiled thread list #
-        targetNr = 0
+        targetFound = False
         self.totalTime = float(self.finishTime) - float(self.startTime)
+
+        # Print profiled thread list #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('Thread List', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), self.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|".\
-                format("Name", "Tid", "Pid", "Target", "CPU"))
+        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^5}|".\
+                format("Name", "Tid", "Pid", "Target", "CPU", "DIE"))
         SystemInfo.pipePrint(twoLine)
-        for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
-            if value['target'] is True:
-                targetNr += 1
-                if targetNr == 2:
-                    print "[Warning] Target thread should be only one, otherwise profile result will be wrong"
-                res = 'O'
-            else:
-                res = ''
 
-            cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100 * (SystemInfo.maxCore + 1)
+        for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
+            targetMark = ''
+            dieMark = ''
+
+            if value['target'] is True:
+                if targetFound is True:
+                    print "[Warning] Target thread should be only one, otherwise profile result will be incorrect"
+                targetMark = '*'
+                targetFound = True
+
+            cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
             if cpuPer < 1 and SystemInfo.showAll is False:
                 break
 
-            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|".\
-                    format(value['comm'], idx, value['tgid'], res, cpuPer))
+            if value['die'] is True:
+                dieMark = 'v'
+
+            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:^5}|".\
+                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, dieMark))
 
         SystemInfo.pipePrint(oneLine + '\n\n\n')
 
-        # Print cpu usage in user space #
-        SystemInfo.clearPrint()
-        if SystemInfo.targetEvent is None:
-            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (USER)' % self.periodicEventCnt)
-        else:
-            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+        # Exit because of no target #
+        if len(self.target) == 0: 
+            sys.exit(0)
 
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            targetStack = []
-
-            if self.cpuEnabled is False or value['cnt'] == 0: break
-
-            cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
-            if cpuPer < 1 and SystemInfo.showAll is False:
-                break
-
-            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}" \
-                    .format(cpuPer, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Set target stack #
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack.sort(reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                if stack[0] == 0: break
-
-                if len(stack[1]) == 0: 
-                    symbolStack = '\t\t |None'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in stack[1]:
-                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in stack[1]:
-                            # No symbol so that just print pos #
-                            if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
-
-                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
-                        .format(round(float(stack[0]) / float(value['cnt']) * 100, 1), symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-        # Print cpu usage in kernel space #
-        SystemInfo.clearPrint()
-        if SystemInfo.targetEvent is None: SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (KERNEL)' % self.periodicEventCnt)
-        else: SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
-
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if self.cpuEnabled is False or value['cnt'] == 0: break
-
-            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}" \
-                    .format(round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1), idx, '', ''))
-
-            # Sort stacks by usage #
-            value['stack'].sort(reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                if stack[0] == 0: break
-
-                if len(stack[1]) == 0: symbolStack = '\t\t |None'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    for pos in stack[1]:
-                        if self.posData[pos]['symbol'] == '': symbolStack +=  ' <- ' + hex(int(pos, 16))
-                        else: symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
-
-                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
-                        .format(round(float(stack[0]) / float(value['cnt']) * 100, 1), symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-       # Print mem usage in user space #
-        SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] (USER)')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0: break
-
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
-                    .format(value['pageCnt'] * 4, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x:x[2], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                if stack[2] == 0: continue
-
-                if len(stack[1]) == 0: symbolStack = '\tNone'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    for pos in stack[1]:
-                        if self.posData[pos]['symbol'] == '':
-                            symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
-                        else:
-                            symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
-
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}" \
-                        .format(stack[2] * 4, symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-        # Print mem usage in kernel space #
-        SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] (KERNEL)')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0: break
-
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
-                    .format(value['pageCnt'] * 4, idx, '', ''))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x:x[2], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                if stack[2] == 0: continue
-
-                if len(stack[1]) == 0: symbolStack = '\tNone'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    for pos in stack[1]:
-                        if self.posData[pos]['symbol'] == '': symbolStack +=  ' <- ' + hex(int(pos, 16))
-                        else: symbolStack +=  ' <- ' + self.posData[pos]['symbol']
-
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}" \
-                        .format(stack[2] * 4, symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-        # Print IO usage in user space #
-        SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] (USER)')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0: break
-
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
-                    .format(int(value['blockCnt'] * 0.5), idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x:x[3], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                if stack[3] == 0: continue
-
-                if len(stack[1]) == 0: symbolStack = '\tNone'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    for pos in stack[1]:
-                        if self.posData[pos]['symbol'] == '':
-                            symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
-                        else:
-                            symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
-
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}" \
-                        .format(int(stack[3] * 0.5), symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-        # Print IO usage in kernel space #
-        SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] (KERNEL)')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
-        SystemInfo.pipePrint(twoLine)
-
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0: break
-
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
-                    .format(int(value['blockCnt'] * 0.5), idx, '', ''))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x:x[3], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                if stack[3] == 0: continue
-
-                if len(stack[1]) == 0: symbolStack = '\tNone'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    for pos in stack[1]:
-                        if self.posData[pos]['symbol'] == '': symbolStack +=  ' <- ' + hex(int(pos, 16)) + '[' + self.posData[pos]['origBin'] + ']'
-                        else: symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + '[' + self.posData[pos]['origBin'] + ']'
-
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}" \
-                        .format(int(stack[3] * 0.5), symbolStack))
-
-            SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint('\n\n')
-
-
+        # Print profiled thread list #
+        self.printCpuUsage()
+        self.printMemUsage()
+        self.printBlockUsage()
 
         # print for devel #
         for idx, value in sorted(fi.posData.items(), key=lambda e: e[1]['posCnt'], reverse=True):
@@ -939,6 +857,330 @@ class FunctionInfo:
         for idx, value in sorted(fi.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
             break
             print idx, value
+
+
+
+    def printCpuUsage(self):
+        # Print cpu usage in user space #
+        SystemInfo.clearPrint()
+        if SystemInfo.targetEvent is None:
+            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (USER)' % self.periodicEventCnt)
+        else:
+            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
+            if self.cpuEnabled is False or value['cnt'] == 0: break
+
+            cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+            if cpuPer < 1 and SystemInfo.showAll is False:
+                break
+
+            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}".format(cpuPer, idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack.sort(reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                cpuCnt = stack[0]
+                subStack = list(stack[1])
+
+                if cpuCnt == 0: break
+
+                if len(subStack) == 0: continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            # No symbol so that just print pos #
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
+                        .format(round(float(cpuCnt) / float(value['cnt']) * 100, 1), symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
+
+        # Print cpu usage in kernel space #
+        SystemInfo.clearPrint()
+        if SystemInfo.targetEvent is None: SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (KERNEL)' % self.periodicEventCnt)
+        else: SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == '__irq_usr' or value['symbol'] == '__irq_svc' or \
+                value['symbol'] == '__hrtimer_start_range_ns' or value['symbol'] == 'hrtimer_start_range_ns':
+                try: exceptList[pos]
+                except: exceptList[pos] = dict()
+
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
+            if self.cpuEnabled is False or value['cnt'] == 0: break
+
+            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}" \
+                    .format(round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1), idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'].sort(reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                cpuCnt = stack[0]
+                subStack = list(stack[1])
+
+                if cpuCnt == 0: break
+                else:
+                    # Remove a redundant part #
+                    for pos, val in exceptList.items():
+                        try: del subStack[0:subStack.index(pos)+1]
+                        except: None
+
+                if len(subStack) == 0: continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '': 
+                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                            else: 
+                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                    except: continue
+
+                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
+                        .format(round(float(cpuCnt) / float(value['cnt']) * 100, 1), symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
+
+
+
+    def printMemUsage(self):
+       # Print mem usage in user space #
+        SystemInfo.clearPrint()
+        SystemInfo.pipePrint('[MEM Info] (USER)')
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
+            if self.memEnabled is False or value['pageCnt'] == 0: break
+
+            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(value['pageCnt'] * 4, idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = sorted(targetStack, key=lambda x:x[2], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                pageCnt = stack[2]
+                subStack = list(stack[1])
+
+                if pageCnt == 0: break
+
+                if len(subStack) == 0: continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            # No symbol so that just print pos #
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(pageCnt * 4, symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
+
+        # Print mem usage in kernel space #
+        SystemInfo.clearPrint()
+        SystemInfo.pipePrint('[MEM Info] (KERNEL)')
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        exceptList = {}
+        for pos, value in self.posData.items():
+            break
+            if value['symbol'] == 'None':
+                try: exceptList[pos]
+                except: exceptList[pos] = dict()
+
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
+            if self.memEnabled is False or value['pageCnt'] == 0: break
+
+            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(value['pageCnt'] * 4, idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x:x[2], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                pageCnt = stack[2]
+                subStack = list(stack[1])
+
+                if pageCnt == 0: continue
+
+                if len(subStack) == 0: continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                            else: 
+                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                    except: continue
+
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(stack[2] * 4, symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
+
+    def printBlockUsage(self):
+        # Print IO usage in user space #
+        SystemInfo.clearPrint()
+        SystemInfo.pipePrint('[BLK_RD Info] (USER)')
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
+            if self.ioEnabled is False or value['blockCnt'] == 0: break
+
+            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(int(value['blockCnt'] * 0.5), idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = sorted(targetStack, key=lambda x:x[3], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                blockCnt = stack[3]
+                subStack = list(stack[1])
+
+                if blockCnt == 0: break
+
+                if len(subStack) == 0: continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            # No symbol so that just print pos #
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[3] * 0.5), symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
+
+        # Print IO usage in kernel space #
+        SystemInfo.clearPrint()
+        SystemInfo.pipePrint('[BLK_RD Info] (KERNEL)')
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        exceptList = {}
+        for pos, value in self.posData.items():
+            break
+            if value['symbol'] == 'None':
+                try: exceptList[pos]
+                except: exceptList[pos] = dict()
+
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
+            if self.ioEnabled is False or value['blockCnt'] == 0: break
+
+            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
+                    .format(int(value['blockCnt'] * 0.5), idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x:x[3], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                blockCnt = stack[3]
+                subStack = list(stack[1])
+
+                if blockCnt  == 0: continue
+
+                if len(subStack) == 0: symbolStack = '\tNone'
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '': 
+                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                            else: 
+                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                    except: continue
+
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[3] * 0.5), symbolStack))
+
+            SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint('\n\n')
 
 
 
@@ -1464,11 +1706,6 @@ class SystemInfo:
                             print "[Error] wrong option with -f, use also -s option for saving data"
                             if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                             sys.exit(0)
-                    # Handle error about file option #
-                    elif len(SystemInfo.showGroup) != 1:
-                        print "[Error] wrong option with -f, use first -g option with tid / comm / nothing"
-                        if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
-                        sys.exit(0)
                     else: SystemInfo.functionEnable = True
 
                     SystemInfo.targetEvent = sys.argv[n].lstrip('-f')
@@ -1782,6 +2019,8 @@ class SystemInfo:
             SystemInfo.writeCmd('../options/stacktrace', '1')
 
             self.cmdList["timer/hrtimer_start"] = True
+            cmd = "common_pid != 0"
+            SystemInfo.writeCmd('timer/hrtimer_start/filter', cmd)
             SystemInfo.writeCmd('timer/hrtimer_start/enable', '1')
 
             self.cmdList["kmem/mm_page_alloc"] = True
@@ -1791,6 +2030,9 @@ class SystemInfo:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM"
             SystemInfo.writeCmd('block/block_bio_remap/filter', cmd)
             SystemInfo.writeCmd('block/block_bio_remap/enable', '1')
+
+            self.cmdList["sched/sched_process_free"] = True
+            SystemInfo.writeCmd('sched/sched_process_free/enable', '1')
 
             return
 
@@ -2101,7 +2343,7 @@ class ThreadInfo:
 
         self.totalTime = round(float(self.finishTime) - float(self.startTime), 7)
 
-        # filter group #
+        # group filter #
         if len(SystemInfo.showGroup) > 0:
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
@@ -2656,14 +2898,14 @@ class ThreadInfo:
             f = open(file, 'r')
 
             while True:
-                if readLineCnt > 50:
+                if readLineCnt > 100:
                     print "[Error] Fail to recognize format"
                     sys.exit(0)
 
                 l = f.readline()
                 readLineCnt += 1
 
-                m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
                 if m is not None:
                     d = m.groupdict()
                     f.close()
@@ -2684,7 +2926,7 @@ class ThreadInfo:
     def parse(self, string):
         SystemInfo.printProgress()
         if SystemInfo.tgidEnable is True:
-            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         else:
             m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         if m is not None:

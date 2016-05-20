@@ -20,7 +20,7 @@ index 00f79e5..3726d03 100755
 +
 +#ifdef CONFIG_USER_STACKTRACE_SUPPORT
 +/*
-+ * Patch to use user stcak tracer for ARM archtecture
++ * Patch to use user stack tracer for ARM archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option
 + * 2. patch this file and rebuild your kernel
 + * 3. build target module to trace with -pg -rdynamic option
