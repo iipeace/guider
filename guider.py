@@ -370,8 +370,7 @@ class FunctionInfo:
             sys.exit(0)
 
         # Recognize binary type #
-        if binPath.find('.so') == -1: relocated = False
-        else: relocated = True
+        relocated = SystemInfo.isRelocatableFile(binPath)
 
         # No file exist #
         if os.path.isfile(binPath) == False:
@@ -580,8 +579,9 @@ class FunctionInfo:
                         self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
 
                         # Set offset #
-                        if offset is not None and path.rfind('.so') >= 0:
-                            self.posData[pos]['offset'] = offset
+                        if offset is not None:
+                            if SystemInfo.isRelocatableFile(path) is True:
+                                self.posData[pos]['offset'] = offset
 
                     # Save pos #
                     if len(userCallStack) == 0:
@@ -817,7 +817,7 @@ class FunctionInfo:
 
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and int(data['endAddr'], 16) >= int(addr, 16):
-                if data['binName'].rfind('.so') != -1:
+                if SystemInfo.isRelocatableFile(data['binName']) is True:
                     # Return full path and offset about address in mapping table
                     return SystemInfo.rootPath + data['binName'], hex(int(addr,16) - int(data['startAddr'],16))
                 else:
@@ -1360,7 +1360,7 @@ class PageInfo:
             mapData = dict(self.init_mapData)
 
             # search same file in list and merge it / append it to list #
-            if data['binName'].rfind('.so') != -1 or data['binName'].rfind('/') != -1:
+            if SystemInfo.isRelocatableFile(data['binName']) is True:
                 offset = d['offset']
                 size = int(data['endAddr'], 16) - int(data['startAddr'], 16)
 
@@ -1491,6 +1491,16 @@ class SystemInfo:
     def exitHandler(signum, frame):
         print '\n'
         sys.exit(0)
+
+
+
+    @staticmethod
+    def isRelocatableFile(path):
+        if path.find('.so') == -1 and path.find('.ttf') == -1 and \
+                path.find('.pak') == -1:
+                    return False
+        else:
+            return True
 
 
 
