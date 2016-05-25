@@ -97,6 +97,9 @@ class FunctionInfo:
         self.logSize = 0
         self.dbgEventLine = 0
         self.totalTick = 0
+        self.prevTime = '0'
+        self.prevTid = '0'
+        self.prevComm = '0'
 
         self.nowEvent = None
         self.savedEvent = None
@@ -104,8 +107,16 @@ class FunctionInfo:
         self.nowCnt= 0
         self.savedCnt = 0
         self.nestedCnt = 0
-        self.periodicEventCnt = 0
         self.nested = 0
+
+        self.periodicEventCnt = 0
+        self.periodicContEventCnt = 0
+        self.periodicEventInterval = 0
+        self.periodicEventTotal = 0
+        self.pageEventCnt = 0
+        self.pageUsageCnt = 0
+        self.blockEventCnt = 0
+        self.blockUsageCnt = 0
 
         self.mapData = []
         self.posData = {}
@@ -124,13 +135,6 @@ class FunctionInfo:
                 {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'stack': None, 'symStack': None} \
                 # stack = [cpuCnt, stack[], pageCnt, blockCnt] #
 
-        # Check target thread setting #
-        if len(SystemInfo.showGroup) != 1:
-            print "[Error] wrong option with -f, use -g option with only one tid / comm / nothing"
-            sys.exit(0)
-        else:
-            self.target = SystemInfo.showGroup[0]
-
         # Open log file #
         try: logFd = open(logFile, 'r')
         except:
@@ -142,6 +146,13 @@ class FunctionInfo:
 
         # Save data and exit if file is set #
         SystemInfo.saveDataAndExit(lines)
+
+        # Check target thread setting #
+        if len(SystemInfo.showGroup) != 1:
+            print "[Error] wrong option with -f, use -g option with only one tid / comm / nothing"
+            sys.exit(0)
+        else:
+            self.target = SystemInfo.showGroup[0]
 
         # Check addr2line path #
         if SystemInfo.addr2linePath is None or os.path.isfile(SystemInfo.addr2linePath) is False:
@@ -504,6 +515,8 @@ class FunctionInfo:
                         self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0])
                         self.userCallData.append([userLastPos, userCallStack, 0, 0])
                     elif targetEvent == 'MA':
+                        self.pageEventCnt += 1
+                        self.pageUsageCnt += targetCnt
                         self.posData[kernelLastPos]['pageCnt'] += targetCnt
                         self.posData[userLastPos]['pageCnt'] += targetCnt
 
@@ -512,6 +525,8 @@ class FunctionInfo:
 
                         self.savedCnt = 0
                     elif targetEvent == 'B':
+                        self.blockEventCnt += 1
+                        self.blockUsageCnt += targetCnt
                         self.posData[kernelLastPos]['blockCnt'] += targetCnt
                         self.posData[userLastPos]['blockCnt'] += targetCnt
 
@@ -625,6 +640,17 @@ class FunctionInfo:
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
                 self.totalTick += 1
                 self.threadData[thread]['cpuTick'] += 1
+
+                # Set interval #
+                if self.periodicEventCnt > 0 and (self.prevComm == d['comm'] or self.prevTid == thread):
+                    diff = float(d['time']) - float(self.prevTime)
+                    self.periodicEventTotal += diff
+                    self.periodicContEventCnt += 1
+                    self.periodicEventInterval = round(self.periodicEventTotal / self.periodicContEventCnt, 3)
+
+                self.prevComm = d['comm']
+                self.prevTid = thread
+                self.prevTime = d['time']
 
                 # Set max core to calculate cpu usage of thread #
                 core = int(d['core'])
@@ -864,7 +890,8 @@ class FunctionInfo:
         # Print cpu usage in user space #
         SystemInfo.clearPrint()
         if SystemInfo.targetEvent is None:
-            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (USER)' % self.periodicEventCnt)
+            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                    (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
             SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % (SystemInfo.targetEvent, self.periodicEventCnt))
 
@@ -923,8 +950,11 @@ class FunctionInfo:
 
         # Print cpu usage in kernel space #
         SystemInfo.clearPrint()
-        if SystemInfo.targetEvent is None: SystemInfo.pipePrint('[CPU Info] [Cnt: %d] (KERNEL)' % self.periodicEventCnt)
-        else: SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+        if SystemInfo.targetEvent is None:
+                SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+                        (self.periodicEventCnt, self.periodicEventInterval * 1000))
+        else:
+            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -934,15 +964,17 @@ class FunctionInfo:
         exceptList = {}
         for pos, value in self.posData.items():
             if value['symbol'] == '__irq_usr' or value['symbol'] == '__irq_svc' or \
-                value['symbol'] == '__hrtimer_start_range_ns' or value['symbol'] == 'hrtimer_start_range_ns':
+                value['symbol'] == '__hrtimer_start_range_ns' or value['symbol'] == 'hrtimer_start_range_ns' or \
+                value['symbol'] == 'apic_timer_interrupt':
                 try: exceptList[pos]
                 except: exceptList[pos] = dict()
 
+        # Print cpu usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
             if self.cpuEnabled is False or value['cnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}" \
-                    .format(round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1), idx, '', ''))
+            cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}".format(cpuPer, idx, '', ''))
 
             # Sort stacks by usage #
             value['stack'].sort(reverse=True)
@@ -982,7 +1014,8 @@ class FunctionInfo:
     def printMemUsage(self):
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] (USER)')
+        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -1034,7 +1067,8 @@ class FunctionInfo:
 
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] (KERNEL)')
+        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+                (self.pageUsageCnt * 4, self.pageEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -1048,6 +1082,7 @@ class FunctionInfo:
                 try: exceptList[pos]
                 except: exceptList[pos] = dict()
 
+        # Print mem usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
             if self.memEnabled is False or value['pageCnt'] == 0: break
 
@@ -1083,7 +1118,8 @@ class FunctionInfo:
     def printBlockUsage(self):
         # Print IO usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] (USER)')
+        SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -1135,7 +1171,8 @@ class FunctionInfo:
 
         # Print IO usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] (KERNEL)')
+        SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+                (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -1149,11 +1186,11 @@ class FunctionInfo:
                 try: exceptList[pos]
                 except: exceptList[pos] = dict()
 
+        # Print block usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
             if self.ioEnabled is False or value['blockCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}" \
-                    .format(int(value['blockCnt'] * 0.5), idx, '', ''))
+            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x:x[3], reverse=True)

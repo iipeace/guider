@@ -1,7 +1,7 @@
-diff --git arch/arm/kernel/stacktrace.c arch/arm/kernel/stacktrace.c
-index 00f79e5..3726d03 100755
---- arch/arm/kernel/stacktrace.c
-+++ arch/arm/kernel/stacktrace.c
+diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
+index 00f79e5..ae084a0 100755
+--- a/arch/arm/kernel/stacktrace.c
++++ b/arch/arm/kernel/stacktrace.c
 @@ -1,8 +1,10 @@
  #include <linux/export.h>
  #include <linux/sched.h>
@@ -13,7 +13,7 @@ index 00f79e5..3726d03 100755
  
  #if defined(CONFIG_FRAME_POINTER) && !defined(CONFIG_ARM_UNWIND)
  /*
-@@ -129,3 +131,88 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -129,3 +131,77 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
@@ -23,71 +23,60 @@ index 00f79e5..3726d03 100755
 + * Patch to use user stack tracer for ARM archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option
 + * 2. patch this file and rebuild your kernel
-+ * 3. build target module to trace with -pg -rdynamic option
++ * 3. build target module to trace with -g -rdynamic -fno-omit-frame-pointer option
 + */
 +struct stack_frame_user {
-+        const void __user       *next_fp; //r11
++        unsigned long pc;
 +        unsigned long ip;
 +        unsigned long sp;
++        unsigned long next_fp;
 +        unsigned long lr;
-+        unsigned long pc; //r15
 +};
 +
 +static int
 +copy_stack_frame(const void __user *fp, struct stack_frame_user *frame)
 +{
-+        int ret = 1;
-+        unsigned long lr;
-+
 +        if (!access_ok(VERIFY_READ, fp, sizeof(*frame)))
 +                return 0;
 +
 +        pagefault_disable();
-+        if (__copy_from_user_inatomic(frame, fp, sizeof(*frame)))
-+                ret = 0;
-+        if (__copy_from_user_inatomic(&lr, frame->lr, sizeof(lr)))
-+                ret = 0;
-+        frame->lr = lr;
++        if (__copy_from_user_inatomic(frame, fp, sizeof(*frame))) {
++		pagefault_enable();
++		return 0;
++	}
++
 +        pagefault_enable();
 +
-+        return ret;
++        return 1;
 +}
 +
 +static inline void __save_stack_trace_user(struct stack_trace *trace)
 +{
 +        const struct pt_regs *regs = task_pt_regs(current);
 +        const void __user *fp = (const void __user *)regs->ARM_fp;
-+        unsigned long saved_lr = 0;
 +
-+        if (trace->nr_entries < trace->max_entries) {
++        if (trace->nr_entries < trace->max_entries){
 +                trace->entries[trace->nr_entries++] = regs->ARM_pc;
 +                trace->entries[trace->nr_entries++] = regs->ARM_lr;
-+        }
++	}
 +
 +        while (trace->nr_entries < trace->max_entries) {
 +                struct stack_frame_user frame;
 +
-+                memset(&frame, 0, sizeof(struct stack_frame_user));
-+
-+                if (!copy_stack_frame(fp, &frame)) {
-+                        if (saved_lr)
-+                                trace->entries[trace->nr_entries++] =
-+                                        saved_lr;
-+                        break;
-+                }
++                if (!copy_stack_frame(fp, &frame))
++			break;
 +
 +                if (frame.pc) {
 +                        trace->entries[trace->nr_entries++] =
 +                                frame.pc;
-+                        saved_lr = frame.lr;
++
++                        trace->entries[trace->nr_entries++] =
++				frame.lr;
 +                }
 +
 +                if ((unsigned long)fp < regs->ARM_sp ||
-+                    fp == frame.next_fp) {
-+                        trace->entries[trace->nr_entries++] =
-+                                saved_lr;
++                    frame.pc == frame.lr)
 +                        break;
-+                }
 +
 +                fp = frame.next_fp;
 +        }
