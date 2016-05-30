@@ -94,8 +94,6 @@ class FunctionInfo:
         self.startTime = '0'
         self.finishTime = '0'
         self.totalTime = 0
-        self.logSize = 0
-        self.dbgEventLine = 0
         self.totalTick = 0
         self.prevTime = '0'
         self.prevTid = '0'
@@ -155,9 +153,14 @@ class FunctionInfo:
             self.target = SystemInfo.showGroup[0]
 
         # Check addr2line path #
-        if SystemInfo.addr2linePath is None or os.path.isfile(SystemInfo.addr2linePath) is False:
+        if SystemInfo.addr2linePath is None:
             print "[Error] Fail to find addr2line, use also -l option with the path of addr2line"
             sys.exit(0)
+        else:
+            for path in SystemInfo.addr2linePath:
+                if os.path.isfile(path) is False:
+                    print "[Error] Fail to find addr2line, use also -l option with the path of addr2line"
+                    sys.exit(0)
 
         # Check root path #
         if SystemInfo.rootPath is None:
@@ -168,6 +171,7 @@ class FunctionInfo:
         self.posData['0'] = dict(self.init_posData)
 
         # Parse logs #
+        SystemInfo.totalLine = len(lines)
         self.parseLogs(lines, SystemInfo.showGroup[0])
 
         # Check whether data of target thread is collected or nothing #
@@ -387,47 +391,53 @@ class FunctionInfo:
                             break
             return
 
-        # Set addr2line command #
-        args = [SystemInfo.addr2linePath, "-C", "-f", "-a", "-e", binPath]
+        for path in SystemInfo.addr2linePath:
+            # Set addr2line command #
+            args = [path, "-C", "-f", "-a", "-e", binPath]
 
-        # Prepare for variable to use as index #
-        offset = 0
-        listLen = len(offsetList)
-        maxArg = 512
+            # Prepare for variable to use as index #
+            offset = 0
+            listLen = len(offsetList)
+            maxArg = 512
 
-        # Get symbol by address of every maxArg elements in list #
-        while offset < listLen:
-            # Launch addr2line #
-            proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-            proc.wait()
-            offset += maxArg
+            # Get symbol by address of every maxArg elements in list #
+            while offset < listLen:
+                # Launch addr2line #
+                proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+                proc.wait()
+                offset += maxArg
 
-            while True:
-                # Get return of addr2line #
-                addr = proc.stdout.readline().replace('\n', '')[2:]
-                symbol = proc.stdout.readline().replace('\n', '')
-                src = proc.stdout.readline().replace('\n', '')
+                while True:
+                    # Get return of addr2line #
+                    addr = proc.stdout.readline().replace('\n', '')[2:]
+                    symbol = proc.stdout.readline().replace('\n', '')
+                    src = proc.stdout.readline().replace('\n', '')
 
-                # End of return #
-                if not addr: break
+                    # End of return #
+                    if not addr: break
 
-                if symbol == '??': symbol = addr
+                    if symbol == '??': symbol = addr
 
-                # check relocatable or not #
-                if relocated is False:
-                    self.posData[addr]['symbol'] = symbol
-                    self.posData[addr]['src'] = src
-                else:
-                    inBinArea = False
-                    for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-                        if value['binary'] == binPath: 
-                            inBinArea = True
-                            if value['offset'] == hex(int(addr, 16)):
-                                self.posData[idx]['symbol'] = symbol
-                                self.posData[idx]['src'] = src
+                    # Check whether the file is relocatable or not #
+                    if relocated is False:
+                        savedSymbol = self.posData[addr]['symbol']
+                        # Check whether saved symbol found by previous addr2line is right #
+                        if savedSymbol == '' or savedSymbol == addr or savedSymbol[0] == '$':
+                            self.posData[addr]['symbol'] = symbol
+                            self.posData[addr]['src'] = src
+                    else:
+                        inBinArea = False
+                        for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+                            if value['binary'] == binPath:
+                                inBinArea = True
+                                if value['offset'] == hex(int(addr, 16)):
+                                    savedSymbol = self.posData[idx]['symbol']
+                                    if savedSymbol == '' or savedSymbol == addr or savedSymbol[0] == '$':
+                                        self.posData[idx]['symbol'] = symbol
+                                        self.posData[idx]['src'] = src
+                                        break
+                            elif inBinArea is True:
                                 break
-                        elif inBinArea is True:
-                            break
 
 
 
@@ -441,8 +451,9 @@ class FunctionInfo:
         bakKernelCallStack = []
 
         for l in lines:
-            self.logSize += len(l)
-            self.dbgEventLine += 1
+            SystemInfo.logSize += len(l)
+            SystemInfo.curLine += 1
+            SystemInfo.dbgEventLine += 1
 
             ret = self.parseStackLog(l, desc)
 
@@ -533,7 +544,7 @@ class FunctionInfo:
                         self.userCallData.append([userLastPos, userCallStack, 0, targetCnt])
 
                         self.savedCnt = 0
-                    else: 
+                    else:
                         self.savedCnt = 0
 
                     # Recover previous kernel stack after finishing nested event #
@@ -616,7 +627,7 @@ class FunctionInfo:
 
         # Filter for event #
         if SystemInfo.tgidEnable is True:
-            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
         else:
             m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
 
@@ -629,7 +640,7 @@ class FunctionInfo:
             else:
                 self.finishTime = d['time']
 
-            # Make thread entry #
+            # Make thread entity #
             thread = d['thread']
             try: self.threadData[thread]
             except:
@@ -832,7 +843,7 @@ class FunctionInfo:
 
         # Print profiled thread list #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('Thread List', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), self.logSize / 1024))
+        ('Thread List', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^5}|".\
                 format("Name", "Tid", "Pid", "Target", "CPU", "DIE"))
@@ -997,9 +1008,9 @@ class FunctionInfo:
                     symbolStack = ''
                     try:
                         for pos in subStack:
-                            if self.posData[pos]['symbol'] == '': 
+                            if self.posData[pos]['symbol'] == '':
                                 symbolStack +=  ' <- ' + hex(int(pos, 16))
-                            else: 
+                            else:
                                 symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
@@ -1403,6 +1414,11 @@ class SystemInfo:
     ttyEnable = True
     binEnable = False
 
+    logSize = 0
+    curLine = 0
+    totalLine = 0
+    dbgEventLine = 0
+
     graphEnable = False
     graphLabels= []
     bufferString = ''
@@ -1489,7 +1505,7 @@ class SystemInfo:
 
     @staticmethod
     def exitHandler(signum, frame):
-        print '\n'
+        print '\nterminate by user\n'
         sys.exit(0)
 
 
@@ -1589,7 +1605,8 @@ class SystemInfo:
         SystemInfo.progressCnt += 1
         if SystemInfo.progressCnt % 1000 == 0:
             if SystemInfo.progressCnt == 4000: SystemInfo.progressCnt = 0
-            sys.stdout.write(SystemInfo.progressChar[SystemInfo.progressCnt / 1000] + '\b')
+            sys.stdout.write('%3d' % (SystemInfo.curLine / float(SystemInfo.totalLine) * 100) + \
+                    '% ' + SystemInfo.progressChar[SystemInfo.progressCnt / 1000] + '\b\b\b\b\b\b')
             sys.stdout.flush()
             gc.collect()
 
@@ -1759,7 +1776,8 @@ class SystemInfo:
                     if len(SystemInfo.targetEvent) == 0:
                         SystemInfo.targetEvent = None
                 elif sys.argv[n][1] == 'l':
-                    SystemInfo.addr2linePath = sys.argv[n].lstrip('-l')
+                    #SystemInfo.addr2linePath = sys.argv[n].lstrip('-l')
+                    SystemInfo.addr2linePath = sys.argv[n].lstrip('-l').split(',')
                 elif sys.argv[n][1] == 'j':
                     SystemInfo.rootPath = sys.argv[n].lstrip('-j')
                 elif sys.argv[n][1] == 'b':
@@ -2324,7 +2342,6 @@ class ThreadInfo:
         self.stopFlag = False
         self.totalTime = 0
         self.totalTimeOld = 0
-        self.logSize = 0
         self.cxtSwitch = 0
         self.lastLog = None
 
@@ -2367,7 +2384,6 @@ class ThreadInfo:
         try:
             f = open(file, 'r')
             lines = f.readlines()
-
         except IOError:
             print "[Error] Open %s" % file
             sys.exit(0)
@@ -2377,6 +2393,7 @@ class ThreadInfo:
         # start parsing logs #
         print 'start analyzing... [ STOP(ctrl + c) ]'
         self.lastLog = lines[-1]
+        SystemInfo.totalLine = len(lines)
         for idx, log in enumerate(lines):
             self.parse(log)
             if self.stopFlag == True: break
@@ -2449,7 +2466,7 @@ class ThreadInfo:
     def printThreadInfo(self):
         # print menu #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]" % \
-        ('[Thread Info]', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, self.logSize / 1024))
+        ('[Thread Info]', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
                 format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
@@ -2945,14 +2962,14 @@ class ThreadInfo:
             f = open(file, 'r')
 
             while True:
-                if readLineCnt > 100:
+                if readLineCnt > 50:
                     print "[Error] Fail to recognize format"
                     sys.exit(0)
 
                 l = f.readline()
                 readLineCnt += 1
 
-                m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
                 if m is not None:
                     d = m.groupdict()
                     f.close()
@@ -2971,9 +2988,11 @@ class ThreadInfo:
 
 
     def parse(self, string):
+        SystemInfo.curLine += 1
         SystemInfo.printProgress()
+
         if SystemInfo.tgidEnable is True:
-            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>[0-9]+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+            m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         else:
             m = re.match('^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         if m is not None:
@@ -2984,7 +3003,7 @@ class ThreadInfo:
             etc = d['etc']
             time = d['time']
 
-            self.logSize += len(string)
+            SystemInfo.logSize += len(string)
 
             if SystemInfo.maxCore < int(core):
                 SystemInfo.maxCore = int(core)
@@ -2995,13 +3014,13 @@ class ThreadInfo:
                 comm = comm.replace("<idle>", "swapper/" + core);
             else: thread = d['thread']
 
-            # make core thread entry in advance for total irq per core #
+            # make core thread entity in advance for total irq per core #
             try: self.threadData[coreId]
             except:
                 self.threadData[coreId] = dict(self.init_threadData)
                 self.threadData[coreId]['comm'] = "swapper/" + core
 
-            # make thread entry #
+            # make thread entity #
             try: self.threadData[thread]
             except:
                 self.threadData[thread] = dict(self.init_threadData)
@@ -3236,7 +3255,9 @@ class ThreadInfo:
                     if self.threadData[prev_id]['start'] <= 0:
                         # calculate running time of prev_process started before starting to profile #
                         diff = float(time) - float(self.startTime)
+                        print 'B', prev_id, self.threadData[prev_id]['start'], self.threadData[prev_id]['usage'], diff
                         self.threadData[prev_id]['usage'] = diff
+                        print 'A', prev_id, self.threadData[prev_id]['start'], self.threadData[prev_id]['usage'], diff
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                         self.threadData[prev_id]['usage'] += diff
@@ -4202,6 +4223,9 @@ if __name__ == '__main__':
 
     ThreadInfo.getInitTime(SystemInfo.inputFile)
 
+    # set handler for exit #
+    signal.signal(signal.SIGINT, SystemInfo.exitHandler)
+
     # create Function Info #
     if SystemInfo.functionEnable is not False:
         fi = FunctionInfo(SystemInfo.inputFile)
@@ -4251,9 +4275,6 @@ if __name__ == '__main__':
 
     # print system call usage #
     ti.printSyscallInfo()
-
-    # set handler for exit #
-    signal.signal(signal.SIGINT, SystemInfo.exitHandler)
 
     # start input menu #
     if SystemInfo.selectMenu != None:
