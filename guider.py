@@ -22,7 +22,7 @@ try:
     import gc
     import imp
 except ImportError, e:
-    print "[Error] Fail to import default libs because %s" % e
+    SystemInfo.printError("Fail to import default libs because %s" % e)
     sys.exit(0)
 
 try:
@@ -31,6 +31,20 @@ try:
     from ctypes.util import find_library
 except:
     None
+
+
+
+
+
+class ColorInfo:
+    WARNING = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    SPECIAL = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 
@@ -45,7 +59,7 @@ class ConfigInfo:
 
         try: f = open(file, 'r')
         except:
-            SystemInfo.pipePrint("[Error] Open %s" % (file))
+            SystemInfo.printError("Open %s" % (file))
             return None
 
         if num == 0: return f.readline().replace('\n','')
@@ -57,11 +71,11 @@ class ConfigInfo:
     def openConfFile(file):
         file += '.tc'
         if os.path.isfile(file) == True:
-            SystemInfo.pipePrint("[Warning] %s already exist, make new one" % (file))
+            SystemInfo.printWarning("%s already exist, make new one" % (file))
 
         try: f = open(file, 'wt')
         except:
-            SystemInfo.pipePrint("[Error] Fail to open %s" % (file))
+            SystemInfo.printError("Fail to open %s" % (file))
             return None
 
         return f
@@ -72,7 +86,7 @@ class ConfigInfo:
     @staticmethod
     def writeConfData(fd, line):
         if fd == None:
-            SystemInfo.pipePrint("[Error] Fail to get file descriptor")
+            SystemInfo.printError("Fail to get file descriptor")
             return None
 
         fd.write(line)
@@ -136,7 +150,7 @@ class FunctionInfo:
         # Open log file #
         try: logFd = open(logFile, 'r')
         except:
-            print "[Error] Fail to open %s to create callstack information" % logFile
+            SystemInfo.printError("Fail to open %s to create callstack information" % logFile)
             sys.exit(0)
 
         # Get binary and offset info #
@@ -147,24 +161,24 @@ class FunctionInfo:
 
         # Check target thread setting #
         if len(SystemInfo.showGroup) != 1:
-            print "[Error] wrong option with -f, use -g option with only one tid / comm / nothing"
+            SystemInfo.printError("wrong option with -f, use -g option with only one tid / comm / nothing")
             sys.exit(0)
         else:
             self.target = SystemInfo.showGroup[0]
 
         # Check addr2line path #
         if SystemInfo.addr2linePath is None:
-            print "[Error] Fail to find addr2line, use also -l option with the path of addr2line"
+            SystemInfo.printError("Fail to find addr2line, use also -l option with the path of addr2line")
             sys.exit(0)
         else:
             for path in SystemInfo.addr2linePath:
                 if os.path.isfile(path) is False:
-                    print "[Error] Fail to find addr2line, use also -l option with the path of addr2line"
+                    SystemInfo.printError("Fail to find addr2line, use also -l option with the path of addr2line")
                     sys.exit(0)
 
         # Check root path #
         if SystemInfo.rootPath is None:
-            print "[Error] Fail to recognize root path for target, use also -j option with the path of root"
+            SystemInfo.printError("Fail to recognize root path for target, use also -j option with the path of root")
             sys.exit(0)
 
         # Register None pos #
@@ -176,7 +190,7 @@ class FunctionInfo:
 
         # Check whether data of target thread is collected or nothing #
         if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) != 0:
-            print "[Error] No data related to %s" % self.target
+            SystemInfo.printError("No data related to %s" % self.target)
             sys.exit(0)
 
         # Get symbols from call address #
@@ -370,7 +384,7 @@ class FunctionInfo:
         try:
             import subprocess
         except ImportError, e:
-            print "[Error] Fail to import because %s" % e
+            SystemInfo.printError("Fail to import because %s" % e)
             sys.exit(0)
 
         # Recognize binary type #
@@ -378,7 +392,7 @@ class FunctionInfo:
 
         # No file exist #
         if os.path.isfile(binPath) == False:
-            print "[Warning] Fail to find %s" % binPath
+            SystemInfo.printWarning("Fail to find %s" % binPath)
             for addr in offsetList: 
                 if relocated is False:
                     self.posData[addr]['symbol'] = 'NoFile'
@@ -403,7 +417,8 @@ class FunctionInfo:
             # Get symbol by address of every maxArg elements in list #
             while offset < listLen:
                 # Launch addr2line #
-                proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+                proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], \
+                        stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
                 proc.wait()
                 offset += maxArg
 
@@ -412,6 +427,10 @@ class FunctionInfo:
                     addr = proc.stdout.readline().replace('\n', '')[2:]
                     symbol = proc.stdout.readline().replace('\n', '')
                     src = proc.stdout.readline().replace('\n', '')
+
+                    err = proc.stderr.readline().replace('\n', '')
+                    if len(err) > 0:
+                        SystemInfo.printWarning(err[err.find(':') + 2:])
 
                     # End of return #
                     if not addr: break
@@ -614,7 +633,7 @@ class FunctionInfo:
                     kernelCallStack.append(pos)
                 # wrong mode #
                 else:
-                    print '[Warning] wrong current mode %s' % self.curMode
+                    SystemInfo.printWarning('wrong current mode %s' % self.curMode)
 
                 # Increase total call count #
                 if self.nowEvent == 'C':
@@ -709,6 +728,7 @@ class FunctionInfo:
 
                 return False
 
+            # ToDo: make memory map and add mm_page_free event #
             # memory allocation event #
             elif d['func'] == "mm_page_alloc:":
                 m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
@@ -823,7 +843,7 @@ class FunctionInfo:
 
     def getBinInfo(self, addr):
         if SystemInfo.rootPath is None:
-            print "[Error] Fail to recognize root path for target, use also -j option with the path of root"
+            SystemInfo.printError("Fail to recognize root path for target, use also -j option with the path of root")
             sys.exit(0)
 
         for data in self.mapData:
@@ -833,7 +853,7 @@ class FunctionInfo:
                     return SystemInfo.rootPath + data['binName'], hex(int(addr,16) - int(data['startAddr'],16))
                 else:
                     return SystemInfo.rootPath + data['binName'], hex(int(addr,16))
-        print "[Warning] Fail to get the binary info of %s in mapping table" % addr
+        SystemInfo.printWarning("Fail to get the binary info of %s in mapping table" % addr)
 
 
 
@@ -855,7 +875,7 @@ class FunctionInfo:
 
             if value['target'] is True:
                 if targetFound is True:
-                    print "[Warning] Target thread should be only one, otherwise profile result will be incorrect"
+                    SystemInfo.printWarning("Target thread should be only one, otherwise profile result will be incorrect")
                 targetMark = '*'
                 targetFound = True
 
@@ -1251,14 +1271,14 @@ class PageInfo:
         try:
             imp.find_module('ctypes')
         except:
-            print '[Error] Fail to import ctypes module'
+            SystemInfo.printError('Fail to import ctypes module')
             sys.exit(0)
 
         try:
             # find and load the library
             self.libguider = cdll.LoadLibrary(self.libguiderPath)
         except:
-            print '[Error] Fail to open %s' % self.libguiderPath
+            SystemInfo.printError('Fail to open %s' % self.libguiderPath)
             sys.exit(0)
 
         # set the argument type #
@@ -1324,7 +1344,7 @@ class PageInfo:
                         fd = open(commPath, 'r')
                         comm = fd.readline()
                     except:
-                        print '[Error] Fail to open %s' % (commPath)
+                        SystemInfo.printError('Fail to open %s' % (commPath))
                         continue
 
                     if len(SystemInfo.showGroup) > 0:
@@ -1350,7 +1370,7 @@ class PageInfo:
 
                         # make tid info and share map with process #
         except:
-            print '[Error] Fail to open %s' % self.procPath
+            SystemInfo.printError('Fail to open %s' % self.procPath)
 
 
 
@@ -1383,7 +1403,7 @@ class PageInfo:
             fd = open(filename, "r")
             size = os.stat(filename).st_size
         except:
-            print '[Error] Fail to open or stat %s' % filename
+            SystemInfo.printError('Fail to open or stat %s' % filename)
 
         # call mincore by c library #
         pagemap = self.libguider.get_loadPageMap(fd.fileno())
@@ -1487,7 +1507,7 @@ class SystemInfo:
 
         if SystemInfo.pageEnable is not False:
             SystemInfo.pageEnable = False
-        print 'ready to save and analyze... [ STOP(ctrl + c) ]'
+        SystemInfo.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
 
 
 
@@ -1497,7 +1517,7 @@ class SystemInfo:
             SystemInfo.writeEvent("EVENT_MARK")
         else:
             SystemInfo.writeEvent("EVENT_RESTART")
-            print 'restart recording... [ STOP(ctrl + c) ]'
+            SystemInfo.printStatus('restart recording... [ STOP(ctrl + c) ]')
 
         time.sleep(1024)
 
@@ -1505,7 +1525,7 @@ class SystemInfo:
 
     @staticmethod
     def exitHandler(signum, frame):
-        print '\nterminate by user\n'
+        SystemInfo.printStatus('\nterminate by user\n')
         sys.exit(0)
 
 
@@ -1548,14 +1568,14 @@ class SystemInfo:
                 output = SystemInfo.outputFile + str(SystemInfo.repeatCount)
                 try:
                     shutil.copy(os.path.join(SystemInfo.mountPath + '../trace'), output)
-                    print '[Info] trace data is saved to %s' % output
+                    SystemInfo.printInfo('trace data is saved to %s' % output)
                 except:
-                    print '[Warning] Fail to save trace data to %s' % output
+                    SystemInfo.printWarning('Fail to save trace data to %s' % output)
 
                 SystemInfo.repeatCount -= 1
                 signal.alarm(SystemInfo.repeatInterval)
             else:
-                print '[Error] Fail to save trace data because output file is not set'
+                SystemInfo.printError('Fail to save trace data because output file is not set')
                 SystemInfo.runRecordStopCmd()
                 sys.exit(0)
         else:
@@ -1573,12 +1593,12 @@ class SystemInfo:
                 f.writelines(lines)
 
                 SystemInfo.runRecordStopFinalCmd()
-                print '[Info] trace data is saved to %s' % (SystemInfo.outputFile)
+                SystemInfo.printInfo('trace data is saved to %s' % (SystemInfo.outputFile))
 
                 f.close()
                 sys.exit(0)
         except IOError:
-            print "[Error] Fail to write data to %s" % SystemInfo.outputFile
+            SystemInfo.printError("Fail to write data to %s" % SystemInfo.outputFile)
             sys.exit(0)
 
 
@@ -1587,13 +1607,13 @@ class SystemInfo:
     def writeCmd(path, val):
         try: fd = open(SystemInfo.mountPath + path, 'w')
         except:
-            print "[Warning] Fail to use %s event, please confirm kernel configuration" % path[0:path.find('/')]
+            SystemInfo.printWarning("Fail to use %s event, please confirm kernel configuration" % path[0:path.find('/')])
             return -1
         try:
             fd.write(val)
             fd.close()
         except:
-            print "[Warning] Fail to apply command to %s" % path
+            SystemInfo.printWarning("Fail to apply command to %s" % path)
             return -2
 
         return 0
@@ -1641,18 +1661,19 @@ class SystemInfo:
                 SystemInfo.eventLogFile = str(SystemInfo.getMountPath()) + '/tracing/trace_marker'
 
             try: SystemInfo.eventLogFD = open(SystemInfo.eventLogFile, 'w')
-            except: print "[Error] Fail to open %s for writing event\n" % SystemInfo.eventLogFD
+            except: SystemInfo.printError("Fail to open %s for writing event\n" % SystemInfo.eventLogFD)
 
         if SystemInfo.eventLogFD != None:
             try:
                 SystemInfo.eventLogFD.write(message)
-                print '[Info] marked user-defined event'
+                SystemInfo.printInfo('marked user-defined event')
                 SystemInfo.eventLogFD.close()
                 SystemInfo.eventLogFD = None
             except:
-                print "[Error] Fail to write %s event\n" % (message)
+                SystemInfo.printError("Fail to write %s event\n" % (message))
         else:
-            print "[Error] Fail to write %s event because there is no file descriptor\n" % (message)
+            SystemInfo.printError("Fail to write %s event because there is no file descriptor\n" % (message))
+
 
 
     @staticmethod
@@ -1660,7 +1681,7 @@ class SystemInfo:
         if SystemInfo.pipeForPrint == None and SystemInfo.selectMenu == None and SystemInfo.printFile == None:
             try: SystemInfo.pipeForPrint = os.popen('less', 'w')
             except:
-                print "[Error] less can not be found, use -o option to save output to file\n"
+                SystemInfo.printError("less can not be found, use -o option to save output to file\n")
                 sys.exit(0)
 
             if SystemInfo.ttyEnable == True:
@@ -1669,7 +1690,7 @@ class SystemInfo:
         if SystemInfo.pipeForPrint != None:
             try: SystemInfo.pipeForPrint.write(line + '\n')
             except:
-                print "[Error] printing to pipe failed\n"
+                SystemInfo.printError("printing to pipe failed\n")
                 SystemInfo.pipeForPrint = None
 
         if SystemInfo.printFile != None and SystemInfo.fileForPrint == None:
@@ -1685,17 +1706,53 @@ class SystemInfo:
 
                 # print output file name #
                 if SystemInfo.printFile != None:
-                    print "[Info] wrote output to %s successfully" % (SystemInfo.inputFile)
+                    SystemInfo.printInfo("wrote output to %s successfully" % (SystemInfo.inputFile))
             except:
-                print "[Error] Fail to open %s\n" % (SystemInfo.inputFile)
+                SystemInfo.printError("Fail to open %s\n" % (SystemInfo.inputFile))
                 sys.exit(0)
 
         if SystemInfo.fileForPrint != None:
             try: SystemInfo.fileForPrint.write(line + '\n')
             except:
-                print "[Error] printing to file failed\n"
+                SystemInfo.printError("printing to file failed\n")
                 SystemInfo.pipeForPrint = None
         else: print line
+
+
+
+    @staticmethod
+    def printWarning(line):
+        print ColorInfo.WARNING + '[Warning] ' + line + ColorInfo.ENDC
+
+
+
+    @staticmethod
+    def printError(line):
+        print ColorInfo.FAIL + '[Error] ' + line + ColorInfo.ENDC
+
+
+
+    @staticmethod
+    def printInfo(line):
+        print ColorInfo.BOLD + '[Info] ' + line + ColorInfo.ENDC
+
+
+
+    @staticmethod
+    def printGood(line):
+        print ColorInfo.OKGREEN + line + ColorInfo.ENDC
+
+
+
+    @staticmethod
+    def printUnderline(line):
+        print ColorInfo.UNDERLINE + line + ColorInfo.ENDC
+
+
+
+    @staticmethod
+    def printStatus(line):
+        print '\n' + ColorInfo.SPECIAL + line + ColorInfo.ENDC
 
 
 
@@ -1711,20 +1768,20 @@ class SystemInfo:
                         continue
                     try: int(sys.argv[n].lstrip('-i'))
                     except:
-                        print "[Error] wrong option value %s with -i option" % (sys.argv[n])
+                        SystemInfo.printError("wrong option value %s with -i option" % (sys.argv[n]))
                         if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                     if int(sys.argv[n].lstrip('-i')) >= 0:
                         SystemInfo.intervalEnable = int(sys.argv[n].lstrip('-i'))
                     else:
-                        print "[Error] wrong option value %s with -i option, use integer value" % (sys.argv[n].lstrip('-i'))
+                        SystemInfo.printError("wrong option value %s with -i option, use integer value" % (sys.argv[n].lstrip('-i')))
                         if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                 elif sys.argv[n][1] == 'o':
                     SystemInfo.printFile = str(sys.argv[n].lstrip('-o'))
                     SystemInfo.ttyEnable = False
                     if os.path.isdir(SystemInfo.printFile) == False:
-                        print "[Error] wrong option value %s with -o option, use directory name" % (sys.argv[n].lstrip('-o'))
+                        SystemInfo.printError("wrong option value %s with -o option, use directory name" % (sys.argv[n].lstrip('-o')))
                         if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                 elif sys.argv[n][1] == 'a':
@@ -1737,12 +1794,12 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'p':
                     if SystemInfo.intervalEnable != 1:
                         SystemInfo.preemptGroup = sys.argv[n].lstrip('-p').split(',')
-                    else: print "[Warning] -i option is already enabled, -p option is disabled"
+                    else: SystemInfo.printWarning("-i option is already enabled, -p option is disabled")
                 elif sys.argv[n][1] == 'd':
                     options = sys.argv[n].lstrip('-d')
                     if options.rfind('t') != -1:
                         SystemInfo.ttyEnable = False
-                        print "[Info] tty is default"
+                        SystemInfo.printInfo("tty is default")
                 elif sys.argv[n][1] == 't':
                     SystemInfo.sysEnable = True
                     SystemInfo.syscallList = sys.argv[n].lstrip('-t').split(',')
@@ -1756,18 +1813,18 @@ class SystemInfo:
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('g') != -1:
                         SystemInfo.graphEnable = True
-                        print "[Info] graph is made for resource usage"
+                        SystemInfo.printInfo("graph is made for resource usage")
                     if options.rfind('t') != -1:
                         SystemInfo.ttyEnable = True
-                        print "[Info] tty is set"
+                        SystemInfo.printInfo("tty is set")
                 elif sys.argv[n][1] == 'g':
                     if SystemInfo.outputFile != None:
-                        print "[Warning] only specific threads are recorded"
+                        SystemInfo.printWarning("only specific threads are recorded")
                 elif sys.argv[n][1] == 'f':
                     # Handle error about record option #
                     if SystemInfo.functionEnable is not False:
                         if SystemInfo.outputFile == None:
-                            print "[Error] wrong option with -f, use also -s option for saving data"
+                            SystemInfo.printError("wrong option with -f, use also -s option for saving data")
                             if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                             sys.exit(0)
                     else: SystemInfo.functionEnable = True
@@ -1791,11 +1848,11 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'm':
                     None
                 else:
-                    print "[Error] unrecognized option -%s" % (sys.argv[n][1])
+                    SystemInfo.printError("unrecognized option -%s" % (sys.argv[n][1]))
                     if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                     sys.exit(0)
             else:
-                print "[Error] wrong option %s" % (sys.argv[n])
+                SystemInfo.printError("wrong option %s" % (sys.argv[n]))
                 if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
 
@@ -1808,12 +1865,12 @@ class SystemInfo:
                 if sys.argv[n][1] == 'b':
                     try: int(sys.argv[n].lstrip('-b'))
                     except:
-                        print "[Error] wrong option value %s with -b option" % (sys.argv[n])
+                        SystemInfo.printError("wrong option value %s with -b option" % (sys.argv[n]))
                         sys.exit(0)
                     if int(sys.argv[n].lstrip('-b')) > 0:
                         SystemInfo.bufferSize = str(sys.argv[n].lstrip('-b'))
                     else:
-                        print "[Error] wrong option value %s with -b option" % (sys.argv[n].lstrip('-b'))
+                        SystemInfo.printError("wrong option value %s with -b option" % (sys.argv[n].lstrip('-b')))
                         sys.exit(0)
                 elif sys.argv[n][1] == 'f':
                     SystemInfo.functionEnable = True
@@ -1821,40 +1878,40 @@ class SystemInfo:
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('i') != -1:
                         SystemInfo.irqEnable = True
-                        print "[Info] irq profile"
+                        SystemInfo.printInfo("irq profile")
                     if options.rfind('m') != -1:
                         SystemInfo.memEnable = True
-                        print "[Info] memory profile"
+                        SystemInfo.printInfo("memory profile")
                     if options.rfind('p') != -1:
                         SystemInfo.pipeEnable = True
-                        print "[Info] recording from pipe"
+                        SystemInfo.printInfo("recording from pipe")
                     if options.rfind('f') != -1:
                         SystemInfo.futexEnable = True
-                        print "[Info] futex profile"
+                        SystemInfo.printInfo("futex profile")
                 elif sys.argv[n][1] == 'g':
                     if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
-                        print "[Warning] only specific threads are recorded"
+                        SystemInfo.printWarning("only specific threads are recorded")
                     SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
                 elif sys.argv[n][1] == 's':
                     if SystemInfo.isRecordMode() is False:
-                        print "[Error] Fail to save data becuase this is not record mode"
+                        SystemInfo.printError("Fail to save data becuase this is not record mode")
                         sys.exit(0)
                     if len(SystemInfo.showGroup) > 0:
-                        print "[Warning] only specific threads are recorded"
+                        SystemInfo.printWarning("only specific threads are recorded")
                     SystemInfo.ttyEnable = False
                     SystemInfo.outputFile = str(sys.argv[n].lstrip('-s'))
                     if os.path.isdir(SystemInfo.outputFile) == True:
                         SystemInfo.outputFile = SystemInfo.outputFile + '/guider.dat'
                     elif os.path.isdir(SystemInfo.outputFile[:SystemInfo.outputFile.rfind('/')]) == True: None
                     else:
-                        print "[Error] wrong option value %s with -s option" % (sys.argv[n].lstrip('-s'))
+                        SystemInfo.printError("wrong option value %s with -s option" % (sys.argv[n].lstrip('-s')))
                         sys.exit(0)
                     SystemInfo.outputFile = SystemInfo.outputFile.replace('//', '/')
                 elif sys.argv[n][1] == 'w':
                     SystemInfo.depEnable = True
                 elif sys.argv[n][1] == 'c':
                     SystemInfo.compareEnable = True
-                    print "[Info] compare mode"
+                    SystemInfo.printInfo("compare mode")
                 elif sys.argv[n][1] == 'm':
                     SystemInfo.pageEnable = True
                 elif sys.argv[n][1] == 't':
@@ -1866,10 +1923,10 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'r':
                     repeatParams = sys.argv[n].lstrip('-r').split(',')
                     if len(repeatParams) != 2:
-                        print "[Error] wrong option with -r, use -r[interval],[repeat]"
+                        SystemInfo.printError("wrong option with -r, use -r[interval],[repeat]")
                         sys.exit(0)
                     elif int(repeatParams[0]) < 1 or int(repeatParams[1]) < 1:
-                        print "[Error] wrong option with -r, use parameters bigger than 0"
+                        SystemInfo.printError("wrong option with -r, use parameters bigger than 0")
                         sys.exit(0)
                     else:
                         SystemInfo.repeatInterval = int(repeatParams[0])
@@ -1893,10 +1950,10 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'p':
                     None
                 else:
-                    print "[Error] wrong option -%s" % (sys.argv[n][1])
+                    SystemInfo.printError("wrong option -%s" % (sys.argv[n][1]))
                     sys.exit(0)
             else:
-                print "[Error] wrong option %s" % (sys.argv[n])
+                SystemInfo.printError("wrong option %s" % (sys.argv[n]))
                 sys.exit(0)
 
 
@@ -1966,12 +2023,12 @@ class SystemInfo:
     def copyPipeToFile(pipePath, filePath):
         try: pd = open(pipePath, 'r')
         except:
-            print "[Error] Fail to open %s" % pipePath
+            SystemInfo.printError("Fail to open %s" % pipePath)
             sys.exit(0)
 
         try: fd = open(filePath, 'w') # use os.O_DIRECT | os.O_RDWR | os.O_TRUNC | os.O_CREAT #
         except:
-            print "[Error] Fail to open %s" % filePath
+            SystemInfo.printError("Fail to open %s" % filePath)
             sys.exit(0)
 
         while True:
@@ -2066,7 +2123,7 @@ class SystemInfo:
         SystemInfo.mountPath += "/tracing/events/"
 
         if os.path.isdir(SystemInfo.mountPath) == False:
-            print "[Error] ftrace option in kernel is not enabled or guider needs root permission"
+            SystemInfo.printError("ftrace option in kernel is not enabled or guider needs root permission")
             sys.exit(0)
 
         self.clearTraceBuffer()
@@ -2111,7 +2168,7 @@ class SystemInfo:
             else: SystemInfo.writeCmd('sched/sched_switch/filter', '0')
 
             if SystemInfo.writeCmd('sched/sched_switch/enable', '1') < 0:
-                print "[Error] sched option in kernel is not enabled"
+                SystemInfo.printError("sched option in kernel is not enabled")
                 sys.exit(0)
 
         if self.cmdList["sched/sched_wakeup"] is True:
@@ -2385,13 +2442,13 @@ class ThreadInfo:
             f = open(file, 'r')
             lines = f.readlines()
         except IOError:
-            print "[Error] Open %s" % file
+            SystemInfo.printError("Open %s" % file)
             sys.exit(0)
 
         SystemInfo.saveDataAndExit(lines)
 
         # start parsing logs #
-        print 'start analyzing... [ STOP(ctrl + c) ]'
+        SystemInfo.printStatus('start analyzing... [ STOP(ctrl + c) ]')
         self.lastLog = lines[-1]
         SystemInfo.totalLine = len(lines)
         for idx, log in enumerate(lines):
@@ -2417,7 +2474,7 @@ class ThreadInfo:
                     try: del self.threadData[key]
                     except: None
         elif SystemInfo.sysEnable == True or len(SystemInfo.syscallList) > 0:
-            print "[Warning] -g option is not enabled, -t option is disabled"
+            SystemInfo.printWarning("-g option is not enabled, -t option is disabled")
             SystemInfo.sysEnable = False
             SystemInfo.syscallList = []
 
@@ -2447,7 +2504,7 @@ class ThreadInfo:
 
             try: self.threadData[t]
             except:
-                SystemInfo.pipePrint("[Warning] thread %s is not in profiled data" % t)
+                SystemInfo.printWarning("thread %s is not in profiled data" % t)
                 continue
 
             ConfigInfo.writeConfData(fd, str(index) + '=' + ConfigInfo.readProcData(t, 'stat', 2).replace('\x00','-') + '+' + \
@@ -2569,7 +2626,7 @@ class ThreadInfo:
             tid = SystemInfo.preemptGroup[index]
             try: self.threadData[tid]
             except:
-                print "[Error] Fail to find %s task" % tid
+                SystemInfo.printError("Fail to find %s task" % tid)
                 sys.exit(0)
 
             SystemInfo.clearPrint()
@@ -2654,7 +2711,7 @@ class ThreadInfo:
 
         # set option for making graph #
         if SystemInfo.graphEnable == True and SystemInfo.intervalEnable > 0:
-            print "[Info] graph is enabled"
+            SystemInfo.printInfo("graph is enabled")
             os.environ['DISPLAY'] = 'localhost:0'
             rc('legend', fontsize=5)
             rcParams.update({'font.size': 8})
@@ -2963,7 +3020,7 @@ class ThreadInfo:
 
             while True:
                 if readLineCnt > 50:
-                    print "[Error] Fail to recognize format"
+                    SystemInfo.printError("Fail to recognize format")
                     sys.exit(0)
 
                 l = f.readline()
@@ -2982,7 +3039,7 @@ class ThreadInfo:
                     return d['time']
 
         except IOError:
-            print "[Error] Open %s", file
+            SystemInfo.printError("Open %s", file)
             sys.exit(0)
 
 
@@ -3255,9 +3312,7 @@ class ThreadInfo:
                     if self.threadData[prev_id]['start'] <= 0:
                         # calculate running time of prev_process started before starting to profile #
                         diff = float(time) - float(self.startTime)
-                        print 'B', prev_id, self.threadData[prev_id]['start'], self.threadData[prev_id]['usage'], diff
                         self.threadData[prev_id]['usage'] = diff
-                        print 'A', prev_id, self.threadData[prev_id]['start'], self.threadData[prev_id]['usage'], diff
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                         self.threadData[prev_id]['usage'] += diff
@@ -4143,20 +4198,20 @@ if __name__ == '__main__':
         SystemInfo.parseRecordOption()
 
         if SystemInfo.functionEnable is not False:
-            print "[Info] function profile mode"
+            SystemInfo.printInfo("function profile mode")
             # si.runPeriodProc()
             # toDo: make periodic event every 100us for specific thread #
         elif SystemInfo.pageEnable is not False:
-            print "[Info] file profile mode"
+            SystemInfo.printInfo("file profile mode")
         else:
-            print "[Info] thread profile mode"
+            SystemInfo.printInfo("thread profile mode")
 
         # set signal #
         if SystemInfo.repeatCount > 0 and SystemInfo.repeatInterval > 0:
             signal.signal(signal.SIGALRM, SystemInfo.alarmHandler)
             signal.alarm(SystemInfo.repeatInterval)
             if SystemInfo.outputFile is None:
-                print "[Error] wrong option with -s, use parameter for saving data"
+                SystemInfo.printError("wrong option with -s, use parameter for saving data")
                 sys.exit(0)
         else:
             signal.signal(signal.SIGINT, SystemInfo.stopHandler)
@@ -4168,7 +4223,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
         # start recording for thread profile #
-        print 'start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]'
+        SystemInfo.printStatus('start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]')
         si.runRecordStartCmd()
 
         if SystemInfo.pipeEnable is True:
@@ -4177,10 +4232,10 @@ if __name__ == '__main__':
                 SystemInfo.copyPipeToFile(SystemInfo.inputFile + '_pipe', SystemInfo.outputFile)
                 SystemInfo.runRecordStopCmd()
                 SystemInfo.runRecordStopFinalCmd()
-                print "[Info] wrote output to %s successfully" % (SystemInfo.outputFile)
+                SystemInfo.printInfo("wrote output to %s successfully" % (SystemInfo.outputFile))
                 sys.exit(0)
             else:
-                print "[Error] wrong option with -ep, use also -s option for saving data"
+                SystemInfo.printError("wrong option with -ep, use also -s option for saving data")
                 SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
 
@@ -4201,7 +4256,7 @@ if __name__ == '__main__':
             signal.pause()
 
             if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile) and SystemInfo.functionEnable is False:
-                print "[Error] Buffer is not enough (%s KB) or Profile time is too long" % (si.getBufferSize())
+                SystemInfo.printError("Buffer is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
                 SystemInfo.runRecordStopCmd()
                 SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -4211,7 +4266,7 @@ if __name__ == '__main__':
         signal.pause()
 
         if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile) and SystemInfo.functionEnable is False:
-            print "[Error] Buffer size is not enough (%s KB) or Profile time is too long" % (si.getBufferSize())
+            SystemInfo.printError("Buffer size is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
             SystemInfo.runRecordStopFinalCmd()
             sys.exit(0)
 
@@ -4244,7 +4299,7 @@ if __name__ == '__main__':
     if SystemInfo.graphEnable is True:
         try: from pylab import *
         except:
-            print "[Warning] making graph is not supported"
+            SystemInfo.printWarning("making graph is not supported")
             SystemInfo.graphEnable = False
 
     # create Thread Info #
