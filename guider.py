@@ -1525,7 +1525,7 @@ class SystemInfo:
 
     @staticmethod
     def exitHandler(signum, frame):
-        SystemInfo.printStatus('\nterminate by user\n')
+        SystemInfo.printError('terminated by user\n')
         sys.exit(0)
 
 
@@ -1752,7 +1752,7 @@ class SystemInfo:
 
     @staticmethod
     def printStatus(line):
-        print '\n' + ConfigInfo.SPECIAL + line + ConfigInfo.ENDC
+        print '\n' + ConfigInfo.SPECIAL + '[Step] ' + line + ConfigInfo.ENDC
 
 
 
