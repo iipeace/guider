@@ -36,7 +36,7 @@ except:
 
 
 
-class ColorInfo:
+class ConfigInfo:
     WARNING = '\033[95m'
     OKBLUE = '\033[94m'
     OKGREEN = '\033[92m'
@@ -46,11 +46,6 @@ class ColorInfo:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-
-
-
-
-class ConfigInfo:
     taskChainEnable = None
 
     @staticmethod
@@ -244,6 +239,11 @@ class FunctionInfo:
                 # Make temporary symbol stack to merge stacks by symbol #
                 for addr in stack:
                     tempSym = self.posData[addr]['symbol']
+
+                    # Ignore this function if there is no symbol #
+                    if SystemInfo.showAll is False and \
+                            tempSym == addr or tempSym == self.posData[addr]['offset']:
+                                continue
 
                     # No symbol data #
                     if tempSym == '': 
@@ -1722,37 +1722,37 @@ class SystemInfo:
 
     @staticmethod
     def printWarning(line):
-        print ColorInfo.WARNING + '[Warning] ' + line + ColorInfo.ENDC
+        print ConfigInfo.WARNING + '[Warning] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printError(line):
-        print ColorInfo.FAIL + '[Error] ' + line + ColorInfo.ENDC
+        print ConfigInfo.FAIL + '[Error] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printInfo(line):
-        print ColorInfo.BOLD + '[Info] ' + line + ColorInfo.ENDC
+        print ConfigInfo.BOLD + '[Info] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printGood(line):
-        print ColorInfo.OKGREEN + line + ColorInfo.ENDC
+        print ConfigInfo.OKGREEN + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printUnderline(line):
-        print ColorInfo.UNDERLINE + line + ColorInfo.ENDC
+        print ConfigInfo.UNDERLINE + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printStatus(line):
-        print '\n' + ColorInfo.SPECIAL + line + ColorInfo.ENDC
+        print '\n' + ConfigInfo.SPECIAL + line + ConfigInfo.ENDC
 
 
 
@@ -4174,7 +4174,7 @@ if __name__ == '__main__':
         print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
         print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
         print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_compareUsage]')
-        print('\n\t-a[show_allThreads]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms]\n\t-q[make_taskchain]')
+        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms]\n\t-q[make_taskchain]')
         print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
         print('\n\t-f[run_functionProfileMode:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
         print('\n\t-m[run_pageProfileMode]')
