@@ -343,6 +343,9 @@ class FunctionInfo:
         binPath = ''
         offsetList = []
 
+        # Set alarm handler to handle hanged addr2line #
+        signal.signal(signal.SIGALRM, SystemInfo.timerHandler)
+
         # Get symbols and source pos #
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             if value['binary'] == '':
@@ -418,9 +421,21 @@ class FunctionInfo:
             while offset < listLen:
                 # Launch addr2line #
                 proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], \
-                        stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-                proc.wait()
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                # Increase offset count in address list #
                 offset += maxArg
+
+                try:
+                    # Set alarm to handle hanged addr2line #
+                    signal.alarm(5)
+                    # Wait for addr2line to finish its job #
+                    proc.wait()
+                    # Cancel alarm after addr2line respond #
+                    signal.alarm(0)
+                except:
+                    SystemInfo.printWarning('No response of addr2line')
+                    continue
 
                 while True:
                     # Get return of addr2line #
@@ -1525,7 +1540,7 @@ class SystemInfo:
 
     @staticmethod
     def exitHandler(signum, frame):
-        SystemInfo.printError('terminated by user\n')
+        SystemInfo.printError('Terminated by user\n')
         sys.exit(0)
 
 
@@ -1550,6 +1565,12 @@ class SystemInfo:
                 sizeFd = open(sizePath, 'r')
                 dev = devFd.readline().rstrip()
                 size = sizeFd.readline().rstrip()
+
+
+
+    @staticmethod
+    def timerHandler(signum, frame):
+        raise
 
 
 
