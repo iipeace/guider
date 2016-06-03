@@ -68,12 +68,12 @@ class ConfigInfo:
         if os.path.isfile(file) == True:
             SystemInfo.printWarning("%s already exist, make new one" % (file))
 
-        try: f = open(file, 'wt')
+        try: fd = open(file, 'wt')
         except:
             SystemInfo.printError("Fail to open %s" % (file))
             return None
 
-        return f
+        return fd
 
 
 
@@ -185,7 +185,10 @@ class FunctionInfo:
 
         # Check whether data of target thread is collected or nothing #
         if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) != 0:
-            SystemInfo.printError("No data related to %s" % self.target)
+            SystemInfo.printError("No collected data related to %s" % self.target)
+            sys.exit(0)
+        elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
+            SystemInfo.printError("No traced user stack data related to %s, apply kernel patch" % self.target)
             sys.exit(0)
 
         # Get symbols from call address #
@@ -3060,7 +3063,7 @@ class ThreadInfo:
                     return d['time']
 
         except IOError:
-            SystemInfo.printError("Open %s", file)
+            SystemInfo.printError("Fail to open %s" % file)
             sys.exit(0)
 
 
@@ -4188,7 +4191,7 @@ if __name__ == '__main__':
     oneLine = "-"*154
     twoLine = "="*154
 
-    # parse parameter #
+    # print help #
     if len(sys.argv) <= 1:
         print("\n[ g.u.i.d.e.r \t%s ]\n" % __version__)
         print('Usage: \n\t# guider [command] [options]\n')
@@ -4306,12 +4309,14 @@ if __name__ == '__main__':
     if SystemInfo.functionEnable is not False:
         fi = FunctionInfo(SystemInfo.inputFile)
 
-        SystemInfo.printTitle()
+        # Disable options related to stacktrace #
+        if SystemInfo.isRecordMode() is True: 
+            SystemInfo.runRecordStopFinalCmd()
 
         # Print Function Info #
+        SystemInfo.printTitle()
         fi.printUsage()
 
-        if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
         sys.exit(0)
 
     # create Event Info #

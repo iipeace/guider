@@ -10,9 +10,11 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -67,5 +69,49 @@ unsigned char *get_loadPageMap(int fd) {
 	munmap(file_mmap, file_stat.st_size);
 
 	return table;
+}
+
+int save_pipeToFile(char *inFile, char *outFile) {
+	int ret;
+	int pipefd[2];
+	int in_fd, out_fd;
+	size_t maxReadSize = 1048576;
+
+	ret = pipe(pipefd);
+	if (ret < 0) {
+		printf("Fail to open pipe\n");
+		return -1;
+	}
+
+	in_fd = open(inFile, O_RDONLY);
+	if (in_fd < 0){
+		printf("Fail to open %s\n", inFile);
+		return -1;
+	}
+
+	out_fd = open(outFile, O_CREAT | O_TRUNC | O_RDWR | O_DIRECT);
+	if (out_fd < 0){
+		printf("Fail to open %s\n", outFile);
+		return -1;
+	}
+
+	while(1){
+		sleep(1);
+
+		ret = splice(in_fd, 0, pipefd[1], NULL, maxReadSize, SPLICE_F_MORE | SPLICE_F_MOVE);
+
+		ret = splice(pipefd[0], NULL, out_fd, 0, maxReadSize, SPLICE_F_MORE | SPLICE_F_MOVE);
+
+		if (ret <= 0)
+			break;
+	}
+
+	close(pipefd[0]);
+	close(pipefd[1]);
+
+	close(in_fd);
+	close(out_fd);
+
+	return 0;
 }
 
