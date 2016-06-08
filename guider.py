@@ -37,6 +37,7 @@ except:
 
 
 class ConfigInfo:
+    # Define color #
     WARNING = '\033[95m'
     OKBLUE = '\033[94m'
     OKGREEN = '\033[92m'
@@ -45,6 +46,43 @@ class ConfigInfo:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+    # Define signal #
+    sigList = [
+           'SIGHUP', # 1 #
+           'SIGINT',
+           'SIGQUIT',
+           'SIGILL',
+           'SIGTRAP',
+           'SIGABRT',
+           'SIGIOT',
+           'SIGBUS',
+           'SIGFPE',
+           'SIGKILL', # 9 #
+           'SIGUSR1',
+           'SIGSEGV',
+           'SIGUSR2',
+           'SIGPIPE',
+           'SIGALRM',
+           'SIGTERM', # 15 #
+           'SIGSTKFLT',
+           'SIGCHLD', # 17 #
+           'SIGCONT',
+           'SIGSTOP',
+           'SIGTSTP',
+           'SIGTTIN',
+           'SIGTTOU',
+           'SIGURG',
+           'SIGXCPU',
+           'SIGXFSZ',
+           'SIGVTALRM',
+           'SIGPROF',
+           'SIGWINCH',
+           'SIGIO',
+           'SIGPWR',
+           'SIGSYS' # 32 #
+            ]
 
     taskChainEnable = None
 
@@ -1293,7 +1331,7 @@ class PageInfo:
             sys.exit(0)
 
         try:
-            # find and load the library
+            # load the library #
             self.libguider = cdll.LoadLibrary(self.libguiderPath)
         except:
             SystemInfo.printError('Fail to open %s' % self.libguiderPath)
@@ -1362,7 +1400,7 @@ class PageInfo:
                         fd = open(commPath, 'r')
                         comm = fd.readline()
                     except:
-                        SystemInfo.printError('Fail to open %s' % (commPath))
+                        SystemInfo.printWarning('Fail to open %s' % (commPath))
                         continue
 
                     if len(SystemInfo.showGroup) > 0:
@@ -2114,6 +2152,7 @@ class SystemInfo:
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["sched/sched_migrate_task"] = True
         self.cmdList["task"] = True
+        self.cmdList["signal"] = True
         self.cmdList["power/machine_suspend"] = True
         self.cmdList["printk"] = True
         self.cmdList["power/cpu_idle"] = True
@@ -2159,21 +2198,51 @@ class SystemInfo:
         SystemInfo.writeCmd('../trace_options', 'print-tgid')
 
         if SystemInfo.functionEnable is not False:
+            cmd = "common_pid != 0"
+
+            if len(SystemInfo.showGroup) > 0:
+                if len(SystemInfo.showGroup) > 1:
+                    SystemInfo.printError("Only one tid is available to filter for funtion profile")
+                    sys.exit(0)
+
+                try:
+                    int(SystemInfo.showGroup[0])
+                    cmd = "common_pid == %s" % SystemInfo.showGroup[0]
+                except:
+                    if SystemInfo.showGroup[0].find('>') == -1 and SystemInfo.showGroup[0].find('<') == -1:
+                        SystemInfo.printError("Wrong tid %s" % SystemInfo.showGroup[0])
+                        sys.exit(0)
+                    else:
+                        if SystemInfo.showGroup[0].find('>') >= 0:
+                            tid = SystemInfo.showGroup[0][0:SystemInfo.showGroup[0].find('>')]
+                            try: int(tid)
+                            except:
+                                SystemInfo.printError("Wrong tid %s" % tid)
+                                sys.exit(0)
+                            cmd = "common_pid >= %s" % tid
+                        elif SystemInfo.showGroup[0].find('<') >= 0:
+                            tid = SystemInfo.showGroup[0][0:SystemInfo.showGroup[0].find('<')]
+                            try: int(tid)
+                            except:
+                                SystemInfo.printError("Wrong tid %s" % tid)
+                                sys.exit(0)
+                            cmd = "common_pid <= %s" % tid
+
             SystemInfo.writeCmd('../trace_options', 'userstacktrace')
             SystemInfo.writeCmd('../trace_options', 'sym-userobj')
             SystemInfo.writeCmd('../trace_options', 'sym-addr')
             SystemInfo.writeCmd('../options/stacktrace', '1')
 
             self.cmdList["timer/hrtimer_start"] = True
-            cmd = "common_pid != 0"
             SystemInfo.writeCmd('timer/hrtimer_start/filter', cmd)
             SystemInfo.writeCmd('timer/hrtimer_start/enable', '1')
 
             self.cmdList["kmem/mm_page_alloc"] = True
+            SystemInfo.writeCmd('kmem/mm_page_alloc/filter', cmd)
             SystemInfo.writeCmd('kmem/mm_page_alloc/enable', '1')
 
             self.cmdList["block/block_bio_remap"] = True
-            cmd = "rwbs == R || rwbs == RA || rwbs == RM"
+            cmd += " && (rwbs == R || rwbs == RA || rwbs == RM)"
             SystemInfo.writeCmd('block/block_bio_remap/filter', cmd)
             SystemInfo.writeCmd('block/block_bio_remap/enable', '1')
 
@@ -2299,6 +2368,8 @@ class SystemInfo:
 
         if self.cmdList["task"] is True:
             SystemInfo.writeCmd('task/enable', '1')
+        if self.cmdList["signal"] is True:
+            SystemInfo.writeCmd('signal/enable', '1')
         if self.cmdList["sched/sched_migrate_task"] is True:
             SystemInfo.writeCmd('sched/sched_migrate_task/enable', '1')
         if self.cmdList["sched/sched_process_free"] is True:
@@ -2413,6 +2484,7 @@ class ThreadInfo:
         self.kmemTable = {}
         self.intervalData = []
         self.depData = []
+        self.sigData = []
         self.sysuserCallData = []
         self.lastJob = {}
         self.preemptData = []
@@ -2437,7 +2509,7 @@ class ThreadInfo:
                 'start': float(0), 'stop': float(0), 'readCnt': int(0), 'readStart': float(0), 'maxRuntime': float(0), 'coreSchedCnt': int(0), \
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), 'futexCnt': int(0), 'futexEnter': float(0), \
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
-                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
+                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
                 'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
@@ -2541,6 +2613,24 @@ class ThreadInfo:
 
     def getRunTaskNum(self):
         return len(self.threadData)
+
+
+
+    def printCreationTree(self, tid, loc):
+        childList = self.threadData[tid]['childList']
+        threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
+        newLoc = loc + len(threadName) + 2
+
+        if self.threadData[tid]['die'] == ' ':
+            life = '+ '
+        else:
+            life = '- '
+
+        SystemInfo.pipePrint(' ' * loc + life + threadName)
+
+        if childList != None:
+            for thread in childList:
+                self.printCreationTree(thread, newLoc)
 
 
 
@@ -2708,6 +2798,38 @@ class ThreadInfo:
         if count > 0:
             SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
             SystemInfo.pipePrint(SystemInfo.bufferString)
+            SystemInfo.pipePrint(oneLine)
+
+        # print thread tree by creation #
+        if SystemInfo.showAll == True:
+            SystemInfo.clearPrint()
+            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -]')
+            SystemInfo.pipePrint(twoLine)
+
+            for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['childList'], reverse=True):
+                # print tree from root threads #
+                if value['childList'] is not None and value['new'] is ' ':
+                    self.printCreationTree(key, 0)
+                elif value['childList'] is None:
+                    break
+            SystemInfo.pipePrint(oneLine)
+
+        # print signal traffic #
+        if SystemInfo.showAll == True:
+            SystemInfo.clearPrint()
+            SystemInfo.pipePrint('\n' + '[Signal Info]')
+            SystemInfo.pipePrint(twoLine)
+            SystemInfo.pipePrint("%4s\t %8s %16s(%5s) \t%9s->\t %16s(%5s)" % \
+                    ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECVER', 'TID'))
+            SystemInfo.pipePrint(twoLine)
+
+            for val in self.sigData:
+                if val[0] == 'SEND':
+                    SystemInfo.pipePrint("%4s\t %.6f %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                            (val[0], val[1], val[2], val[3], ConfigInfo.sigList[int(val[6])], val[4], val[5]))
+                elif val[0] == 'RECV':
+                    SystemInfo.pipePrint("%4s\t %.6f %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                            (val[0], val[1], '', '', ConfigInfo.sigList[int(val[6])], val[4], val[5]))
             SystemInfo.pipePrint(oneLine)
 
         # print interrupt information #
@@ -3043,11 +3165,16 @@ class ThreadInfo:
             f = open(file, 'r')
 
             while True:
+                # Make delay because some filtered logs are not wrote soon #
+                time.sleep(0.1)
+
                 if readLineCnt > 50:
-                    SystemInfo.printError("Fail to recognize format")
+                    SystemInfo.printError("Fail to recognize format: Log is corrupted / There is no log collected / Filter is wrong")
+                    SystemInfo.runRecordStopCmd()
                     sys.exit(0)
 
                 l = f.readline()
+
                 readLineCnt += 1
 
                 m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
@@ -3055,6 +3182,7 @@ class ThreadInfo:
                     d = m.groupdict()
                     f.close()
                     return d['time']
+
                 m = re.match('^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
                 if m is not None:
                     d = m.groupdict()
@@ -3810,6 +3938,9 @@ class ThreadInfo:
                      round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), self.threadData[thread]['comm'], \
                      thread, target_comm, pid, "sigsend", sig))
 
+                    self.sigData.append(('SEND', float(time) - float(self.startTime), \
+                     self.threadData[thread]['comm'], thread, target_comm, pid, sig))
+
                     self.wakeupData['time'] = float(time) - float(self.startTime)
 
             elif func == "signal_deliver":
@@ -3826,6 +3957,9 @@ class ThreadInfo:
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % (round(float(time) - float(self.startTime), 7), \
                      round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), "", "", \
                      self.threadData[thread]['comm'], thread, "sigrecv", sig))
+
+                    self.sigData.append(('RECV', float(time) - float(self.startTime), \
+                     None, None, self.threadData[thread]['comm'], thread, sig))
 
                     self.wakeupData['time'] = float(time) - float(self.startTime)
 
@@ -3989,6 +4123,11 @@ class ThreadInfo:
                         self.threadData[pid]['comm'] = d['comm']
                         self.threadData[pid]['ptid'] = thread
                         self.threadData[pid]['new'] = 'N'
+
+                    if self.threadData[thread]['childList'] is None:
+                        self.threadData[thread]['childList'] = list()
+
+                    self.threadData[thread]['childList'].append(pid)
 
             elif func == "task_rename":
                 m = re.match('^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+newcomm=(?P<newcomm>.*)\s+oom_score_adj', etc)
