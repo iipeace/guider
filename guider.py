@@ -2130,6 +2130,7 @@ class SystemInfo:
 
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = True
+        self.cmdList["sched/sched_process_wait"] = True
         self.cmdList["sched/sched_process_free"] = True
         self.cmdList["sched/sched_wakeup"] = SystemInfo.depEnable
         self.cmdList["irq"] = SystemInfo.irqEnable
@@ -2374,6 +2375,8 @@ class SystemInfo:
             SystemInfo.writeCmd('sched/sched_migrate_task/enable', '1')
         if self.cmdList["sched/sched_process_free"] is True:
             SystemInfo.writeCmd('sched/sched_process_free/enable', '1')
+        if self.cmdList["sched/sched_process_wait"] is True:
+            SystemInfo.writeCmd('sched/sched_process_wait/enable', '1')
 
         if self.cmdList["printk"] is True:
             SystemInfo.writeCmd('printk/enable', '1')
@@ -2511,7 +2514,8 @@ class ThreadInfo:
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), 'tgid': '-'*5}
+                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), \
+                'waitStartAsParent': float(0), 'waitChild': float(0), 'waitParent': float(0), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), \
@@ -2619,6 +2623,10 @@ class ThreadInfo:
     def printCreationTree(self, tid, loc):
         childList = self.threadData[tid]['childList']
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
+
+        if self.threadData[tid]['waitParent'] > 0:
+            threadName += "[%1.3f]" % (self.threadData[tid]['waitParent'])
+
         newLoc = loc + len(threadName) + 2
 
         if self.threadData[tid]['die'] == ' ':
@@ -2824,6 +2832,9 @@ class ThreadInfo:
             SystemInfo.pipePrint(twoLine)
 
             for val in self.sigData:
+                try: ConfigInfo.sigList[int(val[6])]
+                except: continue
+
                 if val[0] == 'SEND':
                     SystemInfo.pipePrint("%4s\t %.6f %16s(%6s) \t%9s->\t %16s(%5s)" % \
                             (val[0], val[1], val[2], val[3], ConfigInfo.sigList[int(val[6])], val[4], val[5]))
@@ -3168,7 +3179,7 @@ class ThreadInfo:
                 # Make delay because some filtered logs are not wrote soon #
                 time.sleep(0.1)
 
-                if readLineCnt > 50:
+                if readLineCnt > 30:
                     SystemInfo.printError("Fail to recognize format: Log is corrupted / There is no log collected / Filter is wrong")
                     SystemInfo.runRecordStopCmd()
                     sys.exit(0)
@@ -3943,6 +3954,16 @@ class ThreadInfo:
 
                     self.wakeupData['time'] = float(time) - float(self.startTime)
 
+                    try: self.threadData[pid]
+                    except: return
+
+                    # SIGCHLD #
+                    if sig == '17':
+                        if self.threadData[pid]['waitStartAsParent'] > 0:
+                            diff = float(time) - self.threadData[pid]['waitStartAsParent']
+                            self.threadData[thread]['waitParent'] = diff
+                            self.threadData[pid]['waitChild'] += diff
+
             elif func == "signal_deliver":
                 m = re.match('^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', etc)
                 if m is not None:
@@ -4159,6 +4180,13 @@ class ThreadInfo:
                         self.threadData[pid]['die'] = '1'
 
                     self.threadData[pid]['die'] = 'D'
+
+            elif func == "sched_process_wait":
+                m = re.match('^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    self.threadData[thread]['waitStartAsParent'] = float(time)
 
             elif func == "machine_suspend":
                 m = re.match('^\s*state=(?P<state>[0-9]+)', etc)
