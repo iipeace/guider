@@ -2515,7 +2515,7 @@ class ThreadInfo:
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
                 'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), \
-                'waitStartAsParent': float(0), 'waitChild': float(0), 'waitParent': float(0), 'tgid': '-'*5}
+                'waitStartAsParent': float(0), 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
         self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), \
@@ -2624,10 +2624,14 @@ class ThreadInfo:
         childList = self.threadData[tid]['childList']
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
+        if self.threadData[tid]['childList'] is not None:
+            threadName += " <%d>" % (len(self.threadData[tid]['childList']))
+        if self.threadData[tid]['waitChild'] > 0:
+            threadName += " {%1.3f}" % (self.threadData[tid]['waitChild'])
         if self.threadData[tid]['waitParent'] > 0:
-            threadName += "[%1.3f]" % (self.threadData[tid]['waitParent'])
+            threadName += " [%1.3f]" % (self.threadData[tid]['waitParent'])
 
-        newLoc = loc + len(threadName) + 2
+        newLoc = loc + len(threadName) / 2 + 2
 
         if self.threadData[tid]['die'] == ' ':
             life = '+ '
@@ -2811,10 +2815,10 @@ class ThreadInfo:
         # print thread tree by creation #
         if SystemInfo.showAll == True:
             SystemInfo.clearPrint()
-            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -]')
+            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [ChildCount: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemInfo.pipePrint(twoLine)
 
-            for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['childList'], reverse=True):
+            for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
                 # print tree from root threads #
                 if value['childList'] is not None and value['new'] is ' ':
                     self.printCreationTree(key, 0)
@@ -3177,9 +3181,10 @@ class ThreadInfo:
 
             while True:
                 # Make delay because some filtered logs are not wrote soon #
-                time.sleep(0.1)
-
                 if readLineCnt > 30:
+                    time.sleep(0.1)
+
+                if readLineCnt > 50:
                     SystemInfo.printError("Fail to recognize format: Log is corrupted / There is no log collected / Filter is wrong")
                     SystemInfo.runRecordStopCmd()
                     sys.exit(0)
@@ -3463,6 +3468,7 @@ class ThreadInfo:
                     # write current time #
                     self.threadData[prev_id]['stop'] = float(time)
                     self.threadData[next_id]['start'] = float(time)
+                    self.threadData[next_id]['waitStartAsParent'] = float(0)
 
                     # update priority of thread to highest #
                     if self.threadData[prev_id]['pri'] == '0' or int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
@@ -3960,9 +3966,10 @@ class ThreadInfo:
                     # SIGCHLD #
                     if sig == '17':
                         if self.threadData[pid]['waitStartAsParent'] > 0:
-                            diff = float(time) - self.threadData[pid]['waitStartAsParent']
-                            self.threadData[thread]['waitParent'] = diff
-                            self.threadData[pid]['waitChild'] += diff
+                            if self.threadData[pid]['waitPid'] == 0 or self.threadData[pid]['waitPid'] == int(thread):
+                                diff = float(time) - self.threadData[pid]['waitStartAsParent']
+                                self.threadData[thread]['waitParent'] = diff
+                                self.threadData[pid]['waitChild'] += diff
 
             elif func == "signal_deliver":
                 m = re.match('^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', etc)
@@ -4187,6 +4194,7 @@ class ThreadInfo:
                     d = m.groupdict()
 
                     self.threadData[thread]['waitStartAsParent'] = float(time)
+                    self.threadData[thread]['waitPid'] = int(d['pid'])
 
             elif func == "machine_suspend":
                 m = re.match('^\s*state=(?P<state>[0-9]+)', etc)
