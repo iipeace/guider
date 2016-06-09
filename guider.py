@@ -1316,11 +1316,12 @@ class PageInfo:
         self.libguiderPath = './libguider.so'
         self.procPath = '/proc'
 
-        self.threadData = {}
+        self.procData = {}
         self.fileData = {}
         self.interval = []
 
-        self.init_threadData = {'comm': '', 'tids': [], 'procMap': None}
+        self.init_procData = {'tids': None, 'procMap': None}
+        self.init_threadData = {}
         self.init_mapData = {'offset': int(0), 'size': int(0), 'pageMap': None}
         self.init_fileData = {'fileMap': None}
 
@@ -1399,20 +1400,29 @@ class PageInfo:
                     try:
                         fd = open(commPath, 'r')
                         comm = fd.readline()
+                        comm = comm[0:len(comm) - 1]
                     except:
                         SystemInfo.printWarning('Fail to open %s' % (commPath))
                         continue
 
                     if len(SystemInfo.showGroup) > 0:
                         for val in SystemInfo.showGroup:
-                            if comm.rfind(val) != -1 or tid.rfind(val) != -1:
-                                try:
-                                    # access threadInfo by pid #
-                                    None
+                            if comm.rfind(val) != -1 or tid == val:
+                                # access procData #
+                                try: self.procData[pid]
+                                except: 
+                                    self.procData[pid] = dict(self.init_procData)
+                                    self.procData[pid]['tids'] = {}
+                                    self.procData[pid]['procMap'] = {}
+
+                                # access threadData #
+                                try: self.procData[pid]['tids'][tid]
                                 except:
-                                    # make pid info #
-                                    # call makeMapInfo if pid is not made yet #
-                                    self.makeMapInfo(tid, comm, threadPath)
+                                    self.procData[pid]['tids'][tid] = dict(self.init_threadData)
+                                    self.procData[pid]['tids'][tid]['comm'] = comm
+
+                                # call makeMapInfo if pid is not made yet #
+                                self.makeMapInfo(pid, threadPath + '/maps')
 
                                 # make tid info and share map with process #
                     else:
@@ -1422,7 +1432,7 @@ class PageInfo:
                         except:
                             # make pid info #
                             # call makeMapInfo if pid is not made yet #
-                            self.makeMapInfo(tid, comm, threadPath)
+                            None
 
                         # make tid info and share map with process #
         except:
@@ -1430,26 +1440,63 @@ class PageInfo:
 
 
 
-    def makeMapInfo(self, tid, comm, path):
-        # open, parse, merge, save info of objects in maps per pid #
-        None
+    def makeMapInfo(self, pid, path):
+        # open maps #
+        try: fd = open(path, 'r')
+        except:
+            SystemInfo.printWarning('Fail to open %s' % (path))
+            return
+
+        # read maps #
+        mapBuf = fd.readlines()
+
+        # pase and merge map lines #
+        for val in mapBuf:
+            self.mergeMapLine(val, self.procData[pid]['procMap'])
 
         # open object, call getFilePageMap, copy loadPageTable #
         None
 
 
 
-    def parseMapLine(self, string):
+    def mergeMapLine(self, string, procMap):
         m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
         if m is not None:
             d = m.groupdict()
 
             mapData = dict(self.init_mapData)
 
-            # search same file in list and merge it / append it to list #
-            if SystemInfo.isRelocatableFile(data['binName']) is True:
-                offset = d['offset']
-                size = int(data['endAddr'], 16) - int(data['startAddr'], 16)
+            # search same file in list, merge it or append it to list #
+            fileName = d['binName']
+            offset = int(d['offset'], 16)
+            startAddr = int(d['startAddr'], 16)
+            endAddr = int(d['endAddr'], 16)
+            size = endAddr - startAddr
+
+            try: 
+                if procMap[fileName]['offset'] + procMap[fileName]['size'] == offset:
+                    procMap[fileName]['size'] += size
+                elif procMap[fileName]['offset'] > offset:
+                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
+                    SystemInfo.printWarning('Offset of new mapped line is lesser than saved one')
+                    return
+                elif procMap[fileName]['offset'] < offset:
+                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
+                    SystemInfo.printWarning('Offset of new mapped line is bigger than saved one')
+                    return
+                else:
+                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
+                    SystemInfo.printWarning('Offset of new mapped line is not contiguous')
+                    return
+            except: 
+                procMap[fileName] = dict(self.init_mapData)
+                procMap[fileName]['offset'] = offset
+                procMap[fileName]['size'] = size
+
+            #print fileName, procMap[fileName]
+
+            #print d['startAddr'],d['endAddr'],d['permission'],d['offset'],d['devid'],d['inode'],d['binName'], offset, size
+
 
 
 
@@ -2514,7 +2561,7 @@ class ThreadInfo:
                 'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
                 'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
                 'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), \
+                'maxPreempted': float(0),'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'longRunCore': int(-1), 'createdTime': float(0), \
                 'waitStartAsParent': float(0), 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), 'min': float(0), \
                 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
@@ -2624,8 +2671,10 @@ class ThreadInfo:
         childList = self.threadData[tid]['childList']
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
+        if self.threadData[tid]['createdTime'] > 0:
+            threadName += " <%2.3f>" % (self.threadData[tid]['createdTime'] - float(self.startTime))
         if self.threadData[tid]['childList'] is not None:
-            threadName += " <%d>" % (len(self.threadData[tid]['childList']))
+            threadName += " |%d|" % (len(self.threadData[tid]['childList']))
         if self.threadData[tid]['waitChild'] > 0:
             threadName += " {%1.3f}" % (self.threadData[tid]['waitChild'])
         if self.threadData[tid]['waitParent'] > 0:
@@ -2813,9 +2862,9 @@ class ThreadInfo:
             SystemInfo.pipePrint(oneLine)
 
         # print thread tree by creation #
-        if SystemInfo.showAll == True:
+        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
             SystemInfo.clearPrint()
-            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [ChildCount: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [CreatedTime: <>] [ChildCount: ||] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemInfo.pipePrint(twoLine)
 
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -2827,7 +2876,7 @@ class ThreadInfo:
             SystemInfo.pipePrint(oneLine)
 
         # print signal traffic #
-        if SystemInfo.showAll == True:
+        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + '[Signal Info]')
             SystemInfo.pipePrint(twoLine)
@@ -4151,6 +4200,7 @@ class ThreadInfo:
                         self.threadData[pid]['comm'] = d['comm']
                         self.threadData[pid]['ptid'] = thread
                         self.threadData[pid]['new'] = 'N'
+                        self.threadData[pid]['createdTime'] = float(time)
 
                     if self.threadData[thread]['childList'] is None:
                         self.threadData[thread]['childList'] = list()
