@@ -1310,7 +1310,7 @@ class FunctionInfo:
 
 
 
-class PageInfo:
+class FileInfo:
     def __init__(self):
         self.libguider = None
         self.libguiderPath = './libguider.so'
@@ -1321,8 +1321,8 @@ class PageInfo:
         self.interval = []
 
         self.init_procData = {'tids': None, 'procMap': None}
-        self.init_threadData = {}
-        self.init_mapData = {'offset': int(0), 'size': int(0)}
+        self.init_threadData = {'comm': ''}
+        self.init_mapData = {'offset': int(0), 'size': int(0), 'fileMap': None}
         self.init_fileData = {'fileMap': None}
 
         if len(SystemInfo.showGroup) == 0:
@@ -1350,11 +1350,18 @@ class PageInfo:
         # scan proc directory and save map information of processes #
         self.scanProcs()
 
+        for idx, val in self.procData.items():
+            for files, info in val['procMap'].items():
+                print idx, files, '\t\t', info['offset'], info['size']
+
         # merge total map info per file #
         self.mergeFileMapInfo()
 
         # get file page info on memory #
         self.getFilePageMap(None)
+
+        # fill fileMap of each processes #
+        self.fillFileMaps()
 
         # print total file usage per process #
         self.printUsage()
@@ -1434,6 +1441,11 @@ class PageInfo:
 
 
 
+    def fillFileMaps(self):
+        None
+
+
+
     def makeProcMapInfo(self, pid, path):
         # open maps #
         try: fd = open(path, 'r')
@@ -1447,10 +1459,6 @@ class PageInfo:
         # parse and merge lines in maps #
         for val in mapBuf:
             self.mergeMapLine(val, self.procData[pid]['procMap'])
-
-        for val in self.procData[pid]['procMap'].items():
-            print val
-            None
 
 
 
@@ -1502,10 +1510,10 @@ class PageInfo:
             fd = open(filename, "r")
             size = os.stat(filename).st_size
         except:
-            SystemInfo.printWarning('Fail to open or stat %s' % filename)
+            SystemInfo.printWarning('Fail to open %s' % filename)
             return
 
-        # call mincore by c library #
+        # call mincore systemcall #
         pagemap = self.libguider.get_loadPageMap(fd.fileno())
 
         fd.close()
@@ -4463,9 +4471,9 @@ if __name__ == '__main__':
             signal.signal(signal.SIGINT, SystemInfo.stopHandler)
             signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
 
-        # create Page Info #
+        # create FileInfo #
         if SystemInfo.pageEnable is not False:
-            pi = PageInfo()
+            pi = FileInfo()
             sys.exit(0)
 
         # start recording for thread profile #
