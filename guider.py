@@ -1322,8 +1322,12 @@ class PageInfo:
 
         self.init_procData = {'tids': None, 'procMap': None}
         self.init_threadData = {}
-        self.init_mapData = {'offset': int(0), 'size': int(0), 'pageMap': None}
+        self.init_mapData = {'offset': int(0), 'size': int(0)}
         self.init_fileData = {'fileMap': None}
+
+        if len(SystemInfo.showGroup) == 0:
+            SystemInfo.printError("wrong option with -m, use -g option with tids / comms")
+            sys.exit(0)
 
         try:
             imp.find_module('ctypes')
@@ -1343,17 +1347,19 @@ class PageInfo:
         # set the return type #
         self.libguider.get_loadPageMap.restype = POINTER(ctypes.c_ubyte)
 
-        # start profile #
+        # scan proc directory and save map information of processes #
         self.scanProcs()
 
-        while True:
-            signal.pause()
-            self.scanProcs()
-            if SystemInfo.pageEnable is False:
-                break
+        # merge total map info per file #
+        self.mergeFileMapInfo()
 
+        # get file page info on memory #
+        self.getFilePageMap(None)
+
+        # print total file usage per process #
         self.printUsage()
 
+        # print file usage per process on timeline #
         self.printIntervalInfo()
 
 
@@ -1405,42 +1411,30 @@ class PageInfo:
                         SystemInfo.printWarning('Fail to open %s' % (commPath))
                         continue
 
-                    if len(SystemInfo.showGroup) > 0:
-                        for val in SystemInfo.showGroup:
-                            if comm.rfind(val) != -1 or tid == val:
-                                # access procData #
-                                try: self.procData[pid]
-                                except: 
-                                    self.procData[pid] = dict(self.init_procData)
-                                    self.procData[pid]['tids'] = {}
-                                    self.procData[pid]['procMap'] = {}
+                    # save process info #
+                    for val in SystemInfo.showGroup:
+                        if comm.rfind(val) != -1 or tid == val:
+                            # access procData #
+                            try: self.procData[pid]
+                            except: 
+                                self.procData[pid] = dict(self.init_procData)
+                                self.procData[pid]['tids'] = {}
+                                self.procData[pid]['procMap'] = {}
 
-                                # access threadData #
-                                try: self.procData[pid]['tids'][tid]
-                                except:
-                                    self.procData[pid]['tids'][tid] = dict(self.init_threadData)
-                                    self.procData[pid]['tids'][tid]['comm'] = comm
+                            # access threadData #
+                            try: self.procData[pid]['tids'][tid]
+                            except:
+                                self.procData[pid]['tids'][tid] = dict(self.init_threadData)
+                                self.procData[pid]['tids'][tid]['comm'] = comm
 
-                                # call makeMapInfo if pid is not made yet #
-                                self.makeMapInfo(pid, threadPath + '/maps')
-
-                                # make tid info and share map with process #
-                    else:
-                        try:
-                            # access threadInfo by pid #
-                            None
-                        except:
-                            # make pid info #
-                            # call makeMapInfo if pid is not made yet #
-                            None
-
-                        # make tid info and share map with process #
+                            # make or update mapInfo per process #
+                            self.makeProcMapInfo(pid, threadPath + '/maps')
         except:
             SystemInfo.printError('Fail to open %s' % self.procPath)
 
 
 
-    def makeMapInfo(self, pid, path):
+    def makeProcMapInfo(self, pid, path):
         # open maps #
         try: fd = open(path, 'r')
         except:
@@ -1450,11 +1444,17 @@ class PageInfo:
         # read maps #
         mapBuf = fd.readlines()
 
-        # pase and merge map lines #
+        # parse and merge lines in maps #
         for val in mapBuf:
             self.mergeMapLine(val, self.procData[pid]['procMap'])
 
-        # open object, call getFilePageMap, copy loadPageTable #
+        for val in self.procData[pid]['procMap'].items():
+            print val
+            None
+
+
+
+    def mergeFileMapInfo(self):
         None
 
 
@@ -1464,39 +1464,35 @@ class PageInfo:
         if m is not None:
             d = m.groupdict()
 
-            mapData = dict(self.init_mapData)
-
-            # search same file in list, merge it or append it to list #
             fileName = d['binName']
-            offset = int(d['offset'], 16)
             startAddr = int(d['startAddr'], 16)
             endAddr = int(d['endAddr'], 16)
-            size = endAddr - startAddr
+
+            newOffset = int(d['offset'], 16)
+            newSize = endAddr - startAddr
+            newEnd = newOffset + newSize
 
             try: 
-                if procMap[fileName]['offset'] + procMap[fileName]['size'] == offset:
-                    procMap[fileName]['size'] += size
-                elif procMap[fileName]['offset'] > offset:
-                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
-                    SystemInfo.printWarning('Offset of new mapped line is lesser than saved one')
-                    return
-                elif procMap[fileName]['offset'] < offset:
-                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
-                    SystemInfo.printWarning('Offset of new mapped line is bigger than saved one')
-                    return
+                savedOffset = procMap[fileName]['offset']
+                savedSize = procMap[fileName]['size']
+                savedEnd = savedOffset + savedSize
+
+                # bigger start address then saved one #
+                if savedOffset <= newOffset:
+                    # bigger end address then saved one #
+                    if savedEnd < newEnd:
+                        procMap[fileName]['size'] += \
+                                (newEnd - procMap[fileName]['offset'] - procMap[fileName]['size'])
+                    # smaller end address then saved one #
+                    else:
+                        None
+                # smaller start address then saved one #
                 else:
-                    print procMap[fileName]['offset'], procMap[fileName]['size'], offset, size
-                    SystemInfo.printWarning('Offset of new mapped line is not contiguous')
-                    return
+                    SystemInfo.printWarning('Found smaller mapped address in maps then saved one')
             except: 
                 procMap[fileName] = dict(self.init_mapData)
-                procMap[fileName]['offset'] = offset
-                procMap[fileName]['size'] = size
-
-            #print fileName, procMap[fileName]
-
-            #print d['startAddr'],d['endAddr'],d['permission'],d['offset'],d['devid'],d['inode'],d['binName'], offset, size
-
+                procMap[fileName]['offset'] = newOffset
+                procMap[fileName]['size'] = newSize
 
 
 
@@ -1506,7 +1502,8 @@ class PageInfo:
             fd = open(filename, "r")
             size = os.stat(filename).st_size
         except:
-            SystemInfo.printError('Fail to open or stat %s' % filename)
+            SystemInfo.printWarning('Fail to open or stat %s' % filename)
+            return
 
         # call mincore by c library #
         pagemap = self.libguider.get_loadPageMap(fd.fileno())
@@ -4423,7 +4420,7 @@ if __name__ == '__main__':
         print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
         print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
         print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_compareUsage]')
-        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms]\n\t-q[make_taskchain]')
+        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms/tids]\n\t-q[make_taskchain]')
         print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
         print('\n\t-f[run_functionProfileMode:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
         print('\n\t-m[run_pageProfileMode]')
