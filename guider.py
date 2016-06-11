@@ -1203,7 +1203,7 @@ class FunctionInfo:
         SystemInfo.pipePrint('\n\n')
 
     def printBlockUsage(self):
-        # Print IO usage in user space #
+        # Print BLOCK usage in user space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
@@ -1256,7 +1256,7 @@ class FunctionInfo:
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
 
-        # Print IO usage in kernel space #
+        # Print BLOCK usage in kernel space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
@@ -1273,7 +1273,7 @@ class FunctionInfo:
                 try: exceptList[pos]
                 except: exceptList[pos] = dict()
 
-        # Print block usage of stacks #
+        # Print BLOCK usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
             if self.ioEnabled is False or value['blockCnt'] == 0: break
 
@@ -1316,14 +1316,17 @@ class FileInfo:
         self.libguiderPath = './libguider.so'
         self.procPath = '/proc'
 
+        self.startTime = None
+        self.profSuccessCnt = 0
+        self.profFailedCnt = 0
         self.procData = {}
         self.fileData = {}
-        self.interval = []
+
+        self.intervalData = []
 
         self.init_procData = {'tids': None, 'procMap': None}
         self.init_threadData = {'comm': ''}
-        self.init_mapData = {'offset': int(0), 'size': int(0), 'fileMap': None}
-        self.init_fileData = {'fileMap': None}
+        self.init_mapData = {'offset': int(0), 'size': int(0), 'fd': None, 'totalSize': int(0), 'fileMap': None}
 
         if len(SystemInfo.showGroup) == 0:
             SystemInfo.printError("wrong option with -m, use -g option with tids / comms")
@@ -1343,24 +1346,22 @@ class FileInfo:
             sys.exit(0)
 
         # set the argument type #
-        self.libguider.get_loadPageMap.argtypes = [ctypes.c_int]
+        self.libguider.get_filePageMap.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
         # set the return type #
-        self.libguider.get_loadPageMap.restype = POINTER(ctypes.c_ubyte)
+        self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
+
+        self.startTime = time.time()
 
         # scan proc directory and save map information of processes #
         self.scanProcs()
 
-        for idx, val in self.procData.items():
-            for files, info in val['procMap'].items():
-                print idx, files, '\t\t', info['offset'], info['size']
-
-        # merge total map info per file #
+        # merge maps of processes into a integrated file map #
         self.mergeFileMapInfo()
 
-        # get file page info on memory #
-        self.getFilePageMap(None)
+        # get file map info on memory #
+        self.getFilePageMaps()
 
-        # fill fileMap of each processes #
+        # fill file map of each processes #
         self.fillFileMaps()
 
         # print total file usage per process #
@@ -1463,7 +1464,34 @@ class FileInfo:
 
 
     def mergeFileMapInfo(self):
-        None
+        for idx, val in self.procData.items():
+            for fileName, scope in val['procMap'].items():
+                newOffset = scope['offset']
+                newSize = scope['size']
+                newEnd = newOffset + newSize
+
+                # access fileData #
+                try: 
+                    savedOffset = self.fileData[fileName]['offset']
+                    savedSize = self.fileData[fileName]['size']
+                    savedEnd = savedOffset + savedSize
+
+                    # bigger start address then saved one #
+                    if savedOffset <= newOffset:
+                        # merge bigger end address then saved one #
+                        if savedEnd < newEnd:
+                            self.fileData[fileName]['size'] += (newEnd - savedOffset - savedSize)
+                        # ignore smaller end address then saved one #
+                        else:
+                            None
+                    # smaller start address then saved one #
+                    else:
+                            self.fileData[fileName]['size'] += (savedOffset - newOffset)
+                            self.fileData[fileName]['start'] = newOffset
+                except: 
+                    self.fileData[fileName] = dict(self.init_mapData)
+                    self.fileData[fileName]['offset'] = newOffset
+                    self.fileData[fileName]['size'] = newSize
 
 
 
@@ -1487,16 +1515,16 @@ class FileInfo:
 
                 # bigger start address then saved one #
                 if savedOffset <= newOffset:
-                    # bigger end address then saved one #
+                    # merge bigger end address then saved one #
                     if savedEnd < newEnd:
-                        procMap[fileName]['size'] += \
-                                (newEnd - procMap[fileName]['offset'] - procMap[fileName]['size'])
-                    # smaller end address then saved one #
+                        procMap[fileName]['size'] += (newEnd - savedOffset - savedSize)
+                    # ignore smaller end address then saved one #
                     else:
                         None
                 # smaller start address then saved one #
                 else:
-                    SystemInfo.printWarning('Found smaller mapped address in maps then saved one')
+                    SystemInfo.printWarning('Found smaller mapped address %x - %x of %s in maps then %x - %x' \
+                            % (savedOffset, savedEnd, fileName, newOffset, newEnd))
             except: 
                 procMap[fileName] = dict(self.init_mapData)
                 procMap[fileName]['offset'] = newOffset
@@ -1504,23 +1532,45 @@ class FileInfo:
 
 
 
-    def getFilePageMap(self, filename):
-        try:
-            # open binary file to check page whether it is on memory or not #
-            fd = open(filename, "r")
-            size = os.stat(filename).st_size
-        except:
-            SystemInfo.printWarning('Fail to open %s' % filename)
-            return
+    def getFilePageMaps(self):
+        self.profSuccessCnt = 0
+        self.profFailedCnt = 0
 
-        # call mincore systemcall #
-        pagemap = self.libguider.get_loadPageMap(fd.fileno())
+        for fileName, val in self.fileData.items():
+            if val['fd'] is None:
+                try:
+                    # open binary file to check page whether it is on memory or not #
+                    fd = open(fileName, "r")
+                    size = os.stat(fileName).st_size
 
-        fd.close()
+                    self.fileData[fileName]['fd'] = fd
+                    self.fileData[fileName]['totalSize'] = size
 
-        # print for devel #
-        for index in range(400):
-            print pagemap[index],
+                    if size == 0:
+                        raise
+                    else:
+                        self.profSuccessCnt += 1
+                except:
+                    self.profFailedCnt += 1
+                    if SystemInfo.showAll is True:
+                        SystemInfo.printWarning('Fail to open %s' % fileName)
+                    continue
+
+            # prepare variables for mincore systemcall #
+            fd = self.fileData[fileName]['fd'].fileno()
+            offset = self.fileData[fileName]['offset']
+            size = self.fileData[fileName]['size']
+
+            # call mincore systemcall #
+            pagemap = self.libguider.get_filePageMap(fd, offset, size)
+
+            # save the array of ctype into list #
+            if pagemap is not None:
+                self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / 4096)]
+
+        SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
+        if self.profFailedCnt > 0: 
+            SystemInfo.printWarning('Failed to open a total of %d files' % self.profFailedCnt)
 
 
 
@@ -1854,7 +1904,7 @@ class SystemInfo:
 
     @staticmethod
     def printGood(line):
-        print ConfigInfo.OKGREEN + line + ConfigInfo.ENDC
+        print ConfigInfo.OKGREEN + '[Info] ' + line + ConfigInfo.ENDC
 
 
 
