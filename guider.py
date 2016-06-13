@@ -1324,9 +1324,10 @@ class FileInfo:
 
         self.intervalData = []
 
-        self.init_procData = {'tids': None, 'procMap': None}
+        self.init_procData = {'tids': None, 'pageCnt': int(0), 'procMap': None}
         self.init_threadData = {'comm': ''}
-        self.init_mapData = {'offset': int(0), 'size': int(0), 'fd': None, 'totalSize': int(0), 'fileMap': None}
+        self.init_mapData = {'offset': int(0), 'size': int(0), 'pageCnt': int(0), 'fd': None, \
+                'totalSize': int(0), 'fileMap': None}
 
         if len(SystemInfo.showGroup) == 0:
             SystemInfo.printError("wrong option with -m, use -g option with tids / comms")
@@ -1364,6 +1365,8 @@ class FileInfo:
         # fill file map of each processes #
         self.fillFileMaps()
 
+        SystemInfo.printTitle()
+
         # print total file usage per process #
         self.printUsage()
 
@@ -1373,19 +1376,45 @@ class FileInfo:
 
 
     def printUsage(self):
-        # print per file info (common, in, out) #
-        None
+        # Print profiled proccess list #
+        SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
+        ('File Info', len(self.procData)))
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".format("Pid", "Size(KB)", "ThreadName", "Tid"))
+        SystemInfo.pipePrint(twoLine)
 
-        # print per thread info (common, in, out) #
-        None
+        for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            printMsg = "{0:^7}|{1:9} ".format(pid, val['pageCnt'] * SystemInfo.pageSize / 1024)
+            for tid, threadVal in sorted(val['tids'].items(), reverse=True):
+                printMsg += "|{0:^16}({1:^7})".format(threadVal['comm'], tid)
+                SystemInfo.pipePrint(printMsg)
+                printMsg = "{0:^7}{1:^11}".format('', '')
+
+        SystemInfo.pipePrint(oneLine + '\n\n\n')
+
+        # Print file list #
+        SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
+        ('File Info', len(self.fileData)))
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^12}|{1:_^11}|{2:_^5}| {3:6}".\
+                format("Memory(KB)", "Total(KB)", "%", "Path"))
+        SystemInfo.pipePrint(twoLine)
+
+        for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            memSize = val['pageCnt'] * SystemInfo.pageSize / 1024
+            fileSize = val['totalSize'] / 1024
+            per = 0
+
+            if fileSize != 0:
+                per = int(int(memSize) / float(fileSize) * 100)
+
+            SystemInfo.pipePrint("{0:11} |{1:10} |{2:5}| {3:6}".\
+                    format( memSize, fileSize, per, fileName))
 
 
 
     def printIntervalInfo(self):
         # print interval info per file (common, in, out) #
-        None
-
-        # print interval info per thread (common, in, out) #
         None
 
 
@@ -1429,21 +1458,37 @@ class FileInfo:
                                 self.procData[pid]['tids'] = {}
                                 self.procData[pid]['procMap'] = {}
 
+                                # make or update mapInfo per process #
+                                self.makeProcMapInfo(pid, threadPath + '/maps')
+
                             # access threadData #
                             try: self.procData[pid]['tids'][tid]
                             except:
                                 self.procData[pid]['tids'][tid] = dict(self.init_threadData)
                                 self.procData[pid]['tids'][tid]['comm'] = comm
-
-                            # make or update mapInfo per process #
-                            self.makeProcMapInfo(pid, threadPath + '/maps')
         except:
             SystemInfo.printError('Fail to open %s' % self.procPath)
 
 
 
     def fillFileMaps(self):
-        None
+        for fileName, val in self.fileData.items():
+            if val['fileMap'] is not None:
+                val['pageCnt'] = val['fileMap'].count(1)
+
+        for pid, val in self.procData.items():
+            for fileName, mapInfo in val['procMap'].items():
+                if self.fileData[fileName]['fileMap'] is None or mapInfo is None:
+                    continue
+
+                # convert address and size to index in mapping table #
+                offset = mapInfo['offset'] - self.fileData[fileName]['offset']
+                offset = (offset + SystemInfo.pageSize - 1) / SystemInfo.pageSize
+                size = (mapInfo['size'] + SystemInfo.pageSize - 1) / SystemInfo.pageSize
+
+                mapInfo['fileMap'] = list(self.fileData[fileName]['fileMap'][offset:size])
+                mapInfo['pageCnt'] = mapInfo['fileMap'].count(1)
+                val['pageCnt'] += mapInfo['pageCnt']
 
 
 
@@ -1486,8 +1531,12 @@ class FileInfo:
                             None
                     # smaller start address then saved one #
                     else:
-                            self.fileData[fileName]['size'] += (savedOffset - newOffset)
-                            self.fileData[fileName]['start'] = newOffset
+                            if savedEnd >= newEnd:
+                                self.fileData[fileName]['size'] += (savedOffset - newOffset)
+                            else:
+                                self.fileData[fileName]['size'] = newSize
+
+                            self.fileData[fileName]['offset'] = newOffset
                 except: 
                     self.fileData[fileName] = dict(self.init_mapData)
                     self.fileData[fileName]['offset'] = newOffset
@@ -1496,7 +1545,7 @@ class FileInfo:
 
 
     def mergeMapLine(self, string, procMap):
-        m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
+        m = re.match('^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) (?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)', string)
         if m is not None:
             d = m.groupdict()
 
@@ -1523,8 +1572,12 @@ class FileInfo:
                         None
                 # smaller start address then saved one #
                 else:
-                    SystemInfo.printWarning('Found smaller mapped address %x - %x of %s in maps then %x - %x' \
-                            % (savedOffset, savedEnd, fileName, newOffset, newEnd))
+                    if savedEnd >= newEnd:
+                        procMap[fileName]['size'] += (savedOffset - newOffset)
+                    else:
+                        procMap[fileName]['size'] = newSize
+
+                    procMap[fileName]['offset'] = newOffset
             except: 
                 procMap[fileName] = dict(self.init_mapData)
                 procMap[fileName]['offset'] = newOffset
@@ -1566,7 +1619,7 @@ class FileInfo:
 
             # save the array of ctype into list #
             if pagemap is not None:
-                self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / 4096)]
+                self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
 
         SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
         if self.profFailedCnt > 0: 
@@ -1578,6 +1631,8 @@ class FileInfo:
 
 class SystemInfo:
     maxCore = 0
+    pageSize = 4096
+    blockSize = 512
     bufferSize = '40960'
     ttyRows = '50'
     ttyCols = '156'
@@ -2197,7 +2252,7 @@ class SystemInfo:
 
         while True:
             try:
-                fd.write(pd.read(4096))
+                fd.write(pd.read(SystemInfo.pageSize))
                 SystemInfo.repeatCount = 1
                 SystemInfo.printProgress()
             except:
@@ -2750,7 +2805,7 @@ class ThreadInfo:
 
 
 
-    def printThreadInfo(self):
+    def printUsage(self):
         # print menu #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]" % \
         ('[Thread Info]', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, SystemInfo.logSize / 1024))
@@ -2777,10 +2832,10 @@ class ThreadInfo:
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['readBlock'], reverse=True):
             value['ioRank'] = count + 1
             if value['readBlock'] > 0:
-                value['readBlock'] =  value['readBlock'] * 512 / 1024 / 1024
+                value['readBlock'] =  value['readBlock'] * SystemInfo.blockSize / 1024 / 1024
                 count += 1
             if value['writeBlock'] > 0:
-                value['writeBlock'] =  value['writeBlock'] * 4096 / 1024 / 1024
+                value['writeBlock'] =  value['writeBlock'] * SystemInfo.pageSize / 1024 / 1024
 
        # print total information after sorting by time of cpu usage #
         count = 0
@@ -3133,7 +3188,7 @@ class ThreadInfo:
         icount = 0
         timeLine = ''
         for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
-            try: timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * 512 / 1024 / 1024)
+            try: timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * SystemInfo.blockSize / 1024 / 1024)
             except: timeLine += '%3d ' % (0)
         SystemInfo.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
 
@@ -3210,7 +3265,7 @@ class ThreadInfo:
                     except:
                         timeLine += '%3d ' % 0
                         continue
-                    timeLine += '%3d ' % (self.intervalData[icount][key]['ioUsage'] * 512 / 1024 / 1024)
+                    timeLine += '%3d ' % (self.intervalData[icount][key]['ioUsage'] * SystemInfo.blockSize / 1024 / 1024)
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if SystemInfo.graphEnable == True:
@@ -4523,6 +4578,10 @@ if __name__ == '__main__':
 
         # create FileInfo #
         if SystemInfo.pageEnable is not False:
+            # parse additional option #
+            SystemInfo.parseAddOption()
+
+            # start file profiling #
             pi = FileInfo()
             sys.exit(0)
 
@@ -4614,7 +4673,7 @@ if __name__ == '__main__':
     # print title #
     SystemInfo.printTitle()
 
-    ti.printThreadInfo()
+    ti.printUsage()
 
     if SystemInfo.isRecordMode():
         si.printMemInfo()
