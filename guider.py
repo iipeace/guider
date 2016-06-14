@@ -917,9 +917,12 @@ class FunctionInfo:
         targetFound = False
         self.totalTime = float(self.finishTime) - float(self.startTime)
 
+        # Print title #
+        SystemInfo.printTitle()
+
         # Print profiled thread list #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('Thread List', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
+        ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^5}|".\
                 format("Name", "Tid", "Pid", "Target", "CPU", "DIE"))
@@ -955,21 +958,6 @@ class FunctionInfo:
         self.printCpuUsage()
         self.printMemUsage()
         self.printBlockUsage()
-
-        # print for devel #
-        for idx, value in sorted(fi.posData.items(), key=lambda e: e[1]['posCnt'], reverse=True):
-            break
-            print '%16s\t%16s\t%5d\t%5d\t%40s\t%16s\t%s\t%x' %\
-            (idx, value['symbol'], value['posCnt'], value['totalCnt'], value['src'], value['offset'], value['origBin'], id(value['src']))
-
-        for idx, value in sorted(fi.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-            break
-            if value['binary'] is '':
-                print idx, value
-
-        for idx, value in sorted(fi.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            break
-            print idx, value
 
 
 
@@ -1365,8 +1353,6 @@ class FileInfo:
         # fill file map of each processes #
         self.fillFileMaps()
 
-        SystemInfo.printTitle()
-
         # print total file usage per process #
         self.printUsage()
 
@@ -1376,6 +1362,13 @@ class FileInfo:
 
 
     def printUsage(self):
+        if len(self.procData) == 0:
+            SystemInfo.printError('No process profiled')
+            sys.exit(0)
+
+        # Print title #
+        SystemInfo.printTitle()
+
         # Print profiled proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('File Info', len(self.procData)))
@@ -1397,12 +1390,12 @@ class FileInfo:
         ('File Info', len(self.fileData)))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^12}|{1:_^11}|{2:_^5}| {3:6}".\
-                format("Memory(KB)", "Total(KB)", "%", "Path"))
+                format("Memory(KB)", "File(KB)", "%", "Path"))
         SystemInfo.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             memSize = val['pageCnt'] * SystemInfo.pageSize / 1024
-            fileSize = val['totalSize'] / 1024
+            fileSize = ((val['totalSize'] + SystemInfo.pageSize - 1) / SystemInfo.pageSize) * SystemInfo.pageSize / 1024
             per = 0
 
             if fileSize != 0:
@@ -1621,7 +1614,11 @@ class FileInfo:
             if pagemap is not None:
                 self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
 
-        SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
+        if len(self.fileData) > 0:
+            SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
+        else:
+            SystemInfo.printWarning('Profiled a total of %d files' % self.profSuccessCnt)
+
         if self.profFailedCnt > 0: 
             SystemInfo.printWarning('Failed to open a total of %d files' % self.profFailedCnt)
 
@@ -2806,9 +2803,12 @@ class ThreadInfo:
 
 
     def printUsage(self):
+        # print title #
+        SystemInfo.printTitle()
+
         # print menu #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]" % \
-        ('[Thread Info]', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, SystemInfo.logSize / 1024))
+        ('Thread Info', 'Elapsed time', round(float(self.totalTime), 7), self.getRunTaskNum(), self.cxtSwitch, SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
                 format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
@@ -4653,7 +4653,6 @@ if __name__ == '__main__':
             SystemInfo.runRecordStopFinalCmd()
 
         # Print Function Info #
-        SystemInfo.printTitle()
         fi.printUsage()
 
         sys.exit(0)
@@ -4670,9 +4669,7 @@ if __name__ == '__main__':
     # create Thread Info #
     ti = ThreadInfo(SystemInfo.inputFile)
 
-    # print title #
-    SystemInfo.printTitle()
-
+    # print thread usage #
     ti.printUsage()
 
     if SystemInfo.isRecordMode():
