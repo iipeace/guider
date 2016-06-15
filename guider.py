@@ -1299,6 +1299,8 @@ class FunctionInfo:
 
 
 class FileInfo:
+    condExit = False
+
     def __init__(self):
         self.libguider = None
         self.libguiderPath = './libguider.so'
@@ -1341,23 +1343,30 @@ class FileInfo:
 
         self.startTime = time.time()
 
-        # scan proc directory and save map information of processes #
-        self.scanProcs()
+        while True:
+            # scan proc directory and save map information of processes #
+            self.scanProcs()
 
-        # merge maps of processes into a integrated file map #
-        self.mergeFileMapInfo()
+            # merge maps of processes into a integrated file map #
+            self.mergeFileMapInfo()
 
-        # get file map info on memory #
-        self.getFilePageMaps()
+            # get file map info on memory #
+            self.getFilePageMaps()
 
-        # fill file map of each processes #
-        self.fillFileMaps()
+            # fill file map of each processes #
+            self.fillFileMaps()
 
-        # print total file usage per process #
-        self.printUsage()
+            if SystemInfo.intervalEnable == 0:
+                break
+            elif FileInfo.condExit is False:
+                signal.pause()
 
-        # print file usage per process on timeline #
-        self.printIntervalInfo()
+        if SystemInfo.intervalEnable == 0:
+            # print total file usage per process #
+            self.printUsage()
+        else:
+            # print file usage per process on timeline #
+            self.printIntervalInfo()
 
 
 
@@ -1407,7 +1416,11 @@ class FileInfo:
 
 
     def printIntervalInfo(self):
-        # print interval info per file (common, in, out) #
+        None
+
+
+
+    def makeReadaheadList(self):
         None
 
 
@@ -1670,7 +1683,8 @@ class SystemInfo:
     sysEnable = False
     compareEnable = False
     functionEnable = False
-    pageEnable = False
+    fileEnable = False
+    threadEnable = False
     intervalEnable = 0
 
     repeatInterval = 0
@@ -1715,8 +1729,8 @@ class SystemInfo:
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         SystemInfo.runRecordStopCmd()
 
-        if SystemInfo.pageEnable is not False:
-            SystemInfo.pageEnable = False
+        if SystemInfo.fileEnable is not False:
+            SystemInfo.fileEnable = False
         SystemInfo.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
 
 
@@ -2129,7 +2143,7 @@ class SystemInfo:
                     SystemInfo.compareEnable = True
                     SystemInfo.printInfo("compare mode")
                 elif sys.argv[n][1] == 'm':
-                    SystemInfo.pageEnable = True
+                    SystemInfo.fileEnable = True
                 elif sys.argv[n][1] == 't':
                     SystemInfo.sysEnable = True
                     SystemInfo.syscallList = sys.argv[n].lstrip('-t').split(',')
@@ -2732,6 +2746,23 @@ class ThreadInfo:
             SystemInfo.sysEnable = False
             SystemInfo.syscallList = []
 
+        # print thread usage #
+        self.printUsage()
+
+        # print resource usage of threads on timeline #
+        if SystemInfo.intervalEnable > 0:
+            self.printIntervalInfo()
+
+        # print dependency about threads #
+        if SystemInfo.depEnable == True:
+            self.printDepInfo()
+
+        # print kernel messages #
+        self.printConsoleInfo()
+
+        # print system call usage #
+        self.printSyscallInfo()
+
 
 
     def makeTaskChain(self):
@@ -2990,7 +3021,7 @@ class ThreadInfo:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + '[Signal Info]')
             SystemInfo.pipePrint(twoLine)
-            SystemInfo.pipePrint("%4s\t %8s %16s(%5s) \t%9s->\t %16s(%5s)" % \
+            SystemInfo.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s->\t %16s(%5s)" % \
                     ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECVER', 'TID'))
             SystemInfo.pipePrint(twoLine)
 
@@ -2999,10 +3030,10 @@ class ThreadInfo:
                 except: continue
 
                 if val[0] == 'SEND':
-                    SystemInfo.pipePrint("%4s\t %.6f %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%6s) \t%9s->\t %16s(%5s)" % \
                             (val[0], val[1], val[2], val[3], ConfigInfo.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
-                    SystemInfo.pipePrint("%4s\t %.6f %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%6s) \t%9s->\t %16s(%5s)" % \
                             (val[0], val[1], '', '', ConfigInfo.sigList[int(val[6])], val[4], val[5]))
             SystemInfo.pipePrint(oneLine)
 
@@ -4560,24 +4591,27 @@ if __name__ == '__main__':
             SystemInfo.printInfo("function profile mode")
             # si.runPeriodProc()
             # toDo: make periodic event every 100us for specific thread #
-        elif SystemInfo.pageEnable is not False:
+        elif SystemInfo.fileEnable is not False:
             SystemInfo.printInfo("file profile mode")
         else:
             SystemInfo.printInfo("thread profile mode")
+            SystemInfo.threadEnable = True
 
         # set signal #
-        if SystemInfo.repeatCount > 0 and SystemInfo.repeatInterval > 0:
+        if SystemInfo.repeatCount > 0 and SystemInfo.repeatInterval > 0 and SystemInfo.threadEnable is True:
             signal.signal(signal.SIGALRM, SystemInfo.alarmHandler)
             signal.alarm(SystemInfo.repeatInterval)
             if SystemInfo.outputFile is None:
                 SystemInfo.printError("wrong option with -s, use parameter for saving data")
                 sys.exit(0)
         else:
+            SystemInfo.repeatInterval = 0
+            SystemInfo.repeatCount = 0
             signal.signal(signal.SIGINT, SystemInfo.stopHandler)
             signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
 
         # create FileInfo #
-        if SystemInfo.pageEnable is not False:
+        if SystemInfo.fileEnable is not False:
             # parse additional option #
             SystemInfo.parseAddOption()
 
@@ -4589,7 +4623,7 @@ if __name__ == '__main__':
         SystemInfo.printStatus('start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]')
         si.runRecordStartCmd()
 
-        if SystemInfo.pipeEnable is True:
+        if SystemInfo.pipeEnable is True and SystemInfo.threadEnable is True:
             if SystemInfo.outputFile is not None:
                 SystemInfo.setIdlePriority(0)
                 SystemInfo.copyPipeToFile(SystemInfo.inputFile + '_pipe', SystemInfo.outputFile)
@@ -4669,29 +4703,12 @@ if __name__ == '__main__':
     # create Thread Info #
     ti = ThreadInfo(SystemInfo.inputFile)
 
-    # print thread usage #
-    ti.printUsage()
-
     if SystemInfo.isRecordMode():
         si.printMemInfo()
         SystemInfo.runRecordStopFinalCmd()
 
-    # print resource usage of threads on timeline #
-    if SystemInfo.intervalEnable > 0:
-        ti.printIntervalInfo()
-
-    # print dependency about threads #
-    if SystemInfo.depEnable == True:
-        ti.printDepInfo()
-
-    # print Events #
+    # print event info #
     ei.printEventInfo()
-
-    # print kernel messages #
-    ti.printConsoleInfo()
-
-    # print system call usage #
-    ti.printSyscallInfo()
 
     # start input menu #
     if SystemInfo.selectMenu != None:
