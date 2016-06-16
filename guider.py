@@ -1312,7 +1312,8 @@ class FileInfo:
         self.procData = {}
         self.fileData = {}
 
-        self.intervalData = []
+        self.intervalProcData = []
+        self.intervalFileData = []
 
         self.init_procData = {'tids': None, 'pageCnt': int(0), 'procMap': None}
         self.init_threadData = {'comm': ''}
@@ -1356,10 +1357,21 @@ class FileInfo:
             # fill file map of each processes #
             self.fillFileMaps()
 
-            if SystemInfo.intervalEnable == 0:
+            if SystemInfo.intervalEnable > 0:
+                # save previous file usage and initialize variables #
+                self.intervalProcData.append(self.procData)
+                self.intervalFileData.append(self.fileData)
+                self.procData = {}
+                self.fileData = {}
+                self.profSuccessCnt = 0
+                self.profFailedCnt = 0
+
+                if FileInfo.condExit is False:
+                    signal.pause()
+                else:
+                    break
+            else:
                 break
-            elif FileInfo.condExit is False:
-                signal.pause()
 
         if SystemInfo.intervalEnable == 0:
             # print total file usage per process #
@@ -1413,6 +1425,8 @@ class FileInfo:
             SystemInfo.pipePrint("{0:11} |{1:10} |{2:5}| {3:6}".\
                     format( memSize, fileSize, per, fileName))
 
+        SystemInfo.pipePrint(oneLine + '\n\n\n')
+
 
 
     def printIntervalInfo(self):
@@ -1450,6 +1464,7 @@ class FileInfo:
                         fd = open(commPath, 'r')
                         comm = fd.readline()
                         comm = comm[0:len(comm) - 1]
+                        fd.close()
                     except:
                         SystemInfo.printWarning('Fail to open %s' % (commPath))
                         continue
@@ -1596,19 +1611,25 @@ class FileInfo:
         self.profFailedCnt = 0
 
         for fileName, val in self.fileData.items():
+            if SystemInfo.intervalEnable > 0:
+                # use file descriptor already saved as possible #
+                try:
+                    val['fd'] = self.intervalFileData[len(self.intervalFileData) - 1][fileName]['fd']
+                    val['totalSize'] = self.intervalFileData[len(self.intervalFileData) - 1][fileName]['totalSize']
+                except: None
+
             if val['fd'] is None:
                 try:
                     # open binary file to check page whether it is on memory or not #
                     fd = open(fileName, "r")
                     size = os.stat(fileName).st_size
 
-                    self.fileData[fileName]['fd'] = fd
-                    self.fileData[fileName]['totalSize'] = size
+                    val['fd'] = fd
+                    val['totalSize'] = size
 
+                    # check file size whether it is readable or not #
                     if size == 0:
                         raise
-                    else:
-                        self.profSuccessCnt += 1
                 except:
                     self.profFailedCnt += 1
                     if SystemInfo.showAll is True:
@@ -1626,6 +1647,7 @@ class FileInfo:
             # save the array of ctype into list #
             if pagemap is not None:
                 self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
+                self.profSuccessCnt += 1
 
         if len(self.fileData) > 0:
             SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
@@ -1726,24 +1748,26 @@ class SystemInfo:
 
     @staticmethod
     def stopHandler(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        SystemInfo.runRecordStopCmd()
+        if SystemInfo.fileEnable is True:
+            FileInfo.condExit = True
+        else:
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            SystemInfo.runRecordStopCmd()
 
-        if SystemInfo.fileEnable is not False:
-            SystemInfo.fileEnable = False
         SystemInfo.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
 
 
 
     @staticmethod
     def newHandler(signum, frame):
-        if SystemInfo.compareEnable is False:
-            SystemInfo.writeEvent("EVENT_MARK")
+        if SystemInfo.fileEnable is True:
+            SystemInfo.printStatus("Saved file usage successfully")
         else:
-            SystemInfo.writeEvent("EVENT_RESTART")
-            SystemInfo.printStatus('restart recording... [ STOP(ctrl + c) ]')
-
-        time.sleep(1024)
+            if SystemInfo.compareEnable is False:
+                SystemInfo.writeEvent("EVENT_MARK")
+            else:
+                SystemInfo.writeEvent("EVENT_RESTART")
+                SystemInfo.printStatus('restart recording... [ STOP(ctrl + c) ]')
 
 
 
