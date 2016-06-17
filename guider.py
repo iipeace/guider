@@ -1312,6 +1312,9 @@ class FileInfo:
         self.procData = {}
         self.fileData = {}
 
+        self.procList = {}
+        self.fileList = {}
+
         self.intervalProcData = []
         self.intervalFileData = []
 
@@ -1366,6 +1369,7 @@ class FileInfo:
                 self.profSuccessCnt = 0
                 self.profFailedCnt = 0
 
+                # check exit condition for interval profile #
                 if FileInfo.condExit is False:
                     signal.pause()
                 else:
@@ -1386,11 +1390,14 @@ class FileInfo:
         if len(self.procData) == 0:
             SystemInfo.printError('No process profiled')
             sys.exit(0)
+        if len(self.fileData) == 0:
+            SystemInfo.printError('No file profiled')
+            sys.exit(0)
 
         # Print title #
         SystemInfo.printTitle()
 
-        # Print profiled proccess list #
+        # Print proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('File Info', len(self.procData)))
         SystemInfo.pipePrint(twoLine)
@@ -1410,7 +1417,7 @@ class FileInfo:
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('File Info', len(self.fileData)))
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^12}|{1:_^11}|{2:_^5}| {3:6}".\
+        SystemInfo.pipePrint("{0:_^12}|{1:_^10}|{2:_^5}| {3:6}".\
                 format("Memory(KB)", "File(KB)", "%", "Path"))
         SystemInfo.pipePrint(twoLine)
 
@@ -1422,15 +1429,122 @@ class FileInfo:
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
 
-            SystemInfo.pipePrint("{0:11} |{1:10} |{2:5}| {3:6}".\
-                    format( memSize, fileSize, per, fileName))
+            SystemInfo.pipePrint("{0:11} |{1:9} |{2:5}| {3:6}".\
+                    format(memSize, fileSize, per, fileName))
 
         SystemInfo.pipePrint(oneLine + '\n\n\n')
 
 
 
     def printIntervalInfo(self):
-        None
+        # Merge proccess info into a global list #
+        for procData in self.intervalProcData:
+            for pid, procInfo in procData.items():
+                try:
+                    if self.procList[pid]['pageCnt'] < procInfo['pageCnt']:
+                        self.procList[pid]['pageCnt'] = procInfo['pageCnt']
+                except:
+                    self.procList[pid] = dict(self.init_procData)
+                    self.procList[pid]['tids'] = {}
+                    self.procList[pid]['pageCnt'] = procInfo['pageCnt']
+
+                for tid, val in procInfo['tids'].items():
+                    try:
+                        self.procList[pid]['tids'][tid]
+                    except:
+                        self.procList[pid]['tids'][tid] = dict(self.init_threadData)
+                        self.procList[pid]['tids'][tid]['comm'] = val['comm']
+
+        if len(self.procList) == 0:
+            SystemInfo.printError('No process profiled')
+            sys.exit(0)
+
+        # Merge file info into a global list #
+        for fileData in self.intervalFileData:
+            for fileName, fileInfo in fileData.items():
+                try:
+                    if self.fileList[fileName]['pageCnt'] < fileInfo['pageCnt']:
+                        self.fileList[fileName]['pageCnt'] = fileInfo['pageCnt']
+                except:
+                    self.fileList[fileName] = dict(self.init_mapData)
+                    self.fileList[fileName]['pageCnt'] = fileInfo['pageCnt']
+                    self.fileList[fileName]['totalSize'] = fileInfo['totalSize']
+
+        if len(self.fileList) == 0:
+            SystemInfo.printError('No file profiled')
+            sys.exit(0)
+
+        # Print title #
+        SystemInfo.printTitle()
+
+        # Print proccess list #
+        SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
+        ('File Info', len(self.procList)))
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^7}|{1:_^13}|{2:_^16}({3:_^7})".format("Pid", "MaxSize(KB)", "ThreadName", "Tid"))
+        SystemInfo.pipePrint(twoLine)
+
+        for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            printMsg = "{0:^7}|{1:12} ".format(pid, val['pageCnt'] * SystemInfo.pageSize / 1024)
+            for tid, threadVal in sorted(val['tids'].items(), reverse=True):
+                printMsg += "|{0:^16}({1:^7})".format(threadVal['comm'], tid)
+                SystemInfo.pipePrint(printMsg)
+                printMsg = "{0:^7}{1:^14}".format('', '')
+
+        SystemInfo.pipePrint(oneLine + '\n\n\n')
+
+        # Print file list #
+        SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
+        ('File Info', len(self.fileList)))
+        SystemInfo.pipePrint(twoLine)
+        printMsg = "{0:_^12}|{1:_^10}|{2:_^5}|".format("Memory(KB)", "File(KB)", "%")
+        if len(self.intervalFileData) > 1:
+            for idx in range(1, len(self.intervalFileData)):
+                printMsg += "{0:_^15}|".format(str(idx))
+        printMsg += "\tPath"
+        SystemInfo.pipePrint(printMsg)
+                
+        SystemInfo.pipePrint(twoLine)
+
+        for fileName, val in sorted(self.fileList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            memSize = self.intervalFileData[0][fileName]['pageCnt'] * SystemInfo.pageSize / 1024
+            fileSize = ((val['totalSize'] + SystemInfo.pageSize - 1) / SystemInfo.pageSize) * SystemInfo.pageSize / 1024
+            per = 0
+
+            if fileSize != 0:
+                per = int(int(memSize) / float(fileSize) * 100)
+
+            printMsg = "{0:11} |{1:9} |{2:5}|".format(memSize, fileSize, per)
+            if len(self.intervalFileData) > 1:
+                for idx in range(1, len(self.intervalFileData)):
+                    diffNew = 0
+                    diffDel = 0
+                    nowFileMap = self.intervalFileData[idx][fileName]['fileMap']
+                    prevFileMap = self.intervalFileData[idx - 1][fileName]['fileMap']
+
+                    if nowFileMap is None:
+                        if prevFileMap is not None:
+                            diffDel = self.intervalFileData[idx - 1][fileName]['pageCnt']
+                    else:
+                        if prevFileMap is None:
+                            diffAdd = self.intervalFileData[idx - 1][fileName]['pageCnt']
+                        else:
+                            if len(nowFileMap) == len(prevFileMap):
+                                for i in range(len(nowFileMap)):
+                                    if nowFileMap[i] > prevFileMap[i]:
+                                        diffNew += 1
+                                    elif nowFileMap[i] < prevFileMap[i]:
+                                        diffDel += 1
+
+                    diffNew = diffNew * SystemInfo.pageSize / 1024
+                    diffDel = diffDel * SystemInfo.pageSize / 1024
+                    printMsg += "+%6d/-%6d|" % (diffNew, diffDel)
+
+            printMsg += "\t%s" % fileName
+
+            SystemInfo.pipePrint(printMsg)
+
+        SystemInfo.pipePrint(oneLine + '\n\n\n')
 
 
 
