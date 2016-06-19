@@ -1487,7 +1487,7 @@ class FileInfo:
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:^7}|{1:12} ".format(pid, val['pageCnt'] * SystemInfo.pageSize / 1024)
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                printMsg += "|{0:^16}({1:^7})".format(threadVal['comm'], tid)
+                printMsg += "|{0:>16}({1:>7})".format(threadVal['comm'], tid)
                 SystemInfo.pipePrint(printMsg)
                 printMsg = "{0:^7}{1:^14}".format('', '')
 
@@ -1497,11 +1497,11 @@ class FileInfo:
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('File Info', len(self.fileList)))
         SystemInfo.pipePrint(twoLine)
-        printMsg = "{0:_^12}|{1:_^10}|{2:_^5}|".format("Memory(KB)", "File(KB)", "%")
+        printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitMem(KB)", "File(KB)", "%")
         if len(self.intervalFileData) > 1:
             for idx in range(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
-        printMsg += "\tPath"
+        printMsg += "{0:_^13}|{1:_^5}|{2:_^60}|".format("LastMem(KB)", "%", "Path")
         SystemInfo.pipePrint(printMsg)
                 
         SystemInfo.pipePrint(twoLine)
@@ -1514,7 +1514,7 @@ class FileInfo:
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
 
-            printMsg = "{0:11} |{1:9} |{2:5}|".format(memSize, fileSize, per)
+            printMsg = "{0:12} |{1:9} |{2:5}|".format(memSize, fileSize, per)
             if len(self.intervalFileData) > 1:
                 for idx in range(1, len(self.intervalFileData)):
                     diffNew = 0
@@ -1540,7 +1540,12 @@ class FileInfo:
                     diffDel = diffDel * SystemInfo.pageSize / 1024
                     printMsg += "+%6d/-%6d|" % (diffNew, diffDel)
 
-            printMsg += "\t%s" % fileName
+            totalMemSize = val['pageCnt'] * SystemInfo.pageSize / 1024
+            if fileSize != 0:
+                per = int(int(totalMemSize) / float(fileSize) * 100)
+            else:
+                per = 0
+            printMsg += "{0:13}|{1:5}|{2:60}|".format(totalMemSize, per, fileName)
 
             SystemInfo.pipePrint(printMsg)
 
