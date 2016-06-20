@@ -1507,8 +1507,15 @@ class FileInfo:
         SystemInfo.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            memSize = self.intervalFileData[0][fileName]['pageCnt'] * SystemInfo.pageSize / 1024
-            fileSize = ((val['totalSize'] + SystemInfo.pageSize - 1) / SystemInfo.pageSize) * SystemInfo.pageSize / 1024
+            try:
+                memSize = self.intervalFileData[0][fileName]['pageCnt'] * SystemInfo.pageSize / 1024
+            except:
+                memSize = 0
+            try:
+                fileSize = ((val['totalSize'] + SystemInfo.pageSize - 1) / SystemInfo.pageSize) * SystemInfo.pageSize / 1024
+            except:
+                fileSize = 0
+
             per = 0
 
             if fileSize != 0:
@@ -1519,15 +1526,22 @@ class FileInfo:
                 for idx in range(1, len(self.intervalFileData)):
                     diffNew = 0
                     diffDel = 0
-                    nowFileMap = self.intervalFileData[idx][fileName]['fileMap']
-                    prevFileMap = self.intervalFileData[idx - 1][fileName]['fileMap']
+
+                    try:
+                        nowFileMap = self.intervalFileData[idx][fileName]['fileMap']
+                    except:
+                        nowFileMap = None
+                    try:
+                        prevFileMap = self.intervalFileData[idx - 1][fileName]['fileMap']
+                    except:
+                        prevFileMap = None
 
                     if nowFileMap is None:
                         if prevFileMap is not None:
                             diffDel = self.intervalFileData[idx - 1][fileName]['pageCnt']
                     else:
                         if prevFileMap is None:
-                            diffAdd = self.intervalFileData[idx - 1][fileName]['pageCnt']
+                            diffAdd = self.intervalFileData[idx][fileName]['pageCnt']
                         else:
                             if len(nowFileMap) == len(prevFileMap):
                                 for i in range(len(nowFileMap)):
@@ -1745,15 +1759,18 @@ class FileInfo:
 
                     val['fd'] = fd
                     val['totalSize'] = size
-
-                    # check file size whether it is readable or not #
-                    if size == 0:
-                        raise
                 except:
                     self.profFailedCnt += 1
                     if SystemInfo.showAll is True:
                         SystemInfo.printWarning('Fail to open %s' % fileName)
                     continue
+
+            # check file size whether it is readable or not #
+            if val['totalSize'] <= 0:
+                self.profFailedCnt += 1
+                if SystemInfo.showAll is True:
+                    SystemInfo.printWarning('Fail to mmap %s' % fileName)
+                continue
 
             # prepare variables for mincore systemcall #
             fd = self.fileData[fileName]['fd'].fileno()
@@ -1765,8 +1782,14 @@ class FileInfo:
 
             # save the array of ctype into list #
             if pagemap is not None:
-                self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
-                self.profSuccessCnt += 1
+                try:
+                    self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
+                    self.profSuccessCnt += 1
+                except:
+                    SystemInfo.printWarning('Fail to access %s' % fileName)
+                    self.fileData[fileName]['fileMap'] = None
+                    self.profFailedCnt += 1
+                    print 'Next', self.fileData[fileName]
 
         if len(self.fileData) > 0:
             SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
