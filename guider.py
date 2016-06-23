@@ -149,42 +149,60 @@ class FunctionInfo:
         self.nowEvent = None
         self.savedEvent = None
         self.nestedEvent = None
+        self.nested = 0
         self.nowCnt= 0
         self.savedCnt = 0
         self.nestedCnt = 0
-        self.nested = 0
+        self.nowArg = 0
+        self.savedArg = 0
+        self.nestedArg = 0
 
         self.periodicEventCnt = 0
         self.periodicContEventCnt = 0
         self.periodicEventInterval = 0
         self.periodicEventTotal = 0
-        self.pageEventCnt = 0
+        self.pageAllocEventCnt = 0
+        self.pageAllocCnt = 0
+        self.pageFreeEventCnt = 0
+        self.pageFreeCnt = 0
         self.pageUsageCnt = 0
         self.blockEventCnt = 0
         self.blockUsageCnt = 0
 
         self.mapData = []
+        self.pageTable = {}
+        self.oldPageTable = {}
         self.posData = {}
         self.userSymData = {}
         self.kernelSymData = {}
         self.threadData = {}
-        self.userCallData = [] # [userLastPos, stack[], pageCnt, blockCnt] #
-        self.kernelCallData = [] # [userLastPos, stack[], pageCnt, blockCnt] #
+        self.userCallData = [] 
+        self.kernelCallData = [] 
+        # userCallData = kernelCallData = [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument] #
 
         self.init_threadData = \
-                {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False}
+                {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'nrPages': int(0), \
+                'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
         self.init_posData = \
-                {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'totalCnt': int(0), \
-                'src': '', 'blockCnt': int(0), 'pageCnt': int(0)}
-        self.init_SymData = \
-                {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'stack': None, 'symStack': None} \
-                # stack = [cpuCnt, stack[], pageCnt, blockCnt] #
+                {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
+                'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
+                'blockCnt': int(0), 'pageCnt': int(0)}
+        self.init_symData = \
+                {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
+                'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
+                # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
+        self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+        self.init_pageLinkData = {'sym': '0', 'subStackAddr': int(0), 'type': '0', 'time': '0'}
+        self.init_subStackPageInfo = [0, 0, 0]
+        # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
 
         # Open log file #
         try: logFd = open(logFile, 'r')
         except:
             SystemInfo.printError("Fail to open %s to create callstack information" % logFile)
             sys.exit(0)
+
+        SystemInfo.printStatus('start analyzing data... [ STOP(ctrl + c) ]')
 
         # Get binary and offset info #
         lines = logFd.readlines()
@@ -229,6 +247,8 @@ class FunctionInfo:
             SystemInfo.printError("No traced user stack data related to %s, apply kernel patch" % self.target)
             sys.exit(0)
 
+        SystemInfo.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
+
         # Get symbols from call address #
         self.getSymbols()
 
@@ -238,13 +258,22 @@ class FunctionInfo:
 
 
     def mergeStacks(self):
+        stackAddr = 0
+
+        # Backup page table used previously and Initialize it #
+        self.oldPageTable = self.pageTable
+        self.pageTable = {}
+
         # Merge user call data by symbol or address #
         for val in self.userCallData:
             pos = val[0]
             stack = val[1]
-            pageCnt = val[2]
-            blockCnt = val[3]
+            pageAllocCnt = val[2]
+            pageFreeCnt = val[3]
+            blockCnt = val[4]
+            arg = val[5]
             targetStack = []
+            subStackPageInfo = list(self.init_subStackPageInfo)
 
             try:
                 # No symbol related to last pos #
@@ -258,21 +287,16 @@ class FunctionInfo:
             # Make symbol table of last pos in stack #
             try: self.userSymData[sym]
             except:
-                self.userSymData[sym] = dict(self.init_SymData)
+                self.userSymData[sym] = dict(self.init_symData)
                 self.userSymData[sym]['stack'] = []
                 self.userSymData[sym]['symStack'] = []
                 self.userSymData[sym]['pos'] = pos
                 self.userSymData[sym]['origBin'] = self.posData[pos]['origBin']
 
-            # periodic event such as tick #
-            if pageCnt == 0 and blockCnt == 0:
-                self.userSymData[sym]['cnt'] += 1
+            if pageAllocCnt == pageFreeCnt == blockCnt == 0:
                 cpuCnt = 1
-            # memory or block related event #
             else:
                 cpuCnt = 0
-                self.userSymData[sym]['pageCnt'] += pageCnt
-                self.userSymData[sym]['blockCnt'] += blockCnt
 
             # Set target stack #
             if self.sort is 'sym':
@@ -283,7 +307,7 @@ class FunctionInfo:
 
                     # Ignore this function if there is no symbol #
                     if SystemInfo.showAll is False and \
-                            tempSym == addr or tempSym == self.posData[addr]['offset']:
+                            (tempSym == addr or tempSym == self.posData[addr]['offset']):
                                 continue
 
                     # No symbol data #
@@ -295,7 +319,7 @@ class FunctionInfo:
 
                     try: self.userSymData[tempSym]
                     except:
-                        self.userSymData[tempSym] = dict(self.init_SymData)
+                        self.userSymData[tempSym] = dict(self.init_symData)
                         self.userSymData[tempSym]['stack'] = []
                         self.userSymData[tempSym]['symStack'] = []
                         self.userSymData[tempSym]['pos'] = addr
@@ -311,30 +335,168 @@ class FunctionInfo:
 
             # First stack related to this symbol #
             if len(targetStack) == 0:
-                targetStack.append([cpuCnt, stack, pageCnt, blockCnt])
+                targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, subStackPageInfo])
+                stackAddr = id(stack)
             else:
                 found = False
 
                 # Find same stack by pos in stack list #
                 for stackInfo in targetStack:
-                    # Found it #
+                    # Found same stack #
                     if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
                             len(list(set(stackInfo[1]) - set(stack))) == 0:
-                        stackInfo[2] += pageCnt
-                        stackInfo[3] += blockCnt
-                        stackInfo[0] += cpuCnt
                         found = True
+                        stackInfo[2] += pageAllocCnt
+                        stackInfo[3] += pageFreeCnt
+                        stackInfo[4] += blockCnt
+                        stackInfo[0] += cpuCnt
+                        stackAddr = id(stackInfo[1])
                         break
                 # New stack related to this symbol #
                 if found == False:
-                    targetStack.append([cpuCnt, stack, pageCnt, blockCnt])
+                    targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, subStackPageInfo])
+                    stackAddr = id(stack)
+
+            # memory allocation related event #
+            if pageAllocCnt > 0:
+                pageType = arg[0]
+                pfn = arg[1]
+                subStackPageInfoIdx = 0
+
+                # Increase counts of page to be allocated #
+                self.userSymData[sym]['pageCnt'] += pageAllocCnt
+
+                if pageType == 'USER':
+                    self.userSymData[sym]['userPageCnt'] += pageAllocCnt
+                    subStackPageInfoIdx = 0
+                elif pageType == 'CACHE':
+                    self.userSymData[sym]['cachePageCnt'] += pageAllocCnt
+                    subStackPageInfoIdx = 1
+                elif pageType == 'KERNEL':
+                    self.userSymData[sym]['kernelPageCnt'] += pageAllocCnt
+                    subStackPageInfoIdx = 2
+
+                # Set target stack #
+                if self.sort is 'sym':
+                    targetStack = self.userSymData[sym]['symStack']
+                elif self.sort is 'pos':
+                    targetStack = self.userSymData[sym]['stack']
+
+                # Find subStack of symbol allocated this page #
+                for val in targetStack:
+                    if id(val[1]) == stackAddr:
+                        # Increase page count of subStack #
+                        val[5][subStackPageInfoIdx] += pageAllocCnt
+                        break
+
+                # Make PTE in page table #
+                for cnt in range(0, pageAllocCnt):
+                    pfnv = pfn + cnt
+                    subStackPageInfoIdx = 0
+
+                    try:
+                        # Check whether this page is already allocated #
+                        allocSym = self.pageTable[pfnv]['sym']
+                        allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+
+                        # Decrease counts of page already allocated but no free log #
+                        self.pageUsageCnt -= 1
+                        self.userSymData[allocSym]['pageCnt'] -= 1
+
+                        origPageType = self.pageTable[pfnv]['type']
+                        if origPageType == 'USER':
+                            self.userSymData[allocSym]['userPageCnt'] -= 1
+                            subStackPageInfoIdx = 0
+                        elif origPageType == 'CACHE':
+                            self.userSymData[allocSym]['cachePageCnt'] -= 1
+                            subStackPageInfoIdx = 1
+                        elif origPageType == 'KERNEL':
+                            self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                            subStackPageInfoIdx = 2
+
+                        # Set target stack #
+                        if self.sort is 'sym':
+                            targetStack = self.userSymData[allocSym]['symStack']
+                        elif self.sort is 'pos':
+                            targetStack = self.userSymData[allocSym]['stack']
+
+                        # Find subStack of symbol allocated this page #
+                        for val in targetStack:
+                            if id(val[1]) == allocStackAddr:
+                                # Decrease allocated page count of substack #
+                                val[2] -= 1
+                                val[5][subStackPageInfoIdx] -= 1
+                                break
+                    except: self.pageTable[pfnv] = dict(self.init_pageLinkData)
+
+                    self.pageTable[pfnv]['sym'] = sym
+                    self.pageTable[pfnv]['type'] = pageType
+                    self.pageTable[pfnv]['subStackAddr'] = stackAddr
+
+            # memory free related event #
+            elif pageFreeCnt > 0:
+                pageType = arg[0]
+                pfn = arg[1]
+
+                self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
+
+                for cnt in range(0, pageFreeCnt):
+                    pfnv = pfn + cnt
+                    subStackPageInfoIdx = 0
+
+                    try:
+                        # Decrease page count of symbol allocated page  #
+                        allocSym = self.pageTable[pfnv]['sym']
+                        allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+
+                        self.userSymData[allocSym]['pageCnt'] -= 1
+
+                        if pageType is 'CACHE':
+                            self.userSymData[allocSym]['userPageCnt'] -= 1
+                            subStackPageInfoIdx = 0
+                        elif pageType is 'USER':
+                            self.userSymData[allocSym]['cachePageCnt'] -= 1
+                            subStackPageInfoIdx = 1
+                        elif pageType is 'KERNEL':
+                            self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                            subStackPageInfoIdx = 2
+
+                        # Set target stack #
+                        if self.sort is 'sym':
+                            targetStack = self.userSymData[allocSym]['symStack']
+                        elif self.sort is 'pos':
+                            targetStack = self.userSymData[allocSym]['stack']
+
+                        # Find subStack allocated this page #
+                        for val in targetStack:
+                            if id(val[1]) == allocStackAddr:
+                                val[2] -= 1
+                                val[5][subStackPageInfoIdx] -= 1
+                                break
+
+                        self.pageTable[pfnv] = {}
+                        del self.pageTable[pfnv]
+                    except:
+                        # this page is allocated before starting profile #
+                        None
+
+            # block related event #
+            elif blockCnt > 0:
+                self.userSymData[sym]['blockCnt'] += blockCnt
+
+            # periodic event such as cpu tick #
+            else:
+                cpuCnt = 1
+                self.userSymData[sym]['cnt'] += 1
 
         # Merge kernel call data by address #
         for val in self.kernelCallData:
             pos = val[0]
             stack = val[1]
-            pageCnt = val[2]
-            blockCnt = val[3]
+            pageAllocCnt = val[2]
+            pageFreeCnt = val[3]
+            blockCnt = val[4]
+            arg = val[5]
 
             try:
                 # No symbol related to last pos #
@@ -347,36 +509,43 @@ class FunctionInfo:
 
             try: self.kernelSymData[sym]
             except:
-                self.kernelSymData[sym] = dict(self.init_SymData)
+                self.kernelSymData[sym] = dict(self.init_symData)
                 self.kernelSymData[sym]['stack'] = []
                 self.kernelSymData[sym]['pos'] = pos
 
-            # If no page and no block then this is periodic event for sampling #
-            if pageCnt == 0 and blockCnt == 0:
-                self.kernelSymData[sym]['cnt'] += 1
-                cpuCnt = 1
-            else:
-                cpuCnt = 0
-                self.kernelSymData[sym]['pageCnt'] += pageCnt
+            cpuCnt = 0
+            # memory allocation related event #
+            if pageAllocCnt > 0:
+                self.kernelSymData[sym]['pageCnt'] += pageAllocCnt
+            # memory free related event #
+            elif pageFreeCnt > 0:
+                self.kernelSymData[sym]['pageFreeCnt'] += pageFreeCnt
+            # block related event #
+            elif blockCnt > 0:
                 self.kernelSymData[sym]['blockCnt'] += blockCnt
+            # periodic event such as cpu tick #
+            else:
+                cpuCnt = 1
+                self.kernelSymData[sym]['cnt'] += 1
 
             # First stack related to this symbol #
             if len(self.kernelSymData[sym]['stack']) == 0:
-                self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageCnt, blockCnt])
+                self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt])
             else:
                 found = False
                 for stackInfo in self.kernelSymData[sym]['stack']:
                     # Found same stack  in stack list #
                     if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
                             len(list(set(stackInfo[1]) - set(stack))) == 0:
-                        stackInfo[2] += pageCnt
-                        stackInfo[3] += blockCnt
+                        stackInfo[2] += pageAllocCnt
+                        stackInfo[3] += pageFreeCnt
+                        stackInfo[4] += blockCnt
                         stackInfo[0] += cpuCnt
                         found = True
                         break
                 # New stack related to this symbol #
                 if found == False:
-                    self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageCnt, blockCnt])
+                    self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt])
 
 
 
@@ -565,14 +734,18 @@ class FunctionInfo:
                             userCallStack.append('0')
                     # nested interval #
                     elif self.curMode is 'user':
-                        # Swap event and cnt #
+                        # Swap values #
                         tempEvent = self.nowEvent
                         self.nowEvent = self.savedEvent
                         self.savedEvent = tempEvent
+
                         tempCnt = self.nowCnt
                         self.nowCnt = self.savedCnt
                         self.savedCnt = tempCnt
 
+                        tempArg = self.nowArg
+                        self.nowArg = self.savedArg
+                        self.savedArg = tempArg
                 # Save both stacks of previous event before starting to record new kernel stack #
                 if (len(userCallStack) > 0 and userLastPos != '') and (len(kernelCallStack) > 0 and kernelLastPos != ''):
                     del kernelCallStack[0], userCallStack[0]
@@ -581,48 +754,92 @@ class FunctionInfo:
                     if self.nested > 0:
                         targetEvent = self.nestedEvent
                         targetCnt = self.nestedCnt
+                        targetArg = self.nestedArg
 
-                        # Swap event and cnt #
+                        # Swap values #
                         tempEvent = self.nowEvent
                         self.nowEvent = self.savedEvent
                         self.savedEvent = tempEvent
+
                         tempCnt = self.nowCnt
                         self.nowCnt = self.savedCnt
                         self.savedCnt = tempCnt
+
+                        tempArg = self.nowArg
+                        self.nowArg = self.savedArg
+                        self.savedArg = tempArg
                     else:
                         targetEvent = self.savedEvent
                         targetCnt = self.savedCnt
+                        targetArg = self.savedArg
 
                     # Save full stack of previous event #
                     if targetEvent == 'C':
                         self.periodicEventCnt += 1
 
-                        self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0])
-                        self.userCallData.append([userLastPos, userCallStack, 0, 0])
-                    elif targetEvent == 'MA':
-                        self.pageEventCnt += 1
-                        self.pageUsageCnt += targetCnt
-                        self.posData[kernelLastPos]['pageCnt'] += targetCnt
-                        self.posData[userLastPos]['pageCnt'] += targetCnt
-
-                        self.kernelCallData.append([kernelLastPos, kernelCallStack, targetCnt, 0])
-                        self.userCallData.append([userLastPos, userCallStack, targetCnt, 0])
-
-                        self.savedCnt = 0
-                    elif targetEvent == 'B':
-                        self.blockEventCnt += 1
-                        self.blockUsageCnt += targetCnt
-                        self.posData[kernelLastPos]['blockCnt'] += targetCnt
-                        self.posData[userLastPos]['blockCnt'] += targetCnt
-
-                        self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, targetCnt])
-                        self.userCallData.append([userLastPos, userCallStack, 0, targetCnt])
-
-                        self.savedCnt = 0
+                        self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0, 0, None])
+                        self.userCallData.append([userLastPos, userCallStack, 0, 0, 0, None])
                     else:
+                        if targetEvent == 'MA':
+                            self.pageAllocEventCnt += 1
+                            self.pageAllocCnt += targetCnt
+                            self.pageUsageCnt += targetCnt
+                            self.posData[kernelLastPos]['pageCnt'] += targetCnt
+                            self.posData[userLastPos]['pageCnt'] += targetCnt
+
+                            pageType = self.pageTable[targetArg]['type']
+
+                            self.kernelCallData.append([kernelLastPos, kernelCallStack, targetCnt, 0, 0, [pageType, targetArg]])
+                            self.userCallData.append([userLastPos, userCallStack, targetCnt, 0, 0, [pageType, targetArg]])
+                        elif targetEvent == 'MF':
+                            self.pageFreeEventCnt += 1
+                            self.pageFreeCnt += targetCnt
+                            self.posData[kernelLastPos]['pageFreeCnt'] += targetCnt
+                            self.posData[userLastPos]['pageFreeCnt'] += targetCnt
+
+                            # Update page table #
+                            pageType = None
+                            for cnt in range(0, targetCnt):
+                                pfnv = targetArg + cnt
+
+                                try:
+                                    pageType = self.pageTable[pfnv]['type']
+
+                                    self.pageUsageCnt -= 1
+                                    self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
+
+                                    if thread != self.pageTable[pfnv]['tid']:
+                                        self.threadData[self.pageTable[pfnv]['tid']]['reclaimedPages'] += 1
+
+                                    if pageType is 'CACHE':
+                                        self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
+                                    elif pageType is 'USER':
+                                        self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
+                                    elif pageType is 'KERNEL':
+                                        self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
+
+                                    self.pageTable[pfnv] = {}
+                                    del self.pageTable[pfnv]
+                                except:
+                                    # this page is allocated before starting profile #
+                                    None
+
+                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, targetCnt, 0, [pageType, targetArg]])
+                            self.userCallData.append([userLastPos, userCallStack, 0, targetCnt, 0, [pageType, targetArg]])
+                        elif targetEvent == 'B':
+                            self.blockEventCnt += 1
+                            self.blockUsageCnt += targetCnt
+                            self.posData[kernelLastPos]['blockCnt'] += targetCnt
+                            self.posData[userLastPos]['blockCnt'] += targetCnt
+
+                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, 0, targetCnt, None])
+                            self.userCallData.append([userLastPos, userCallStack, 0, 0, targetCnt, None])
+                        else:
+                            None
+
                         self.savedCnt = 0
 
-                    # Recover previous kernel stack after finishing nested event #
+                    # Recover previous kernel stack after handling nested event #
                     if self.prevMode == self.curMode == 'user' and bakKernelLastPos != '0':
                         kernelLastPos = bakKernelLastPos
                         kernelCallStack = bakKernelCallStack
@@ -742,6 +959,7 @@ class FunctionInfo:
                 core = int(d['core'])
                 if SystemInfo.maxCore < core:
                     SystemInfo.maxCore = core
+            # Mark die flag of thread that is not able to be profiled #
             elif d['func'] == "sched_process_free:":
                 m = re.match('^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', d['etc'])
                 if m is not None:
@@ -768,7 +986,7 @@ class FunctionInfo:
             else:
                 self.threadData[thread]['target'] = True
 
-            # ToDo: find shorter periodic event for sampling #
+            # toDo: find shorter periodic event for sampling #
             # cpu tick event #
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
                 self.cpuEnabled = True
@@ -780,16 +998,52 @@ class FunctionInfo:
                 self.savedCnt = self.nowCnt
                 self.nowCnt = 0
 
+                self.nestedArg = self.savedArg
+                self.savedArg = self.nowArg
+                self.nowArg = 0
+
                 self.nested += 1
 
                 return False
 
-            # ToDo: make memory map and add mm_page_free event #
             # memory allocation event #
             elif d['func'] == "mm_page_alloc:":
                 m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
                 if m is not None:
                     d = m.groupdict()
+
+                    page = d['page']
+                    pfn = int(d['pfn'])
+                    flags = d['flags']
+                    pageCnt = pow(2, int(d['order']))
+
+                    self.threadData[thread]['nrPages'] += pageCnt
+
+                    if flags.find('HIGHUSER') >= 0:
+                        pageType = 'USER'
+                        self.threadData[thread]['userPages'] += pageCnt
+                    elif flags.find('NOFS') >= 0:
+                        pageType = 'CACHE'
+                        self.threadData[thread]['cachePages'] += pageCnt
+                    else:
+                        pageType = 'KERNEL'
+                        self.threadData[thread]['kernelPages'] += pageCnt
+
+                    # make PTE in page table #
+                    for cnt in range(0, pageCnt):
+                        pfnv = pfn + cnt
+
+                        try:
+                            self.pageTable[pfnv]
+                            # this allocated page is not freed #
+                            self.threadData[thread]['nrPages'] -= 1
+                        except: self.pageTable[pfnv] = dict(self.init_pageData)
+
+                        self.pageTable[pfnv]['tid'] = thread
+                        self.pageTable[pfnv]['page'] = page
+                        self.pageTable[pfnv]['flags'] = flags
+                        self.pageTable[pfnv]['type'] = pageType
+                        self.pageTable[pfnv]['time'] = time
 
                     self.memEnabled = True
                     self.nestedEvent = self.savedEvent
@@ -798,7 +1052,38 @@ class FunctionInfo:
 
                     self.nestedCnt = self.savedCnt
                     self.savedCnt = self.nowCnt
-                    self.nowCnt = pow(2, int(d['order']))
+                    self.nowCnt = pageCnt
+
+                    self.nestedArg = self.savedArg
+                    self.savedArg = self.nowArg
+                    self.nowArg = pfn
+
+                    self.nested += 1
+
+                return False
+
+            # memory free event #
+            elif d['func'] == "mm_page_free:":
+                m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)', d['etc'])
+                if m is not None:
+                    d = m.groupdict()
+
+                    page = d['page']
+                    pfn = int(d['pfn'])
+                    pageCnt = pow(2, int(d['order']))
+
+                    self.memEnabled = True
+                    self.nestedEvent = self.savedEvent
+                    self.savedEvent = self.nowEvent
+                    self.nowEvent = 'MF'
+
+                    self.nestedCnt = self.savedCnt
+                    self.savedCnt = self.nowCnt
+                    self.nowCnt = pageCnt
+
+                    self.nestedArg = self.savedArg
+                    self.savedArg = self.nowArg
+                    self.nowArg = pfn
 
                     self.nested += 1
 
@@ -819,6 +1104,10 @@ class FunctionInfo:
                         self.nestedCnt = self.savedCnt
                         self.savedCnt = self.nowCnt
                         self.nowCnt = int(d['size'])
+
+                        self.nestedArg = self.savedArg
+                        self.savedArg = self.nowArg
+                        self.nowArg = 0
 
                         self.nested += 1
 
@@ -857,6 +1146,9 @@ class FunctionInfo:
                 self.savedCnt = self.nowCnt
                 self.nowCnt = 0
 
+                self.nestedArg = self.savedArg
+                self.savedArg = self.nowArg
+                self.nowArg = 0
                 self.nested += 1
 
                 return False
@@ -924,8 +1216,8 @@ class FunctionInfo:
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^5}|".\
-                format("Name", "Tid", "Pid", "Target", "CPU", "DIE"))
+        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}|{6:_^7}|{7:_^5}|".\
+                format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "BLK_RD", "DIE"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
@@ -938,15 +1230,19 @@ class FunctionInfo:
                 targetMark = '*'
                 targetFound = True
 
-            cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
-            if cpuPer < 1 and SystemInfo.showAll is False:
-                break
+            if self.totalTick > 0:
+                cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
+                if cpuPer < 1 and SystemInfo.showAll is False:
+                    break
+            else:
+                cpuPer = 0
 
             if value['die'] is True:
                 dieMark = 'v'
 
-            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:^5}|".\
-                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, dieMark))
+            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k|{6:6}k|{7:^5}|".\
+                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
+                    value['nrPages'] * 4, int(value['nrBlocks'] * 0.5), dieMark))
 
         SystemInfo.pipePrint(oneLine + '\n\n\n')
 
@@ -1089,17 +1385,18 @@ class FunctionInfo:
     def printMemUsage(self):
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageEventCnt))
+        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] [Usage: Total(User/Buf/Kernel)] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageAllocEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^29}|{1:_^32}|{2:_^48}|{3:_^42}".format("Usage", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
             if self.memEnabled is False or value['pageCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(value['pageCnt'] * 4, idx, \
+            SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}|{5:48}|{6:42}".format(value['pageCnt'] * 4, \
+                    value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
@@ -1114,8 +1411,11 @@ class FunctionInfo:
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                pageCnt = stack[2]
                 subStack = list(stack[1])
+                pageCnt = stack[2]
+                userPageCnt = stack[5][0]
+                cachePageCnt = stack[5][1]
+                kernelPageCnt = stack[5][2]
 
                 if pageCnt == 0: break
 
@@ -1135,7 +1435,8 @@ class FunctionInfo:
                             else:
                                 symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(pageCnt * 4, symbolStack))
+                SystemInfo.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                        userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
@@ -1143,7 +1444,7 @@ class FunctionInfo:
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-                (self.pageUsageCnt * 4, self.pageEventCnt))
+                (self.pageUsageCnt * 4, self.pageAllocEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
@@ -1214,11 +1515,11 @@ class FunctionInfo:
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x:x[3], reverse=True)
+            targetStack = sorted(targetStack, key=lambda x:x[4], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                blockCnt = stack[3]
+                blockCnt = stack[4]
                 subStack = list(stack[1])
 
                 if blockCnt == 0: break
@@ -1239,7 +1540,7 @@ class FunctionInfo:
                             else:
                                 symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[3] * 0.5), symbolStack))
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[4] * 0.5), symbolStack))
 
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
@@ -1268,7 +1569,7 @@ class FunctionInfo:
             SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x:x[3], reverse=True)
+            value['stack'] = sorted(value['stack'], key=lambda x:x[4], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -1804,12 +2105,12 @@ class FileInfo:
 
 
 class SystemInfo:
-    maxCore = 0
     pageSize = 4096
     blockSize = 512
     bufferSize = '40960'
     ttyRows = '50'
     ttyCols = '156'
+
     mountPath = None
     addr2linePath = None
     rootPath = None
@@ -1818,9 +2119,12 @@ class SystemInfo:
     inputFile = None
     outputFile = None
     printFile = None
+
+    tgidEnable = True
     ttyEnable = True
     binEnable = False
 
+    maxCore = 0
     logSize = 0
     curLine = 0
     totalLine = 0
@@ -1837,10 +2141,12 @@ class SystemInfo:
     showAll = False
     selectMenu = None
     intervalNow = 0
+    recordStatus = False
 
-    tgidEnable = True
     irqEnable = False
+    cpuEnable = True
     memEnable = False
+    blockEnable = True
     futexEnable = False
     pipeEnable = False
     depEnable = False
@@ -1895,6 +2201,9 @@ class SystemInfo:
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemInfo.runRecordStopCmd()
+
+        # update record status #
+        SystemInfo.recordStatus = False
 
         SystemInfo.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
 
@@ -2202,7 +2511,6 @@ class SystemInfo:
                     for val in SystemInfo.syscallList:
                         try: int(val)
                         except: SystemInfo.syscallList.remove(val)
-
                 elif sys.argv[n][1] == 'g':
                     SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
                 elif sys.argv[n][1] == 'e':
@@ -2338,7 +2646,16 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'a':
                     None
                 elif sys.argv[n][1] == 'd':
-                    None
+                    options = sys.argv[n].lstrip('-d')
+                    if options.rfind('c') != -1:
+                        SystemInfo.cpuEnable = False
+                        SystemInfo.printInfo("cpu events are disabled")
+                    if options.rfind('m') != -1:
+                        SystemInfo.memEnable = False
+                        SystemInfo.printInfo("mem events are disabled")
+                    if options.rfind('b') != -1:
+                        SystemInfo.blockEnable = False
+                        SystemInfo.printInfo("block events are disabled")
                 elif sys.argv[n][1] == 'q':
                     None
                 elif sys.argv[n][1] == 'g':
@@ -2417,6 +2734,8 @@ class SystemInfo:
 
     @staticmethod
     def copyPipeToFile(pipePath, filePath):
+        totalReadSize = 0
+
         try: pd = open(pipePath, 'r')
         except:
             SystemInfo.printError("Fail to open %s" % pipePath)
@@ -2429,7 +2748,12 @@ class SystemInfo:
 
         while True:
             try:
-                fd.write(pd.read(SystemInfo.pageSize))
+                if SystemInfo.recordStatus is False:
+                    raise
+
+                data = pd.read(SystemInfo.pageSize)
+                totalReadSize += len(data)
+                fd.write(data)
                 SystemInfo.repeatCount = 1
                 SystemInfo.printProgress()
             except:
@@ -2568,18 +2892,31 @@ class SystemInfo:
             SystemInfo.writeCmd('../trace_options', 'sym-addr')
             SystemInfo.writeCmd('../options/stacktrace', '1')
 
-            self.cmdList["timer/hrtimer_start"] = True
-            SystemInfo.writeCmd('timer/hrtimer_start/filter', cmd)
-            SystemInfo.writeCmd('timer/hrtimer_start/enable', '1')
+            if SystemInfo.cpuEnable is True:
+                self.cmdList["timer/hrtimer_start"] = True
+                SystemInfo.writeCmd('timer/hrtimer_start/filter', cmd)
+                SystemInfo.writeCmd('timer/hrtimer_start/enable', '1')
+            else:
+                self.cmdList["timer/hrtimer_start"] = False
 
-            self.cmdList["kmem/mm_page_alloc"] = True
-            SystemInfo.writeCmd('kmem/mm_page_alloc/filter', cmd)
-            SystemInfo.writeCmd('kmem/mm_page_alloc/enable', '1')
+            if SystemInfo.memEnable is True:
+                self.cmdList["kmem/mm_page_alloc"] = True
+                self.cmdList["kmem/mm_page_free"] = True
+                SystemInfo.writeCmd('kmem/mm_page_alloc/filter', cmd)
+                SystemInfo.writeCmd('kmem/mm_page_free/filter', cmd)
+                SystemInfo.writeCmd('kmem/mm_page_alloc/enable', '1')
+                SystemInfo.writeCmd('kmem/mm_page_free/enable', '1')
+            else:
+                self.cmdList["kmem/mm_page_alloc"] = False
+                self.cmdList["kmem/mm_page_free"] = False
 
-            self.cmdList["block/block_bio_remap"] = True
-            cmd += " && (rwbs == R || rwbs == RA || rwbs == RM)"
-            SystemInfo.writeCmd('block/block_bio_remap/filter', cmd)
-            SystemInfo.writeCmd('block/block_bio_remap/enable', '1')
+            if SystemInfo.blockEnable is True:
+                self.cmdList["block/block_bio_remap"] = True
+                cmd += " && (rwbs == R || rwbs == RA || rwbs == RM)"
+                SystemInfo.writeCmd('block/block_bio_remap/filter', cmd)
+                SystemInfo.writeCmd('block/block_bio_remap/enable', '1')
+            else:
+                self.cmdList["block/block_bio_remap"] = False
 
             self.cmdList["sched/sched_process_free"] = True
             SystemInfo.writeCmd('sched/sched_process_free/enable', '1')
@@ -2892,7 +3229,7 @@ class ThreadInfo:
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
-                        # toDo: add time that had been blocking to read blocks from disk #
+            # toDo: add time that had been blocking to read blocks from disk #
 
         f.close()
 
@@ -3532,15 +3869,15 @@ class ThreadInfo:
     @staticmethod
     def getInitTime(file):
         readLineCnt = 0
+
         try:
             f = open(file, 'r')
 
             while True:
                 # Make delay because some filtered logs are not wrote soon #
-                if readLineCnt > 30:
-                    time.sleep(0.1)
+                time.sleep(0.1)
 
-                if readLineCnt > 50:
+                if readLineCnt > 50 and SystemInfo.recordStatus is not True:
                     SystemInfo.printError("Fail to recognize format: Log is corrupted / There is no log collected / Filter is wrong")
                     SystemInfo.runRecordStopCmd()
                     sys.exit(0)
@@ -4587,7 +4924,7 @@ class ThreadInfo:
                             self.threadData[tid]['lastOff'] = float(0)
 
             elif func == "cpu_frequency":
-                # toDo: calculate power consumption for DFVS system #
+                # toDo: calculate power consumption for DVFS system #
                 None
 
             elif func == "console":
@@ -4743,6 +5080,8 @@ if __name__ == '__main__':
 
     # parse recording option #
     if SystemInfo.isRecordMode() is True:
+        # update record status #
+        SystemInfo.recordStatus = True
         SystemInfo.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # set this process to RT priority #
@@ -4754,13 +5093,13 @@ if __name__ == '__main__':
         SystemInfo.parseRecordOption()
 
         if SystemInfo.functionEnable is not False:
-            SystemInfo.printInfo("function profile mode")
+            SystemInfo.printStatus("function profile mode")
             # si.runPeriodProc()
-            # toDo: make periodic event every 100us for specific thread #
+            # toDo: make periodic event lesser than every 100us for specific thread #
         elif SystemInfo.fileEnable is not False:
-            SystemInfo.printInfo("file profile mode")
+            SystemInfo.printStatus("file profile mode")
         else:
-            SystemInfo.printInfo("thread profile mode")
+            SystemInfo.printStatus("thread profile mode")
             SystemInfo.threadEnable = True
 
         # set signal #
@@ -4789,7 +5128,7 @@ if __name__ == '__main__':
         SystemInfo.printStatus('start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]')
         si.runRecordStartCmd()
 
-        if SystemInfo.pipeEnable is True and SystemInfo.threadEnable is True:
+        if SystemInfo.pipeEnable is True:
             if SystemInfo.outputFile is not None:
                 SystemInfo.setIdlePriority(0)
                 SystemInfo.copyPipeToFile(SystemInfo.inputFile + '_pipe', SystemInfo.outputFile)
@@ -4802,7 +5141,7 @@ if __name__ == '__main__':
                 SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
 
-        # get init time in buffer for verification #
+        # get init time from buffer for verification #
         initTime = ThreadInfo.getInitTime(SystemInfo.inputFile)
 
         # enter loop to record and save data periodically #
@@ -4815,10 +5154,11 @@ if __name__ == '__main__':
             # get init time in buffer for verification #
             initTime = ThreadInfo.getInitTime(SystemInfo.inputFile)
 
-            # wait for timer expire #
+            # wait to expire timer #
             signal.pause()
 
-            if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile) and SystemInfo.functionEnable is False:
+            # compare init time with now time for buffer verification #
+            if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile):
                 SystemInfo.printError("Buffer is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
                 SystemInfo.runRecordStopCmd()
                 SystemInfo.runRecordStopFinalCmd()
@@ -4828,7 +5168,7 @@ if __name__ == '__main__':
         # wait for user input #
         signal.pause()
 
-        if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile) and SystemInfo.functionEnable is False:
+        if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile):
             SystemInfo.printError("Buffer size is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
             SystemInfo.runRecordStopFinalCmd()
             sys.exit(0)
@@ -4838,8 +5178,6 @@ if __name__ == '__main__':
 
     # parse additional option #
     SystemInfo.parseAddOption()
-
-    ThreadInfo.getInitTime(SystemInfo.inputFile)
 
     # set handler for exit #
     signal.signal(signal.SIGINT, SystemInfo.exitHandler)
