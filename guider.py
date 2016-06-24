@@ -427,7 +427,8 @@ class FunctionInfo:
                                 val[2] -= 1
                                 val[5][subStackPageInfoIdx] -= 1
                                 break
-                    except: self.pageTable[pfnv] = dict(self.init_pageLinkData)
+                    except:
+                        self.pageTable[pfnv] = dict(self.init_pageLinkData)
 
                     self.pageTable[pfnv]['sym'] = sym
                     self.pageTable[pfnv]['type'] = pageType
@@ -787,45 +788,22 @@ class FunctionInfo:
                             self.posData[kernelLastPos]['pageCnt'] += targetCnt
                             self.posData[userLastPos]['pageCnt'] += targetCnt
 
-                            pageType = self.pageTable[targetArg]['type']
+                            pageType = targetArg[0]
+                            pfn = targetArg[1]
 
-                            self.kernelCallData.append([kernelLastPos, kernelCallStack, targetCnt, 0, 0, [pageType, targetArg]])
-                            self.userCallData.append([userLastPos, userCallStack, targetCnt, 0, 0, [pageType, targetArg]])
+                            self.kernelCallData.append([kernelLastPos, kernelCallStack, targetCnt, 0, 0, [pageType, pfn]])
+                            self.userCallData.append([userLastPos, userCallStack, targetCnt, 0, 0, [pageType, pfn]])
                         elif targetEvent == 'MF':
                             self.pageFreeEventCnt += 1
                             self.pageFreeCnt += targetCnt
                             self.posData[kernelLastPos]['pageFreeCnt'] += targetCnt
                             self.posData[userLastPos]['pageFreeCnt'] += targetCnt
 
-                            # Update page table #
-                            pageType = None
-                            for cnt in range(0, targetCnt):
-                                pfnv = targetArg + cnt
+                            pageType = targetArg[0]
+                            pfn = targetArg[1]
 
-                                try:
-                                    pageType = self.pageTable[pfnv]['type']
-
-                                    self.pageUsageCnt -= 1
-                                    self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
-
-                                    if thread != self.pageTable[pfnv]['tid']:
-                                        self.threadData[self.pageTable[pfnv]['tid']]['reclaimedPages'] += 1
-
-                                    if pageType is 'CACHE':
-                                        self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
-                                    elif pageType is 'USER':
-                                        self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
-                                    elif pageType is 'KERNEL':
-                                        self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
-
-                                    self.pageTable[pfnv] = {}
-                                    del self.pageTable[pfnv]
-                                except:
-                                    # this page is allocated before starting profile #
-                                    None
-
-                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, targetCnt, 0, [pageType, targetArg]])
-                            self.userCallData.append([userLastPos, userCallStack, 0, targetCnt, 0, [pageType, targetArg]])
+                            self.kernelCallData.append([kernelLastPos, kernelCallStack, 0, targetCnt, 0, [pageType, pfn]])
+                            self.userCallData.append([userLastPos, userCallStack, 0, targetCnt, 0, [pageType, pfn]])
                         elif targetEvent == 'B':
                             self.blockEventCnt += 1
                             self.blockUsageCnt += targetCnt
@@ -1017,8 +995,11 @@ class FunctionInfo:
                     flags = d['flags']
                     pageCnt = pow(2, int(d['order']))
 
+                    # Increase page count of thread #
                     self.threadData[thread]['nrPages'] += pageCnt
 
+                    # Increase page counts of thread #
+                    pageType = None
                     if flags.find('HIGHUSER') >= 0:
                         pageType = 'USER'
                         self.threadData[thread]['userPages'] += pageCnt
@@ -1029,15 +1010,24 @@ class FunctionInfo:
                         pageType = 'KERNEL'
                         self.threadData[thread]['kernelPages'] += pageCnt
 
-                    # make PTE in page table #
+                    # Make PTE in page table #
                     for cnt in range(0, pageCnt):
                         pfnv = pfn + cnt
 
                         try:
-                            self.pageTable[pfnv]
-                            # this allocated page is not freed #
-                            self.threadData[thread]['nrPages'] -= 1
-                        except: self.pageTable[pfnv] = dict(self.init_pageData)
+                            # Decrease page count of it's owner becuase this page was already allocated but no free log #
+                            ownerTid = self.pageTable[pfnv]['tid']
+                            self.threadData[ownerTid]['nrPages'] -= 1
+
+                            origPageType = self.pageTable[pfnv]['type']
+                            if origPageType == 'USER':
+                                self.threadData[ownerTid]['userPages'] -= 1
+                            elif origPageType == 'CACHE':
+                                self.threadData[ownerTid]['cachePages'] -= 1
+                            elif origPageType == 'KERNEL':
+                                self.threadData[ownerTid]['kernelPages'] -= 1
+                        except:
+                            self.pageTable[pfnv] = dict(self.init_pageData)
 
                         self.pageTable[pfnv]['tid'] = thread
                         self.pageTable[pfnv]['page'] = page
@@ -1056,7 +1046,7 @@ class FunctionInfo:
 
                     self.nestedArg = self.savedArg
                     self.savedArg = self.nowArg
-                    self.nowArg = pfn
+                    self.nowArg = [pageType, pfn]
 
                     self.nested += 1
 
@@ -1072,6 +1062,30 @@ class FunctionInfo:
                     pfn = int(d['pfn'])
                     pageCnt = pow(2, int(d['order']))
 
+                    # Update page table #
+                    origPageType = None
+                    for cnt in range(0, pageCnt):
+                        pfnv = pfn + cnt
+
+                        try:
+                            origPageType = self.pageTable[pfnv]['type']
+
+                            self.pageUsageCnt -= 1
+                            self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
+
+                            if origPageType is 'CACHE':
+                                self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
+                            elif origPageType is 'USER':
+                                self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
+                            elif origPageType is 'KERNEL':
+                                self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
+
+                            self.pageTable[pfnv] = {}
+                            del self.pageTable[pfnv]
+                        except:
+                            # this page was allocated before starting profile #
+                            None
+
                     self.memEnabled = True
                     self.nestedEvent = self.savedEvent
                     self.savedEvent = self.nowEvent
@@ -1083,7 +1097,7 @@ class FunctionInfo:
 
                     self.nestedArg = self.savedArg
                     self.savedArg = self.nowArg
-                    self.nowArg = pfn
+                    self.nowArg = [origPageType, pfn]
 
                     self.nested += 1
 
@@ -1096,6 +1110,10 @@ class FunctionInfo:
                     d = m.groupdict()
 
                     if d['operation'][0] == 'R':
+                        blockCnt = int(d['size'])
+
+                        self.threadData[thread]['nrBlocks'] += blockCnt
+
                         self.ioEnabled = True
                         self.nestedEvent = self.savedEvent
                         self.savedEvent = self.nowEvent
@@ -1103,7 +1121,7 @@ class FunctionInfo:
 
                         self.nestedCnt = self.savedCnt
                         self.savedCnt = self.nowCnt
-                        self.nowCnt = int(d['size'])
+                        self.nowCnt = blockCnt
 
                         self.nestedArg = self.savedArg
                         self.savedArg = self.nowArg
@@ -1113,13 +1131,13 @@ class FunctionInfo:
 
                 return False
 
-            # starting to record user stack #
+            # Start to record user stack #
             elif d['func'] == "<user": 
                 self.prevMode = self.curMode
                 self.curMode = 'user'
                 return True
 
-            # starting to record kernel stack #
+            # Start to record kernel stack #
             elif d['func'] == "<stack":
                 self.prevMode = self.curMode
                 self.curMode = 'kernel'
@@ -1136,7 +1154,7 @@ class FunctionInfo:
 
                 return False
 
-            # ignore event #
+            # Ignore event #
             else: 
                 self.nestedEvent = self.savedEvent
                 self.savedEvent = self.nowEvent
@@ -1153,7 +1171,7 @@ class FunctionInfo:
 
                 return False
 
-        # parse call stack #
+        # Parse call stack #
         else:
             pos = string.find('=>  <')
             noPos = string.find('??')
@@ -1213,7 +1231,7 @@ class FunctionInfo:
         SystemInfo.printTitle()
 
         # Print profiled thread list #
-        SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
+        SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}|{6:_^7}|{7:_^5}|".\
@@ -1258,6 +1276,10 @@ class FunctionInfo:
 
 
     def printCpuUsage(self):
+        # no cpu event #
+        if self.cpuEnabled is False:
+            return
+
         # Print cpu usage in user space #
         SystemInfo.clearPrint()
         if SystemInfo.targetEvent is None:
@@ -1383,10 +1405,14 @@ class FunctionInfo:
 
 
     def printMemUsage(self):
+        # no memory event #
+        if self.memEnabled is False:
+            return
+
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] [Usage: Total(User/Buf/Kernel)] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocEventCnt))
+        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %d] [FreeCnt: %d] [Usage: Total(User/Buf/Kernel)] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageAllocCnt, self.pageFreeCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^29}|{1:_^32}|{2:_^48}|{3:_^42}".format("Usage", "Function", "Binary", "Source"))
@@ -1492,6 +1518,10 @@ class FunctionInfo:
         SystemInfo.pipePrint('\n\n')
 
     def printBlockUsage(self):
+        # no block event #
+        if self.ioEnabled is False:
+            return
+
         # Print BLOCK usage in user space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
