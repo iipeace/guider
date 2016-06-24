@@ -1411,11 +1411,11 @@ class FunctionInfo:
 
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %d] [FreeCnt: %d] [Usage: Total(User/Buf/Kernel)] (USER)' % \
+        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %d] [FreeCnt: %d] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt, self.pageFreeCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^29}|{1:_^32}|{2:_^48}|{3:_^42}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^29}|{1:_^32}|{2:_^48}|{3:_^42}".format("Usage(Usr/Buf/Ker)", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
