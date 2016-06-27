@@ -192,7 +192,8 @@ class FunctionInfo:
                 'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
                 # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
-        self.init_pageLinkData = {'sym': '0', 'subStackAddr': int(0), 'type': '0', 'time': '0'}
+        self.init_pageLinkData = {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
+                'type': '0', 'time': '0'}
         self.init_subStackPageInfo = [0, 0, 0]
         # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
 
@@ -258,7 +259,11 @@ class FunctionInfo:
 
 
     def mergeStacks(self):
+        sym = ''
+        kernelSym = ''
         stackAddr = 0
+        kernelStackAddr = 0
+        lineCnt = -1
 
         # Backup page table used previously and Initialize it #
         self.oldPageTable = self.pageTable
@@ -266,15 +271,22 @@ class FunctionInfo:
 
         # Merge user call data by symbol or address #
         for val in self.userCallData:
+            lineCnt += 1
+
             pos = val[0]
+            kernelPos = self.kernelCallData[lineCnt][0]
             stack = val[1]
+            kernelStack = self.kernelCallData[lineCnt][1]
             pageAllocCnt = val[2]
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
+            kernelArg = self.kernelCallData[lineCnt][5]
             subStackPageInfo = list(self.init_subStackPageInfo)
             targetStack = []
+            kernelTargetStack = []
 
+            # Resolve user symbol #
             try:
                 # No symbol related to last pos #
                 if self.posData[pos]['symbol'] == '': 
@@ -284,7 +296,17 @@ class FunctionInfo:
                     sym = self.posData[pos]['symbol']
             except: continue
 
-            # Make symbol table of last pos in stack #
+            # Resolve kernel symbol #
+            try:
+                # No symbol related to last pos #
+                if self.posData[kernelPos]['symbol'] == '': 
+                    self.posData[kernelPos]['symbol'] = kernelPos
+                    kernelSym = kernelPos
+                else: 
+                    kernelSym = self.posData[kernelPos]['symbol']
+            except: continue
+
+            # Make user symbol table of last pos in stack #
             try: self.userSymData[sym]
             except:
                 self.userSymData[sym] = dict(self.init_symData)
@@ -293,12 +315,20 @@ class FunctionInfo:
                 self.userSymData[sym]['pos'] = pos
                 self.userSymData[sym]['origBin'] = self.posData[pos]['origBin']
 
+            # Make kenel symbol table of last pos in stack #
+            try: self.kernelSymData[kernelSym]
+            except:
+                self.kernelSymData[kernelSym] = dict(self.init_symData)
+                self.kernelSymData[kernelSym]['stack'] = []
+                self.kernelSymData[kernelSym]['pos'] = kernelPos
+
+            # Distinguish event type #
             if pageAllocCnt == pageFreeCnt == blockCnt == 0:
                 cpuCnt = 1
             else:
                 cpuCnt = 0
 
-            # Set target stack #
+            # Set target user stack #
             if self.sort is 'sym':
                 tempSymStack = []
                 # Make temporary symbol stack to merge stacks by symbol #
@@ -333,9 +363,9 @@ class FunctionInfo:
             elif self.sort is 'pos':
                 targetStack = self.userSymData[sym]['stack']
 
-            # First stack related to this symbol #
+            # First user stack related to this symbol #
             if len(targetStack) == 0:
-                targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, subStackPageInfo])
+                targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                 stackAddr = id(stack)
             else:
                 found = False
@@ -354,8 +384,33 @@ class FunctionInfo:
                         break
                 # New stack related to this symbol #
                 if found == False:
-                    targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, subStackPageInfo])
+                    targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                     stackAddr = id(stack)
+
+            # Set target kernel stack #
+            kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+
+            # First stack related to this symbol #
+            if len(kernelTargetStack) == 0:
+                kernelTargetStack.append([cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                kernelStackAddr = id(kernelStack)
+            else:
+                found = False
+                for stackInfo in kernelTargetStack:
+                    # Found same stack  in stack list #
+                    if len(list(set(kernelStack) - set(stackInfo[1]))) == 0 and \
+                            len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
+                        found = True
+                        stackInfo[2] += pageAllocCnt
+                        stackInfo[3] += pageFreeCnt
+                        stackInfo[4] += blockCnt
+                        stackInfo[0] += cpuCnt
+                        kernelStackAddr = id(stackInfo[1])
+                        break
+                # New stack related to this symbol #
+                if found == False:
+                    kernelTargetStack.append([cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                    kernelStackAddr = id(kernelStack)
 
             # memory allocation event #
             if pageAllocCnt > 0:
@@ -365,18 +420,22 @@ class FunctionInfo:
 
                 # Increase counts of page to be allocated #
                 self.userSymData[sym]['pageCnt'] += pageAllocCnt
+                self.kernelSymData[kernelSym]['pageCnt'] += pageAllocCnt
 
                 if pageType == 'USER':
                     self.userSymData[sym]['userPageCnt'] += pageAllocCnt
+                    self.kernelSymData[kernelSym]['userPageCnt'] += pageAllocCnt
                     subStackPageInfoIdx = 0
                 elif pageType == 'CACHE':
                     self.userSymData[sym]['cachePageCnt'] += pageAllocCnt
+                    self.kernelSymData[kernelSym]['cachePageCnt'] += pageAllocCnt
                     subStackPageInfoIdx = 1
                 elif pageType == 'KERNEL':
                     self.userSymData[sym]['kernelPageCnt'] += pageAllocCnt
+                    self.kernelSymData[kernelSym]['kernelPageCnt'] += pageAllocCnt
                     subStackPageInfoIdx = 2
 
-                # Set target stack #
+                # Set user target stack #
                 if self.sort is 'sym':
                     targetStack = self.userSymData[sym]['symStack']
                 elif self.sort is 'pos':
@@ -385,6 +444,16 @@ class FunctionInfo:
                 # Find subStack of symbol allocated this page #
                 for val in targetStack:
                     if id(val[1]) == stackAddr:
+                        # Increase page count of subStack #
+                        val[5][subStackPageInfoIdx] += pageAllocCnt
+                        break
+
+                # Set kernel target stack #
+                kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+
+                # Find subStack of symbol allocated this page #
+                for val in kernelTargetStack:
+                    if id(val[1]) == kernelStackAddr:
                         # Increase page count of subStack #
                         val[5][subStackPageInfoIdx] += pageAllocCnt
                         break
@@ -398,31 +467,48 @@ class FunctionInfo:
                         # Check whether this page is already allocated #
                         allocSym = self.pageTable[pfnv]['sym']
                         allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+                        allocKernelSym = self.pageTable[pfnv]['kernelSym']
+                        allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
 
                         # Decrease counts of page already allocated but no free log #
                         self.pageUsageCnt -= 1
                         self.userSymData[allocSym]['pageCnt'] -= 1
+                        self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
 
                         origPageType = self.pageTable[pfnv]['type']
                         if origPageType == 'USER':
                             self.userSymData[allocSym]['userPageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
                             subStackPageInfoIdx = 0
                         elif origPageType == 'CACHE':
                             self.userSymData[allocSym]['cachePageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
                             subStackPageInfoIdx = 1
                         elif origPageType == 'KERNEL':
                             self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                             subStackPageInfoIdx = 2
 
-                        # Set target stack #
+                        # Set user target stack #
                         if self.sort is 'sym':
                             targetStack = self.userSymData[allocSym]['symStack']
                         elif self.sort is 'pos':
                             targetStack = self.userSymData[allocSym]['stack']
 
-                        # Find subStack of symbol allocated this page #
+                        # Find user subStack of symbol allocated this page #
                         for val in targetStack:
                             if id(val[1]) == allocStackAddr:
+                                # Decrease allocated page count of substack #
+                                val[2] -= 1
+                                val[5][subStackPageInfoIdx] -= 1
+                                break
+
+                        # Set kernel target stack #
+                        kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
+
+                        # Find user subStack of symbol allocated this page #
+                        for val in kernelTargetStack:
+                            if id(val[1]) == allocKernelStackAddr:
                                 # Decrease allocated page count of substack #
                                 val[2] -= 1
                                 val[5][subStackPageInfoIdx] -= 1
@@ -431,8 +517,10 @@ class FunctionInfo:
                         self.pageTable[pfnv] = dict(self.init_pageLinkData)
 
                     self.pageTable[pfnv]['sym'] = sym
+                    self.pageTable[pfnv]['kernelSym'] = kernelSym
                     self.pageTable[pfnv]['type'] = pageType
                     self.pageTable[pfnv]['subStackAddr'] = stackAddr
+                    self.pageTable[pfnv]['kernelSubStackAddr'] = kernelStackAddr
 
             # memory free event #
             elif pageFreeCnt > 0:
@@ -440,6 +528,7 @@ class FunctionInfo:
                 pfn = arg[1]
 
                 self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
+                self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
 
                 for cnt in range(0, pageFreeCnt):
                     pfnv = pfn + cnt
@@ -449,20 +538,26 @@ class FunctionInfo:
                         # Decrease page count of symbol allocated page  #
                         allocSym = self.pageTable[pfnv]['sym']
                         allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+                        allocKernelSym = self.pageTable[pfnv]['kernelSym']
+                        allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
 
                         self.userSymData[allocSym]['pageCnt'] -= 1
+                        self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
 
                         if pageType is 'CACHE':
                             self.userSymData[allocSym]['userPageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
                             subStackPageInfoIdx = 0
                         elif pageType is 'USER':
                             self.userSymData[allocSym]['cachePageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
                             subStackPageInfoIdx = 1
                         elif pageType is 'KERNEL':
                             self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                            self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                             subStackPageInfoIdx = 2
 
-                        # Set target stack #
+                        # Set user target stack #
                         if self.sort is 'sym':
                             targetStack = self.userSymData[allocSym]['symStack']
                         elif self.sort is 'pos':
@@ -475,8 +570,18 @@ class FunctionInfo:
                                 val[5][subStackPageInfoIdx] -= 1
                                 break
 
-                        self.pageTable[pfnv] = {}
+                        # Set kernel target stack #
+                        kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
+
+                        # Find subStack allocated this page #
+                        for val in kernelTargetStack:
+                            if id(val[1]) == allocKernelStackAddr:
+                                val[2] -= 1
+                                val[5][subStackPageInfoIdx] -= 1
+                                break
+
                         del self.pageTable[pfnv]
+                        self.pageTable[pfnv] = {}
                     except:
                         # this page is allocated before starting profile #
                         None
@@ -484,70 +589,13 @@ class FunctionInfo:
             # block event #
             elif blockCnt > 0:
                 self.userSymData[sym]['blockCnt'] += blockCnt
+                self.kernelSymData[kernelSym]['blockCnt'] += blockCnt
 
             # periodic event such as cpu tick #
             else:
                 cpuCnt = 1
                 self.userSymData[sym]['cnt'] += 1
-
-        # Merge kernel call data by address #
-        for val in self.kernelCallData:
-            pos = val[0]
-            stack = val[1]
-            pageAllocCnt = val[2]
-            pageFreeCnt = val[3]
-            blockCnt = val[4]
-            arg = val[5]
-            subStackPageInfo = list(self.init_subStackPageInfo)
-
-            try:
-                # No symbol related to last pos #
-                if self.posData[pos]['symbol'] == '': 
-                    self.posData[pos]['symbol'] == pos
-                    sym = pos
-                else: 
-                    sym = self.posData[pos]['symbol']
-            except: continue
-
-            try: self.kernelSymData[sym]
-            except:
-                self.kernelSymData[sym] = dict(self.init_symData)
-                self.kernelSymData[sym]['stack'] = []
-                self.kernelSymData[sym]['pos'] = pos
-
-            cpuCnt = 0
-            # memory allocation event #
-            if pageAllocCnt > 0:
-                self.kernelSymData[sym]['pageCnt'] += pageAllocCnt
-            # memory free event #
-            elif pageFreeCnt > 0:
-                self.kernelSymData[sym]['pageFreeCnt'] += pageFreeCnt
-            # block event #
-            elif blockCnt > 0:
-                self.kernelSymData[sym]['blockCnt'] += blockCnt
-            # periodic event such as cpu tick #
-            else:
-                cpuCnt = 1
-                self.kernelSymData[sym]['cnt'] += 1
-
-            # First stack related to this symbol #
-            if len(self.kernelSymData[sym]['stack']) == 0:
-                self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt])
-            else:
-                found = False
-                for stackInfo in self.kernelSymData[sym]['stack']:
-                    # Found same stack  in stack list #
-                    if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
-                            len(list(set(stackInfo[1]) - set(stack))) == 0:
-                        stackInfo[2] += pageAllocCnt
-                        stackInfo[3] += pageFreeCnt
-                        stackInfo[4] += blockCnt
-                        stackInfo[0] += cpuCnt
-                        found = True
-                        break
-                # New stack related to this symbol #
-                if found == False:
-                    self.kernelSymData[sym]['stack'].append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt])
+                self.kernelSymData[kernelSym]['cnt'] += 1
 
 
 
@@ -1290,7 +1338,7 @@ class FunctionInfo:
             SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".format("Usage", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
@@ -1300,7 +1348,7 @@ class FunctionInfo:
             if cpuPer < 1 and SystemInfo.showAll is False:
                 break
 
-            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}".format(cpuPer, idx, \
+            SystemInfo.pipePrint("{0:7}% |{1:^47}|{2:48}|{3:37}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
@@ -1351,7 +1399,7 @@ class FunctionInfo:
             SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SystemInfo.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -1368,7 +1416,7 @@ class FunctionInfo:
             if self.cpuEnabled is False or value['cnt'] == 0: break
 
             cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
-            SystemInfo.pipePrint("{0:7}% |{1:^32}|{2:48}|{3:52}".format(cpuPer, idx, '', ''))
+            SystemInfo.pipePrint("{0:7}% |{1:^134}".format(cpuPer, idx))
 
             # Sort stacks by usage #
             value['stack'].sort(reverse=True)
@@ -1412,18 +1460,18 @@ class FunctionInfo:
 
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %dKB] [FreeCnt: %dKB] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageFreeCnt * 4))
+        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^32}|{5:_^48}|{6:_^42}".format("Usage", "Usr", "Buf", "Ker", \
+        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".format("Usage", "Usr", "Buf", "Ker", \
                 "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
             if self.memEnabled is False or value['pageCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}|{5:48}|{6:42}".format(value['pageCnt'] * 4, \
+            SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
                     value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -1471,11 +1519,11 @@ class FunctionInfo:
 
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-                (self.pageUsageCnt * 4, self.pageAllocEventCnt))
+        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".format("Usage", "Usr", "Buf", "Ker", "Function"))
         SystemInfo.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -1490,15 +1538,19 @@ class FunctionInfo:
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
             if self.memEnabled is False or value['pageCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(value['pageCnt'] * 4, idx, '', ''))
+            SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}".format(value['pageCnt'] * 4, \
+                    value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x:x[2], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                pageCnt = stack[2]
                 subStack = list(stack[1])
+                pageCnt = stack[2]
+                userPageCnt = stack[5][0]
+                cachePageCnt = stack[5][1]
+                kernelPageCnt = stack[5][2]
 
                 if pageCnt == 0: continue
 
@@ -1514,7 +1566,8 @@ class FunctionInfo:
                                 symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(stack[2] * 4, symbolStack))
+                SystemInfo.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                        userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
@@ -1530,13 +1583,13 @@ class FunctionInfo:
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".format("Usage", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
             if self.ioEnabled is False or value['blockCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(int(value['blockCnt'] * 0.5), idx, \
+            SystemInfo.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".format(int(value['blockCnt'] * 0.5), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
@@ -1583,7 +1636,7 @@ class FunctionInfo:
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^9}|{1:_^32}|{2:_^48}|{3:_^62}".format("Usage", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".format("Usage", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -1598,7 +1651,7 @@ class FunctionInfo:
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
             if self.ioEnabled is False or value['blockCnt'] == 0: break
 
-            SystemInfo.pipePrint("{0:7}K |{1:^32}|{2:48}|{3:52}".format(int(value['blockCnt'] * 0.5), idx, '', ''))
+            SystemInfo.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x:x[4], reverse=True)
