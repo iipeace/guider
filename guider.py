@@ -272,8 +272,8 @@ class FunctionInfo:
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
-            targetStack = []
             subStackPageInfo = list(self.init_subStackPageInfo)
+            targetStack = []
 
             try:
                 # No symbol related to last pos #
@@ -357,7 +357,7 @@ class FunctionInfo:
                     targetStack.append([cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, subStackPageInfo])
                     stackAddr = id(stack)
 
-            # memory allocation related event #
+            # memory allocation event #
             if pageAllocCnt > 0:
                 pageType = arg[0]
                 pfn = arg[1]
@@ -434,7 +434,7 @@ class FunctionInfo:
                     self.pageTable[pfnv]['type'] = pageType
                     self.pageTable[pfnv]['subStackAddr'] = stackAddr
 
-            # memory free related event #
+            # memory free event #
             elif pageFreeCnt > 0:
                 pageType = arg[0]
                 pfn = arg[1]
@@ -481,7 +481,7 @@ class FunctionInfo:
                         # this page is allocated before starting profile #
                         None
 
-            # block related event #
+            # block event #
             elif blockCnt > 0:
                 self.userSymData[sym]['blockCnt'] += blockCnt
 
@@ -498,6 +498,7 @@ class FunctionInfo:
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
+            subStackPageInfo = list(self.init_subStackPageInfo)
 
             try:
                 # No symbol related to last pos #
@@ -515,13 +516,13 @@ class FunctionInfo:
                 self.kernelSymData[sym]['pos'] = pos
 
             cpuCnt = 0
-            # memory allocation related event #
+            # memory allocation event #
             if pageAllocCnt > 0:
                 self.kernelSymData[sym]['pageCnt'] += pageAllocCnt
-            # memory free related event #
+            # memory free event #
             elif pageFreeCnt > 0:
                 self.kernelSymData[sym]['pageFreeCnt'] += pageFreeCnt
-            # block related event #
+            # block event #
             elif blockCnt > 0:
                 self.kernelSymData[sym]['blockCnt'] += blockCnt
             # periodic event such as cpu tick #
@@ -1411,11 +1412,12 @@ class FunctionInfo:
 
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %d] [FreeCnt: %d] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt, self.pageFreeCnt))
+        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [AllocCnt: %dKB] [FreeCnt: %dKB] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageFreeCnt * 4))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^29}|{1:_^32}|{2:_^48}|{3:_^42}".format("Usage(Usr/Buf/Ker)", "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^32}|{5:_^48}|{6:_^42}".format("Usage", "Usr", "Buf", "Ker", \
+                "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
