@@ -3,7 +3,7 @@ Are you struggle to improve system performance or to find root cause that makes 
 guider is made to measure system resource usage per thread and to give user hints to improve system performance.
 you can use this tool if only some ftrace options are enabled in linux kernel.
 
-guider persues three characteristics.
+guider pursues three characteristics.
 >1. easy to use: just run by linux shell without install or setting
 >2. measure correct: measure time in ms and size in MB
 >3. integrate function: show cpu / memory / disk usage per thread in a page 
