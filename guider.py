@@ -95,8 +95,10 @@ class ConfigInfo:
             SystemInfo.printError("Open %s" % (file))
             return None
 
-        if num == 0: return f.readline().replace('\n','')
-        else: return f.readline().replace('\n','').split(' ')[num - 1]
+        if num == 0:
+            return f.readline().replace('\n','')
+        else:
+            return f.readline().replace('\n','').split(' ')[num - 1]
 
 
 
@@ -176,8 +178,8 @@ class FunctionInfo:
         self.userSymData = {}
         self.kernelSymData = {}
         self.threadData = {}
-        self.userCallData = [] 
-        self.kernelCallData = [] 
+        self.userCallData = []
+        self.kernelCallData = []
         # userCallData = kernelCallData = [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument] #
 
         self.init_threadData = \
@@ -289,20 +291,20 @@ class FunctionInfo:
             # Resolve user symbol #
             try:
                 # No symbol related to last pos #
-                if self.posData[pos]['symbol'] == '': 
+                if self.posData[pos]['symbol'] == '':
                     self.posData[pos]['symbol'] == pos
                     sym = pos
-                else: 
+                else:
                     sym = self.posData[pos]['symbol']
             except: continue
 
             # Resolve kernel symbol #
             try:
                 # No symbol related to last pos #
-                if self.posData[kernelPos]['symbol'] == '': 
+                if self.posData[kernelPos]['symbol'] == '':
                     self.posData[kernelPos]['symbol'] = kernelPos
                     kernelSym = kernelPos
-                else: 
+                else:
                     kernelSym = self.posData[kernelPos]['symbol']
             except: continue
 
@@ -338,10 +340,10 @@ class FunctionInfo:
                     # Ignore this function if there is no symbol #
                     if SystemInfo.showAll is False and \
                             (tempSym == addr or tempSym == self.posData[addr]['offset']):
-                                continue
+                        continue
 
                     # No symbol data #
-                    if tempSym == '': 
+                    if tempSym == '':
                         if self.posData[addr]['origBin'] == '??':
                             tempSym = '%x' % int(self.posData[addr]['pos'], 16)
                         else:
@@ -498,7 +500,7 @@ class FunctionInfo:
                         # Find user subStack of symbol allocated this page #
                         for val in targetStack:
                             if id(val[1]) == allocStackAddr:
-                                # Decrease allocated page count of substack #
+                        # Decrease allocated page count of substack #
                                 val[2] -= 1
                                 val[5][subStackPageInfoIdx] -= 1
                                 break
@@ -610,7 +612,7 @@ class FunctionInfo:
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             if value['binary'] == '':
                 # user pos without offset #
-                if value['symbol'] == '' or value['symbol'] == '??': 
+                if value['symbol'] == '' or value['symbol'] == '??':
                     # toDo: find binary and symbol of pos #
                     value['binary'] = '??'
                     value['origBin'] = '??'
@@ -624,8 +626,10 @@ class FunctionInfo:
                     self.getSymbolInfo(binPath, offsetList)
                     offsetList = []
 
-                if value['offset'] == hex(0): offsetList.append(idx)
-                else: offsetList.append(value['offset'])
+                if value['offset'] == hex(0):
+                    offsetList.append(idx)
+                else:
+                    offsetList.append(value['offset'])
 
                 # Set new binPath to find symbol from address #
                 binPath = value['binary']
@@ -639,7 +643,8 @@ class FunctionInfo:
                     offsetList.append(value['offset'])
 
         # Get symbols and source path from last binary #
-        if binPath != '': self.getSymbolInfo(binPath, offsetList)
+        if binPath != '':
+            self.getSymbolInfo(binPath, offsetList)
 
 
 
@@ -656,7 +661,7 @@ class FunctionInfo:
         # No file exist #
         if os.path.isfile(binPath) == False:
             SystemInfo.printWarning("Fail to find %s" % binPath)
-            for addr in offsetList: 
+            for addr in offsetList:
                 if relocated is False:
                     self.posData[addr]['symbol'] = 'NoFile'
                     self.posData[addr]['src'] = 'NoFile'
@@ -708,9 +713,11 @@ class FunctionInfo:
                         SystemInfo.printWarning(err[err.find(':') + 2:])
 
                     # End of return #
-                    if not addr: break
+                    if not addr:
+                        break
 
-                    if symbol == '??': symbol = addr
+                    if symbol == '??':
+                        symbol = addr
 
                     # Check whether the file is relocatable or not #
                     if relocated is False:
@@ -920,6 +927,7 @@ class FunctionInfo:
                             self.posData[pos]['posCnt'] += 1
 
                     userCallStack.append(pos)
+
                 # kernel mode #
                 elif self.curMode is 'kernel':
                     # Save pos #
@@ -931,6 +939,7 @@ class FunctionInfo:
                     self.posData[pos]['symbol'] = path
 
                     kernelCallStack.append(pos)
+
                 # wrong mode #
                 else:
                     SystemInfo.printWarning('wrong current mode %s' % self.curMode)
@@ -1012,14 +1021,14 @@ class FunctionInfo:
                 except: tid = 0
 
                 if tid == int(d['thread']) or d['comm'].rfind(val) > -1:
-                        self.threadData[thread]['target'] = True
-                        found = True
-                        break
+                    self.threadData[thread]['target'] = True
+                    found = True
+                    break
             if found is False:
                 return False
 
-            # toDo: find shorter periodic event for sampling #
             # cpu tick event #
+            # toDo: find shorter periodic event for sampling #
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
                 self.cpuEnabled = True
                 self.nestedEvent = self.savedEvent
@@ -1186,7 +1195,7 @@ class FunctionInfo:
                 return False
 
             # Start to record user stack #
-            elif d['func'] == "<user": 
+            elif d['func'] == "<user":
                 self.prevMode = self.curMode
                 self.curMode = 'user'
                 return True
@@ -1209,7 +1218,7 @@ class FunctionInfo:
                 return False
 
             # Ignore event #
-            else: 
+            else:
                 self.nestedEvent = self.savedEvent
                 self.savedEvent = self.nowEvent
                 self.nowEvent = 'I'
@@ -1248,7 +1257,7 @@ class FunctionInfo:
                     d = m.groupdict()
                     return (d['pos'], d['symbol'], None)
                 # garbage log #
-                else: 
+                else:
                     return False
 
 
@@ -1319,7 +1328,7 @@ class FunctionInfo:
         SystemInfo.pipePrint(oneLine + '\n\n\n')
 
         # Exit because of no target #
-        if len(self.target) == 0: 
+        if len(self.target) == 0:
             sys.exit(0)
 
         # Print profiled thread list #
@@ -1371,9 +1380,11 @@ class FunctionInfo:
                 cpuCnt = stack[0]
                 subStack = list(stack[1])
 
-                if cpuCnt == 0: break
+                if cpuCnt == 0:
+                    break
 
-                if len(subStack) == 0: continue
+                if len(subStack) == 0:
+                    continue
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
@@ -1398,8 +1409,8 @@ class FunctionInfo:
         # Print cpu usage in kernel space #
         SystemInfo.clearPrint()
         if SystemInfo.targetEvent is None:
-                SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
-                        (self.periodicEventCnt, self.periodicEventInterval * 1000))
+            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+                    (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
             SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
 
@@ -1418,7 +1429,8 @@ class FunctionInfo:
 
         # Print cpu usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if self.cpuEnabled is False or value['cnt'] == 0: break
+            if self.cpuEnabled is False or value['cnt'] == 0:
+                break
 
             cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
             SystemInfo.pipePrint("{0:7}% |{1:^134}".format(cpuPer, idx))
@@ -1431,14 +1443,16 @@ class FunctionInfo:
                 cpuCnt = stack[0]
                 subStack = list(stack[1])
 
-                if cpuCnt == 0: break
+                if cpuCnt == 0:
+                    break
                 else:
                     # Remove a redundant part #
                     for pos, val in exceptList.items():
                         try: del subStack[0:subStack.index(pos)+1]
                         except: None
 
-                if len(subStack) == 0: continue
+                if len(subStack) == 0:
+                    continue
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
@@ -1474,7 +1488,8 @@ class FunctionInfo:
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0: break
+            if self.memEnabled is False or value['pageCnt'] == 0:
+                break
 
             SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
                     value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
@@ -1498,9 +1513,11 @@ class FunctionInfo:
                 cachePageCnt = stack[5][1]
                 kernelPageCnt = stack[5][2]
 
-                if pageCnt == 0: break
+                if pageCnt == 0:
+                    break
 
-                if len(subStack) == 0: continue
+                if len(subStack) == 0:
+                    continue
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
@@ -1541,7 +1558,8 @@ class FunctionInfo:
 
         # Print mem usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0: break
+            if self.memEnabled is False or value['pageCnt'] == 0:
+                break
 
             SystemInfo.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}".format(value['pageCnt'] * 4, \
                     value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
@@ -1557,9 +1575,11 @@ class FunctionInfo:
                 cachePageCnt = stack[5][1]
                 kernelPageCnt = stack[5][2]
 
-                if pageCnt == 0: continue
+                if pageCnt == 0:
+                    continue
 
-                if len(subStack) == 0: continue
+                if len(subStack) == 0:
+                    continue
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
@@ -1567,7 +1587,7 @@ class FunctionInfo:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolStack +=  ' <- ' + hex(int(pos, 16))
-                            else: 
+                            else:
                                 symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
@@ -1592,7 +1612,8 @@ class FunctionInfo:
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0: break
+            if self.ioEnabled is False or value['blockCnt'] == 0:
+                break
 
             SystemInfo.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".format(int(value['blockCnt'] * 0.5), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
@@ -1612,9 +1633,11 @@ class FunctionInfo:
                 blockCnt = stack[4]
                 subStack = list(stack[1])
 
-                if blockCnt == 0: break
+                if blockCnt == 0:
+                    break
 
-                if len(subStack) == 0: continue
+                if len(subStack) == 0:
+                    continue
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
@@ -1654,7 +1677,8 @@ class FunctionInfo:
 
         # Print BLOCK usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0: break
+            if self.ioEnabled is False or value['blockCnt'] == 0:
+                break
 
             SystemInfo.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
@@ -1666,17 +1690,19 @@ class FunctionInfo:
                 blockCnt = stack[3]
                 subStack = list(stack[1])
 
-                if blockCnt  == 0: continue
+                if blockCnt  == 0:
+                    continue
 
-                if len(subStack) == 0: symbolStack = '\tNone'
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
                     try:
                         for pos in subStack:
-                            if self.posData[pos]['symbol'] == '': 
+                            if self.posData[pos]['symbol'] == '':
                                 symbolStack +=  ' <- ' + hex(int(pos, 16))
-                            else: 
+                            else:
                                 symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
@@ -1894,7 +1920,7 @@ class FileInfo:
                 printMsg += "{0:_^15}|".format(str(idx))
         printMsg += "{0:_^13}|{1:_^5}|{2:_^60}|".format("LastMem(KB)", "%", "Path")
         SystemInfo.pipePrint(printMsg)
-                
+
         SystemInfo.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -1998,7 +2024,7 @@ class FileInfo:
                         if comm.rfind(val) != -1 or tid == val:
                             # access procData #
                             try: self.procData[pid]
-                            except: 
+                            except:
                                 self.procData[pid] = dict(self.init_procData)
                                 self.procData[pid]['tids'] = {}
                                 self.procData[pid]['procMap'] = {}
@@ -2061,7 +2087,7 @@ class FileInfo:
                 newEnd = newOffset + newSize
 
                 # access fileData #
-                try: 
+                try:
                     savedOffset = self.fileData[fileName]['offset']
                     savedSize = self.fileData[fileName]['size']
                     savedEnd = savedOffset + savedSize
@@ -2076,13 +2102,13 @@ class FileInfo:
                             None
                     # smaller start address then saved one #
                     else:
-                            if savedEnd >= newEnd:
-                                self.fileData[fileName]['size'] += (savedOffset - newOffset)
-                            else:
-                                self.fileData[fileName]['size'] = newSize
+                        if savedEnd >= newEnd:
+                            self.fileData[fileName]['size'] += (savedOffset - newOffset)
+                        else:
+                            self.fileData[fileName]['size'] = newSize
 
-                            self.fileData[fileName]['offset'] = newOffset
-                except: 
+                        self.fileData[fileName]['offset'] = newOffset
+                except:
                     self.fileData[fileName] = dict(self.init_mapData)
                     self.fileData[fileName]['offset'] = newOffset
                     self.fileData[fileName]['size'] = newSize
@@ -2102,7 +2128,7 @@ class FileInfo:
             newSize = endAddr - startAddr
             newEnd = newOffset + newSize
 
-            try: 
+            try:
                 savedOffset = procMap[fileName]['offset']
                 savedSize = procMap[fileName]['size']
                 savedEnd = savedOffset + savedSize
@@ -2123,7 +2149,7 @@ class FileInfo:
                         procMap[fileName]['size'] = newSize
 
                     procMap[fileName]['offset'] = newOffset
-            except: 
+            except:
                 procMap[fileName] = dict(self.init_mapData)
                 procMap[fileName]['offset'] = newOffset
                 procMap[fileName]['size'] = newSize
@@ -2187,7 +2213,7 @@ class FileInfo:
         else:
             SystemInfo.printWarning('Profiled a total of %d files' % self.profSuccessCnt)
 
-        if self.profFailedCnt > 0: 
+        if self.profFailedCnt > 0:
             SystemInfo.printWarning('Failed to open a total of %d files' % self.profFailedCnt)
 
 
@@ -2323,7 +2349,7 @@ class SystemInfo:
     def isRelocatableFile(path):
         if path.find('.so') == -1 and path.find('.ttf') == -1 and \
                 path.find('.pak') == -1:
-                    return False
+            return False
         else:
             return True
 
@@ -2763,8 +2789,10 @@ class SystemInfo:
 
     @staticmethod
     def isRecordMode():
-        if sys.argv[1] == 'record': return True
-        else: return False
+        if sys.argv[1] == 'record':
+            return True
+        else:
+            return False
 
 
 
@@ -2797,8 +2825,10 @@ class SystemInfo:
         f = open('/proc/meminfo', 'r')
         lines = f.readlines()
 
-        if self.memData['before'] == {}: time = 'before'
-        else: time = 'after'
+        if self.memData['before'] == {}:
+            time = 'before'
+        else:
+            time = 'after'
 
         for l in lines:
             m = re.match('(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
@@ -3314,7 +3344,8 @@ class ThreadInfo:
         SystemInfo.totalLine = len(lines)
         for idx, log in enumerate(lines):
             self.parse(log)
-            if self.stopFlag == True: break
+            if self.stopFlag == True:
+                break
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
@@ -3359,12 +3390,14 @@ class ThreadInfo:
 
 
     def makeTaskChain(self):
-        if ConfigInfo.taskChainEnable != True: return
+        if ConfigInfo.taskChainEnable != True:
+            return
 
         while True:
             eventInput = raw_input('Input event name for taskchain: ')
             fd = ConfigInfo.openConfFile(eventInput)
-            if fd != None: break
+            if fd != None:
+                break
 
         ConfigInfo.writeConfData(fd, '[%s]\n' % (eventInput))
         threadInput = raw_input('Input tids of hot threads for taskchain (ex. 13,144,235): ')
@@ -3373,12 +3406,14 @@ class ThreadInfo:
 
         for index, t in enumerate(threadList):
             cmdline = ConfigInfo.readProcData(t, 'cmdline', 0)
-            if cmdline == None: continue
+            if cmdline == None:
+                continue
 
             cmdline = cmdline[0:cmdline.find('\x00')]
             cmdline = cmdline[0:cmdline.rfind('/')]
             cmdline = cmdline.replace(' ','-')
-            if len(cmdline) > 256: cmdline = cmdline[0:255]
+            if len(cmdline) > 256:
+                cmdline = cmdline[0:255]
 
             try: self.threadData[t]
             except:
@@ -3491,8 +3526,10 @@ class ThreadInfo:
             else:
                 # convert priority #
                 prio = int(value['pri']) - 120
-                if prio >= -20: value['pri'] = str(prio)
-                else: value['pri'] = 'R%2s' % abs(prio + 21)
+                if prio >= -20:
+                    value['pri'] = str(prio)
+                else:
+                    value['pri'] = 'R%2s' % abs(prio + 21)
 
         SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -3506,9 +3543,11 @@ class ThreadInfo:
         count = 0
         SystemInfo.clearPrint()
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
-            if key[0:2] == '0[': continue
+            if key[0:2] == '0[':
+                continue
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
-            if round(float(usagePercent), 1) < 1 and SystemInfo.showAll == False: break
+            if round(float(usagePercent), 1) < 1 and SystemInfo.showAll == False:
+                break
             else:
                 value['cpuRank'] = count + 1
                 count += 1
@@ -3541,7 +3580,8 @@ class ThreadInfo:
             SystemInfo.clearPrint()
             for key, value in sorted(self.preemptData[index][1].items(), key=lambda e: e[1]['usage'], reverse=True):
                 count += 1
-                if float(self.preemptData[index][4]) == 0: break
+                if float(self.preemptData[index][4]) == 0:
+                    break
                 SystemInfo.addPrint("%16s(%5s/%5s)|%6.3f(%5s)\n" \
                 % (self.threadData[key]['comm'], key, '0', value['usage'], \
                 str(round(float(value['usage']) / float(self.preemptData[index][4]) * 100, 1))))
@@ -3554,7 +3594,8 @@ class ThreadInfo:
         count = 0
         SystemInfo.clearPrint()
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['new'], reverse=True):
-            if value['new'] == ' ' or SystemInfo.selectMenu != None: break
+            if value['new'] == ' ' or SystemInfo.selectMenu != None:
+                break
             count += 1
             if SystemInfo.showAll == True:
                 SystemInfo.addPrint(\
@@ -3576,7 +3617,8 @@ class ThreadInfo:
         count = 0
         SystemInfo.clearPrint()
         for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['die'], reverse=True):
-            if value['die'] == ' ' or SystemInfo.selectMenu != None: break
+            if value['die'] == ' ' or SystemInfo.selectMenu != None:
+                break
             count += 1
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
             if SystemInfo.showAll == True:
@@ -3691,7 +3733,8 @@ class ThreadInfo:
                 SystemInfo.pipePrint(twoLine)
 
                 for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
-                    if key[0:2] == '0[': continue
+                    if key[0:2] == '0[':
+                        continue
                     SystemInfo.pipePrint("%16s(%4s)" % (self.threadData[key]['comm'], key))
                     try:
                         for sysId,val in sorted(self.threadData[key]['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
@@ -3753,8 +3796,10 @@ class ThreadInfo:
             for val in self.suspendData:
                 if float(self.startTime) + cnt * SystemInfo.intervalEnable < float(val[0]) < \
                         float(self.startTime) + ((cnt + 1) * SystemInfo.intervalEnable):
-                    if val[1] == 'S': checkEvent = '!'
-                    else: checkEvent = '>'
+                    if val[1] == 'S':
+                        checkEvent = '!'
+                    else:
+                        checkEvent = '>'
 
             # check mark event #
             for val in self.markData:
@@ -3872,7 +3917,7 @@ class ThreadInfo:
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if value['cpuWait'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
-                    break;
+                    break
 
         SystemInfo.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
         SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -3899,7 +3944,7 @@ class ThreadInfo:
                     SystemInfo.graphLabels.append(value['comm'])
 
                 if value['readBlock'] < 1 and SystemInfo.showAll == False:
-                    break;
+                    break
 
         if SystemInfo.graphEnable == True:
             title('Disk Usage of Threads')
@@ -4020,7 +4065,8 @@ class ThreadInfo:
             if int(d['thread']) == 0:
                 thread = coreId
                 comm = comm.replace("<idle>", "swapper/" + core);
-            else: thread = d['thread']
+            else:
+                thread = d['thread']
 
             # make core thread entity in advance for total irq per core #
             try: self.threadData[coreId]
@@ -4197,7 +4243,8 @@ class ThreadInfo:
                             self.intervalData[index]['toTal']['totalIo'] += self.intervalData[index][key]['ioUsage']
 
                             # calculate memory usage of this thread in this interval except for core threads because its already calculated #
-                            if key[0:2] == '0[': continue
+                            if key[0:2] == '0[':
+                                continue
                             self.intervalData[index]['toTal']['totalMem'] += self.intervalData[index][key]['memUsage']
                             self.intervalData[index]['toTal']['totalKmem'] += self.intervalData[index][key]['kmemUsage']
 
@@ -4442,7 +4489,8 @@ class ThreadInfo:
                         try: index = SystemInfo.preemptGroup.index(thread)
                         except: index = -1
 
-                        if index >= 0: self.preemptData[index][3] = core
+                        if index >= 0:
+                            self.preemptData[index][3] = core
 
             elif func == "mm_page_alloc":
                 m = re.match('^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
@@ -4603,12 +4651,14 @@ class ThreadInfo:
 
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(self.startTime)
-                    elif thread[0] == '0' or pid == '0': None
+                    elif thread[0] == '0' or pid == '0':
+                        None
                     elif self.wakeupData['valid'] > 0 \
                              and (self.wakeupData['from'] != self.wakeupData['tid'] or self.wakeupData['to'] != pid):
                         if self.wakeupData['valid'] == 1 and self.wakeupData['corrupt'] == '0':
                             try: kicker = self.threadData[self.wakeupData['tid']]['comm']
                             except: kicker = "NULL"
+
                             kicker_pid = self.wakeupData['tid']
                         else:
                             kicker = self.threadData[thread]['comm']
@@ -4635,7 +4685,8 @@ class ThreadInfo:
                             l = n.groupdict()
 
                             op = int(l['op']) % 10
-                            if op == 0: self.threadData[thread]['futexEnter'] = float(time)
+                            if op == 0:
+                                self.threadData[thread]['futexEnter'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(self.startTime)
@@ -4644,11 +4695,14 @@ class ThreadInfo:
                         self.wakeupData['tid'] = thread
                         self.wakeupData['nr'] = nr
                         self.wakeupData['args'] = args
-                        if self.wakeupData['valid'] > 0 and (self.wakeupData['tid'] == thread and self.wakeupData['from'] == comm): None
+                        if self.wakeupData['valid'] > 0 and (self.wakeupData['tid'] == thread and self.wakeupData['from'] == comm):
+                            None
                         else:
                             self.wakeupData['valid'] += 1
-                            if self.wakeupData['valid'] > 1: self.wakeupData['corrupt'] = '1'
-                            else: self.wakeupData['corrupt'] = '0'
+                            if self.wakeupData['valid'] > 1:
+                                self.wakeupData['corrupt'] = '1'
+                            else:
+                                self.wakeupData['corrupt'] = '0'
 
                     try: self.threadData[thread]['syscallInfo']
                     except: self.threadData[thread]['syscallInfo'] = {}
@@ -4661,7 +4715,8 @@ class ThreadInfo:
                         try: idx = SystemInfo.syscallList.index(nr)
                         except: idx = -1
 
-                        if idx >= 0: self.sysuserCallData.append(['enter', time, thread, core, nr, args])
+                        if idx >= 0:
+                            self.sysuserCallData.append(['enter', time, thread, core, nr, args])
                     else: self.sysuserCallData.append(['enter', time, thread, core, nr, args])
 
             elif func == "sys_exit":
@@ -4720,8 +4775,10 @@ class ThreadInfo:
                         try: idx = SystemInfo.syscallList.index(nr)
                         except: idx = -1
 
-                        if idx >= 0: self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
-                    else: self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
+                        if idx >= 0:
+                            self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
+                    else:
+                        self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
 
             elif func == "signal_generate":
                 m = re.match('^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', etc)
@@ -4816,12 +4873,15 @@ class ThreadInfo:
 
                                 matchBlock = 0
 
-                                if bioStart < self.ioData[key]['address']: matchStart = self.ioData[key]['address']
-                                else: matchStart = bioStart
+                                if bioStart < self.ioData[key]['address']:
+                                    matchStart = self.ioData[key]['address']
+                                else:
+                                    matchStart = bioStart
 
                                 if bioEnd > self.ioData[key]['address'] + self.ioData[key]['size']:
                                     matchEnd = self.ioData[key]['address'] + self.ioData[key]['size']
-                                else: matchEnd = bioEnd
+                                else:
+                                    matchEnd = bioEnd
 
                                 if matchStart == self.ioData[key]['address']:
                                     matchBlock = matchEnd - self.ioData[key]['address']
@@ -4838,7 +4898,8 @@ class ThreadInfo:
                                     del self.ioData[key]
                                     continue
 
-                                if bioEnd < self.ioData[key]['address'] + self.ioData[key]['size']: return
+                                if bioEnd < self.ioData[key]['address'] + self.ioData[key]['size']:
+                                    return
 
                                 self.threadData[self.ioData[key]['thread']]['readBlock'] += matchBlock
                                 self.threadData[coreId]['readBlock'] += matchBlock
@@ -4985,8 +5046,10 @@ class ThreadInfo:
                 if m is not None:
                     d = m.groupdict()
 
-                    if int(d['state']) == 3 : state = 'S'
-                    else: state = 'R'
+                    if int(d['state']) == 3:
+                        state = 'S'
+                    else:
+                        state = 'R'
 
                     self.suspendData.append([time, state])
 
@@ -4997,8 +5060,10 @@ class ThreadInfo:
 
                     tid = '0[' + d['cpu_id']+ ']'
 
-                    if self.threadData[tid]['lastIdleStatus'] == int(d['state']): return
-                    else: self.threadData[tid]['lastIdleStatus'] = int(d['state'])
+                    if self.threadData[tid]['lastIdleStatus'] == int(d['state']):
+                        return
+                    else:
+                        self.threadData[tid]['lastIdleStatus'] = int(d['state'])
 
                     if self.threadData[tid]['coreSchedCnt'] == 0 and self.threadData[tid]['offTime'] == 0:
                         self.threadData[tid]['offTime'] = float(time) - float(self.startTime)
@@ -5184,8 +5249,8 @@ if __name__ == '__main__':
 
         if SystemInfo.functionEnable is not False:
             SystemInfo.printStatus("function profile mode")
-            # si.runPeriodProc()
             # toDo: make periodic event lesser than every 100us for specific thread #
+            # si.runPeriodProc()
         elif SystemInfo.fileEnable is not False:
             SystemInfo.printStatus("file profile mode")
         else:
@@ -5277,7 +5342,7 @@ if __name__ == '__main__':
         fi = FunctionInfo(SystemInfo.inputFile)
 
         # Disable options related to stacktrace #
-        if SystemInfo.isRecordMode() is True: 
+        if SystemInfo.isRecordMode() is True:
             SystemInfo.runRecordStopFinalCmd()
 
         # Print Function Info #
