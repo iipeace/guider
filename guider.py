@@ -212,11 +212,11 @@ class FunctionInfo:
         SystemInfo.saveDataAndExit(lines)
 
         # Check target thread setting #
-        if len(SystemInfo.showGroup) != 1:
-            SystemInfo.printError("wrong option with -f, use -g option with only one tid / comm / nothing")
+        if len(SystemInfo.showGroup) == 0:
+            SystemInfo.printError("wrong option with -f, use -g option with tid / comm / nothing")
             sys.exit(0)
         else:
-            self.target = SystemInfo.showGroup[0]
+            self.target = SystemInfo.showGroup
 
         # Check addr2line path #
         if SystemInfo.addr2linePath is None:
@@ -238,10 +238,10 @@ class FunctionInfo:
 
         # Parse logs #
         SystemInfo.totalLine = len(lines)
-        self.parseLogs(lines, SystemInfo.showGroup[0])
+        self.parseLogs(lines, SystemInfo.showGroup)
 
         # Check whether data of target thread is collected or nothing #
-        if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) != 0:
+        if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) > 0:
             SystemInfo.printError("No collected data related to %s" % self.target)
             sys.exit(0)
         elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
@@ -544,11 +544,11 @@ class FunctionInfo:
                         self.userSymData[allocSym]['pageCnt'] -= 1
                         self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
 
-                        if pageType is 'CACHE':
+                        if pageType is 'USER':
                             self.userSymData[allocSym]['userPageCnt'] -= 1
                             self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
                             subStackPageInfoIdx = 0
-                        elif pageType is 'USER':
+                        elif pageType is 'CACHE':
                             self.userSymData[allocSym]['cachePageCnt'] -= 1
                             self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
                             subStackPageInfoIdx = 1
@@ -1006,12 +1006,17 @@ class FunctionInfo:
                 self.threadData[thread]['tgid'] = d['tgid']
 
             # tid filter #
-            if len(desc) == 0:
+            found = False
+            for val in desc:
+                try: tid = int(val)
+                except: tid = 0
+
+                if tid == int(d['thread']) or d['comm'].rfind(val) > -1:
+                        self.threadData[thread]['target'] = True
+                        found = True
+                        break
+            if found is False:
                 return False
-            if int(desc) != int(d['thread']) and d['comm'].rfind(desc) == -1: 
-                return False
-            else:
-                self.threadData[thread]['target'] = True
 
             # toDo: find shorter periodic event for sampling #
             # cpu tick event #
@@ -1273,7 +1278,7 @@ class FunctionInfo:
 
 
     def printUsage(self):
-        targetFound = False
+        targetCnt = 0
         self.totalTime = float(self.finishTime) - float(self.startTime)
 
         # Print title #
@@ -1292,10 +1297,10 @@ class FunctionInfo:
             dieMark = ''
 
             if value['target'] is True:
-                if targetFound is True:
-                    SystemInfo.printWarning("Target thread should be only one, otherwise profile result will be incorrect")
+                targetCnt += 1
+                if targetCnt == 2:
+                    SystemInfo.printWarning("Target threads profiled are more than two")
                 targetMark = '*'
-                targetFound = True
 
             if self.totalTick > 0:
                 cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
