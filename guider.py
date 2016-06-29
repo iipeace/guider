@@ -2800,13 +2800,13 @@ class SystemInfo:
 
     @staticmethod
     def setRtPriority(pri):
-        os.system('chrt -a -p %s %s' % (pri, os.getpid()))
+        os.system('chrt -a -p %s %s &' % (pri, os.getpid()))
 
 
 
     @staticmethod
     def setIdlePriority(pri):
-        os.system('chrt -a -i -p %s %s' % (pri, os.getpid()))
+        os.system('chrt -a -i -p %s %s &' % (pri, os.getpid()))
 
 
 
