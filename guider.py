@@ -2935,6 +2935,9 @@ class SystemInfo:
         self.cmdList["signal"] = True
         self.cmdList["power/machine_suspend"] = True
         self.cmdList["printk"] = True
+        self.cmdList["module/module_load"] = True
+        self.cmdList["module/module_free"] = True
+        self.cmdList["module/module_put"] = True
         self.cmdList["power/cpu_idle"] = True
         self.cmdList["power/cpu_frequency"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
@@ -3144,6 +3147,13 @@ class SystemInfo:
         if self.cmdList["writeback/wbc_writepage"] is True:
             SystemInfo.writeCmd('writeback/wbc_writepage/enable', '1')
 
+        if self.cmdList["module/module_load"] is True:
+            SystemInfo.writeCmd('module/module_load/enable', '1')
+        if self.cmdList["module/module_free"] is True:
+            SystemInfo.writeCmd('module/module_free/enable', '1')
+        if self.cmdList["module/module_put"] is True:
+            SystemInfo.writeCmd('module/module_put/enable', '1')
+
         if self.cmdList["power/cpu_idle"] is True:
             SystemInfo.writeCmd('power/cpu_idle/enable', '1')
         if self.cmdList["power/cpu_frequency"] is True:
@@ -3277,6 +3287,7 @@ class ThreadInfo:
         self.reclaimData = {}
         self.pageTable = {}
         self.kmemTable = {}
+        self.moduleData = []
         self.intervalData = []
         self.depData = []
         self.sigData = []
@@ -3378,7 +3389,11 @@ class ThreadInfo:
         if SystemInfo.intervalEnable > 0:
             self.printIntervalInfo()
 
-        # print dependency about threads #
+        # print module information #
+        if len(self.moduleData) > 0:
+            self.printModuleInfo()
+
+        # print dependency of threads #
         if SystemInfo.depEnable == True:
             self.printDepInfo()
 
@@ -3706,11 +3721,61 @@ class ThreadInfo:
 
 
 
+    def printModuleInfo(self):
+        moduleTable = {}
+        init_moduleData = {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
+
+        SystemInfo.clearPrint()
+        SystemInfo.pipePrint('\n' + '[Module Info]')
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
+                format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
+        SystemInfo.pipePrint(twoLine)
+
+        for val in self.moduleData:
+            event = val[0]
+            tid = val[1]
+            time = val[2]
+            module = val[3]
+            arg = val[4]
+
+            if event is 'load':
+                try: moduleTable[module]
+                except:
+                    moduleTable[module] = dict(init_moduleData)
+
+                moduleTable[module]['startTime'] = time
+                moduleTable[module]['loadCnt'] += 1
+
+            elif event is 'free':
+                SystemInfo.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
+                        format('FREE', float(time) - float(self.startTime), module, \
+                        self.threadData[tid]['comm'], tid, ''))
+            elif event is 'put':
+                try: moduleTable[module]
+                except:
+                    SystemInfo.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:^7}|".\
+                            format('LOAD', float(time) - float(self.startTime), module, \
+                            self.threadData[tid]['comm'], tid, '?'))
+
+                moduleTable[module]['elapsed'] += float(time) - float(moduleTable[module]['startTime'])
+                moduleTable[module]['startTime'] = 0
+
+                SystemInfo.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
+                        format('LOAD', float(time) - float(self.startTime), module, \
+                        self.threadData[tid]['comm'], tid, moduleTable[module]['elapsed']))
+
+        SystemInfo.pipePrint(SystemInfo.bufferString)
+        SystemInfo.pipePrint(oneLine)
+
+
+
     def printDepInfo(self):
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('\n' + '[Dependency Info]')
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
+        SystemInfo.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
+                ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
 
@@ -5053,6 +5118,36 @@ class ThreadInfo:
                         state = 'R'
 
                     self.suspendData.append([time, state])
+
+            elif func == "module_load":
+                m = re.match('^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    module = d['module']
+                    address = d['address']
+
+                    self.moduleData.append(['load', thread, time, module, address])
+
+            elif func == "module_free":
+                m = re.match('^\s*(?P<module>.*)', etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    module = d['module']
+
+                    self.moduleData.append(['free', thread, time, module, None])
+
+            elif func == "module_put":
+                m = re.match('^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+refcnt=(?P<refcnt>[0-9]+)', etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    module = d['module']
+                    site = d['site']
+                    refcnt = int(d['refcnt'])
+
+                    self.moduleData.append(['put', thread, time, module, refcnt])
 
             elif func == "cpu_idle":
                 m = re.match('^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
