@@ -1297,8 +1297,8 @@ class FunctionInfo:
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}|{6:_^7}|{7:_^5}|".\
-                format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "BLK_RD", "DIE"))
+        SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|".\
+                format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
@@ -1321,9 +1321,10 @@ class FunctionInfo:
             if value['die'] is True:
                 dieMark = 'v'
 
-            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k|{6:6}k|{7:^5}|".\
-                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
-                    value['nrPages'] * 4, int(value['nrBlocks'] * 0.5), dieMark))
+            SystemInfo.pipePrint("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|".\
+                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
+                    value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
+                    int(value['nrBlocks'] * 0.5), dieMark))
 
         SystemInfo.pipePrint(oneLine + '\n\n\n')
 
