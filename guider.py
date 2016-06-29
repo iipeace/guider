@@ -3439,7 +3439,9 @@ class ThreadInfo:
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
         if self.threadData[tid]['createdTime'] > 0:
-            threadName += " <%2.3f>" % (self.threadData[tid]['createdTime'] - float(self.startTime))
+            threadName += " /%2.3f/" % (self.threadData[tid]['createdTime'] - float(self.startTime))
+        if self.threadData[tid]['usage'] > 0:
+            threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
         if self.threadData[tid]['childList'] is not None:
             threadName += " |%d|" % (len(self.threadData[tid]['childList']))
         if self.threadData[tid]['waitChild'] > 0:
@@ -3641,15 +3643,13 @@ class ThreadInfo:
         # print thread tree by creation #
         if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
             SystemInfo.clearPrint()
-            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [CreatedTime: <>] [ChildCount: ||] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemInfo.pipePrint(twoLine)
 
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
                 # print tree from root threads #
                 if value['childList'] is not None and value['new'] is ' ':
                     self.printCreationTree(key, 0)
-                elif value['childList'] is None:
-                    break
             SystemInfo.pipePrint(oneLine)
 
         # print signal traffic #
