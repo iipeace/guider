@@ -105,7 +105,7 @@ class ConfigInfo:
     @staticmethod
     def openConfFile(file):
         file += '.tc'
-        if os.path.isfile(file) == True:
+        if os.path.isfile(file) is True:
             SystemInfo.printWarning("%s already exist, make new one" % (file))
 
         try: fd = open(file, 'wt')
@@ -1816,7 +1816,7 @@ class FileInfo:
         SystemInfo.printTitle()
 
         # Print proccess list #
-        SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
+        SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
         ('File Info', len(self.procData)))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".format("Pid", "Size(KB)", "ThreadName", "Tid"))
@@ -2269,6 +2269,7 @@ class SystemInfo:
     depEnable = False
     sysEnable = False
     compareEnable = False
+    waitEnable = False
     functionEnable = False
     fileEnable = False
     threadEnable = False
@@ -2312,6 +2313,12 @@ class SystemInfo:
 
 
     @staticmethod
+    def defaultHandler(signum, frame):
+        return
+
+
+
+    @staticmethod
     def stopHandler(signum, frame):
         if SystemInfo.fileEnable is True:
             FileInfo.condExit = True
@@ -2321,6 +2328,8 @@ class SystemInfo:
 
         # update record status #
         SystemInfo.recordStatus = False
+
+        SystemInfo.repeatCount = 0
 
         SystemInfo.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
 
@@ -2411,6 +2420,10 @@ class SystemInfo:
         # save trace data to file #
         try:
             if SystemInfo.outputFile != None:
+                # backup data file alread exist #
+                if os.path.isfile(SystemInfo.outputFile) is True:
+                    shutil.copy(SystemInfo.outputFile, os.path.join(SystemInfo.outputFile + '.old'))
+
                 f = open(SystemInfo.outputFile, 'wt')
                 f.writelines(lines)
 
@@ -2660,6 +2673,8 @@ class SystemInfo:
                     SystemInfo.rootPath = sys.argv[n].lstrip('-j')
                 elif sys.argv[n][1] == 'b':
                     None
+                elif sys.argv[n][1] == 'u':
+                    None
                 elif sys.argv[n][1] == 'c':
                     None
                 elif sys.argv[n][1] == 's':
@@ -2731,6 +2746,8 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'w':
                     SystemInfo.depEnable = True
                 elif sys.argv[n][1] == 'c':
+                    SystemInfo.waitEnable = True
+                elif sys.argv[n][1] == 'u':
                     SystemInfo.compareEnable = True
                     SystemInfo.printInfo("compare mode")
                 elif sys.argv[n][1] == 'm':
@@ -5317,8 +5334,8 @@ if __name__ == '__main__':
         print('Usage: \n\t# guider [command] [options]\n')
         print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
         print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
-        print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_compareUsage]')
-        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms/tids]\n\t-q[make_taskchain]')
+        print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_signal]')
+        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms/tids]\n\t-q[make_taskchain]\n\t-u[run_compareUsageMode]')
         print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
         print('\n\t-f[run_functionProfileMode:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
         print('\n\t-m[run_pageProfileMode]')
@@ -5353,9 +5370,16 @@ if __name__ == '__main__':
             SystemInfo.printStatus("thread profile mode")
             SystemInfo.threadEnable = True
 
+        # wait for signal #
+        if SystemInfo.waitEnable is True:
+            SystemInfo.printStatus("wait for starting profile... [ START(ctrl + c) ]")
+            signal.signal(signal.SIGINT, SystemInfo.defaultHandler)
+            signal.pause()
+
         # set signal #
         if SystemInfo.repeatCount > 0 and SystemInfo.repeatInterval > 0 and SystemInfo.threadEnable is True:
             signal.signal(signal.SIGALRM, SystemInfo.alarmHandler)
+            signal.signal(signal.SIGINT, SystemInfo.stopHandler)
             signal.alarm(SystemInfo.repeatInterval)
             if SystemInfo.outputFile is None:
                 SystemInfo.printError("wrong option with -s, use parameter for saving data")
@@ -5405,7 +5429,7 @@ if __name__ == '__main__':
             # get init time in buffer for verification #
             initTime = ThreadInfo.getInitTime(SystemInfo.inputFile)
 
-            # wait to expire timer #
+            # wait for timer #
             signal.pause()
 
             # compare init time with now time for buffer verification #
