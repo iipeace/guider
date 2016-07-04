@@ -4,7 +4,7 @@ __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 
@@ -1717,8 +1717,6 @@ class FunctionInfo:
 
 
 class FileInfo:
-    condExit = False
-
     def __init__(self):
         self.libguider = None
         self.libguiderPath = './libguider.so'
@@ -1788,7 +1786,7 @@ class FileInfo:
                 self.profFailedCnt = 0
 
                 # check exit condition for interval profile #
-                if FileInfo.condExit is False:
+                if SystemInfo.condExit is False:
                     signal.pause()
                 else:
                     break
@@ -2259,6 +2257,7 @@ class SystemInfo:
     selectMenu = None
     intervalNow = 0
     recordStatus = False
+    condExit = False
 
     irqEnable = False
     cpuEnable = True
@@ -2268,7 +2267,6 @@ class SystemInfo:
     pipeEnable = False
     depEnable = False
     sysEnable = False
-    compareEnable = False
     waitEnable = False
     functionEnable = False
     fileEnable = False
@@ -2321,7 +2319,7 @@ class SystemInfo:
     @staticmethod
     def stopHandler(signum, frame):
         if SystemInfo.fileEnable is True:
-            FileInfo.condExit = True
+            SystemInfo.condExit = True
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemInfo.runRecordStopCmd()
@@ -2337,14 +2335,12 @@ class SystemInfo:
 
     @staticmethod
     def newHandler(signum, frame):
+        SystemInfo.condExit = False
+
         if SystemInfo.fileEnable is True:
-            SystemInfo.printStatus("Saved file usage successfully")
+            SystemInfo.printStatus("Saved file usage information successfully")
         else:
-            if SystemInfo.compareEnable is False:
-                SystemInfo.writeEvent("EVENT_MARK")
-            else:
-                SystemInfo.writeEvent("EVENT_RESTART")
-                SystemInfo.printStatus('restart recording... [ STOP(ctrl + c) ]')
+            SystemInfo.writeEvent("EVENT_MARK")
 
 
 
@@ -2673,8 +2669,6 @@ class SystemInfo:
                     SystemInfo.rootPath = sys.argv[n].lstrip('-j')
                 elif sys.argv[n][1] == 'b':
                     None
-                elif sys.argv[n][1] == 'u':
-                    None
                 elif sys.argv[n][1] == 'c':
                     None
                 elif sys.argv[n][1] == 's':
@@ -2747,9 +2741,6 @@ class SystemInfo:
                     SystemInfo.depEnable = True
                 elif sys.argv[n][1] == 'c':
                     SystemInfo.waitEnable = True
-                elif sys.argv[n][1] == 'u':
-                    SystemInfo.compareEnable = True
-                    SystemInfo.printInfo("compare mode")
                 elif sys.argv[n][1] == 'm':
                     SystemInfo.fileEnable = True
                 elif sys.argv[n][1] == 't':
@@ -3383,6 +3374,10 @@ class ThreadInfo:
 
         f.close()
 
+        if len(self.threadData) == 0:
+            SystemInfo.printError("No recognized data in %s" % SystemInfo.inputFile)
+            sys.exit(0)
+
         self.totalTime = round(float(self.finishTime) - float(self.startTime), 7)
 
         # group filter #
@@ -3569,10 +3564,6 @@ class ThreadInfo:
         SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemInfo.pipePrint(SystemInfo.bufferString)
         SystemInfo.pipePrint(oneLine)
-
-        # compare thread information after sorting by time of cpu usage #
-        if self.threadDataOld != {}:
-            self.compareThreadData()
 
         # print thread information after sorting by time of cpu usage #
         count = 0
@@ -5225,7 +5216,7 @@ class ThreadInfo:
                         self.finishTime = time
                         self.stopFlag = True
                         return
-                    # restart data processing for compare #
+                    # restart data processing #
                     elif event == 'RESTART':
                         self.threadDataOld = self.threadData
                         self.threadData = {}
@@ -5276,7 +5267,7 @@ class ThreadInfo:
                         self.finishTime = time
                         self.stopFlag = True
                         return
-                    # restart data processing for compare #
+                    # restart data processing #
                     elif event == 'RESTART':
                         self.threadDataOld = self.threadData
                         self.threadData = {}
@@ -5330,15 +5321,35 @@ if __name__ == '__main__':
 
     # print help #
     if len(sys.argv) <= 1:
-        print("\n[ g.u.i.d.e.r \t%s ]\n" % __version__)
-        print('Usage: \n\t# guider [command] [options]\n')
-        print('Example: \n\t# guider record -s. -emi\n\t$ guider guider.dat -o. -a\n')
-        print('Options: \n\t-b[set_perCpuBuffer:kb]\n\t-s[save_traceData:dir]\n\t-o[set_outputFile:dir]\n\t-r[record_repeatData:interval,count]')
-        print('\n\t-e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]\n\t-d[disable_options:t(ty)]\n\t-c[ready_signal]')
-        print('\n\t-a[show_allEntity]\n\t-i[set_interval:sec]\n\t-g[show_onlyGroup:comms/tids]\n\t-q[make_taskchain]\n\t-u[run_compareUsageMode]')
-        print('\n\t-w[show_threadDependency]\n\t-p[show_preemptInfo:tids]\n\t-t[trace_syscall:syscallNums]')
-        print('\n\t-f[run_functionProfileMode:event]\n\t-l[input_addr2linePath:file]\n\t-j[input_targetRootPath:dir]')
-        print('\n\t-m[run_pageProfileMode]')
+        print("\n[ g.u.i.d.e.r \t%s ]\n\n" % __version__)
+
+        print('Usage: \n\t# guider.py [command] [options]\n')
+        print('Example: \n\t# guider.py record -s. -emi\n\t$ guider.py guider.dat -o. -a\n')
+
+        print('Options:')
+        print('\n\t[mode]')
+        print('\t\t(default) [thread mode]')
+        print('\t\t-y [system mode]')
+        print('\t\t-f [function mode]')
+        print('\t\t-m [file mode]')
+        print('\n\t[record]')
+        print('\t\t-b [set_perCpuBufferSize:kb]')
+        print('\t\t-s [save_traceData:dir]')
+        print('\t\t-r [record_repeatData:interval,count]')
+        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]')
+        print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
+        print('\t\t-t [trace_syscall:syscallNums]')
+        print('\n\t[analysis]')
+        print('\t\t-o [set_outputFile:dir]')
+        print('\t\t-a [show_allInfo]')
+        print('\t\t-i [set_interval:sec]')
+        print('\t\t-w [show_threadDependency]')
+        print('\t\t-p [show_preemptInfo:tids]')
+        print('\t\t-l [input_addr2linePath:path]')
+        print('\t\t-j [input_targetRootPath:dir]')
+        print('\t\t-q [make_taskchain]')
+        print('\n\t[common]')
+        print('\t\t-g [filter_specificGroup:comms|tids]')
         print('\n')
 
         sys.exit(0)
@@ -5441,7 +5452,11 @@ if __name__ == '__main__':
             else: SystemInfo.clearTraceBuffer()
 
         # wait for user input #
-        signal.pause()
+        while True:
+            SystemInfo.condExit = True
+            signal.pause()
+            if SystemInfo.condExit is True:
+                break
 
         if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile):
             SystemInfo.printError("Buffer size is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
@@ -5456,6 +5471,9 @@ if __name__ == '__main__':
 
     # set handler for exit #
     signal.signal(signal.SIGINT, SystemInfo.exitHandler)
+
+    # check log file is recoginizable #
+    ThreadInfo.getInitTime(SystemInfo.inputFile)
 
     # create Function Info #
     if SystemInfo.functionEnable is not False:
