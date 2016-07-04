@@ -3600,7 +3600,7 @@ class ThreadInfo:
             tid = SystemInfo.preemptGroup[index]
             try: self.threadData[tid]
             except:
-                SystemInfo.printError("Fail to find %s task" % tid)
+                SystemInfo.printError("Fail to find \"%s\" task" % tid)
                 sys.exit(0)
 
             SystemInfo.clearPrint()
@@ -3608,8 +3608,8 @@ class ThreadInfo:
                 count += 1
                 if float(self.preemptData[index][4]) == 0:
                     break
-                SystemInfo.addPrint("%16s(%5s/%5s)|%6.3f(%5s)\n" \
-                % (self.threadData[key]['comm'], key, '0', value['usage'], \
+                SystemInfo.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n" \
+                % (self.threadData[key]['comm'], key, '0', self.threadData[key]['new'], self.threadData[key]['die'], value['usage'], \
                 str(round(float(value['usage']) / float(self.preemptData[index][4]) * 100, 1))))
             SystemInfo.pipePrint("%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
                     ('', 'PRT', tid, self.threadData[tid]['comm'], self.preemptData[index][4], count))
