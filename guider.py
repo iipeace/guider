@@ -2269,6 +2269,7 @@ class SystemInfo:
     sysEnable = False
     waitEnable = False
     functionEnable = False
+    systemEnable = False
     fileEnable = False
     threadEnable = False
     intervalEnable = 0
@@ -2306,7 +2307,7 @@ class SystemInfo:
 
         eventLogFile = str(self.getMountPath()) + '/tracing/trace_marker'
 
-        self.saveMeminfo()
+        self.saveMemInfo()
 
 
 
@@ -2671,6 +2672,8 @@ class SystemInfo:
                     None
                 elif sys.argv[n][1] == 'c':
                     None
+                elif sys.argv[n][1] == 'y':
+                    None
                 elif sys.argv[n][1] == 's':
                     None
                 elif sys.argv[n][1] == 'r':
@@ -2704,6 +2707,8 @@ class SystemInfo:
                         sys.exit(0)
                 elif sys.argv[n][1] == 'f':
                     SystemInfo.functionEnable = True
+                elif sys.argv[n][1] == 'y':
+                    SystemInfo.systemEnable = True
                 elif sys.argv[n][1] == 'e':
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('i') != -1:
@@ -2830,7 +2835,25 @@ class SystemInfo:
 
 
 
-    def saveMeminfo(self):
+    def saveSystemInfo(self):
+        # toDo: /proc/uptime, cmdline, loadavg, /proc/sys/kernel/osrelease, ostype, version, ... #
+        None
+
+
+
+    def saveCpuInfo(self):
+        # toDo: cpuinfo #
+        None
+
+
+
+    def saveDiskInfo(self):
+        # toDo: diskstat, mounts #
+        None
+
+
+
+    def saveMemInfo(self):
         f = open('/proc/meminfo', 'r')
         lines = f.readlines()
 
@@ -2845,11 +2868,6 @@ class SystemInfo:
                 d = m.groupdict()
                 self.memData[time][d['type']] = d['size']
         f.close()
-
-
-
-    def getMeminfo(self, data):
-        return str(self.memData[time][d['type']])
 
 
 
@@ -3213,19 +3231,19 @@ class SystemInfo:
 
 
     def printMemInfo(self):
-        # print memInfo #
         SystemInfo.pipePrint('\n')
         SystemInfo.pipePrint('[Memory Info]')
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("[ TOTAL]  MemSize: %9s  SwapSiz: %9s" % (self.memData['before']['MemTotal'], self.memData['before']['SwapTotal']))
-        SystemInfo.pipePrint("[BEFORE]  MemFree: %9s  Buffers: %9s  Cached: %9s  SwapFree: %9s" % \
-        (self.memData['before']['MemFree'], self.memData['before']['Buffers'], self.memData['before']['Cached'], self.memData['before']['SwapFree']))
-        SystemInfo.pipePrint("[ AFTER]  MemFree: %9s  Buffers: %9s  Cached: %9s  SwapFree: %9s" % \
-        (self.memData['after']['MemFree'], self.memData['after']['Buffers'], self.memData['after']['Cached'], self.memData['after']['SwapFree']))
-        SystemInfo.pipePrint("[ USAGE]  MemFree: %9s  Buffers: %9s  Cached: %9s  SwapFree: %9s" % \
-        (int(self.memData['after']['MemFree']) - int(self.memData['before']['MemFree']), int(self.memData['after']['Buffers']) - \
-        int(self.memData['before']['Buffers']), int(self.memData['after']['Cached']) - int(self.memData['before']['Cached']), \
-        int(self.memData['after']['SwapFree']) - int(self.memData['before']['SwapFree'])))
+        SystemInfo.pipePrint("[ TOTAL]  MemSize: %9s  SwapSize: %9s" % (self.memData['before']['MemTotal'], self.memData['before']['SwapTotal']))
+        SystemInfo.pipePrint("[BEFORE]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s  " % \
+        (self.memData['before']['MemFree'], self.memData['before']['SwapFree'], self.memData['before']['Buffers'], self.memData['before']['Cached']))
+        SystemInfo.pipePrint("[ AFTER]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s" % \
+        (self.memData['after']['MemFree'], self.memData['after']['SwapFree'], self.memData['after']['Buffers'], self.memData['after']['Cached']))
+        SystemInfo.pipePrint("[ USAGE]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s" % \
+        (int(self.memData['after']['MemFree']) - int(self.memData['before']['MemFree']), \
+         int(self.memData['after']['SwapFree']) - int(self.memData['before']['SwapFree']), \
+         int(self.memData['after']['Buffers']) - int(self.memData['before']['Buffers']), \
+         int(self.memData['after']['Cached']) - int(self.memData['before']['Cached'])))
         SystemInfo.pipePrint(twoLine)
 
 
@@ -5377,6 +5395,10 @@ if __name__ == '__main__':
             # si.runPeriodProc()
         elif SystemInfo.fileEnable is not False:
             SystemInfo.printStatus("file profile mode")
+        elif SystemInfo.systemEnable is not False:
+            SystemInfo.printStatus("system profile mode")
+            # toDo: implement system status viewer #
+            sys.exit(0)
         else:
             SystemInfo.printStatus("thread profile mode")
             SystemInfo.threadEnable = True
@@ -5463,8 +5485,8 @@ if __name__ == '__main__':
             SystemInfo.runRecordStopFinalCmd()
             sys.exit(0)
 
-        # save system information after profiling
-        si.saveMeminfo()
+        # save system information #
+        si.saveMemInfo()
 
     # parse additional option #
     SystemInfo.parseAddOption()
