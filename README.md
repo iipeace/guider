@@ -72,27 +72,31 @@ Options
 * Use comma(,) as delimiter for multiple values
 
 ```
--b[set_perCpuBuffer:kb]
--s[save_traceData:dir]
--o[set_outputFile:dir]
--r[record_repeatData:interval,count]
+[mode]
+        (default) [thread mode]
+        -y [system mode]
+        -f [function mode]
+        -m [file mode]
 
--e[enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]
--d[disable_options:t(ty)]
--c[ready_compareUsage]
+[record]
+        -b [set_perCpuBufferSize:kb]
+        -s [save_traceData:dir]
+        -r [record_repeatData:interval,count]
+        -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]
+        -d [disable_options:c(pu)|b(lock)|t(ty)]
+        -t [trace_syscall:syscallNums]
 
--a[show_allThreads]
--i[set_interval:sec]
--g[show_onlyGroup:comms]
--q[make_taskchain]
+[analysis]
+        -o [set_outputFile:dir]
+        -a [show_allInfo]
+        -i [set_interval:sec]
+        -w [show_threadDependency]
+        -p [show_preemptInfo:tids]
+        -l [input_addr2linePath:path]
+        -j [input_targetRootPath:dir]
+        -q [make_taskchain]
 
--w[show_threadDependency]
--p[show_preemptInfo:tids]
--t[trace_syscall:syscallNums]
+[common]
+        -g [filter_specificGroup:comms|tids]
 
--f[run_functionProfileMode:event]
--l[input_addr2linePath:file]
--j[input_targetRootPath:dir]
-
--m[run_pageProfileMode]
 ```
