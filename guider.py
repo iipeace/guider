@@ -5806,7 +5806,8 @@ if __name__ == '__main__':
     ti = ThreadInfo(SystemInfo.inputFile)
 
     # print system info #
-    si.printSystemInfo()
+    if SystemInfo.isRecordMode() is True:
+        si.printSystemInfo()
 
     # print event info #
     ei.printEventInfo()
