@@ -1350,7 +1350,8 @@ class FunctionInfo:
             SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                     (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
-            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % \
+                    (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".format("Usage", "Function", "Binary", "Source"))
@@ -1391,15 +1392,15 @@ class FunctionInfo:
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             # No symbol so that just print pos #
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
-                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
                         .format(round(float(cpuCnt) / float(value['cnt']) * 100, 1), symbolStack))
@@ -1413,7 +1414,8 @@ class FunctionInfo:
             SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
                     (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
-            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % (SystemInfo.targetEvent, self.periodicEventCnt))
+            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % \
+                    (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -1460,9 +1462,9 @@ class FunctionInfo:
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                                symbolStack += ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
                 SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
@@ -1481,11 +1483,12 @@ class FunctionInfo:
        # Print mem usage in user space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, self.pageFreeCnt * 4, self.pageFreeEventCnt))
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
+                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".format("Usage", "Usr", "Buf", "Ker", \
-                "Function", "Binary", "Source"))
+        SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
+                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
         SystemInfo.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
@@ -1524,15 +1527,15 @@ class FunctionInfo:
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             # No symbol so that just print pos #
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
-                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemInfo.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
                         userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
@@ -1543,7 +1546,8 @@ class FunctionInfo:
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
         SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, self.pageFreeCnt * 4, self.pageFreeEventCnt))
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
+                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".format("Usage", "Usr", "Buf", "Ker", "Function"))
@@ -1587,9 +1591,9 @@ class FunctionInfo:
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                                symbolStack += ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
                 SystemInfo.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
@@ -1644,15 +1648,15 @@ class FunctionInfo:
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack +=  ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             # No symbol so that just print pos #
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
-                                symbolStack +=  ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[4] * 0.5), symbolStack))
 
@@ -1702,9 +1706,9 @@ class FunctionInfo:
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack +=  ' <- ' + hex(int(pos, 16))
+                                symbolStack += ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack +=  ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
                 SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[3] * 0.5), symbolStack))
@@ -2300,14 +2304,30 @@ class SystemInfo:
 
 
     def __init__(self):
-        self.memData = {}
+        self.memInfo = {}
+        self.diskInfo = {}
+        self.mountInfo = {}
 
-        self.memData['before'] = dict()
-        self.memData['after'] = dict()
+        self.cpuData = None
+        self.memBeforeData = None
+        self.memAfterData = None
+        self.diskBeforeData = None
+        self.diskAfterData = None
+        self.mountData = None
+        self.systemData = None
+
+        self.cpuInfo = dict()
+        self.memInfo['before'] = dict()
+        self.memInfo['after'] = dict()
+        self.diskInfo['before'] = dict()
+        self.diskInfo['after'] = dict()
+        self.systemInfo = dict()
 
         eventLogFile = str(self.getMountPath()) + '/tracing/trace_marker'
 
+        # Save storage info first #
         self.saveMemInfo()
+        self.saveDiskInfo()
 
 
 
@@ -2439,7 +2459,8 @@ class SystemInfo:
     def writeCmd(path, val):
         try: fd = open(SystemInfo.mountPath + path, 'w')
         except:
-            SystemInfo.printWarning("Fail to use %s event, please confirm kernel configuration" % path[0:path.find('/')])
+            SystemInfo.printWarning("Fail to use %s event, please confirm kernel configuration" % \
+                    path[0:path.find('/')])
             return -1
         try:
             fd.write(val)
@@ -2606,14 +2627,16 @@ class SystemInfo:
                     if int(sys.argv[n].lstrip('-i')) >= 0:
                         SystemInfo.intervalEnable = int(sys.argv[n].lstrip('-i'))
                     else:
-                        SystemInfo.printError("wrong option value %s with -i option, use integer value" % (sys.argv[n].lstrip('-i')))
+                        SystemInfo.printError("wrong option value %s with -i option, use integer value" % \
+                                (sys.argv[n].lstrip('-i')))
                         if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                 elif sys.argv[n][1] == 'o':
                     SystemInfo.printFile = str(sys.argv[n].lstrip('-o'))
                     SystemInfo.ttyEnable = False
                     if os.path.isdir(SystemInfo.printFile) == False:
-                        SystemInfo.printError("wrong option value %s with -o option, use directory name" % (sys.argv[n].lstrip('-o')))
+                        SystemInfo.printError("wrong option value %s with -o option, use directory name" % \
+                                (sys.argv[n].lstrip('-o')))
                         if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                 elif sys.argv[n][1] == 'a':
@@ -2698,12 +2721,14 @@ class SystemInfo:
                 if sys.argv[n][1] == 'b':
                     try: int(sys.argv[n].lstrip('-b'))
                     except:
-                        SystemInfo.printError("wrong option value %s with -b option" % (sys.argv[n]))
+                        SystemInfo.printError("wrong option value %s with -b option" % \
+                                (sys.argv[n]))
                         sys.exit(0)
                     if int(sys.argv[n].lstrip('-b')) > 0:
                         SystemInfo.bufferSize = str(sys.argv[n].lstrip('-b'))
                     else:
-                        SystemInfo.printError("wrong option value %s with -b option" % (sys.argv[n].lstrip('-b')))
+                        SystemInfo.printError("wrong option value %s with -b option" % \
+                                (sys.argv[n].lstrip('-b')))
                         sys.exit(0)
                 elif sys.argv[n][1] == 'f':
                     SystemInfo.functionEnable = True
@@ -2739,7 +2764,8 @@ class SystemInfo:
                         SystemInfo.outputFile = SystemInfo.outputFile + '/guider.dat'
                     elif os.path.isdir(SystemInfo.outputFile[:SystemInfo.outputFile.rfind('/')]) == True: None
                     else:
-                        SystemInfo.printError("wrong option value %s with -s option" % (sys.argv[n].lstrip('-s')))
+                        SystemInfo.printError("wrong option value %s with -s option" % \
+                                (sys.argv[n].lstrip('-s')))
                         sys.exit(0)
                     SystemInfo.outputFile = SystemInfo.outputFile.replace('//', '/')
                 elif sys.argv[n][1] == 'w':
@@ -2841,33 +2867,66 @@ class SystemInfo:
 
 
 
+    def saveAllInfo(self):
+        self.saveCpuInfo()
+        self.saveMemInfo()
+        self.saveDiskInfo()
+        self.saveSystemInfo()
+
+
+
     def saveCpuInfo(self):
-        # toDo: cpuinfo #
-        None
+        cpuFile = '/proc/cpuinfo'
+
+        try:
+            f = open(cpuFile, 'r')
+            self.cpuData = f.readlines()
+            f.close()
+        except:
+            SystemInfo.printError("Fail to open %s" % cpuFile)
 
 
 
     def saveDiskInfo(self):
-        # toDo: diskstat, mounts #
-        None
+        diskFile = '/proc/diskstats'
+        mountFile = '/proc/mounts'
+
+        try:
+            df = open(diskFile, 'r')
+
+            if self.diskBeforeData is None:
+                self.diskBeforeData = df.readlines()
+            else:
+                self.diskAfterData = df.readlines()
+
+                try:
+                    mf = open(mountFile, 'r')
+                    self.mountData = mf.readlines()
+                    mf.close()
+                except:
+                    SystemInfo.printError("Fail to open %s" % mountFile)
+
+            df.close()
+        except:
+            SystemInfo.printError("Fail to open %s" % diskFile)
 
 
 
     def saveMemInfo(self):
-        f = open('/proc/meminfo', 'r')
-        lines = f.readlines()
+        memFile = '/proc/meminfo'
 
-        if self.memData['before'] == {}:
-            time = 'before'
-        else:
-            time = 'after'
+        try:
+            f = open(memFile, 'r')
+            lines = f.readlines()
 
-        for l in lines:
-            m = re.match('(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
-            if m is not None:
-                d = m.groupdict()
-                self.memData[time][d['type']] = d['size']
-        f.close()
+            if self.memBeforeData is None:
+                self.memBeforeData = lines
+            else:
+                self.memAfterData = lines
+
+            f.close()
+        except:
+            SystemInfo.printError("Fail to open %s" % memFile)
 
 
 
@@ -3094,7 +3153,8 @@ class SystemInfo:
 
         if self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
-            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
+            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, \
+                    SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
 
             SystemInfo.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_enter/enable', '1')
@@ -3109,7 +3169,8 @@ class SystemInfo:
 
         if self.cmdList["raw_syscalls/sys_exit"] is True:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
-            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
+            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, \
+                    SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
 
             SystemInfo.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_exit/enable', '1')
@@ -3230,20 +3291,222 @@ class SystemInfo:
 
 
 
-    def printMemInfo(self):
+    def printSystemInfo(self):
+        self.printCpuInfo()
+        self.printMemInfo()
+        self.printDiskInfo()
+
+
+
+    def printCpuInfo(self):
+        # parse data #
+        if self.cpuData is not None:
+            for l in self.cpuData:
+                m = re.match('(?P<type>.*):\s+(?P<val>.*)', l)
+                if m is not None:
+                    d = m.groupdict()
+                    self.cpuInfo[d['type'][0:len(d['type'])-1]] = d['val']
+        else:
+            return
+
         SystemInfo.pipePrint('\n')
-        SystemInfo.pipePrint('[Memory Info]')
+        SystemInfo.pipePrint('[CPU Info]')
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("[ TOTAL]  MemSize: %9s  SwapSize: %9s" % (self.memData['before']['MemTotal'], self.memData['before']['SwapTotal']))
-        SystemInfo.pipePrint("[BEFORE]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s  " % \
-        (self.memData['before']['MemFree'], self.memData['before']['SwapFree'], self.memData['before']['Buffers'], self.memData['before']['Cached']))
-        SystemInfo.pipePrint("[ AFTER]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s" % \
-        (self.memData['after']['MemFree'], self.memData['after']['SwapFree'], self.memData['after']['Buffers'], self.memData['after']['Cached']))
-        SystemInfo.pipePrint("[ USAGE]  MemFree: %9s  SwapFree: %9s  Buffers: %9s  Cached: %9s" % \
-        (int(self.memData['after']['MemFree']) - int(self.memData['before']['MemFree']), \
-         int(self.memData['after']['SwapFree']) - int(self.memData['before']['SwapFree']), \
-         int(self.memData['after']['Buffers']) - int(self.memData['before']['Buffers']), \
-         int(self.memData['after']['Cached']) - int(self.memData['before']['Cached'])))
+        SystemInfo.pipePrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemInfo.pipePrint(oneLine)
+
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Physical', int(self.cpuInfo['physical id']) + 1))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Cores', self.cpuInfo['cpu cores']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
+        except: None
+
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Vendor', self.cpuInfo['vendor_id']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Model', self.cpuInfo['model name']))
+        except: None
+
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Cache(L2)', self.cpuInfo['cache size']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Perf', self.cpuInfo['bogomips']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Address', self.cpuInfo['address sizes']))
+        except: None
+
+        SystemInfo.pipePrint(twoLine)
+
+
+
+    def printDiskInfo(self):
+        # parse data #
+        if self.diskBeforeData is not None or self.diskAfterData is not None:
+            time = 'before'
+            for l in self.diskBeforeData:
+                major, minor, name, readComplete, readMerge, sectorRead, readTime, \
+                    writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
+                    l.split()
+
+                name = '/dev/' + name
+                self.diskInfo[time][name] = dict()
+                diskInfoBuf = self.diskInfo[time][name]
+                diskInfoBuf['major'] = major
+                diskInfoBuf['minor'] = minor
+                diskInfoBuf['readComplete'] = readComplete
+                diskInfoBuf['readTime'] = readTime
+                diskInfoBuf['writeComplete'] = writeComplete
+                diskInfoBuf['writeTime'] = writeTime
+                diskInfoBuf['currentIO'] = currentIO
+                diskInfoBuf['ioTime'] = ioTime
+
+            time = 'after'
+            for l in self.diskAfterData:
+                major, minor, name, readComplete, readMerge, sectorRead, readTime, \
+                    writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
+                    l.split()
+
+                name = '/dev/' + name
+                self.diskInfo[time][name] = dict()
+                diskInfoBuf = self.diskInfo[time][name]
+                diskInfoBuf['major'] = major
+                diskInfoBuf['minor'] = minor
+                diskInfoBuf['readComplete'] = readComplete
+                diskInfoBuf['readTime'] = readTime
+                diskInfoBuf['writeComplete'] = writeComplete
+                diskInfoBuf['writeTime'] = writeTime
+                diskInfoBuf['currentIO'] = currentIO
+                diskInfoBuf['ioTime'] = ioTime
+        else:
+            return
+
+        if self.mountData is not None:
+            for l in self.mountData:
+                dev, path, fs, option, etc1, etc2 = l.split()
+
+                self.mountInfo[dev] = dict()
+                mountInfoBuf = self.mountInfo[dev]
+                mountInfoBuf['path'] = path
+                mountInfoBuf['fs'] = fs
+                mountInfoBuf['option'] = option
+        else:
+            return
+
+        # print disk info #
+        SystemInfo.pipePrint('\n')
+        SystemInfo.pipePrint('[Disk Info] [ Unit: ms/KB ]')
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+                ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
+                 "FileSystem", "MountPoint", "MountOption"))
+        SystemInfo.pipePrint(oneLine)
+
+        for key, val in self.mountInfo.items():
+            try:
+                beforeInfo = self.diskInfo['before'][key]
+                afterInfo = self.diskInfo['after'][key]
+            except:
+                continue
+
+            SystemInfo.pipePrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+                    (key, afterInfo['major'], afterInfo['minor'], \
+                    (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
+                    (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
+                    (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
+                    (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
+                    val['fs'], val['path'], val['option']))
+
+        SystemInfo.pipePrint(twoLine)
+
+
+
+    def printMemInfo(self):
+        # parse data #
+        if self.memBeforeData is not None or self.memAfterData is not None:
+            time = 'before'
+            for l in self.memBeforeData:
+                m = re.match('(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
+                if m is not None:
+                    d = m.groupdict()
+                    self.memInfo[time][d['type']] = d['size']
+
+            time = 'after'
+            for l in self.memAfterData:
+                m = re.match('(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
+                if m is not None:
+                    d = m.groupdict()
+                    self.memInfo[time][d['type']] = d['size']
+        else:
+            return
+
+        beforeInfo = self.memInfo['before']
+        afterInfo = self.memInfo['after']
+
+        # check items for compatibility #
+        try:
+            beforeInfo['Shmem']
+        except:
+            beforeInfo['Shmem'] = '0'
+            afterInfo['Shmem'] = '0'
+        try:
+            beforeInfo['SReclaimable']
+        except:
+            beforeInfo['SReclaimable'] = '0'
+            afterInfo['SReclaimable'] = '0'
+        try:
+            beforeInfo['Sunreclaim']
+        except:
+            beforeInfo['Sunreclaim'] = '0'
+            afterInfo['Sunreclaim'] = '0'
+        try:
+            beforeInfo['Mlocked']
+        except:
+            beforeInfo['Mlocked'] = '0'
+            afterInfo['Mlocked'] = '0'
+
+        # print memory info #
+        SystemInfo.pipePrint('\n')
+        SystemInfo.pipePrint('[Memory Info] [ Unit: MB ]')
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+                ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
+                 "Active", "Inactive", "Slab", "PageTables", "Reclaimable", "Unreclaim", "Mlocked"))
+        SystemInfo.pipePrint(oneLine)
+        SystemInfo.pipePrint("[ TOTAL] %10s %10s" % \
+                (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
+
+        SystemInfo.pipePrint("[BEFORE] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024, \
+         int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
+         int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
+         int(beforeInfo['Active']) / 1024, int(beforeInfo['Inactive']) / 1024, \
+         int(beforeInfo['Slab']) / 1024, int(beforeInfo['PageTables']) / 1024, \
+         int(beforeInfo['SReclaimable']) / 1024, int(beforeInfo['SUnreclaim']) / 1024, \
+         int(beforeInfo['Mlocked']) / 1024))
+
+        SystemInfo.pipePrint("[ AFTER] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        (int(afterInfo['MemFree']) / 1024, int(afterInfo['SwapFree']) / 1024, \
+         int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
+         int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
+         int(afterInfo['Active']) / 1024, int(afterInfo['Inactive']) / 1024, \
+         int(afterInfo['Slab']) / 1024, int(afterInfo['PageTables']) / 1024, \
+         int(afterInfo['SReclaimable']) / 1024, int(afterInfo['SUnreclaim']) / 1024, \
+         int(afterInfo['Mlocked']) / 1024))
+
+        SystemInfo.pipePrint("[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        ((int(afterInfo['MemFree']) - int(beforeInfo['MemFree'])) / 1024, \
+         (int(afterInfo['SwapFree']) - int(beforeInfo['SwapFree'])) / 1024, \
+         (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) / 1024, \
+         (int(afterInfo['Cached']) - int(beforeInfo['Cached'])) / 1024, \
+         (int(afterInfo['Shmem']) - int(beforeInfo['Shmem'])) / 1024, \
+         (int(afterInfo['Mapped']) - int(beforeInfo['Mapped'])) / 1024, \
+         (int(afterInfo['Active']) - int(beforeInfo['Active'])) / 1024, \
+         (int(afterInfo['Inactive']) - int(beforeInfo['Inactive'])) / 1024, \
+         (int(afterInfo['Slab']) - int(beforeInfo['Slab'])) / 1024, \
+         (int(afterInfo['PageTables']) - int(beforeInfo['PageTables'])) / 1024, \
+         (int(afterInfo['SReclaimable']) - int(beforeInfo['SReclaimable'])) / 1024, \
+         (int(afterInfo['SUnreclaim']) - int(beforeInfo['SUnreclaim'])) / 1024, \
+         (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) / 1024))
+
         SystemInfo.pipePrint(twoLine)
 
 
@@ -3298,7 +3561,8 @@ class EventInfo:
             else:
                 string = ''
                 for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
-                    string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
+                    string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % \
+                              (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
                 SystemInfo.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % \
                         (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
 
@@ -3563,11 +3827,13 @@ class ThreadInfo:
                 SystemInfo.addPrint(\
                     "%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4.2f(%2d)|\n" \
                     % (value['comm'], '0', '0', '-', '-', \
-                    self.totalTime - value['usage'], str(round(float(usagePercent), 1)), round(float(value['offTime']), 7), 0, 0, value['irq'], \
+                    self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
+                    round(float(value['offTime']), 7), 0, 0, value['irq'], \
                     value['offCnt'], '-', '-', '-', \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
-                    (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
+                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                     (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
                     value['dReclaimWait'], value['dReclaimCnt']))
                 count += 1
@@ -3600,9 +3866,10 @@ class ThreadInfo:
                     (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
-                    (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
+                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                     value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                     value['dReclaimWait'], value['dReclaimCnt']))
 
@@ -3649,7 +3916,8 @@ class ThreadInfo:
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                 value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                 (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                 value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                 value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
@@ -3673,7 +3941,8 @@ class ThreadInfo:
                 value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                 value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], value['writeBlock'], \
                 (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
                 value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
                 value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
@@ -3684,7 +3953,8 @@ class ThreadInfo:
         # print thread tree by creation #
         if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
             SystemInfo.clearPrint()
-            SystemInfo.pipePrint('\n' + '[Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+            SystemInfo.pipePrint('\n' + \
+                    '[Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemInfo.pipePrint(twoLine)
 
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -3868,14 +4138,15 @@ class ThreadInfo:
             for msg in self.consoleData:
                 try:
                     SystemInfo.pipePrint("%16s %5s %4s %10.3f %s" % \
-                            (self.threadData[msg[0]]['comm'], msg[0], msg[1], round(float(msg[2]) - float(self.startTime), 7), msg[3]))
+                            (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
+                             round(float(msg[2]) - float(self.startTime), 7), msg[3]))
                 except: continue
             SystemInfo.pipePrint(twoLine)
 
 
 
     def printIntervalInfo(self):
-        SystemInfo.pipePrint('\n' + '[Interval Info]')
+        SystemInfo.pipePrint('\n' + '[Interval Info] [ Unit: %s Sec ]' % SystemInfo.intervalEnable)
         SystemInfo.pipePrint(twoLine)
 
         # Total timeline #
@@ -3926,8 +4197,10 @@ class ThreadInfo:
                 if SystemInfo.graphEnable == True:
                     subplot(2,1,1)
                     timeLineData = [int(n) for n in timeLine.split()]
-                    range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable)
-                    plot(range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
+                    range(SystemInfo.intervalEnable, \
+                            (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable)
+                    plot(range(SystemInfo.intervalEnable, \
+                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
                     SystemInfo.graphLabels.append(value['comm'])
 
         if SystemInfo.graphEnable == True:
@@ -3975,7 +4248,8 @@ class ThreadInfo:
                 if SystemInfo.graphEnable == True:
                     subplot(2,1,2)
                     timeLineData = [int(n) for n in timeLine.split()]
-                    plot(range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
+                    plot(range(SystemInfo.intervalEnable, \
+                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
                     SystemInfo.graphLabels.append(value['comm'])
 
                 if value['usage'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
@@ -4032,7 +4306,8 @@ class ThreadInfo:
                 if SystemInfo.graphEnable == True:
                     subplot(2,1,1)
                     timeLineData = [int(n) for n in timeLine.split()]
-                    plot(range(SystemInfo.intervalEnable, (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
+                    plot(range(SystemInfo.intervalEnable, \
+                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
                     SystemInfo.graphLabels.append(value['comm'])
 
                 if value['readBlock'] < 1 and SystemInfo.showAll == False:
@@ -4069,7 +4344,7 @@ class ThreadInfo:
                         subplot(2,1,2)
                         timeLineData = [int(n) for n in timeLine.split()]
                         plot(range(SystemInfo.intervalEnable, \
-                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
+                                (len(timeLineData) + 1) * SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
                         SystemInfo.graphLabels.append(value['comm'])
 
                     if (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024) < 1 and SystemInfo.showAll == False:
@@ -4180,7 +4455,9 @@ class ThreadInfo:
                 try:
                     for key,value in sorted(self.lastTidPerCore.items()):
                         if float(time) - float(self.threadData[self.lastTidPerCore[key]]['start']) > SystemInfo.intervalEnable / 1000:
-                            self.threadData[self.lastTidPerCore[key]]['usage'] += float(time) - float(self.threadData[self.lastTidPerCore[key]]['start'])
+                            self.threadData[self.lastTidPerCore[key]]['usage'] += \
+                            float(time) - float(self.threadData[self.lastTidPerCore[key]]['start'])
+
                             self.threadData[self.lastTidPerCore[key]]['start'] = float(time)
                 except: None
 
@@ -4755,9 +5032,10 @@ class ThreadInfo:
                         else:
                             kicker = self.threadData[thread]['comm']
                             kicker_pid = thread
-                        self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % (round(float(time) - float(self.startTime), 7), \
-                         round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), kicker, \
-                         kicker_pid, target_comm, pid, "kick"))
+                        self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
+                                (round(float(time) - float(self.startTime), 7), \
+                                 round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                 kicker, kicker_pid, target_comm, pid, "kick"))
 
                         self.wakeupData['time'] = float(time) - float(self.startTime)
                         self.wakeupData['from'] = self.wakeupData['tid']
@@ -4832,17 +5110,19 @@ class ThreadInfo:
                     elif nr == SystemInfo.sysSelect or nr == SystemInfo.sysPoll or nr == SystemInfo.sysEpollwait:
                         if (self.lastJob[core]['job'] == "sched_switch" or self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
-                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % (round(float(time) - float(self.startTime), 7), \
-                            round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), " ", " ", self.threadData[thread]['comm'], \
-                            thread, "wakeup"))
+                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                    (round(float(time) - float(self.startTime), 7), \
+                                     round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                     " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
 
                             self.wakeupData['time'] = float(time) - float(self.startTime)
                             self.lastJob[core]['prevWakeupTid'] = thread
                     elif nr == SystemInfo.sysRecv:
                         if self.lastJob[core]['prevWakeupTid'] != thread:
-                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % (round(float(time) - float(self.startTime), 7), \
-                            round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), " ", " ", self.threadData[thread]['comm'], \
-                            thread, "recv"))
+                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                    (round(float(time) - float(self.startTime), 7), \
+                                     round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                     " ", " ", self.threadData[thread]['comm'], thread, "recv"))
 
                             self.wakeupData['time'] = float(time) - float(self.startTime)
                             self.lastJob[core]['prevWakeupTid'] = thread
@@ -4883,9 +5163,10 @@ class ThreadInfo:
                     target_comm = d['comm']
                     pid = d['pid']
 
-                    self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % (round(float(time) - float(self.startTime), 7), \
-                     round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), self.threadData[thread]['comm'], \
-                     thread, target_comm, pid, "sigsend", sig))
+                    self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
+                            (round(float(time) - float(self.startTime), 7), \
+                             round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                             self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
 
                     self.sigData.append(('SEND', float(time) - float(self.startTime), \
                      self.threadData[thread]['comm'], thread, target_comm, pid, sig))
@@ -5467,7 +5748,8 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile):
-                SystemInfo.printError("Buffer is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
+                SystemInfo.printError("Buffer is not enough (%s KB) or Profile time is too long" % \
+                        (si.getBufferSize()))
                 SystemInfo.runRecordStopCmd()
                 SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -5481,12 +5763,13 @@ if __name__ == '__main__':
                 break
 
         if initTime != ThreadInfo.getInitTime(SystemInfo.inputFile):
-            SystemInfo.printError("Buffer size is not enough (%s KB) or Profile time is too long" % (si.getBufferSize()))
+            SystemInfo.printError("Buffer size is not enough (%s KB) or Profile time is too long" % \
+                    (si.getBufferSize()))
             SystemInfo.runRecordStopFinalCmd()
             sys.exit(0)
 
         # save system information #
-        si.saveMemInfo()
+        si.saveAllInfo()
 
     # parse additional option #
     SystemInfo.parseAddOption()
@@ -5522,9 +5805,8 @@ if __name__ == '__main__':
     # create Thread Info #
     ti = ThreadInfo(SystemInfo.inputFile)
 
-    if SystemInfo.isRecordMode():
-        si.printMemInfo()
-        SystemInfo.runRecordStopFinalCmd()
+    # print system info #
+    si.printSystemInfo()
 
     # print event info #
     ei.printEventInfo()
