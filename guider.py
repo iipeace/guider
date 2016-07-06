@@ -210,7 +210,7 @@ class FunctionInfo:
         # Get binary and offset info #
         lines = logFd.readlines()
 
-        # Save data and exit if file is set #
+        # Save data and exit if output file is set #
         SystemInfo.saveDataAndExit(lines)
 
         # Check target thread setting #
@@ -1293,6 +1293,9 @@ class FunctionInfo:
         # Print title #
         SystemInfo.printTitle()
 
+        # print system information #
+        SystemInfo.printInfoBuffer()
+
         # Print profiled thread list #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
@@ -1347,10 +1350,10 @@ class FunctionInfo:
         # Print cpu usage in user space #
         SystemInfo.clearPrint()
         if SystemInfo.targetEvent is None:
-            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+            SystemInfo.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                     (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
-            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (USER)' % \
+            SystemInfo.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (USER)' % \
                     (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
@@ -1411,10 +1414,10 @@ class FunctionInfo:
         # Print cpu usage in kernel space #
         SystemInfo.clearPrint()
         if SystemInfo.targetEvent is None:
-            SystemInfo.pipePrint('[CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+            SystemInfo.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
                     (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
-            SystemInfo.pipePrint('[EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % \
+            SystemInfo.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % \
                     (SystemInfo.targetEvent, self.periodicEventCnt))
 
         SystemInfo.pipePrint(twoLine)
@@ -1424,6 +1427,7 @@ class FunctionInfo:
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
         for pos, value in self.posData.items():
+            break
             if value['symbol'] == '__irq_usr' or value['symbol'] == '__irq_svc' or \
                 value['symbol'] == '__hrtimer_start_range_ns' or value['symbol'] == 'hrtimer_start_range_ns' or \
                 value['symbol'] == 'apic_timer_interrupt':
@@ -1482,7 +1486,7 @@ class FunctionInfo:
 
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+        SystemInfo.pipePrint('[Function MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                  self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -1545,7 +1549,7 @@ class FunctionInfo:
 
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+        SystemInfo.pipePrint('[Function MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                  self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -1609,7 +1613,7 @@ class FunctionInfo:
 
         # Print BLOCK usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+        SystemInfo.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
@@ -1665,7 +1669,7 @@ class FunctionInfo:
 
         # Print BLOCK usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemInfo.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
                 (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemInfo.pipePrint(twoLine)
@@ -1797,13 +1801,6 @@ class FileInfo:
             else:
                 break
 
-        if SystemInfo.intervalEnable == 0:
-            # print total file usage per process #
-            self.printUsage()
-        else:
-            # print file usage per process on timeline #
-            self.printIntervalInfo()
-
 
 
     def printUsage(self):
@@ -1816,6 +1813,9 @@ class FileInfo:
 
         # Print title #
         SystemInfo.printTitle()
+
+        # print system information #
+        SystemInfo.printInfoBuffer()
 
         # Print proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
@@ -1831,7 +1831,7 @@ class FileInfo:
                 SystemInfo.pipePrint(printMsg)
                 printMsg = "{0:^7}{1:^11}".format('', '')
 
-        SystemInfo.pipePrint(oneLine + '\n\n\n')
+        SystemInfo.pipePrint(oneLine + '\n')
 
         # Print file list #
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
@@ -1897,6 +1897,9 @@ class FileInfo:
         # Print title #
         SystemInfo.printTitle()
 
+        # print system information #
+        SystemInfo.printInfoBuffer()
+
         # Print proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
         ('File Info', len(self.procList)))
@@ -1911,7 +1914,7 @@ class FileInfo:
                 SystemInfo.pipePrint(printMsg)
                 printMsg = "{0:^7}{1:^14}".format('', '')
 
-        SystemInfo.pipePrint(oneLine + '\n\n\n')
+        SystemInfo.pipePrint(oneLine + '\n')
 
         # Print file list #
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
@@ -2229,6 +2232,7 @@ class SystemInfo:
     bufferSize = '40960'
     ttyRows = '50'
     ttyCols = '156'
+    magicString = '@@@@@'
 
     mountPath = None
     addr2linePath = None
@@ -2252,6 +2256,7 @@ class SystemInfo:
     graphEnable = False
     graphLabels= []
     bufferString = ''
+    systemInfoBuffer = ''
 
     eventLogFile = None
     eventLogFD = None
@@ -2446,6 +2451,12 @@ class SystemInfo:
                     shutil.copy(SystemInfo.outputFile, os.path.join(SystemInfo.outputFile + '.old'))
 
                 f = open(SystemInfo.outputFile, 'wt')
+
+                if SystemInfo.systemInfoBuffer is not '':
+                    f.writelines(SystemInfo.magicString + '\n')
+                    f.writelines(SystemInfo.systemInfoBuffer)
+                    f.writelines(SystemInfo.magicString + '\n')
+
                 f.writelines(lines)
 
                 SystemInfo.runRecordStopFinalCmd()
@@ -2512,6 +2523,12 @@ class SystemInfo:
 
 
     @staticmethod
+    def printInfoBuffer():
+        SystemInfo.pipePrint(SystemInfo.systemInfoBuffer)
+
+
+
+    @staticmethod
     def writeEvent(message):
         if SystemInfo.eventLogFD == None:
             if SystemInfo.eventLogFile is None:
@@ -2534,6 +2551,18 @@ class SystemInfo:
 
 
     @staticmethod
+    def infoBufferPrint(line):
+        SystemInfo.systemInfoBuffer += line + '\n'
+
+
+
+    @staticmethod
+    def clearInfoBuffer(line):
+        SystemInfo.systemInfoBuffer = ''
+
+
+
+    @staticmethod
     def pipePrint(line):
         if SystemInfo.pipeForPrint == None and SystemInfo.selectMenu == None and SystemInfo.printFile == None:
             try: SystemInfo.pipeForPrint = os.popen('less', 'w')
@@ -2547,7 +2576,7 @@ class SystemInfo:
         if SystemInfo.pipeForPrint != None:
             try: SystemInfo.pipeForPrint.write(line + '\n')
             except:
-                SystemInfo.printError("printing to pipe failed\n")
+                SystemInfo.printError("Failed to print to pipe\n")
                 SystemInfo.pipeForPrint = None
 
         if SystemInfo.printFile != None and SystemInfo.fileForPrint == None:
@@ -2571,9 +2600,10 @@ class SystemInfo:
         if SystemInfo.fileForPrint != None:
             try: SystemInfo.fileForPrint.write(line + '\n')
             except:
-                SystemInfo.printError("printing to file failed\n")
+                SystemInfo.printError("Failed to print to file\n")
                 SystemInfo.pipeForPrint = None
-        else: print line
+        else: 
+            print line
 
 
 
@@ -3352,7 +3382,7 @@ class SystemInfo:
 
 
 
-    def printAllInfo(self):
+    def printAllInfoToBuf(self):
         self.printSystemInfo()
         self.printCpuInfo()
         self.printMemInfo()
@@ -3361,29 +3391,28 @@ class SystemInfo:
 
 
     def printSystemInfo(self):
-        SystemInfo.pipePrint('\n')
-        SystemInfo.pipePrint('[SYSTEM Info]')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^20} {1:100}".format("TYPE", "Information"))
-        SystemInfo.pipePrint(oneLine)
+        SystemInfo.infoBufferPrint('\n[SYSTEM Info]')
+        SystemInfo.infoBufferPrint(twoLine)
+        SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemInfo.infoBufferPrint(oneLine)
 
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".\
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
                 format('Kernel', self.systemInfo['osType'] + ' ' + self.systemInfo['kernelVer']))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".\
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
                 format('RunningTime', str(int(float(self.uptimeData[0])) / 60) + ' min'))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
                 str(int(float(self.loadData[0])) * 100) + '% (1 min)', \
                 str(int(float(self.loadData[1])) * 100) + '% (5 min)', \
                 str(int(float(self.loadData[2])) * 100) + '% (15 min)'))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
         except: None
 
-        SystemInfo.pipePrint(twoLine)
+        SystemInfo.infoBufferPrint(twoLine)
 
     def printCpuInfo(self):
         # parse data #
@@ -3396,32 +3425,31 @@ class SystemInfo:
         else:
             return
 
-        SystemInfo.pipePrint('\n')
-        SystemInfo.pipePrint('[CPU Info]')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^20} {1:100}".format("TYPE", "Information"))
-        SystemInfo.pipePrint(oneLine)
+        SystemInfo.infoBufferPrint('\n[CPU Info]')
+        SystemInfo.infoBufferPrint(twoLine)
+        SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemInfo.infoBufferPrint(oneLine)
 
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Physical', int(self.cpuInfo['physical id']) + 1))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Physical', int(self.cpuInfo['physical id']) + 1))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('CoresPerCPU', self.cpuInfo['cpu cores']))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('CoresPerCPU', self.cpuInfo['cpu cores']))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
-        except: None
-
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Vendor', self.cpuInfo['vendor_id']))
-        except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Model', self.cpuInfo['model name']))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
         except: None
 
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Cache(L2)', self.cpuInfo['cache size']))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Vendor', self.cpuInfo['vendor_id']))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Perf', self.cpuInfo['bogomips']))
-        except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Address', self.cpuInfo['address sizes']))
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Model', self.cpuInfo['model name']))
         except: None
 
-        SystemInfo.pipePrint(twoLine)
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Cache(L2)', self.cpuInfo['cache size']))
+        except: None
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Perf', self.cpuInfo['bogomips']))
+        except: None
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('Address', self.cpuInfo['address sizes']))
+        except: None
+
+        SystemInfo.infoBufferPrint(twoLine)
 
 
 
@@ -3479,13 +3507,12 @@ class SystemInfo:
             return
 
         # print disk info #
-        SystemInfo.pipePrint('\n')
-        SystemInfo.pipePrint('[Disk Info] [ Unit: ms/KB ]')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+        SystemInfo.infoBufferPrint('\n[Disk Info] [ Unit: ms/KB ]')
+        SystemInfo.infoBufferPrint(twoLine)
+        SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
                 ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
                  "FileSystem", "MountPoint", "MountOption"))
-        SystemInfo.pipePrint(oneLine)
+        SystemInfo.infoBufferPrint(oneLine)
 
         for key, val in self.mountInfo.items():
             try:
@@ -3494,7 +3521,7 @@ class SystemInfo:
             except:
                 continue
 
-            SystemInfo.pipePrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+            SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
                     (key, afterInfo['major'], afterInfo['minor'], \
                     (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                     (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
@@ -3502,7 +3529,7 @@ class SystemInfo:
                     (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
                     val['fs'], val['path'], val['option']))
 
-        SystemInfo.pipePrint(twoLine)
+        SystemInfo.infoBufferPrint(twoLine + '\n\n')
 
 
 
@@ -3551,17 +3578,16 @@ class SystemInfo:
             afterInfo['Mlocked'] = '0'
 
         # print memory info #
-        SystemInfo.pipePrint('\n')
-        SystemInfo.pipePrint('[Memory Info] [ Unit: MB ]')
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemInfo.infoBufferPrint('\n[Memory Info] [ Unit: MB ]')
+        SystemInfo.infoBufferPrint(twoLine)
+        SystemInfo.infoBufferPrint("[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
                  "Active", "Inactive", "Slab", "PageTables", "Reclaimable", "Unreclaim", "Mlocked"))
-        SystemInfo.pipePrint(oneLine)
-        SystemInfo.pipePrint("[ TOTAL] %10s %10s" % \
+        SystemInfo.infoBufferPrint(oneLine)
+        SystemInfo.infoBufferPrint("[ TOTAL] %10s %10s" % \
                 (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
 
-        SystemInfo.pipePrint("[BEFORE] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemInfo.infoBufferPrint("[BEFORE] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
         (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024, \
          int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
          int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
@@ -3570,7 +3596,7 @@ class SystemInfo:
          int(beforeInfo['SReclaimable']) / 1024, int(beforeInfo['SUnreclaim']) / 1024, \
          int(beforeInfo['Mlocked']) / 1024))
 
-        SystemInfo.pipePrint("[ AFTER] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemInfo.infoBufferPrint("[ AFTER] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
         (int(afterInfo['MemFree']) / 1024, int(afterInfo['SwapFree']) / 1024, \
          int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
          int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
@@ -3579,7 +3605,7 @@ class SystemInfo:
          int(afterInfo['SReclaimable']) / 1024, int(afterInfo['SUnreclaim']) / 1024, \
          int(afterInfo['Mlocked']) / 1024))
 
-        SystemInfo.pipePrint("[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemInfo.infoBufferPrint("[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
         ((int(afterInfo['MemFree']) - int(beforeInfo['MemFree'])) / 1024, \
          (int(afterInfo['SwapFree']) - int(beforeInfo['SwapFree'])) / 1024, \
          (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) / 1024, \
@@ -3594,7 +3620,7 @@ class SystemInfo:
          (int(afterInfo['SUnreclaim']) - int(beforeInfo['SUnreclaim'])) / 1024, \
          (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) / 1024))
 
-        SystemInfo.pipePrint(twoLine)
+        SystemInfo.infoBufferPrint(twoLine)
 
 
 
@@ -3679,6 +3705,7 @@ class ThreadInfo:
         self.totalTime = 0
         self.totalTimeOld = 0
         self.cxtSwitch = 0
+        self.nrNewTask = 0
         self.lastLog = None
 
         self.threadDataOld = {}
@@ -3725,6 +3752,7 @@ class ThreadInfo:
             SystemInfo.printError("Open %s" % file)
             sys.exit(0)
 
+        # Save data and exit if output file is set #
         SystemInfo.saveDataAndExit(lines)
 
         # start parsing logs #
@@ -3863,6 +3891,9 @@ class ThreadInfo:
     def printUsage(self):
         # print title #
         SystemInfo.printTitle()
+
+        # print system information #
+        SystemInfo.printInfoBuffer()
 
         # print menu #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]" % \
@@ -4038,7 +4069,7 @@ class ThreadInfo:
             SystemInfo.pipePrint(oneLine)
 
         # print thread tree by creation #
-        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
+        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0 and self.nrNewTask > 0:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + \
                     '[Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
@@ -4051,7 +4082,7 @@ class ThreadInfo:
             SystemInfo.pipePrint(oneLine)
 
         # print signal traffic #
-        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0:
+        if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0 and len(self.sigData) > 0:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + '[Signal Info]')
             SystemInfo.pipePrint(twoLine)
@@ -4458,20 +4489,33 @@ class ThreadInfo:
     @staticmethod
     def getInitTime(file):
         readLineCnt = 0
+        systemInfoBuffer = ''
 
         try:
             f = open(file, 'r')
 
             while True:
                 # Make delay because some filtered logs are not wrote soon #
-                time.sleep(0.1)
+                time.sleep(0.01)
 
-                if readLineCnt > 50 and SystemInfo.recordStatus is not True:
+                # Find recognizable log in file #
+                if readLineCnt > 500 and SystemInfo.recordStatus is not True:
                     SystemInfo.printError("Fail to recognize format: Log is corrupted / There is no log collected / Filter is wrong")
                     SystemInfo.runRecordStopCmd()
                     sys.exit(0)
 
                 l = f.readline()
+                
+                # Find system info data in file and save it #
+                if l[0:-1] == SystemInfo.magicString:
+                    while True:
+                        l = f.readline()
+
+                        if l[0:-1] == SystemInfo.magicString:
+                            SystemInfo.systemInfoBuffer = systemInfoBuffer
+                            break
+                        else:
+                            systemInfoBuffer += l
 
                 readLineCnt += 1
 
@@ -5461,6 +5505,7 @@ class ThreadInfo:
                         self.threadData[thread]['childList'] = list()
 
                     self.threadData[thread]['childList'].append(pid)
+                    self.nrNewTask += 1
 
             elif func == "task_rename":
                 m = re.match('^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+newcomm=(?P<newcomm>.*)\s+oom_score_adj', etc)
@@ -5798,6 +5843,19 @@ if __name__ == '__main__':
 
             # start file profiling #
             pi = FileInfo()
+
+            # save system info and write it to buffer #
+            if SystemInfo.isRecordMode() is True:
+                si.saveAllInfo()
+                si.printAllInfoToBuf()
+
+            # print total file usage per process #
+            if SystemInfo.intervalEnable == 0:
+                pi.printUsage()
+            # print file usage per process on timeline #
+            else:
+                pi.printIntervalInfo()
+
             sys.exit(0)
 
         # start recording for thread profile #
@@ -5867,6 +5925,10 @@ if __name__ == '__main__':
     # check log file is recoginizable #
     ThreadInfo.getInitTime(SystemInfo.inputFile)
 
+    # write system info to buffer #
+    if SystemInfo.isRecordMode() is True:
+        si.printAllInfoToBuf()
+
     # create Function Info #
     if SystemInfo.functionEnable is not False:
         fi = FunctionInfo(SystemInfo.inputFile)
@@ -5879,22 +5941,18 @@ if __name__ == '__main__':
         fi.printUsage()
 
         sys.exit(0)
+    else:
+        if SystemInfo.graphEnable is True:
+            try: from pylab import *
+            except:
+                SystemInfo.printWarning("making graph is not supported")
+                SystemInfo.graphEnable = False
+
+        # create Thread Info #
+        ti = ThreadInfo(SystemInfo.inputFile)
 
     # create Event Info #
     ei = EventInfo()
-
-    if SystemInfo.graphEnable is True:
-        try: from pylab import *
-        except:
-            SystemInfo.printWarning("making graph is not supported")
-            SystemInfo.graphEnable = False
-
-    # create Thread Info #
-    ti = ThreadInfo(SystemInfo.inputFile)
-
-    # print system info #
-    if SystemInfo.isRecordMode() is True:
-        si.printAllInfo()
 
     # print event info #
     ei.printEventInfo()
