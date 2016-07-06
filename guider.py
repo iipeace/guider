@@ -1298,7 +1298,7 @@ class FunctionInfo:
 
         # Print profiled thread list #
         SystemInfo.pipePrint("[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('Function Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
+        ('Function Thread Info', 'Elapsed time', round(self.totalTime, 7), len(self.threadData), SystemInfo.logSize / 1024))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|".\
                 format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE"))
@@ -1662,7 +1662,7 @@ class FunctionInfo:
                             else:
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[4] * 0.5), symbolStack))
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
@@ -1696,7 +1696,7 @@ class FunctionInfo:
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                blockCnt = stack[3]
+                blockCnt = stack[4]
                 subStack = list(stack[1])
 
                 if blockCnt  == 0:
@@ -1715,7 +1715,7 @@ class FunctionInfo:
                                 symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
-                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(stack[3] * 0.5), symbolStack))
+                SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemInfo.pipePrint(oneLine)
         SystemInfo.pipePrint('\n\n')
