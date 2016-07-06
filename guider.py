@@ -7,6 +7,7 @@ __license__ = "GPLv2"
 __version__ = "3.0.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
+__repository__ = "https://github.com/iipeace/guider"
 
 
 
@@ -5781,8 +5782,15 @@ if __name__ == '__main__':
         print('\t\t-q [make_taskchain]')
         print('\n\t[common]')
         print('\t\t-g [filter_specificGroup:comms|tids]')
-        print('\n')
 
+        print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
+        print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
+        print("\nCopyright: ")
+        print("\t%s" % (__copyright__))
+        print("\tLicense %s" % (__license__))
+        print("\tThis is free software.")
+
+        print('\n')
         sys.exit(0)
 
     SystemInfo.inputFile = sys.argv[1]
