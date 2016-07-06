@@ -1487,7 +1487,7 @@ class FunctionInfo:
 
        # Print mem usage in user space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[Function MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+        SystemInfo.pipePrint('[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                  self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -1550,7 +1550,7 @@ class FunctionInfo:
 
         # Print mem usage in kernel space #
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('[Function MEM Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+        SystemInfo.pipePrint('[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                  self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -1820,7 +1820,7 @@ class FileInfo:
 
         # Print proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
-        ('File Info', len(self.procData)))
+        ('File Process Info', len(self.procData)))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".format("Pid", "Size(KB)", "ThreadName", "Tid"))
         SystemInfo.pipePrint(twoLine)
@@ -1903,7 +1903,7 @@ class FileInfo:
 
         # Print proccess list #
         SystemInfo.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('File Info', len(self.procList)))
+        ('File Process Info', len(self.procList)))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^7}|{1:_^13}|{2:_^16}({3:_^7})".format("Pid", "MaxSize(KB)", "ThreadName", "Tid"))
         SystemInfo.pipePrint(twoLine)
@@ -3392,7 +3392,7 @@ class SystemInfo:
 
 
     def printSystemInfo(self):
-        SystemInfo.infoBufferPrint('\n[SYSTEM Info]')
+        SystemInfo.infoBufferPrint('\n[System Info]')
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
         SystemInfo.infoBufferPrint(oneLine)
@@ -3426,7 +3426,7 @@ class SystemInfo:
         else:
             return
 
-        SystemInfo.infoBufferPrint('\n[CPU Info]')
+        SystemInfo.infoBufferPrint('\n[System CPU Info]')
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
         SystemInfo.infoBufferPrint(oneLine)
@@ -3508,7 +3508,7 @@ class SystemInfo:
             return
 
         # print disk info #
-        SystemInfo.infoBufferPrint('\n[Disk Info] [ Unit: ms/KB ]')
+        SystemInfo.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
                 ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
@@ -3579,7 +3579,7 @@ class SystemInfo:
             afterInfo['Mlocked'] = '0'
 
         # print memory info #
-        SystemInfo.infoBufferPrint('\n[Memory Info] [ Unit: MB ]')
+        SystemInfo.infoBufferPrint('\n[System Memory Info] [ Unit: MB ]')
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
@@ -4073,7 +4073,7 @@ class ThreadInfo:
         if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0 and self.nrNewTask > 0:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + \
-                    '[Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+                    '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] [Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemInfo.pipePrint(twoLine)
 
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -4085,7 +4085,7 @@ class ThreadInfo:
         # print signal traffic #
         if SystemInfo.showAll == True and len(SystemInfo.showGroup) == 0 and len(self.sigData) > 0:
             SystemInfo.clearPrint()
-            SystemInfo.pipePrint('\n' + '[Signal Info]')
+            SystemInfo.pipePrint('\n' + '[Thread Signal Info]')
             SystemInfo.pipePrint(twoLine)
             SystemInfo.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s->\t %16s(%5s)" % \
                     ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECVER', 'TID'))
@@ -4108,7 +4108,7 @@ class ThreadInfo:
             totalCnt = int(0)
             totalUsage = float(0)
 
-            SystemInfo.pipePrint('\n' + '[IRQ Info]')
+            SystemInfo.pipePrint('\n' + '[Thread IRQ Info]')
             SystemInfo.pipePrint(twoLine)
             SystemInfo.pipePrint("%16s(%16s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
                     ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
@@ -4141,7 +4141,7 @@ class ThreadInfo:
         init_moduleData = {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
 
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('\n' + '[Module Info]')
+        SystemInfo.pipePrint('\n' + '[Thread Module Info]')
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
                 format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
@@ -4187,7 +4187,7 @@ class ThreadInfo:
 
     def printDepInfo(self):
         SystemInfo.clearPrint()
-        SystemInfo.pipePrint('\n' + '[Dependency Info]')
+        SystemInfo.pipePrint('\n' + '[Thread Dependency Info]')
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
                 ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
@@ -4207,7 +4207,7 @@ class ThreadInfo:
         SystemInfo.clearPrint()
         if self.sysuserCallData != []:
             if len(SystemInfo.showGroup) > 0:
-                SystemInfo.pipePrint('\n' + '[Syscall Info]')
+                SystemInfo.pipePrint('\n' + '[Thread Syscall Info]')
                 SystemInfo.pipePrint(twoLine)
                 SystemInfo.pipePrint("%16s(%4s)\t%7s\t\t%6s\t\t%6s\t\t%6s\t\t%6s\t\t%6s" % \
                         ("Name", "Tid", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
@@ -4250,7 +4250,7 @@ class ThreadInfo:
 
     def printConsoleInfo(self):
         if len(self.consoleData) > 0 and SystemInfo.showAll == True:
-            SystemInfo.pipePrint('\n' + '[Message Info]')
+            SystemInfo.pipePrint('\n' + '[Thread Message Info]')
             SystemInfo.pipePrint(twoLine)
             SystemInfo.pipePrint("%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
             SystemInfo.pipePrint(twoLine)
@@ -4265,7 +4265,7 @@ class ThreadInfo:
 
 
     def printIntervalInfo(self):
-        SystemInfo.pipePrint('\n' + '[Interval Info] [ Unit: %s Sec ]' % SystemInfo.intervalEnable)
+        SystemInfo.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemInfo.intervalEnable)
         SystemInfo.pipePrint(twoLine)
 
         # Total timeline #
