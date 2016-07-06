@@ -2603,7 +2603,7 @@ class SystemInfo:
             except:
                 SystemInfo.printError("Failed to print to file\n")
                 SystemInfo.pipeForPrint = None
-        else: 
+        else:
             print line
 
 
@@ -4506,7 +4506,7 @@ class ThreadInfo:
                     sys.exit(0)
 
                 l = f.readline()
-                
+
                 # Find system info data in file and save it #
                 if l[0:-1] == SystemInfo.magicString:
                     while True:
@@ -5755,23 +5755,27 @@ if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print("\n[ g.u.i.d.e.r \t%s ]\n\n" % __version__)
 
-        print('Usage: \n\t# guider.py [command] [options]\n')
-        print('Example: \n\t# guider.py record -s. -emi\n\t$ guider.py guider.dat -o. -a\n')
+        print('Usage:')
+        print('\t# guider.py record [options]')
+        print('\t$ guider.py <file> [options]\n')
+
+        print('Example:')
+        print('\t# guider.py record -s. -emi\n\t$ guider.py guider.dat -o. -a\n')
 
         print('Options:')
-        print('\n\t[mode]')
+        print('\t[mode]')
         print('\t\t(default) [thread mode]')
         print('\t\t-y [system mode]')
         print('\t\t-f [function mode]')
         print('\t\t-m [file mode]')
-        print('\n\t[record]')
+        print('\t[record]')
         print('\t\t-b [set_perCpuBufferSize:kb]')
         print('\t\t-s [save_traceData:dir]')
         print('\t\t-r [record_repeatData:interval,count]')
         print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-t [trace_syscall:syscallNums]')
-        print('\n\t[analysis]')
+        print('\t[analysis]')
         print('\t\t-o [set_outputFile:dir]')
         print('\t\t-a [show_allInfo]')
         print('\t\t-i [set_interval:sec]')
@@ -5780,14 +5784,14 @@ if __name__ == '__main__':
         print('\t\t-l [input_addr2linePath:path]')
         print('\t\t-j [input_targetRootPath:dir]')
         print('\t\t-q [make_taskchain]')
-        print('\n\t[common]')
+        print('\t[common]')
         print('\t\t-g [filter_specificGroup:comms|tids]')
 
         print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
         print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
         print("\nCopyright: ")
-        print("\t%s" % (__copyright__))
-        print("\tLicense %s" % (__license__))
+        print("\t%s." % (__copyright__))
+        print("\tLicense %s." % (__license__))
         print("\tThis is free software.")
 
         print('\n')
