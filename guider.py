@@ -2307,6 +2307,7 @@ class SystemInfo:
         self.memInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
+        self.systemInfo = {}
 
         self.cpuData = None
         self.memBeforeData = None
@@ -2315,6 +2316,9 @@ class SystemInfo:
         self.diskAfterData = None
         self.mountData = None
         self.systemData = None
+        self.uptimeData = None
+        self.loadData = None
+        self.cmdlineData = None
 
         self.cpuInfo = dict()
         self.memInfo['before'] = dict()
@@ -2862,8 +2866,65 @@ class SystemInfo:
 
 
     def saveSystemInfo(self):
-        # toDo: /proc/uptime, cmdline, loadavg, /proc/sys/kernel/osrelease, ostype, version, ... #
-        None
+        uptimeFile = '/proc/uptime'
+
+        try:
+            f = open(uptimeFile, 'r')
+            self.uptimeData = f.readline()
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % uptimeFile)
+
+        self.uptimeData = self.uptimeData.split()
+        # uptimeData[0] = running time in sec, [1]= idle time in sec * cores #
+
+        cmdlineFile = '/proc/cmdline'
+
+        try:
+            f = open(cmdlineFile, 'r')
+            self.cmdlineData = f.readline()[0:-1]
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % cmdlineFile)
+
+        loadFile = '/proc/loadavg'
+
+        try:
+            f = open(loadFile, 'r')
+            self.loadData = f.readline()
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % loadFile)
+
+        self.loadData = self.loadData.split()
+        # loadData[0] = 1min usage, [1] = 5min usage, [2] = 15min usage, [3] = running/total thread, [4] = lastPid #
+
+        kernelVersionFile = '/proc/sys/kernel/osrelease'
+
+        try:
+            f = open(kernelVersionFile, 'r')
+            self.systemInfo['kernelVer'] = f.readline()[0:-1]
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % kernelVersionFile)
+
+        osVersionFile = '/proc/sys/kernel/version'
+
+        try:
+            f = open(osVersionFile, 'r')
+            self.systemInfo['osVer'] = f.readline()[0:-1]
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % osVersionFile)
+
+        osTypeFile = '/proc/sys/kernel/ostype'
+
+        try:
+            f = open(osTypeFile, 'r')
+            self.systemInfo['osType'] = f.readline()[0:-1]
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % osTypeFile)
 
 
 
@@ -2883,7 +2944,7 @@ class SystemInfo:
             self.cpuData = f.readlines()
             f.close()
         except:
-            SystemInfo.printError("Fail to open %s" % cpuFile)
+            SystemInfo.printWarning("Fail to open %s" % cpuFile)
 
 
 
@@ -2904,11 +2965,11 @@ class SystemInfo:
                     self.mountData = mf.readlines()
                     mf.close()
                 except:
-                    SystemInfo.printError("Fail to open %s" % mountFile)
+                    SystemInfo.printWarning("Fail to open %s" % mountFile)
 
             df.close()
         except:
-            SystemInfo.printError("Fail to open %s" % diskFile)
+            SystemInfo.printWarning("Fail to open %s" % diskFile)
 
 
 
@@ -2926,7 +2987,7 @@ class SystemInfo:
 
             f.close()
         except:
-            SystemInfo.printError("Fail to open %s" % memFile)
+            SystemInfo.printWarning("Fail to open %s" % memFile)
 
 
 
@@ -3291,12 +3352,38 @@ class SystemInfo:
 
 
 
-    def printSystemInfo(self):
+    def printAllInfo(self):
+        self.printSystemInfo()
         self.printCpuInfo()
         self.printMemInfo()
         self.printDiskInfo()
 
 
+
+    def printSystemInfo(self):
+        SystemInfo.pipePrint('\n')
+        SystemInfo.pipePrint('[SYSTEM Info]')
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemInfo.pipePrint(oneLine)
+
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".\
+                format('Kernel', self.systemInfo['osType'] + ' ' + self.systemInfo['kernelVer']))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".\
+                format('RunningTime', str(int(float(self.uptimeData[0])) / 60) + ' min'))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
+                str(int(float(self.loadData[0])) * 100) + '% (1 min)', \
+                str(int(float(self.loadData[1])) * 100) + '% (5 min)', \
+                str(int(float(self.loadData[2])) * 100) + '% (15 min)'))
+        except: None
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
+        except: None
+
+        SystemInfo.pipePrint(twoLine)
 
     def printCpuInfo(self):
         # parse data #
@@ -3317,7 +3404,7 @@ class SystemInfo:
 
         try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Physical', int(self.cpuInfo['physical id']) + 1))
         except: None
-        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Cores', self.cpuInfo['cpu cores']))
+        try: SystemInfo.pipePrint("{0:20} {1:<100}".format('CoresPerCPU', self.cpuInfo['cpu cores']))
         except: None
         try: SystemInfo.pipePrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
         except: None
@@ -5807,7 +5894,7 @@ if __name__ == '__main__':
 
     # print system info #
     if SystemInfo.isRecordMode() is True:
-        si.printSystemInfo()
+        si.printAllInfo()
 
     # print event info #
     ei.printEventInfo()
