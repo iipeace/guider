@@ -1729,7 +1729,6 @@ class FileInfo:
     def __init__(self):
         self.libguider = None
         self.libguiderPath = './libguider.so'
-        self.procPath = '/proc'
 
         self.startTime = None
         self.profSuccessCnt = 0
@@ -1999,13 +1998,13 @@ class FileInfo:
     def scanProcs(self):
         # scan comms include words in SystemInfo.showGroup #
         try:
-            pids = os.listdir(self.procPath)
+            pids = os.listdir(SystemInfo.procPath)
             for pid in pids:
                 try: int(pid)
                 except: continue
 
                 # make path of tid #
-                procPath = os.path.join(self.procPath, pid)
+                procPath = os.path.join(SystemInfo.procPath, pid)
                 taskPath = os.path.join(procPath, 'task')
                 tids = os.listdir(taskPath)
 
@@ -2045,7 +2044,7 @@ class FileInfo:
                                 self.procData[pid]['tids'][tid] = dict(self.init_threadData)
                                 self.procData[pid]['tids'][tid]['comm'] = comm
         except:
-            SystemInfo.printError('Fail to open %s' % self.procPath)
+            SystemInfo.printError('Fail to open %s' % SystemInfo.procPath)
 
 
 
@@ -2234,6 +2233,7 @@ class SystemInfo:
     ttyRows = '50'
     ttyCols = '156'
     magicString = '@@@@@'
+    procPath = '/proc'
 
     mountPath = None
     addr2linePath = None
@@ -2282,6 +2282,8 @@ class SystemInfo:
     systemEnable = False
     fileEnable = False
     threadEnable = False
+    backgroundEnable = False
+    warningEnable = False
     intervalEnable = 0
 
     repeatInterval = 0
@@ -2610,31 +2612,32 @@ class SystemInfo:
 
     @staticmethod
     def printWarning(line):
-        print ConfigInfo.WARNING + '[Warning] ' + line + ConfigInfo.ENDC
+        if SystemInfo.warningEnable is True:
+            print '\n' + ConfigInfo.WARNING + '[Warning] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printError(line):
-        print ConfigInfo.FAIL + '[Error] ' + line + ConfigInfo.ENDC
+        print '\n' + ConfigInfo.FAIL + '[Error] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printInfo(line):
-        print ConfigInfo.BOLD + '[Info] ' + line + ConfigInfo.ENDC
+        print '\n' + ConfigInfo.BOLD + '[Info] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printGood(line):
-        print ConfigInfo.OKGREEN + '[Info] ' + line + ConfigInfo.ENDC
+        print '\n' + ConfigInfo.OKGREEN + '[Info] ' + line + ConfigInfo.ENDC
 
 
 
     @staticmethod
     def printUnderline(line):
-        print ConfigInfo.UNDERLINE + line + ConfigInfo.ENDC
+        print '\n' + ConfigInfo.UNDERLINE + line + ConfigInfo.ENDC
 
 
 
@@ -2703,10 +2706,14 @@ class SystemInfo:
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('g') != -1:
                         SystemInfo.graphEnable = True
-                        SystemInfo.printInfo("graph is made for resource usage")
+                        SystemInfo.printInfo("drawing graph for resource usage")
                     if options.rfind('t') != -1:
                         SystemInfo.ttyEnable = True
                         SystemInfo.printInfo("tty is set")
+                    if options.rfind('w') != -1:
+                        if SystemInfo.warningEnable is False:
+                            SystemInfo.warningEnable = True
+                            SystemInfo.printInfo("printing warning message for debug")
                 elif sys.argv[n][1] == 'g':
                     if SystemInfo.outputFile != None:
                         SystemInfo.printWarning("only specific threads are recorded")
@@ -2739,6 +2746,8 @@ class SystemInfo:
                     None
                 elif sys.argv[n][1] == 'm':
                     None
+                elif sys.argv[n][1] == 'u':
+                    None
                 else:
                     SystemInfo.printError("unrecognized option -%s" % (sys.argv[n][1]))
                     if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
@@ -2768,6 +2777,8 @@ class SystemInfo:
                         sys.exit(0)
                 elif sys.argv[n][1] == 'f':
                     SystemInfo.functionEnable = True
+                elif sys.argv[n][1] == 'u':
+                    SystemInfo.backgroundEnable = True
                 elif sys.argv[n][1] == 'y':
                     SystemInfo.systemEnable = True
                 elif sys.argv[n][1] == 'e':
@@ -2784,6 +2795,9 @@ class SystemInfo:
                     if options.rfind('f') != -1:
                         SystemInfo.futexEnable = True
                         SystemInfo.printInfo("futex profile")
+                    if options.rfind('w') != -1:
+                        SystemInfo.warningEnable = True
+                        SystemInfo.printInfo("printing warning message for debug")
                 elif sys.argv[n][1] == 'g':
                     if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
                         SystemInfo.printWarning("only specific threads are recorded")
@@ -2872,6 +2886,42 @@ class SystemInfo:
         else:
             return False
 
+
+
+    @staticmethod
+    def isStopMode():
+        if sys.argv[1] == 'stop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def sendSignalProcs():
+        myPid = str(os.getpid())
+        commLocation = sys.argv[0].rfind('/')
+        if commLocation >= 0:
+            targetComm = sys.argv[0][commLocation + 1:]
+        else:
+            targetComm = sys.argv[0]
+
+        pids = os.listdir(SystemInfo.procPath)
+        for pid in pids:
+            if myPid == pid:
+                continue
+
+            try: int(pid)
+            except: continue
+
+            # make comm path of pid #
+            procPath = os.path.join(SystemInfo.procPath, pid)
+
+            fd = open(procPath + '/comm', 'r')
+            comm = fd.readline()[0:-1]
+            if comm == targetComm:
+                os.kill(int(pid), signal.SIGINT)
+                SystemInfo.printInfo("terminated %s process" % pid)
 
 
 
@@ -5792,11 +5842,13 @@ if __name__ == '__main__':
         print("\n[ g.u.i.d.e.r \t%s ]\n\n" % __version__)
 
         print('Usage:')
-        print('\t# guider.py record [options]')
-        print('\t$ guider.py <file> [options]\n')
+        print('\t# %s record [options]' % sys.argv[0])
+        print('\t# %s stop' % sys.argv[0])
+        print('\t$ %s <file> [options]\n' % sys.argv[0])
 
         print('Example:')
-        print('\t# guider.py record -s. -emi\n\t$ guider.py guider.dat -o. -a\n')
+        print('\t# %s record -s. -emi' % sys.argv[0])
+        print('\n\t$ %s guider.dat -o. -a\n' % sys.argv[0])
 
         print('Options:')
         print('\t[mode]')
@@ -5805,11 +5857,12 @@ if __name__ == '__main__':
         print('\t\t-f [function mode]')
         print('\t\t-m [file mode]')
         print('\t[record]')
-        print('\t\t-b [set_perCpuBufferSize:kb]')
         print('\t\t-s [save_traceData:dir]')
-        print('\t\t-r [record_repeatData:interval,count]')
-        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]')
+        print('\t\t-u [run_inBackground]')
+        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
+        print('\t\t-r [record_repeatData:interval,count]')
+        print('\t\t-b [set_perCpuBufferSize:kb]')
         print('\t\t-t [trace_syscall:syscallNums]')
         print('\t[analysis]')
         print('\t\t-o [set_outputFile:dir]')
@@ -5836,6 +5889,11 @@ if __name__ == '__main__':
     SystemInfo.inputFile = sys.argv[1]
     SystemInfo.outputFile = None
 
+    # terminate background process #
+    if SystemInfo.isStopMode() is True:
+        SystemInfo.sendSignalProcs()
+        sys.exit(0)
+
     # parse recording option #
     if SystemInfo.isRecordMode() is True:
         # update record status #
@@ -5845,7 +5903,7 @@ if __name__ == '__main__':
         # set this process to RT priority #
         SystemInfo.setRtPriority('90')
 
-        # save system information #`
+        # save system information #
         si = SystemInfo()
 
         SystemInfo.parseRecordOption()
@@ -5862,6 +5920,15 @@ if __name__ == '__main__':
         else:
             SystemInfo.printStatus("thread profile mode")
             SystemInfo.threadEnable = True
+
+        # run in background #
+        if SystemInfo.backgroundEnable is True:
+            pid = os.fork()
+
+            if pid > 0:
+                sys.exit(0)
+            else:
+                SystemInfo.printStatus("background running as process %s" % os.getpid())
 
         # wait for signal #
         if SystemInfo.waitEnable is True:
