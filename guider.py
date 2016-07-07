@@ -3426,8 +3426,13 @@ class SystemInfo:
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
                 format('Kernel', self.systemInfo['osType'] + ' ' + self.systemInfo['kernelVer']))
         except: None
-        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
-                format('RunningTime', str(int(float(self.uptimeData[0])) / 60) + ' min'))
+        try: 
+            RunningMin = int(float(self.uptimeData[0])) / 60
+            RunningHour = RunningMin / 60
+            if RunningHour > 0:
+                RunningMin %= 60
+            SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
+                format('RunningTime', str(RunningHour) + ' hour  ' + str(RunningMin) + ' min'))
         except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
                 str(int(float(self.loadData[0])) * 100) + '% (1 min)', \
