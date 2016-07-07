@@ -2957,6 +2957,24 @@ class SystemInfo:
         except:
             SystemInfo.printWarning("Fail to open %s" % osTypeFile)
 
+        timeFile = '/proc/driver/rtc'
+
+        try:
+            f = open(timeFile, 'r')
+            timeInfo = f.readlines()
+
+            for val in timeInfo:
+                timeEntity = val.split()
+                
+                if timeEntity[0] == 'rtc_time':
+                    self.systemInfo['time'] = timeEntity[2]
+                elif timeEntity[0] == 'rtc_date':
+                    self.systemInfo['date'] = timeEntity[2]
+
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % osTypeFile)
+
 
 
     def saveAllInfo(self):
@@ -3392,11 +3410,14 @@ class SystemInfo:
 
 
     def printSystemInfo(self):
-        SystemInfo.infoBufferPrint('\n[System Info]')
+        SystemInfo.infoBufferPrint('\n[System General Info]')
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
         SystemInfo.infoBufferPrint(oneLine)
 
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
+                format('Time', self.systemInfo['date'] + ' ' + self.systemInfo['time']))
+        except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
         except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
@@ -3587,9 +3608,16 @@ class SystemInfo:
         SystemInfo.infoBufferPrint(oneLine)
         SystemInfo.infoBufferPrint("[ TOTAL] %10s %10s" % \
                 (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
+        SystemInfo.infoBufferPrint("[  FREE] %10s %10s" % \
+                (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024))
 
-        SystemInfo.infoBufferPrint("[BEFORE] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-        (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024, \
+        memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
+        swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
+        memAfterUsage = int(afterInfo['MemTotal']) - int(afterInfo['MemFree'])
+        swapAfterUsage = int(afterInfo['SwapTotal']) - int(afterInfo['SwapFree'])
+
+        SystemInfo.infoBufferPrint("[USAGE1] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        (memBeforeUsage / 1024, swapBeforeUsage / 1024, \
          int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
          int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
          int(beforeInfo['Active']) / 1024, int(beforeInfo['Inactive']) / 1024, \
@@ -3597,8 +3625,8 @@ class SystemInfo:
          int(beforeInfo['SReclaimable']) / 1024, int(beforeInfo['SUnreclaim']) / 1024, \
          int(beforeInfo['Mlocked']) / 1024))
 
-        SystemInfo.infoBufferPrint("[ AFTER] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-        (int(afterInfo['MemFree']) / 1024, int(afterInfo['SwapFree']) / 1024, \
+        SystemInfo.infoBufferPrint("[USAGE2] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        (memAfterUsage / 1024, swapAfterUsage / 1024, \
          int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
          int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
          int(afterInfo['Active']) / 1024, int(afterInfo['Inactive']) / 1024, \
@@ -3607,19 +3635,19 @@ class SystemInfo:
          int(afterInfo['Mlocked']) / 1024))
 
         SystemInfo.infoBufferPrint("[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-        ((int(afterInfo['MemFree']) - int(beforeInfo['MemFree'])) / 1024, \
-         (int(afterInfo['SwapFree']) - int(beforeInfo['SwapFree'])) / 1024, \
-         (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) / 1024, \
-         (int(afterInfo['Cached']) - int(beforeInfo['Cached'])) / 1024, \
-         (int(afterInfo['Shmem']) - int(beforeInfo['Shmem'])) / 1024, \
-         (int(afterInfo['Mapped']) - int(beforeInfo['Mapped'])) / 1024, \
-         (int(afterInfo['Active']) - int(beforeInfo['Active'])) / 1024, \
-         (int(afterInfo['Inactive']) - int(beforeInfo['Inactive'])) / 1024, \
-         (int(afterInfo['Slab']) - int(beforeInfo['Slab'])) / 1024, \
-         (int(afterInfo['PageTables']) - int(beforeInfo['PageTables'])) / 1024, \
-         (int(afterInfo['SReclaimable']) - int(beforeInfo['SReclaimable'])) / 1024, \
-         (int(afterInfo['SUnreclaim']) - int(beforeInfo['SUnreclaim'])) / 1024, \
-         (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) / 1024))
+        (memAfterUsage / 1024 - memBeforeUsage / 1024, \
+         swapAfterUsage / 1024 - swapBeforeUsage / 1024, \
+         int(afterInfo['Buffers']) / 1024 - int(beforeInfo['Buffers']) / 1024, \
+         int(afterInfo['Cached']) / 1024 - int(beforeInfo['Cached']) / 1024, \
+         int(afterInfo['Shmem']) / 1024 - int(beforeInfo['Shmem']) / 1024, \
+         int(afterInfo['Mapped']) / 1024 - int(beforeInfo['Mapped']) / 1024, \
+         int(afterInfo['Active']) / 1024 - int(beforeInfo['Active']) / 1024, \
+         int(afterInfo['Inactive']) / 1024 - int(beforeInfo['Inactive']) / 1024, \
+         int(afterInfo['Slab']) / 1024 - int(beforeInfo['Slab']) / 1024, \
+         int(afterInfo['PageTables']) / 1024 - int(beforeInfo['PageTables']) / 1024, \
+         int(afterInfo['SReclaimable']) / 1024 - int(beforeInfo['SReclaimable']) / 1024, \
+         int(afterInfo['SUnreclaim']) / 1024 - int(beforeInfo['SUnreclaim']) / 1024, \
+         int(afterInfo['Mlocked']) / 1024 - int(beforeInfo['Mlocked']) / 1024))
 
         SystemInfo.infoBufferPrint(twoLine)
 
