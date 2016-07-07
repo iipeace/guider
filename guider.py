@@ -2896,9 +2896,17 @@ class SystemInfo:
             return False
 
 
+    @staticmethod
+    def isSendMode():
+        if sys.argv[1] == 'send':
+            return True
+        else:
+            return False
+
+
 
     @staticmethod
-    def sendSignalProcs():
+    def sendSignalProcs(nrSig):
         nrProc = 0
         myPid = str(os.getpid())
         commLocation = sys.argv[0].rfind('/')
@@ -2921,8 +2929,13 @@ class SystemInfo:
             fd = open(procPath + '/comm', 'r')
             comm = fd.readline()[0:-1]
             if comm == targetComm:
-                os.kill(int(pid), signal.SIGINT)
-                SystemInfo.printInfo("terminated %s process" % pid)
+                os.kill(int(pid), nrSig)
+
+                if nrSig == signal.SIGINT:
+                    SystemInfo.printInfo("terminated %s process" % pid)
+                elif nrSig == signal.SIGQUIT:
+                    SystemInfo.printInfo("sent signal to %s process" % pid)
+
                 nrProc += 1
 
         if nrProc == 0:
@@ -4806,7 +4819,16 @@ class ThreadInfo:
                                 prevIntervalThread['cpuPer'] = prevIntervalThread['cpuUsage'] / SystemInfo.intervalEnable * 100
 
                             # calculate percentage of cpu usage of this thread in this interval #
-                            intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
+                            if self.thisInterval > 0:
+                                intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
+                            else:
+                                intervalThread['cpuPer'] = 0
+
+                            # revise thread interval usage in DVFS system #
+                            if intervalThread['cpuPer'] > 100:
+                                intervalThread['cpuPer'] = 100
+                            elif intervalThread['cpuPer'] < 0:
+                                intervalThread['cpuPer'] = 0
 
                             # fix preempted time exceed this interval #
                             if intervalThread['preempted'] > SystemInfo.intervalEnable:
@@ -5846,6 +5868,7 @@ if __name__ == '__main__':
         print('Usage:')
         print('\t# %s record [options]' % sys.argv[0])
         print('\t# %s stop' % sys.argv[0])
+        print('\t# %s send' % sys.argv[0])
         print('\t$ %s <file> [options]\n' % sys.argv[0])
 
         print('Example:')
@@ -5891,9 +5914,14 @@ if __name__ == '__main__':
     SystemInfo.inputFile = sys.argv[1]
     SystemInfo.outputFile = None
 
-    # terminate background process #
+    # send termination signal to background process #
     if SystemInfo.isStopMode() is True:
-        SystemInfo.sendSignalProcs()
+        SystemInfo.sendSignalProcs(signal.SIGINT)
+        sys.exit(0)
+
+    # send quit signal to background process #
+    if SystemInfo.isSendMode() is True:
+        SystemInfo.sendSignalProcs(signal.SIGQUIT)
         sys.exit(0)
 
     # parse recording option #
