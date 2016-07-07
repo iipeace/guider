@@ -5909,16 +5909,16 @@ if __name__ == '__main__':
         SystemInfo.parseRecordOption()
 
         if SystemInfo.functionEnable is not False:
-            SystemInfo.printStatus("function profile mode")
+            SystemInfo.printInfo("function profile mode")
             # toDo: make periodic event lesser than every 100us for specific thread #
             # si.runPeriodProc()
         elif SystemInfo.fileEnable is not False:
-            SystemInfo.printStatus("file profile mode")
+            SystemInfo.printInfo("file profile mode")
         elif SystemInfo.systemEnable is not False:
             SystemInfo.waitEnable = True
-            SystemInfo.printStatus("system profile mode")
+            SystemInfo.printInfo("system profile mode")
         else:
-            SystemInfo.printStatus("thread profile mode")
+            SystemInfo.printInfo("thread profile mode")
             SystemInfo.threadEnable = True
 
         # run in background #
