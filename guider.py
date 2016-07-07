@@ -2899,6 +2899,7 @@ class SystemInfo:
 
     @staticmethod
     def sendSignalProcs():
+        nrProc = 0
         myPid = str(os.getpid())
         commLocation = sys.argv[0].rfind('/')
         if commLocation >= 0:
@@ -2922,6 +2923,10 @@ class SystemInfo:
             if comm == targetComm:
                 os.kill(int(pid), signal.SIGINT)
                 SystemInfo.printInfo("terminated %s process" % pid)
+                nrProc += 1
+
+        if nrProc == 0:
+            SystemInfo.printInfo("No running process in background")
 
 
 
