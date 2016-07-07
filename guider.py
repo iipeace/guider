@@ -1996,55 +1996,63 @@ class FileInfo:
 
 
     def scanProcs(self):
-        # scan comms include words in SystemInfo.showGroup #
+        # get process list in proc directory #
         try:
             pids = os.listdir(SystemInfo.procPath)
-            for pid in pids:
-                try: int(pid)
+        except:
+            SystemInfo.printError('Fail to open %s' % (SystemInfo.procPath))
+            sys.exit(0)
+
+        # scan comms include words in SystemInfo.showGroup #
+        for pid in pids:
+            try: int(pid)
+            except: continue
+
+            # make path of tid #
+            procPath = os.path.join(SystemInfo.procPath, pid)
+            taskPath = os.path.join(procPath, 'task')
+
+            try:
+                tids = os.listdir(taskPath)
+            except:
+                SystemInfo.printWarning('Fail to open %s' % (taskPath))
+                continue
+
+            for tid in tids:
+                try: int(tid)
                 except: continue
 
-                # make path of tid #
-                procPath = os.path.join(SystemInfo.procPath, pid)
-                taskPath = os.path.join(procPath, 'task')
-                tids = os.listdir(taskPath)
+                # make path of comm #
+                threadPath = os.path.join(taskPath, tid)
+                commPath = os.path.join(threadPath, 'comm')
 
-                for tid in tids:
-                    try: int(tid)
-                    except: continue
+                try:
+                    fd = open(commPath, 'r')
+                    comm = fd.readline()
+                    comm = comm[0:len(comm) - 1]
+                    fd.close()
+                except:
+                    SystemInfo.printWarning('Fail to open %s' % (commPath))
+                    continue
 
-                    # make path of comm #
-                    threadPath = os.path.join(taskPath, tid)
-                    commPath = os.path.join(threadPath, 'comm')
+                # save process info #
+                for val in SystemInfo.showGroup:
+                    if comm.rfind(val) != -1 or tid == val:
+                        # access procData #
+                        try: self.procData[pid]
+                        except:
+                            self.procData[pid] = dict(self.init_procData)
+                            self.procData[pid]['tids'] = {}
+                            self.procData[pid]['procMap'] = {}
 
-                    try:
-                        fd = open(commPath, 'r')
-                        comm = fd.readline()
-                        comm = comm[0:len(comm) - 1]
-                        fd.close()
-                    except:
-                        SystemInfo.printWarning('Fail to open %s' % (commPath))
-                        continue
+                            # make or update mapInfo per process #
+                            self.makeProcMapInfo(pid, threadPath + '/maps')
 
-                    # save process info #
-                    for val in SystemInfo.showGroup:
-                        if comm.rfind(val) != -1 or tid == val:
-                            # access procData #
-                            try: self.procData[pid]
-                            except:
-                                self.procData[pid] = dict(self.init_procData)
-                                self.procData[pid]['tids'] = {}
-                                self.procData[pid]['procMap'] = {}
-
-                                # make or update mapInfo per process #
-                                self.makeProcMapInfo(pid, threadPath + '/maps')
-
-                            # access threadData #
-                            try: self.procData[pid]['tids'][tid]
-                            except:
-                                self.procData[pid]['tids'][tid] = dict(self.init_threadData)
-                                self.procData[pid]['tids'][tid]['comm'] = comm
-        except:
-            SystemInfo.printError('Fail to open %s' % SystemInfo.procPath)
+                        # access threadData #
+                        try: self.procData[pid]['tids'][tid]
+                        except:
+                            self.procData[pid]['tids'][tid] = dict(self.init_threadData)
+                            self.procData[pid]['tids'][tid]['comm'] = comm
 
 
 
