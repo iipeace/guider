@@ -3798,7 +3798,6 @@ class ThreadInfo:
         self.totalTimeOld = 0
         self.cxtSwitch = 0
         self.nrNewTask = 0
-        self.lastLog = None
 
         self.threadDataOld = {}
         self.irqDataOld = {}
@@ -3849,7 +3848,6 @@ class ThreadInfo:
 
         # start parsing logs #
         SystemInfo.printStatus('start analyzing... [ STOP(ctrl + c) ]')
-        self.lastLog = lines[-1]
         SystemInfo.totalLine = len(lines)
         for idx, log in enumerate(lines):
             self.parse(log)
@@ -4687,9 +4685,8 @@ class ThreadInfo:
             if self.startTime == '0':
                 self.startTime = time
             else:
-                # set the time of last log in advance #
-                if self.lastLog == string:
-                    self.finishTime = time
+                # set the time of last log #
+                self.finishTime = time
 
                 # calculate usage of threads in interval #
                 if SystemInfo.intervalEnable > 0:
