@@ -5881,7 +5881,7 @@ if __name__ == '__main__':
 
         print('Example:')
         print('\t# %s record -s. -emi' % sys.argv[0])
-        print('\n\t$ %s guider.dat -o. -a\n' % sys.argv[0])
+        print('\t$ %s guider.dat -o. -a\n' % sys.argv[0])
 
         print('Options:')
         print('\t[mode]')
