@@ -1836,7 +1836,7 @@ class FileInfo:
 
         # Print file list #
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('File Info', len(self.fileData)))
+        ('File Usage Info', len(self.fileData)))
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:_^12}|{1:_^10}|{2:_^5}| {3:6}".\
                 format("Memory(KB)", "File(KB)", "%", "Path"))
@@ -1919,7 +1919,7 @@ class FileInfo:
 
         # Print file list #
         SystemInfo.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('File Info', len(self.fileList)))
+        ('File Usage Info', len(self.fileList)))
         SystemInfo.pipePrint(twoLine)
         printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitMem(KB)", "File(KB)", "%")
         if len(self.intervalFileData) > 1:
@@ -2672,7 +2672,8 @@ class SystemInfo:
                     if os.path.isdir(SystemInfo.printFile) == False:
                         SystemInfo.printError("wrong option value %s with -o option, use directory name" % \
                                 (sys.argv[n].lstrip('-o')))
-                        if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
+                        if SystemInfo.isRecordMode() is True and SystemInfo.systemEnable is False:
+                            SystemInfo.runRecordStopFinalCmd()
                         sys.exit(0)
                 elif sys.argv[n][1] == 'a':
                     SystemInfo.showAll = True
@@ -2847,6 +2848,8 @@ class SystemInfo:
                     if options.rfind('b') != -1:
                         SystemInfo.blockEnable = False
                         SystemInfo.printInfo("block events are disabled")
+                    if options.rfind('a') != -1:
+                        SystemInfo.printInfo("all events are disabled")
                 elif sys.argv[n][1] == 'q':
                     None
                 elif sys.argv[n][1] == 'g':
@@ -5849,9 +5852,8 @@ if __name__ == '__main__':
         elif SystemInfo.fileEnable is not False:
             SystemInfo.printStatus("file profile mode")
         elif SystemInfo.systemEnable is not False:
+            SystemInfo.waitEnable = True
             SystemInfo.printStatus("system profile mode")
-            # toDo: implement system status viewer #
-            sys.exit(0)
         else:
             SystemInfo.printStatus("thread profile mode")
             SystemInfo.threadEnable = True
@@ -5861,6 +5863,22 @@ if __name__ == '__main__':
             SystemInfo.printStatus("wait for starting profile... [ START(ctrl + c) ]")
             signal.signal(signal.SIGINT, SystemInfo.defaultHandler)
             signal.pause()
+
+        if SystemInfo.systemEnable is True:
+            # save system info and write it to buffer #
+            si.saveAllInfo()
+            si.printAllInfoToBuf()
+
+            # parse all options and make output file path #
+            SystemInfo.parseAddOption()
+            if SystemInfo.printFile is not None:
+                SystemInfo.outputFile = SystemInfo.printFile + '/guider.out'
+
+            # print system information #
+            SystemInfo.printTitle()
+            SystemInfo.pipePrint(SystemInfo.systemInfoBuffer)
+
+            sys.exit(0)
 
         # set signal #
         if SystemInfo.repeatCount > 0 and SystemInfo.repeatInterval > 0 and SystemInfo.threadEnable is True:
@@ -5885,9 +5903,8 @@ if __name__ == '__main__':
             pi = FileInfo()
 
             # save system info and write it to buffer #
-            if SystemInfo.isRecordMode() is True:
-                si.saveAllInfo()
-                si.printAllInfoToBuf()
+            si.saveAllInfo()
+            si.printAllInfoToBuf()
 
             # print total file usage per process #
             if SystemInfo.intervalEnable == 0:
