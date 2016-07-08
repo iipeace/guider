@@ -2931,6 +2931,15 @@ class SystemInfo:
 
 
     @staticmethod
+    def isTopMode():
+        if sys.argv[1] == 'top':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def printBackgroundProcs():
         nrProc = 0
         printBuf = ''
@@ -5951,6 +5960,7 @@ if __name__ == '__main__':
 
         print('Usage:')
         print('\t# %s record [options]' % sys.argv[0])
+        print('\t# %s top [options]' % sys.argv[0])
         print('\t# %s start' % sys.argv[0])
         print('\t# %s stop' % sys.argv[0])
         print('\t# %s send' % sys.argv[0])
@@ -6012,6 +6022,11 @@ if __name__ == '__main__':
     # send event signal to background process #
     if SystemInfo.isSendMode() is True:
         SystemInfo.sendSignalProcs(signal.SIGQUIT)
+        sys.exit(0)
+
+    # start top mode #
+    if SystemInfo.isTopMode() is True:
+        print "\nNot yet implemented\n"
         sys.exit(0)
 
     # parse recording option #
