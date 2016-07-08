@@ -2897,6 +2897,23 @@ class SystemInfo:
 
 
     @staticmethod
+    def isStartMode():
+        if sys.argv[1] == 'start':
+            return True
+        else:
+            return False
+
+
+    @staticmethod
+    def isListMode():
+        if sys.argv[1] == 'list':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStopMode():
         if sys.argv[1] == 'stop':
             return True
@@ -2911,6 +2928,50 @@ class SystemInfo:
         else:
             return False
 
+
+
+    @staticmethod
+    def printBackgroundProcs():
+        nrProc = 0
+        printBuf = ''
+        myPid = str(os.getpid())
+        commLocation = sys.argv[0].rfind('/')
+        if commLocation >= 0:
+            targetComm = sys.argv[0][commLocation + 1:]
+        else:
+            targetComm = sys.argv[0]
+
+        pids = os.listdir(SystemInfo.procPath)
+        for pid in pids:
+            if myPid == pid:
+                continue
+
+            try: int(pid)
+            except: continue
+
+            # make comm path of pid #
+            procPath = os.path.join(SystemInfo.procPath, pid)
+
+            fd = open(procPath + '/comm', 'r')
+            comm = fd.readline()[0:-1]
+            if comm == targetComm:
+                try:
+                    cmdFd = open(procPath + '/cmdline', 'r')
+                    cmdline = cmdFd.readline().replace("\x00", " ")
+                    printBuf += "%6s\t%s" % (pid, cmdline)
+                except:
+                    continue
+
+                nrProc += 1
+
+        if nrProc == 0:
+            SystemInfo.printInfo("No running process in background")
+        else:
+            print '\n', twoLine
+            print "%6s\t%s" % ("PID", "COMMAND")
+            print oneLine
+            print printBuf
+            print oneLine, '\n'
 
 
     @staticmethod
@@ -2937,11 +2998,26 @@ class SystemInfo:
             fd = open(procPath + '/comm', 'r')
             comm = fd.readline()[0:-1]
             if comm == targetComm:
-                os.kill(int(pid), nrSig)
-
                 if nrSig == signal.SIGINT:
-                    SystemInfo.printInfo("terminated %s process" % pid)
+                    waitStatus = False
+
+                    try:
+                        cmdFd = open(procPath + '/cmdline', 'r')
+                        cmdList = cmdFd.readline().split('\x00')
+                        for val in cmdList:
+                            if val == '-c':
+                                waitStatus = True
+                    except:
+                        continue
+
+                    if SystemInfo.isStartMode() is True and waitStatus is True:
+                        os.kill(int(pid), nrSig)
+                        SystemInfo.printInfo("started %s process to profile" % pid)
+                    elif SystemInfo.isStopMode() is True:
+                        os.kill(int(pid), nrSig)
+                        SystemInfo.printInfo("terminated %s process" % pid)
                 elif nrSig == signal.SIGQUIT:
+                    os.kill(int(pid), nrSig)
                     SystemInfo.printInfo("sent signal to %s process" % pid)
 
                 nrProc += 1
@@ -5875,6 +5951,7 @@ if __name__ == '__main__':
 
         print('Usage:')
         print('\t# %s record [options]' % sys.argv[0])
+        print('\t# %s start' % sys.argv[0])
         print('\t# %s stop' % sys.argv[0])
         print('\t# %s send' % sys.argv[0])
         print('\t$ %s <file> [options]\n' % sys.argv[0])
@@ -5922,12 +5999,17 @@ if __name__ == '__main__':
     SystemInfo.inputFile = sys.argv[1]
     SystemInfo.outputFile = None
 
-    # send termination signal to background process #
-    if SystemInfo.isStopMode() is True:
+    # print backgroud process list #
+    if SystemInfo.isListMode() is True:
+        SystemInfo.printBackgroundProcs()
+        sys.exit(0)
+
+    # send start / stop signal to background process #
+    if SystemInfo.isStartMode() is True or SystemInfo.isStopMode() is True:
         SystemInfo.sendSignalProcs(signal.SIGINT)
         sys.exit(0)
 
-    # send quit signal to background process #
+    # send event signal to background process #
     if SystemInfo.isSendMode() is True:
         SystemInfo.sendSignalProcs(signal.SIGQUIT)
         sys.exit(0)
