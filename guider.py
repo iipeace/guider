@@ -3764,7 +3764,7 @@ class SystemInfo:
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
-                 "Active", "Inactive", "Slab", "PageTables", "Reclaimable", "Unreclaim", "Mlocked"))
+                 "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
         SystemInfo.infoBufferPrint(oneLine)
         SystemInfo.infoBufferPrint("[ TOTAL] %10s %10s" % \
                 (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
@@ -3781,7 +3781,7 @@ class SystemInfo:
          int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
          int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
          int(beforeInfo['Active']) / 1024, int(beforeInfo['Inactive']) / 1024, \
-         int(beforeInfo['Slab']) / 1024, int(beforeInfo['PageTables']) / 1024, \
+         int(beforeInfo['PageTables']) / 1024, int(beforeInfo['Slab']) / 1024, \
          int(beforeInfo['SReclaimable']) / 1024, int(beforeInfo['SUnreclaim']) / 1024, \
          int(beforeInfo['Mlocked']) / 1024))
 
@@ -3790,7 +3790,7 @@ class SystemInfo:
          int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
          int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
          int(afterInfo['Active']) / 1024, int(afterInfo['Inactive']) / 1024, \
-         int(afterInfo['Slab']) / 1024, int(afterInfo['PageTables']) / 1024, \
+         int(afterInfo['PageTables']) / 1024, int(afterInfo['Slab']) / 1024, \
          int(afterInfo['SReclaimable']) / 1024, int(afterInfo['SUnreclaim']) / 1024, \
          int(afterInfo['Mlocked']) / 1024))
 
@@ -3803,8 +3803,8 @@ class SystemInfo:
          int(afterInfo['Mapped']) / 1024 - int(beforeInfo['Mapped']) / 1024, \
          int(afterInfo['Active']) / 1024 - int(beforeInfo['Active']) / 1024, \
          int(afterInfo['Inactive']) / 1024 - int(beforeInfo['Inactive']) / 1024, \
-         int(afterInfo['Slab']) / 1024 - int(beforeInfo['Slab']) / 1024, \
          int(afterInfo['PageTables']) / 1024 - int(beforeInfo['PageTables']) / 1024, \
+         int(afterInfo['Slab']) / 1024 - int(beforeInfo['Slab']) / 1024, \
          int(afterInfo['SReclaimable']) / 1024 - int(beforeInfo['SReclaimable']) / 1024, \
          int(afterInfo['SUnreclaim']) / 1024 - int(beforeInfo['SUnreclaim']) / 1024, \
          int(afterInfo['Mlocked']) / 1024 - int(beforeInfo['Mlocked']) / 1024))
