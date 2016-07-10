@@ -4332,6 +4332,14 @@ class ThreadInfo:
 
 
     def printModuleInfo(self):
+        eventCnt = 0
+        for val in self.moduleData:
+            event = val[0]
+            if event == 'load' or event == 'free':
+                eventCnt += 1
+        if eventCnt == 0:
+            return
+
         moduleTable = {}
         init_moduleData = {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
 
@@ -4364,9 +4372,7 @@ class ThreadInfo:
             elif event is 'put':
                 try: moduleTable[module]
                 except:
-                    SystemInfo.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:^7}|".\
-                            format('LOAD', float(time) - float(self.startTime), module, \
-                            self.threadData[tid]['comm'], tid, '?'))
+                    continue
 
                 moduleTable[module]['elapsed'] += float(time) - float(moduleTable[module]['startTime'])
                 moduleTable[module]['startTime'] = 0
