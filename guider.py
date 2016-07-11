@@ -3700,9 +3700,9 @@ class SystemInfo:
         # print disk info #
         SystemInfo.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
         SystemInfo.infoBufferPrint(twoLine)
-        SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+        SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
                 ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
-                 "FileSystem", "MountPoint", "MountOption"))
+                 "FileSystem", "MountPoint <MountOption>"))
         SystemInfo.infoBufferPrint(oneLine)
 
         for key, val in self.mountInfo.items():
@@ -3712,13 +3712,13 @@ class SystemInfo:
             except:
                 continue
 
-            SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s %20s" % \
+            SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
                     (key, afterInfo['major'], afterInfo['minor'], \
                     (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                     (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
                     (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
                     (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
-                    val['fs'], val['path'], val['option']))
+                    val['fs'], val['path'] + ' <' + val['option'] + '>'))
 
         SystemInfo.infoBufferPrint(twoLine + '\n\n')
 
