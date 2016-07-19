@@ -3596,9 +3596,9 @@ class SystemInfo:
                 format('RunningTime', str(RunningHour) + ' hour  ' + str(RunningMin) + ' min'))
         except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
-                str(int(float(self.loadData[0])) * 100) + '% (1 min)', \
-                str(int(float(self.loadData[1])) * 100) + '% (5 min)', \
-                str(int(float(self.loadData[2])) * 100) + '% (15 min)'))
+                str(int(float(self.loadData[0]) * 100)) + '% (1 min)', \
+                str(int(float(self.loadData[1]) * 100)) + '% (5 min)', \
+                str(int(float(self.loadData[2]) * 100)) + '% (15 min)'))
         except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
         except: None
