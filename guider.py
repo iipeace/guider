@@ -3600,6 +3600,11 @@ class SystemInfo:
                 str(int(float(self.loadData[1]) * 100)) + '% (5 min)', \
                 str(int(float(self.loadData[2]) * 100)) + '% (15 min)'))
         except: None
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<10}".format('Threads', \
+                self.loadData[3] + ' (running/total)'))
+        except: None
+        try: SystemInfo.infoBufferPrint("{0:20} {1:<10}".format('LastPid', self.loadData[4]))
+        except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
         except: None
 
