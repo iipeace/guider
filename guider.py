@@ -2335,6 +2335,8 @@ class SystemInfo:
         self.uptimeData = None
         self.loadData = None
         self.cmdlineData = None
+        self.osData = None
+        self.devData = None
 
         self.cpuInfo = dict()
         self.memInfo['before'] = dict()
@@ -3146,6 +3148,27 @@ class SystemInfo:
         self.saveMemInfo()
         self.saveDiskInfo()
         self.saveSystemInfo()
+        self.saveWebOSInfo()
+
+
+
+    def saveWebOSInfo(self):
+        OSFile = '/var/run/nyx/os_info.json'
+        devFile = '/var/run/nyx/device_info.json'
+
+        try:
+            f = open(OSFile, 'r')
+            self.osData = f.readlines()
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % OSFile)
+
+        try:
+            f = open(devFile, 'r')
+            self.devData = f.readlines()
+            f.close()
+        except:
+            SystemInfo.printWarning("Fail to open %s" % OSFile)
 
 
 
@@ -3567,9 +3590,43 @@ class SystemInfo:
 
     def printAllInfoToBuf(self):
         self.printSystemInfo()
+        self.printWebOSInfo()
         self.printCpuInfo()
         self.printMemInfo()
         self.printDiskInfo()
+
+
+
+    def printWebOSInfo(self):
+        if self.osData is None and self.devData is None:
+            return
+
+        SystemInfo.infoBufferPrint('\n[System OS Info]')
+        SystemInfo.infoBufferPrint(twoLine)
+        SystemInfo.infoBufferPrint("{0:^35} {1:100}".format("TYPE", "Information"))
+        SystemInfo.infoBufferPrint(oneLine)
+
+        try:
+            for val in self.osData:
+                val = val.split(':')
+                if len(val) < 2:
+                    continue
+                name = val[0].replace('"', '')
+                value = val[1].replace('"', '').replace('\n', '').replace(',', '')
+                SystemInfo.infoBufferPrint("{0:35} {1:<100}".format(name, value))
+        except: None
+
+        try:
+            for val in self.devData:
+                val = val.split(':')
+                if len(val) < 2:
+                    continue
+                name = val[0].replace('"', '')
+                value = val[1].replace('"', '').replace('\n', '').replace(',', '')
+                SystemInfo.infoBufferPrint("{0:35} {1:<100}".format(name, value))
+        except: None
+
+        SystemInfo.infoBufferPrint(twoLine)
 
 
 
