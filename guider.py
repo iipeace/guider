@@ -3764,7 +3764,7 @@ class SystemInfo:
         SystemInfo.infoBufferPrint(twoLine)
         SystemInfo.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
                 ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
-                 "FileSystem", "MountPoint <MountOption>"))
+                 "FileSystem", "MountPoint <Option>"))
         SystemInfo.infoBufferPrint(oneLine)
 
         for key, val in self.mountInfo.items():
