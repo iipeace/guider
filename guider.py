@@ -4131,7 +4131,8 @@ class ThreadInfo:
         if self.threadData[tid]['waitParent'] > 0:
             threadName += " [%1.3f]" % (self.threadData[tid]['waitParent'])
 
-        newLoc = loc + len(threadName) / 2 + 2
+        # set new position of line #
+        newLoc = loc + 5
 
         if self.threadData[tid]['die'] == ' ':
             life = '+ '
