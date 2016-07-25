@@ -4860,8 +4860,9 @@ class ThreadInfo:
             if self.startTime == '0':
                 self.startTime = time
             else:
-                # set the time of last log #
-                self.finishTime = time
+                # check whether this log is last one or not #
+                if SystemInfo.curLine >= SystemInfo.totalLine:
+                    self.finishTime = time
 
                 # calculate usage of threads in interval #
                 if SystemInfo.intervalEnable > 0:
