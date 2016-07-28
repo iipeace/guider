@@ -6263,6 +6263,9 @@ if __name__ == '__main__':
     if SystemInfo.isRecordMode() is True:
         si.printAllInfoToBuf()
 
+    # create Event Info #
+    ei = EventInfo()
+
     # create Function Info #
     if SystemInfo.functionEnable is not False:
         fi = FunctionInfo(SystemInfo.inputFile)
@@ -6284,9 +6287,6 @@ if __name__ == '__main__':
 
         # create Thread Info #
         ti = ThreadInfo(SystemInfo.inputFile)
-
-    # create Event Info #
-    ei = EventInfo()
 
     # print event info #
     ei.printEventInfo()
