@@ -6294,7 +6294,7 @@ if __name__ == '__main__':
                 matplotlib.use('Agg')
                 from pylab import *
             except:
-                SystemInfo.printWarning("making graph is not supported")
+                SystemInfo.printError("making graph is not supported")
                 SystemInfo.graphEnable = False
 
         # create Thread Info #
