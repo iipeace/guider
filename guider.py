@@ -4386,13 +4386,14 @@ class ThreadInfo:
             SystemInfo.pipePrint(oneLine)
 
         # set option for making graph #
-        if SystemInfo.graphEnable == True and SystemInfo.intervalEnable > 0:
-            os.environ['DISPLAY'] = 'localhost:0'
-            rc('legend', fontsize=5)
-            rcParams.update({'font.size': 8})
-        else:
-            SystemInfo.printError("Use -i option if you want to draw graph")
-            SystemInfo.graphEnable = False
+        if SystemInfo.graphEnable == True:
+            if SystemInfo.intervalEnable > 0:
+                os.environ['DISPLAY'] = 'localhost:0'
+                rc('legend', fontsize=5)
+                rcParams.update({'font.size': 8})
+            else:
+                SystemInfo.printError("Use -i option if you want to draw graph")
+                SystemInfo.graphEnable = False
 
 
 
