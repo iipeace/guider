@@ -31,7 +31,7 @@ try:
     from ctypes import *
     from ctypes.util import find_library
 except:
-    None
+    SystemInfo.printError("Fail to import ctypes library, file mode will not work")
 
 
 
@@ -4386,11 +4386,12 @@ class ThreadInfo:
 
         # set option for making graph #
         if SystemInfo.graphEnable == True and SystemInfo.intervalEnable > 0:
-            SystemInfo.printInfo("graph is enabled")
             os.environ['DISPLAY'] = 'localhost:0'
             rc('legend', fontsize=5)
             rcParams.update({'font.size': 8})
-        else: SystemInfo.graphEnable = False
+        else:
+            SystemInfo.printError("Use -i option if you want to draw graph")
+            SystemInfo.graphEnable = False
 
 
 
@@ -4578,13 +4579,18 @@ class ThreadInfo:
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
                 if SystemInfo.graphEnable == True:
-                    subplot(2,1,1)
-                    timeLineData = [int(n) for n in timeLine.split()]
-                    range(SystemInfo.intervalEnable, \
-                            (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable)
-                    plot(range(SystemInfo.intervalEnable, \
-                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable), timeLineData, '.-')
-                    SystemInfo.graphLabels.append(value['comm'])
+                    try:
+                        subplot(2,1,1)
+                        timeLineData = [int(n) for n in timeLine.split()]
+                        range(SystemInfo.intervalEnable, \
+                                (len(timeLineData)+1)*SystemInfo.intervalEnable, SystemInfo.intervalEnable)
+                        plot(range(SystemInfo.intervalEnable, \
+                                    (len(timeLineData)+1)*SystemInfo.intervalEnable, \
+                                    SystemInfo.intervalEnable), timeLineData, '.-')
+                        SystemInfo.graphLabels.append(value['comm'])
+                    except:
+                        SystemInfo.graphEnable = False
+                        SystemInfo.printError("Fail to draw graph")
 
         if SystemInfo.graphEnable == True:
             title('Core Usage')
@@ -6280,7 +6286,10 @@ if __name__ == '__main__':
         sys.exit(0)
     else:
         if SystemInfo.graphEnable is True:
-            try: from pylab import *
+            try:
+                import matplotlib
+                matplotlib.use('Agg')
+                from pylab import *
             except:
                 SystemInfo.printWarning("making graph is not supported")
                 SystemInfo.graphEnable = False
