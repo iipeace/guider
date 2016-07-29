@@ -2969,7 +2969,7 @@ class SystemInfo:
                 try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf += "%6s\t%s" % (pid, cmdline)
+                    printBuf += "%6s\t%s\n" % (pid, cmdline)
                 except:
                     continue
 
@@ -2978,7 +2978,8 @@ class SystemInfo:
         if nrProc == 0:
             SystemInfo.printInfo("No running process in background")
         else:
-            print '\n', twoLine
+            print '\n[Running Process]'
+            print twoLine
             print "%6s\t%s" % ("PID", "COMMAND")
             print oneLine
             print printBuf
@@ -6087,6 +6088,7 @@ if __name__ == '__main__':
 
     # print backgroud process list #
     if SystemInfo.isListMode() is True:
+        print "[ g.u.i.d.e.r \tver.%s ]\n" % __version__
         SystemInfo.printBackgroundProcs()
         sys.exit(0)
 
