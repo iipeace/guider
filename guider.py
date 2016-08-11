@@ -724,7 +724,7 @@ class FunctionInfo:
                     if relocated is False:
                         savedSymbol = self.posData[addr]['symbol']
                         # Check whether saved symbol found by previous addr2line is right #
-                        if savedSymbol == '' or savedSymbol == addr or savedSymbol[0] == '$':
+                        if savedSymbol == None or savedSymbol == '' or savedSymbol == addr or savedSymbol[0] == '$':
                             self.posData[addr]['symbol'] = symbol
                             self.posData[addr]['src'] = src
                     else:
@@ -734,7 +734,8 @@ class FunctionInfo:
                                 inBinArea = True
                                 if value['offset'] == hex(int(addr, 16)):
                                     savedSymbol = self.posData[idx]['symbol']
-                                    if savedSymbol == '' or savedSymbol == addr or savedSymbol[0] == '$':
+                                    if savedSymbol == None or savedSymbol == '' or \
+                                            savedSymbol == addr or savedSymbol[0] == '$':
                                         self.posData[idx]['symbol'] = symbol
                                         self.posData[idx]['src'] = src
                                         break
@@ -1392,24 +1393,33 @@ class FunctionInfo:
                 if len(subStack) == 0:
                     continue
                 else:
+                    cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
+                    if cpuPer < 1 and SystemInfo.showAll is False:
+                        break
+
                     # Make stack info by symbol for print #
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
                             # No symbol so that just print pos #
-                            if self.posData[pos]['symbol'] == '':
+                            elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
-                        .format(round(float(cpuCnt) / float(value['cnt']) * 100, 1), symbolStack))
+                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
         # Print cpu usage in kernel space #
@@ -1454,6 +1464,10 @@ class FunctionInfo:
                 if cpuCnt == 0:
                     break
                 else:
+                    cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
+                    if cpuPer < 1 and SystemInfo.showAll is False:
+                        break
+
                     # Remove a redundant part #
                     for pos, val in exceptList.items():
                         try: del subStack[0:subStack.index(pos)+1]
@@ -1472,10 +1486,10 @@ class FunctionInfo:
                                 symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
                     except: continue
 
-                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}" \
-                        .format(round(float(cpuCnt) / float(value['cnt']) * 100, 1), symbolStack))
+                SystemInfo.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
 
@@ -1532,11 +1546,16 @@ class FunctionInfo:
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
                             # No symbol so that just print pos #
-                            if self.posData[pos]['symbol'] == '':
+                            elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
@@ -1546,6 +1565,7 @@ class FunctionInfo:
                         userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
         # Print mem usage in kernel space #
@@ -1605,6 +1625,7 @@ class FunctionInfo:
                         userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
     def printBlockUsage(self):
@@ -1653,11 +1674,16 @@ class FunctionInfo:
                     symbolStack = ''
                     if self.sort is 'sym':
                         for sym in subStack:
-                            symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
                             # No symbol so that just print pos #
-                            if self.posData[pos]['symbol'] == '':
+                            elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
@@ -1666,6 +1692,7 @@ class FunctionInfo:
                 SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
         # Print BLOCK usage in kernel space #
@@ -1719,6 +1746,7 @@ class FunctionInfo:
                 SystemInfo.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemInfo.pipePrint(oneLine)
+
         SystemInfo.pipePrint('\n\n')
 
 
