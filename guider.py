@@ -617,7 +617,12 @@ class FunctionInfo:
                     # toDo: find binary and symbol of pos #
                     value['binary'] = '??'
                     value['origBin'] = '??'
-                    value['symbol'] = idx
+
+                    if int(idx, 16) == 0xc0ffee:
+                        value['symbol'] = 'ThumbCode'
+                    else:
+                        value['symbol'] = idx
+
                 continue
 
             # Get symbols from address list of previous binary #
@@ -713,11 +718,10 @@ class FunctionInfo:
                     if len(err) > 0:
                         SystemInfo.printWarning(err[err.find(':') + 2:])
 
-                    # End of return #
                     if not addr:
+                        # End of return #
                         break
-
-                    if symbol == '??':
+                    elif symbol == '??':
                         symbol = addr
 
                     # Check whether the file is relocatable or not #
@@ -3413,14 +3417,14 @@ class SystemInfo:
                             except:
                                 SystemInfo.printError("Wrong tid %s" % tid)
                                 sys.exit(0)
-                            cmd = "common_pid >= %s" % tid
+                            cmd = "common_pid <= %s" % tid
                         elif SystemInfo.showGroup[0].find('<') >= 0:
                             tid = SystemInfo.showGroup[0][0:SystemInfo.showGroup[0].find('<')]
                             try: int(tid)
                             except:
                                 SystemInfo.printError("Wrong tid %s" % tid)
                                 sys.exit(0)
-                            cmd = "common_pid <= %s" % tid
+                            cmd = "common_pid >= %s" % tid
 
             SystemInfo.writeCmd('../trace_options', 'userstacktrace')
             SystemInfo.writeCmd('../trace_options', 'sym-userobj')

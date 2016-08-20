@@ -1,5 +1,5 @@
 diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
-index 00f79e5..53d77f3 100755
+index 92b7237..fb174bb 100644
 --- a/arch/arm/kernel/stacktrace.c
 +++ b/arch/arm/kernel/stacktrace.c
 @@ -1,7 +1,9 @@
@@ -10,9 +10,9 @@ index 00f79e5..53d77f3 100755
  
 +#include <asm/uaccess.h>
  #include <asm/stacktrace.h>
+ #include <asm/traps.h>
  
- #if defined(CONFIG_FRAME_POINTER) && !defined(CONFIG_ARM_UNWIND)
-@@ -129,3 +131,83 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -177,3 +179,90 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
@@ -22,77 +22,84 @@ index 00f79e5..53d77f3 100755
 + * Patch to use user stack tracer for ARM archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option
 + * 2. patch this file and rebuild your kernel
-+ * 3. build target module to trace with -g -rdynamic -fno-omit-frame-pointer option
++ * 3. rebuild target binary with -g -rdynamic -fno-omit-frame-pointer option
 + */
 +struct stack_frame_user {
-+        unsigned long pc;
-+        unsigned long ip;
-+        unsigned long sp;
 +        unsigned long next_fp;
-+        unsigned long lr;
++        unsigned long pc;
 +};
 +
 +static int
-+copy_stack_frame(const void __user *fp, struct stack_frame_user *frame)
++copy_stack_frame_user(const void __user *fp, struct stack_frame_user *frame)
 +{
-+        if (!access_ok(VERIFY_READ, fp, sizeof(*frame)))
-+                return 0;
++	if (!access_ok(VERIFY_READ, fp, sizeof(*frame)))
++		return 0;
 +
-+        pagefault_disable();
-+        if (__copy_from_user_inatomic(frame, fp, sizeof(*frame))) {
++	pagefault_disable();
++
++	if (__copy_from_user_inatomic(frame, fp, sizeof(*frame))) {
 +		pagefault_enable();
 +		return 0;
++	} else {
++		pagefault_enable();
++		return 1;
 +	}
-+
-+        pagefault_enable();
-+
-+        return 1;
 +}
 +
 +static inline void __save_stack_trace_user(struct stack_trace *trace)
 +{
 +        const struct pt_regs *regs = task_pt_regs(current);
 +        const void __user *fp = (const void __user *)regs->ARM_fp;
++        const void __user *pc = (const void __user *)regs->ARM_pc;
++        const void __user *lr = (const void __user *)regs->ARM_lr;
++        const void __user *sp = (const void __user *)regs->ARM_sp;
 +
-+        if (trace->nr_entries < trace->max_entries){
-+                trace->entries[trace->nr_entries++] = regs->ARM_pc;
-+                trace->entries[trace->nr_entries++] = regs->ARM_lr;
-+	}
++	trace->entries[trace->nr_entries++] = pc;
++	trace->entries[trace->nr_entries++] = lr;
 +
 +        while (trace->nr_entries < trace->max_entries) {
 +                struct stack_frame_user frame;
 +
-+                if (!copy_stack_frame(fp, &frame))
++		/* Thumb mode */
++		if ((unsigned long)pc & 0x1) {
++			/* Thumb code is not supported because
++			 * FP register is not used in Thumb mode.
++			 * */
++			trace->entries[trace->nr_entries++] =
++				0xC0FFEE;
 +			break;
-+
-+                if (frame.pc) {
-+                        trace->entries[trace->nr_entries++] =
-+                                frame.pc;
++		/* ARM mode */
 +		} else {
-+			break;
++			if (!copy_stack_frame_user(fp - 4, &frame))
++				break;
++
++			if (!frame.pc) {
++				break;
++			} else if (frame.pc < frame.next_fp) {
++				if (frame.pc != lr)
++					trace->entries[trace->nr_entries++] =
++						frame.pc;
++
++				fp = (const void __user *)frame.next_fp;
++			} else if (frame.pc > (unsigned long)sp) {
++				fp = (const void __user *)frame.pc;
++			} else {
++				break;
++			}
++
++			pc = (const void __user *)frame.pc;
 +		}
-+
-+                if (frame.lr) {
-+                        trace->entries[trace->nr_entries++] =
-+				frame.lr;
-+		} else {
-+			break;
-+		}
-+
-+		fp = frame.next_fp;
-+
-+                if ((unsigned long)fp < regs->ARM_sp ||
-+		    fp == NULL || frame.pc == frame.lr)
-+			break;
-+        }
++	}
 +}
 +
 +void save_stack_trace_user(struct stack_trace *trace)
 +{
 +        if (current->mm) {
 +                __save_stack_trace_user(trace);
++
++		if (trace->nr_entries < trace->max_entries)
++			trace->entries[trace->nr_entries++] =
++				ULONG_MAX;
 +        }
-+        if (trace->nr_entries < trace->max_entries)
-+                trace->entries[trace->nr_entries++] = ULONG_MAX;
 +}
 +#endif
