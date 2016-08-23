@@ -340,6 +340,7 @@ class FunctionInfo:
 
                     # Ignore this function if there is no symbol #
                     if SystemInfo.showAll is False and \
+                            self.posData[addr]['origBin'] == '??' and \
                             (tempSym == addr or tempSym == self.posData[addr]['offset']):
                         continue
 
@@ -6242,13 +6243,12 @@ if __name__ == '__main__':
                 SystemInfo.setIdlePriority(0)
                 SystemInfo.copyPipeToFile(SystemInfo.inputFile + '_pipe', SystemInfo.outputFile)
                 SystemInfo.runRecordStopCmd()
-                SystemInfo.runRecordStopFinalCmd()
                 SystemInfo.printInfo("wrote output to %s successfully" % (SystemInfo.outputFile))
-                sys.exit(0)
             else:
                 SystemInfo.printError("wrong option with -ep, use also -s option for saving data")
-                SystemInfo.runRecordStopFinalCmd()
-                sys.exit(0)
+
+            SystemInfo.runRecordStopFinalCmd()
+            sys.exit(0)
 
         # get init time from buffer for verification #
         initTime = ThreadInfo.getInitTime(SystemInfo.inputFile)
