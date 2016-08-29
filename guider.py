@@ -6273,7 +6273,8 @@ if __name__ == '__main__':
                 SystemInfo.runRecordStopCmd()
                 SystemInfo.runRecordStopFinalCmd()
                 sys.exit(0)
-            else: SystemInfo.clearTraceBuffer()
+            else:
+                SystemInfo.clearTraceBuffer()
 
         # wait for user input #
         while True:
