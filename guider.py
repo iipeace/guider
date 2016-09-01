@@ -1761,7 +1761,7 @@ class FunctionInfo:
 class FileInfo:
     def __init__(self):
         self.libguider = None
-        self.libguiderPath = './libguider.so'
+        self.libguiderPath = 'libguider.so'
 
         self.startTime = None
         self.profSuccessCnt = 0
