@@ -3065,7 +3065,9 @@ class SystemInfo:
             # make comm path of pid #
             procPath = os.path.join(SystemInfo.procPath, pid)
 
-            fd = open(procPath + '/comm', 'r')
+            try: fd = open(procPath + '/comm', 'r')
+            except:
+                continue
             comm = fd.readline()[0:-1]
             if comm == targetComm:
                 if nrSig == signal.SIGINT:
@@ -3227,7 +3229,7 @@ class SystemInfo:
             self.devData = f.readlines()
             f.close()
         except:
-            SystemInfo.printWarning("Fail to open %s" % OSFile)
+            SystemInfo.printWarning("Fail to open %s" % devFile)
 
 
 
@@ -3485,6 +3487,11 @@ class SystemInfo:
 
             self.cmdList["sched/sched_process_free"] = True
             SystemInfo.writeCmd('sched/sched_process_free/enable', '1')
+
+            cmd = "sig == %d" % ConfigInfo.sigList.index('SIGSEGV')
+            self.cmdList["signal"] = True
+            SystemInfo.writeCmd('signal/filter', cmd)
+            SystemInfo.writeCmd('signal/enable', '1')
 
             return
 
