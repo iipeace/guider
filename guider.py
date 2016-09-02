@@ -5655,12 +5655,14 @@ class ThreadInfo:
                     except: return
 
                     # SIGCHLD #
-                    if sig == '17':
+                    if sig == str(ConfigInfo.sigList.index('SIGCHLD')):
                         if self.threadData[pid]['waitStartAsParent'] > 0:
                             if self.threadData[pid]['waitPid'] == 0 or self.threadData[pid]['waitPid'] == int(thread):
                                 diff = float(time) - self.threadData[pid]['waitStartAsParent']
                                 self.threadData[thread]['waitParent'] = diff
                                 self.threadData[pid]['waitChild'] += diff
+                    elif sig == str(ConfigInfo.sigList.index('SIGSEGV')):
+                        self.threadData[pid]['die'] = 'F'
 
             elif func == "signal_deliver":
                 m = re.match('^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', etc)
@@ -5881,9 +5883,10 @@ class ThreadInfo:
                     except:
                         self.threadData[pid] = dict(self.init_threadData)
                         self.threadData[pid]['comm'] = d['comm']
-                        self.threadData[pid]['die'] = '1'
+                        self.threadData[pid]['die'] = 'D'
 
-                    self.threadData[pid]['die'] = 'D'
+                    if self.threadData[pid]['die'] != 'F':
+                        self.threadData[pid]['die'] = 'D'
 
             elif func == "sched_process_wait":
                 m = re.match('^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
