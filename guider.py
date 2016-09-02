@@ -2606,7 +2606,7 @@ class SystemInfo:
             try:
                 SystemInfo.eventLogFD.write(message)
                 if SystemInfo.resetEnable is True:
-                    SystemInfo.printInfo('marked RESTART event')
+                    SystemInfo.printInfo('marked RESET event')
                 else:
                     SystemInfo.printInfo('marked user-defined event')
                 SystemInfo.eventLogFD.close()
@@ -6115,7 +6115,7 @@ if __name__ == '__main__':
         print('\t[record]')
         print('\t\t-s [save_traceData:dir]')
         print('\t\t-u [run_inBackground]')
-        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)]')
+        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)|r(eset)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
         print('\t\t-b [set_perCpuBufferSize:kb]')
