@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015, guider"
+__copyright__ = "Copyright 2015-2016, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.0.0"
@@ -1802,6 +1802,12 @@ class FileInfo:
         # set the return type #
         self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
 
+        try:
+            import resource
+            SystemInfo.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
+        except:
+            SystemInfo.printWarning("Fail to get maxFd because of No resource")
+
         self.startTime = time.time()
 
         while True:
@@ -2249,11 +2255,20 @@ class FileInfo:
                 try:
                     self.fileData[fileName]['fileMap'] = [pagemap[i] for i in range(size / SystemInfo.pageSize)]
                     self.profSuccessCnt += 1
+
+                    # fd resource is about to run out #
+                    if SystemInfo.maxFd - 16 < fd:
+                        try: self.fileData[fileName]['fd'].close()
+                        except: None
+                        self.fileData[fileName]['fd'] = None
                 except:
                     SystemInfo.printWarning('Fail to access %s' % fileName)
                     self.fileData[fileName]['fileMap'] = None
                     self.profFailedCnt += 1
-                    print 'Next', self.fileData[fileName]
+            else:
+                try: self.fileData[fileName]['fd'].close()
+                except: None
+                self.fileData[fileName]['fd'] = None
 
         if len(self.fileData) > 0:
             SystemInfo.printGood('Profiled a total of %d files' % self.profSuccessCnt)
@@ -2275,6 +2290,7 @@ class SystemInfo:
     ttyCols = '156'
     magicString = '@@@@@'
     procPath = '/proc'
+    maxFd = 1024
 
     mountPath = None
     addr2linePath = None
@@ -6327,7 +6343,7 @@ if __name__ == '__main__':
                 matplotlib.use('Agg')
                 from pylab import *
             except:
-                SystemInfo.printError("making graph is not supported")
+                SystemInfo.printError("making graph is not supported because of no matplotlib")
                 SystemInfo.graphEnable = False
 
         # create Thread Info #
