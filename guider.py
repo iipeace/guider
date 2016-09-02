@@ -2340,6 +2340,7 @@ class SystemInfo:
     fileEnable = False
     threadEnable = False
     backgroundEnable = False
+    resetEnable = False
     warningEnable = False
     intervalEnable = 0
 
@@ -2431,6 +2432,8 @@ class SystemInfo:
 
         if SystemInfo.fileEnable is True:
             SystemInfo.printStatus("Saved file usage information successfully")
+        elif SystemInfo.resetEnable is True:
+            SystemInfo.writeEvent("EVENT_START")
         else:
             SystemInfo.writeEvent("EVENT_MARK")
 
@@ -2602,7 +2605,10 @@ class SystemInfo:
         if SystemInfo.eventLogFD != None:
             try:
                 SystemInfo.eventLogFD.write(message)
-                SystemInfo.printInfo('marked user-defined event')
+                if SystemInfo.resetEnable is True:
+                    SystemInfo.printInfo('marked RESTART event')
+                else:
+                    SystemInfo.printInfo('marked user-defined event')
                 SystemInfo.eventLogFD.close()
                 SystemInfo.eventLogFD = None
             except:
@@ -2857,6 +2863,9 @@ class SystemInfo:
                     if options.rfind('w') != -1:
                         SystemInfo.warningEnable = True
                         SystemInfo.printInfo("printing warning message for debug")
+                    if options.rfind('r') != -1:
+                        SystemInfo.resetEnable = True
+                        SystemInfo.printInfo("reset key(ctrl + \) enabled")
                 elif sys.argv[n][1] == 'g':
                     if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
                         SystemInfo.printWarning("only specific threads are recorded")
