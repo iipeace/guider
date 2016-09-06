@@ -4026,6 +4026,7 @@ class ThreadInfo:
         self.suspendData = []
         self.markData = []
         self.consoleData = []
+        self.procData = {}
 
         self.stopFlag = False
         self.totalTime = 0
@@ -4054,6 +4055,7 @@ class ThreadInfo:
                 'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), \
                 'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), \
                 'totalPreempted': float(0)}
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'fd': None}
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), 'time': '0', 'waste': int(0), 'core': int(0)}
         self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -4064,6 +4066,12 @@ class ThreadInfo:
         self.startTime = '0'
         self.finishTime = '0'
         self.lastTidPerCore = {}
+
+        # top mode #
+        if file is None:
+            self.saveProcs()
+
+            sys.exit(0)
 
         if SystemInfo.preemptGroup != None:
             for index in SystemInfo.preemptGroup:
@@ -6093,6 +6101,77 @@ class ThreadInfo:
 
 
 
+    def saveProcs(self):
+        condCont = False
+
+        # get process list in proc directory #
+        try:
+            pids = os.listdir(SystemInfo.procPath)
+        except:
+            SystemInfo.printError('Fail to open %s' % (SystemInfo.procPath))
+            sys.exit(0)
+
+        # scan comms include words in SystemInfo.showGroup #
+        for pid in pids:
+            try: int(pid)
+            except: continue
+
+            # make path of tid #
+            procPath = os.path.join(SystemInfo.procPath, pid)
+            taskPath = os.path.join(procPath, 'task')
+
+            try:
+                tids = os.listdir(taskPath)
+            except:
+                SystemInfo.printWarning('Fail to open %s' % (taskPath))
+                continue
+
+            for tid in tids:
+                try: self.procData[int(tid)]
+                except:
+                    # save comm #
+                    threadPath = os.path.join(taskPath, tid)
+                    commPath = os.path.join(threadPath, 'comm')
+
+                    try:
+                        fd = open(commPath, 'r')
+                        comm = fd.readline()
+                        comm = comm[0:len(comm) - 1]
+                        fd.close()
+                    except:
+                        SystemInfo.printWarning('Fail to open %s' % (commPath))
+                        continue
+
+                    # filter #
+                    for val in SystemInfo.showGroup:
+                        if comm.rfind(val) != -1 or tid == val:
+                            condCont = False
+                            break
+                        else:
+                            condCont = True
+
+                    if condCont is True:
+                        continue
+
+                    # make process object with constant value #
+                    self.procData[tid] = dict(self.init_procData)
+                    self.procData[tid]['comm'] = comm
+
+                    if pid == tid:
+                        self.procData[tid]['isMain'] = True
+                        self.procData[tid]['tids'] = []
+                    else:
+                        self.procData[pid]['tids'].append(tid)
+
+                self.saveProcData(threadPath, tid)
+
+
+
+    def saveProcData(self, path, tid):
+        None
+
+
+
 
 
 if __name__ == '__main__':
@@ -6173,7 +6252,11 @@ if __name__ == '__main__':
 
     # start top mode #
     if SystemInfo.isTopMode() is True:
-        print "\nNot yet implemented\n"
+        print "\nNot implemented yet\n"
+
+        # create Thread Info using proc #
+        ti = ThreadInfo(None)
+
         sys.exit(0)
 
     # parse recording option #
@@ -6365,7 +6448,7 @@ if __name__ == '__main__':
                 SystemInfo.printError("making graph is not supported because of no matplotlib")
                 SystemInfo.graphEnable = False
 
-        # create Thread Info #
+        # create Thread Info using ftrace #
         ti = ThreadInfo(SystemInfo.inputFile)
 
     # print event info #
