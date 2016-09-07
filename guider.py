@@ -85,6 +85,54 @@ class ConfigInfo:
            'SIGSYS' # 32 #
             ]
 
+    # stat list from http://linux.die.net/man/5/proc #
+    statList = [
+            'PID', # 0 #
+            'COMM',
+            'STATE',
+            'PPID',
+            'PRGP',
+            'SESSIONID', # 5 #
+            'NRTTY',
+            'TPGID',
+            'FLAGS',
+            'MINFLT',
+            'CMINFLT', # 10 #
+            'MAJFLT',
+            'CMAJFLT',
+            'UTIME',
+            'STIME',
+            'CUTIME', # 15 #
+            'CSTIME',
+            'PRIORITY',
+            'NICE',
+            'NRTHREAD',
+            'ITERALVAL', # 20 #
+            'STARTTIME',
+            'VSIZE',
+            'RSS',
+            'RSSLIM',
+            'STARTCODE', # 25 #
+            'ENDCODE',
+            'STARTSTACK',
+            'SP',
+            'PC',
+            'SIGNAL', # 30 #
+            'BLOCKED',
+            'SIGIGNORE',
+            'SIGCATCH',
+            'WCHEN',
+            'NSWAP', # 35 #
+            'CNSWAP',
+            'EXITSIGNAL',
+            'PROCESSOR',
+            'RTPRIORITY',
+            'POLICY', # 40 #
+            'DELAYBLKTICK',
+            'GUESTTIME',
+            'CGUESTTIME' # 43 #
+            ]
+
     taskChainEnable = None
 
     @staticmethod
@@ -1806,7 +1854,7 @@ class FileInfo:
             import resource
             SystemInfo.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
         except:
-            SystemInfo.printWarning("Fail to get maxFd because of No resource")
+            SystemInfo.printWarning("Fail to get maxFd because of no resource package, default %d" % SystemInfo.maxFd)
 
         self.startTime = time.time()
 
@@ -2381,7 +2429,6 @@ class SystemInfo:
         self.diskBeforeData = None
         self.diskAfterData = None
         self.mountData = None
-        self.systemData = None
         self.uptimeData = None
         self.loadData = None
         self.cmdlineData = None
@@ -4026,7 +4073,14 @@ class ThreadInfo:
         self.suspendData = []
         self.markData = []
         self.consoleData = []
+
         self.procData = {}
+        self.prevProcData = {}
+        self.cpuData = {}
+        self.prevCpuData = {}
+        self.vmData = {}
+        self.prevVmData = {}
+        self.systemData = {}
 
         self.stopFlag = False
         self.totalTime = 0
@@ -4055,7 +4109,6 @@ class ThreadInfo:
                 'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), \
                 'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), \
                 'totalPreempted': float(0)}
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'fd': None}
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), 'time': '0', 'waste': int(0), 'core': int(0)}
         self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -4063,13 +4116,44 @@ class ThreadInfo:
         self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), 'max': float(0), 'min': float(0)}
 
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'vmstat': None, 'alive': False, \
+                'statFd': None, 'ioFd': None}
+        self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
+
         self.startTime = '0'
         self.finishTime = '0'
         self.lastTidPerCore = {}
 
         # top mode #
         if file is None:
-            self.saveProcs()
+            try:
+                import resource
+                SystemInfo.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
+            except:
+                SystemInfo.printWarning("Fail to get maxFd because of no resource package, default %d" % SystemInfo.maxFd)
+
+            if SystemInfo.intervalEnable == 0:
+                SystemInfo.intervalEnable = 1
+
+            if len(SystemInfo.showGroup) > 0:
+                for idx, val in enumerate(SystemInfo.showGroup):
+                    if len(val) == 0:
+                        SystemInfo.showGroup.pop(idx)
+
+            while True:
+                self.saveProcs()
+
+                for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
+                    if value['alive'] is False:
+                        try:
+                            value['statFd'].close()
+                            value['ioFd'].close()
+                        except: None
+
+                time.sleep(SystemInfo.intervalEnable)
+
+                self.prevProcData = self.procData
+                self.procData = {}
 
             sys.exit(0)
 
@@ -6104,11 +6188,52 @@ class ThreadInfo:
     def saveProcs(self):
         condCont = False
 
+        # save cpu info #
+        try:
+            cpuPath = os.path.join(SystemInfo.procPath, 'stat')
+            fd = open(cpuPath, 'r')
+            cpuBuf = fd.readlines()
+            fd.close()
+        except:
+            SystemInfo.printWarning('Fail to open %s' % cpuPath)
+
+        if cpuBuf is not None:
+            self.prevCpuData = self.cpuData
+            self.cpuData = {}
+
+            for line in cpuBuf:
+                statList = line.split()
+                cpuId = statList[0]
+                if cpuId.rfind('cpu') == 0:
+                    try: self.cpuData[cpuId]
+                    except:
+                        self.cpuData[cpuId] = { 'user': long(statList[1]), \
+                                'system': long(statList[2]), 'nice': long(statList[3]), \
+                                'idle': long(statList[3]), 'wait': long(statList[4]), \
+                                'irq': long(statList[5]), 'softirq': long(statList[6]) }
+
+        # save vmstat info #
+        try:
+            vmstatPath = os.path.join(SystemInfo.procPath, 'vmstat')
+            fd = open(vmstatPath, 'r')
+            vmBuf = fd.readlines()
+            fd.close()
+        except:
+            SystemInfo.printWarning('Fail to open %s' % SystemInfo.vmstatPath)
+
+        if vmBuf is not None:
+            self.prevVmData = self.vmData
+            self.vmData = {}
+
+            for line in vmBuf:
+                vmList = line.split()
+                self.vmData[vmList[0]] = long(vmList[1])
+
         # get process list in proc directory #
         try:
             pids = os.listdir(SystemInfo.procPath)
         except:
-            SystemInfo.printError('Fail to open %s' % (SystemInfo.procPath))
+            SystemInfo.printError('Fail to open %s' % SystemInfo.procPath)
             sys.exit(0)
 
         # scan comms include words in SystemInfo.showGroup #
@@ -6123,52 +6248,114 @@ class ThreadInfo:
             try:
                 tids = os.listdir(taskPath)
             except:
-                SystemInfo.printWarning('Fail to open %s' % (taskPath))
+                SystemInfo.printWarning('Fail to open %s' % taskPath)
                 continue
 
             for tid in tids:
                 try: self.procData[int(tid)]
                 except:
-                    # save comm #
+                    comm = None
                     threadPath = os.path.join(taskPath, tid)
-                    commPath = os.path.join(threadPath, 'comm')
 
-                    try:
-                        fd = open(commPath, 'r')
-                        comm = fd.readline()
-                        comm = comm[0:len(comm) - 1]
-                        fd.close()
-                    except:
-                        SystemInfo.printWarning('Fail to open %s' % (commPath))
-                        continue
+                    if len(SystemInfo.showGroup) > 0:
+                        commPath = os.path.join(threadPath, 'comm')
 
-                    # filter #
-                    for val in SystemInfo.showGroup:
-                        if comm.rfind(val) != -1 or tid == val:
-                            condCont = False
-                            break
-                        else:
-                            condCont = True
+                        try:
+                            fd = open(commPath, 'r')
+                            comm = fd.readline()
+                            comm = comm[0:len(comm) - 1]
+                            fd.close()
+                        except:
+                            SystemInfo.printWarning('Fail to open %s' % commPath)
+                            continue
 
-                    if condCont is True:
-                        continue
+                        # filter #
+                        for val in SystemInfo.showGroup:
+                            if comm.rfind(val) != -1 or tid == val:
+                                condCont = False
+                                break
+                            else:
+                                condCont = True
+
+                        if condCont is True:
+                            continue
 
                     # make process object with constant value #
                     self.procData[tid] = dict(self.init_procData)
-                    self.procData[tid]['comm'] = comm
 
                     if pid == tid:
                         self.procData[tid]['isMain'] = True
                         self.procData[tid]['tids'] = []
                     else:
-                        self.procData[pid]['tids'].append(tid)
+                        try:
+                            self.procData[pid]['tids'].append(tid)
+                        except:
+                            self.procData[pid] = dict(self.init_procData)
+                            self.procData[pid]['tids'] = []
+                            self.procData[pid]['tids'].append(tid)
 
                 self.saveProcData(threadPath, tid)
 
 
 
     def saveProcData(self, path, tid):
-        None
+        # save stat info #
+        try:
+            self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
+            self.procData[tid]['statFd'].seek(0, 0)
+            statBuf = self.procData[tid]['statFd'].readline()
+            self.prevProcData[tid]['alive'] = True
+        except:
+            try:
+                statPath = os.path.join(path, 'stat')
+                self.procData[tid]['statFd'] = open(statPath, 'r')
+                statBuf = self.procData[tid]['statFd'].readline()
+
+                # fd resource is about to run out #
+                if SystemInfo.maxFd - 16 < self.procData[tid]['statFd'].fileno():
+                    self.procData[tid]['statFd'].close()
+                    self.procData[tid]['statFd'] = None
+            except:
+                SystemInfo.printWarning('Fail to open %s' % statPath)
+                del self.procData[tid]
+                return
+
+        statList = statBuf.split()
+        if statList[1][-1] != ')':
+            for n in range(2, len(statList)):
+                statList[1] += ' ' + str(statList[n])
+                if statList[n].rfind(')') != -1:
+                    statList.pop(n)
+                    break
+            statList.pop(n)
+
+        self.procData[tid]['stat'] = statList
+
+        # save io info #
+        try:
+            self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
+            self.procData[tid]['ioFd'].seek(0, 0)
+            ioBuf = self.procData[tid]['ioFd'].readlines()
+            self.prevProcData[tid]['alive'] = True
+        except:
+            try:
+                ioPath = os.path.join(path, 'io')
+                self.procData[tid]['ioFd'] = open(ioPath, 'r')
+                ioBuf = self.procData[tid]['ioFd'].readlines()
+
+                # fd resource is about to run out #
+                if SystemInfo.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
+                    self.procData[tid]['ioFd'].close()
+                    self.procData[tid]['ioFd'] = None
+            except:
+                SystemInfo.printWarning('Fail to open %s' % ioPath)
+                del self.procData[tid]
+                return
+
+        for line in ioBuf:
+            line = line.split()
+            self.procData[tid]['io'] = {}
+            self.procData[tid]['io'][line[0]] = line[1]
 
 
 
@@ -6248,15 +6435,6 @@ if __name__ == '__main__':
     # send event signal to background process #
     if SystemInfo.isSendMode() is True:
         SystemInfo.sendSignalProcs(signal.SIGQUIT)
-        sys.exit(0)
-
-    # start top mode #
-    if SystemInfo.isTopMode() is True:
-        print "\nNot implemented yet\n"
-
-        # create Thread Info using proc #
-        ti = ThreadInfo(None)
-
         sys.exit(0)
 
     # parse recording option #
@@ -6416,6 +6594,15 @@ if __name__ == '__main__':
     # set handler for exit #
     signal.signal(signal.SIGINT, SystemInfo.exitHandler)
 
+    # create Thread Info using proc #
+    if SystemInfo.isTopMode() is True:
+        print "\nNot implemented yet\n"
+
+        # create Thread Info using proc #
+        ti = ThreadInfo(None)
+
+        sys.exit(0)
+
     # check log file is recoginizable #
     ThreadInfo.getInitTime(SystemInfo.inputFile)
 
@@ -6438,6 +6625,7 @@ if __name__ == '__main__':
         fi.printUsage()
 
         sys.exit(0)
+    # create Thread Info using ftrace #
     else:
         if SystemInfo.graphEnable is True:
             try:
@@ -6448,7 +6636,6 @@ if __name__ == '__main__':
                 SystemInfo.printError("making graph is not supported because of no matplotlib")
                 SystemInfo.graphEnable = False
 
-        # create Thread Info using ftrace #
         ti = ThreadInfo(SystemInfo.inputFile)
 
     # print event info #
