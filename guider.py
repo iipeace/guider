@@ -2377,6 +2377,7 @@ class SystemInfo:
     irqEnable = False
     cpuEnable = True
     memEnable = False
+    diskEnable = False
     blockEnable = True
     futexEnable = False
     pipeEnable = False
@@ -2819,6 +2820,9 @@ class SystemInfo:
                     if options.rfind('g') != -1:
                         SystemInfo.graphEnable = True
                         SystemInfo.printInfo("drawing graph for resource usage")
+                    if options.rfind('d') != -1:
+                        SystemInfo.diskEnable = True
+                        SystemInfo.printInfo("disk profile")
                     if options.rfind('t') != -1:
                         SystemInfo.ttyEnable = True
                         SystemInfo.printInfo("tty is set")
@@ -6331,31 +6335,32 @@ class ThreadInfo:
 
         self.procData[tid]['stat'] = statList
 
-        # save io info #
-        try:
-            self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
-            self.procData[tid]['ioFd'].seek(0, 0)
-            ioBuf = self.procData[tid]['ioFd'].readlines()
-            self.prevProcData[tid]['alive'] = True
-        except:
+        if SystemInfo.diskEnable is True:
+            # save io info #
             try:
-                ioPath = os.path.join(path, 'io')
-                self.procData[tid]['ioFd'] = open(ioPath, 'r')
+                self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
+                self.procData[tid]['ioFd'].seek(0, 0)
                 ioBuf = self.procData[tid]['ioFd'].readlines()
-
-                # fd resource is about to run out #
-                if SystemInfo.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
-                    self.procData[tid]['ioFd'].close()
-                    self.procData[tid]['ioFd'] = None
+                self.prevProcData[tid]['alive'] = True
             except:
-                SystemInfo.printWarning('Fail to open %s' % ioPath)
-                del self.procData[tid]
-                return
+                try:
+                    ioPath = os.path.join(path, 'io')
+                    self.procData[tid]['ioFd'] = open(ioPath, 'r')
+                    ioBuf = self.procData[tid]['ioFd'].readlines()
 
-        for line in ioBuf:
-            line = line.split()
-            self.procData[tid]['io'] = {}
-            self.procData[tid]['io'][line[0]] = line[1]
+                    # fd resource is about to run out #
+                    if SystemInfo.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
+                        self.procData[tid]['ioFd'].close()
+                        self.procData[tid]['ioFd'] = None
+                except:
+                    SystemInfo.printWarning('Fail to open %s' % ioPath)
+                    del self.procData[tid]
+                    return
+
+            for line in ioBuf:
+                line = line.split()
+                self.procData[tid]['io'] = {}
+                self.procData[tid]['io'][line[0]] = line[1]
 
 
 
@@ -6391,7 +6396,7 @@ if __name__ == '__main__':
         print('\t[record]')
         print('\t\t-s [save_traceData:dir]')
         print('\t\t-u [run_inBackground]')
-        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)|r(eset)]')
+        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)|r(eset)|d(isk)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
         print('\t\t-b [set_perCpuBufferSize:kb]')
