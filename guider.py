@@ -4074,7 +4074,7 @@ class ThreadInfo:
         self.intervalData = []
         self.depData = []
         self.sigData = []
-        self.sysuserCallData = []
+        self.syscallData = []
         self.lastJob = {}
         self.preemptData = []
         self.suspendData = []
@@ -4637,27 +4637,32 @@ class ThreadInfo:
     def printSyscallInfo(self):
         count = 0
         SystemInfo.clearPrint()
-        if self.sysuserCallData != []:
-            if len(SystemInfo.showGroup) > 0:
-                SystemInfo.pipePrint('\n' + '[Thread Syscall Info]')
-                SystemInfo.pipePrint(twoLine)
-                SystemInfo.pipePrint("%16s(%4s)\t%7s\t\t%6s\t\t%6s\t\t%6s\t\t%6s\t\t%6s" % \
-                        ("Name", "Tid", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
-                SystemInfo.pipePrint(twoLine)
+        if self.syscallData != []:
+            SystemInfo.pipePrint('\n' + '[Thread Syscall Info]')
+            SystemInfo.pipePrint(twoLine)
+            SystemInfo.pipePrint("%16s(%4s)\t%7s\t\t%6s\t\t%6s\t\t%6s\t\t%6s\t\t%6s" % \
+                    ("Name", "Tid", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
+            SystemInfo.pipePrint(twoLine)
 
-                for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
-                    if key[0:2] == '0[':
-                        continue
-                    SystemInfo.pipePrint("%16s(%4s)" % (self.threadData[key]['comm'], key))
-                    try:
-                        for sysId,val in sorted(self.threadData[key]['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
-                            if val['count'] > 0:
-                                val['average'] = val['usage'] / val['count']
-                                SystemInfo.pipePrint("\t%27s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
-                                (sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
-                    except: continue
-                SystemInfo.pipePrint(SystemInfo.bufferString)
-                SystemInfo.pipePrint(oneLine)
+            for key,value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
+                if key[0:2] == '0[':
+                    continue
+
+                try:
+                    if len(self.threadData[key]['syscallInfo']) > 0:
+                        SystemInfo.pipePrint("%16s(%4s)" % (self.threadData[key]['comm'], key))
+                    else: continue
+                except: continue
+
+                try:
+                    for sysId,val in sorted(self.threadData[key]['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
+                        if val['count'] > 0:
+                            val['average'] = val['usage'] / val['count']
+                            SystemInfo.pipePrint("\t%27s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
+                            (sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
+                except: continue
+            SystemInfo.pipePrint(SystemInfo.bufferString)
+            SystemInfo.pipePrint(oneLine)
 
             SystemInfo.clearPrint()
             if SystemInfo.showAll == True:
@@ -4665,13 +4670,13 @@ class ThreadInfo:
                 SystemInfo.pipePrint("%16s(%4s)\t%8s\t%5s\t%6s\t%4s\t%s" % ("Name", "Tid", "Time", "Type", "NR", "Core", "Value"))
                 SystemInfo.pipePrint(twoLine)
 
-                for icount in range(0, len(self.sysuserCallData)):
+                for icount in range(0, len(self.syscallData)):
                     try:
                         SystemInfo.addPrint("%16s(%4s)\t%6.6f\t%5s\t%6s\t%4s\t%s\n" % \
-                        (self.threadData[self.sysuserCallData[icount][2]]['comm'], self.sysuserCallData[icount][2], \
-                        round(float(self.sysuserCallData[icount][1]) - float(self.startTime), 7), self.sysuserCallData[icount][0], \
-                        self.sysuserCallData[icount][4], self.sysuserCallData[icount][3], self.sysuserCallData[icount][5]))
-                        if self.sysuserCallData[icount][0] == 'enter':
+                        (self.threadData[self.syscallData[icount][2]]['comm'], self.syscallData[icount][2], \
+                        round(float(self.syscallData[icount][1]) - float(self.startTime), 7), self.syscallData[icount][0], \
+                        self.syscallData[icount][4], self.syscallData[icount][3], self.syscallData[icount][5]))
+                        if self.syscallData[icount][0] == 'enter':
                             count += 1
                     except: None
                 SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Sys', count))
@@ -5664,8 +5669,8 @@ class ThreadInfo:
                         except: idx = -1
 
                         if idx >= 0:
-                            self.sysuserCallData.append(['enter', time, thread, core, nr, args])
-                    else: self.sysuserCallData.append(['enter', time, thread, core, nr, args])
+                            self.syscallData.append(['enter', time, thread, core, nr, args])
+                    else: self.syscallData.append(['enter', time, thread, core, nr, args])
 
             elif func == "sys_exit":
                 m = re.match('^\s*NR (?P<nr>[0-9]+) = (?P<ret>[0-9]+)', etc)
@@ -5726,9 +5731,9 @@ class ThreadInfo:
                         except: idx = -1
 
                         if idx >= 0:
-                            self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
+                            self.syscallData.append(['exit', time, thread, core, nr, ret])
                     else:
-                        self.sysuserCallData.append(['exit', time, thread, core, nr, ret])
+                        self.syscallData.append(['exit', time, thread, core, nr, ret])
 
             elif func == "signal_generate":
                 m = re.match('^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', etc)
@@ -6084,7 +6089,7 @@ class ThreadInfo:
                         self.kmemTable = {}
                         self.intervalData = []
                         self.depData = []
-                        self.sysuserCallData = []
+                        self.syscallData = []
                         self.lastJob = {}
                         self.preemptData = []
                         self.suspendData = []
@@ -6135,7 +6140,7 @@ class ThreadInfo:
                         self.kmemTable = {}
                         self.intervalData = []
                         self.depData = []
-                        self.sysuserCallData = []
+                        self.syscallData = []
                         self.lastJob = {}
                         self.preemptData = []
                         self.suspendData = []
