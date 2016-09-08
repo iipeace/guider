@@ -4150,6 +4150,7 @@ class ThreadInfo:
             while True:
                 self.saveProcs()
 
+                # close fd that thread who already termiated created becuase of limited resource #
                 for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
                     if value['alive'] is False:
                         try:
@@ -6250,7 +6251,7 @@ class ThreadInfo:
             SystemInfo.printError('Fail to open %s' % SystemInfo.procPath)
             sys.exit(0)
 
-        # scan comms include words in SystemInfo.showGroup #
+        # get thread list in proc directory #
         for pid in pids:
             try: int(pid)
             except: continue
@@ -6296,9 +6297,11 @@ class ThreadInfo:
                     # make process object with constant value #
                     self.procData[tid] = dict(self.init_procData)
 
+                    # main thread #
                     if pid == tid:
                         self.procData[tid]['isMain'] = True
                         self.procData[tid]['tids'] = []
+                    # sibling thread #
                     else:
                         try: self.procData[pid]['tids'].append(tid)
                         except:
@@ -6306,6 +6309,7 @@ class ThreadInfo:
                             self.procData[pid]['tids'] = []
                             self.procData[pid]['tids'].append(tid)
 
+                # save stats of thread #
                 self.saveProcData(threadPath, tid)
 
 
@@ -6333,18 +6337,22 @@ class ThreadInfo:
                 return
 
         statList = statBuf.split()
-        if statList[1][-1] != ')':
-            for n in range(2, len(statList)):
-                statList[1] += ' ' + str(statList[n])
-                if statList[n].rfind(')') != -1:
-                    statList.pop(n)
+
+        # merge comm parts that splited by space #
+        commIndex = ConfigInfo.statList.index("COMM")
+        if statList[commIndex][-1] != ')':
+            idx = ConfigInfo.statList.index("COMM") + 1
+            while True:
+                statList[commIndex] += ' ' + str(statList[idx])
+                if statList[idx].rfind(')') != -1:
+                    statList.pop(idx)
                     break
-            statList.pop(n)
+                statList.pop(idx)
 
         self.procData[tid]['stat'] = statList
 
+        # save io info #
         if SystemInfo.diskEnable is True:
-            # save io info #
             try:
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
                 self.procData[tid]['ioFd'].seek(0, 0)
