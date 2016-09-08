@@ -2374,6 +2374,9 @@ class SystemInfo:
     recordStatus = False
     condExit = False
 
+    statFd = None
+    vmstatFd = None
+
     irqEnable = False
     cpuEnable = True
     memEnable = False
@@ -6194,12 +6197,16 @@ class ThreadInfo:
 
         # save cpu info #
         try:
-            cpuPath = os.path.join(SystemInfo.procPath, 'stat')
-            fd = open(cpuPath, 'r')
-            cpuBuf = fd.readlines()
-            fd.close()
+            cpuBuf = None
+            systemInfo.statFd.seek(0, 0)
+            cpuBuf = SystemInfo.statFd.readlines()
         except:
-            SystemInfo.printWarning('Fail to open %s' % cpuPath)
+            try:
+                cpuPath = os.path.join(SystemInfo.procPath, 'stat')
+                SystemInfo.statFd = open(cpuPath, 'r')
+                cpuBuf = SystemInfo.statFd.readlines()
+            except:
+                SystemInfo.printWarning('Fail to open %s' % cpuPath)
 
         if cpuBuf is not None:
             self.prevCpuData = self.cpuData
@@ -6218,12 +6225,16 @@ class ThreadInfo:
 
         # save vmstat info #
         try:
-            vmstatPath = os.path.join(SystemInfo.procPath, 'vmstat')
-            fd = open(vmstatPath, 'r')
-            vmBuf = fd.readlines()
-            fd.close()
+            vmBuf = None
+            systemInfo.vmstatFd.seek(0, 0)
+            vmBuf = SystemInfo.vmstatFd.readlines()
         except:
-            SystemInfo.printWarning('Fail to open %s' % SystemInfo.vmstatPath)
+            try:
+                vmstatPath = os.path.join(SystemInfo.procPath, 'vmstat')
+                SystemInfo.vmstatFd = open(vmstatPath, 'r')
+                vmBuf = SystemInfo.vmstatFd.readlines()
+            except:
+                SystemInfo.printWarning('Fail to open %s' % SystemInfo.vmstatPath)
 
         if vmBuf is not None:
             self.prevVmData = self.vmData
@@ -6234,8 +6245,7 @@ class ThreadInfo:
                 self.vmData[vmList[0]] = long(vmList[1])
 
         # get process list in proc directory #
-        try:
-            pids = os.listdir(SystemInfo.procPath)
+        try: pids = os.listdir(SystemInfo.procPath)
         except:
             SystemInfo.printError('Fail to open %s' % SystemInfo.procPath)
             sys.exit(0)
@@ -6249,8 +6259,7 @@ class ThreadInfo:
             procPath = os.path.join(SystemInfo.procPath, pid)
             taskPath = os.path.join(procPath, 'task')
 
-            try:
-                tids = os.listdir(taskPath)
+            try: tids = os.listdir(taskPath)
             except:
                 SystemInfo.printWarning('Fail to open %s' % taskPath)
                 continue
@@ -6258,9 +6267,9 @@ class ThreadInfo:
             for tid in tids:
                 try: self.procData[int(tid)]
                 except:
-                    comm = None
                     threadPath = os.path.join(taskPath, tid)
 
+                    # filter #
                     if len(SystemInfo.showGroup) > 0:
                         commPath = os.path.join(threadPath, 'comm')
 
@@ -6291,8 +6300,7 @@ class ThreadInfo:
                         self.procData[tid]['isMain'] = True
                         self.procData[tid]['tids'] = []
                     else:
-                        try:
-                            self.procData[pid]['tids'].append(tid)
+                        try: self.procData[pid]['tids'].append(tid)
                         except:
                             self.procData[pid] = dict(self.init_procData)
                             self.procData[pid]['tids'] = []
