@@ -4123,7 +4123,7 @@ class ThreadInfo:
         self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), 'max': float(0), 'min': float(0)}
 
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'vmstat': None, 'alive': False, \
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, \
                 'statFd': None, 'ioFd': None}
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
 
@@ -4148,7 +4148,11 @@ class ThreadInfo:
                         SystemInfo.showGroup.pop(idx)
 
             while True:
+                # collect stats of process as soon as possible #
                 self.saveProcs()
+
+                if len(self.prevProcData) > 0:
+                    self.printTopUsage()
 
                 # close fd that thread who already termiated created becuase of limited resource #
                 for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
@@ -6265,56 +6269,44 @@ class ThreadInfo:
             procPath = os.path.join(SystemInfo.procPath, pid)
             taskPath = os.path.join(procPath, 'task')
 
+            # save info per process #
+            if SystemInfo.showAll is False:
+                # make process object with constant value #
+                self.procData[pid] = dict(self.init_procData)
+
+                # save stat of process #
+                self.saveProcData(procPath, pid)
+
+                continue
+
+            # save info per thread #
             try: tids = os.listdir(taskPath)
             except:
                 SystemInfo.printWarning('Fail to open %s' % taskPath)
                 continue
 
             for tid in tids:
-                try: self.procData[int(tid)]
-                except:
-                    threadPath = os.path.join(taskPath, tid)
+                try: int(tid)
+                except: continue
 
-                    # filter #
-                    if len(SystemInfo.showGroup) > 0:
-                        commPath = os.path.join(threadPath, 'comm')
+                threadPath = os.path.join(taskPath, tid)
 
-                        try:
-                            fd = open(commPath, 'r')
-                            comm = fd.readline()
-                            comm = comm[0:len(comm) - 1]
-                            fd.close()
-                        except:
-                            SystemInfo.printWarning('Fail to open %s' % commPath)
-                            continue
+                # make process object with constant value #
+                self.procData[tid] = dict(self.init_procData)
 
-                        # filter #
-                        for val in SystemInfo.showGroup:
-                            if comm.rfind(val) != -1 or tid == val:
-                                condCont = False
-                                break
-                            else:
-                                condCont = True
+                # main thread #
+                if pid == tid:
+                    self.procData[tid]['isMain'] = True
+                    self.procData[tid]['tids'] = []
+                # sibling thread #
+                else:
+                    try: self.procData[pid]['tids'].append(tid)
+                    except:
+                        self.procData[pid] = dict(self.init_procData)
+                        self.procData[pid]['tids'] = []
+                        self.procData[pid]['tids'].append(tid)
 
-                        if condCont is True:
-                            continue
-
-                    # make process object with constant value #
-                    self.procData[tid] = dict(self.init_procData)
-
-                    # main thread #
-                    if pid == tid:
-                        self.procData[tid]['isMain'] = True
-                        self.procData[tid]['tids'] = []
-                    # sibling thread #
-                    else:
-                        try: self.procData[pid]['tids'].append(tid)
-                        except:
-                            self.procData[pid] = dict(self.init_procData)
-                            self.procData[pid]['tids'] = []
-                            self.procData[pid]['tids'].append(tid)
-
-                # save stats of thread #
+                # save stat of thread #
                 self.saveProcData(threadPath, tid)
 
 
@@ -6382,6 +6374,15 @@ class ThreadInfo:
                 line = line.split()
                 self.procData[tid]['io'] = {}
                 self.procData[tid]['io'][line[0]] = line[1]
+
+
+
+    def printTopUsage(self):
+        # print system cpu usage #
+        # print system memory usage #
+        # print process usage #
+            # filter #
+        None
 
 
 
