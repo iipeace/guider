@@ -4115,7 +4115,7 @@ class ThreadInfo:
         self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), 'totalUsage': float(0), 'cpuPer': float(0), \
                 'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), 'totalMemUsage': float(0), \
                 'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), 'totalCoreSchedCnt': int(0), 'preempted': float(0), \
-                'totalPreempted': float(0)}
+                'totalPreempted': float(0), 'new': ' ', 'die': ' '}
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), 'time': '0', 'waste': int(0), 'core': int(0)}
         self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -4802,12 +4802,32 @@ class ThreadInfo:
             if key[0:2] != '0[':
                 icount = 0
                 timeLine = ''
+
                 for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
+                    newFlag = ' '
+                    dieFlag = ' '
+
                     try: self.intervalData[icount][key]
                     except:
                         timeLine += '%3d ' % 0
                         continue
-                    timeLine += '%3d ' % (self.intervalData[icount][key]['cpuPer'])
+
+                    if icount > 0:
+                        try:
+                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                newFlag = self.intervalData[icount][key]['new']
+                        except:
+                                newFlag = self.intervalData[icount][key]['new']
+                        try:
+                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
+                                dieFlag = self.intervalData[icount][key]['die']
+                        except:
+                                dieFlag = self.intervalData[icount][key]['die']
+                    else:
+                        newFlag = self.intervalData[icount][key]['new']
+                        dieFlag = self.intervalData[icount][key]['die']
+
+                    timeLine += '%4s' % (newFlag + str(int(self.intervalData[icount][key]['cpuPer'])) + dieFlag)
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if SystemInfo.graphEnable == True:
@@ -4840,11 +4860,32 @@ class ThreadInfo:
                 icount = 0
                 timeLine = ''
                 for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
+                    newFlag = ' '
+                    dieFlag = ' '
+
                     try: self.intervalData[icount][key]
                     except:
                         timeLine += '%3d ' % 0
                         continue
-                    timeLine += '%3d ' % (self.intervalData[icount][key]['preempted'] / float(SystemInfo.intervalEnable) * 100)
+
+                    if icount > 0:
+                        try:
+                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                newFlag = self.intervalData[icount][key]['new']
+                        except:
+                                newFlag = self.intervalData[icount][key]['new']
+                        try:
+                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
+                                dieFlag = self.intervalData[icount][key]['die']
+                        except:
+                                dieFlag = self.intervalData[icount][key]['die']
+                    else:
+                        newFlag = self.intervalData[icount][key]['new']
+                        dieFlag = self.intervalData[icount][key]['die']
+
+                    timeLine += '%4s' % (newFlag + \
+                            str(int(self.intervalData[icount][key]['preempted'] / float(SystemInfo.intervalEnable) * 100)) + \
+                            dieFlag)
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if value['cpuWait'] / float(self.totalTime) * 100 < 1 and SystemInfo.showAll == False:
@@ -4861,11 +4902,32 @@ class ThreadInfo:
                 icount = 0
                 timeLine = ''
                 for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
+                    newFlag = ' '
+                    dieFlag = ' '
+
                     try: self.intervalData[icount][key]
                     except:
                         timeLine += '%3d ' % 0
                         continue
-                    timeLine += '%3d ' % (self.intervalData[icount][key]['ioUsage'] * SystemInfo.blockSize / 1024 / 1024)
+
+                    if icount > 0:
+                        try:
+                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                newFlag = self.intervalData[icount][key]['new']
+                        except:
+                                newFlag = self.intervalData[icount][key]['new']
+                        try:
+                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
+                                dieFlag = self.intervalData[icount][key]['die']
+                        except:
+                                dieFlag = self.intervalData[icount][key]['die']
+                    else:
+                        newFlag = self.intervalData[icount][key]['new']
+                        dieFlag = self.intervalData[icount][key]['die']
+
+                    timeLine += '%4s' % (newFlag + \
+                            str(int(self.intervalData[icount][key]['ioUsage'] * SystemInfo.blockSize / 1024 / 1024)) + \
+                            dieFlag)
                 SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if SystemInfo.graphEnable == True:
@@ -4896,13 +4958,33 @@ class ThreadInfo:
                     icount = 0
                     timeLine = ''
                     for icount in range(0, int(float(self.totalTime) / SystemInfo.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
                         try: self.intervalData[icount][key]
                         except:
                             timeLine += '%3d ' % 0
                             continue
-                        timeLine += '%3d ' % \
-                                ((self.intervalData[icount][key]['memUsage'] * 4 / 1024) + \
-                                (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))
+
+                        if icount > 0:
+                            try:
+                                if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            try:
+                                if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
+                                    dieFlag = self.intervalData[icount][key]['die']
+                            except:
+                                    dieFlag = self.intervalData[icount][key]['die']
+                        else:
+                            newFlag = self.intervalData[icount][key]['new']
+                            dieFlag = self.intervalData[icount][key]['die']
+
+                        timeLine += '%4s' % (newFlag + \
+                                str(int((self.intervalData[icount][key]['memUsage'] * 4 / 1024) + \
+                                (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))) + \
+                                dieFlag)
                     SystemInfo.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                     if SystemInfo.graphEnable == True:
@@ -5085,6 +5167,12 @@ class ThreadInfo:
                             for idx, val in self.lastTidPerCore.items():
                                 intervalThread['totalUsage'] += (float(time) - float(self.threadData[val]['start']))
 
+                            # mark life flag #
+                            if self.threadData[key]['new'] != ' ':
+                                intervalThread['new'] = self.threadData[key]['new']
+                            if self.threadData[key]['die'] != ' ':
+                                intervalThread['die'] = self.threadData[key]['die']
+
                             # first interval #
                             if SystemInfo.intervalNow - SystemInfo.intervalEnable == 0:
                                 intervalThread['cpuUsage'] += float(self.threadData[key]['usage'])
@@ -5093,7 +5181,7 @@ class ThreadInfo:
                                 intervalThread['ioUsage'] = float(self.threadData[key]['reqBlock'])
                                 intervalThread['memUsage'] = float(self.threadData[key]['nrPages'])
                                 intervalThread['kmemUsage'] = float(self.threadData[key]['remainKmem'])
-                            # normal intervals #
+                            # later intervals #
                             else:
                                 try: self.intervalData[index - 1][key]
                                 except: self.intervalData[index - 1][key] = dict(self.init_intervalData)
