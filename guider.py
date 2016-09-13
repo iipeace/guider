@@ -2339,6 +2339,8 @@ class SystemInfo:
     magicString = '@@@@@'
     procPath = '/proc'
     maxFd = 1024
+    HZ = 250 # 4ms tick #
+    TICK = int((1 / float(HZ)) * 1000)
 
     mountPath = None
     addr2linePath = None
@@ -4123,8 +4125,9 @@ class ThreadInfo:
         self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), 'max': float(0), 'min': float(0)}
 
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, \
-                'statFd': None, 'ioFd': None}
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, 'statFd': None, 'ioFd': None, \
+                'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), 'utime': float(0), 'stime': float(0), 'swap': long(0), \
+                'btime': float(0)}
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
 
         self.startTime = '0'
@@ -4151,7 +4154,7 @@ class ThreadInfo:
                 # collect stats of process as soon as possible #
                 self.saveProcs()
 
-                if len(self.prevProcData) > 0:
+                if self.prevProcData != {}:
                     self.printTopUsage()
 
                 # close fd that thread who already termiated created becuase of limited resource #
@@ -6466,6 +6469,48 @@ class ThreadInfo:
 
 
     def printTopUsage(self):
+        # set index of attributes #
+        minfltIdx = ConfigInfo.statList.index("MINFLT")
+        majfltIdx = ConfigInfo.statList.index("MAJFLT")
+        utimeIdx = ConfigInfo.statList.index("UTIME")
+        stimeIdx = ConfigInfo.statList.index("STIME")
+        btimeIdx = ConfigInfo.statList.index("DELAYBLKTICK")
+        swapIdx = ConfigInfo.statList.index("NSWAP")
+
+        # calculate diff #
+        for pid, value in self.procData.items():
+            nowData = value['stat']
+
+            try:
+                prevData = self.prevProcData[pid]['stat']
+
+                minflt = long(nowData[minfltIdx]) - prevData[minfltIdx]
+                majflt = long(nowData[majfltIdx]) - prevData[majfltIdx]
+                utime = long(nowData[utimeIdx]) - prevData[utimeIdx]
+                stime = long(nowData[stimeIdx]) - prevData[stimeIdx]
+                ttime = utime + stime
+                btime = long(nowData[btimeIdx]) - prevData[btimeIdx]
+                swap = long(nowData[swapIdx]) - prevData[swapIdx]
+            except:
+                value['new'] = True
+                minflt = nowData[minfltIdx] = long(nowData[minfltIdx])
+                majflt = nowData[majfltIdx] = long(nowData[majfltIdx])
+                utime = nowData[utimeIdx] = long(nowData[utimeIdx])
+                stime = nowData[stimeIdx] = long(nowData[stimeIdx])
+                ttime = utime + stime
+                btime = nowData[btimeIdx] = long(nowData[btimeIdx])
+                swap = nowData[swapIdx] = long(nowData[swapIdx])
+
+            value['minflt'] = minflt
+            value['majflt'] = majflt
+            value['ttime'] = ttime * SystemInfo.TICK
+            value['utime'] = utime * SystemInfo.TICK
+            value['stime'] = stime * SystemInfo.TICK
+            value['btime'] = btime * SystemInfo.TICK
+            value['swap'] = swap
+
+        # get HZ #
+        # calculate actual time by using ticks for procs #
         # print system cpu usage #
         # print system memory usage #
         # print process usage #
