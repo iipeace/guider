@@ -2339,8 +2339,9 @@ class SystemInfo:
     magicString = '@@@@@'
     procPath = '/proc'
     maxFd = 1024
-    HZ = 250 # 4ms tick #
-    TICK = int((1 / float(HZ)) * 1000)
+    TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+    #HZ = 250 # 4ms tick #
+    #TICK = int((1 / float(HZ)) * 1000)
 
     mountPath = None
     addr2linePath = None
@@ -4136,6 +4137,15 @@ class ThreadInfo:
 
         # top mode #
         if file is None:
+            # set index of attributes #
+            self.minfltIdx = ConfigInfo.statList.index("MINFLT")
+            self.majfltIdx = ConfigInfo.statList.index("MAJFLT")
+            self.utimeIdx = ConfigInfo.statList.index("UTIME")
+            self.stimeIdx = ConfigInfo.statList.index("STIME")
+            self.btimeIdx = ConfigInfo.statList.index("DELAYBLKTICK")
+            self.swapIdx = ConfigInfo.statList.index("NSWAP")
+            self.commIdx = ConfigInfo.statList.index("COMM")
+
             try:
                 import resource
                 SystemInfo.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
@@ -4157,13 +4167,13 @@ class ThreadInfo:
                 if self.prevProcData != {}:
                     self.printTopUsage()
 
-                # close fd that thread who already termiated created becuase of limited resource #
-                for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
-                    if value['alive'] is False:
-                        try:
-                            value['statFd'].close()
-                            value['ioFd'].close()
-                        except: None
+                    # close fd that thread who already termiated created becuase of limited resource #
+                    for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
+                        if value['alive'] is False:
+                            try:
+                                value['statFd'].close()
+                                value['ioFd'].close()
+                            except: None
 
                 time.sleep(SystemInfo.intervalEnable)
 
@@ -6299,7 +6309,7 @@ class ThreadInfo:
         # save cpu info #
         try:
             cpuBuf = None
-            systemInfo.statFd.seek(0, 0)
+            SystemInfo.statFd.seek(0)
             cpuBuf = SystemInfo.statFd.readlines()
         except:
             try:
@@ -6316,10 +6326,17 @@ class ThreadInfo:
             for line in cpuBuf:
                 statList = line.split()
                 cpuId = statList[0]
-                if cpuId.rfind('cpu') == 0:
-                    try: self.cpuData[cpuId]
+                if cpuId == 'cpu':
+                    try: self.cpuData['total']
                     except:
-                        self.cpuData[cpuId] = { 'user': long(statList[1]), \
+                        self.cpuData['total'] = { 'user': long(statList[1]), \
+                                'system': long(statList[2]), 'nice': long(statList[3]), \
+                                'idle': long(statList[3]), 'wait': long(statList[4]), \
+                                'irq': long(statList[5]), 'softirq': long(statList[6]) }
+                elif cpuId.rfind('cpu') == 0:
+                    try: self.cpuData[int(cpuId[3:])]
+                    except:
+                        self.cpuData[int(cpuId[3:])] = { 'user': long(statList[1]), \
                                 'system': long(statList[2]), 'nice': long(statList[3]), \
                                 'idle': long(statList[3]), 'wait': long(statList[4]), \
                                 'irq': long(statList[5]), 'softirq': long(statList[6]) }
@@ -6327,7 +6344,7 @@ class ThreadInfo:
         # save vmstat info #
         try:
             vmBuf = None
-            systemInfo.vmstatFd.seek(0, 0)
+            SystemInfo.vmstatFd.seek(0)
             vmBuf = SystemInfo.vmstatFd.readlines()
         except:
             try:
@@ -6405,8 +6422,9 @@ class ThreadInfo:
     def saveProcData(self, path, tid):
         # save stat info #
         try:
+            self.prevProcData[tid]['statFd'].seek(0)
             self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-            self.procData[tid]['statFd'].seek(0, 0)
+            self.procData[tid]['statFd'].flush()
             statBuf = self.procData[tid]['statFd'].readline()
             self.prevProcData[tid]['alive'] = True
         except:
@@ -6437,13 +6455,21 @@ class ThreadInfo:
                     break
                 statList.pop(idx)
 
+        # convert type of values #
         self.procData[tid]['stat'] = statList
+        statList[self.minfltIdx] = long(statList[self.minfltIdx])
+        statList[self.majfltIdx] = long(statList[self.majfltIdx])
+        statList[self.swapIdx] = long(statList[self.swapIdx])
+        statList[self.utimeIdx] = long(statList[self.utimeIdx])
+        statList[self.stimeIdx] = long(statList[self.stimeIdx])
+        statList[self.btimeIdx] = long(statList[self.btimeIdx])
 
         # save io info #
         if SystemInfo.diskEnable is True:
             try:
+                self.prevProcData[tid]['ioFd'].seek(0)
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
-                self.procData[tid]['ioFd'].seek(0, 0)
+                self.procData[tid]['ioFd'].flush()
                 ioBuf = self.procData[tid]['ioFd'].readlines()
                 self.prevProcData[tid]['alive'] = True
             except:
@@ -6469,53 +6495,49 @@ class ThreadInfo:
 
 
     def printTopUsage(self):
-        # set index of attributes #
-        minfltIdx = ConfigInfo.statList.index("MINFLT")
-        majfltIdx = ConfigInfo.statList.index("MAJFLT")
-        utimeIdx = ConfigInfo.statList.index("UTIME")
-        stimeIdx = ConfigInfo.statList.index("STIME")
-        btimeIdx = ConfigInfo.statList.index("DELAYBLKTICK")
-        swapIdx = ConfigInfo.statList.index("NSWAP")
+        # get system tick as HZ #
+        None
 
-        # calculate diff #
+        # calculate diff between previous and now #
         for pid, value in self.procData.items():
-            nowData = value['stat']
-
             try:
                 prevData = self.prevProcData[pid]['stat']
+                nowData = value['stat']
 
-                minflt = long(nowData[minfltIdx]) - prevData[minfltIdx]
-                majflt = long(nowData[majfltIdx]) - prevData[majfltIdx]
-                utime = long(nowData[utimeIdx]) - prevData[utimeIdx]
-                stime = long(nowData[stimeIdx]) - prevData[stimeIdx]
-                ttime = utime + stime
-                btime = long(nowData[btimeIdx]) - prevData[btimeIdx]
-                swap = long(nowData[swapIdx]) - prevData[swapIdx]
+                value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
+                value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
+                value['swap'] = nowData[self.swapIdx] - prevData[self.swapIdx]
+                value['utime'] = nowData[self.utimeIdx] - prevData[self.utimeIdx]
+                value['stime'] = nowData[self.stimeIdx] - prevData[self.stimeIdx]
+                value['btime'] = nowData[self.btimeIdx] - prevData[self.btimeIdx]
+                value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx]) - \
+                        (prevData[self.utimeIdx] + prevData[self.stimeIdx])
             except:
                 value['new'] = True
-                minflt = nowData[minfltIdx] = long(nowData[minfltIdx])
-                majflt = nowData[majfltIdx] = long(nowData[majfltIdx])
-                utime = nowData[utimeIdx] = long(nowData[utimeIdx])
-                stime = nowData[stimeIdx] = long(nowData[stimeIdx])
-                ttime = utime + stime
-                btime = nowData[btimeIdx] = long(nowData[btimeIdx])
-                swap = nowData[swapIdx] = long(nowData[swapIdx])
 
-            value['minflt'] = minflt
-            value['majflt'] = majflt
-            value['ttime'] = ttime * SystemInfo.TICK
-            value['utime'] = utime * SystemInfo.TICK
-            value['stime'] = stime * SystemInfo.TICK
-            value['btime'] = btime * SystemInfo.TICK
-            value['swap'] = swap
-
-        # get HZ #
-        # calculate actual time by using ticks for procs #
         # print system cpu usage #
+        for idx, value in sorted(self.cpuData.items(), reverse=False):
+            print idx, value
+
         # print system memory usage #
-        # print process usage #
+        for idx, value in sorted(self.vmData.items(), reverse=False):
+            if idx == 'nr_free_pages':
+                print idx, value
+
+        # print process usage sorted by cpu usage #
+        for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True):
             # filter #
-        None
+            if SystemInfo.showGroup != []:
+                for val in SystemInfo.showGroup:
+                    if value['stat'][self.commIdx].rfind(val) != -1 or idx == val:
+                        None
+                continue
+
+            if value['ttime'] > 0:
+                print idx, value['stat'][self.commIdx], value['ttime'], value['utime'], value['stime']
+            else:
+                print '\n'
+                break
 
 
 
