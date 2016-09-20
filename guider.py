@@ -6329,17 +6329,22 @@ class ThreadInfo:
                 if cpuId == 'cpu':
                     try: self.cpuData['total']
                     except:
+                        # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
                         self.cpuData['total'] = { 'user': long(statList[1]), \
-                                'system': long(statList[2]), 'nice': long(statList[3]), \
-                                'idle': long(statList[3]), 'wait': long(statList[4]), \
-                                'irq': long(statList[5]), 'softirq': long(statList[6]) }
+                                'nice': long(statList[2]), 'system': long(statList[3]), \
+                                'idle': long(statList[4]), 'iowait': long(statList[5]), \
+                                'irq': long(statList[6]), 'softirq': long(statList[7]) }
                 elif cpuId.rfind('cpu') == 0:
                     try: self.cpuData[int(cpuId[3:])]
                     except:
                         self.cpuData[int(cpuId[3:])] = { 'user': long(statList[1]), \
-                                'system': long(statList[2]), 'nice': long(statList[3]), \
-                                'idle': long(statList[3]), 'wait': long(statList[4]), \
-                                'irq': long(statList[5]), 'softirq': long(statList[6]) }
+                                'nice': long(statList[2]), 'system': long(statList[3]), \
+                                'idle': long(statList[4]), 'iowait': long(statList[5]), \
+                                'irq': long(statList[6]), 'softirq': long(statList[7]) }
+                else:
+                    try: self.cpuData[cpuId]
+                    except:
+                        self.cpuData[cpuId] = { cpuId: long(statList[1]) }
 
         # save vmstat info #
         try:
@@ -6517,7 +6522,14 @@ class ThreadInfo:
 
         # print system cpu usage #
         for idx, value in sorted(self.cpuData.items(), reverse=False):
-            print idx, value
+            try:
+                print int(idx), ':',
+                for name, tick in value.items():
+                    print name, tick - self.prevCpuData[idx][name],
+                print ''
+            except:
+                if idx == 'btime' or idx == 'ctxt':
+                    print idx, value[idx] - self.prevCpuData[idx][idx]
 
         # print system memory usage #
         for idx, value in sorted(self.vmData.items(), reverse=False):
