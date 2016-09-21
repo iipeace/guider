@@ -6693,6 +6693,7 @@ if __name__ == '__main__':
         print('\t[record]')
         print('\t\t-s [save_traceData:dir]')
         print('\t\t-u [run_inBackground]')
+        print('\t\t-c [wait_forSignal]')
         print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)|r(eset)|d(isk)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
