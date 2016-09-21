@@ -1390,7 +1390,7 @@ class FunctionInfo:
         if len(self.target) == 0:
             sys.exit(0)
 
-        # Print profiled thread list #
+        # Print resource usage of functions #
         self.printCpuUsage()
         self.printMemUsage()
         self.printBlockUsage()
@@ -6355,6 +6355,8 @@ class ThreadInfo:
             try:
                 vmstatPath = os.path.join(SystemInfo.procPath, 'vmstat')
                 SystemInfo.vmstatFd = open(vmstatPath, 'r')
+
+                # vmstat list from https://access.redhat.com/solutions/406773 #
                 vmBuf = SystemInfo.vmstatFd.readlines()
             except:
                 SystemInfo.printWarning('Fail to open %s' % SystemInfo.vmstatPath)
@@ -6499,10 +6501,117 @@ class ThreadInfo:
 
 
 
-    def printTopUsage(self):
-        # get system tick as HZ #
-        None
+    def printCpuUsage(self):
+        # print total cpu usage #
+        try:
+            print 'total: ',
+            for name, tick in self.cpuData['total'].items():
+                print name, tick - self.prevCpuData['total'][name],
+        except: None
 
+        # print each cpu usage #
+        for idx, value in sorted(self.cpuData.items(), reverse=False):
+            try:
+                print int(idx), ':',
+                for name, tick in value.items():
+                    print name, tick - self.prevCpuData[idx][name],
+                print ''
+            except: None
+
+        # print additional cpu info #
+        try:
+            print 'btime', self.cpuData['btime']['btime'] - self.prevCpuData['btime']['btime']
+            print 'ctxt', self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+        except: None
+
+
+
+    def printMemUsage(self):
+        try: freeMem = self.vmData['nr_free_pages'] * 4 / 1024
+        except: freemMem = 'NA'
+        try: freeDiffMem = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
+        except: freeDiffMem = 'NA'
+
+        try: anonMem = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
+        except: anonMem = 'NA'
+        try: fileMem = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
+        except: fileMem = 'NA'
+
+        '''
+        try: anonInMem = (self.vmData['nr_inactive_anon'] - self.prevVmData['nr_inactive_anon']) * 4 / 1024
+        except: anonInMem = 'NA'
+        try: anonAcMem = (self.vmData['nr_active_anon'] - self.prevVmData['nr_active_anon']) * 4 / 1024
+        except: anonAcMem = 'NA'
+
+        try: fileInMem = (self.vmData['nr_inactive_file'] - self.prevVmData['nr_inactive_file']) * 4 / 1024
+        except: fileInMem = 'NA'
+        try: fileAcMem = (self.vmData['nr_active_file'] - self.prevVmData['nr_active_file']) * 4 / 1024
+        except: fileAcMem = 'NA'
+        '''
+
+        try: slabReclm = (self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable'])
+        except: slabReclm = 'NA'
+        try: slabUnReclm = (self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable'])
+        except: slabUnReclm = 'NA'
+        try: slabMem = (slabReclm + slabUnReclm) * 4 / 1024
+        except: slabMem = 'NA'
+
+        try: faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault']) * 4 / 1024
+        except: faultMem = 'NA'
+        try: majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']) * 4 / 1024
+        except: majFaultMem = 'NA'
+        try: minFaultMem = faultMem - majFaultMem
+        except: minFaultMem = 'NA'
+
+        # paged in/out from/to disk #
+        try: pgInMem = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) * 4 / 1024
+        except: pgInMem = 'NA'
+        try: pgOutMem = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) * 4 / 1024
+        except: pgOutMem = 'NA'
+
+        try: swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) * 4 / 1024
+        except: swapInMem = 'NA'
+        try: swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) * 4 / 1024
+        except: swapOutMem = 'NA'
+
+        try: nrBgReclaim = (self.vmData['pageoutrun'] - self.prevVmData['pageoutrun'])
+        except: nrBgReclaim = 'NA'
+        try: bgReclaimNormal = (self.vmData['pgsteal_kswapd_normal'] - \
+                self.prevVmData['pgsteal_kswapd_normal'])
+        except: bgReclaimNormal = 0
+        try: bgReclaimHigh = (self.vmData['pgsteal_kswapd_high'] - \
+                self.prevVmData['pgsteal_kswapd_high'])
+        except: bgReclaimHigh = 0
+        try: bgReclaim = (bgReclaimNormal + bgReclaimHigh) * 4 / 1024
+        except: bgReclaim = 'NA'
+
+        try: nrDrReclaim = (self.vmData['allocstall'] - self.prevVmData['allocstall'])
+        except: nrDrReclaim = 'NA'
+        try: drReclaimNormal = (self.vmData['pgsteal_direct_normal'] - \
+                self.prevVmData['pgsteal_direct_normal'])
+        except: drReclaimNormal = 0
+        try: drReclaimHigh = (self.vmData['pgsteal_direct_high'] - \
+                self.prevVmData['pgsteal_direct_high'])
+        except: drReclaimHigh = 0
+        try: drReclaim = (drReclaimNormal + drReclaimHigh) * 4 / 1024
+        except: drReclaim = 'NA'
+
+        try: mlockMem = self.vmData['nr_mlock'] * 4 / 1024
+        except: mlockMem = 'NA'
+        try: mappedMem = self.vmData['nr_mapped'] * 4 / 1024
+        except: mappedMem = 'NA'
+        try: shMem = self.vmData['nr_shmem'] * 4 / 1024
+        except: shMem = 'NA'
+
+        print 'freeMem: ', freeMem, freeDiffMem, anonMem, fileMem, slabMem
+        print 'fault: ', faultMem, majFaultMem, minFaultMem, pgInMem, pgOutMem
+        print 'swap: ', swapInMem, swapOutMem
+        print 'usedMem: ', nrBgReclaim, bgReclaim, nrDrReclaim, drReclaim
+        print 'stacticMem: ', mlockMem, mappedMem, shMem
+
+
+
+    def printProcUsage(self):
         # calculate diff between previous and now #
         for pid, value in self.procData.items():
             try:
@@ -6520,22 +6629,6 @@ class ThreadInfo:
             except:
                 value['new'] = True
 
-        # print system cpu usage #
-        for idx, value in sorted(self.cpuData.items(), reverse=False):
-            try:
-                print int(idx), ':',
-                for name, tick in value.items():
-                    print name, tick - self.prevCpuData[idx][name],
-                print ''
-            except:
-                if idx == 'btime' or idx == 'ctxt':
-                    print idx, value[idx] - self.prevCpuData[idx][idx]
-
-        # print system memory usage #
-        for idx, value in sorted(self.vmData.items(), reverse=False):
-            if idx == 'nr_free_pages':
-                print idx, value
-
         # print process usage sorted by cpu usage #
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True):
             # filter #
@@ -6550,6 +6643,21 @@ class ThreadInfo:
             else:
                 print '\n'
                 break
+
+
+
+    def printTopUsage(self):
+        # get system tick as HZ #
+        None
+
+        # print system cpu usage #
+        self.printCpuUsage()
+
+        # print system memory usage #
+        self.printMemUsage()
+
+        # print process info #
+        self.printProcUsage()
 
 
 
