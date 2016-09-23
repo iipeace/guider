@@ -4,7 +4,7 @@ __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.0.0"
+__version__ = "3.5.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -91,7 +91,7 @@ class ConfigInfo:
             'COMM',
             'STATE',
             'PPID',
-            'PRGP',
+            'PGRP',
             'SESSIONID', # 5 #
             'NRTTY',
             'TPGID',
@@ -131,6 +131,15 @@ class ConfigInfo:
             'DELAYBLKTICK',
             'GUESTTIME',
             'CGUESTTIME' # 43 #
+            ]
+
+    schedList = [
+            'C', # 0: CFS #
+            'F', # 1: FIFO #
+            'R', # 2: RR #
+            'B', # 3: BATCH #
+            'N', # 4: NONE #
+            'I', # 5: IDLE #
             ]
 
     taskChainEnable = None
@@ -2361,6 +2370,7 @@ class SystemInfo:
     curLine = 0
     totalLine = 0
     dbgEventLine = 0
+    uptime = 0
 
     graphEnable = False
     graphLabels= []
@@ -2379,6 +2389,7 @@ class SystemInfo:
 
     statFd = None
     vmstatFd = None
+    uptimeFd = None
 
     irqEnable = False
     cpuEnable = True
@@ -2686,7 +2697,8 @@ class SystemInfo:
 
     @staticmethod
     def pipePrint(line):
-        if SystemInfo.pipeForPrint == None and SystemInfo.selectMenu == None and SystemInfo.printFile == None:
+        if SystemInfo.pipeForPrint == None and SystemInfo.selectMenu == None and \
+                SystemInfo.printFile == None and SystemInfo.isTopMode() is False:
             try: SystemInfo.pipeForPrint = os.popen('less', 'w')
             except:
                 SystemInfo.printError("less can not be found, use -o option to save output to file\n")
@@ -4126,9 +4138,9 @@ class ThreadInfo:
         self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), 'max': float(0), 'min': float(0)}
 
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, 'statFd': None, 'ioFd': None, \
-                'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), 'utime': float(0), 'stime': float(0), 'swap': long(0), \
-                'btime': float(0)}
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, 'statFd': None, \
+                'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), 'utime': float(0), 'stime': float(0), 'ioFd': None, \
+                'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0)}
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
 
         self.startTime = '0'
@@ -4143,8 +4155,17 @@ class ThreadInfo:
             self.utimeIdx = ConfigInfo.statList.index("UTIME")
             self.stimeIdx = ConfigInfo.statList.index("STIME")
             self.btimeIdx = ConfigInfo.statList.index("DELAYBLKTICK")
-            self.swapIdx = ConfigInfo.statList.index("NSWAP")
             self.commIdx = ConfigInfo.statList.index("COMM")
+            self.ppidIdx = ConfigInfo.statList.index("PPID")
+            self.nrthreadIdx = ConfigInfo.statList.index("NRTHREAD")
+            self.prioIdx = ConfigInfo.statList.index("PRIORITY")
+            self.policyIdx = ConfigInfo.statList.index("POLICY")
+            self.vsizeIdx = ConfigInfo.statList.index("VSIZE")
+            self.rssIdx = ConfigInfo.statList.index("RSS")
+            self.sstackIdx = ConfigInfo.statList.index("STARTSTACK")
+            self.estackIdx = ConfigInfo.statList.index("SP")
+            self.scodeIdx = ConfigInfo.statList.index("STARTCODE")
+            self.ecodeIdx = ConfigInfo.statList.index("ENDCODE")
 
             try:
                 import resource
@@ -4163,6 +4184,8 @@ class ThreadInfo:
             while True:
                 # collect stats of process as soon as possible #
                 self.saveProcs()
+
+                SystemInfo.printTitle()
 
                 if self.prevProcData != {}:
                     self.printTopUsage()
@@ -6327,10 +6350,10 @@ class ThreadInfo:
                 statList = line.split()
                 cpuId = statList[0]
                 if cpuId == 'cpu':
-                    try: self.cpuData['total']
+                    try: self.cpuData['all']
                     except:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
-                        self.cpuData['total'] = { 'user': long(statList[1]), \
+                        self.cpuData['all'] = { 'user': long(statList[1]), \
                                 'nice': long(statList[2]), 'system': long(statList[3]), \
                                 'idle': long(statList[4]), 'iowait': long(statList[5]), \
                                 'irq': long(statList[6]), 'softirq': long(statList[7]) }
@@ -6359,7 +6382,7 @@ class ThreadInfo:
                 # vmstat list from https://access.redhat.com/solutions/406773 #
                 vmBuf = SystemInfo.vmstatFd.readlines()
             except:
-                SystemInfo.printWarning('Fail to open %s' % SystemInfo.vmstatPath)
+                SystemInfo.printWarning('Fail to open %s' % vmstatPath)
 
         if vmBuf is not None:
             self.prevVmData = self.vmData
@@ -6368,6 +6391,21 @@ class ThreadInfo:
             for line in vmBuf:
                 vmList = line.split()
                 self.vmData[vmList[0]] = long(vmList[1])
+
+        # save uptime #
+        try:
+            SystemInfo.uptimeFd.seek(0)
+            SystemInfo.uptime = float(SystemInfo.uptimeFd.readline().split()[0])
+            SystemInfo.uptimeFd.flush()
+        except:
+            try:
+                uptimePath = os.path.join(SystemInfo.procPath, 'uptime')
+                SystemInfo.uptimeFd = open(uptimePath, 'r')
+
+                SystemInfo.uptime = float(SystemInfo.uptimeFd.readline().split()[0])
+                SystemInfo.uptimeFd.flush()
+            except:
+                SystemInfo.printWarning('Fail to open %s' % uptimePath)
 
         # get process list in proc directory #
         try: pids = os.listdir(SystemInfo.procPath)
@@ -6388,6 +6426,7 @@ class ThreadInfo:
             if SystemInfo.showAll is False:
                 # make process object with constant value #
                 self.procData[pid] = dict(self.init_procData)
+                self.procData[pid]['mainID'] = int(pid)
 
                 # save stat of process #
                 self.saveProcData(procPath, pid)
@@ -6408,6 +6447,7 @@ class ThreadInfo:
 
                 # make process object with constant value #
                 self.procData[tid] = dict(self.init_procData)
+                self.procData[tid]['mainID'] = int(pid)
 
                 # main thread #
                 if pid == tid:
@@ -6466,7 +6506,6 @@ class ThreadInfo:
         self.procData[tid]['stat'] = statList
         statList[self.minfltIdx] = long(statList[self.minfltIdx])
         statList[self.majfltIdx] = long(statList[self.majfltIdx])
-        statList[self.swapIdx] = long(statList[self.swapIdx])
         statList[self.utimeIdx] = long(statList[self.utimeIdx])
         statList[self.stimeIdx] = long(statList[self.stimeIdx])
         statList[self.btimeIdx] = long(statList[self.btimeIdx])
@@ -6496,33 +6535,76 @@ class ThreadInfo:
 
             for line in ioBuf:
                 line = line.split()
-                self.procData[tid]['io'] = {}
-                self.procData[tid]['io'][line[0]] = line[1]
+                if line[0] == 'read_bytes:':
+                    try:
+                        self.procData[tid]['io']['read_bytes'] = line[1]
+                    except:
+                        self.procData[tid]['io'] = {}
+                        self.procData[tid]['io']['read_bytes'] = line[1]
+                elif line[0] == 'write_bytes:':
+                    try:
+                        self.procData[tid]['io']['write_bytes'] = line[1]
+                    except:
+                        self.procData[tid]['io'] = {}
+                        self.procData[tid]['io']['write_bytes'] = line[1]
 
 
 
     def printCpuUsage(self):
-        # print total cpu usage #
-        try:
-            print 'total: ',
-            for name, tick in self.cpuData['total'].items():
-                print name, tick - self.prevCpuData['total'][name],
-        except: None
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
+                format("CPU", "Usage", "Usr", "Ker", "IO", "IRQ", "SIRQ", "Nice", "Ctxt"))
+        SystemInfo.pipePrint(oneLine)
 
         # print each cpu usage #
         for idx, value in sorted(self.cpuData.items(), reverse=False):
-            try:
-                print int(idx), ':',
-                for name, tick in value.items():
-                    print name, tick - self.prevCpuData[idx][name],
-                print ''
-            except: None
+            nowData = self.cpuData[idx]
+            prevData = self.prevCpuData[idx]
 
-        # print additional cpu info #
-        try:
-            print 'btime', self.cpuData['btime']['btime'] - self.prevCpuData['btime']['btime']
-            print 'ctxt', self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
-        except: None
+            try:
+                SystemInfo.maxCore = int(idx)
+
+                idleUsage = int(nowData['idle'] - prevData['idle'])
+                idleUsage /= SystemInfo.intervalEnable
+                userUsage = (nowData['user'] - prevData['user']) / SystemInfo.intervalEnable
+                kerUsage = (nowData['system'] - prevData['system']) / SystemInfo.intervalEnable
+
+                if idleUsage > 100:
+                    idleUsage = 100
+                if userUsage > 100:
+                    userUsage = 100
+                elif kerUsage > 100:
+                    kerUsage = 100
+
+                SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
+                        format("Core/" + str(idx), \
+                        str(100 - idleUsage) + ' %', userUsage, kerUsage, \
+                        (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, \
+                        (nowData['irq'] - prevData['irq']) / SystemInfo.intervalEnable, \
+                        (nowData['softirq'] - prevData['softirq']) / SystemInfo.intervalEnable, \
+                        (nowData['nice'] - prevData['nice']) / SystemInfo.intervalEnable))
+            except:
+                if idx == 'all':
+                    usage = ((SystemInfo.maxCore + 1) * SystemInfo.intervalEnable * 100) - \
+                            int(nowData['idle'] - prevData['idle'])
+                    if usage >= 0:
+                        usage /= SystemInfo.intervalEnable
+                    else:
+                        usage = 0
+
+                    maxCore = SystemInfo.maxCore + 1
+                    interval = SystemInfo.intervalEnable
+
+                    SystemInfo.pipePrint(oneLine)
+                    SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
+                            format("Total", \
+                            str(usage / (SystemInfo.maxCore + 1)) + ' %', \
+                            ((nowData['user'] - prevData['user']) / maxCore) / interval, \
+                            ((nowData['system'] - prevData['system']) / maxCore) / interval, \
+                            ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval, \
+                            ((nowData['irq'] - prevData['irq']) / maxCore) / interval, \
+                            ((nowData['softirq'] - prevData['softirq']) / maxCore) / interval, \
+                            ((nowData['nice'] - prevData['nice']) / maxCore) / interval))
 
 
 
@@ -6596,18 +6678,24 @@ class ThreadInfo:
         try: drReclaim = (drReclaimNormal + drReclaimHigh) * 4 / 1024
         except: drReclaim = 'NA'
 
+        '''
         try: mlockMem = self.vmData['nr_mlock'] * 4 / 1024
         except: mlockMem = 'NA'
         try: mappedMem = self.vmData['nr_mapped'] * 4 / 1024
         except: mappedMem = 'NA'
         try: shMem = self.vmData['nr_shmem'] * 4 / 1024
         except: shMem = 'NA'
+        '''
 
-        print 'freeMem: ', freeMem, freeDiffMem, anonMem, fileMem, slabMem
-        print 'fault: ', faultMem, majFaultMem, minFaultMem, pgInMem, pgOutMem
-        print 'swap: ', swapInMem, swapOutMem
-        print 'usedMem: ', nrBgReclaim, bgReclaim, nrDrReclaim, drReclaim
-        print 'stacticMem: ', mlockMem, mappedMem, shMem
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint("{0:^7}({1:^7}/{2:^6}/{3:^6}/{4:^6})|{5:^8}|{6:^8}|{7:^10}|{8:^10}|{9:^11}|".\
+                format("MemFree", "Free", "Anon", "File", "Slab", "MajFlt", "MinFlt", "PgInOut", "SwpInOut", "RclmBgDr"))
+        SystemInfo.pipePrint(oneLine)
+
+        SystemInfo.pipePrint("{0:^7}({1:^7}/{2:^6}/{3:^6}/{4:^6})|{5:^8}|{6:^8}|{7:^10}|{8:^10}|{9:^11}|".\
+                format(freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
+                majFaultMem, minFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
+                str(swapInMem) + '/' + str(swapOutMem), str(bgReclaim) + '/' + str(drReclaim)))
 
 
 
@@ -6615,33 +6703,110 @@ class ThreadInfo:
         # calculate diff between previous and now #
         for pid, value in self.procData.items():
             try:
-                prevData = self.prevProcData[pid]['stat']
                 nowData = value['stat']
+                prevData = self.prevProcData[pid]['stat']
 
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
-                value['swap'] = nowData[self.swapIdx] - prevData[self.swapIdx]
                 value['utime'] = nowData[self.utimeIdx] - prevData[self.utimeIdx]
+                value['utime'] /= SystemInfo.intervalEnable
                 value['stime'] = nowData[self.stimeIdx] - prevData[self.stimeIdx]
+                value['stime'] /= SystemInfo.intervalEnable
                 value['btime'] = nowData[self.btimeIdx] - prevData[self.btimeIdx]
+                value['btime'] /= SystemInfo.intervalEnable
                 value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx]) - \
                         (prevData[self.utimeIdx] + prevData[self.stimeIdx])
+                value['ttime'] /= SystemInfo.intervalEnable
+
+                if value['ttime'] > 100:
+                    value['ttime'] = 100
+                if value['utime'] > 100:
+                    value['utime'] = 100
+                elif value['stime'] > 100:
+                    value['stime'] = 100
+
+                if value['io'] is not None:
+                    value['read'] = long(value['io']['read_bytes']) - \
+                            long(self.prevProcData[pid]['io']['read_bytes'])
+                    value['write'] = long(value['io']['write_bytes']) - \
+                            long(self.prevProcData[pid]['io']['write_bytes'])
             except:
                 value['new'] = True
+                value['minflt'] = nowData[self.minfltIdx]
+                value['majflt'] = nowData[self.majfltIdx]
+                value['utime'] = nowData[self.utimeIdx]
+                value['utime'] /= SystemInfo.intervalEnable
+                value['stime'] = nowData[self.stimeIdx]
+                value['stime'] /= SystemInfo.intervalEnable
+                value['btime'] = nowData[self.btimeIdx]
+                value['btime'] /= SystemInfo.intervalEnable
+                value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx])
+                value['ttime'] /= SystemInfo.intervalEnable
+
+                if value['io'] is not None:
+                    value['read'] = long(value['io']['read_bytes'])
+                    value['write'] = long(value['io']['write_bytes'])
+
+        # get profile mode #
+        if SystemInfo.showAll is False:
+            mode = 'Process'
+        else:
+            mode = 'Thread'
+
+        SystemInfo.pipePrint(twoLine)
+        SystemInfo.pipePrint(\
+                "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})".\
+                format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker",\
+                "Mem", "RSS", "CODE", "STK", "Blk", "RD", "WR", "Flt"))
+
+        SystemInfo.pipePrint(oneLine)
 
         # print process usage sorted by cpu usage #
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True):
             # filter #
             if SystemInfo.showGroup != []:
+                found = False
                 for val in SystemInfo.showGroup:
                     if value['stat'][self.commIdx].rfind(val) != -1 or idx == val:
-                        None
-                continue
+                        found = True
+                        break
+                if found is False:
+                    continue
 
             if value['ttime'] > 0:
-                print idx, value['stat'][self.commIdx], value['ttime'], value['utime'], value['stime']
+                if value['new'] is True:
+                    comm = '*' + value['stat'][self.commIdx][1:-1]
+                else:
+                    comm = value['stat'][self.commIdx][1:-1]
+
+                if SystemInfo.showAll is False:
+                    pid = value['stat'][self.ppidIdx]
+                else:
+                    pid = value['mainID']
+
+                stackSize = (long(value['stat'][self.sstackIdx]) - \
+                        long(value['stat'][self.estackIdx])) / 1024 / 1024
+
+                codeSize = (long(value['stat'][self.ecodeIdx]) - \
+                        long(value['stat'][self.scodeIdx])) / 1024 / 1024
+
+                if SystemInfo.diskEnable is True:
+                    readSize = value['read'] / 1024 / 1024
+                    writeSize = value['write'] / 1024 / 1024
+                else:
+                    readSize = '-'
+                    writeSize = '-'
+
+                SystemInfo.pipePrint(\
+                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})".\
+                        format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(value['stat'][self.prioIdx]), \
+                        value['ttime'], value['utime'], value['stime'], \
+                        long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
+                        long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                        value['btime'], readSize, writeSize, value['majflt']))
             else:
-                print '\n'
+                SystemInfo.pipePrint(oneLine)
                 break
 
 
@@ -6649,6 +6814,12 @@ class ThreadInfo:
     def printTopUsage(self):
         # get system tick as HZ #
         None
+
+        SystemInfo.pipePrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d]" % \
+            (SystemInfo.uptime, SystemInfo.intervalEnable, \
+            self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
+            self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
+            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
 
         # print system cpu usage #
         self.printCpuUsage()
@@ -6658,6 +6829,8 @@ class ThreadInfo:
 
         # print process info #
         self.printProcUsage()
+
+        SystemInfo.pipePrint("")
 
 
 
