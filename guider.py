@@ -6631,7 +6631,7 @@ class ThreadInfo:
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
-                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "PgInOut", "SwpIO", "RclmBgDr"))
+                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "BlkRW", "SwpIO", "RclmBgDr"))
         SystemInfo.pipePrint(oneLine)
 
         nowData = self.cpuData['all']
