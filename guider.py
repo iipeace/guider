@@ -6550,65 +6550,7 @@ class ThreadInfo:
 
 
 
-    def printCpuUsage(self):
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
-                format("CPU", "Usage", "Usr", "Ker", "IO", "IRQ", "SIRQ", "Nice", "Ctxt"))
-        SystemInfo.pipePrint(oneLine)
-
-        # print each cpu usage #
-        for idx, value in sorted(self.cpuData.items(), reverse=False):
-            nowData = self.cpuData[idx]
-            prevData = self.prevCpuData[idx]
-
-            try:
-                SystemInfo.maxCore = int(idx)
-
-                idleUsage = int(nowData['idle'] - prevData['idle'])
-                idleUsage /= SystemInfo.intervalEnable
-                userUsage = (nowData['user'] - prevData['user']) / SystemInfo.intervalEnable
-                kerUsage = (nowData['system'] - prevData['system']) / SystemInfo.intervalEnable
-
-                if idleUsage > 100:
-                    idleUsage = 100
-                if userUsage > 100:
-                    userUsage = 100
-                elif kerUsage > 100:
-                    kerUsage = 100
-
-                SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
-                        format("Core/" + str(idx), \
-                        str(100 - idleUsage) + ' %', userUsage, kerUsage, \
-                        (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, \
-                        (nowData['irq'] - prevData['irq']) / SystemInfo.intervalEnable, \
-                        (nowData['softirq'] - prevData['softirq']) / SystemInfo.intervalEnable, \
-                        (nowData['nice'] - prevData['nice']) / SystemInfo.intervalEnable))
-            except:
-                if idx == 'all':
-                    usage = ((SystemInfo.maxCore + 1) * SystemInfo.intervalEnable * 100) - \
-                            int(nowData['idle'] - prevData['idle'])
-                    if usage >= 0:
-                        usage /= SystemInfo.intervalEnable
-                    else:
-                        usage = 0
-
-                    maxCore = SystemInfo.maxCore + 1
-                    interval = SystemInfo.intervalEnable
-
-                    SystemInfo.pipePrint(oneLine)
-                    SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^6}/{3:^6}/{4:^6}/{5:^6}/{6:^6}/{7:^6})".\
-                            format("Total", \
-                            str(usage / (SystemInfo.maxCore + 1)) + ' %', \
-                            ((nowData['user'] - prevData['user']) / maxCore) / interval, \
-                            ((nowData['system'] - prevData['system']) / maxCore) / interval, \
-                            ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval, \
-                            ((nowData['irq'] - prevData['irq']) / maxCore) / interval, \
-                            ((nowData['softirq'] - prevData['softirq']) / maxCore) / interval, \
-                            ((nowData['nice'] - prevData['nice']) / maxCore) / interval))
-
-
-
-    def printMemUsage(self):
+    def printSystemUsage(self):
         try: freeMem = self.vmData['nr_free_pages'] * 4 / 1024
         except: freemMem = 'NA'
         try: freeDiffMem = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
@@ -6688,14 +6630,67 @@ class ThreadInfo:
         '''
 
         SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^7}({1:^7}/{2:^6}/{3:^6}/{4:^6})|{5:^8}|{6:^8}|{7:^10}|{8:^10}|{9:^11}|".\
-                format("MemFree", "Free", "Anon", "File", "Slab", "MajFlt", "MinFlt", "PgInOut", "SwpInOut", "RclmBgDr"))
+        SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
+                format("ID", "CPU", "Usr", "Ker", "IO", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "PgInOut", "SwpIO", "RclmBgDr"))
         SystemInfo.pipePrint(oneLine)
 
-        SystemInfo.pipePrint("{0:^7}({1:^7}/{2:^6}/{3:^6}/{4:^6})|{5:^8}|{6:^8}|{7:^10}|{8:^10}|{9:^11}|".\
-                format(freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
-                majFaultMem, minFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
+        nowData = self.cpuData['all']
+        prevData = self.prevCpuData['all']
+
+        usage = ((SystemInfo.maxCore + 1) * SystemInfo.intervalEnable * 100) - \
+                int(nowData['idle'] - prevData['idle'])
+        if usage >= 0:
+            usage /= SystemInfo.intervalEnable
+        else:
+            usage = 0
+
+        maxCore = SystemInfo.maxCore + 1
+        interval = SystemInfo.intervalEnable
+        userUsage = ((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
+                / maxCore) / interval
+        irqUsage = ((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+                / maxCore) / interval
+
+        SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
+                format("Total", \
+                str(usage / (SystemInfo.maxCore + 1)) + ' %', userUsage, \
+                ((nowData['system'] - prevData['system']) / maxCore) / interval, \
+                ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval, irqUsage, \
+                freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
+                majFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
                 str(swapInMem) + '/' + str(swapOutMem), str(bgReclaim) + '/' + str(drReclaim)))
+
+        SystemInfo.pipePrint(oneLine)
+
+        # print each cpu usage #
+        for idx, value in sorted(self.cpuData.items(), reverse=False):
+            nowData = self.cpuData[idx]
+            prevData = self.prevCpuData[idx]
+
+            try:
+                SystemInfo.maxCore = int(idx)
+
+                idleUsage = int(nowData['idle'] - prevData['idle'])
+                idleUsage /= SystemInfo.intervalEnable
+                userUsage = (nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
+                        / SystemInfo.intervalEnable
+                kerUsage = (nowData['system'] - prevData['system']) / SystemInfo.intervalEnable
+
+                if idleUsage > 100:
+                    idleUsage = 100
+                if userUsage > 100:
+                    userUsage = 100
+                elif kerUsage > 100:
+                    kerUsage = 100
+
+                irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+                        / SystemInfo.intervalEnable
+
+                SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        format("Core/" + str(idx), \
+                        str(100 - idleUsage) + ' %', userUsage, kerUsage, \
+                        (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, irqUsage))
+            except: None
 
 
 
@@ -6821,11 +6816,8 @@ class ThreadInfo:
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
 
-        # print system cpu usage #
-        self.printCpuUsage()
-
-        # print system memory usage #
-        self.printMemUsage()
+        # print system usage #
+        self.printSystemUsage()
 
         # print process info #
         self.printProcUsage()
