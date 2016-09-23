@@ -6729,12 +6729,9 @@ class ThreadInfo:
                 value['new'] = True
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
-                value['utime'] = nowData[self.utimeIdx]
-                value['utime'] /= SystemInfo.intervalEnable
-                value['stime'] = nowData[self.stimeIdx]
-                value['stime'] /= SystemInfo.intervalEnable
-                value['btime'] = nowData[self.btimeIdx]
-                value['btime'] /= SystemInfo.intervalEnable
+                value['utime'] = nowData[self.utimeIdx] / SystemInfo.intervalEnable
+                value['stime'] = nowData[self.stimeIdx] / SystemInfo.intervalEnable
+                value['btime'] = nowData[self.btimeIdx] / SystemInfo.intervalEnable
                 value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx])
                 value['ttime'] /= SystemInfo.intervalEnable
 
@@ -6752,7 +6749,7 @@ class ThreadInfo:
         SystemInfo.pipePrint(\
                 "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})".\
                 format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker",\
-                "Mem", "RSS", "CODE", "STK", "Blk", "RD", "WR", "Flt"))
+                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "Flt"))
 
         SystemInfo.pipePrint(oneLine)
 
