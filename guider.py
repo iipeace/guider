@@ -6588,14 +6588,14 @@ class ThreadInfo:
         except: minFaultMem = 'NA'
 
         # paged in/out from/to disk #
-        try: pgInMem = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) * 4 / 1024
+        try: pgInMem = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) / 1024
         except: pgInMem = 'NA'
-        try: pgOutMem = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) * 4 / 1024
+        try: pgOutMem = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) / 1024
         except: pgOutMem = 'NA'
 
-        try: swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) * 4 / 1024
+        try: swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
         except: swapInMem = 'NA'
-        try: swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) * 4 / 1024
+        try: swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) / 1024
         except: swapOutMem = 'NA'
 
         try: nrBgReclaim = (self.vmData['pageoutrun'] - self.prevVmData['pageoutrun'])
@@ -6631,7 +6631,7 @@ class ThreadInfo:
 
         SystemInfo.pipePrint(twoLine)
         SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
-                format("ID", "CPU", "Usr", "Ker", "IO", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "PgInOut", "SwpIO", "RclmBgDr"))
+                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "PgInOut", "SwpIO", "RclmBgDr"))
         SystemInfo.pipePrint(oneLine)
 
         nowData = self.cpuData['all']
