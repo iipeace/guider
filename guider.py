@@ -2376,6 +2376,7 @@ class SystemInfo:
     graphEnable = False
     graphLabels= []
     bufferString = ''
+    bufferRows = 0
     systemInfoBuffer = ''
 
     eventLogFile = None
@@ -2634,6 +2635,7 @@ class SystemInfo:
     @staticmethod
     def addPrint(string):
         SystemInfo.bufferString += string
+        SystemInfo.bufferRows += 1
 
 
 
@@ -2715,7 +2717,7 @@ class SystemInfo:
                 SystemInfo.pipeForPrint = None
 
         if SystemInfo.printFile != None and SystemInfo.fileForPrint == None:
-            if SystemInfo.isRecordMode() is False:
+            if SystemInfo.isRecordMode() is False and SystemInfo.isTopMode() is False:
                 SystemInfo.inputFile = SystemInfo.inputFile.replace('dat', 'out')
             else:
                 SystemInfo.inputFile = SystemInfo.printFile + '/guider.out'
@@ -2727,7 +2729,7 @@ class SystemInfo:
 
                 # print output file name #
                 if SystemInfo.printFile != None:
-                    SystemInfo.printInfo("wrote output to %s successfully" % (SystemInfo.inputFile))
+                    SystemInfo.printInfo("write to %s" % (SystemInfo.inputFile))
             except:
                 SystemInfo.printError("Fail to open %s\n" % (SystemInfo.inputFile))
                 sys.exit(0)
@@ -2941,7 +2943,7 @@ class SystemInfo:
                     SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
                 elif sys.argv[n][1] == 's':
                     if SystemInfo.isRecordMode() is False:
-                        SystemInfo.printError("Fail to save data becuase this is not record mode")
+                        SystemInfo.printError("Fail to save data becuase not in savable mode")
                         sys.exit(0)
                     if len(SystemInfo.showGroup) > 0:
                         SystemInfo.printWarning("only specific threads are recorded")
@@ -3189,6 +3191,15 @@ class SystemInfo:
     @staticmethod
     def setTtyRows(rows):
         os.system('stty rows %s' % (rows))
+
+
+
+    @staticmethod
+    def setTty():
+        try:
+            SystemInfo.ttyCols, SystemInfo.ttyRows = \
+                    os.popen('stty size', 'r').read().split()
+        except: None
 
 
 
@@ -4185,9 +4196,10 @@ class ThreadInfo:
                 # collect stats of process as soon as possible #
                 self.saveProcs()
 
-                SystemInfo.printTitle()
-
                 if self.prevProcData != {}:
+                    if SystemInfo.inputFile == 'top':
+                        SystemInfo.printTitle()
+
                     self.printTopUsage()
 
                     # close fd that thread who already termiated created becuase of limited resource #
@@ -6629,10 +6641,10 @@ class ThreadInfo:
         except: shMem = 'NA'
         '''
 
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
+        SystemInfo.addPrint(twoLine + '\n')
+        SystemInfo.addPrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|\n".\
                 format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "BlkRW", "SwpIO", "RclmBgDr"))
-        SystemInfo.pipePrint(oneLine)
+        SystemInfo.addPrint(oneLine + '\n')
 
         for idx, value in sorted(self.cpuData.items(), reverse=False):
             try: SystemInfo.maxCore = int(idx)
@@ -6645,30 +6657,25 @@ class ThreadInfo:
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
-        totalUsage = (maxCore * interval * 100) - int(nowData['idle'] - prevData['idle'])
-        if totalUsage >= 0:
-            totalUsage /= interval
-            totalUsage /= maxCore
-        else:
-            totalUsage = 0
-
         userUsage = ((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
                 / maxCore) / interval
         kerUsage = ((nowData['system'] - prevData['system']) / maxCore) / interval
         irqUsage = ((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
                 / maxCore) / interval
+        ioUsage = ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval
 
-        SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
+        totalUsage = userUsage + kerUsage + irqUsage + ioUsage
+
+        SystemInfo.addPrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|\n".\
                 format("Total", \
-                str(totalUsage) + ' %', userUsage, kerUsage, \
-                ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval, irqUsage, \
+                str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
                 freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
                 majFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
                 str(swapInMem) + '/' + str(swapOutMem), str(bgReclaim) + '/' + str(drReclaim)))
 
         # print each cpu usage #
         if SystemInfo.showAll is True:
-            SystemInfo.pipePrint(oneLine)
+            SystemInfo.addPrint(oneLine + '\n')
 
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 nowData = self.cpuData[idx]
@@ -6681,20 +6688,21 @@ class ThreadInfo:
                     userUsage = (nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
                             / interval
                     kerUsage = (nowData['system'] - prevData['system']) / interval
+                    ioUsage = (nowData['iowait'] - prevData['iowait']) / interval
+                    irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+                            / interval
+                    totalUsage = userUsage + kerUsage + ioUsage + irqUsage
 
-                    if totalUsage < 0:
-                        totalUsage = 0
+                    if totalUsage > 100:
+                        totalUsage = 100
                     if userUsage > 100:
                         userUsage = 100
                     elif kerUsage > 100:
                         kerUsage = 100
 
-                    irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-                            / SystemInfo.intervalEnable
-
-                    SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                    SystemInfo.addPrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|\n".\
                             format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, \
-                            (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, irqUsage))
+                            ioUsage, irqUsage))
                 except: None
 
 
@@ -6750,13 +6758,13 @@ class ThreadInfo:
         else:
             mode = 'Thread'
 
-        SystemInfo.pipePrint(twoLine)
-        SystemInfo.pipePrint(\
-                "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})".\
+        SystemInfo.addPrint(twoLine + '\n')
+        SystemInfo.addPrint(\
+                "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})\n".\
                 format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker",\
                 "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "Flt"))
 
-        SystemInfo.pipePrint(oneLine)
+        SystemInfo.addPrint(oneLine + '\n')
 
         # print process usage sorted by cpu usage #
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True):
@@ -6799,8 +6807,8 @@ class ThreadInfo:
                     readSize = '-'
                     writeSize = '-'
 
-                SystemInfo.pipePrint(\
-                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})".\
+                SystemInfo.addPrint(\
+                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})\n".\
                         format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                         ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                         value['ttime'], value['utime'], value['stime'], \
@@ -6808,7 +6816,7 @@ class ThreadInfo:
                         long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
                         value['btime'], readSize, writeSize, value['majflt']))
             else:
-                SystemInfo.pipePrint(oneLine)
+                SystemInfo.addPrint(oneLine + '\n')
                 break
 
 
@@ -6817,7 +6825,7 @@ class ThreadInfo:
         # get system tick as HZ #
         None
 
-        SystemInfo.pipePrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]" % \
+        SystemInfo.addPrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n" % \
             (SystemInfo.uptime, SystemInfo.intervalEnable, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
@@ -6829,7 +6837,9 @@ class ThreadInfo:
         # print process info #
         self.printProcUsage()
 
-        SystemInfo.pipePrint("")
+        if SystemInfo.inputFile == 'top':
+            SystemInfo.pipePrint(SystemInfo.bufferString)
+            SystemInfo.clearPrint()
 
 
 
@@ -7068,6 +7078,9 @@ if __name__ == '__main__':
 
     # set handler for exit #
     signal.signal(signal.SIGINT, SystemInfo.exitHandler)
+
+    # set tty #
+    SystemInfo.setTty()
 
     # create Thread Info using proc #
     if SystemInfo.isTopMode() is True:
