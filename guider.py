@@ -2364,6 +2364,7 @@ class SystemInfo:
     tgidEnable = True
     ttyEnable = True
     binEnable = False
+    processEnable = True
 
     maxCore = 0
     logSize = 0
@@ -2842,8 +2843,7 @@ class SystemInfo:
                         SystemInfo.diskEnable = True
                         SystemInfo.printInfo("disk profile")
                     if options.rfind('t') != -1:
-                        SystemInfo.ttyEnable = True
-                        SystemInfo.printInfo("tty is set")
+                        SystemInfo.processEnable = False
                     if options.rfind('w') != -1:
                         if SystemInfo.warningEnable is False:
                             SystemInfo.warningEnable = True
@@ -6423,7 +6423,7 @@ class ThreadInfo:
             taskPath = os.path.join(procPath, 'task')
 
             # save info per process #
-            if SystemInfo.showAll is False:
+            if SystemInfo.processEnable is True:
                 # make process object with constant value #
                 self.procData[pid] = dict(self.init_procData)
                 self.procData[pid]['mainID'] = int(pid)
@@ -6634,63 +6634,68 @@ class ThreadInfo:
                 format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "BlkRW", "SwpIO", "RclmBgDr"))
         SystemInfo.pipePrint(oneLine)
 
-        nowData = self.cpuData['all']
-        prevData = self.prevCpuData['all']
-
-        usage = ((SystemInfo.maxCore + 1) * SystemInfo.intervalEnable * 100) - \
-                int(nowData['idle'] - prevData['idle'])
-        if usage >= 0:
-            usage /= SystemInfo.intervalEnable
-        else:
-            usage = 0
+        for idx, value in sorted(self.cpuData.items(), reverse=False):
+            try: SystemInfo.maxCore = int(idx)
+            except: None
 
         maxCore = SystemInfo.maxCore + 1
         interval = SystemInfo.intervalEnable
+
+        # print total cpu usage #
+        nowData = self.cpuData['all']
+        prevData = self.prevCpuData['all']
+
+        totalUsage = (maxCore * interval * 100) - int(nowData['idle'] - prevData['idle'])
+        if totalUsage >= 0:
+            totalUsage /= interval
+            totalUsage /= maxCore
+        else:
+            totalUsage = 0
+
         userUsage = ((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
                 / maxCore) / interval
+        kerUsage = ((nowData['system'] - prevData['system']) / maxCore) / interval
         irqUsage = ((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
                 / maxCore) / interval
 
         SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|".\
                 format("Total", \
-                str(usage / (SystemInfo.maxCore + 1)) + ' %', userUsage, \
-                ((nowData['system'] - prevData['system']) / maxCore) / interval, \
+                str(totalUsage) + ' %', userUsage, kerUsage, \
                 ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval, irqUsage, \
                 freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
                 majFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
                 str(swapInMem) + '/' + str(swapOutMem), str(bgReclaim) + '/' + str(drReclaim)))
 
-        SystemInfo.pipePrint(oneLine)
-
         # print each cpu usage #
-        for idx, value in sorted(self.cpuData.items(), reverse=False):
-            nowData = self.cpuData[idx]
-            prevData = self.prevCpuData[idx]
+        if SystemInfo.showAll is True:
+            SystemInfo.pipePrint(oneLine)
 
-            try:
-                SystemInfo.maxCore = int(idx)
+            for idx, value in sorted(self.cpuData.items(), reverse=False):
+                nowData = self.cpuData[idx]
+                prevData = self.prevCpuData[idx]
 
-                idleUsage = int(nowData['idle'] - prevData['idle'])
-                idleUsage /= SystemInfo.intervalEnable
-                userUsage = (nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
-                        / SystemInfo.intervalEnable
-                kerUsage = (nowData['system'] - prevData['system']) / SystemInfo.intervalEnable
+                try:
+                    int(idx)
 
-                if idleUsage > 100:
-                    idleUsage = 100
-                if userUsage > 100:
-                    userUsage = 100
-                elif kerUsage > 100:
-                    kerUsage = 100
+                    totalUsage = 100 - (int(nowData['idle'] - prevData['idle']) / interval)
+                    userUsage = (nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
+                            / interval
+                    kerUsage = (nowData['system'] - prevData['system']) / interval
 
-                irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-                        / SystemInfo.intervalEnable
+                    if totalUsage < 0:
+                        totalUsage = 0
+                    if userUsage > 100:
+                        userUsage = 100
+                    elif kerUsage > 100:
+                        kerUsage = 100
 
-                SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
-                        format("Core/" + str(idx), \
-                        str(100 - idleUsage) + ' %', userUsage, kerUsage, \
-                        (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, irqUsage))
-            except: None
+                    irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+                            / SystemInfo.intervalEnable
+
+                    SystemInfo.pipePrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                            format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, \
+                            (nowData['iowait'] - prevData['iowait']) / SystemInfo.intervalEnable, irqUsage))
+                except: None
 
 
 
@@ -6740,7 +6745,7 @@ class ThreadInfo:
                     value['write'] = long(value['io']['write_bytes'])
 
         # get profile mode #
-        if SystemInfo.showAll is False:
+        if SystemInfo.processEnable is True:
             mode = 'Process'
         else:
             mode = 'Thread'
@@ -6765,22 +6770,27 @@ class ThreadInfo:
                 if found is False:
                     continue
 
-            if value['ttime'] > 0:
+            if SystemInfo.showGroup != [] or SystemInfo.showAll is True or value['ttime'] > 0:
                 if value['new'] is True:
                     comm = '*' + value['stat'][self.commIdx][1:-1]
                 else:
                     comm = value['stat'][self.commIdx][1:-1]
 
-                if SystemInfo.showAll is False:
+                if SystemInfo.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
+                    stackSize = (long(value['stat'][self.sstackIdx]) - \
+                            long(value['stat'][self.estackIdx])) / 1024 / 1024
                 else:
                     pid = value['mainID']
-
-                stackSize = (long(value['stat'][self.sstackIdx]) - \
-                        long(value['stat'][self.estackIdx])) / 1024 / 1024
+                    stackSize = '-'
 
                 codeSize = (long(value['stat'][self.ecodeIdx]) - \
                         long(value['stat'][self.scodeIdx])) / 1024 / 1024
+
+                if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                    schedValue = int(value['stat'][self.prioIdx]) - 20
+                else:
+                    schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
 
                 if SystemInfo.diskEnable is True:
                     readSize = value['read'] / 1024 / 1024
@@ -6792,7 +6802,7 @@ class ThreadInfo:
                 SystemInfo.pipePrint(\
                         "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})".\
                         format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(value['stat'][self.prioIdx]), \
+                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                         value['ttime'], value['utime'], value['stime'], \
                         long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                         long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
@@ -6807,7 +6817,7 @@ class ThreadInfo:
         # get system tick as HZ #
         None
 
-        SystemInfo.pipePrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d]" % \
+        SystemInfo.pipePrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]" % \
             (SystemInfo.uptime, SystemInfo.intervalEnable, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
@@ -6852,11 +6862,11 @@ if __name__ == '__main__':
         print('\t\t-y [system mode]')
         print('\t\t-f [function mode]')
         print('\t\t-m [file mode]')
-        print('\t[record]')
+        print('\t[record|top]')
         print('\t\t-s [save_traceData:dir]')
         print('\t\t-u [run_inBackground]')
         print('\t\t-c [wait_forSignal]')
-        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(ty)|r(eset)|d(isk)]')
+        print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
         print('\t\t-b [set_perCpuBufferSize:kb]')
@@ -7061,8 +7071,6 @@ if __name__ == '__main__':
 
     # create Thread Info using proc #
     if SystemInfo.isTopMode() is True:
-        print "\nNot implemented yet\n"
-
         # create Thread Info using proc #
         ti = ThreadInfo(None)
 
