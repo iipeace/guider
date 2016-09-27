@@ -3197,7 +3197,7 @@ class SystemInfo:
     @staticmethod
     def setTty():
         try:
-            SystemInfo.ttyCols, SystemInfo.ttyRows = \
+            SystemInfo.ttyRows, SystemInfo.ttyCols = \
                     os.popen('stty size', 'r').read().split()
         except: None
 
@@ -6778,6 +6778,11 @@ class ThreadInfo:
                 if found is False:
                     continue
 
+            if int(SystemInfo.bufferRows) >= int(SystemInfo.ttyRows) - 5 and \
+                    SystemInfo.inputFile == 'top':
+                SystemInfo.addPrint("------ Cut ------\n")
+                return
+
             if SystemInfo.showGroup != [] or SystemInfo.showAll is True or value['ttime'] > 0:
                 if value['new'] is True:
                     comm = '*' + value['stat'][self.commIdx][1:-1]
@@ -6840,6 +6845,7 @@ class ThreadInfo:
         if SystemInfo.inputFile == 'top':
             SystemInfo.pipePrint(SystemInfo.bufferString)
             SystemInfo.clearPrint()
+            SystemInfo.bufferRows = 0
 
 
 
