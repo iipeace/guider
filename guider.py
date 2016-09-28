@@ -2482,6 +2482,10 @@ class SystemInfo:
     def stopHandler(signum, frame):
         if SystemInfo.fileEnable is True:
             SystemInfo.condExit = True
+        elif SystemInfo.isTopMode() is True:
+            SystemInfo.pipePrint(SystemInfo.procBuffer)
+            SystemInfo.printInfo('trace data is saved to %s' % (SystemInfo.inputFile))
+            sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemInfo.runRecordStopCmd()
@@ -2501,6 +2505,12 @@ class SystemInfo:
 
         if SystemInfo.fileEnable is True:
             SystemInfo.printStatus("Saved file usage information successfully")
+        elif SystemInfo.isTopMode() is True:
+            SystemInfo.pipePrint(SystemInfo.procBuffer)
+            SystemInfo.procBuffer = []
+            SystemInfo.procBufferSize = 0
+            SystemInfo.printStatus("Saved top usage information successfully")
+            SystemInfo.printTitle()
         elif SystemInfo.resetEnable is True:
             SystemInfo.writeEvent("EVENT_START")
         else:
@@ -2737,7 +2747,11 @@ class SystemInfo:
                 sys.exit(0)
 
         if SystemInfo.fileForPrint != None:
-            try: SystemInfo.fileForPrint.write(line + '\n')
+            try:
+                if SystemInfo.isTopMode() is False:
+                    SystemInfo.fileForPrint.write(line + '\n')
+                else:
+                    SystemInfo.fileForPrint.writelines(line)
             except:
                 SystemInfo.printError("Failed to print to file\n")
                 SystemInfo.pipeForPrint = None
@@ -3469,6 +3483,7 @@ class SystemInfo:
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
         self.cmdList["power/machine_suspend"] = True
+        self.cmdList["power/suspend_resume"] = True
         self.cmdList["printk"] = True
         self.cmdList["module/module_load"] = True
         self.cmdList["module/module_free"] = True
@@ -3661,6 +3676,8 @@ class SystemInfo:
 
         if self.cmdList["power/machine_suspend"] is True:
             SystemInfo.writeCmd('power/machine_suspend/enable', '1')
+        if self.cmdList["power/suspend_resume"] is True:
+            SystemInfo.writeCmd('power/suspend_resume/enable', '1')
 
         if self.cmdList["kmem/mm_page_alloc"] is True:
             SystemInfo.writeCmd('kmem/mm_page_alloc/enable', '1')
@@ -4781,6 +4798,8 @@ class ThreadInfo:
                         float(self.startTime) + ((cnt + 1) * SystemInfo.intervalEnable):
                     if val[1] == 'S':
                         checkEvent = '!'
+                    elif val[1] == 'F':
+                        checkEvent = '^'
                     else:
                         checkEvent = '>'
 
@@ -5084,7 +5103,7 @@ class ThreadInfo:
             f = open(file, 'r')
 
             while True:
-                # Make delay because some filtered logs are not wrote soon #
+                # Make delay because some filtered logs are not written soon #
                 time.sleep(0.01)
 
                 # Find recognizable log in file #
@@ -6165,6 +6184,25 @@ class ThreadInfo:
 
                     self.suspendData.append([time, state])
 
+            elif func == "suspend_resume":
+                state = None
+
+                if etc.rfind("suspend_enter") > 0:
+                    if etc.rfind("begin") > 0:
+                        state = 'S'
+                elif etc.rfind("machine_suspend") > 0:
+                    if etc.rfind("end") > 0:
+                        state = 'F'
+                # Complete a PM transition for all non-sysdev devices #
+                elif etc.rfind("dpm_resume_user") > 0:
+                    if etc.rfind("end") > 0:
+                        state = 'R'
+                else:
+                    return
+
+                if state is not None:
+                    self.suspendData.append([time, state])
+
             elif func == "module_load":
                 m = re.match('^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
                 if m is not None:
@@ -7105,18 +7143,22 @@ if __name__ == '__main__':
     # parse additional option #
     SystemInfo.parseAddOption()
 
-    # set handler for exit #
-    signal.signal(signal.SIGINT, SystemInfo.exitHandler)
-
     # set tty #
     SystemInfo.setTty()
 
     # create Thread Info using proc #
     if SystemInfo.isTopMode() is True:
+        # set handler for exit #
+        signal.signal(signal.SIGINT, SystemInfo.stopHandler)
+        signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
+
         # create Thread Info using proc #
         ti = ThreadInfo(None)
 
         sys.exit(0)
+
+    # set handler for exit #
+    signal.signal(signal.SIGINT, SystemInfo.exitHandler)
 
     # check log file is recoginizable #
     ThreadInfo.getInitTime(SystemInfo.inputFile)
