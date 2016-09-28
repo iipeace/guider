@@ -2483,8 +2483,9 @@ class SystemInfo:
         if SystemInfo.fileEnable is True:
             SystemInfo.condExit = True
         elif SystemInfo.isTopMode() is True:
-            SystemInfo.pipePrint(SystemInfo.procBuffer)
-            SystemInfo.printInfo('trace data is saved to %s' % (SystemInfo.inputFile))
+            if SystemInfo.inputFile != 'top':
+                SystemInfo.pipePrint(SystemInfo.procBuffer)
+                SystemInfo.printInfo('trace data is saved to %s' % (SystemInfo.inputFile))
             sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -2509,8 +2510,10 @@ class SystemInfo:
             SystemInfo.pipePrint(SystemInfo.procBuffer)
             SystemInfo.procBuffer = []
             SystemInfo.procBufferSize = 0
-            SystemInfo.printStatus("Saved top usage information successfully")
-            SystemInfo.printTitle()
+
+            if SystemInfo.inputFile != 'top':
+                SystemInfo.printStatus("Saved top usage information successfully")
+                SystemInfo.printTitle()
         elif SystemInfo.resetEnable is True:
             SystemInfo.writeEvent("EVENT_START")
         else:
