@@ -2912,7 +2912,7 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'm':
                     None
                 elif sys.argv[n][1] == 'u':
-                    None
+                    SystemInfo.backgroundEnable = True
                 else:
                     SystemInfo.printError("unrecognized option -%s" % (sys.argv[n][1]))
                     if SystemInfo.isRecordMode() is True: SystemInfo.runRecordStopFinalCmd()
@@ -7154,6 +7154,15 @@ if __name__ == '__main__':
         # set handler for exit #
         signal.signal(signal.SIGINT, SystemInfo.stopHandler)
         signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
+
+        # run in background #
+        if SystemInfo.backgroundEnable is True:
+            pid = os.fork()
+
+            if pid > 0:
+                sys.exit(0)
+            else:
+                SystemInfo.printStatus("background running as process %s" % os.getpid())
 
         # create Thread Info using proc #
         ti = ThreadInfo(None)
