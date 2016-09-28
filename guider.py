@@ -2374,7 +2374,9 @@ class SystemInfo:
     uptime = 0
 
     graphEnable = False
-    graphLabels= []
+    graphLabels = []
+    procBuffer = []
+    procBufferSize = 0
     bufferString = ''
     bufferRows = 0
     systemInfoBuffer = ''
@@ -2871,7 +2873,17 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'j':
                     SystemInfo.rootPath = sys.argv[n].lstrip('-j')
                 elif sys.argv[n][1] == 'b':
-                    None
+                    try:
+                        if int(sys.argv[n].lstrip('-b')) > 0:
+                            SystemInfo.bufferSize = str(sys.argv[n].lstrip('-b'))
+                        else:
+                            SystemInfo.printError("wrong option value %s with -b option" % \
+                                    (sys.argv[n].lstrip('-b')))
+                            sys.exit(0)
+                    except:
+                        SystemInfo.printError("wrong option value %s with -b option" % \
+                                (sys.argv[n].lstrip('-b')))
+                        sys.exit(0)
                 elif sys.argv[n][1] == 'c':
                     None
                 elif sys.argv[n][1] == 'y':
@@ -2900,14 +2912,14 @@ class SystemInfo:
         for n in range(2, len(sys.argv)):
             if sys.argv[n][0] == '-':
                 if sys.argv[n][1] == 'b':
-                    try: int(sys.argv[n].lstrip('-b'))
+                    try:
+                        if int(sys.argv[n].lstrip('-b')) > 0:
+                            SystemInfo.bufferSize = str(sys.argv[n].lstrip('-b'))
+                        else:
+                            SystemInfo.printError("wrong option value %s with -b option" % \
+                                    (sys.argv[n].lstrip('-b')))
+                            sys.exit(0)
                     except:
-                        SystemInfo.printError("wrong option value %s with -b option" % \
-                                (sys.argv[n]))
-                        sys.exit(0)
-                    if int(sys.argv[n].lstrip('-b')) > 0:
-                        SystemInfo.bufferSize = str(sys.argv[n].lstrip('-b'))
-                    else:
                         SystemInfo.printError("wrong option value %s with -b option" % \
                                 (sys.argv[n].lstrip('-b')))
                         sys.exit(0)
@@ -6842,10 +6854,21 @@ class ThreadInfo:
         # print process info #
         self.printProcUsage()
 
+        # realtime mode #
         if SystemInfo.inputFile == 'top':
             SystemInfo.pipePrint(SystemInfo.bufferString)
             SystemInfo.clearPrint()
             SystemInfo.bufferRows = 0
+        # buffered mode #
+        else:
+            SystemInfo.procBuffer.insert(0, SystemInfo.bufferString)
+            SystemInfo.procBufferSize += len(SystemInfo.bufferString)
+            SystemInfo.clearPrint()
+            SystemInfo.bufferRows = 0
+
+            while SystemInfo.procBufferSize > int(SystemInfo.bufferSize) * 10:
+                SystemInfo.procBufferSize -= len(SystemInfo.procBuffer[-1])
+                SystemInfo.procBuffer.pop(-1)
 
 
 
@@ -6885,7 +6908,7 @@ if __name__ == '__main__':
         print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]')
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
-        print('\t\t-b [set_perCpuBufferSize:kb]')
+        print('\t\t-b [set_bufferSize:kb(record)|10b(top)]')
         print('\t\t-t [trace_syscall:syscallNums]')
         print('\t[analysis]')
         print('\t\t-o [set_outputFile:dir]')
