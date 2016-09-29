@@ -6891,11 +6891,13 @@ class ThreadInfo:
                 if found is False:
                     continue
 
+            # cut by rows of terminal #
             if int(SystemInfo.bufferRows) >= int(SystemInfo.ttyRows) - 5 and \
                     SystemInfo.inputFile == 'top':
                 SystemInfo.addPrint("------ Cut ------\n")
                 return
 
+            # set sort value #
             if SystemInfo.sort == 'c' or SystemInfo.sort is None:
                 targetValue = value['ttime']
             elif SystemInfo.sort == 'm':
@@ -6905,7 +6907,6 @@ class ThreadInfo:
 
             # check limit #
             if SystemInfo.showGroup == [] and SystemInfo.showAll is False and targetValue == 0:
-                SystemInfo.addPrint(oneLine + '\n')
                 break
 
             if value['new'] is True:
@@ -6962,6 +6963,7 @@ class ThreadInfo:
 
         # print process info #
         self.printProcUsage()
+        SystemInfo.addPrint(oneLine + '\n')
 
         # realtime mode #
         if SystemInfo.inputFile == 'top':
