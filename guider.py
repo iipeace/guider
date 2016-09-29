@@ -2390,6 +2390,7 @@ class SystemInfo:
     intervalNow = 0
     recordStatus = False
     condExit = False
+    sort = None
 
     statFd = None
     vmstatFd = None
@@ -2908,6 +2909,13 @@ class SystemInfo:
                     None
                 elif sys.argv[n][1] == 's':
                     None
+                elif sys.argv[n][1] == 'S':
+                    SystemInfo.sort = sys.argv[n].lstrip('-S')
+                    if len(SystemInfo.sort) != 1 or (SystemInfo.sort != 'c' and \
+                            SystemInfo.sort != 'm' and SystemInfo.sort != 'b'):
+                        SystemInfo.printError("wrong option value %s with -S option" % \
+                                SystemInfo.sort)
+                        sys.exit(0)
                 elif sys.argv[n][1] == 'r':
                     None
                 elif sys.argv[n][1] == 'm':
@@ -3038,6 +3046,8 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'g':
                     None
                 elif sys.argv[n][1] == 'p':
+                    None
+                elif sys.argv[n][1] == 'S':
                     None
                 else:
                     SystemInfo.printError("wrong option -%s" % (sys.argv[n][1]))
@@ -6856,8 +6866,21 @@ class ThreadInfo:
 
         SystemInfo.addPrint(oneLine + '\n')
 
+        # set sort value #
+        if SystemInfo.sort is not None:
+            if SystemInfo.sort == 'c':
+                sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True)
+            elif SystemInfo.sort == 'm':
+                sortedProcData = sorted(self.procData.items(), key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+            elif SystemInfo.sort == 'b':
+                sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['btime'], reverse=True)
+            else:
+                sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True)
+        else:
+            sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True)
+
         # print process usage sorted by cpu usage #
-        for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True):
+        for idx, value in sortedProcData:
             # filter #
             if SystemInfo.showGroup != []:
                 found = False
@@ -6873,46 +6896,56 @@ class ThreadInfo:
                 SystemInfo.addPrint("------ Cut ------\n")
                 return
 
-            if SystemInfo.showGroup != [] or SystemInfo.showAll is True or value['ttime'] > 0:
-                if value['new'] is True:
-                    comm = '*' + value['stat'][self.commIdx][1:-1]
-                else:
-                    comm = value['stat'][self.commIdx][1:-1]
-
-                if SystemInfo.processEnable is True:
-                    pid = value['stat'][self.ppidIdx]
-                    stackSize = (long(value['stat'][self.sstackIdx]) - \
-                            long(value['stat'][self.estackIdx])) / 1024 / 1024
-                else:
-                    pid = value['mainID']
-                    stackSize = '-'
-
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                        long(value['stat'][self.scodeIdx])) / 1024 / 1024
-
-                if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = int(value['stat'][self.prioIdx]) - 20
-                else:
-                    schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
-
-                if SystemInfo.diskEnable is True:
-                    readSize = value['read'] / 1024 / 1024
-                    writeSize = value['write'] / 1024 / 1024
-                else:
-                    readSize = '-'
-                    writeSize = '-'
-
-                SystemInfo.addPrint(\
-                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})\n".\
-                        format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                        value['ttime'], value['utime'], value['stime'], \
-                        long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                        long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
-                        value['btime'], readSize, writeSize, value['majflt']))
+            if SystemInfo.sort == 'c':
+                limitValue = value['ttime']
+            elif SystemInfo.sort == 'm':
+                limitValue = long(value['stat'][self.rssIdx]) * 4 / 1024
+            elif SystemInfo.sort == 'b':
+                limitValue = value['btime']
             else:
+                limitValue = value['ttime']
+
+            # check limit #
+            if SystemInfo.showGroup == [] and SystemInfo.showAll is False and limitValue == 0:
                 SystemInfo.addPrint(oneLine + '\n')
                 break
+
+            if value['new'] is True:
+                comm = '*' + value['stat'][self.commIdx][1:-1]
+            else:
+                comm = value['stat'][self.commIdx][1:-1]
+
+            if SystemInfo.processEnable is True:
+                pid = value['stat'][self.ppidIdx]
+                stackSize = (long(value['stat'][self.sstackIdx]) - \
+                        long(value['stat'][self.estackIdx])) / 1024 / 1024
+            else:
+                pid = value['mainID']
+                stackSize = '-'
+
+            codeSize = (long(value['stat'][self.ecodeIdx]) - \
+                    long(value['stat'][self.scodeIdx])) / 1024 / 1024
+
+            if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                schedValue = int(value['stat'][self.prioIdx]) - 20
+            else:
+                schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
+
+            if SystemInfo.diskEnable is True:
+                readSize = value['read'] / 1024 / 1024
+                writeSize = value['write'] / 1024 / 1024
+            else:
+                readSize = '-'
+                writeSize = '-'
+
+            SystemInfo.addPrint(\
+                    "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})\n".\
+                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    value['ttime'], value['utime'], value['stime'], \
+                    long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
+                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                    value['btime'], readSize, writeSize, value['majflt']))
 
 
 
@@ -6971,7 +7004,8 @@ if __name__ == '__main__':
 
         print('Example:')
         print('\t# %s record -s. -emi' % sys.argv[0])
-        print('\t$ %s guider.dat -o. -a\n' % sys.argv[0])
+        print('\t$ %s guider.dat -o. -a' % sys.argv[0])
+        print('\t$ %s top\n' % sys.argv[0])
 
         print('Options:')
         print('\t[mode]')
@@ -6981,6 +7015,7 @@ if __name__ == '__main__':
         print('\t\t-m [file mode]')
         print('\t[record|top]')
         print('\t\t-s [save_traceData:dir]')
+        print('\t\t-S [sort_output:c(pu),m(em),b(lock)]')
         print('\t\t-u [run_inBackground]')
         print('\t\t-c [wait_forSignal]')
         print('\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]')
