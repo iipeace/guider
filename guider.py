@@ -6896,17 +6896,15 @@ class ThreadInfo:
                 SystemInfo.addPrint("------ Cut ------\n")
                 return
 
-            if SystemInfo.sort == 'c':
-                limitValue = value['ttime']
+            if SystemInfo.sort == 'c' or SystemInfo.sort is None:
+                targetValue = value['ttime']
             elif SystemInfo.sort == 'm':
-                limitValue = long(value['stat'][self.rssIdx]) * 4 / 1024
+                targetValue = long(value['stat'][self.rssIdx]) * 4 / 1024
             elif SystemInfo.sort == 'b':
-                limitValue = value['btime']
-            else:
-                limitValue = value['ttime']
+                targetValue = value['btime']
 
             # check limit #
-            if SystemInfo.showGroup == [] and SystemInfo.showAll is False and limitValue == 0:
+            if SystemInfo.showGroup == [] and SystemInfo.showAll is False and targetValue == 0:
                 SystemInfo.addPrint(oneLine + '\n')
                 break
 
