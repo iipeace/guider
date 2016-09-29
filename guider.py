@@ -2393,6 +2393,7 @@ class SystemInfo:
 
     statFd = None
     vmstatFd = None
+    swapFd = None
     uptimeFd = None
 
     irqEnable = False
@@ -6457,6 +6458,35 @@ class ThreadInfo:
                 vmList = line.split()
                 self.vmData[vmList[0]] = long(vmList[1])
 
+        # save swaps info #
+        try:
+            swapBuf = None
+            SystemInfo.swapFd.seek(0)
+            swapBuf = SystemInfo.swapFd.readlines()
+        except:
+            try:
+                swapPath = os.path.join(SystemInfo.procPath, 'swaps')
+                SystemInfo.swapFd = open(swapPath, 'r')
+
+                swapBuf = SystemInfo.swapFd.readlines()
+            except:
+                SystemInfo.printWarning('Fail to open %s' % swapPath)
+
+        if swapBuf is not None:
+            swapTotal = 0
+            swapUsed = 0
+
+            for line in swapBuf:
+                swapList = line.split()
+                # swapList = [Filename, Type, Size, Used, Priority] #
+                try:
+                    swapTotal += int(swapList[2])
+                    swapUsed += int(swapList[3])
+                except: continue
+
+            self.vmData['swapTotal'] = swapTotal
+            self.vmData['swapUsed'] = swapUsed
+
         # save uptime #
         try:
             SystemInfo.uptimeFd.seek(0)
@@ -6645,9 +6675,9 @@ class ThreadInfo:
         try: slabMem = (slabReclm + slabUnReclm) * 4 / 1024
         except: slabMem = 'NA'
 
-        try: faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault']) * 4 / 1024
+        try: faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault']) * 4
         except: faultMem = 'NA'
-        try: majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']) * 4 / 1024
+        try: majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']) * 4
         except: majFaultMem = 'NA'
         try: minFaultMem = faultMem - majFaultMem
         except: minFaultMem = 'NA'
@@ -6658,6 +6688,12 @@ class ThreadInfo:
         try: pgOutMem = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) / 1024
         except: pgOutMem = 'NA'
 
+        try: swapTotal = (self.vmData['swapTotal'] - self.prevVmData['swapTotal']) / 1024
+        except: swapTotal = 'NA'
+        try: swapFree = self.vmData['swapUsed'] / 1024
+        except: swapFree = 'NA'
+        try: swapUsed  = (self.vmData['swapUsed'] - self.prevVmData['swapUsed']) / 1024
+        except: swapUsed = 'NA'
         try: swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
         except: swapInMem = 'NA'
         try: swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) / 1024
@@ -6695,8 +6731,8 @@ class ThreadInfo:
         '''
 
         SystemInfo.addPrint(twoLine + '\n')
-        SystemInfo.addPrint("{0:^7}|{1:^7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|\n".\
-                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Flt", "BlkRW", "SwpIO", "RclmBgDr"))
+        SystemInfo.addPrint("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^4}({12:^4}/{13:^7})|{14:^8}|{15:^7}|{16:^4}|\n".\
+                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "FltK"))
         SystemInfo.addPrint(oneLine + '\n')
 
         for idx, value in sorted(self.cpuData.items(), reverse=False):
@@ -6719,12 +6755,13 @@ class ThreadInfo:
 
         totalUsage = userUsage + kerUsage + irqUsage + ioUsage
 
-        SystemInfo.addPrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^7}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^5}|{12:^7}|{13:^7}|{14:^8}|\n".\
+        SystemInfo.addPrint("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^4}({12:^4}/{13:^7})|{14:^8}|{15:^7}|{16:>4}|\n".\
                 format("Total", \
                 str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
                 freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
-                majFaultMem, str(pgInMem) + '/' + str(pgOutMem), \
-                str(swapInMem) + '/' + str(swapOutMem), str(bgReclaim) + '/' + str(drReclaim)))
+                swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
+                str(bgReclaim) + '/' + str(drReclaim), \
+                str(pgInMem) + '/' + str(pgOutMem), majFaultMem))
 
         # print each cpu usage #
         if SystemInfo.showAll is True:
@@ -6753,7 +6790,7 @@ class ThreadInfo:
                     elif kerUsage > 100:
                         kerUsage = 100
 
-                    SystemInfo.addPrint("{0:<7}|{1:>7}({2:^3}/{3:^3}/{4:^3}/{5:^3})|\n".\
+                    SystemInfo.addPrint("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|\n".\
                             format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, \
                             ioUsage, irqUsage))
                 except: None
@@ -6815,7 +6852,7 @@ class ThreadInfo:
         SystemInfo.addPrint(\
                 "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})\n".\
                 format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker",\
-                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "Flt"))
+                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt"))
 
         SystemInfo.addPrint(oneLine + '\n')
 
