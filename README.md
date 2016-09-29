@@ -44,12 +44,12 @@ CONFIG_NOP_TRACER
 CONFIG_TRACEPOINTS
 CONFIG_FTRACE_SYSCALLS
 CONFIG_HAVE_SYSCALL_TRACEPOINTS
-CONFIG_TRACE_IRQFLAGS
-CONFIG_TRACE_IRQFLAGS_SUPPORT
 
 [ Optional ]
 CONFIG_DYNAMIC_FTRACE
 CONFIG_HAVE_DYNAMIC_FTRACE
+CONFIG_TRACE_IRQFLAGS
+CONFIG_TRACE_IRQFLAGS_SUPPORT
 CONFIG_STACKTRACE
 CONFIG_STACKTRACE_SUPPORT
 CONFIG_USER_STACKTRACE_SUPPORT
@@ -63,31 +63,33 @@ Options
 * Use comma(,) as delimiter for multiple values
 
 ```
-[mode]
-        (default) [thread mode]
-        -y [system mode]
-        -f [function mode]
-        -m [file mode]
+        [mode]
+                (default) [thread mode]
+                top [top mode]
+                -y [system mode]
+                -f [function mode]
+                -m [file mode]
+        [record|top]
+                -s [save_traceData:dir]
+                -S [sort_output:c(pu),m(em),b(lock)]
+                -u [run_inBackground]
+                -c [wait_forSignal]
+                -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]
+                -d [disable_options:c(pu)|b(lock)|t(ty)]
+                -r [record_repeatData:interval,count]
+                -b [set_bufferSize:kb(record)|10b(top)]
+                -t [trace_syscall:syscallNums]
+        [analysis]
+                -o [set_outputFile:dir]
+                -a [show_allInfo]
+                -i [set_interval:sec]
+                -w [show_threadDependency]
+                -p [show_preemptInfo:tids]
+                -l [input_addr2linePath:path]
+                -j [input_targetRootPath:dir]
+                -q [make_taskchain]
+        [common]
+                -g [filter_specificGroup:comms|tids]
 
-[record]
-        -b [set_perCpuBufferSize:kb]
-        -s [save_traceData:dir]
-        -r [record_repeatData:interval,count]
-        -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|t(ty)]
-        -d [disable_options:c(pu)|b(lock)|t(ty)]
-        -t [trace_syscall:syscallNums]
-
-[analysis]
-        -o [set_outputFile:dir]
-        -a [show_allInfo]
-        -i [set_interval:sec]
-        -w [show_threadDependency]
-        -p [show_preemptInfo:tids]
-        -l [input_addr2linePath:path]
-        -j [input_targetRootPath:dir]
-        -q [make_taskchain]
-
-[common]
-        -g [filter_specificGroup:comms|tids]
 
 ```
