@@ -2372,6 +2372,8 @@ class SystemInfo:
     totalLine = 0
     dbgEventLine = 0
     uptime = 0
+    prevUptime = 0
+    uptimeDiff= 0
 
     graphEnable = False
     graphLabels = []
@@ -6500,7 +6502,9 @@ class ThreadInfo:
         # save uptime #
         try:
             SystemInfo.uptimeFd.seek(0)
+            SystemInfo.prevUptime = SystemInfo.uptime
             SystemInfo.uptime = float(SystemInfo.uptimeFd.readline().split()[0])
+            SystemInfo.uptimeDiff = SystemInfo.uptime - SystemInfo.prevUptime
             SystemInfo.uptimeFd.flush()
         except:
             try:
@@ -6750,20 +6754,20 @@ class ThreadInfo:
             except: None
 
         maxCore = SystemInfo.maxCore + 1
-        interval = SystemInfo.intervalEnable
+        interval = SystemInfo.uptimeDiff
 
         # print total cpu usage #
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
-        userUsage = ((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
-                / maxCore) / interval
-        kerUsage = ((nowData['system'] - prevData['system']) / maxCore) / interval
-        irqUsage = ((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-                / maxCore) / interval
-        ioUsage = ((nowData['iowait'] - prevData['iowait']) / maxCore) / interval
+        userUsage = int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
+                / maxCore) / interval)
+        kerUsage = int(((nowData['system'] - prevData['system']) / maxCore) / interval)
+        irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+                / maxCore) / interval)
+        ioUsage = int(((nowData['iowait'] - prevData['iowait']) / maxCore) / interval)
 
-        totalUsage = userUsage + kerUsage + irqUsage + ioUsage
+        totalUsage = int(userUsage + kerUsage + irqUsage + ioUsage)
 
         SystemInfo.addPrint("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^4}({12:^4}/{13:^7})|{14:^8}|{15:^7}|{16:>4}|\n".\
                 format("Total", \
@@ -6784,13 +6788,10 @@ class ThreadInfo:
                 try:
                     int(idx)
 
-                    totalUsage = 100 - (int(nowData['idle'] - prevData['idle']) / interval)
-                    userUsage = (nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
-                            / interval
-                    kerUsage = (nowData['system'] - prevData['system']) / interval
-                    ioUsage = (nowData['iowait'] - prevData['iowait']) / interval
-                    irqUsage = (nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-                            / interval
+                    userUsage = int((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) / interval)
+                    kerUsage = int((nowData['system'] - prevData['system']) / interval)
+                    ioUsage = int((nowData['iowait'] - prevData['iowait']) / interval)
+                    irqUsage = int((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) / interval)
                     totalUsage = userUsage + kerUsage + ioUsage + irqUsage
 
                     if totalUsage > 100:
@@ -6808,6 +6809,8 @@ class ThreadInfo:
 
 
     def printProcUsage(self):
+        interval = SystemInfo.uptimeDiff
+
         # calculate diff between previous and now #
         for pid, value in self.procData.items():
             try:
@@ -6816,15 +6819,10 @@ class ThreadInfo:
 
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
-                value['utime'] = nowData[self.utimeIdx] - prevData[self.utimeIdx]
-                value['utime'] /= SystemInfo.intervalEnable
-                value['stime'] = nowData[self.stimeIdx] - prevData[self.stimeIdx]
-                value['stime'] /= SystemInfo.intervalEnable
-                value['btime'] = nowData[self.btimeIdx] - prevData[self.btimeIdx]
-                value['btime'] /= SystemInfo.intervalEnable
-                value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx]) - \
-                        (prevData[self.utimeIdx] + prevData[self.stimeIdx])
-                value['ttime'] /= SystemInfo.intervalEnable
+                value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
+                value['stime'] = int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
+                value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
+                value['ttime'] = value['utime'] + value['stime']
 
                 if value['ttime'] > 100:
                     value['ttime'] = 100
@@ -6842,11 +6840,10 @@ class ThreadInfo:
                 value['new'] = True
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
-                value['utime'] = nowData[self.utimeIdx] / SystemInfo.intervalEnable
-                value['stime'] = nowData[self.stimeIdx] / SystemInfo.intervalEnable
-                value['btime'] = nowData[self.btimeIdx] / SystemInfo.intervalEnable
-                value['ttime'] = (nowData[self.utimeIdx] + nowData[self.stimeIdx])
-                value['ttime'] /= SystemInfo.intervalEnable
+                value['utime'] = int(nowData[self.utimeIdx] / interval)
+                value['stime'] = int(nowData[self.stimeIdx] / interval)
+                value['btime'] = int(nowData[self.btimeIdx] / interval)
+                value['ttime'] = value['utime'] + value['stime']
 
                 if value['io'] is not None:
                     value['read'] = long(value['io']['read_bytes'])
@@ -6894,7 +6891,6 @@ class ThreadInfo:
             # cut by rows of terminal #
             if int(SystemInfo.bufferRows) >= int(SystemInfo.ttyRows) - 5 and \
                     SystemInfo.inputFile == 'top':
-                SystemInfo.addPrint("------ Cut ------\n")
                 return
 
             # set sort value #
@@ -6952,8 +6948,8 @@ class ThreadInfo:
         # get system tick as HZ #
         None
 
-        SystemInfo.addPrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n" % \
-            (SystemInfo.uptime, SystemInfo.intervalEnable, \
+        SystemInfo.addPrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Profiled: %.1f sec ] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n" % \
+            (SystemInfo.uptime, SystemInfo.intervalEnable, SystemInfo.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
@@ -7010,6 +7006,7 @@ if __name__ == '__main__':
         print('Options:')
         print('\t[mode]')
         print('\t\t(default) [thread mode]')
+        print('\t\ttop [top mode]')
         print('\t\t-y [system mode]')
         print('\t\t-f [function mode]')
         print('\t\t-m [file mode]')
