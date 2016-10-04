@@ -5175,7 +5175,7 @@ class ThreadInfo:
 
                 for icount in range(0, len(self.syscallData)):
                     try:
-                        SystemInfo.addPrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s\n" % \
+                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s\n" % \
                         (self.threadData[self.syscallData[icount][2]]['comm'], \
                         self.syscallData[icount][2], \
                         round(float(self.syscallData[icount][1]) - float(self.startTime), 7), \
@@ -5184,12 +5184,7 @@ class ThreadInfo:
                         self.syscallData[icount][4], \
                         self.syscallData[icount][3], \
                         self.syscallData[icount][5]))
-
-                        if self.syscallData[icount][0] == 'enter':
-                            count += 1
                     except: None
-                SystemInfo.pipePrint("%s# %s: %d\n" % ('', 'Sys', count))
-                SystemInfo.pipePrint(SystemInfo.bufferString)
                 SystemInfo.pipePrint(oneLine)
 
 
