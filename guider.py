@@ -4019,6 +4019,7 @@ class SystemInfo:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
                 for comm in SystemInfo.showGroup:
                     cmd += "prev_comm == \"%s\" || next_comm == \"%s\" || " % (comm, comm)
+                    cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
                 cmd = cmd[0:cmd.rfind("||")]
                 SystemInfo.writeCmd('sched/sched_switch/filter', cmd)
             else: SystemInfo.writeCmd('sched/sched_switch/filter', '0')
@@ -4067,15 +4068,24 @@ class SystemInfo:
 
 
         if self.cmdList["raw_syscalls"] is True:
+            cmd = "("
+
+            if len(SystemInfo.showGroup) > 0:
+                for comm in SystemInfo.showGroup:
+                    cmd += "common_pid == \"%s\" || " % comm
+
             if len(SystemInfo.syscallList) > 0:
-                cmd = "("
                 for val in SystemInfo.syscallList:
                     cmd += " id == %s ||" % val
                     if SystemInfo.syscallList.index(val) == len(SystemInfo.syscallList) - 1:
                         cmd += " id == %s)" % val
                 SystemInfo.writeCmd('raw_syscalls/filter', cmd)
+            else:
+                cmd = cmd[0:cmd.rfind(" ||")]
+                cmd += ")"
+                SystemInfo.writeCmd('raw_syscalls/filter', cmd)
 
-            if SystemInfo.sysEnable is True and len(SystemInfo.syscallList) == 0:
+            if SystemInfo.sysEnable is True and len(SystemInfo.showGroup) == 0 and len(SystemInfo.syscallList) == 0:
                 SystemInfo.writeCmd('raw_syscalls/filter', '0')
                 SystemInfo.writeCmd('raw_syscalls/sys_enter/filter', '0')
                 SystemInfo.writeCmd('raw_syscalls/sys_exit/filter', '0')
@@ -5147,13 +5157,13 @@ class ThreadInfo:
                     else: continue
                 except: continue
 
-                try:
-                    for sysId,val in sorted(self.threadData[key]['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
+                for sysId,val in sorted(self.threadData[key]['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
+                    try:
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
                             SystemInfo.pipePrint("\t%27s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
                             (ConfigInfo.sysList[int(sysId)], sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
-                except: continue
+                    except: None
             SystemInfo.pipePrint(SystemInfo.bufferString)
             SystemInfo.pipePrint(oneLine)
 
@@ -5166,10 +5176,14 @@ class ThreadInfo:
                 for icount in range(0, len(self.syscallData)):
                     try:
                         SystemInfo.addPrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s\n" % \
-                        (self.threadData[self.syscallData[icount][2]]['comm'], self.syscallData[icount][2], \
-                        round(float(self.syscallData[icount][1]) - float(self.startTime), 7), self.syscallData[icount][0], \
-                        ConfigInfo.sysList[int(self.syscallData[icount][4])], self.syscallData[icount][4], \
-                        self.syscallData[icount][3], self.syscallData[icount][5]))
+                        (self.threadData[self.syscallData[icount][2]]['comm'], \
+                        self.syscallData[icount][2], \
+                        round(float(self.syscallData[icount][1]) - float(self.startTime), 7), \
+                        self.syscallData[icount][0], \
+                        ConfigInfo.sysList[int(self.syscallData[icount][4])], \
+                        self.syscallData[icount][4], \
+                        self.syscallData[icount][3], \
+                        self.syscallData[icount][5]))
 
                         if self.syscallData[icount][0] == 'enter':
                             count += 1
