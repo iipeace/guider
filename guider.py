@@ -5155,7 +5155,7 @@ class ThreadInfo:
                     try:
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
-                            SystemInfo.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
+                            SystemInfo.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f" % \
                             (ConfigInfo.sysList[int(sysId)], sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
                     except: None
             SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -5163,21 +5163,32 @@ class ThreadInfo:
 
             SystemInfo.clearPrint()
             if SystemInfo.showAll == True:
+                enterTime = 0
+
                 SystemInfo.pipePrint('\n' + twoLine)
                 SystemInfo.pipePrint("%16s(%4s)\t%8s\t%5s\t%16s\t%6s\t%4s\t%s" % ("Name", "Tid", "Time", "Type", "Syscall", "SysId", "Core", "Value"))
                 SystemInfo.pipePrint(twoLine)
 
                 for icount in range(0, len(self.syscallData)):
                     try:
-                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s\n" % \
+                        if self.syscallData[icount][0] == 'enter':
+                            diffTime = round(float(self.syscallData[icount][1]) - float(self.startTime), 7)
+                        else:
+                            diffTime = round(float(self.syscallData[icount][1]) - float(self.syscallData[icount - 1][1]), 7)
+                            if diffTime < 0:
+                                diffTime = 0
+
+                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s" % \
                         (self.threadData[self.syscallData[icount][2]]['comm'], \
-                        self.syscallData[icount][2], \
-                        round(float(self.syscallData[icount][1]) - float(self.startTime), 7), \
+                        self.syscallData[icount][2], diffTime, \
                         self.syscallData[icount][0], \
                         ConfigInfo.sysList[int(self.syscallData[icount][4])], \
                         self.syscallData[icount][4], \
                         self.syscallData[icount][3], \
                         self.syscallData[icount][5]))
+
+                        if self.syscallData[icount][0] == 'exit':
+                            SystemInfo.pipePrint(" ")
                     except: None
                 SystemInfo.pipePrint(oneLine)
 
