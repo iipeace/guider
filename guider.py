@@ -7212,6 +7212,7 @@ class ThreadInfo:
 
 
     def printProcUsage(self):
+        procCnt = 0
         interval = SystemInfo.uptimeDiff
 
         # calculate diff between previous and now #
@@ -7344,6 +7345,10 @@ class ThreadInfo:
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                     long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
                     value['btime'], readSize, writeSize, value['majflt']))
+            procCnt += 1
+
+        if procCnt == 0:
+            SystemInfo.addPrint("{0:^16}\n".format("None"))
 
 
 
