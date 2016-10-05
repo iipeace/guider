@@ -5166,29 +5166,38 @@ class ThreadInfo:
                 enterTime = 0
 
                 SystemInfo.pipePrint('\n' + twoLine)
-                SystemInfo.pipePrint("%16s(%4s)\t%8s\t%5s\t%16s\t%6s\t%4s\t%s" % ("Name", "Tid", "Time", "Type", "Syscall", "SysId", "Core", "Value"))
+                SystemInfo.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%s" % ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Value"))
                 SystemInfo.pipePrint(twoLine)
 
                 for icount in range(0, len(self.syscallData)):
                     try:
                         if self.syscallData[icount][0] == 'enter':
-                            diffTime = round(float(self.syscallData[icount][1]) - float(self.startTime), 7)
+                            if self.syscallData[icount + 1][0] == 'exit' and \
+                                    self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
+                                        eventType = 'both'
+                                        eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
+                                        diffTime = float(self.syscallData[icount + 1][1]) - \
+                                                float(self.syscallData[icount][1])
+                            else:
+                                eventType = self.syscallData[icount][0]
+                                eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
+                                diffTime = float(0)
                         else:
-                            diffTime = round(float(self.syscallData[icount][1]) - float(self.syscallData[icount - 1][1]), 7)
-                            if diffTime < 0:
-                                diffTime = 0
+                            if self.syscallData[icount - 1][0] == 'enter' and \
+                                    self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
+                                        continue
+                            else:
+                                eventType = self.syscallData[icount][0]
+                                eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
+                                diffTime = float(0)
 
-                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s" % \
+                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s" % \
                         (self.threadData[self.syscallData[icount][2]]['comm'], \
-                        self.syscallData[icount][2], diffTime, \
-                        self.syscallData[icount][0], \
+                        self.syscallData[icount][2], eventTime, diffTime, eventType, \
                         ConfigInfo.sysList[int(self.syscallData[icount][4])], \
                         self.syscallData[icount][4], \
                         self.syscallData[icount][3], \
                         self.syscallData[icount][5]))
-
-                        if self.syscallData[icount][0] == 'exit':
-                            SystemInfo.pipePrint(" ")
                     except: None
                 SystemInfo.pipePrint(oneLine)
 
