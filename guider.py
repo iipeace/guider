@@ -5008,8 +5008,8 @@ class ThreadInfo:
             SystemInfo.clearPrint()
             SystemInfo.pipePrint('\n' + '[Thread Signal Info]')
             SystemInfo.pipePrint(twoLine)
-            SystemInfo.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s->\t %16s(%5s)" % \
-                    ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECVER', 'TID'))
+            SystemInfo.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s\t %16s(%5s)" % \
+                    ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemInfo.pipePrint(twoLine)
 
             for val in self.sigData:
@@ -5017,10 +5017,10 @@ class ThreadInfo:
                 except: continue
 
                 if val[0] == 'SEND':
-                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
                             (val[0], val[1], val[2], val[3], ConfigInfo.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
-                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%6s) \t%9s->\t %16s(%5s)" % \
+                    SystemInfo.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
                             (val[0], val[1], '', '', ConfigInfo.sigList[int(val[6])], val[4], val[5]))
             SystemInfo.pipePrint(oneLine)
 
@@ -5137,7 +5137,7 @@ class ThreadInfo:
         if self.syscallData != []:
             SystemInfo.pipePrint('\n' + '[Thread Syscall Info]')
             SystemInfo.pipePrint(twoLine)
-            SystemInfo.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%6s\t\t%6s\t\t%6s" % \
+            SystemInfo.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
                     ("Name", "Tid", "Syscall", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
             SystemInfo.pipePrint(twoLine)
 
@@ -5155,7 +5155,7 @@ class ThreadInfo:
                     try:
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
-                            SystemInfo.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f" % \
+                            SystemInfo.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f" % \
                             (ConfigInfo.sysList[int(sysId)], sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
                     except: None
             SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -5165,8 +5165,10 @@ class ThreadInfo:
             if SystemInfo.showAll == True:
                 enterTime = 0
 
-                SystemInfo.pipePrint('\n' + twoLine)
-                SystemInfo.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%s" % ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Value"))
+                SystemInfo.pipePrint('\n' + '[Thread Syscall History Info]')
+                SystemInfo.pipePrint(twoLine)
+                SystemInfo.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
+                        ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
                 SystemInfo.pipePrint(twoLine)
 
                 for icount in range(0, len(self.syscallData)):
@@ -5178,10 +5180,14 @@ class ThreadInfo:
                                         eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
                                         diffTime = float(self.syscallData[icount + 1][1]) - \
                                                 float(self.syscallData[icount][1])
+                                        ret = self.syscallData[icount + 1][5]
+                                        param = self.syscallData[icount][5]
                             else:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
                                 diffTime = float(0)
+                                ret = '-'
+                                param = self.syscallData[icount][5]
                         else:
                             if self.syscallData[icount - 1][0] == 'enter' and \
                                     self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
@@ -5190,14 +5196,14 @@ class ThreadInfo:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
                                 diffTime = float(0)
+                                ret = self.syscallData[icount][5]
+                                param = '-'
 
-                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%s" % \
+                        SystemInfo.pipePrint("%16s(%4s)\t%6.6f\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
                         (self.threadData[self.syscallData[icount][2]]['comm'], \
                         self.syscallData[icount][2], eventTime, diffTime, eventType, \
                         ConfigInfo.sysList[int(self.syscallData[icount][4])], \
-                        self.syscallData[icount][4], \
-                        self.syscallData[icount][3], \
-                        self.syscallData[icount][5]))
+                        self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
                     except: None
                 SystemInfo.pipePrint(oneLine)
 
@@ -7376,7 +7382,7 @@ class ThreadInfo:
         # get system tick as HZ #
         None
 
-        SystemInfo.addPrint("[Top Info] [Time: %7.3f] [Interval: %d sec] [Profiled: %.1f sec ] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n" % \
+        SystemInfo.addPrint("[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] [Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n" % \
             (SystemInfo.uptime, SystemInfo.intervalEnable, SystemInfo.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
