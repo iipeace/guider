@@ -51,397 +51,397 @@ class ConfigInfo:
 
     # Define syscall for ARM #
     sysList = [
-           # 0 #		'sys_restart_syscall',
+           'sys_restart_syscall',
            'sys_exit',
            'sys_fork',
            'sys_read',
            'sys_write',
-           # 5 #		'sys_open',
+           'sys_open',
            'sys_close',
            'sys_ni_syscall',		# was sys_waitpid #
            'sys_creat',
            'sys_link',
-           # 10 #	'sys_unlink',
+           'sys_unlink', # 10 #
            'sys_execve',
            'sys_chdir',
            'sys_time',	# used by libc4 #
            'sys_mknod',
-           # 15 #	'sys_chmod',
+           'sys_chmod',
            'sys_lchown16',
            'sys_ni_syscall',		# was sys_break #
            'sys_ni_syscall',		# was sys_stat #
            'sys_lseek',
-           # 20 #	'sys_getpid',
+           'sys_getpid', # 20 #
            'sys_mount',
            'sys_oldumount',	# used by libc4 #
            'sys_setuid16',
            'sys_getuid16',
-           # 25 #	'sys_stime',
+           'sys_stime',
            'sys_ptrace',
            'sys_alarm',	# used by libc4 #
            'sys_ni_syscall',		# was sys_fstat #
            'sys_pause',
-           # 30 #	'sys_utime',	# used by libc4 #
+           'sys_utime',	# used by libc4 # 30 #
            'sys_ni_syscall',		# was sys_stty #
            'sys_ni_syscall',		# was sys_getty #
            'sys_access',
            'sys_nice',
-           # 35 #	'sys_ni_syscall',		# was sys_ftime #
+           'sys_ni_syscall',		# was sys_ftime #
            'sys_sync',
            'sys_kill',
            'sys_rename',
            'sys_mkdir',
-           # 40 #	'sys_rmdir',
+           'sys_rmdir', # 40 #
            'sys_dup',
            'sys_pipe',
            'sys_times',
            'sys_ni_syscall',		# was sys_prof #
-           # 45 #	'sys_brk',
+           'sys_brk',
            'sys_setgid16',
            'sys_getgid16',
            'sys_ni_syscall',		# was sys_signal #
            'sys_geteuid16',
-           # 50 #	'sys_getegid16',
+           'sys_getegid16', # 50 #
            'sys_acct',
            'sys_umount',
            'sys_ni_syscall',		# was sys_lock #
            'sys_ioctl',
-           # 55 #	'sys_fcntl',
+           'sys_fcntl',
            'sys_ni_syscall',		# was sys_mpx #
            'sys_setpgid',
            'sys_ni_syscall',		# was sys_ulimit #
            'sys_ni_syscall',		# was sys_olduname #
-           # 60 #	'sys_umask',
+           'sys_umask', # 60 #
            'sys_chroot',
            'sys_ustat',
            'sys_dup2',
            'sys_getppid',
-           # 65 #	'sys_getpgrp',
+           'sys_getpgrp',
            'sys_setsid',
            'sys_sigaction',
            'sys_ni_syscall',		# was sys_sgetmask #
            'sys_ni_syscall',		# was sys_ssetmask #
-           # 70 #	'sys_setreuid16',
+           'sys_setreuid16', # 70 #
            'sys_setregid16',
            'sys_sigsuspend',
            'sys_sigpending',
            'sys_sethostname',
-           # 75 #	'sys_setrlimit',
+           'sys_setrlimit',
            'sys_old_getrlimit', # used by libc4 #
            'sys_getrusage',
            'sys_gettimeofday',
            'sys_settimeofday',
-           # 80 #	'sys_getgroups16',
+           'sys_getgroups16', # 80 #
            'sys_setgroups16',
            'sys_old_select',	# used by libc4 #
            'sys_symlink',
            'sys_ni_syscall',		# was sys_lstat #
-           # 85 #	'sys_readlink',
+           'sys_readlink',
            'sys_uselib',
            'sys_swapon',
            'sys_reboot',
            'sys_old_readdir',	# used by libc4 #
-           # 90 #	'sys_old_mmap',	# used by libc4 #
+           'sys_old_mmap',	# used by libc4 # 90 #
            'sys_munmap',
            'sys_truncate',
            'sys_ftruncate',
            'sys_fchmod',
-           # 95 #	'sys_fchown16',
+           'sys_fchown16',
            'sys_getpriority',
            'sys_setpriority',
            'sys_ni_syscall',		# was sys_profil #
            'sys_statfs',
-           # 100 #	'sys_fstatfs',
+           'sys_fstatfs', # 100 #
            'sys_ni_syscall',		# sys_ioperm #
-           'sys_socketcall, sys_oabi_socketcall',
+           'sys_socketcall',
            'sys_syslog',
            'sys_setitimer',
-           # 105 #	'sys_getitimer',
+           'sys_getitimer',
            'sys_newstat',
            'sys_newlstat',
            'sys_newfstat',
            'sys_ni_syscall',		# was sys_uname #
-           # 110 #	'sys_ni_syscall',		# was sys_iopl #
+           'sys_ni_syscall',		# was sys_iopl # 110 #
            'sys_vhangup',
            'sys_ni_syscall',
            'sys_syscall',	# call a syscall #
            'sys_wait4',
-           # 115 #	'sys_swapoff',
+           'sys_swapoff',
            'sys_sysinfo',
-           'sys_ipc, sys_oabi_ipc',
+           'sys_ipc',
            'sys_fsync',
            'sys_sigreturn_wrapper',
-           # 120 #	'sys_clone',
+           'sys_clone', # 120 #
            'sys_setdomainname',
            'sys_newuname',
            'sys_ni_syscall',		# modify_ldt #
            'sys_adjtimex',
-           # 125 #	'sys_mprotect',
+           'sys_mprotect',
            'sys_sigprocmask',
            'sys_ni_syscall',		# was sys_create_module #
            'sys_init_module',
            'sys_delete_module',
-           # 130 #	'sys_ni_syscall',		# was sys_get_kernel_syms #
+           'sys_ni_syscall',		# was sys_get_kernel_syms # 130 #
            'sys_quotactl',
            'sys_getpgid',
            'sys_fchdir',
            'sys_bdflush',
-           # 135 #	'sys_sysfs',
+           'sys_sysfs',
            'sys_personality',
            'sys_ni_syscall',		# reserved for afs_syscall #
            'sys_setfsuid16',
            'sys_setfsgid16',
-           # 140 #	'sys_llseek',
+           'sys_llseek', # 140 #
            'sys_getdents',
            'sys_select',
            'sys_flock',
            'sys_msync',
-           # 145 #	'sys_readv',
+           'sys_readv',
            'sys_writev',
            'sys_getsid',
            'sys_fdatasync',
            'sys_sysctl',
-           # 150 #	'sys_mlock',
+           'sys_mlock', # 150 #
            'sys_munlock',
            'sys_mlockall',
            'sys_munlockall',
            'sys_sched_setparam',
-           # 155 #	'sys_sched_getparam',
+           'sys_sched_getparam',
            'sys_sched_setscheduler',
            'sys_sched_getscheduler',
            'sys_sched_yield',
            'sys_sched_get_priority_max',
-           # 160 #	'sys_sched_get_priority_min',
+           'sys_sched_get_priority_min', # 160 #
            'sys_sched_rr_get_interval',
            'sys_nanosleep',
            'sys_mremap',
            'sys_setresuid16',
-           # 165 #	'sys_getresuid16',
+           'sys_getresuid16',
            'sys_ni_syscall',		# vm86 #
            'sys_ni_syscall',		# was sys_query_module #
            'sys_poll',
            'sys_ni_syscall',		# was nfsservctl #
-           # 170 #	'sys_setresgid16',
+           'sys_setresgid16', # 170 #
            'sys_getresgid16',
            'sys_prctl',
            'sys_rt_sigreturn_wrapper',
            'sys_rt_sigaction',
-           # 175 #	'sys_rt_sigprocmask',
+           'sys_rt_sigprocmask',
            'sys_rt_sigpending',
            'sys_rt_sigtimedwait',
            'sys_rt_sigqueueinfo',
            'sys_rt_sigsuspend',
-           # 180 #	'sys_pread64, sys_oabi_pread64',
-           'sys_pwrite64, sys_oabi_pwrite64',
+           'sys_pread64', # 180 #
+           'sys_pwrite64',
            'sys_chown16',
            'sys_getcwd',
            'sys_capget',
-           # 185 #	'sys_capset',
+           'sys_capset',
            'sys_sigaltstack',
            'sys_sendfile',
            'sys_ni_syscall',		# getpmsg #
            'sys_ni_syscall',		# putpmsg #
-           # 190 #	'sys_vfork',
+           'sys_vfork', # 190 #
            'sys_getrlimit',
            'sys_mmap2',
-           'sys_truncate64, sys_oabi_truncate64',
-           'sys_ftruncate64, sys_oabi_ftruncate64',
-           # 195 #	'sys_stat64, sys_oabi_stat64',
-           'sys_lstat64, sys_oabi_lstat64',
-           'sys_fstat64, sys_oabi_fstat64',
+           'sys_truncate64',
+           'sys_ftruncate64',
+           'sys_stat64',
+           'sys_lstat64',
+           'sys_fstat64',
            'sys_lchown',
            'sys_getuid',
-           # 200 #	'sys_getgid',
+           'sys_getgid', # 200 #
            'sys_geteuid',
            'sys_getegid',
            'sys_setreuid',
            'sys_setregid',
-           # 205 #	'sys_getgroups',
+           'sys_getgroups',
            'sys_setgroups',
            'sys_fchown',
            'sys_setresuid',
            'sys_getresuid',
-           # 210 #	'sys_setresgid',
+           'sys_setresgid', # 210 #
            'sys_getresgid',
            'sys_chown',
            'sys_setuid',
            'sys_setgid',
-           # 215 #	'sys_setfsuid',
+           'sys_setfsuid',
            'sys_setfsgid',
            'sys_getdents64',
            'sys_pivot_root',
            'sys_mincore',
-           # 220 #	'sys_madvise',
-           'sys_fcntl64, sys_oabi_fcntl64',
+           'sys_madvise', # 220 #
+           'sys_fcntl64',
            'sys_ni_syscall', # TUX #
            'sys_ni_syscall',
            'sys_gettid',
-           # 225 #	'sys_readahead, sys_oabi_readahead',
+           'sys_readahead',
            'sys_setxattr',
            'sys_lsetxattr',
            'sys_fsetxattr',
            'sys_getxattr',
-           # 230 #	'sys_lgetxattr',
+           'sys_lgetxattr', # 230 #
            'sys_fgetxattr',
            'sys_listxattr',
            'sys_llistxattr',
            'sys_flistxattr',
-           # 235 #	'sys_removexattr',
+           'sys_removexattr',
            'sys_lremovexattr',
            'sys_fremovexattr',
            'sys_tkill',
            'sys_sendfile64',
-           # 240 #	'sys_futex',
+           'sys_futex', # 240 #
            'sys_sched_setaffinity',
            'sys_sched_getaffinity',
            'sys_io_setup',
            'sys_io_destroy',
-           # 245 #	'sys_io_getevents',
+           'sys_io_getevents',
            'sys_io_submit',
            'sys_io_cancel',
            'sys_exit_group',
            'sys_lookup_dcookie',
-           # 250 #	'sys_epoll_create',
-           'sys_epoll_ctl, sys_oabi_epoll_ctl',
-           'sys_epoll_wait, sys_oabi_epoll_wait',
+           'sys_epoll_create', # 250 #
+           'sys_epoll_ctl',
+           'sys_epoll_wait',
            'sys_remap_file_pages',
            'sys_ni_syscall',	# sys_set_thread_area #
-           # 255 #	'sys_ni_syscall',	# sys_get_thread_area #
+           'sys_ni_syscall',	# sys_get_thread_area #
            'sys_set_tid_address',
            'sys_timer_create',
            'sys_timer_settime',
            'sys_timer_gettime',
-           # 260 #	'sys_timer_getoverrun',
+           'sys_timer_getoverrun', # 260 #
            'sys_timer_delete',
            'sys_clock_settime',
            'sys_clock_gettime',
            'sys_clock_getres',
-           # 265 #	'sys_clock_nanosleep',
+           'sys_clock_nanosleep',
            'sys_statfs64_wrapper',
            'sys_fstatfs64_wrapper',
            'sys_tgkill',
            'sys_utimes',
-           # 270 #	'sys_arm_fadvise64_64',
+           'sys_arm_fadvise64_64', # 270 #
            'sys_pciconfig_iobase',
            'sys_pciconfig_read',
            'sys_pciconfig_write',
            'sys_mq_open',
-           # 275 #	'sys_mq_unlink',
+           'sys_mq_unlink',
            'sys_mq_timedsend',
            'sys_mq_timedreceive',
            'sys_mq_notify',
            'sys_mq_getsetattr',
-           # 280 #	'sys_waitid',
+           'sys_waitid', # 280 #
            'sys_socket',
-           'sys_bind, sys_oabi_bind',
-           'sys_connect, sys_oabi_connect',
+           'sys_bind',
+           'sys_connect',
            'sys_listen',
-           # 285 #	'sys_accept',
+           'sys_accept',
            'sys_getsockname',
            'sys_getpeername',
            'sys_socketpair',
            'sys_send',
-           # 290 #	'sys_sendto, sys_oabi_sendto',
+           'sys_sendto', # 290 #
            'sys_recv',
            'sys_recvfrom',
            'sys_shutdown',
            'sys_setsockopt',
-           # 295 #	'sys_getsockopt',
-           'sys_sendmsg, sys_oabi_sendmsg',
+           'sys_getsockopt',
+           'sys_sendmsg',
            'sys_recvmsg',
-           'sys_semop, sys_oabi_semop',
+           'sys_semop',
            'sys_semget',
-           # 300 #	'sys_semctl',
+           'sys_semctl', # 300 #
            'sys_msgsnd',
            'sys_msgrcv',
            'sys_msgget',
            'sys_msgctl',
-           # 305 #	'sys_shmat',
+           'sys_shmat',
            'sys_shmdt',
            'sys_shmget',
            'sys_shmctl',
            'sys_add_key',
-           # 310 #	'sys_request_key',
+           'sys_request_key', # 310 #
            'sys_keyctl',
-           'sys_semtimedop, sys_oabi_semtimedop',
-           # vserver #	'sys_ni_syscall',
+           'sys_semtimedop',
+           'sys_ni_syscall', # vserver #
            'sys_ioprio_set',
-           # 315 #	'sys_ioprio_get',
+           'sys_ioprio_get',
            'sys_inotify_init',
            'sys_inotify_add_watch',
            'sys_inotify_rm_watch',
            'sys_mbind',
-           # 320 #	'sys_get_mempolicy',
+           'sys_get_mempolicy', # 320 #
            'sys_set_mempolicy',
            'sys_openat',
            'sys_mkdirat',
            'sys_mknodat',
-           # 325 #	'sys_fchownat',
+           'sys_fchownat',
            'sys_futimesat',
-           'sys_fstatat64,  sys_oabi_fstatat64',
+           'sys_fstatat64',
            'sys_unlinkat',
            'sys_renameat',
-           # 330 #	'sys_linkat',
+           'sys_linkat', # 330 #
            'sys_symlinkat',
            'sys_readlinkat',
            'sys_fchmodat',
            'sys_faccessat',
-           # 335 #	'sys_pselect6',
+           'sys_pselect6',
            'sys_ppoll',
            'sys_unshare',
            'sys_set_robust_list',
            'sys_get_robust_list',
-           # 340 #	'sys_splice',
+           'sys_splice', # 340 #
            'sys_sync_file_range2',
            'sys_tee',
            'sys_vmsplice',
            'sys_move_pages',
-           # 345 #	'sys_getcpu',
+           'sys_getcpu',
            'sys_epoll_pwait',
            'sys_kexec_load',
            'sys_utimensat',
            'sys_signalfd',
-           # 350 #	'sys_timerfd_create',
+           'sys_timerfd_create', # 350 #
            'sys_eventfd',
            'sys_fallocate',
            'sys_timerfd_settime',
            'sys_timerfd_gettime',
-           # 355 #	'sys_signalfd4',
+           'sys_signalfd4',
            'sys_eventfd2',
            'sys_epoll_create1',
            'sys_dup3',
            'sys_pipe2',
-           # 360 #	'sys_inotify_init1',
+           'sys_inotify_init1', # 360 #
            'sys_preadv',
            'sys_pwritev',
            'sys_rt_tgsigqueueinfo',
            'sys_perf_event_open',
-           # 365 #	'sys_recvmmsg',
+           'sys_recvmmsg',
            'sys_accept4',
            'sys_fanotify_init',
            'sys_fanotify_mark',
            'sys_prlimit64',
-           # 370 #	'sys_name_to_handle_at',
+           'sys_name_to_handle_at', # 370 #
            'sys_open_by_handle_at',
            'sys_clock_adjtime',
            'sys_syncfs',
            'sys_sendmmsg',
-           # 375 #	'sys_setns',
+           'sys_setns',
            'sys_process_vm_readv',
            'sys_process_vm_writev',
            'sys_kcmp',
            'sys_finit_module',
-           # 380 #	'sys_sched_setattr',
+           'sys_sched_setattr', # 380 #
            'sys_sched_getattr',
            'sys_renameat2',
            'sys_seccomp',
            'sys_getrandom',
-           # 385 #	'sys_memfd_create',
+           'sys_memfd_create',
            'sys_bpf',
            'sys_execveat',
            'sys_userfaultfd',
            'sys_membarrier',
-           'sys_mlock2',
+           'sys_mlock2', # 390 #
            'sys_copy_file_range'
            ]
 
@@ -2829,14 +2829,6 @@ class SystemInfo:
     showGroup = []
     syscallList = []
 
-    # systemcall numbers about ARM architecture #
-    sysWrite = '4'
-    sysSelect = '142'
-    sysPoll = '168'
-    sysEpollwait = '252'
-    sysRecv = '291'
-    sysFutex = '240'
-
 
 
     def __init__(self):
@@ -4036,13 +4028,14 @@ class SystemInfo:
 
         if self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
-            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, \
-                    SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
+            % (ConfigInfo.sysList.index("sys_write"), ConfigInfo.sysList.index("sys_poll"), \
+            ConfigInfo.sysList.index("sys_epoll_wait"), ConfigInfo.sysList.index("sys_select"), \
+            ConfigInfo.sysList.index("sys_recv"), ConfigInfo.sysList.index("sys_futex"))
 
             SystemInfo.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_enter/enable', '1')
         elif SystemInfo.futexEnable is True:
-            cmd = "(id == %s)" % (SystemInfo.sysFutex)
+            cmd = "(id == %s)" % (ConfigInfo.sysList.index("sys_futex"))
             SystemInfo.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_enter/enable', '1')
             self.cmdList["raw_syscalls/sys_enter"] = True
@@ -4052,13 +4045,14 @@ class SystemInfo:
 
         if self.cmdList["raw_syscalls/sys_exit"] is True:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
-            % (SystemInfo.sysWrite, SystemInfo.sysPoll, SystemInfo.sysEpollwait, \
-                    SystemInfo.sysSelect, SystemInfo.sysRecv, SystemInfo.sysFutex)
+            % (ConfigInfo.sysList.index("sys_write"), ConfigInfo.sysList.index("sys_poll"), \
+            ConfigInfo.sysList.index("sys_epoll_wait"), ConfigInfo.sysList.index("sys_select"), \
+            ConfigInfo.sysList.index("sys_recv"), ConfigInfo.sysList.index("sys_futex"))
 
             SystemInfo.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemInfo.futexEnable is True:
-            cmd = "(id == %s  && ret == 0)" % (SystemInfo.sysFutex)
+            cmd = "(id == %s  && ret == 0)" % (ConfigInfo.sysList.index("sys_futex"))
             SystemInfo.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemInfo.writeCmd('raw_syscalls/sys_exit/enable', '1')
             self.cmdList["raw_syscalls/sys_exit"] = True
@@ -5161,7 +5155,7 @@ class ThreadInfo:
                     try:
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
-                            SystemInfo.pipePrint("\t%27s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
+                            SystemInfo.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.3f\t\t%6.3f\t\t%6.3f\n" % \
                             (ConfigInfo.sysList[int(sysId)], sysId, val['usage'], val['count'], val['min'], val['max'], val['average']))
                     except: None
             SystemInfo.pipePrint(SystemInfo.bufferString)
@@ -6226,7 +6220,7 @@ class ThreadInfo:
                     nr = d['nr']
                     args = d['args']
 
-                    if nr == SystemInfo.sysFutex:
+                    if nr == ConfigInfo.sysList.index("sys_futex"):
                         n = re.match('^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), (?P<val>\S+), (?P<timep>\S+),', d['args'])
                         if n is not None:
                             l = n.groupdict()
@@ -6238,11 +6232,12 @@ class ThreadInfo:
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(self.startTime)
 
-                    if nr == SystemInfo.sysWrite:
+                    if nr == ConfigInfo.sysList.index("sys_write"):
                         self.wakeupData['tid'] = thread
                         self.wakeupData['nr'] = nr
                         self.wakeupData['args'] = args
-                        if self.wakeupData['valid'] > 0 and (self.wakeupData['tid'] == thread and self.wakeupData['from'] == comm):
+                        if self.wakeupData['valid'] > 0 and \
+                                (self.wakeupData['tid'] == thread and self.wakeupData['from'] == comm):
                             None
                         else:
                             self.wakeupData['valid'] += 1
@@ -6274,7 +6269,7 @@ class ThreadInfo:
                     nr = d['nr']
                     ret = d['ret']
 
-                    if nr == SystemInfo.sysFutex and self.threadData[thread]['futexEnter'] > 0:
+                    if nr == ConfigInfo.sysList.index("sys_futex") and self.threadData[thread]['futexEnter'] > 0:
                         self.threadData[thread]['futexCnt'] += 1
                         futexTime = float(time) - self.threadData[thread]['futexEnter']
                         if futexTime > self.threadData[thread]['futexMax']:
@@ -6282,9 +6277,10 @@ class ThreadInfo:
                         self.threadData[thread]['futexTotal'] += futexTime
                         self.threadData[thread]['futexEnter'] = 0
 
-                    if nr == SystemInfo.sysWrite and self.wakeupData['valid'] > 0:
+                    if nr == ConfigInfo.sysList.index("sys_write") and self.wakeupData['valid'] > 0:
                         self.wakeupData['valid'] -= 1
-                    elif nr == SystemInfo.sysSelect or nr == SystemInfo.sysPoll or nr == SystemInfo.sysEpollwait:
+                    elif nr == ConfigInfo.sysList.index("sys_select") or nr == ConfigInfo.sysList.index("sys_poll") or \
+                            nr == ConfigInfo.sysList.index("sys_epoll_wait"):
                         if (self.lastJob[core]['job'] == "sched_switch" or self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
                             self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
@@ -6294,7 +6290,7 @@ class ThreadInfo:
 
                             self.wakeupData['time'] = float(time) - float(self.startTime)
                             self.lastJob[core]['prevWakeupTid'] = thread
-                    elif nr == SystemInfo.sysRecv:
+                    elif nr == ConfigInfo.sysList.index("sys_recv"):
                         if self.lastJob[core]['prevWakeupTid'] != thread:
                             self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(float(time) - float(self.startTime), 7), \
@@ -7426,6 +7422,7 @@ if __name__ == '__main__':
         print('\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]')
         print('\t\t-r [record_repeatData:interval,count]')
         print('\t\t-b [set_bufferSize:kb(record)|10b(top)]')
+        print('\t\t-w [trace_threadDependency]')
         print('\t\t-t [trace_syscall:syscallNums]')
         print('\t[analysis]')
         print('\t\t-o [set_outputFile:dir]')
