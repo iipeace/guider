@@ -3398,6 +3398,8 @@ class SystemInfo:
                     for val in SystemInfo.showGroup:
                         if val == '':
                             del SystemInfo.showGroup[SystemInfo.showGroup.index('')]
+
+                    SystemInfo.printInfo("only specific threads %s are shown" % ','.join(SystemInfo.showGroup))
                 elif sys.argv[n][1] == 's':
                     if SystemInfo.isRecordMode() is False:
                         SystemInfo.printError("Fail to save data becuase not in savable mode")
