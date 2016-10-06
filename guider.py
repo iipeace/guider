@@ -669,8 +669,8 @@ class FunctionInfo:
 
         # Check target thread setting #
         if len(SystemInfo.showGroup) == 0:
-            SystemInfo.printError("wrong option with -f, use -g option with tid / comm / nothing")
-            sys.exit(0)
+            SystemInfo.showGroup.insert(0, '')
+            self.target = []
         else:
             self.target = SystemInfo.showGroup
 
@@ -2234,8 +2234,7 @@ class FileInfo:
                 'totalSize': int(0), 'fileMap': None}
 
         if len(SystemInfo.showGroup) == 0:
-            SystemInfo.printError("wrong option with -m, use -g option with tids / comms")
-            sys.exit(0)
+            SystemInfo.showGroup.insert(0, '')
 
         try:
             imp.find_module('ctypes')
@@ -2875,9 +2874,10 @@ class SystemInfo:
         if SystemInfo.fileEnable is True:
             SystemInfo.condExit = True
         elif SystemInfo.isTopMode() is True:
-            if SystemInfo.inputFile != 'top':
+            if SystemInfo.printFile is not None:
+                SystemInfo.printTitle()
                 SystemInfo.pipePrint(SystemInfo.procBuffer)
-                SystemInfo.printInfo('trace data is saved to %s' % (SystemInfo.inputFile))
+                SystemInfo.printInfo("Saved top usage into %s successfully" % SystemInfo.inputFile)
             sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -2897,15 +2897,20 @@ class SystemInfo:
         SystemInfo.condExit = False
 
         if SystemInfo.fileEnable is True:
-            SystemInfo.printStatus("Saved file usage information successfully")
+            SystemInfo.printStatus("Saved file usage into %s successfully" % (SystemInfo.printFile + '/guider.out'))
         elif SystemInfo.isTopMode() is True:
+            SystemInfo.printTitle()
             SystemInfo.pipePrint(SystemInfo.procBuffer)
+
+            if SystemInfo.fileForPrint is not None:
+                SystemInfo.fileForPrint.close()
+                SystemInfo.fileForPrint = None
+
             SystemInfo.procBuffer = []
             SystemInfo.procBufferSize = 0
 
             if SystemInfo.inputFile != 'top':
-                SystemInfo.printStatus("Saved top usage information successfully")
-                SystemInfo.printTitle()
+                SystemInfo.printStatus("Saved top usage into %s successfully" % SystemInfo.inputFile)
         elif SystemInfo.resetEnable is True:
             SystemInfo.writeEvent("EVENT_START")
         else:
@@ -3055,7 +3060,7 @@ class SystemInfo:
 
     @staticmethod
     def printTitle():
-        if SystemInfo.printFile == None:
+        if SystemInfo.printFile is None:
             os.system('clear')
 
         SystemInfo.pipePrint("[ g.u.i.d.e.r \tver.%s ]\n" % __version__)
@@ -3443,7 +3448,7 @@ class SystemInfo:
                 elif sys.argv[n][1] == 'j':
                     None
                 elif sys.argv[n][1] == 'o':
-                    None
+                    SystemInfo.printFile = str(sys.argv[n].lstrip('-o'))
                 elif sys.argv[n][1] == 'i':
                     None
                 elif sys.argv[n][1] == 'a':
@@ -4676,7 +4681,7 @@ class ThreadInfo:
                 self.saveProcs()
 
                 if self.prevProcData != {}:
-                    if SystemInfo.inputFile == 'top':
+                    if SystemInfo.printFile is None:
                         SystemInfo.printTitle()
 
                     self.printTopUsage()
@@ -7355,7 +7360,7 @@ class ThreadInfo:
 
             # cut by rows of terminal #
             if int(SystemInfo.bufferRows) >= int(SystemInfo.ttyRows) - 5 and \
-                    SystemInfo.inputFile == 'top':
+                    SystemInfo.printFile is None:
                 return
 
             # set sort value #
@@ -7431,7 +7436,7 @@ class ThreadInfo:
         SystemInfo.addPrint(oneLine + '\n')
 
         # realtime mode #
-        if SystemInfo.inputFile == 'top':
+        if SystemInfo.printFile is None:
             SystemInfo.pipePrint(SystemInfo.bufferString)
             SystemInfo.clearPrint()
             SystemInfo.bufferRows = 0
