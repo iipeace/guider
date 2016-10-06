@@ -3087,6 +3087,12 @@ class SystemInfo:
         if launchPosStart != -1:
             groupPosEnd = SystemInfo.launchBuffer.find(' ', groupPosStart)
             SystemInfo.showGroup = SystemInfo.launchBuffer[groupPosStart:groupPosEnd].lstrip('-g').split(',')
+
+            # remove empty value #
+            for val in SystemInfo.showGroup:
+                if val == '':
+                    del SystemInfo.showGroup[SystemInfo.showGroup.index('')]
+
             SystemInfo.printInfo("only specific threads %s are shown" % ','.join(SystemInfo.showGroup))
 
 
@@ -3269,7 +3275,7 @@ class SystemInfo:
                         try: int(val)
                         except: SystemInfo.syscallList.remove(val)
                 elif sys.argv[n][1] == 'g':
-                    SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
+                    None
                 elif sys.argv[n][1] == 'e':
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('g') != -1:
@@ -3387,8 +3393,11 @@ class SystemInfo:
                         SystemInfo.printInfo("reset key(ctrl + \) enabled")
                 elif sys.argv[n][1] == 'g':
                     SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
-                    if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
-                        SystemInfo.printInfo("only specific threads %s are recorded" % ','.join(SystemInfo.showGroup))
+
+                    # remove empty value #
+                    for val in SystemInfo.showGroup:
+                        if val == '':
+                            del SystemInfo.showGroup[SystemInfo.showGroup.index('')]
                 elif sys.argv[n][1] == 's':
                     if SystemInfo.isRecordMode() is False:
                         SystemInfo.printError("Fail to save data becuase not in savable mode")
