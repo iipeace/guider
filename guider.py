@@ -2743,10 +2743,10 @@ class SystemInfo:
     ttyCols = '156'
     magicString = '@@@@@'
     procPath = '/proc'
+    launchBuffer = None
     maxFd = 1024
-    TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
     #HZ = 250 # 4ms tick #
-    #TICK = int((1 / float(HZ)) * 1000)
+    TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK']) #TICK = int((1 / float(HZ)) * 1000) #
 
     mountPath = None
     addr2linePath = None
@@ -3069,6 +3069,29 @@ class SystemInfo:
 
 
     @staticmethod
+    def applyLaunchOption():
+        if SystemInfo.systemInfoBuffer == '':
+            return
+
+        launchPosStart = SystemInfo.systemInfoBuffer.find('Launch')
+        if launchPosStart == -1:
+            return
+        launchPosEnd = SystemInfo.systemInfoBuffer.find('\n', launchPosStart)
+        if launchPosEnd == -1:
+            return
+
+        SystemInfo.launchBuffer = SystemInfo.systemInfoBuffer[launchPosStart:launchPosEnd]
+
+        # apply group filter option #
+        groupPosStart = SystemInfo.launchBuffer.find('-g')
+        if launchPosStart != -1:
+            groupPosEnd = SystemInfo.launchBuffer.find(' ', groupPosStart)
+            SystemInfo.showGroup = SystemInfo.launchBuffer[groupPosStart:groupPosEnd].lstrip('-g').split(',')
+            SystemInfo.printInfo("only specific threads %s are shown" % ','.join(SystemInfo.showGroup))
+
+
+
+    @staticmethod
     def writeEvent(message):
         if SystemInfo.eventLogFD == None:
             if SystemInfo.eventLogFile is None:
@@ -3261,9 +3284,6 @@ class SystemInfo:
                         if SystemInfo.warningEnable is False:
                             SystemInfo.warningEnable = True
                             SystemInfo.printInfo("printing warning message for debug")
-                elif sys.argv[n][1] == 'g':
-                    if SystemInfo.outputFile != None:
-                        SystemInfo.printWarning("only specific threads are recorded")
                 elif sys.argv[n][1] == 'f':
                     # Handle error about record option #
                     if SystemInfo.functionEnable is not False:
@@ -3366,20 +3386,19 @@ class SystemInfo:
                         SystemInfo.resetEnable = True
                         SystemInfo.printInfo("reset key(ctrl + \) enabled")
                 elif sys.argv[n][1] == 'g':
-                    if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
-                        SystemInfo.printWarning("only specific threads are recorded")
                     SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
+                    if SystemInfo.outputFile != None and SystemInfo.functionEnable is False:
+                        SystemInfo.printInfo("only specific threads %s are recorded" % ','.join(SystemInfo.showGroup))
                 elif sys.argv[n][1] == 's':
                     if SystemInfo.isRecordMode() is False:
                         SystemInfo.printError("Fail to save data becuase not in savable mode")
                         sys.exit(0)
-                    if len(SystemInfo.showGroup) > 0:
-                        SystemInfo.printWarning("only specific threads are recorded")
                     SystemInfo.ttyEnable = False
                     SystemInfo.outputFile = str(sys.argv[n].lstrip('-s'))
                     if os.path.isdir(SystemInfo.outputFile) == True:
                         SystemInfo.outputFile = SystemInfo.outputFile + '/guider.dat'
-                    elif os.path.isdir(SystemInfo.outputFile[:SystemInfo.outputFile.rfind('/')]) == True: None
+                    elif os.path.isdir(SystemInfo.outputFile[:SystemInfo.outputFile.rfind('/')]) == True:
+                        None
                     else:
                         SystemInfo.printError("wrong option value %s with -s option" % \
                                 (sys.argv[n].lstrip('-s')))
@@ -4227,6 +4246,10 @@ class SystemInfo:
         SystemInfo.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
         SystemInfo.infoBufferPrint(oneLine)
 
+        try:
+            SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
+                format('Launch', '# ' + ' '.join(sys.argv)))
+        except: None
         try: SystemInfo.infoBufferPrint("{0:20} {1:<100}".\
                 format('Time', self.systemInfo['date'] + ' ' + self.systemInfo['time']))
         except: None
@@ -4703,7 +4726,8 @@ class ThreadInfo:
             for key,value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
                 for val in SystemInfo.showGroup:
-                    if value['comm'].rfind(val) != -1 or value['tgid'].rfind(val) != -1: checkResult = True
+                    if value['comm'].rfind(val) != -1 or value['tgid'].rfind(val) != -1 or key == val:
+                        checkResult = True
                 if checkResult == False and key[0:2] != '0[':
                     try: del self.threadData[key]
                     except: None
@@ -4896,7 +4920,7 @@ class ThreadInfo:
             if key[0:2] == '0[':
                 continue
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
-            if round(float(usagePercent), 1) < 1 and SystemInfo.showAll == False:
+            if round(float(usagePercent), 1) < 1 and SystemInfo.showAll is False and SystemInfo.showGroup == []:
                 break
             else:
                 value['cpuRank'] = count + 1
@@ -7679,9 +7703,12 @@ if __name__ == '__main__':
     # check log file is recoginizable #
     ThreadInfo.getInitTime(SystemInfo.inputFile)
 
-    # write system info to buffer #
     if SystemInfo.isRecordMode() is True:
+        # write system info to buffer #
         si.printAllInfoToBuf()
+    else:
+        # apply launch option from saved file #
+        SystemInfo.applyLaunchOption()
 
     # create Event Info #
     ei = EventInfo()
