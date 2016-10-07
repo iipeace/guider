@@ -7308,16 +7308,16 @@ class ThreadInfo:
                 nowData = value['stat']
                 prevData = self.prevProcData[pid]['stat']
 
+                value['runtime'] = int(SystemInfo.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
                 value['stime'] = int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
+                value['ttime'] = value['utime'] + value['stime']
                 value['cutime'] = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
                 value['cstime'] = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
-                value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
-                value['ttime'] = value['utime'] + value['stime']
                 value['cttime'] = value['cutime'] + value['cstime']
-                value['runtime'] = int(SystemInfo.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
+                value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
 
                 if value['ttime'] > 100:
                     value['ttime'] = 100
@@ -7333,6 +7333,7 @@ class ThreadInfo:
                             long(self.prevProcData[pid]['io']['write_bytes'])
             except:
                 value['new'] = True
+                value['runtime'] = int(SystemInfo.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
@@ -7429,7 +7430,7 @@ class ThreadInfo:
             if runtimeHour > 0:
                 runtimeMin %= 60
             runtimeSec %= 60
-            lifeTime = "%d:%d:%d" % (runtimeHour, runtimeMin, runtimeSec)
+            lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
             if SystemInfo.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
@@ -7439,7 +7440,7 @@ class ThreadInfo:
                 writeSize = '-'
 
             SystemInfo.addPrint(\
-                    "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| {9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6}) | {17:>10}|\n".\
+                    "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| {9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6}) | {17:>9} |\n".\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
@@ -7460,14 +7461,14 @@ class ThreadInfo:
                 comm = '#' + value['stat'][self.commIdx][1:-1]
                 state = ConfigInfo.procStatList[value['stat'][self.statIdx]]
                 core = value['stat'][self.coreIdx]
-                runtimeSec = value['runtime']
+                runtimeSec = value['runtime'] + SystemInfo.uptimeDiff
 
                 runtimeMin = runtimeSec / 60
                 runtimeHour = runtimeMin / 60
                 if runtimeHour > 0:
                     runtimeMin %= 60
                 runtimeSec %= 60
-                lifeTime = "%d:%d:%d" % (runtimeHour, runtimeMin, runtimeSec)
+                lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
                     schedValue = int(value['stat'][self.prioIdx]) - 20
@@ -7476,7 +7477,7 @@ class ThreadInfo:
 
                 # print die thread information #
                 SystemInfo.addPrint(\
-                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>7} @CORE/{6:<2} ~{7:<10}\n".\
+                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>7} | CORE/{6:<2} | {7:<9} |\n".\
                         format(comm, idx, value['mainID'], value['stat'][self.nrthreadIdx], \
                         ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                         state, core, lifeTime))
