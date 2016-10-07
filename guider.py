@@ -49,6 +49,16 @@ class ConfigInfo:
     UNDERLINE = '\033[4m'
 
 
+    # Define state of process #
+    procStatList = {
+            'R': 'running',
+            'S': 'sleep',
+            'D': 'disk',
+            'Z': 'zombie',
+            'T': 'traced',
+            'W': 'paging'
+            }
+
     # Define syscall for ARM #
     sysList = [
            'sys_restart_syscall',
@@ -4640,9 +4650,9 @@ class ThreadInfo:
         self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), 'max': float(0), 'min': float(0)}
 
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, 'statFd': None, \
+        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, 'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), \
                 'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), 'utime': float(0), 'stime': float(0), 'ioFd': None, \
-                'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0)}
+                'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), 'cutime': float(0), 'cstime': float(0), 'cttime': float(0)}
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
 
         self.startTime = '0'
@@ -4656,6 +4666,8 @@ class ThreadInfo:
             self.majfltIdx = ConfigInfo.statList.index("MAJFLT")
             self.utimeIdx = ConfigInfo.statList.index("UTIME")
             self.stimeIdx = ConfigInfo.statList.index("STIME")
+            self.cutimeIdx = ConfigInfo.statList.index("CUTIME")
+            self.cstimeIdx = ConfigInfo.statList.index("CSTIME")
             self.btimeIdx = ConfigInfo.statList.index("DELAYBLKTICK")
             self.commIdx = ConfigInfo.statList.index("COMM")
             self.ppidIdx = ConfigInfo.statList.index("PPID")
@@ -4668,6 +4680,9 @@ class ThreadInfo:
             self.estackIdx = ConfigInfo.statList.index("SP")
             self.scodeIdx = ConfigInfo.statList.index("STARTCODE")
             self.ecodeIdx = ConfigInfo.statList.index("ENDCODE")
+            self.statIdx = ConfigInfo.statList.index("STATE")
+            self.coreIdx = ConfigInfo.statList.index("PROCESSOR")
+            self.runtimeIdx = ConfigInfo.statList.index("STARTTIME")
 
             try:
                 import resource
@@ -7090,6 +7105,8 @@ class ThreadInfo:
         statList[self.utimeIdx] = long(statList[self.utimeIdx])
         statList[self.stimeIdx] = long(statList[self.stimeIdx])
         statList[self.btimeIdx] = long(statList[self.btimeIdx])
+        statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
+        statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # save io info #
         if SystemInfo.diskEnable is True:
@@ -7295,8 +7312,12 @@ class ThreadInfo:
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
                 value['stime'] = int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
+                value['cutime'] = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
+                value['cstime'] = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
                 value['ttime'] = value['utime'] + value['stime']
+                value['cttime'] = value['cutime'] + value['cstime']
+                value['runtime'] = int(SystemInfo.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
 
                 if value['ttime'] > 100:
                     value['ttime'] = 100
@@ -7316,6 +7337,8 @@ class ThreadInfo:
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
                 value['stime'] = int(nowData[self.stimeIdx] / interval)
+                value['cutime'] = int(nowData[self.cutimeIdx] / interval)
+                value['cstime'] = int(nowData[self.cstimeIdx] / interval)
                 value['btime'] = int(nowData[self.btimeIdx] / interval)
                 value['ttime'] = value['utime'] + value['stime']
 
@@ -7331,9 +7354,9 @@ class ThreadInfo:
 
         SystemInfo.addPrint(twoLine + '\n')
         SystemInfo.addPrint(\
-                "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3})| {8:^4}({9:^5}/{10:^4}/{11:^3})| {12:^3}({13:^4}/{14:^4}/{15:^6})\n".\
-                format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker",\
-                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt"))
+                "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| {9:^4}({10:^5}/{11:^4}/{12:^3})| {13:^3}({14:^4}/{15:^4}/{16:^6}) | {17:^10}|\n".\
+                format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
+                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt", "LifeTime"))
 
         SystemInfo.addPrint(oneLine + '\n')
 
@@ -7400,6 +7423,14 @@ class ThreadInfo:
             else:
                 schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
 
+            runtimeSec = value['runtime']
+            runtimeMin = runtimeSec / 60
+            runtimeHour = runtimeMin / 60
+            if runtimeHour > 0:
+                runtimeMin %= 60
+            runtimeSec %= 60
+            lifeTime = "%d:%d:%d" % (runtimeHour, runtimeMin, runtimeSec)
+
             if SystemInfo.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
                 writeSize = value['write'] / 1024 / 1024
@@ -7408,13 +7439,13 @@ class ThreadInfo:
                 writeSize = '-'
 
             SystemInfo.addPrint(\
-                    "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3})| {8:>4}({9:>5}/{10:>4}/{11:>3})| {12:>3}({13:>4}/{14:>4}/{15:>6})\n".\
+                    "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| {9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6}) | {17:>10}|\n".\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    value['ttime'], value['utime'], value['stime'], \
+                    value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                     long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
-                    value['btime'], readSize, writeSize, value['majflt']))
+                    value['btime'], readSize, writeSize, value['majflt'], lifeTime))
             procCnt += 1
 
         if procCnt == 0:
@@ -7427,6 +7458,16 @@ class ThreadInfo:
                 dieCnt += 1
 
                 comm = '#' + value['stat'][self.commIdx][1:-1]
+                state = ConfigInfo.procStatList[value['stat'][self.statIdx]]
+                core = value['stat'][self.coreIdx]
+                runtimeSec = value['runtime']
+
+                runtimeMin = runtimeSec / 60
+                runtimeHour = runtimeMin / 60
+                if runtimeHour > 0:
+                    runtimeMin %= 60
+                runtimeSec %= 60
+                lifeTime = "%d:%d:%d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
                     schedValue = int(value['stat'][self.prioIdx]) - 20
@@ -7435,9 +7476,10 @@ class ThreadInfo:
 
                 # print die thread information #
                 SystemInfo.addPrint(\
-                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|\n".\
+                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>7} @CORE/{6:<2} ~{7:<10}\n".\
                         format(comm, idx, value['mainID'], value['stat'][self.nrthreadIdx], \
-                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue)))
+                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                        state, core, lifeTime))
 
                 try:
                     value['statFd'].close()
@@ -7552,7 +7594,6 @@ if __name__ == '__main__':
 
     # print backgroud process list #
     if SystemInfo.isListMode() is True:
-        print "[ g.u.i.d.e.r \tver.%s ]\n" % __version__
         SystemInfo.printBackgroundProcs()
         sys.exit(0)
 
