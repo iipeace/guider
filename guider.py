@@ -701,7 +701,7 @@ class FunctionInfo:
             SystemInfo.printError("No collected data related to %s" % self.target)
             sys.exit(0)
         elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
-            SystemInfo.printError("No traced user stack data related to %s, apply kernel patch" % self.target)
+            SystemInfo.printError("No traced user stack data related to %s, enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel" % self.target)
             sys.exit(0)
 
         SystemInfo.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
@@ -1793,7 +1793,8 @@ class FunctionInfo:
 
         # Exit because of no target #
         if len(self.target) == 0:
-            sys.exit(0)
+            None
+            #sys.exit(0)
 
         # Print resource usage of functions #
         self.printCpuUsage()
@@ -2909,7 +2910,7 @@ class SystemInfo:
             SystemInfo.procBuffer = []
             SystemInfo.procBufferSize = 0
 
-            if SystemInfo.inputFile != 'top':
+            if SystemInfo.printFile is not None:
                 SystemInfo.printStatus("Saved top usage into %s successfully" % SystemInfo.inputFile)
         elif SystemInfo.resetEnable is True:
             SystemInfo.writeEvent("EVENT_START")
@@ -3075,7 +3076,7 @@ class SystemInfo:
 
     @staticmethod
     def applyLaunchOption():
-        if SystemInfo.systemInfoBuffer == '':
+        if SystemInfo.systemInfoBuffer == '' or SystemInfo.functionEnable is not False:
             return
 
         launchPosStart = SystemInfo.systemInfoBuffer.find('Launch')
@@ -3280,7 +3281,13 @@ class SystemInfo:
                         try: int(val)
                         except: SystemInfo.syscallList.remove(val)
                 elif sys.argv[n][1] == 'g':
-                    None
+                    if SystemInfo.functionEnable is not False:
+                        SystemInfo.showGroup = sys.argv[n].lstrip('-g').split(',')
+
+                        # remove empty value #
+                        for val in SystemInfo.showGroup:
+                            if val == '':
+                                del SystemInfo.showGroup[SystemInfo.showGroup.index('')]
                 elif sys.argv[n][1] == 'e':
                     options = sys.argv[n].lstrip('-e')
                     if options.rfind('g') != -1:
@@ -4668,6 +4675,7 @@ class ThreadInfo:
             except:
                 SystemInfo.printWarning("Fail to get maxFd because of no resource package, default %d" % SystemInfo.maxFd)
 
+            # set default interval #
             if SystemInfo.intervalEnable == 0:
                 SystemInfo.intervalEnable = 1
 
@@ -4675,6 +4683,9 @@ class ThreadInfo:
                 for idx, val in enumerate(SystemInfo.showGroup):
                     if len(val) == 0:
                         SystemInfo.showGroup.pop(idx)
+
+            if SystemInfo.printFile is not None:
+                SystemInfo.printStatus("start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
 
             while True:
                 # collect stats of process as soon as possible #
@@ -4685,14 +4696,6 @@ class ThreadInfo:
                         SystemInfo.printTitle()
 
                     self.printTopUsage()
-
-                    # close fd that thread who already termiated created becuase of limited resource #
-                    for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
-                        if value['alive'] is False:
-                            try:
-                                value['statFd'].close()
-                                value['ioFd'].close()
-                            except: None
 
                 time.sleep(SystemInfo.intervalEnable)
 
@@ -7279,6 +7282,7 @@ class ThreadInfo:
 
     def printProcUsage(self):
         procCnt = 0
+        dieCnt = 0
         interval = SystemInfo.uptimeDiff
 
         # calculate diff between previous and now #
@@ -7415,6 +7419,33 @@ class ThreadInfo:
 
         if procCnt == 0:
             SystemInfo.addPrint("{0:^16}\n".format("None"))
+        SystemInfo.addPrint(oneLine + '\n')
+
+        # close fd that thread who already termiated created becuase of limited resource #
+        for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
+            if value['alive'] is False:
+                dieCnt += 1
+
+                comm = '#' + value['stat'][self.commIdx][1:-1]
+
+                if ConfigInfo.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                    schedValue = int(value['stat'][self.prioIdx]) - 20
+                else:
+                    schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
+
+                # print die thread information #
+                SystemInfo.addPrint(\
+                        "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|\n".\
+                        format(comm, idx, value['mainID'], value['stat'][self.nrthreadIdx], \
+                        ConfigInfo.schedList[int(value['stat'][self.policyIdx])] + str(schedValue)))
+
+                try:
+                    value['statFd'].close()
+                    value['ioFd'].close()
+                except: None
+
+        if dieCnt > 0:
+            SystemInfo.addPrint(oneLine + '\n')
 
 
 
@@ -7433,7 +7464,6 @@ class ThreadInfo:
 
         # print process info #
         self.printProcUsage()
-        SystemInfo.addPrint(oneLine + '\n')
 
         # realtime mode #
         if SystemInfo.printFile is None:
@@ -7630,7 +7660,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
         # start recording for thread profile #
-        SystemInfo.printStatus('start recording... [ STOP(ctrl + c), COMPARE(ctrl + \) ]')
+        SystemInfo.printStatus('start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
         si.runRecordStartCmd()
 
         if SystemInfo.pipeEnable is True:
@@ -7695,6 +7725,8 @@ if __name__ == '__main__':
 
     # create Thread Info using proc #
     if SystemInfo.isTopMode() is True:
+        SystemInfo.printInfo("top profile mode")
+
         # set handler for exit #
         signal.signal(signal.SIGINT, SystemInfo.stopHandler)
         signal.signal(signal.SIGQUIT, SystemInfo.newHandler)
