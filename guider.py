@@ -2532,8 +2532,10 @@ class FileAnalyzer:
 
         # scan comms include words in SystemManager.showGroup #
         for pid in pids:
-            try: int(pid)
-            except: continue
+            try:
+                int(pid)
+            except:
+                continue
 
             # make path of tid #
             procPath = os.path.join(SystemManager.procPath, pid)
@@ -2546,8 +2548,10 @@ class FileAnalyzer:
                 continue
 
             for tid in tids:
-                try: int(tid)
-                except: continue
+                try:
+                    int(tid)
+                except:
+                    continue
 
                 # make path of comm #
                 threadPath = os.path.join(taskPath, tid)
@@ -2566,7 +2570,8 @@ class FileAnalyzer:
                 for val in SystemManager.showGroup:
                     if comm.rfind(val) != -1 or tid == val:
                         # access procData #
-                        try: self.procData[pid]
+                        try:
+                            self.procData[pid]
                         except:
                             self.procData[pid] = dict(self.init_procData)
                             self.procData[pid]['tids'] = {}
@@ -2576,7 +2581,8 @@ class FileAnalyzer:
                             self.makeProcMapInfo(pid, threadPath + '/maps')
 
                         # access threadData #
-                        try: self.procData[pid]['tids'][tid]
+                        try:
+                            self.procData[pid]['tids'][tid]
                         except:
                             self.procData[pid]['tids'][tid] = dict(self.init_threadData)
                             self.procData[pid]['tids'][tid]['comm'] = comm
@@ -2606,7 +2612,8 @@ class FileAnalyzer:
 
     def makeProcMapInfo(self, pid, path):
         # open maps #
-        try: fd = open(path, 'r')
+        try:
+            fd = open(path, 'r')
         except:
             SystemManager.printWarning('Fail to open %s' % (path))
             return
@@ -2707,7 +2714,8 @@ class FileAnalyzer:
                 try:
                     val['fd'] = self.intervalFileData[len(self.intervalFileData) - 1][fileName]['fd']
                     val['totalSize'] = self.intervalFileData[len(self.intervalFileData) - 1][fileName]['totalSize']
-                except: None
+                except:
+                    None
 
             if val['fd'] is None:
                 try:
@@ -2746,16 +2754,20 @@ class FileAnalyzer:
 
                     # fd resource is about to run out #
                     if SystemManager.maxFd - 16 < fd:
-                        try: self.fileData[fileName]['fd'].close()
-                        except: None
+                        try:
+                            self.fileData[fileName]['fd'].close()
+                        except:
+                            None
                         self.fileData[fileName]['fd'] = None
                 except:
                     SystemManager.printWarning('Fail to access %s' % fileName)
                     self.fileData[fileName]['fileMap'] = None
                     self.profFailedCnt += 1
             else:
-                try: self.fileData[fileName]['fd'].close()
-                except: None
+                try:
+                    self.fileData[fileName]['fd'].close()
+                except:
+                    None
                 self.fileData[fileName]['fd'] = None
 
         if len(self.fileData) > 0:
@@ -2891,7 +2903,8 @@ class SystemManager:
         self.diskInfo['after'] = dict()
         self.SystemManager = dict()
 
-        eventLogFile = str(self.getMountPath()) + '/tracing/trace_marker'
+        SystemManager.eventLogFile = \
+                str(self.getMountPath()) + '/tracing/trace_marker'
 
         # Save storage info first #
         self.saveMemInfo()
@@ -2972,7 +2985,7 @@ class SystemManager:
 
 
     @staticmethod
-    def exitHandlerForFSinfo(signum, frame):
+    def exitHandlerForPartInfo(signum, frame):
         for dirnames in os.walk('/sys/class/block'):
             for subdirname in dirnames[1]:
                 devPath = '/sys/class/block/' + subdirname + '/dev'
@@ -3052,7 +3065,8 @@ class SystemManager:
 
     @staticmethod
     def writeCmd(path, val):
-        try: fd = open(SystemManager.mountPath + path, 'w')
+        try:
+            fd = open(SystemManager.mountPath + path, 'w')
         except:
             SystemManager.printWarning("Fail to use %s event, please confirm kernel configuration" % \
                     path[0:path.find('/')])
@@ -3072,7 +3086,8 @@ class SystemManager:
     def printProgress():
         SystemManager.progressCnt += 1
         if SystemManager.progressCnt % 1000 == 0:
-            if SystemManager.progressCnt == 4000: SystemManager.progressCnt = 0
+            if SystemManager.progressCnt == 4000:
+                SystemManager.progressCnt = 0
             sys.stdout.write('%3d' % (SystemManager.curLine / float(SystemManager.totalLine) * 100) + \
                     '% ' + SystemManager.progressChar[SystemManager.progressCnt / 1000] + '\b\b\b\b\b\b')
             sys.stdout.flush()
@@ -3147,8 +3162,10 @@ class SystemManager:
             if SystemManager.eventLogFile is None:
                 SystemManager.eventLogFile = str(SystemManager.getMountPath()) + '/tracing/trace_marker'
 
-            try: SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
-            except: SystemManager.printError("Fail to open %s for writing event\n" % SystemManager.eventLogFD)
+            try:
+                SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
+            except:
+                SystemManager.printError("Fail to open %s for writing event\n" % SystemManager.eventLogFD)
 
         if SystemManager.eventLogFD != None:
             try:
@@ -4402,7 +4419,8 @@ class SystemManager:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".format('CoresPerCPU', self.cpuInfo['cpu cores']))
         except:
             None
-        try: SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
+        try:
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Logical', int(self.cpuInfo['processor']) + 1))
         except:
             None
 
@@ -4657,7 +4675,7 @@ class EventAnalyzer:
 
 
     def printEvent(self, startTime):
-        for key in sorted(self.eventData.items(), key=lambda e: e[1], reverse=True):
+        for key, value in sorted(self.eventData.items(), key=lambda e: e[1], reverse=True):
             if self.eventData[key]['summary'][0][0] == None:
                 SystemManager.pipePrint("%10s: [total: %s]" % (key, len(self.eventData[key]['list'])))
             else:
@@ -6638,8 +6656,6 @@ class ThreadAnalyzer:
                     d = m.groupdict()
 
                     sig = d['sig']
-                    err = d['err']
-                    code = d['code']
                     flags = d['flags']
 
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
@@ -7165,7 +7181,8 @@ class ThreadAnalyzer:
                 try:
                     swapTotal += int(swapList[2])
                     swapUsed += int(swapList[3])
-                except: continue
+                except:
+                    continue
 
             self.vmData['swapTotal'] = swapTotal
             self.vmData['swapUsed'] = swapUsed
