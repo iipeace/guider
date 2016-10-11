@@ -8062,7 +8062,7 @@ class ThreadAnalyzer(object):
 
 
     def printTopUsage(self):
-        SystemManager.addPrint(("[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
+        SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
                 "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n") % \
                 (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
                 self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
