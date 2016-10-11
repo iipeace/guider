@@ -4861,7 +4861,7 @@ class ThreadAnalyzer(object):
                 'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
                 'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
                 'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
-                'start': float(0), 'stop': float(0), 'readCnt': int(0), 'readStart': float(0), \
+                'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
                 'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
                 'futexCnt': int(0), 'futexEnter': float(0), 'futexTotal': float(0), 'futexMax': float(0), \
@@ -6911,8 +6911,9 @@ class ThreadAnalyzer(object):
                                 'major': d['major'], 'minor': d['minor'], \
                                 'address': int(d['address']), 'size': int(d['size'])}
 
+                        print 'req', bio, d['size']
                         self.threadData[thread]['reqBlock'] += int(d['size'])
-                        self.threadData[thread]['readCnt'] += 1
+                        self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
                         self.threadData[coreId]['readBlockCnt'] += 1
                         if self.threadData[thread]['readStart'] == 0:
@@ -6937,57 +6938,61 @@ class ThreadAnalyzer(object):
                         return
 
                     for key, value in sorted(self.ioData.items(), key=lambda e: e[1]['address'], reverse=False):
-                        if self.ioData[key]['major'] == d['major'] and self.ioData[key]['minor'] == d['minor']:
-                            if bioStart <= self.ioData[key]['address'] < bioEnd or \
-                                    bioStart < self.ioData[key]['address'] + self.ioData[key]['size'] <= bioEnd:
+                        if value['major'] == d['major'] and value['minor'] == d['minor']:
+                            if bioStart <= value['address'] < bioEnd or \
+                                    bioStart < value['address'] + value['size'] <= bioEnd:
 
                                 matchBlock = 0
 
-                                if bioStart < self.ioData[key]['address']:
-                                    matchStart = self.ioData[key]['address']
+                                if bioStart < value['address']:
+                                    matchStart = value['address']
                                 else:
                                     matchStart = bioStart
 
-                                if bioEnd > self.ioData[key]['address'] + self.ioData[key]['size']:
-                                    matchEnd = self.ioData[key]['address'] + self.ioData[key]['size']
+                                if bioEnd > value['address'] + value['size']:
+                                    matchEnd = value['address'] + value['size']
                                 else:
                                     matchEnd = bioEnd
 
-                                if matchStart == self.ioData[key]['address']:
-                                    matchBlock = matchEnd - self.ioData[key]['address']
-                                    self.ioData[key]['size'] = \
-                                        self.ioData[key]['address'] + self.ioData[key]['size'] - matchEnd
-                                    self.ioData[key]['address'] = matchEnd
-                                elif matchStart > self.ioData[key]['address']:
-                                    if matchEnd == self.ioData[key]['address'] + self.ioData[key]['size']:
+                                if matchStart == value['address']:
+                                    matchBlock = matchEnd - value['address']
+                                    value['size'] = value['address'] + value['size'] - matchEnd
+                                    value['address'] = matchEnd
+                                elif matchStart > value['address']:
+                                    if matchEnd == value['address'] + value['size']:
                                         matchBlock = matchEnd - matchStart
-                                        self.ioData[key]['size'] = matchStart - self.ioData[key]['address']
+                                        value['size'] = matchStart - value['address']
                                     else:
-                                        del self.ioData[key]
+                                        del value
                                         continue
                                 else:
-                                    del self.ioData[key]
+                                    del value
                                     continue
 
-                                if bioEnd < self.ioData[key]['address'] + self.ioData[key]['size']:
-                                    break
+                                # just ignore error ;( #
+                                if bioEnd < value['address'] + value['size']:
+                                    pass
 
-                                self.threadData[self.ioData[key]['thread']]['readBlock'] += matchBlock
+                                self.threadData[value['thread']]['readBlock'] += matchBlock
                                 self.threadData[coreId]['readBlock'] += matchBlock
 
-                                if self.ioData[key]['size'] == 0:
-                                    if self.threadData[self.ioData[key]['thread']]['readCnt'] > 0:
-                                        self.threadData[self.ioData[key]['thread']]['readCnt'] -= 1
+                                if value['size'] == 0:
+                                    if self.threadData[value['thread']]['readQueueCnt'] > 0:
+                                        self.threadData[value['thread']]['readQueueCnt'] -= 1
 
-                                    if self.threadData[self.ioData[key]['thread']]['readStart'] > 0 and \
-                                            self.threadData[self.ioData[key]['thread']]['readCnt'] == 0:
-                                        self.threadData[coreId]['ioWait'] += \
-                                                float(time) - self.threadData[self.ioData[key]['thread']]['readStart']
-                                        self.threadData[self.ioData[key]['thread']]['ioWait'] += \
-                                                float(time) - self.threadData[self.ioData[key]['thread']]['readStart']
-                                        self.threadData[self.ioData[key]['thread']]['readStart'] = 0
+                                    """
+                                    if error of size and time of block read is big then \
+                                    consider inserting bellow condition
+                                    # self.threadData[value['thread']]['readQueueCnt'] == 0 #
+                                    """
+                                    if self.threadData[value['thread']]['readStart'] > 0:
+                                        waitTime = \
+                                                float(time) - self.threadData[value['thread']]['readStart']
+                                        self.threadData[coreId]['ioWait'] += waitTime
+                                        self.threadData[value['thread']]['ioWait'] += waitTime
+                                        self.threadData[value['thread']]['readStart'] = 0
 
-                                    del self.ioData[key]
+                                    del value
 
             elif func == "writeback_dirty_page":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
