@@ -3254,6 +3254,7 @@ class SystemManager(object):
             SystemManager.showGroup = \
                 SystemManager.launchBuffer[groupPosStart:groupPosEnd].lstrip('-g').split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
+        if len(SystemManager.showGroup) > 0:
             SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
 
 
@@ -4236,7 +4237,7 @@ class SystemManager(object):
             if len(SystemManager.showGroup) > 0:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
                 for comm in SystemManager.showGroup:
-                    cmd += "prev_comm == \"%s\" || next_comm == \"%s\" || " % (comm, comm)
+                    cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
                     cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
                 cmd = cmd[0:cmd.rfind("||")]
                 SystemManager.writeCmd('sched/sched_switch/filter', cmd)
@@ -6310,7 +6311,7 @@ class ThreadAnalyzer(object):
                     self.threadData[next_id]['start'] = float(time)
                     self.threadData[next_id]['waitStartAsParent'] = float(0)
 
-                    # update priority of thread to highest #
+                    # update priority of thread to highest one #
                     if self.threadData[prev_id]['pri'] == '0' or \
                         int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
                         self.threadData[prev_id]['pri'] = d['prev_prio']
@@ -6322,8 +6323,12 @@ class ThreadAnalyzer(object):
                     diff = 0
                     if self.threadData[prev_id]['start'] <= 0:
                         # calculate running time of prev_process started before starting to profile #
-                        diff = float(time) - float(self.startTime)
-                        self.threadData[prev_id]['usage'] = diff
+                        if self.threadData['0[' + core + ']']['coreSchedCnt'] == 0:
+                            diff = float(time) - float(self.startTime)
+                            self.threadData[prev_id]['usage'] = diff
+                        # it is possible that log was loss #
+                        else:
+                            pass
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                         self.threadData[prev_id]['usage'] += diff
@@ -6911,7 +6916,6 @@ class ThreadAnalyzer(object):
                                 'major': d['major'], 'minor': d['minor'], \
                                 'address': int(d['address']), 'size': int(d['size'])}
 
-                        print 'req', bio, d['size']
                         self.threadData[thread]['reqBlock'] += int(d['size'])
                         self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
