@@ -4794,7 +4794,7 @@ class EventAnalyzer(object):
 
 
 
-    def printEventAnalyzer(self):
+    def printEventInfo(self):
         if len(self.eventData) > 0:
             SystemManager.pipePrint('\n' + twoLine)
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'EVT', len(self.eventData)))
@@ -8404,7 +8404,7 @@ if __name__ == '__main__':
         ti = ThreadAnalyzer(SystemManager.inputFile)
 
     # print event info #
-    ei.printEventAnalyzer()
+    ei.printEventInfo()
 
     # start input menu #
     if SystemManager.selectMenu != None:
