@@ -7770,7 +7770,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(oneLine + '\n')
 
         # set biggest core number #
-        for idx in sorted(self.cpuData.items(), reverse=False):
+        for idx, val in sorted(self.cpuData.items(), reverse=False):
             try:
                 SystemManager.maxCore = int(idx)
             except:
