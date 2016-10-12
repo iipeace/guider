@@ -3320,7 +3320,8 @@ class SystemManager(object):
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
-                SystemManager.inputFile = SystemManager.inputFile.replace('dat', 'out')
+                SystemManager.inputFile = \
+                        SystemManager.printFile + '/' + SystemManager.inputFile.replace('dat', 'out')
             else:
                 SystemManager.inputFile = SystemManager.printFile + '/guider.out'
 
