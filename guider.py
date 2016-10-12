@@ -8054,7 +8054,12 @@ class ThreadAnalyzer(object):
                     value['statFd'].close()
                     value['ioFd'].close()
                 except:
-                    continue
+                    pass
+
+            # cut by rows of terminal #
+            if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
+                    SystemManager.printFile is None:
+                return
 
         if dieCnt > 0:
             SystemManager.addPrint(oneLine + '\n')
