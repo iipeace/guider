@@ -8220,6 +8220,7 @@ if __name__ == '__main__':
         if SystemManager.waitEnable is True:
             SystemManager.printStatus("wait for starting profile... [ START(ctrl + c) ]")
             signal.signal(signal.SIGINT, SystemManager.defaultHandler)
+            signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
         if SystemManager.systemEnable is True:
