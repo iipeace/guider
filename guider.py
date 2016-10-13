@@ -2487,14 +2487,14 @@ class FileAnalyzer(object):
 
         # Merge file info into a global list #
         for fileData in self.intervalFileData:
-            for fileName, FileAnalyzer in fileData.items():
+            for fileName, fileStat in fileData.items():
                 try:
-                    if self.fileList[fileName]['pageCnt'] < FileAnalyzer['pageCnt']:
-                        self.fileList[fileName]['pageCnt'] = FileAnalyzer['pageCnt']
+                    if self.fileList[fileName]['pageCnt'] < fileStat['pageCnt']:
+                        self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
                 except:
                     self.fileList[fileName] = dict(self.init_mapData)
-                    self.fileList[fileName]['pageCnt'] = FileAnalyzer['pageCnt']
-                    self.fileList[fileName]['totalSize'] = FileAnalyzer['totalSize']
+                    self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
+                    self.fileList[fileName]['totalSize'] = fileStat['totalSize']
 
         if len(self.fileList) == 0:
             SystemManager.printError('No file profiled')
@@ -2897,7 +2897,6 @@ class SystemManager(object):
     printFile = None
 
     tgidEnable = True
-    ttyEnable = True
     binEnable = False
     processEnable = True
 
@@ -3303,17 +3302,15 @@ class SystemManager(object):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
                 SystemManager.printFile == None and SystemManager.isTopMode() is False:
             try:
-                SystemManager.pipeForPrint = os.popen('less', 'w')
+                SystemManager.pipeForPrint = os.popen('less -S', 'w')
             except:
-                SystemManager.printError("less can not be found, use -o option to save output to file\n")
+                SystemManager.printError("Fail to find less util, use -o option to save output to file\n")
                 sys.exit(0)
-
-            if SystemManager.ttyEnable is True:
-                SystemManager.setTtyCols(SystemManager.ttyCols)
 
         if SystemManager.pipeForPrint != None:
             try:
                 SystemManager.pipeForPrint.write(line + '\n')
+                return
             except:
                 SystemManager.printError("Failed to print to pipe\n")
                 SystemManager.pipeForPrint = None
@@ -3416,7 +3413,6 @@ class SystemManager(object):
                         sys.exit(0)
                 elif sys.argv[n][1] == 'o':
                     SystemManager.printFile = str(sys.argv[n].lstrip('-o'))
-                    SystemManager.ttyEnable = False
                     if os.path.isdir(SystemManager.printFile) == False:
                         SystemManager.printError("wrong option value %s with -o option, use directory name" % \
                                 (sys.argv[n].lstrip('-o')))
@@ -3438,9 +3434,6 @@ class SystemManager(object):
                         SystemManager.printWarning("-i option is already enabled, -p option is disabled")
                 elif sys.argv[n][1] == 'd':
                     options = sys.argv[n].lstrip('-d')
-                    if options.rfind('t') != -1:
-                        SystemManager.ttyEnable = False
-                        SystemManager.printInfo("tty is default")
                 elif sys.argv[n][1] == 't':
                     SystemManager.sysEnable = True
                     SystemManager.syscallList = sys.argv[n].lstrip('-t').split(',')
@@ -3582,7 +3575,6 @@ class SystemManager(object):
                         SystemManager.printError("Fail to save data becuase not in savable mode")
                         sys.exit(0)
 
-                    SystemManager.ttyEnable = False
                     SystemManager.outputFile = str(sys.argv[n].lstrip('-s'))
 
                     if os.path.isdir(SystemManager.outputFile) is True:
@@ -3819,13 +3811,13 @@ class SystemManager(object):
 
     @staticmethod
     def setRtPriority(pri):
-        os.system('chrt -a -p %s %s &' % (pri, os.getpid()))
+        os.system('chrt -a -p %s %s 2> /dev/null &' % (pri, os.getpid()))
 
 
 
     @staticmethod
-    def setIdlePriority(pri):
-        os.system('chrt -a -i -p %s %s &' % (pri, os.getpid()))
+    def setIdlePriority():
+        os.system('chrt -a -i -p %s %s 2> /dev/null &' % (0, os.getpid()))
 
 
 
@@ -3842,7 +3834,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setTty():
+    def getTty():
         try:
             SystemManager.ttyRows, SystemManager.ttyCols = \
                     os.popen('stty size', 'r').read().split()
@@ -4052,8 +4044,6 @@ class SystemManager(object):
 
                 data = pd.read(SystemManager.pageSize)
                 fd.write(data)
-                SystemManager.repeatCount = 1
-                SystemManager.printProgress()
             except:
                 pd.close()
                 fd.close()
@@ -4148,8 +4138,11 @@ class SystemManager(object):
         SystemManager.mountPath += "/tracing/events/"
 
         if os.path.isdir(SystemManager.mountPath) == False:
-            SystemManager.printError(\
-                    "ftrace option in kernel is not enabled or guider needs root permission")
+            if os.geteuid() == 0:
+                SystemManager.printError("Check whether ftrace options are enabled in kernel")
+            else:
+                SystemManager.printError("Fail to get root permission")
+
             sys.exit(0)
 
         self.clearTraceBuffer()
@@ -4165,7 +4158,7 @@ class SystemManager(object):
 
             if len(SystemManager.showGroup) > 0:
                 if len(SystemManager.showGroup) > 1:
-                    SystemManager.printError("Only one tid is available to filter for funtion profile")
+                    SystemManager.printError("Only one tid is available to filter in funtion mode")
                     sys.exit(0)
 
                 try:
@@ -8136,7 +8129,7 @@ if __name__ == '__main__':
         print '\t\t-u [run_inBackground]'
         print '\t\t-c [wait_forSignal]'
         print '\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]'
-        print '\t\t-d [disable_options:c(pu)|b(lock)|t(ty)]'
+        print '\t\t-d [disable_options:c(pu)|b(lock)]'
         print '\t\t-r [record_repeatData:interval,count]'
         print '\t\t-b [set_bufferSize:kb(record)|10b(top)]'
         print '\t\t-w [trace_threadDependency]'
@@ -8273,6 +8266,10 @@ if __name__ == '__main__':
             else:
                 pi.printIntervalInfo()
 
+            # close pipe for less #
+            if SystemManager.pipeForPrint is not None:
+                SystemManager.pipeForPrint.close()
+
             sys.exit(0)
 
         # start recording for thread profile #
@@ -8281,7 +8278,7 @@ if __name__ == '__main__':
 
         if SystemManager.pipeEnable is True:
             if SystemManager.outputFile is not None:
-                SystemManager.setIdlePriority(0)
+                SystemManager.setIdlePriority()
                 SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
                 SystemManager.runRecordStopCmd()
                 SystemManager.printInfo("wrote output to %s successfully" % (SystemManager.outputFile))
@@ -8336,8 +8333,8 @@ if __name__ == '__main__':
     # parse additional option #
     SystemManager.parseAddOption()
 
-    # set tty #
-    SystemManager.setTty()
+    # get tty setting #
+    SystemManager.getTty()
 
     # create Thread Info using proc #
     if SystemManager.isTopMode() is True:
@@ -8358,6 +8355,10 @@ if __name__ == '__main__':
 
         # create Thread Info using proc #
         ti = ThreadAnalyzer(None)
+
+        # close pipe for less #
+        if SystemManager.pipeForPrint is not None:
+            SystemManager.pipeForPrint.close()
 
         sys.exit(0)
 
@@ -8385,12 +8386,16 @@ if __name__ == '__main__':
         if SystemManager.isRecordMode() is True:
             SystemManager.runRecordStopFinalCmd()
 
-        # Print Function Info #
+        # print Function Info #
         fi.printUsage()
 
+        # close pipe for less #
+        if SystemManager.pipeForPrint is not None:
+            SystemManager.pipeForPrint.close()
+
         sys.exit(0)
-    # create Thread Info using ftrace #
     else:
+        # import packages to draw graph #
         if SystemManager.graphEnable is True:
             try:
                 import matplotlib
@@ -8401,10 +8406,15 @@ if __name__ == '__main__':
                 SystemManager.printError("making graph is not supported because of no matplotlib")
                 SystemManager.graphEnable = False
 
+        # create Thread Info using ftrace #
         ti = ThreadAnalyzer(SystemManager.inputFile)
 
     # print event info #
     ei.printEventInfo()
+
+    # close pipe for less #
+    if SystemManager.pipeForPrint is not None:
+        SystemManager.pipeForPrint.close()
 
     # start input menu #
     if SystemManager.selectMenu != None:
