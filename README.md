@@ -1,12 +1,12 @@
 # guider
 Are you struggle to improve system performance or to find root cause that makes system abnormal?
-guider is made to measure system resource usage per thread and to give user hints to improve system performance.
-you can use this tool if only some ftrace options are enabled in linux kernel.
+Guider is made to measure system resource usage and to give user hints to improve system performance.
+You can profile resource usage of thread, process, file, function with this tool.
 
 guider pursues three characteristics.
->1. easy to use: just run by linux shell without install or setting
->2. measure correct: measure time in ms and size in MB
->3. integrate function: show cpu / memory / disk usage per thread in a page 
+>1. easy to use: just run without install or setting
+>2. measure correct: measure time in ms and size in MB/KB
+>3. integrate functions: show cpu / memory / disk usage per thread / process / function
 
 
 How to use
@@ -26,7 +26,7 @@ Requirement
 ```
 - linux kernel (>= 3.0)
 - python (>= 2.7)
-- root permission in shell
+- root permission (for recording thread activity)
 ```
 
 
@@ -71,13 +71,14 @@ Options
                 -m [file mode]
         [record|top]
                 -s [save_traceData:dir]
-                -S [sort_output:c(pu),m(em),b(lock)]
+                -S [sort_output:c(pu),m(em),b(lock),w(fc)]
                 -u [run_inBackground]
                 -c [wait_forSignal]
                 -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]
-                -d [disable_options:c(pu)|b(lock)|t(ty)]
+                -d [disable_options:c(pu)|b(lock)]
                 -r [record_repeatData:interval,count]
                 -b [set_bufferSize:kb(record)|10b(top)]
+                -w [trace_threadDependency]
                 -t [trace_syscall:syscallNums]
         [analysis]
                 -o [set_outputFile:dir]
@@ -90,6 +91,4 @@ Options
                 -q [make_taskchain]
         [common]
                 -g [filter_specificGroup:comms|tids]
-
-
 ```
