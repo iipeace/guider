@@ -3,7 +3,7 @@ Are you struggle to improve system performance or to find root cause that makes 
 Guider is made to measure system resource usage and to give user hints to improve system performance.   
 You can profile resource usage of thread, process, file, function with this tool.   
 
-guider pursues three characteristics.
+Guider pursues three characteristics.
 >1. easy to use: just run without install or setting
 >2. measure correct: measure time in ms and size in MB/KB
 >3. integrate functions: show cpu / memory / disk usage per thread / process / function
@@ -13,10 +13,10 @@ How to use
 =======
 
 ```
-input command as bellow for starting profile
+Input command as bellow for starting profile
 # guider.py record 
 
-input "Ctrl + c" key for finishing profile
+Input "Ctrl + c" key for finishing profile
 ```
 
 
