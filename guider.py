@@ -688,22 +688,10 @@ class FunctionAnalyzer(object):
         else:
             self.target = SystemManager.showGroup
 
-        # Check addr2line path #
-        if SystemManager.addr2linePath is None:
-            SystemManager.printError(\
-                    "Fail to find addr2line, use also -l option with the path of addr2line")
-            sys.exit(0)
-        else:
-            for path in SystemManager.addr2linePath:
-                if os.path.isfile(path) is False:
-                    SystemManager.printError(\
-                            "Fail to find addr2line, use also -l option with the path of addr2line")
-                    sys.exit(0)
-
         # Check root path #
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                    "Fail to recognize root path for target, use also -j option with the path of root")
+                    "Fail to recognize sysroot path for target, use also -j option with it or blank")
             sys.exit(0)
 
         # Register None pos #
@@ -753,6 +741,7 @@ class FunctionAnalyzer(object):
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
+
             kernelPos = self.kernelCallData[lineCnt][0]
             kernelStack = self.kernelCallData[lineCnt][1]
             subStackPageInfo = list(self.init_subStackPageInfo)
@@ -1148,16 +1137,31 @@ class FunctionAnalyzer(object):
         if os.path.isfile(binPath) == False:
             SystemManager.printWarning("Fail to find %s" % binPath)
             for addr in offsetList:
-                if relocated is False:
-                    self.posData[addr]['symbol'] = 'NoFile'
-                    self.posData[addr]['src'] = 'NoFile'
-                else:
-                    for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-                        if value['binary'] == binPath and value['offset'] == hex(int(addr, 16)):
-                            self.posData[idx]['symbol'] = 'NoFile'
-                            self.posData[idx]['src'] = 'NoFile'
-                            break
+                try:
+                    if relocated is False:
+                        self.posData[addr]['symbol'] = 'NoFile'
+                        self.posData[addr]['src'] = 'NoFile'
+                    else:
+                        for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+                            if value['binary'] == binPath and value['offset'] == hex(int(addr, 16)):
+                                self.posData[idx]['symbol'] = 'NoFile'
+                                self.posData[idx]['src'] = 'NoFile'
+                                break
+                except:
+                    SystemManager.printWarning("Fail to find address %s in list" % addr)
             return
+
+        # Check addr2line path #
+        if SystemManager.addr2linePath is None:
+            SystemManager.printError(\
+                    "Fail to find addr2line, use also -l option with path of addr2line for user mode")
+            sys.exit(0)
+        else:
+            for path in SystemManager.addr2linePath:
+                if os.path.isfile(path) is False:
+                    SystemManager.printError(\
+                            "Fail to find addr2line, use also -l option with path of addr2line for user mode")
+                    sys.exit(0)
 
         for path in SystemManager.addr2linePath:
             # Set addr2line command #
@@ -1180,8 +1184,10 @@ class FunctionAnalyzer(object):
                 try:
                     # Set alarm to handle hanged addr2line #
                     signal.alarm(5)
+
                     # Wait for addr2line to finish its job #
                     proc.wait()
+
                     # Cancel alarm after addr2line respond #
                     signal.alarm(0)
                 except:
@@ -1207,6 +1213,7 @@ class FunctionAnalyzer(object):
                     # Check whether the file is relocatable or not #
                     if relocated is False:
                         savedSymbol = self.posData[addr]['symbol']
+
                         # Check whether saved symbol found by previous addr2line is right #
                         if savedSymbol == None or savedSymbol == '' or \
                                         savedSymbol == addr or savedSymbol[0] == '$':
@@ -1214,12 +1221,16 @@ class FunctionAnalyzer(object):
                             self.posData[addr]['src'] = src
                     else:
                         inBinArea = False
+
                         for idx, value in sorted(self.posData.items(), \
                                 key=lambda e: e[1]['binary'], reverse=True):
+
                             if value['binary'] == binPath:
                                 inBinArea = True
+
                                 if value['offset'] == hex(int(addr, 16)):
                                     savedSymbol = self.posData[idx]['symbol']
+
                                     if savedSymbol == None or savedSymbol == '' or \
                                             savedSymbol == addr or savedSymbol[0] == '$':
                                         self.posData[idx]['symbol'] = symbol
@@ -1858,7 +1869,7 @@ class FunctionAnalyzer(object):
 
         # Exit because of no target #
         if len(self.target) == 0:
-            SystemManager.printError("No specific thread targeted, input comm or tid with -g option")
+            SystemManager.printWarning("No specific thread targeted, input comm or tid with -g option")
 
         # Print resource usage of functions #
         self.printCpuUsage()
@@ -2733,6 +2744,8 @@ class FileAnalyzer(object):
                         if savedEnd < newEnd:
                             self.fileData[fileName]['size'] += (newEnd - savedOffset - savedSize)
                         # ignore smaller end address then saved one #
+                        else:
+                            pass
                     # smaller start address then saved one #
                     else:
                         if savedEnd >= newEnd:
@@ -2773,6 +2786,8 @@ class FileAnalyzer(object):
                     if savedEnd < newEnd:
                         procMap[fileName]['size'] += (newEnd - savedOffset - savedSize)
                     # ignore smaller end address then saved one #
+                    else:
+                        pass
                 # smaller start address then saved one #
                 else:
                     if savedEnd >= newEnd:
@@ -4980,6 +4995,7 @@ class ThreadAnalyzer(object):
         # start parsing logs #
         SystemManager.printStatus('start analyzing... [ STOP(ctrl + c) ]')
         SystemManager.totalLine = len(lines)
+
         for idx, log in enumerate(lines):
             self.parse(log)
 
@@ -4998,7 +5014,7 @@ class ThreadAnalyzer(object):
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
-            # toDo: add time that had been blocking to read blocks from disk #
+            # toDo: add blocking time to read blocks from disk #
 
         f.close()
 
