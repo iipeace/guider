@@ -23,7 +23,7 @@ try:
     import gc
     import imp
 except ImportError, err:
-    print "[Error] Fail to import default libs because %s" % err
+    print "[Error] Fail to import default package because %s" % err
     sys.exit(0)
 
 
@@ -592,6 +592,42 @@ class ConfigManager(object):
 
 
 
+class NetworkManager(object):
+    """ Manager for remote communication """
+
+    def __init__(self, mode):
+        try:
+            from socket import socket, AF_INET, SOCK_DGRAM
+        except ImportError, err:
+            print "[Error] Fail to import package because %s" % err
+            sys.exit(0)
+
+        if mode is 'server':
+            serverSocket = socket(AF_INET, SOCK_DGRAM)
+            serverSocket.bind(('', 12000))
+
+            while True:
+                message, address = serverSocket.recvfrom(1024)
+                message = message.upper()
+                serverSocket.sendto(message, address)
+        elif mode is 'client':
+                clientSocket = socket(AF_INET, SOCK_DGRAM)
+                clientSocket.settimeout(1)
+                message = 'test'
+                addr = ("127.0.0.1", 12000)
+
+                clientSocket.sendto(message, addr)
+
+                try:
+                    data, server = clientSocket.recvfrom(1024)
+                    print '%s %d' % (data, pings)
+                except timeout:
+                    print 'REQUEST TIMED OUT'
+
+
+
+
+
 class FunctionAnalyzer(object):
     """ Analyzer for function profiling """
 
@@ -1127,7 +1163,7 @@ class FunctionAnalyzer(object):
         try:
             import subprocess
         except ImportError, e:
-            SystemManager.printError("Fail to import because %s" % e)
+            SystemManager.printError("Fail to import package because %s" % e)
             sys.exit(0)
 
         # Recognize binary type #
@@ -2351,7 +2387,7 @@ class FileAnalyzer(object):
             import ctypes
             from ctypes import cdll, POINTER
         except ImportError, err:
-            SystemManager.printError("Fail to import ctypes library because %s" % err)
+            SystemManager.printError("Fail to import package because %s" % err)
             sys.exit(0)
 
         # handle no target case #
@@ -2361,7 +2397,7 @@ class FileAnalyzer(object):
         try:
             imp.find_module('ctypes')
         except:
-            SystemManager.printError('Fail to import ctypes module')
+            SystemManager.printError('Fail to import ctypes package')
             sys.exit(0)
 
         try:
@@ -3085,8 +3121,9 @@ class SystemManager(object):
 
     @staticmethod
     def isRelocatableFile(path):
-        if path.find('.so') == -1 and path.find('.ttf') == -1 and \
-                path.find('.pak') == -1:
+        if path.find('.so') == -1 and \
+            path.find('.ttf') == -1 and \
+            path.find('.pak') == -1:
             return False
         else:
             return True
