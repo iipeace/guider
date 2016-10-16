@@ -590,6 +590,14 @@ class ConfigManager(object):
 
 
 
+    def __init__(self, mode):
+        pass
+
+
+
+    def __del__(self):
+        pass
+
 
 
 class NetworkManager(object):
@@ -625,6 +633,9 @@ class NetworkManager(object):
                     print 'REQUEST TIMED OUT'
 
 
+
+    def __del__(self):
+        pass
 
 
 
@@ -727,7 +738,7 @@ class FunctionAnalyzer(object):
         # Check root path #
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                    "Fail to recognize sysroot path for target, use also -j option with it or blank")
+                    "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
             sys.exit(0)
 
         # Register None pos #
@@ -753,6 +764,11 @@ class FunctionAnalyzer(object):
 
         # Merge callstacks by symbol and address #
         self.mergeStacks()
+
+
+
+    def __del__(self):
+        pass
 
 
 
@@ -2012,17 +2028,16 @@ class FunctionAnalyzer(object):
 
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
-        '''
         for pos, value in self.posData.items():
-            if value['symbol'] == '__irq_usr' or value['symbol'] == '__irq_svc' or \
+            if value['symbol'] == '__irq_usr' or \
+                value['symbol'] == '__irq_svc' or \
                 value['symbol'] == '__hrtimer_start_range_ns' or \
-            value['symbol'] == 'hrtimer_start_range_ns' or \
-            value['symbol'] == 'apic_timer_interrupt':
+                value['symbol'] == 'hrtimer_start_range_ns' or \
+                value['symbol'] == 'apic_timer_interrupt':
                 try:
                     exceptList[pos]
                 except:
                     exceptList[pos] = dict()
-        '''
 
         # Print cpu usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
@@ -2404,7 +2419,7 @@ class FileAnalyzer(object):
             # load the library #
             self.libguider = cdll.LoadLibrary(self.libguiderPath)
         except:
-            SystemManager.printError('Fail to open %s' % self.libguiderPath)
+            SystemManager.printError('Fail to open %s, use LD_LIBRARY_PATH if it exist' % self.libguiderPath)
             sys.exit(0)
 
         # set the argument type #
@@ -2450,6 +2465,11 @@ class FileAnalyzer(object):
                     break
             else:
                 break
+
+
+
+    def __del__(self):
+        pass
 
 
 
@@ -2932,10 +2952,12 @@ class SystemManager(object):
     procPath = '/proc'
     launchBuffer = None
     maxFd = 1024
+
     #HZ = 250 # 4ms tick #
     TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
     """
-    TICK = int((1 / float(HZ)) * 1000)
+    tick value for top profiler
+        TICK = int((1 / float(HZ)) * 1000)
     """
 
     mountPath = None
@@ -2989,6 +3011,7 @@ class SystemManager(object):
     memEnable = False
     diskEnable = False
     blockEnable = True
+    userEnable = True
     futexEnable = False
     pipeEnable = False
     depEnable = False
@@ -3054,6 +3077,11 @@ class SystemManager(object):
 
 
 
+    def __del__(self):
+        pass
+
+
+
     @staticmethod
     def defaultHandler(signum, frame):
         return
@@ -3089,8 +3117,7 @@ class SystemManager(object):
         SystemManager.condExit = False
 
         if SystemManager.fileEnable is True:
-            SystemManager.printStatus("Saved file usage into %s successfully" % \
-                    (SystemManager.printFile + '/guider.out'))
+            SystemManager.printStatus("Saved file usage successfully")
         elif SystemManager.isTopMode() is True:
             SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.procBuffer)
@@ -3680,12 +3707,13 @@ class SystemManager(object):
                         SystemManager.printInfo("cpu events are disabled")
                     if options.rfind('m') != -1:
                         SystemManager.memEnable = False
-                        SystemManager.printInfo("mem events are disabled")
+                        SystemManager.printInfo("memory events are disabled")
                     if options.rfind('b') != -1:
                         SystemManager.blockEnable = False
                         SystemManager.printInfo("block events are disabled")
-                    if options.rfind('a') != -1:
-                        SystemManager.printInfo("all events are disabled")
+                    if options.rfind('u') != -1:
+                        SystemManager.userEnable = False
+                        SystemManager.printInfo("user mode events are disabled")
                 elif sys.argv[n][1] == 'q':
                     continue
                 elif sys.argv[n][1] == 'g':
@@ -4238,8 +4266,10 @@ class SystemManager(object):
                                 sys.exit(0)
                             cmd = "common_pid >= %s" % tid
 
-            SystemManager.writeCmd('../trace_options', 'userstacktrace')
-            SystemManager.writeCmd('../trace_options', 'sym-userobj')
+            if SystemManager.userEnable is True:
+                SystemManager.writeCmd('../trace_options', 'userstacktrace')
+                SystemManager.writeCmd('../trace_options', 'sym-userobj')
+
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
 
@@ -4809,6 +4839,11 @@ class EventAnalyzer(object):
 
 
 
+    def __del__(self):
+        pass
+
+
+
     def addEvent(self, time, event):
         # ramdom event #
         if len(event.split('_')) == 1:
@@ -5098,6 +5133,11 @@ class ThreadAnalyzer(object):
 
         # print system call usage #
         self.printSyscallInfo()
+
+
+
+    def __del__(self):
+        pass
 
 
 
@@ -5983,8 +6023,8 @@ class ThreadAnalyzer(object):
 
                 # Find recognizable log in file #
                 if readLineCnt > 500 and SystemManager.recordStatus is not True:
-                    SystemManager.printError("Fail to recognize format: Log is corrupted / " + \
-                            "There is no log collected / Filter is wrong")
+                    SystemManager.printError(\
+                            "Fail to recognize format: corrupted log or no log collected")
                     SystemManager.runRecordStopCmd()
                     sys.exit(0)
 
@@ -8182,7 +8222,7 @@ if __name__ == '__main__':
         print '\t\t-u [run_inBackground]'
         print '\t\t-c [wait_forSignal]'
         print '\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]'
-        print '\t\t-d [disable_options:c(pu)|b(lock)]'
+        print '\t\t-d [disable_options:c(pu)|b(lock)|u(user)]'
         print '\t\t-r [record_repeatData:interval,count]'
         print '\t\t-b [set_bufferSize:kb(record)|10b(top)]'
         print '\t\t-w [trace_threadDependency]'
@@ -8359,8 +8399,7 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("Buffer is not enough (%s KB) or Profile time is too long" % \
-                        (si.getBufferSize()))
+                SystemManager.printError("Buffer size is not enough (%s KB) to profile" % (si.getBufferSize()))
                 SystemManager.runRecordStopCmd()
                 SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -8375,8 +8414,7 @@ if __name__ == '__main__':
                 break
 
         if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-            SystemManager.printError("Buffer size is not enough (%s KB) or Profile time is too long" % \
-                    (si.getBufferSize()))
+            SystemManager.printError("Buffer size is not enough (%s KB) to profile" % (si.getBufferSize()))
             SystemManager.runRecordStopFinalCmd()
             sys.exit(0)
 
