@@ -3243,13 +3243,14 @@ class SystemManager(object):
             fd = open(SystemManager.mountPath + path, 'w')
         except:
             SystemManager.printWarning("Fail to use %s event, please confirm kernel configuration" % \
-                    path[0:path.find('/')])
+                    path[0:path.rfind('/')])
             return -1
+
         try:
             fd.write(val)
             fd.close()
         except:
-            SystemManager.printWarning("Fail to apply command to %s" % path)
+            SystemManager.printWarning("Fail to apply command %s to %s" % (val, path))
             return -2
 
         return 0
@@ -4094,11 +4095,20 @@ class SystemManager(object):
 
 
 
-    def getBufferSize(self):
-        f = open(SystemManager.mountPath + "../buffer_total_size_kb", 'r')
-        lines = f.readlines()
+    @staticmethod
+    def getBufferSize():
+        bufFile = "../buffer_size_kb"
 
-        return int(lines[0])
+        try:
+            f = open(SystemManager.mountPath + bufFile, 'r')
+            size = f.readlines()
+            f.close()
+        except:
+            SystemManager.printWarning("Fail to open %s" % bufFile)
+            return 0
+
+
+        return int(size[0])
 
 
 
@@ -4225,8 +4235,17 @@ class SystemManager(object):
 
             sys.exit(0)
 
+        # make trace buffer empty #
         self.clearTraceBuffer()
+
+        # set size of trace buffer per core #
         SystemManager.writeCmd("../buffer_size_kb", SystemManager.bufferSize)
+        setBufferSize = SystemManager.getBufferSize()
+        if int(SystemManager.bufferSize) != setBufferSize:
+            SystemManager.printWarning("Set buffer size(%s) is different with %s" % \
+                    (setBufferSize, SystemManager.bufferSize))
+
+        # initialize event list to enable #
         self.initCmdList()
 
         SystemManager.writeCmd('../trace_options', 'noirq-info')
@@ -4302,6 +4321,7 @@ class SystemManager(object):
             self.cmdList["sched/sched_process_free"] = True
             SystemManager.writeCmd('sched/sched_process_free/enable', '1')
 
+            # options for segmentation fault tracing #
             cmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
             self.cmdList["signal"] = True
             SystemManager.writeCmd('signal/filter', cmd)
@@ -4312,9 +4332,11 @@ class SystemManager(object):
         if self.cmdList["sched/sched_switch"] is True:
             if len(SystemManager.showGroup) > 0:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
+
                 for comm in SystemManager.showGroup:
                     cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
                     cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
+
                 cmd = cmd[0:cmd.rfind("||")]
                 SystemManager.writeCmd('sched/sched_switch/filter', cmd)
             else: SystemManager.writeCmd('sched/sched_switch/filter', '0')
@@ -4329,6 +4351,7 @@ class SystemManager(object):
         if self.cmdList["irq"] is True:
             SystemManager.writeCmd('irq/enable', '1')
 
+        # options for dependency tracing #
         if self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
             % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
@@ -4346,6 +4369,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
+        # options for dependency tracing #
         if self.cmdList["raw_syscalls/sys_exit"] is True:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
             % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
@@ -4364,6 +4388,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
 
 
+        # options for systemcall tracing #
         if self.cmdList["raw_syscalls"] is True:
             cmd = "("
 
@@ -4390,15 +4415,18 @@ class SystemManager(object):
 
             SystemManager.writeCmd('raw_syscalls/enable', '1')
 
+        # options for signal tracing #
         if self.cmdList["signal"] is True:
             if SystemManager.depEnable is True:
                 SystemManager.writeCmd('signal/enable', '1')
 
+        # options for hibernation tracing #
         if self.cmdList["power/machine_suspend"] is True:
             SystemManager.writeCmd('power/machine_suspend/enable', '1')
         if self.cmdList["power/suspend_resume"] is True:
             SystemManager.writeCmd('power/suspend_resume/enable', '1')
 
+        # options for memory tracing #
         if self.cmdList["kmem/mm_page_alloc"] is True:
             SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
         if self.cmdList["kmem/mm_page_free"] is True:
@@ -4412,6 +4440,7 @@ class SystemManager(object):
         if self.cmdList["filemap/mm_filemap_delete_from_page_cache"] is True:
             SystemManager.writeCmd('filemap/mm_filemap_delete_from_page_cache/enable', '1')
 
+        # options for block tracing #
         if self.cmdList["block/block_bio_remap"] is True:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM"
             SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
@@ -8399,7 +8428,8 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("Buffer size is not enough (%s KB) to profile" % (si.getBufferSize()))
+                SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
+                        SystemManager.getBufferSize())
                 SystemManager.runRecordStopCmd()
                 SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -8414,7 +8444,8 @@ if __name__ == '__main__':
                 break
 
         if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-            SystemManager.printError("Buffer size is not enough (%s KB) to profile" % (si.getBufferSize()))
+            SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
+                    SystemManager.getBufferSize())
             SystemManager.runRecordStopFinalCmd()
             sys.exit(0)
 
