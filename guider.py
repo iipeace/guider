@@ -3382,7 +3382,7 @@ class SystemManager(object):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
                 SystemManager.printFile == None and SystemManager.isTopMode() is False:
             try:
-                SystemManager.pipeForPrint = os.popen('less -S', 'w')
+                SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
                 SystemManager.printError("Fail to find less util, use -o option to save output to file\n")
                 sys.exit(0)
@@ -3397,6 +3397,9 @@ class SystemManager(object):
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
+                fileNamePos = SystemManager.inputFile.rfind('/')
+                if  fileNamePos >= 0:
+                    SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
                 SystemManager.inputFile = \
                         SystemManager.printFile + '/' + SystemManager.inputFile.replace('dat', 'out')
             else:
@@ -8115,7 +8118,7 @@ class ThreadAnalyzer(object):
             procCnt += 1
 
         if procCnt == 0:
-            SystemManager.addPrint("{0:^16}\n".format("None"))
+            SystemManager.addPrint("{0:^16}\n".format('None'))
         SystemManager.addPrint(oneLine + '\n')
 
         # close fd that thread who already termiated created becuase of limited resource #
