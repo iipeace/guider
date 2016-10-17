@@ -646,10 +646,9 @@ class FunctionAnalyzer(object):
         self.cpuEnabled = False
         self.memEnabled = False
         self.ioEnabled = False
+        self.sigEnabled = False
 
         self.sort = 'sym'
-        self.curMode = ''
-        self.prevMode = ''
 
         self.startTime = '0'
         self.finishTime = '0'
@@ -659,6 +658,8 @@ class FunctionAnalyzer(object):
         self.prevTid = '0'
         self.prevComm = '0'
 
+        self.lastCore = None
+        self.eventCore = {}
         self.nowEvent = None
         self.savedEvent = None
         self.nestedEvent = None
@@ -693,7 +694,7 @@ class FunctionAnalyzer(object):
         self.kernelCallData = []
         '''
         userCallData = kernelCallData = \
-            [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument]
+            [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument, eventType]
         '''
 
         self.init_threadData = \
@@ -707,6 +708,12 @@ class FunctionAnalyzer(object):
                 {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
                 'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
                 # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
+        self.init_eventData = \
+                {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
+                'nestedCnt': int(0), 'savedCnt': int(0), 'nowCnt': int(0), 'nestedArg': None, 'savedArg': None, 'nowArg': None, \
+                'prevMode': None, 'curMode': None, 'userLastPos': '', 'userCallStack': [], 'kernelLastPos': '', \
+                'kernelCallStack': [], 'bakKernelLastPos': '', 'bakKernelCallStack': []}
+
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
         self.init_pageLinkData = {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
                 'type': '0', 'time': '0'}
@@ -793,12 +800,20 @@ class FunctionAnalyzer(object):
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
+            event = val[6]
 
             kernelPos = self.kernelCallData[lineCnt][0]
             kernelStack = self.kernelCallData[lineCnt][1]
             subStackPageInfo = list(self.init_subStackPageInfo)
             targetStack = []
             kernelTargetStack = []
+
+            if event == 'CPU_TICK' and (pageAllocCnt > 0 or pageFreeCnt > 0 or blockCnt > 0):
+                print 'shit'
+                print event, pageAllocCnt, pageFreeCnt, blockCnt
+            elif event != 'CPU_TICK' and (pageAllocCnt == 0 and pageFreeCnt == 0 and blockCnt == 0):
+                print 'shit2'
+                print event, pageAllocCnt, pageFreeCnt, blockCnt
 
             # Resolve user symbol #
             try:
@@ -1295,12 +1310,6 @@ class FunctionAnalyzer(object):
 
     def parseLogs(self, lines, desc):
         recStat = False
-        userLastPos = ''
-        userCallStack = []
-        kernelLastPos = ''
-        kernelCallStack = []
-        bakKernelLastPos = ''
-        bakKernelCallStack = []
 
         for liter in lines:
             SystemManager.logSize += len(liter)
@@ -1309,90 +1318,117 @@ class FunctionAnalyzer(object):
 
             ret = self.parseStackLog(liter, desc)
 
-            if self.savedEvent is None:
-                self.savedEvent = self.nowEvent
+            # skip incomplete stack #
+            if self.lastCore is None:
+                continue
+
+            nowEvent = self.eventCore[self.lastCore]['nowEvent']
+            savedEvent = self.eventCore[self.lastCore]['savedEvent']
+            nestedEvent = self.eventCore[self.lastCore]['nestedEvent']
+
+            nowCnt = self.eventCore[self.lastCore]['nowCnt']
+            savedCnt = self.eventCore[self.lastCore]['savedCnt']
+            nestedCnt = self.eventCore[self.lastCore]['nestedCnt']
+
+            nowArg = self.eventCore[self.lastCore]['nowArg']
+            savedArg = self.eventCore[self.lastCore]['savedArg']
+            nestedArg = self.eventCore[self.lastCore]['nestedArg']
+
+            prevMode = self.eventCore[self.lastCore]['prevMode']
+            curMode = self.eventCore[self.lastCore]['curMode']
+
+            userLastPos = self.eventCore[self.lastCore]['userLastPos']
+            userCallStack = self.eventCore[self.lastCore]['userCallStack']
+            kernelLastPos = self.eventCore[self.lastCore]['kernelLastPos']
+            kernelCallStack = self.eventCore[self.lastCore]['kernelCallStack']
+            bakKernelLastPos = self.eventCore[self.lastCore]['bakKernelLastPos']
+            bakKernelCallStack = self.eventCore[self.lastCore]['bakKernelCallStack']
+
+            if savedEvent is None:
+                self.eventCore[self.lastCore]['savedEvent'] = nowEvent
 
             # Save full stack to callData table #
             if ret is True:
                 # stack of kernel thread #
-                if self.prevMode != self.curMode == 'kernel' and \
-                                    len(userCallStack) == 0 and len(kernelCallStack) > 0:
+                if prevMode != curMode == 'kernel' and \
+                    len(userCallStack) == 0 and len(kernelCallStack) > 0:
                     # Set userLastPos to None #
-                    userLastPos = '0'
-                    userCallStack.append('0')
+                    self.eventCore[self.lastCore]['userLastPos'] = '0'
+                    self.eventCore[self.lastCore]['userCallStack'].append('0')
 
                 # complicated situation ;( #
-                elif self.prevMode == self.curMode:
+                elif prevMode == curMode:
                     # previous user stack loss or nested interval #
-                    if self.curMode is 'kernel':
+                    if curMode is 'kernel':
                         # nested interval #
-                        if self.nowEvent is 'C':
+                        if nowEvent is 'CPU_TICK':
                             # Backup kernel stack #
-                            bakKernelLastPos = kernelLastPos
-                            bakKernelCallStack = kernelCallStack
+                            self.eventCore[self.lastCore]['bakKernelLastPos'] = kernelLastPos
+                            self.eventCore[self.lastCore]['bakKernelCallStack'] = kernelCallStack
 
                             # Initialize both stacks #
-                            userLastPos = '0'
-                            userCallStack = []
-                            kernelLastPos = '0'
-                            kernelCallStack = []
+                            self.eventCore[self.lastCore]['userLastPos'] = '0'
+                            self.eventCore[self.lastCore]['userCallStack'] = []
+                            self.eventCore[self.lastCore]['kernelLastPos'] = '0'
+                            self.eventCore[self.lastCore]['kernelCallStack'] = []
                         # previous user stack loss #
                         else:
                             # Set userLastPos to None #
-                            userLastPos = '0'
-                            userCallStack.append('0')
+                            self.eventCore[self.lastCore]['userLastPos'] = '0'
+                            self.eventCore[self.lastCore]['userCallStack'].append('0')
                     # nested interval #
-                    elif self.curMode is 'user':
+                    elif curMode is 'user':
                         # Swap values #
-                        tempEvent = self.nowEvent
-                        self.nowEvent = self.savedEvent
-                        self.savedEvent = tempEvent
+                        tempEvent = nowEvent
+                        self.eventCore[self.lastCore]['nowEvent'] = savedEvent
+                        self.eventCore[self.lastCore]['savedEvent'] = tempEvent
 
-                        tempCnt = self.nowCnt
-                        self.nowCnt = self.savedCnt
-                        self.savedCnt = tempCnt
+                        tempCnt = nowCnt
+                        self.eventCore[self.lastCore]['self.nowCnt'] = savedCnt
+                        self.eventCore[self.lastCore]['self.savedCnt'] = tempCnt
 
                         tempArg = self.nowArg
-                        self.nowArg = self.savedArg
-                        self.savedArg = tempArg
+                        self.eventCore[self.lastCore]['self.nowArg'] = savedArg
+                        self.eventCore[self.lastCore]['self.savedArg'] = tempArg
                 # Save both stacks of previous event before starting to record new kernel stack #
                 if (len(userCallStack) > 0 and userLastPos != '') and \
                         (len(kernelCallStack) > 0 and kernelLastPos != ''):
-                    del kernelCallStack[0], userCallStack[0]
+                    del self.eventCore[self.lastCore]['kernelCallStack'][0], \
+                            self.eventCore[self.lastCore]['userCallStack'][0]
 
                     # Check whether there is nested event or not #
                     if self.nested > 0:
-                        targetEvent = self.nestedEvent
-                        targetCnt = self.nestedCnt
-                        targetArg = self.nestedArg
+                        targetEvent = self.eventCore[self.lastCore]['nestedEvent']
+                        targetCnt = self.eventCore[self.lastCore]['nestedCnt']
+                        targetArg = self.eventCore[self.lastCore]['nestedArg']
 
                         # Swap values #
-                        tempEvent = self.nowEvent
-                        self.nowEvent = self.savedEvent
-                        self.savedEvent = tempEvent
+                        tempEvent = nowEvent
+                        self.eventCore[self.lastCore]['nowEvent'] = savedEvent
+                        self.eventCore[self.lastCore]['savedEvent'] = tempEvent
 
-                        tempCnt = self.nowCnt
-                        self.nowCnt = self.savedCnt
-                        self.savedCnt = tempCnt
+                        tempCnt = nowCnt
+                        self.eventCore[self.lastCore]['nowCnt'] = savedCnt
+                        self.eventCore[self.lastCore]['savedCnt'] = tempCnt
 
-                        tempArg = self.nowArg
-                        self.nowArg = self.savedArg
-                        self.savedArg = tempArg
+                        tempArg = nowArg
+                        self.eventCore[self.lastCore]['nowArg'] = savedArg
+                        self.eventCore[self.lastCore]['savedArg'] = tempArg
                     else:
-                        targetEvent = self.savedEvent
-                        targetCnt = self.savedCnt
-                        targetArg = self.savedArg
+                        targetEvent = savedEvent
+                        targetCnt = savedCnt
+                        targetArg = savedArg
 
                     # Save full stack of previous event #
-                    if targetEvent == 'C':
+                    if targetEvent == 'CPU_TICK':
                         self.periodicEventCnt += 1
 
                         self.kernelCallData.append(\
-                                [kernelLastPos, kernelCallStack, 0, 0, 0, None])
+                                [kernelLastPos, kernelCallStack, 0, 0, 0, None, targetEvent])
                         self.userCallData.append(\
-                                [userLastPos, userCallStack, 0, 0, 0, None])
+                                [userLastPos, userCallStack, 0, 0, 0, None, targetEvent])
                     else:
-                        if targetEvent == 'MA':
+                        if targetEvent == 'PAGE_ALLOC':
                             self.pageAllocEventCnt += 1
                             self.pageAllocCnt += targetCnt
                             self.pageUsageCnt += targetCnt
@@ -1403,10 +1439,10 @@ class FunctionAnalyzer(object):
                             pfn = targetArg[1]
 
                             self.kernelCallData.append(\
-                                    [kernelLastPos, kernelCallStack, targetCnt, 0, 0, [pageType, pfn]])
+                                    [kernelLastPos, kernelCallStack, targetCnt, 0, 0, [pageType, pfn], targetEvent])
                             self.userCallData.append(\
-                                    [userLastPos, userCallStack, targetCnt, 0, 0, [pageType, pfn]])
-                        elif targetEvent == 'MF':
+                                    [userLastPos, userCallStack, targetCnt, 0, 0, [pageType, pfn], targetEvent])
+                        elif targetEvent == 'PAGE_FREE':
                             self.pageFreeEventCnt += 1
                             self.pageFreeCnt += targetCnt
                             self.posData[kernelLastPos]['pageFreeCnt'] += targetCnt
@@ -1416,24 +1452,31 @@ class FunctionAnalyzer(object):
                             pfn = targetArg[1]
 
                             self.kernelCallData.append(\
-                                    [kernelLastPos, kernelCallStack, 0, targetCnt, 0, [pageType, pfn]])
+                                    [kernelLastPos, kernelCallStack, 0, targetCnt, 0, [pageType, pfn], targetEvent])
                             self.userCallData.append(\
-                                    [userLastPos, userCallStack, 0, targetCnt, 0, [pageType, pfn]])
-                        elif targetEvent == 'B':
+                                    [userLastPos, userCallStack, 0, targetCnt, 0, [pageType, pfn], targetEvent])
+                        elif targetEvent == 'BLK_READ':
                             self.blockEventCnt += 1
                             self.blockUsageCnt += targetCnt
                             self.posData[kernelLastPos]['blockCnt'] += targetCnt
                             self.posData[userLastPos]['blockCnt'] += targetCnt
+                            if targetCnt == 0: print 'shit3', targetEvent, self.nested, SystemManager.dbgEventLine
 
                             self.kernelCallData.append(\
-                                    [kernelLastPos, kernelCallStack, 0, 0, targetCnt, None])
+                                    [kernelLastPos, kernelCallStack, 0, 0, targetCnt, None, targetEvent])
                             self.userCallData.append(\
-                                    [userLastPos, userCallStack, 0, 0, targetCnt, None])
+                                    [userLastPos, userCallStack, 0, 0, targetCnt, None, targetEvent])
+                        elif targetEvent == 'SIGSEGV_GEN':
+                            self.kernelCallData.append(\
+                                    [kernelLastPos, kernelCallStack, 0, 0, 0, None, targetEvent])
+                            self.userCallData.append(\
+                                    [userLastPos, userCallStack, 0, 0, 0, None, targetEvent])
+
 
                         self.savedCnt = 0
 
                     # Recover previous kernel stack after handling nested event #
-                    if self.prevMode == self.curMode == 'user' and bakKernelLastPos != '0':
+                    if prevMode == curMode == 'user' and bakKernelLastPos != '0':
                         kernelLastPos = bakKernelLastPos
                         kernelCallStack = bakKernelCallStack
                         bakKernelLastPos = '0'
@@ -1469,7 +1512,7 @@ class FunctionAnalyzer(object):
                     self.posData[pos] = dict(self.init_posData)
 
                 # user mode #
-                if self.curMode is 'user':
+                if curMode is 'user':
                     # Set path #
                     if path is not None:
                         self.posData[pos]['origBin'] = path
@@ -1484,17 +1527,17 @@ class FunctionAnalyzer(object):
                     # Save pos #
                     if len(userCallStack) == 0:
                         userLastPos = pos
-                        if targetEvent == 'C':
+                        if targetEvent == 'CPU_TICK':
                             self.posData[pos]['posCnt'] += 1
 
                     userCallStack.append(pos)
 
                 # kernel mode #
-                elif self.curMode is 'kernel':
+                elif curMode is 'kernel':
                     # Save pos #
                     if len(kernelCallStack) == 0:
                         kernelLastPos = pos
-                        if targetEvent == 'C':
+                        if targetEvent == 'CPU_TICK':
                             self.posData[pos]['posCnt'] += 1
 
                     self.posData[pos]['symbol'] = path
@@ -1506,8 +1549,27 @@ class FunctionAnalyzer(object):
                     SystemManager.printWarning('wrong current mode %s' % self.curMode)
 
                 # Increase total call count #
-                if self.nowEvent == 'C':
+                if self.nowEvent == 'CPU_TICK':
                     self.posData[pos]['totalCnt'] += 1
+
+
+
+    def saveEventParam(self, core, event, count, arg):
+        eventGroup = self.eventCore[core]
+
+        self.eventCore[core]['nestedEvent'] = eventGroup['savedEvent']
+        self.eventCore[core]['savedEvent'] = eventGroup['nowEvent']
+        self.eventCore[core]['nowEvent'] = event
+
+        self.eventCore[core]['nestedCnt'] = eventGroup['savedCnt']
+        self.eventCore[core]['savedCnt'] = eventGroup['nowCnt']
+        self.eventCore[core]['nowCnt'] = count
+
+        self.eventCore[core]['nestedArg'] = eventGroup['savedArg']
+        self.eventCore[core]['savedArg'] = eventGroup['nowArg']
+        self.eventCore[core]['nowArg'] = arg
+
+        self.eventCore[core]['nested'] += 1
 
 
 
@@ -1538,6 +1600,13 @@ class FunctionAnalyzer(object):
             except:
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
+
+            # Make core entity #
+            try:
+                self.eventCore[d['core']]
+            except:
+                self.eventCore[d['core']] = dict(self.init_eventData)
+            self.lastCore = d['core']
 
             # Calculate a total of cpu usage #
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
@@ -1601,19 +1670,8 @@ class FunctionAnalyzer(object):
             # toDo: find shorter periodic event for sampling #
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
                 self.cpuEnabled = True
-                self.nestedEvent = self.savedEvent
-                self.savedEvent = self.nowEvent
-                self.nowEvent = 'C'
 
-                self.nestedCnt = self.savedCnt
-                self.savedCnt = self.nowCnt
-                self.nowCnt = 0
-
-                self.nestedArg = self.savedArg
-                self.savedArg = self.nowArg
-                self.nowArg = 0
-
-                self.nested += 1
+                self.saveEventParam(self.lastCore, 'CPU_TICK', 0, 0)
 
                 return False
 
@@ -1674,19 +1732,8 @@ class FunctionAnalyzer(object):
                         self.pageTable[pfnv]['time'] = time
 
                     self.memEnabled = True
-                    self.nestedEvent = self.savedEvent
-                    self.savedEvent = self.nowEvent
-                    self.nowEvent = 'MA'
 
-                    self.nestedCnt = self.savedCnt
-                    self.savedCnt = self.nowCnt
-                    self.nowCnt = pageCnt
-
-                    self.nestedArg = self.savedArg
-                    self.savedArg = self.nowArg
-                    self.nowArg = [pageType, pfn]
-
-                    self.nested += 1
+                    self.saveEventParam(self.lastCore, 'PAGE_ALLOC', pageCnt, [pageType, pfn])
 
                 return False
 
@@ -1726,19 +1773,8 @@ class FunctionAnalyzer(object):
                             continue
 
                     self.memEnabled = True
-                    self.nestedEvent = self.savedEvent
-                    self.savedEvent = self.nowEvent
-                    self.nowEvent = 'MF'
 
-                    self.nestedCnt = self.savedCnt
-                    self.savedCnt = self.nowCnt
-                    self.nowCnt = pageCnt
-
-                    self.nestedArg = self.savedArg
-                    self.savedArg = self.nowArg
-                    self.nowArg = [origPageType, pfn]
-
-                    self.nested += 1
+                    self.saveEventParam(self.lastCore, 'PAGE_FREE', pageCnt, [origPageType, pfn])
 
                 return False
 
@@ -1747,51 +1783,50 @@ class FunctionAnalyzer(object):
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
                         r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
                 if m is not None:
-                    d = m.groupdict()
+                    b = m.groupdict()
 
-                    if d['operation'][0] == 'R':
-                        blockCnt = int(d['size'])
+                    if b['operation'][0] == 'R':
+                        blockCnt = int(b['size'])
 
                         self.threadData[thread]['nrBlocks'] += blockCnt
 
                         self.ioEnabled = True
-                        self.nestedEvent = self.savedEvent
-                        self.savedEvent = self.nowEvent
-                        self.nowEvent = 'B'
 
-                        self.nestedCnt = self.savedCnt
-                        self.savedCnt = self.nowCnt
-                        self.nowCnt = blockCnt
+                        self.saveEventParam(self.lastCore, 'BLK_READ', blockCnt, 0)
 
-                        self.nestedArg = self.savedArg
-                        self.savedArg = self.nowArg
-                        self.nowArg = 0
+                return False
 
-                        self.nested += 1
+            # segmentation fault generation event #
+            elif d['func'] == "signal_generate:#":
+                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
+                        r'code=(?P<code>[0-9]+) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
+                if m is not None:
+                    b = m.groupdict()
+
+                    if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                        self.sigEnabled = True
+
+                        self.saveEventParam(self.lastCore, 'SIGSEGV_GEN', 0, 0)
 
                 return False
 
             # Start to record user stack #
             elif d['func'] == "<user":
-                self.prevMode = self.curMode
-                self.curMode = 'user'
+                self.eventCore[d['core']]['prevMode'] = self.eventCore[d['core']]['curMode']
+                self.eventCore[d['core']]['curMode'] = 'user'
                 return True
 
             # Start to record kernel stack #
             elif d['func'] == "<stack":
-                self.prevMode = self.curMode
-                self.curMode = 'kernel'
-                self.nested -= 1
+                self.eventCore[d['core']]['prevMode'] = self.eventCore[d['core']]['curMode']
+                self.eventCore[d['core']]['curMode'] = 'kernel'
+                self.eventCore[d['core']]['nested'] -= 1
                 return True
 
             # user-define event #
             elif SystemManager.targetEvent is not None and \
                 d['func'] == SystemManager.targetEvent + ':':
-                self.cpuEnabled = True
-                self.savedEvent = self.nowEvent
-                self.nowEvent = 'C'
-                self.savedCnt = self.nowCnt
-                self.nowCnt = 0
+                pass
 
                 return False
 
