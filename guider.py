@@ -4,7 +4,7 @@ __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.0"
+__version__ = "3.5.1"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -619,18 +619,18 @@ class NetworkManager(object):
                 message = message.upper()
                 serverSocket.sendto(message, address)
         elif mode is 'client':
-                clientSocket = socket(AF_INET, SOCK_DGRAM)
-                clientSocket.settimeout(1)
-                message = 'test'
-                addr = ("127.0.0.1", 12000)
+            clientSocket = socket(AF_INET, SOCK_DGRAM)
+            clientSocket.settimeout(1)
+            message = 'test'
+            addr = ("127.0.0.1", 12000)
 
-                clientSocket.sendto(message, addr)
+            clientSocket.sendto(message, addr)
 
-                try:
-                    data, server = clientSocket.recvfrom(1024)
-                    print '%s %d' % (data, pings)
-                except timeout:
-                    print 'REQUEST TIMED OUT'
+            try:
+                data, server = clientSocket.recvfrom(1024)
+                print '%s %d' % (data, pings)
+            except timeout:
+                print 'REQUEST TIMED OUT'
 
 
 
@@ -856,8 +856,8 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[kernelSym]['stack'] = []
                 self.kernelSymData[kernelSym]['pos'] = kernelPos
 
-            # Distinguish event type #
-            if pageAllocCnt == pageFreeCnt == blockCnt == 0:
+            # Set cpu tick count variable #
+            if event == 'CPU_TICK':
                 cpuCnt = 1
             else:
                 cpuCnt = 0
@@ -1216,7 +1216,7 @@ class FunctionAnalyzer(object):
                                 self.posData[idx]['src'] = 'NoFile'
                                 break
                 except:
-                    SystemManager.printWarning("Fail to find address %s in list" % addr)
+                    SystemManager.printWarning("Fail to find address %s" % addr)
             return
 
         # Check addr2line path #
@@ -1331,6 +1331,73 @@ class FunctionAnalyzer(object):
         self.nowCtx['savedArg'] = tempArg
 
 
+    def saveFullStack(self, targetEvent, targetCnt, targetArg):
+        if targetEvent == 'CPU_TICK':
+            self.periodicEventCnt += 1
+
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    0, 0, 0, None, targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    0, 0, 0, None, targetEvent])
+        elif targetEvent == 'PAGE_ALLOC':
+            self.pageAllocEventCnt += 1
+            self.pageAllocCnt += targetCnt
+            self.pageUsageCnt += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['pageCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['pageCnt'] += targetCnt
+
+            pageType = targetArg[0]
+            pfn = targetArg[1]
+
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    targetCnt, 0, 0, [pageType, pfn], targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    targetCnt, 0, 0, [pageType, pfn], targetEvent])
+        elif targetEvent == 'PAGE_FREE':
+            self.pageFreeEventCnt += 1
+            self.pageFreeCnt += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['pageFreeCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['pageFreeCnt'] += targetCnt
+
+            pageType = targetArg[0]
+            pfn = targetArg[1]
+
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    0, targetCnt, 0, [pageType, pfn], targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    0, targetCnt, 0, [pageType, pfn], targetEvent])
+        elif targetEvent == 'BLK_READ':
+            self.blockEventCnt += 1
+            self.blockUsageCnt += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['blockCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['blockCnt'] += targetCnt
+
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    0, 0, targetCnt, None, targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    0, 0, targetCnt, None, targetEvent])
+        elif targetEvent == 'SIGSEGV_GEN':
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    0, 0, 0, None, targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    0, 0, 0, None, targetEvent])
+        elif targetEvent == 'SIGSEGV_DLV':
+            self.kernelCallData.append(\
+                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                    0, 0, 0, None, targetEvent])
+            self.userCallData.append(\
+                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                    0, 0, 0, None, targetEvent])
 
     def parseLogs(self, lines, desc):
         for liter in lines:
@@ -1375,22 +1442,46 @@ class FunctionAnalyzer(object):
                             self.nowCtx['userCallStack'].append('0')
                     # nested interval #
                     elif self.nowCtx['curMode'] is 'user':
+                        '''
+                        CORE/0 EVENT0
+                        CORE/0 <kernel>
+                        CORE/0 <user>
+
+                        CORE/0 EVENT1
+                        CORE/0 <kernel>
+                            CORE/0 EVENT2
+                            CORE/0 <kernel>
+                            CORE/0 <user>
+                        CORE/0 <user>
+                        '''
                         # Swap nowEvent and savedEvent #
                         self.swapEvents()
 
                 # Save both stacks of previous event before starting to record new kernel stack #
                 if (len(self.nowCtx['userCallStack']) > 0 and self.nowCtx['userLastPos'] != '') and \
                         (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
-                    # remove pc #
+                    # Remove pc in each stacks #
                     del self.nowCtx['kernelCallStack'][0], self.nowCtx['userCallStack'][0]
 
                     # Check whether there is nested event or not #
                     if self.nowCtx['nested'] > 0:
+                        '''
+                        CORE/0 EVENT0
+                        CORE/0 <kernel>
+                        CORE/0 <user>
+
+                        CORE/0 EVENT1
+                            CORE/0 EVENT2
+                            CORE/0 <kernel>
+                            CORE/0 <user>
+                        CORE/0 <kernel>
+                        CORE/0 <user>
+                        '''
                         targetEvent = self.nowCtx['nestedEvent']
                         targetCnt = self.nowCtx['nestedCnt']
                         targetArg = self.nowCtx['nestedArg']
 
-                        # Swap values #
+                        # Swap nowEvent and savedEvent #
                         self.swapEvents()
                     else:
                         targetEvent = self.nowCtx['savedEvent']
@@ -1398,65 +1489,7 @@ class FunctionAnalyzer(object):
                         targetArg = self.nowCtx['savedArg']
 
                     # Save full stack of previous event #
-                    if targetEvent == 'CPU_TICK':
-                        self.periodicEventCnt += 1
-
-                        self.kernelCallData.append(\
-                                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                                0, 0, 0, None, targetEvent])
-                        self.userCallData.append(\
-                                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                                0, 0, 0, None, targetEvent])
-                    elif targetEvent == 'PAGE_ALLOC':
-                        self.pageAllocEventCnt += 1
-                        self.pageAllocCnt += targetCnt
-                        self.pageUsageCnt += targetCnt
-                        self.posData[self.nowCtx['kernelLastPos']]['pageCnt'] += targetCnt
-                        self.posData[self.nowCtx['userLastPos']]['pageCnt'] += targetCnt
-
-                        pageType = targetArg[0]
-                        pfn = targetArg[1]
-
-                        self.kernelCallData.append(\
-                                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                                targetCnt, 0, 0, [pageType, pfn], targetEvent])
-                        self.userCallData.append(\
-                                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                                targetCnt, 0, 0, [pageType, pfn], targetEvent])
-                    elif targetEvent == 'PAGE_FREE':
-                        self.pageFreeEventCnt += 1
-                        self.pageFreeCnt += targetCnt
-                        self.posData[self.nowCtx['kernelLastPos']]['pageFreeCnt'] += targetCnt
-                        self.posData[self.nowCtx['userLastPos']]['pageFreeCnt'] += targetCnt
-
-                        pageType = targetArg[0]
-                        pfn = targetArg[1]
-
-                        self.kernelCallData.append(\
-                                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                                0, targetCnt, 0, [pageType, pfn], targetEvent])
-                        self.userCallData.append(\
-                                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                                0, targetCnt, 0, [pageType, pfn], targetEvent])
-                    elif targetEvent == 'BLK_READ':
-                        self.blockEventCnt += 1
-                        self.blockUsageCnt += targetCnt
-                        self.posData[self.nowCtx['kernelLastPos']]['blockCnt'] += targetCnt
-                        self.posData[self.nowCtx['userLastPos']]['blockCnt'] += targetCnt
-
-                        self.kernelCallData.append(\
-                                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                                0, 0, targetCnt, None, targetEvent])
-                        self.userCallData.append(\
-                                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                                0, 0, targetCnt, None, targetEvent])
-                    elif targetEvent == 'SIGSEGV_GEN':
-                        self.kernelCallData.append(\
-                                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                                0, 0, 0, None, targetEvent])
-                        self.userCallData.append(\
-                                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                                0, 0, 0, None, targetEvent])
+                    self.saveFullStack(targetEvent, targetCnt, targetArg)
 
                     # Recover previous kernel stack after handling nested event #
                     if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
@@ -1791,7 +1824,7 @@ class FunctionAnalyzer(object):
             # segmentation fault generation event #
             elif d['func'] == "signal_generate:":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                        r'code=(?P<code>[0-9]+) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
+                        r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
                 if m is not None:
                     b = m.groupdict()
 
@@ -1799,6 +1832,19 @@ class FunctionAnalyzer(object):
                         self.sigEnabled = True
 
                         self.saveEventParam('SIGSEGV_GEN', 0, 0)
+
+                return False
+
+            elif d['func'] == "signal_deliver:":
+                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
+                        r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', d['etc'])
+                if m is not None:
+                    b = m.groupdict()
+
+                    if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                        self.sigEnabled = True
+
+                        self.saveEventParam('SIGSEGV_DLV', 0, 0)
 
                 return False
 
@@ -1818,7 +1864,6 @@ class FunctionAnalyzer(object):
             # user-define event #
             elif SystemManager.targetEvent is not None and \
                 d['func'] == SystemManager.targetEvent + ':':
-                pass
 
                 return False
 
@@ -2059,6 +2104,9 @@ class FunctionAnalyzer(object):
                 break
 
             cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+            if cpuPer < 1 and SystemManager.showAll is False:
+                break
+
             SystemManager.pipePrint("{0:7}% |{1:^134}".format(cpuPer, idx))
 
             # Sort stacks by usage #
@@ -3420,6 +3468,12 @@ class SystemManager(object):
                 SystemManager.inputFile = SystemManager.printFile + '/guider.out'
 
             SystemManager.inputFile = SystemManager.inputFile.replace('//', '/')
+
+            try:
+                # backup output file #
+                shutil.copy(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
+            except:
+                pass
 
             try:
                 SystemManager.fileForPrint = open(SystemManager.inputFile, 'w')
@@ -6985,7 +7039,7 @@ class ThreadAnalyzer(object):
 
             elif func == "signal_generate":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                        r'code=(?P<code>[0-9]+) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', etc)
+                        r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7018,7 +7072,7 @@ class ThreadAnalyzer(object):
                         return
 
             elif func == "signal_deliver":
-                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>[0-9]+) ' + \
+                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
                         r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
