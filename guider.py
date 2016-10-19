@@ -809,13 +809,6 @@ class FunctionAnalyzer(object):
             targetStack = []
             kernelTargetStack = []
 
-            if event == 'CPU_TICK' and (pageAllocCnt > 0 or pageFreeCnt > 0 or blockCnt > 0):
-                print 'PEACE shit'
-                print event, pageAllocCnt, pageFreeCnt, blockCnt
-            elif event != 'CPU_TICK' and (pageAllocCnt == 0 and pageFreeCnt == 0 and blockCnt == 0):
-                print 'PEACE shit2'
-                print event, pageAllocCnt, pageFreeCnt, blockCnt
-
             # Resolve user symbol #
             try:
                 # No symbol related to last pos #
