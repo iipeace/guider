@@ -1222,13 +1222,13 @@ class FunctionAnalyzer(object):
         # Check addr2line path #
         if SystemManager.addr2linePath is None:
             SystemManager.printError(\
-                    "Fail to find addr2line, use also -l option with path of addr2line for user mode")
+                    "Fail to find addr2line, use also -l option with addr2line path for user mode")
             sys.exit(0)
         else:
             for path in SystemManager.addr2linePath:
                 if os.path.isfile(path) is False:
                     SystemManager.printError(\
-                            "Fail to find addr2line, use also -l option with path of addr2line for user mode")
+                            "Fail to find addr2line, use also -l option with addr2line path for user mode")
                     sys.exit(0)
 
         for path in SystemManager.addr2linePath:
@@ -1637,7 +1637,7 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Calculate a total of cpu usage #
-            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
+            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') > -1:
                 self.totalTick += 1
                 self.threadData[thread]['cpuTick'] += 1
 
@@ -1694,7 +1694,7 @@ class FunctionAnalyzer(object):
 
             # cpu tick event #
             # toDo: find shorter periodic event for sampling #
-            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') != -1:
+            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') > -1:
                 self.cpuEnabled = True
 
                 self.saveEventParam('CPU_TICK', 0, 0)
@@ -1912,7 +1912,7 @@ class FunctionAnalyzer(object):
     def getBinInfo(self, addr):
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                    "Fail to recognize root path for target, use also -j option with the path of root")
+                    "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
             sys.exit(0)
 
         for data in self.mapData:
@@ -2784,7 +2784,7 @@ class FileAnalyzer(object):
 
                 # save process info #
                 for val in SystemManager.showGroup:
-                    if comm.rfind(val) != -1 or tid == val:
+                    if comm.rfind(val) > -1 or tid == val:
                         # access procData #
                         try:
                             self.procData[pid]
@@ -3030,6 +3030,7 @@ class SystemManager(object):
     inputFile = None
     outputFile = None
     printFile = None
+    optionList = None
 
     tgidEnable = True
     binEnable = False
@@ -3389,12 +3390,16 @@ class SystemManager(object):
         SystemManager.launchBuffer = SystemManager.SystemManagerBuffer[launchPosStart:launchPosEnd]
 
         # apply group filter option #
-        groupPosStart = SystemManager.launchBuffer.find('-g')
-        if launchPosStart != -1:
-            groupPosEnd = SystemManager.launchBuffer.find(' ', groupPosStart)
-            SystemManager.showGroup = \
-                SystemManager.launchBuffer[groupPosStart:groupPosEnd].lstrip('-g').split(',')
+        filterList = None
+        launchPosStart = SystemManager.launchBuffer.find(' -g')
+        if launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart:].lstrip(' -g')
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
+            SystemManager.printInfo("only specific threads %s were recorded" % ','.join(SystemManager.showGroup))
+
+        # check filter list #
         if len(SystemManager.showGroup) > 0:
             SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
 
@@ -3541,132 +3546,134 @@ class SystemManager(object):
         if len(sys.argv) <= 2:
             return
 
-        for n in range(2, len(sys.argv)):
-            if sys.argv[n][0] == '-':
-                if sys.argv[n][1] == 'i':
-                    if len(sys.argv[n].lstrip('-i')) == 0:
-                        SystemManager.intervalEnable = 1
-                        continue
-                    try:
-                        int(sys.argv[n].lstrip('-i'))
-                    except:
-                        SystemManager.printError("wrong option value %s with -i option" % sys.argv[n])
-                        if SystemManager.isRecordMode() is True:
-                            SystemManager.runRecordStopFinalCmd()
-                        sys.exit(0)
-                    if int(sys.argv[n].lstrip('-i')) >= 0:
-                        SystemManager.intervalEnable = int(sys.argv[n].lstrip('-i'))
-                    else:
-                        SystemManager.printError("wrong option value %s with -i option, use integer value" % \
-                                (sys.argv[n].lstrip('-i')))
-                        if SystemManager.isRecordMode() is True:
-                            SystemManager.runRecordStopFinalCmd()
-                        sys.exit(0)
-                elif sys.argv[n][1] == 'o':
-                    SystemManager.printFile = str(sys.argv[n].lstrip('-o'))
-                    if os.path.isdir(SystemManager.printFile) == False:
-                        SystemManager.printError("wrong option value %s with -o option, use directory name" % \
-                                (sys.argv[n].lstrip('-o')))
-                        if SystemManager.isRecordMode() is True and SystemManager.systemEnable is False:
-                            SystemManager.runRecordStopFinalCmd()
-                        sys.exit(0)
-                elif sys.argv[n][1] == 'a':
-                    SystemManager.showAll = True
-                elif sys.argv[n][1] == 'q':
-                    SystemManager.selectMenu = True
-                    ConfigManager.taskChainEnable = True
-                elif sys.argv[n][1] == 'w':
-                    SystemManager.depEnable = True
-                elif sys.argv[n][1] == 'p':
-                    if SystemManager.intervalEnable != 1:
-                        SystemManager.preemptGroup = sys.argv[n].lstrip('-p').split(',')
-                        SystemManager.removeEmptyValue(SystemManager.preemptGroup)
-                    else:
-                        SystemManager.printWarning("-i option is already enabled, -p option is disabled")
-                elif sys.argv[n][1] == 'd':
-                    options = sys.argv[n].lstrip('-d')
-                elif sys.argv[n][1] == 't':
-                    SystemManager.sysEnable = True
-                    SystemManager.syscallList = sys.argv[n].lstrip('-t').split(',')
-                    for val in SystemManager.syscallList:
-                        try:
-                            int(val)
-                        except:
-                            SystemManager.syscallList.remove(val)
-                elif sys.argv[n][1] == 'g':
-                    if SystemManager.functionEnable is not False or SystemManager.isTopMode() is True:
-                        SystemManager.showGroup = sys.argv[n].lstrip('-g').split(',')
-                        SystemManager.removeEmptyValue(SystemManager.showGroup)
-                elif sys.argv[n][1] == 'e':
-                    options = sys.argv[n].lstrip('-e')
-                    if options.rfind('g') != -1:
-                        SystemManager.graphEnable = True
-                        SystemManager.printInfo("drawing graph for resource usage")
-                    if options.rfind('d') != -1:
-                        SystemManager.diskEnable = True
-                        SystemManager.printInfo("disk profile")
-                    if options.rfind('t') != -1:
-                        SystemManager.processEnable = False
-                    if options.rfind('w') != -1:
-                        if SystemManager.warningEnable is False:
-                            SystemManager.warningEnable = True
-                            SystemManager.printInfo("printing warning message for debug")
-                elif sys.argv[n][1] == 'f':
-                    # Handle error about record option #
-                    if SystemManager.functionEnable is not False:
-                        if SystemManager.outputFile == None:
-                            SystemManager.printError("wrong option with -f, use also -s option for saving data")
-                            if SystemManager.isRecordMode() is True:
-                                SystemManager.runRecordStopFinalCmd()
-                            sys.exit(0)
-                    else: SystemManager.functionEnable = True
+        SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
+        for seq in range(0, len(SystemManager.optionList)):
+            SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
-                    SystemManager.targetEvent = sys.argv[n].lstrip('-f')
-                    if len(SystemManager.targetEvent) == 0:
-                        SystemManager.targetEvent = None
-                elif sys.argv[n][1] == 'l':
-                    SystemManager.addr2linePath = sys.argv[n].lstrip('-l').split(',')
-                elif sys.argv[n][1] == 'j':
-                    SystemManager.rootPath = sys.argv[n].lstrip('-j')
-                elif sys.argv[n][1] == 'b':
-                    try:
-                        if int(sys.argv[n].lstrip('-b')) > 0:
-                            SystemManager.bufferSize = str(sys.argv[n].lstrip('-b'))
-                        else:
-                            SystemManager.printError("wrong option value %s with -b option" % \
-                                    (sys.argv[n].lstrip('-b')))
-                            sys.exit(0)
-                    except:
-                        SystemManager.printError("wrong option value %s with -b option" % \
-                                (sys.argv[n].lstrip('-b')))
-                        sys.exit(0)
-                elif sys.argv[n][1] == 'c':
+        for item in SystemManager.optionList:
+            option = item[0]
+            value = item[1:]
+
+            if option == 'i':
+                if len(value) == 0:
+                    SystemManager.intervalEnable = 1
                     continue
-                elif sys.argv[n][1] == 'y':
-                    continue
-                elif sys.argv[n][1] == 's':
-                    continue
-                elif sys.argv[n][1] == 'S':
-                    SystemManager.sort = sys.argv[n].lstrip('-S')
-                    if len(SystemManager.sort) != 1 or (SystemManager.sort != 'c' and \
-                            SystemManager.sort != 'm' and SystemManager.sort != 'b' and \
-                            SystemManager.sort != 'w'):
-                        SystemManager.printError("wrong option value %s with -S option" % \
-                                SystemManager.sort)
-                        sys.exit(0)
-                elif sys.argv[n][1] == 'r':
-                    continue
-                elif sys.argv[n][1] == 'm':
-                    continue
-                elif sys.argv[n][1] == 'u':
-                    SystemManager.backgroundEnable = True
-                else:
-                    SystemManager.printError("unrecognized option -%s" % (sys.argv[n][1]))
+
+                try:
+                    if int(value) > 0:
+                        SystemManager.intervalEnable = int(value)
+                except:
+                    SystemManager.printError("wrong option value %s with -i option" % value)
                     if SystemManager.isRecordMode() is True:
                         SystemManager.runRecordStopFinalCmd()
                     sys.exit(0)
+
+            elif option == 'o':
+                SystemManager.printFile = str(value)
+                if os.path.isdir(SystemManager.printFile) == False:
+                    SystemManager.printError("wrong option value %s with -o option, use directory name" % value)
+                    if SystemManager.isRecordMode() is True and SystemManager.systemEnable is False:
+                        SystemManager.runRecordStopFinalCmd()
+                    sys.exit(0)
+
+            elif option == 'a':
+                SystemManager.showAll = True
+
+            elif option == 'q':
+                SystemManager.selectMenu = True
+                ConfigManager.taskChainEnable = True
+
+            elif option == 'w':
+                SystemManager.depEnable = True
+
+            elif option == 'p':
+                if SystemManager.intervalEnable > 0:
+                    SystemManager.printWarning("-i option is already enabled, -p option is disabled")
+                else:
+                    SystemManager.preemptGroup = value.split(',')
+                    SystemManager.removeEmptyValue(SystemManager.preemptGroup)
+
+                    if len(SystemManager.preemptGroup) == 0:
+                        SystemManager.printError("No specific thread targeted, input tid with -p option")
+                        sys.exit(0)
+
+            elif option == 'd':
+                options = value
+
+            elif option == 't':
+                SystemManager.sysEnable = True
+                SystemManager.syscallList = value.split(',')
+
+                for val in SystemManager.syscallList:
+                    try:
+                        int(val)
+                    except:
+                        SystemManager.syscallList.remove(val)
+
+            elif option == 'g':
+                SystemManager.showGroup = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.showGroup)
+
+            elif option == 'e':
+                options = value
+                if options.rfind('g') > -1:
+                    SystemManager.graphEnable = True
+                    SystemManager.printInfo("drawing resource usage graph")
+                if options.rfind('d') > -1:
+                    SystemManager.diskEnable = True
+                    SystemManager.printInfo("disk profile")
+                if options.rfind('t') > -1:
+                    SystemManager.processEnable = False
+                if options.rfind('w') > -1:
+                    if SystemManager.warningEnable is False:
+                        SystemManager.warningEnable = True
+                        SystemManager.printInfo("printing warning message")
+
+            elif option == 'f':
+                # Handle error about record option #
+                if SystemManager.functionEnable is not False and SystemManager.outputFile is None:
+                    SystemManager.printError("wrong option with -f, use also -s option for saving data")
+                    if SystemManager.isRecordMode() is True:
+                        SystemManager.runRecordStopFinalCmd()
+                    sys.exit(0)
+                else:
+                    SystemManager.functionEnable = True
+                    SystemManager.targetEvent = value
+                    if len(SystemManager.targetEvent) == 0:
+                        SystemManager.targetEvent = None
+
+            elif option == 'l':
+                SystemManager.addr2linePath = value.split(',')
+
+            elif option == 'j':
+                SystemManager.rootPath = value
+
+            elif option == 'b':
+                try:
+                    if int(value) > 0:
+                        SystemManager.bufferSize = str(value)
+                    else:
+                        SystemManager.printError("wrong option value %s with -b option" % value)
+                        sys.exit(0)
+                except:
+                    SystemManager.printError("wrong option value %s with -b option" % value)
+                    sys.exit(0)
+
+            elif option == 'S':
+                SystemManager.sort = option
+                if len(SystemManager.sort) != 1 or (SystemManager.sort != 'c' and \
+                        SystemManager.sort != 'm' and SystemManager.sort != 'b' and SystemManager.sort != 'w'):
+                    SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
+                    sys.exit(0)
+
+            elif option == 'u':
+                SystemManager.backgroundEnable = True
+
+            elif option == 'c' or option == 'y' or option == 's' or option == 'r' or option == 'm':
+                continue
+
             else:
-                SystemManager.printError("wrong option %s" % (sys.argv[n]))
+                SystemManager.printError("unrecognized option -%s" % option)
                 if SystemManager.isRecordMode() is True:
                     SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -3676,129 +3683,132 @@ class SystemManager(object):
         if len(sys.argv) <= 2:
             return
 
-        for n in range(2, len(sys.argv)):
-            if sys.argv[n][0] == '-':
-                if sys.argv[n][1] == 'b':
-                    try:
-                        if int(sys.argv[n].lstrip('-b')) > 0:
-                            SystemManager.bufferSize = str(sys.argv[n].lstrip('-b'))
-                        else:
-                            SystemManager.printError("wrong option value %s with -b option" % \
-                                    (sys.argv[n].lstrip('-b')))
-                            sys.exit(0)
-                    except:
-                        SystemManager.printError("wrong option value %s with -b option" % \
-                                (sys.argv[n].lstrip('-b')))
-                        sys.exit(0)
-                elif sys.argv[n][1] == 'f':
-                    SystemManager.functionEnable = True
-                elif sys.argv[n][1] == 'u':
-                    SystemManager.backgroundEnable = True
-                elif sys.argv[n][1] == 'y':
-                    SystemManager.systemEnable = True
-                elif sys.argv[n][1] == 'e':
-                    options = sys.argv[n].lstrip('-e')
-                    if options.rfind('i') != -1:
-                        SystemManager.irqEnable = True
-                        SystemManager.printInfo("irq profile")
-                    if options.rfind('m') != -1:
-                        SystemManager.memEnable = True
-                        SystemManager.printInfo("memory profile")
-                    if options.rfind('p') != -1:
-                        SystemManager.pipeEnable = True
-                        SystemManager.printInfo("recording from pipe")
-                    if options.rfind('f') != -1:
-                        SystemManager.futexEnable = True
-                        SystemManager.printInfo("futex profile")
-                    if options.rfind('w') != -1:
-                        SystemManager.warningEnable = True
-                        SystemManager.printInfo("printing warning message for debug")
-                    if options.rfind('r') != -1:
-                        SystemManager.resetEnable = True
-                        SystemManager.printInfo(r"reset key(ctrl + \) enabled")
-                elif sys.argv[n][1] == 'g':
-                    SystemManager.showGroup = sys.argv[n].lstrip('-g').split(',')
-                    SystemManager.removeEmptyValue(SystemManager.showGroup)
-                    SystemManager.printInfo("only specific threads %s are shown" % \
-                            ','.join(SystemManager.showGroup))
-                elif sys.argv[n][1] == 's':
-                    if SystemManager.isRecordMode() is False:
-                        SystemManager.printError("Fail to save data becuase not in savable mode")
-                        sys.exit(0)
+        SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
+        for seq in range(0, len(SystemManager.optionList)):
+            SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
-                    SystemManager.outputFile = str(sys.argv[n].lstrip('-s'))
+        for item in SystemManager.optionList:
+            option = item[0]
+            value = item[1:]
 
-                    if os.path.isdir(SystemManager.outputFile) is True:
-                        SystemManager.outputFile = SystemManager.outputFile + '/guider.dat'
-                    elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]) is True:
-                        continue
+            if option == 'b':
+                try:
+                    if int(value) > 0:
+                        SystemManager.bufferSize = str(value)
                     else:
-                        SystemManager.printError("wrong option value %s with -s option" % \
-                                (sys.argv[n].lstrip('-s')))
+                        SystemManager.printError("wrong option value %s with -b option" % value)
                         sys.exit(0)
-                    SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
-                elif sys.argv[n][1] == 'w':
-                    SystemManager.depEnable = True
-                elif sys.argv[n][1] == 'c':
-                    SystemManager.waitEnable = True
-                elif sys.argv[n][1] == 'm':
-                    SystemManager.fileEnable = True
-                elif sys.argv[n][1] == 't':
-                    SystemManager.sysEnable = True
-                    SystemManager.syscallList = sys.argv[n].lstrip('-t').split(',')
-                    for val in SystemManager.syscallList:
-                        try:
-                            int(val)
-                        except:
-                            SystemManager.syscallList.remove(val)
-                elif sys.argv[n][1] == 'r':
-                    repeatParams = sys.argv[n].lstrip('-r').split(',')
-                    if len(repeatParams) != 2:
-                        SystemManager.printError("wrong option with -r, use -r[interval],[repeat]")
-                        sys.exit(0)
-                    elif int(repeatParams[0]) < 1 or int(repeatParams[1]) < 1:
-                        SystemManager.printError("wrong option with -r, use parameters bigger than 0")
-                        sys.exit(0)
-                    else:
-                        SystemManager.repeatInterval = int(repeatParams[0])
-                        SystemManager.repeatCount = int(repeatParams[1])
-                elif sys.argv[n][1] == 'l':
-                    continue
-                elif sys.argv[n][1] == 'j':
-                    continue
-                elif sys.argv[n][1] == 'o':
-                    SystemManager.printFile = str(sys.argv[n].lstrip('-o'))
-                elif sys.argv[n][1] == 'i':
-                    continue
-                elif sys.argv[n][1] == 'a':
-                    continue
-                elif sys.argv[n][1] == 'd':
-                    options = sys.argv[n].lstrip('-d')
-                    if options.rfind('c') != -1:
-                        SystemManager.cpuEnable = False
-                        SystemManager.printInfo("cpu events are disabled")
-                    if options.rfind('m') != -1:
-                        SystemManager.memEnable = False
-                        SystemManager.printInfo("memory events are disabled")
-                    if options.rfind('b') != -1:
-                        SystemManager.blockEnable = False
-                        SystemManager.printInfo("block events are disabled")
-                    if options.rfind('u') != -1:
-                        SystemManager.userEnable = False
-                        SystemManager.printInfo("user mode events are disabled")
-                elif sys.argv[n][1] == 'q':
-                    continue
-                elif sys.argv[n][1] == 'g':
-                    continue
-                elif sys.argv[n][1] == 'p':
-                    continue
-                elif sys.argv[n][1] == 'S':
+                except:
+                    SystemManager.printError("wrong option value %s with -b option" % value)
+                    sys.exit(0)
+
+            elif option == 'f':
+                SystemManager.functionEnable = True
+
+            elif option == 'u':
+                SystemManager.backgroundEnable = True
+
+            elif option == 'y':
+                SystemManager.systemEnable = True
+
+            elif option == 'e':
+                options = value
+                if options.rfind('i') > -1:
+                    SystemManager.irqEnable = True
+                    SystemManager.printInfo("irq profile")
+                if options.rfind('m') > -1:
+                    SystemManager.memEnable = True
+                    SystemManager.printInfo("memory profile")
+                if options.rfind('p') > -1:
+                    SystemManager.pipeEnable = True
+                    SystemManager.printInfo("recording from pipe")
+                if options.rfind('f') > -1:
+                    SystemManager.futexEnable = True
+                    SystemManager.printInfo("futex profile")
+                if options.rfind('w') > -1:
+                    SystemManager.warningEnable = True
+                    SystemManager.printInfo("printing warning message for debug")
+                if options.rfind('r') > -1:
+                    SystemManager.resetEnable = True
+                    SystemManager.printInfo(r"reset key(ctrl + \) enabled")
+
+            elif option == 'g':
+                SystemManager.showGroup = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.showGroup)
+                SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
+
+            elif option == 's':
+                if SystemManager.isRecordMode() is False:
+                    SystemManager.printError("Fail to save data because now is not in recording mode")
+                    sys.exit(0)
+
+                SystemManager.outputFile = str(value)
+
+                if os.path.isdir(SystemManager.outputFile) is True:
+                    SystemManager.outputFile = SystemManager.outputFile + '/guider.dat'
+                elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]) is True:
                     continue
                 else:
-                    SystemManager.printError("wrong option -%s" % (sys.argv[n][1]))
+                    SystemManager.printError("wrong option value %s with -s option" % value)
                     sys.exit(0)
+
+                SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
+
+            elif option == 'w':
+                SystemManager.depEnable = True
+
+            elif option == 'c':
+                SystemManager.waitEnable = True
+
+            elif option == 'm':
+                SystemManager.fileEnable = True
+
+            elif option == 't':
+                SystemManager.sysEnable = True
+                SystemManager.syscallList = value.split(',')
+
+                for val in SystemManager.syscallList:
+                    try:
+                        int(val)
+                    except:
+                        SystemManager.syscallList.remove(val)
+
+            elif option == 'r':
+                repeatParams = value.split(',')
+                if len(repeatParams) != 2:
+                    SystemManager.printError("wrong option with -r, use -r INTERVAL,REPEAT")
+                    sys.exit(0)
+                elif int(repeatParams[0]) < 1 or int(repeatParams[1]) < 1:
+                    SystemManager.printError("wrong option with -r, use parameters bigger than 0")
+                    sys.exit(0)
+                else:
+                    SystemManager.repeatInterval = int(repeatParams[0])
+                    SystemManager.repeatCount = int(repeatParams[1])
+
+            elif option == 'o':
+                SystemManager.printFile = str(value)
+
+            elif option == 'd':
+                options = value
+                if options.rfind('c') > -1:
+                    SystemManager.cpuEnable = False
+                    SystemManager.printInfo("cpu events are disabled")
+                if options.rfind('m') > -1:
+                    SystemManager.memEnable = False
+                    SystemManager.printInfo("memory events are disabled")
+                if options.rfind('b') > -1:
+                    SystemManager.blockEnable = False
+                    SystemManager.printInfo("block events are disabled")
+                if options.rfind('u') > -1:
+                    SystemManager.userEnable = False
+                    SystemManager.printInfo("user mode events are disabled")
+
+            elif option == 'l' or option == 'j' or option == 'i' or option == 'a' or option == 'q' or \
+                option == 'g' or option == 'p' or option == 'S':
+                continue
+
             else:
-                SystemManager.printError("wrong option %s" % (sys.argv[n]))
+                SystemManager.printError("wrong option -%s" % option)
                 sys.exit(0)
 
 
@@ -3898,7 +3908,7 @@ class SystemManager(object):
             print twoLine
             print "%6s\t%s" % ("PID", "COMMAND")
             print oneLine
-            print printBuf
+            print printBuf,
             print oneLine, '\n'
 
 
@@ -3906,6 +3916,7 @@ class SystemManager(object):
     def sendSignalProcs(nrSig):
         nrProc = 0
         myPid = str(os.getpid())
+
         commLocation = sys.argv[0].rfind('/')
         if commLocation >= 0:
             targetComm = sys.argv[0][commLocation + 1:]
@@ -3945,14 +3956,23 @@ class SystemManager(object):
                         continue
 
                     if SystemManager.isStartMode() is True and waitStatus is True:
-                        os.kill(int(pid), nrSig)
-                        SystemManager.printInfo("started %s process to profile" % pid)
+                        try:
+                            os.kill(int(pid), nrSig)
+                            SystemManager.printInfo("started %s process to profile" % pid)
+                        except:
+                            SystemManager.printError("Fail to send signal to %s because of permission" % pid)
                     elif SystemManager.isStopMode() is True:
-                        os.kill(int(pid), nrSig)
-                        SystemManager.printInfo("terminated %s process" % pid)
+                        try:
+                            os.kill(int(pid), nrSig)
+                            SystemManager.printInfo("terminated %s process" % pid)
+                        except:
+                            SystemManager.printError("Fail to send signal to %s because of permission" % pid)
                 elif nrSig == signal.SIGQUIT:
-                    os.kill(int(pid), nrSig)
-                    SystemManager.printInfo("sent signal to %s process" % pid)
+                    try:
+                        os.kill(int(pid), nrSig)
+                        SystemManager.printInfo("sent signal to %s process" % pid)
+                    except:
+                        SystemManager.printError("Fail to send signal to %s because of permission" % pid)
 
                 nrProc += 1
 
@@ -5201,7 +5221,7 @@ class ThreadAnalyzer(object):
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
                 for val in SystemManager.showGroup:
-                    if value['comm'].rfind(val) != -1 or value['tgid'].rfind(val) != -1 or key == val:
+                    if value['comm'].rfind(val) > -1 or value['tgid'].rfind(val) > -1 or key == val:
                         checkResult = True
                 if checkResult == False and key[0:2] != '0[':
                     try:
@@ -7736,7 +7756,7 @@ class ThreadAnalyzer(object):
             idx = ConfigManager.statList.index("COMM") + 1
             while True:
                 statList[commIndex] += ' ' + str(statList[idx])
-                if statList[idx].rfind(')') != -1:
+                if statList[idx].rfind(')') > -1:
                     statList.pop(idx)
                     break
                 statList.pop(idx)
@@ -8113,7 +8133,7 @@ class ThreadAnalyzer(object):
             if SystemManager.showGroup != []:
                 found = False
                 for val in SystemManager.showGroup:
-                    if value['stat'][self.commIdx].rfind(val) != -1 or idx == val:
+                    if value['stat'][self.commIdx].rfind(val) > -1 or idx == val:
                         found = True
                         break
                 if found is False:
@@ -8294,20 +8314,22 @@ if __name__ == '__main__':
 
     # print help #
     if len(sys.argv) <= 1:
+        cmd = sys.argv[0]
+
         print '\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__
 
         print 'Usage:'
-        print '\t# %s record [options]' % sys.argv[0]
-        print '\t# %s top [options]' % sys.argv[0]
-        print '\t# %s start' % sys.argv[0]
-        print '\t# %s stop' % sys.argv[0]
-        print '\t# %s send' % sys.argv[0]
-        print '\t$ %s <file> [options]\n' % sys.argv[0]
+        print '\t# %s record [options]' % cmd
+        print '\t# %s top [options]' % cmd
+        print '\t# %s start' % cmd
+        print '\t# %s stop' % cmd
+        print '\t# %s send' % cmd
+        print '\t$ %s <file> [options]\n' % cmd
 
         print 'Example:'
-        print '\t# %s record -s. -emi' % sys.argv[0]
-        print '\t$ %s guider.dat -o. -a' % sys.argv[0]
-        print '\t$ %s top\n' % sys.argv[0]
+        print '\t# %s record -s /var/log -e mi -g comm,1243' % cmd
+        print '\t$ %s guider.dat -o /var/log -a' % cmd
+        print '\t$ %s top\n' % cmd
 
         print 'Options:'
         print '\t[mode]'
@@ -8317,7 +8339,7 @@ if __name__ == '__main__':
         print '\t\t-f [function mode]'
         print '\t\t-m [file mode]'
         print '\t[record|top]'
-        print '\t\t-s [save_traceData:dir]'
+        print '\t\t-s [save_traceData:dir|file]'
         print '\t\t-S [sort_output:c(pu),m(em),b(lock),w(fc)]'
         print '\t\t-u [run_inBackground]'
         print '\t\t-c [wait_forSignal]'
@@ -8328,7 +8350,7 @@ if __name__ == '__main__':
         print '\t\t-w [trace_threadDependency]'
         print '\t\t-t [trace_syscall:syscallNums]'
         print '\t[analysis]'
-        print '\t\t-o [set_outputFile:dir]'
+        print '\t\t-o [set_dirOfOutputFile:dir]'
         print '\t\t-a [show_allInfo]'
         print '\t\t-i [set_interval:sec]'
         print '\t\t-w [show_threadDependency]'
