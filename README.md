@@ -59,7 +59,6 @@ CONFIG_USER_STACKTRACE_SUPPORT
 Options
 =======
 
-* Don't use space between option and values
 * Use comma(,) as delimiter for multiple values
 
 ```
@@ -70,18 +69,18 @@ Options
                 -f [function mode]
                 -m [file mode]
         [record|top]
-                -s [save_traceData:dir]
+                -s [save_traceData:dir|file]
                 -S [sort_output:c(pu),m(em),b(lock),w(fc)]
                 -u [run_inBackground]
                 -c [wait_forSignal]
                 -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]
-                -d [disable_options:c(pu)|b(lock)]
+                -d [disable_options:c(pu)|b(lock)|u(user)]
                 -r [record_repeatData:interval,count]
                 -b [set_bufferSize:kb(record)|10b(top)]
                 -w [trace_threadDependency]
                 -t [trace_syscall:syscallNums]
         [analysis]
-                -o [set_outputFile:dir]
+                -o [set_dirOfOutputFile:dir]
                 -a [show_allInfo]
                 -i [set_interval:sec]
                 -w [show_threadDependency]
