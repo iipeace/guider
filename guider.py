@@ -3594,7 +3594,7 @@ class SystemManager(object):
                         except:
                             SystemManager.syscallList.remove(val)
                 elif sys.argv[n][1] == 'g':
-                    if SystemManager.functionEnable is not False:
+                    if SystemManager.functionEnable is not False or SystemManager.isTopMode() is True:
                         SystemManager.showGroup = sys.argv[n].lstrip('-g').split(',')
                         SystemManager.removeEmptyValue(SystemManager.showGroup)
                 elif sys.argv[n][1] == 'e':
