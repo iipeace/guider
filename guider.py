@@ -4380,6 +4380,9 @@ class SystemManager(object):
             if SystemManager.userEnable is True:
                 SystemManager.writeCmd('../trace_options', 'userstacktrace')
                 SystemManager.writeCmd('../trace_options', 'sym-userobj')
+            else:
+                SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
+                SystemManager.writeCmd('../trace_options', 'nosym-userobj')
 
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
