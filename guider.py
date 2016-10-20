@@ -1006,6 +1006,7 @@ class FunctionAnalyzer(object):
                     try:
                         # Check whether this page is already allocated #
                         allocSym = self.pageTable[pfnv]['sym']
+
                         allocStackAddr = self.pageTable[pfnv]['subStackAddr']
                         allocKernelSym = self.pageTable[pfnv]['kernelSym']
                         allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
@@ -1076,6 +1077,7 @@ class FunctionAnalyzer(object):
 
                     try:
                         # Decrease page count of symbol allocated page  #
+                        # toDo: fix bug about wrong count of pos #
                         allocSym = self.pageTable[pfnv]['sym']
                         allocStackAddr = self.pageTable[pfnv]['subStackAddr']
                         allocKernelSym = self.pageTable[pfnv]['kernelSym']
