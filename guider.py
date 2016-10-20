@@ -46,502 +46,502 @@ class ConfigManager(object):
 
     # Define state of process #
     procStatList = {
-            'R': 'running',
-            'S': 'sleep',
-            'D': 'disk',
-            'Z': 'zombie',
-            'T': 'traced',
-            'W': 'paging'
-            }
+        'R': 'running',
+        'S': 'sleep',
+        'D': 'disk',
+        'Z': 'zombie',
+        'T': 'traced',
+        'W': 'paging'
+        }
 
     # Define syscall for ARM #
     sysList = [
-           'sys_restart_syscall',
-           'sys_exit',
-           'sys_fork',
-           'sys_read',
-           'sys_write',
-           'sys_open',
-           'sys_close',
-           'sys_ni_syscall',            # was sys_waitpid #
-           'sys_creat',
-           'sys_link',
-           'sys_unlink', # 10 #
-           'sys_execve',
-           'sys_chdir',
-           'sys_time',  # used by libc4 #
-           'sys_mknod',
-           'sys_chmod',
-           'sys_lchown16',
-           'sys_ni_syscall',            # was sys_break #
-           'sys_ni_syscall',            # was sys_stat #
-           'sys_lseek',
-           'sys_getpid', # 20 #
-           'sys_mount',
-           'sys_oldumount',     # used by libc4 #
-           'sys_setuid16',
-           'sys_getuid16',
-           'sys_stime',
-           'sys_ptrace',
-           'sys_alarm', # used by libc4 #
-           'sys_ni_syscall',            # was sys_fstat #
-           'sys_pause',
-           'sys_utime', # used by libc4 # 30 #
-           'sys_ni_syscall',            # was sys_stty #
-           'sys_ni_syscall',            # was sys_getty #
-           'sys_access',
-           'sys_nice',
-           'sys_ni_syscall',            # was sys_ftime #
-           'sys_sync',
-           'sys_kill',
-           'sys_rename',
-           'sys_mkdir',
-           'sys_rmdir', # 40 #
-           'sys_dup',
-           'sys_pipe',
-           'sys_times',
-           'sys_ni_syscall',            # was sys_prof #
-           'sys_brk',
-           'sys_setgid16',
-           'sys_getgid16',
-           'sys_ni_syscall',            # was sys_signal #
-           'sys_geteuid16',
-           'sys_getegid16', # 50 #
-           'sys_acct',
-           'sys_umount',
-           'sys_ni_syscall',            # was sys_lock #
-           'sys_ioctl',
-           'sys_fcntl',
-           'sys_ni_syscall',            # was sys_mpx #
-           'sys_setpgid',
-           'sys_ni_syscall',            # was sys_ulimit #
-           'sys_ni_syscall',            # was sys_olduname #
-           'sys_umask', # 60 #
-           'sys_chroot',
-           'sys_ustat',
-           'sys_dup2',
-           'sys_getppid',
-           'sys_getpgrp',
-           'sys_setsid',
-           'sys_sigaction',
-           'sys_ni_syscall',            # was sys_sgetmask #
-           'sys_ni_syscall',            # was sys_ssetmask #
-           'sys_setreuid16', # 70 #
-           'sys_setregid16',
-           'sys_sigsuspend',
-           'sys_sigpending',
-           'sys_sethostname',
-           'sys_setrlimit',
-           'sys_old_getrlimit', # used by libc4 #
-           'sys_getrusage',
-           'sys_gettimeofday',
-           'sys_settimeofday',
-           'sys_getgroups16', # 80 #
-           'sys_setgroups16',
-           'sys_old_select',    # used by libc4 #
-           'sys_symlink',
-           'sys_ni_syscall',            # was sys_lstat #
-           'sys_readlink',
-           'sys_uselib',
-           'sys_swapon',
-           'sys_reboot',
-           'sys_old_readdir',   # used by libc4 #
-           'sys_old_mmap',      # used by libc4 # 90 #
-           'sys_munmap',
-           'sys_truncate',
-           'sys_ftruncate',
-           'sys_fchmod',
-           'sys_fchown16',
-           'sys_getpriority',
-           'sys_setpriority',
-           'sys_ni_syscall',            # was sys_profil #
-           'sys_statfs',
-           'sys_fstatfs', # 100 #
-           'sys_ni_syscall',            # sys_ioperm #
-           'sys_socketcall',
-           'sys_syslog',
-           'sys_setitimer',
-           'sys_getitimer',
-           'sys_newstat',
-           'sys_newlstat',
-           'sys_newfstat',
-           'sys_ni_syscall',            # was sys_uname #
-           'sys_ni_syscall',            # was sys_iopl # 110 #
-           'sys_vhangup',
-           'sys_ni_syscall',
-           'sys_syscall',       # call a syscall #
-           'sys_wait4',
-           'sys_swapoff',
-           'sys_sysinfo',
-           'sys_ipc',
-           'sys_fsync',
-           'sys_sigreturn_wrapper',
-           'sys_clone', # 120 #
-           'sys_setdomainname',
-           'sys_newuname',
-           'sys_ni_syscall',            # modify_ldt #
-           'sys_adjtimex',
-           'sys_mprotect',
-           'sys_sigprocmask',
-           'sys_ni_syscall',            # was sys_create_module #
-           'sys_init_module',
-           'sys_delete_module',
-           'sys_ni_syscall',            # was sys_get_kernel_syms # 130 #
-           'sys_quotactl',
-           'sys_getpgid',
-           'sys_fchdir',
-           'sys_bdflush',
-           'sys_sysfs',
-           'sys_personality',
-           'sys_ni_syscall',            # reserved for afs_syscall #
-           'sys_setfsuid16',
-           'sys_setfsgid16',
-           'sys_llseek', # 140 #
-           'sys_getdents',
-           'sys_select',
-           'sys_flock',
-           'sys_msync',
-           'sys_readv',
-           'sys_writev',
-           'sys_getsid',
-           'sys_fdatasync',
-           'sys_sysctl',
-           'sys_mlock', # 150 #
-           'sys_munlock',
-           'sys_mlockall',
-           'sys_munlockall',
-           'sys_sched_setparam',
-           'sys_sched_getparam',
-           'sys_sched_setscheduler',
-           'sys_sched_getscheduler',
-           'sys_sched_yield',
-           'sys_sched_get_priority_max',
-           'sys_sched_get_priority_min', # 160 #
-           'sys_sched_rr_get_interval',
-           'sys_nanosleep',
-           'sys_mremap',
-           'sys_setresuid16',
-           'sys_getresuid16',
-           'sys_ni_syscall',            # vm86 #
-           'sys_ni_syscall',            # was sys_query_module #
-           'sys_poll',
-           'sys_ni_syscall',            # was nfsservctl #
-           'sys_setresgid16', # 170 #
-           'sys_getresgid16',
-           'sys_prctl',
-           'sys_rt_sigreturn_wrapper',
-           'sys_rt_sigaction',
-           'sys_rt_sigprocmask',
-           'sys_rt_sigpending',
-           'sys_rt_sigtimedwait',
-           'sys_rt_sigqueueinfo',
-           'sys_rt_sigsuspend',
-           'sys_pread64', # 180 #
-           'sys_pwrite64',
-           'sys_chown16',
-           'sys_getcwd',
-           'sys_capget',
-           'sys_capset',
-           'sys_sigaltstack',
-           'sys_sendfile',
-           'sys_ni_syscall',            # getpmsg #
-           'sys_ni_syscall',            # putpmsg #
-           'sys_vfork', # 190 #
-           'sys_getrlimit',
-           'sys_mmap2',
-           'sys_truncate64',
-           'sys_ftruncate64',
-           'sys_stat64',
-           'sys_lstat64',
-           'sys_fstat64',
-           'sys_lchown',
-           'sys_getuid',
-           'sys_getgid', # 200 #
-           'sys_geteuid',
-           'sys_getegid',
-           'sys_setreuid',
-           'sys_setregid',
-           'sys_getgroups',
-           'sys_setgroups',
-           'sys_fchown',
-           'sys_setresuid',
-           'sys_getresuid',
-           'sys_setresgid', # 210 #
-           'sys_getresgid',
-           'sys_chown',
-           'sys_setuid',
-           'sys_setgid',
-           'sys_setfsuid',
-           'sys_setfsgid',
-           'sys_getdents64',
-           'sys_pivot_root',
-           'sys_mincore',
-           'sys_madvise', # 220 #
-           'sys_fcntl64',
-           'sys_ni_syscall', # TUX #
-           'sys_ni_syscall',
-           'sys_gettid',
-           'sys_readahead',
-           'sys_setxattr',
-           'sys_lsetxattr',
-           'sys_fsetxattr',
-           'sys_getxattr',
-           'sys_lgetxattr', # 230 #
-           'sys_fgetxattr',
-           'sys_listxattr',
-           'sys_llistxattr',
-           'sys_flistxattr',
-           'sys_removexattr',
-           'sys_lremovexattr',
-           'sys_fremovexattr',
-           'sys_tkill',
-           'sys_sendfile64',
-           'sys_futex', # 240 #
-           'sys_sched_setaffinity',
-           'sys_sched_getaffinity',
-           'sys_io_setup',
-           'sys_io_destroy',
-           'sys_io_getevents',
-           'sys_io_submit',
-           'sys_io_cancel',
-           'sys_exit_group',
-           'sys_lookup_dcookie',
-           'sys_epoll_create', # 250 #
-           'sys_epoll_ctl',
-           'sys_epoll_wait',
-           'sys_remap_file_pages',
-           'sys_ni_syscall',    # sys_set_thread_area #
-           'sys_ni_syscall',    # sys_get_thread_area #
-           'sys_set_tid_address',
-           'sys_timer_create',
-           'sys_timer_settime',
-           'sys_timer_gettime',
-           'sys_timer_getoverrun', # 260 #
-           'sys_timer_delete',
-           'sys_clock_settime',
-           'sys_clock_gettime',
-           'sys_clock_getres',
-           'sys_clock_nanosleep',
-           'sys_statfs64_wrapper',
-           'sys_fstatfs64_wrapper',
-           'sys_tgkill',
-           'sys_utimes',
-           'sys_arm_fadvise64_64', # 270 #
-           'sys_pciconfig_iobase',
-           'sys_pciconfig_read',
-           'sys_pciconfig_write',
-           'sys_mq_open',
-           'sys_mq_unlink',
-           'sys_mq_timedsend',
-           'sys_mq_timedreceive',
-           'sys_mq_notify',
-           'sys_mq_getsetattr',
-           'sys_waitid', # 280 #
-           'sys_socket',
-           'sys_bind',
-           'sys_connect',
-           'sys_listen',
-           'sys_accept',
-           'sys_getsockname',
-           'sys_getpeername',
-           'sys_socketpair',
-           'sys_send',
-           'sys_sendto', # 290 #
-           'sys_recv',
-           'sys_recvfrom',
-           'sys_shutdown',
-           'sys_setsockopt',
-           'sys_getsockopt',
-           'sys_sendmsg',
-           'sys_recvmsg',
-           'sys_semop',
-           'sys_semget',
-           'sys_semctl', # 300 #
-           'sys_msgsnd',
-           'sys_msgrcv',
-           'sys_msgget',
-           'sys_msgctl',
-           'sys_shmat',
-           'sys_shmdt',
-           'sys_shmget',
-           'sys_shmctl',
-           'sys_add_key',
-           'sys_request_key', # 310 #
-           'sys_keyctl',
-           'sys_semtimedop',
-           'sys_ni_syscall', # vserver #
-           'sys_ioprio_set',
-           'sys_ioprio_get',
-           'sys_inotify_init',
-           'sys_inotify_add_watch',
-           'sys_inotify_rm_watch',
-           'sys_mbind',
-           'sys_get_mempolicy', # 320 #
-           'sys_set_mempolicy',
-           'sys_openat',
-           'sys_mkdirat',
-           'sys_mknodat',
-           'sys_fchownat',
-           'sys_futimesat',
-           'sys_fstatat64',
-           'sys_unlinkat',
-           'sys_renameat',
-           'sys_linkat', # 330 #
-           'sys_symlinkat',
-           'sys_readlinkat',
-           'sys_fchmodat',
-           'sys_faccessat',
-           'sys_pselect6',
-           'sys_ppoll',
-           'sys_unshare',
-           'sys_set_robust_list',
-           'sys_get_robust_list',
-           'sys_splice', # 340 #
-           'sys_sync_file_range2',
-           'sys_tee',
-           'sys_vmsplice',
-           'sys_move_pages',
-           'sys_getcpu',
-           'sys_epoll_pwait',
-           'sys_kexec_load',
-           'sys_utimensat',
-           'sys_signalfd',
-           'sys_timerfd_create', # 350 #
-           'sys_eventfd',
-           'sys_fallocate',
-           'sys_timerfd_settime',
-           'sys_timerfd_gettime',
-           'sys_signalfd4',
-           'sys_eventfd2',
-           'sys_epoll_create1',
-           'sys_dup3',
-           'sys_pipe2',
-           'sys_inotify_init1', # 360 #
-           'sys_preadv',
-           'sys_pwritev',
-           'sys_rt_tgsigqueueinfo',
-           'sys_perf_event_open',
-           'sys_recvmmsg',
-           'sys_accept4',
-           'sys_fanotify_init',
-           'sys_fanotify_mark',
-           'sys_prlimit64',
-           'sys_name_to_handle_at', # 370 #
-           'sys_open_by_handle_at',
-           'sys_clock_adjtime',
-           'sys_syncfs',
-           'sys_sendmmsg',
-           'sys_setns',
-           'sys_process_vm_readv',
-           'sys_process_vm_writev',
-           'sys_kcmp',
-           'sys_finit_module',
-           'sys_sched_setattr', # 380 #
-           'sys_sched_getattr',
-           'sys_renameat2',
-           'sys_seccomp',
-           'sys_getrandom',
-           'sys_memfd_create',
-           'sys_bpf',
-           'sys_execveat',
-           'sys_userfaultfd',
-           'sys_membarrier',
-           'sys_mlock2', # 390 #
-           'sys_copy_file_range'
-           ]
+        'sys_restart_syscall',
+        'sys_exit',
+        'sys_fork',
+        'sys_read',
+        'sys_write',
+        'sys_open',
+        'sys_close',
+        'sys_ni_syscall',            # was sys_waitpid #
+        'sys_creat',
+        'sys_link',
+        'sys_unlink', # 10 #
+        'sys_execve',
+        'sys_chdir',
+        'sys_time',  # used by libc4 #
+        'sys_mknod',
+        'sys_chmod',
+        'sys_lchown16',
+        'sys_ni_syscall',            # was sys_break #
+        'sys_ni_syscall',            # was sys_stat #
+        'sys_lseek',
+        'sys_getpid', # 20 #
+        'sys_mount',
+        'sys_oldumount',     # used by libc4 #
+        'sys_setuid16',
+        'sys_getuid16',
+        'sys_stime',
+        'sys_ptrace',
+        'sys_alarm', # used by libc4 #
+        'sys_ni_syscall',            # was sys_fstat #
+        'sys_pause',
+        'sys_utime', # used by libc4 # 30 #
+        'sys_ni_syscall',            # was sys_stty #
+        'sys_ni_syscall',            # was sys_getty #
+        'sys_access',
+        'sys_nice',
+        'sys_ni_syscall',            # was sys_ftime #
+        'sys_sync',
+        'sys_kill',
+        'sys_rename',
+        'sys_mkdir',
+        'sys_rmdir', # 40 #
+        'sys_dup',
+        'sys_pipe',
+        'sys_times',
+        'sys_ni_syscall',            # was sys_prof #
+        'sys_brk',
+        'sys_setgid16',
+        'sys_getgid16',
+        'sys_ni_syscall',            # was sys_signal #
+        'sys_geteuid16',
+        'sys_getegid16', # 50 #
+        'sys_acct',
+        'sys_umount',
+        'sys_ni_syscall',            # was sys_lock #
+        'sys_ioctl',
+        'sys_fcntl',
+        'sys_ni_syscall',            # was sys_mpx #
+        'sys_setpgid',
+        'sys_ni_syscall',            # was sys_ulimit #
+        'sys_ni_syscall',            # was sys_olduname #
+        'sys_umask', # 60 #
+        'sys_chroot',
+        'sys_ustat',
+        'sys_dup2',
+        'sys_getppid',
+        'sys_getpgrp',
+        'sys_setsid',
+        'sys_sigaction',
+        'sys_ni_syscall',            # was sys_sgetmask #
+        'sys_ni_syscall',            # was sys_ssetmask #
+        'sys_setreuid16', # 70 #
+        'sys_setregid16',
+        'sys_sigsuspend',
+        'sys_sigpending',
+        'sys_sethostname',
+        'sys_setrlimit',
+        'sys_old_getrlimit', # used by libc4 #
+        'sys_getrusage',
+        'sys_gettimeofday',
+        'sys_settimeofday',
+        'sys_getgroups16', # 80 #
+        'sys_setgroups16',
+        'sys_old_select',    # used by libc4 #
+        'sys_symlink',
+        'sys_ni_syscall',            # was sys_lstat #
+        'sys_readlink',
+        'sys_uselib',
+        'sys_swapon',
+        'sys_reboot',
+        'sys_old_readdir',   # used by libc4 #
+        'sys_old_mmap',      # used by libc4 # 90 #
+        'sys_munmap',
+        'sys_truncate',
+        'sys_ftruncate',
+        'sys_fchmod',
+        'sys_fchown16',
+        'sys_getpriority',
+        'sys_setpriority',
+        'sys_ni_syscall',            # was sys_profil #
+        'sys_statfs',
+        'sys_fstatfs', # 100 #
+        'sys_ni_syscall',            # sys_ioperm #
+        'sys_socketcall',
+        'sys_syslog',
+        'sys_setitimer',
+        'sys_getitimer',
+        'sys_newstat',
+        'sys_newlstat',
+        'sys_newfstat',
+        'sys_ni_syscall',            # was sys_uname #
+        'sys_ni_syscall',            # was sys_iopl # 110 #
+        'sys_vhangup',
+        'sys_ni_syscall',
+        'sys_syscall',       # call a syscall #
+        'sys_wait4',
+        'sys_swapoff',
+        'sys_sysinfo',
+        'sys_ipc',
+        'sys_fsync',
+        'sys_sigreturn_wrapper',
+        'sys_clone', # 120 #
+        'sys_setdomainname',
+        'sys_newuname',
+        'sys_ni_syscall',            # modify_ldt #
+        'sys_adjtimex',
+        'sys_mprotect',
+        'sys_sigprocmask',
+        'sys_ni_syscall',            # was sys_create_module #
+        'sys_init_module',
+        'sys_delete_module',
+        'sys_ni_syscall',            # was sys_get_kernel_syms # 130 #
+        'sys_quotactl',
+        'sys_getpgid',
+        'sys_fchdir',
+        'sys_bdflush',
+        'sys_sysfs',
+        'sys_personality',
+        'sys_ni_syscall',            # reserved for afs_syscall #
+        'sys_setfsuid16',
+        'sys_setfsgid16',
+        'sys_llseek', # 140 #
+        'sys_getdents',
+        'sys_select',
+        'sys_flock',
+        'sys_msync',
+        'sys_readv',
+        'sys_writev',
+        'sys_getsid',
+        'sys_fdatasync',
+        'sys_sysctl',
+        'sys_mlock', # 150 #
+        'sys_munlock',
+        'sys_mlockall',
+        'sys_munlockall',
+        'sys_sched_setparam',
+        'sys_sched_getparam',
+        'sys_sched_setscheduler',
+        'sys_sched_getscheduler',
+        'sys_sched_yield',
+        'sys_sched_get_priority_max',
+        'sys_sched_get_priority_min', # 160 #
+        'sys_sched_rr_get_interval',
+        'sys_nanosleep',
+        'sys_mremap',
+        'sys_setresuid16',
+        'sys_getresuid16',
+        'sys_ni_syscall',            # vm86 #
+        'sys_ni_syscall',            # was sys_query_module #
+        'sys_poll',
+        'sys_ni_syscall',            # was nfsservctl #
+        'sys_setresgid16', # 170 #
+        'sys_getresgid16',
+        'sys_prctl',
+        'sys_rt_sigreturn_wrapper',
+        'sys_rt_sigaction',
+        'sys_rt_sigprocmask',
+        'sys_rt_sigpending',
+        'sys_rt_sigtimedwait',
+        'sys_rt_sigqueueinfo',
+        'sys_rt_sigsuspend',
+        'sys_pread64', # 180 #
+        'sys_pwrite64',
+        'sys_chown16',
+        'sys_getcwd',
+        'sys_capget',
+        'sys_capset',
+        'sys_sigaltstack',
+        'sys_sendfile',
+        'sys_ni_syscall',            # getpmsg #
+        'sys_ni_syscall',            # putpmsg #
+        'sys_vfork', # 190 #
+        'sys_getrlimit',
+        'sys_mmap2',
+        'sys_truncate64',
+        'sys_ftruncate64',
+        'sys_stat64',
+        'sys_lstat64',
+        'sys_fstat64',
+        'sys_lchown',
+        'sys_getuid',
+        'sys_getgid', # 200 #
+        'sys_geteuid',
+        'sys_getegid',
+        'sys_setreuid',
+        'sys_setregid',
+        'sys_getgroups',
+        'sys_setgroups',
+        'sys_fchown',
+        'sys_setresuid',
+        'sys_getresuid',
+        'sys_setresgid', # 210 #
+        'sys_getresgid',
+        'sys_chown',
+        'sys_setuid',
+        'sys_setgid',
+        'sys_setfsuid',
+        'sys_setfsgid',
+        'sys_getdents64',
+        'sys_pivot_root',
+        'sys_mincore',
+        'sys_madvise', # 220 #
+        'sys_fcntl64',
+        'sys_ni_syscall', # TUX #
+        'sys_ni_syscall',
+        'sys_gettid',
+        'sys_readahead',
+        'sys_setxattr',
+        'sys_lsetxattr',
+        'sys_fsetxattr',
+        'sys_getxattr',
+        'sys_lgetxattr', # 230 #
+        'sys_fgetxattr',
+        'sys_listxattr',
+        'sys_llistxattr',
+        'sys_flistxattr',
+        'sys_removexattr',
+        'sys_lremovexattr',
+        'sys_fremovexattr',
+        'sys_tkill',
+        'sys_sendfile64',
+        'sys_futex', # 240 #
+        'sys_sched_setaffinity',
+        'sys_sched_getaffinity',
+        'sys_io_setup',
+        'sys_io_destroy',
+        'sys_io_getevents',
+        'sys_io_submit',
+        'sys_io_cancel',
+        'sys_exit_group',
+        'sys_lookup_dcookie',
+        'sys_epoll_create', # 250 #
+        'sys_epoll_ctl',
+        'sys_epoll_wait',
+        'sys_remap_file_pages',
+        'sys_ni_syscall',    # sys_set_thread_area #
+        'sys_ni_syscall',    # sys_get_thread_area #
+        'sys_set_tid_address',
+        'sys_timer_create',
+        'sys_timer_settime',
+        'sys_timer_gettime',
+        'sys_timer_getoverrun', # 260 #
+        'sys_timer_delete',
+        'sys_clock_settime',
+        'sys_clock_gettime',
+        'sys_clock_getres',
+        'sys_clock_nanosleep',
+        'sys_statfs64_wrapper',
+        'sys_fstatfs64_wrapper',
+        'sys_tgkill',
+        'sys_utimes',
+        'sys_arm_fadvise64_64', # 270 #
+        'sys_pciconfig_iobase',
+        'sys_pciconfig_read',
+        'sys_pciconfig_write',
+        'sys_mq_open',
+        'sys_mq_unlink',
+        'sys_mq_timedsend',
+        'sys_mq_timedreceive',
+        'sys_mq_notify',
+        'sys_mq_getsetattr',
+        'sys_waitid', # 280 #
+        'sys_socket',
+        'sys_bind',
+        'sys_connect',
+        'sys_listen',
+        'sys_accept',
+        'sys_getsockname',
+        'sys_getpeername',
+        'sys_socketpair',
+        'sys_send',
+        'sys_sendto', # 290 #
+        'sys_recv',
+        'sys_recvfrom',
+        'sys_shutdown',
+        'sys_setsockopt',
+        'sys_getsockopt',
+        'sys_sendmsg',
+        'sys_recvmsg',
+        'sys_semop',
+        'sys_semget',
+        'sys_semctl', # 300 #
+        'sys_msgsnd',
+        'sys_msgrcv',
+        'sys_msgget',
+        'sys_msgctl',
+        'sys_shmat',
+        'sys_shmdt',
+        'sys_shmget',
+        'sys_shmctl',
+        'sys_add_key',
+        'sys_request_key', # 310 #
+        'sys_keyctl',
+        'sys_semtimedop',
+        'sys_ni_syscall', # vserver #
+        'sys_ioprio_set',
+        'sys_ioprio_get',
+        'sys_inotify_init',
+        'sys_inotify_add_watch',
+        'sys_inotify_rm_watch',
+        'sys_mbind',
+        'sys_get_mempolicy', # 320 #
+        'sys_set_mempolicy',
+        'sys_openat',
+        'sys_mkdirat',
+        'sys_mknodat',
+        'sys_fchownat',
+        'sys_futimesat',
+        'sys_fstatat64',
+        'sys_unlinkat',
+        'sys_renameat',
+        'sys_linkat', # 330 #
+        'sys_symlinkat',
+        'sys_readlinkat',
+        'sys_fchmodat',
+        'sys_faccessat',
+        'sys_pselect6',
+        'sys_ppoll',
+        'sys_unshare',
+        'sys_set_robust_list',
+        'sys_get_robust_list',
+        'sys_splice', # 340 #
+        'sys_sync_file_range2',
+        'sys_tee',
+        'sys_vmsplice',
+        'sys_move_pages',
+        'sys_getcpu',
+        'sys_epoll_pwait',
+        'sys_kexec_load',
+        'sys_utimensat',
+        'sys_signalfd',
+        'sys_timerfd_create', # 350 #
+        'sys_eventfd',
+        'sys_fallocate',
+        'sys_timerfd_settime',
+        'sys_timerfd_gettime',
+        'sys_signalfd4',
+        'sys_eventfd2',
+        'sys_epoll_create1',
+        'sys_dup3',
+        'sys_pipe2',
+        'sys_inotify_init1', # 360 #
+        'sys_preadv',
+        'sys_pwritev',
+        'sys_rt_tgsigqueueinfo',
+        'sys_perf_event_open',
+        'sys_recvmmsg',
+        'sys_accept4',
+        'sys_fanotify_init',
+        'sys_fanotify_mark',
+        'sys_prlimit64',
+        'sys_name_to_handle_at', # 370 #
+        'sys_open_by_handle_at',
+        'sys_clock_adjtime',
+        'sys_syncfs',
+        'sys_sendmmsg',
+        'sys_setns',
+        'sys_process_vm_readv',
+        'sys_process_vm_writev',
+        'sys_kcmp',
+        'sys_finit_module',
+        'sys_sched_setattr', # 380 #
+        'sys_sched_getattr',
+        'sys_renameat2',
+        'sys_seccomp',
+        'sys_getrandom',
+        'sys_memfd_create',
+        'sys_bpf',
+        'sys_execveat',
+        'sys_userfaultfd',
+        'sys_membarrier',
+        'sys_mlock2', # 390 #
+        'sys_copy_file_range'
+        ]
 
     # Define signal #
     sigList = [
-           'SIGHUP', # 1 #
-           'SIGINT',
-           'SIGQUIT',
-           'SIGILL',
-           'SIGTRAP',
-           'SIGABRT',
-           'SIGIOT',
-           'SIGBUS',
-           'SIGFPE',
-           'SIGKILL', # 9 #
-           'SIGUSR1',
-           'SIGSEGV',
-           'SIGUSR2',
-           'SIGPIPE',
-           'SIGALRM',
-           'SIGTERM', # 15 #
-           'SIGSTKFLT',
-           'SIGCHLD', # 17 #
-           'SIGCONT',
-           'SIGSTOP',
-           'SIGTSTP',
-           'SIGTTIN',
-           'SIGTTOU',
-           'SIGURG',
-           'SIGXCPU',
-           'SIGXFSZ',
-           'SIGVTALRM',
-           'SIGPROF',
-           'SIGWINCH',
-           'SIGIO',
-           'SIGPWR',
-           'SIGSYS' # 32 #
-            ]
+        'SIGHUP', # 1 #
+        'SIGINT',
+        'SIGQUIT',
+        'SIGILL',
+        'SIGTRAP',
+        'SIGABRT',
+        'SIGIOT',
+        'SIGBUS',
+        'SIGFPE',
+        'SIGKILL', # 9 #
+        'SIGUSR1',
+        'SIGSEGV',
+        'SIGUSR2',
+        'SIGPIPE',
+        'SIGALRM',
+        'SIGTERM', # 15 #
+        'SIGSTKFLT',
+        'SIGCHLD', # 17 #
+        'SIGCONT',
+        'SIGSTOP',
+        'SIGTSTP',
+        'SIGTTIN',
+        'SIGTTOU',
+        'SIGURG',
+        'SIGXCPU',
+        'SIGXFSZ',
+        'SIGVTALRM',
+        'SIGPROF',
+        'SIGWINCH',
+        'SIGIO',
+        'SIGPWR',
+        'SIGSYS' # 32 #
+        ]
 
     # stat list from http://linux.die.net/man/5/proc #
     statList = [
-            'PID', # 0 #
-            'COMM',
-            'STATE',
-            'PPID',
-            'PGRP',
-            'SESSIONID', # 5 #
-            'NRTTY',
-            'TPGID',
-            'FLAGS',
-            'MINFLT',
-            'CMINFLT', # 10 #
-            'MAJFLT',
-            'CMAJFLT',
-            'UTIME',
-            'STIME',
-            'CUTIME', # 15 #
-            'CSTIME',
-            'PRIORITY',
-            'NICE',
-            'NRTHREAD',
-            'ITERALVAL', # 20 #
-            'STARTTIME',
-            'VSIZE',
-            'RSS',
-            'RSSLIM',
-            'STARTCODE', # 25 #
-            'ENDCODE',
-            'STARTSTACK',
-            'SP',
-            'PC',
-            'SIGNAL', # 30 #
-            'BLOCKED',
-            'SIGIGNORE',
-            'SIGCATCH',
-            'WCHEN',
-            'NSWAP', # 35 #
-            'CNSWAP',
-            'EXITSIGNAL',
-            'PROCESSOR',
-            'RTPRIORITY',
-            'POLICY', # 40 #
-            'DELAYBLKTICK',
-            'GUESTTIME',
-            'CGUESTTIME' # 43 #
-            ]
+        'PID', # 0 #
+        'COMM',
+        'STATE',
+        'PPID',
+        'PGRP',
+        'SESSIONID', # 5 #
+        'NRTTY',
+        'TPGID',
+        'FLAGS',
+        'MINFLT',
+        'CMINFLT', # 10 #
+        'MAJFLT',
+        'CMAJFLT',
+        'UTIME',
+        'STIME',
+        'CUTIME', # 15 #
+        'CSTIME',
+        'PRIORITY',
+        'NICE',
+        'NRTHREAD',
+        'ITERALVAL', # 20 #
+        'STARTTIME',
+        'VSIZE',
+        'RSS',
+        'RSSLIM',
+        'STARTCODE', # 25 #
+        'ENDCODE',
+        'STARTSTACK',
+        'SP',
+        'PC',
+        'SIGNAL', # 30 #
+        'BLOCKED',
+        'SIGIGNORE',
+        'SIGCATCH',
+        'WCHEN',
+        'NSWAP', # 35 #
+        'CNSWAP',
+        'EXITSIGNAL',
+        'PROCESSOR',
+        'RTPRIORITY',
+        'POLICY', # 40 #
+        'DELAYBLKTICK',
+        'GUESTTIME',
+        'CGUESTTIME' # 43 #
+        ]
 
     schedList = [
-            'C', # 0: CFS #
-            'F', # 1: FIFO #
-            'R', # 2: RR #
-            'B', # 3: BATCH #
-            'N', # 4: NONE #
-            'I', # 5: IDLE #
-            ]
+        'C', # 0: CFS #
+        'F', # 1: FIFO #
+        'R', # 2: RR #
+        'B', # 3: BATCH #
+        'N', # 4: NONE #
+        'I', # 5: IDLE #
+        ]
 
     taskChainEnable = None
 
@@ -567,7 +567,7 @@ class ConfigManager(object):
         file += '.tc'
         if os.path.isfile(file) is True:
             SystemManager.printWarning(\
-                    "%s already exist, make new one" % file)
+                "%s already exist, make new one" % file)
 
         try:
             fd = open(file, 'w')
@@ -698,26 +698,32 @@ class FunctionAnalyzer(object):
         '''
 
         self.init_threadData = \
-                {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'nrPages': int(0), \
-                'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
+            {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'nrPages': int(0), \
+            'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
+
         self.init_posData = \
-                {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
-                'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
-                'blockCnt': int(0), 'pageCnt': int(0)}
+            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
+            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
+            'blockCnt': int(0), 'pageCnt': int(0)}
+
         self.init_symData = \
-                {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
-                'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
-                # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
+            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
+            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
+            # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
+
         self.init_ctxData = \
-                {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
-                'nestedCnt': int(0), 'savedCnt': int(0), 'nowCnt': int(0), 'nestedArg': None, 'savedArg': None, 'nowArg': None, \
-                'prevMode': None, 'curMode': None, 'userLastPos': '', 'userCallStack': None, 'kernelLastPos': '', \
-                'kernelCallStack': None, 'bakKernelLastPos': '', 'bakKernelCallStack': None, \
-                'prevComm': None, 'prevTid': None, 'prevTime': None}
+            {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
+            'nestedCnt': int(0), 'savedCnt': int(0), 'nowCnt': int(0), 'nestedArg': None, 'savedArg': None, \
+            'prevMode': None, 'curMode': None, 'userLastPos': '', 'userCallStack': None, 'kernelLastPos': '', \
+            'kernelCallStack': None, 'bakKernelLastPos': '', 'bakKernelCallStack': None, 'nowArg': None, \
+            'prevComm': None, 'prevTid': None, 'prevTime': None}
+
+        self.init_pageLinkData = \
+            {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
+            'type': '0', 'time': '0'}
 
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
-        self.init_pageLinkData = {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
-                'type': '0', 'time': '0'}
+
         self.init_subStackPageInfo = [0, 0, 0]
         # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
 
@@ -746,7 +752,7 @@ class FunctionAnalyzer(object):
         # Check root path #
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                    "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
             sys.exit(0)
 
         # Register None pos #
@@ -762,7 +768,7 @@ class FunctionAnalyzer(object):
             sys.exit(0)
         elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
             SystemManager.printError("No traced user stack data related to %s, " % self.target + \
-                    "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
+                "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
             sys.exit(0)
 
         SystemManager.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
@@ -864,8 +870,8 @@ class FunctionAnalyzer(object):
 
                     # Ignore this function if there is no symbol #
                     if SystemManager.showAll is False and \
-                            self.posData[addr]['origBin'] == '??' and \
-                            (tempSym == addr or tempSym == self.posData[addr]['offset']):
+                        self.posData[addr]['origBin'] == '??' and \
+                        (tempSym == addr or tempSym == self.posData[addr]['offset']):
                         continue
 
                     # No symbol data #
@@ -895,7 +901,7 @@ class FunctionAnalyzer(object):
             # First user stack related to this symbol #
             if len(targetStack) == 0:
                 targetStack.append(\
-                        [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                    [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                 stackAddr = id(stack)
             else:
                 found = False
@@ -904,7 +910,7 @@ class FunctionAnalyzer(object):
                 for stackInfo in targetStack:
                     # Found same stack #
                     if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
-                            len(list(set(stackInfo[1]) - set(stack))) == 0:
+                        len(list(set(stackInfo[1]) - set(stack))) == 0:
                         found = True
                         stackInfo[2] += pageAllocCnt
                         stackInfo[3] += pageFreeCnt
@@ -915,7 +921,7 @@ class FunctionAnalyzer(object):
                 # New stack related to this symbol #
                 if found == False:
                     targetStack.append(\
-                            [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                        [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                     stackAddr = id(stack)
 
             # Set target kernel stack #
@@ -924,14 +930,14 @@ class FunctionAnalyzer(object):
             # First stack related to this symbol #
             if len(kernelTargetStack) == 0:
                 kernelTargetStack.append(\
-                        [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                    [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                 kernelStackAddr = id(kernelStack)
             else:
                 found = False
                 for stackInfo in kernelTargetStack:
                     # Found same stack  in stack list #
                     if len(list(set(kernelStack) - set(stackInfo[1]))) == 0 and \
-                            len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
+                        len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
                         found = True
                         stackInfo[2] += pageAllocCnt
                         stackInfo[3] += pageFreeCnt
@@ -939,10 +945,11 @@ class FunctionAnalyzer(object):
                         stackInfo[0] += cpuCnt
                         kernelStackAddr = id(stackInfo[1])
                         break
+
                 # New stack related to this symbol #
                 if found == False:
                     kernelTargetStack.append(\
-                            [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                        [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
                     kernelStackAddr = id(kernelStack)
 
             # memory allocation event #
@@ -1031,7 +1038,7 @@ class FunctionAnalyzer(object):
                         # Find user subStack of symbol allocated this page #
                         for val in targetStack:
                             if id(val[1]) == allocStackAddr:
-                        # Decrease allocated page count of substack #
+                                # Decrease allocated page count of substack #
                                 val[2] -= 1
                                 val[5][subStackPageInfoIdx] -= 1
                                 break
@@ -1215,13 +1222,13 @@ class FunctionAnalyzer(object):
         # Check addr2line path #
         if SystemManager.addr2linePath is None:
             SystemManager.printError(\
-                    "Fail to find addr2line, use also -l option with addr2line path for user mode")
+                "Fail to find addr2line, use also -l option with addr2line path for user mode")
             sys.exit(0)
         else:
             for path in SystemManager.addr2linePath:
                 if os.path.isfile(path) is False:
                     SystemManager.printError(\
-                            "Fail to find addr2line, use also -l option with addr2line path for user mode")
+                        "Fail to find addr2line, use also -l option with addr2line path for user mode")
                     sys.exit(0)
 
         for path in SystemManager.addr2linePath:
@@ -1237,7 +1244,7 @@ class FunctionAnalyzer(object):
             while offset < listLen:
                 # Launch addr2line #
                 proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], \
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 # Increase offset count in address list #
                 offset += maxArg
@@ -1277,15 +1284,14 @@ class FunctionAnalyzer(object):
 
                         # Check whether saved symbol found by previous addr2line is right #
                         if savedSymbol == None or savedSymbol == '' or \
-                                        savedSymbol == addr or savedSymbol[0] == '$':
+                            savedSymbol == addr or savedSymbol[0] == '$':
                             self.posData[addr]['symbol'] = symbol
                             self.posData[addr]['src'] = src
                     else:
                         inBinArea = False
 
                         for idx, value in sorted(self.posData.items(), \
-                                key=lambda e: e[1]['binary'], reverse=True):
-
+                            key=lambda e: e[1]['binary'], reverse=True):
                             if value['binary'] == binPath:
                                 inBinArea = True
 
@@ -1293,7 +1299,7 @@ class FunctionAnalyzer(object):
                                     savedSymbol = self.posData[idx]['symbol']
 
                                     if savedSymbol == None or savedSymbol == '' or \
-                                            savedSymbol == addr or savedSymbol[0] == '$':
+                                        savedSymbol == addr or savedSymbol[0] == '$':
                                         self.posData[idx]['symbol'] = symbol
                                         self.posData[idx]['src'] = src
                                         break
@@ -1329,11 +1335,11 @@ class FunctionAnalyzer(object):
             self.periodicEventCnt += 1
 
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, 0, None, targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, 0, None, targetEvent])
         elif targetEvent == 'PAGE_ALLOC':
             self.pageAllocEventCnt += 1
             self.pageAllocCnt += targetCnt
@@ -1345,11 +1351,11 @@ class FunctionAnalyzer(object):
             pfn = targetArg[1]
 
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    targetCnt, 0, 0, [pageType, pfn], targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                targetCnt, 0, 0, [pageType, pfn], targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    targetCnt, 0, 0, [pageType, pfn], targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                targetCnt, 0, 0, [pageType, pfn], targetEvent])
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
             self.pageFreeCnt += targetCnt
@@ -1360,11 +1366,11 @@ class FunctionAnalyzer(object):
             pfn = targetArg[1]
 
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    0, targetCnt, 0, [pageType, pfn], targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, targetCnt, 0, [pageType, pfn], targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    0, targetCnt, 0, [pageType, pfn], targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, targetCnt, 0, [pageType, pfn], targetEvent])
         elif targetEvent == 'BLK_READ':
             self.blockEventCnt += 1
             self.blockUsageCnt += targetCnt
@@ -1372,25 +1378,25 @@ class FunctionAnalyzer(object):
             self.posData[self.nowCtx['userLastPos']]['blockCnt'] += targetCnt
 
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    0, 0, targetCnt, None, targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, targetCnt, None, targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    0, 0, targetCnt, None, targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, targetCnt, None, targetEvent])
         elif targetEvent == 'SIGSEGV_GEN':
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, 0, None, targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, 0, None, targetEvent])
         elif targetEvent == 'SIGSEGV_DLV':
             self.kernelCallData.append(\
-                    [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, 0, None, targetEvent])
             self.userCallData.append(\
-                    [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                    0, 0, 0, None, targetEvent])
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, 0, None, targetEvent])
 
     def parseLogs(self, lines, desc):
         for liter in lines:
@@ -1412,7 +1418,7 @@ class FunctionAnalyzer(object):
                 # stack of kernel thread #
                 if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel' and \
                     len(self.nowCtx['userCallStack']) == 0 and len(self.nowCtx['kernelCallStack']) > 0:
-                    # Set userLastPos to None #
+                        # Set userLastPos to None #
                     self.nowCtx['userLastPos'] = '0'
                     self.nowCtx['userCallStack'].append('0')
 
@@ -1420,7 +1426,7 @@ class FunctionAnalyzer(object):
                 elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
                     # previous user stack loss or nested interval #
                     if self.nowCtx['curMode'] is 'kernel':
-                        # nested interval #
+                    # nested interval #
                         if self.nowCtx['nowEvent'] is 'CPU_TICK':
                             # Backup kernel stack #
                             self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
@@ -1452,9 +1458,10 @@ class FunctionAnalyzer(object):
 
                 # Save both stacks of previous event before starting to record new kernel stack #
                 if (len(self.nowCtx['userCallStack']) > 0 and self.nowCtx['userLastPos'] != '') and \
-                        (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
-                    # Remove pc in each stacks #
-                    del self.nowCtx['kernelCallStack'][0], self.nowCtx['userCallStack'][0]
+                    (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
+                        # Remove pc in each stacks #
+                    del self.nowCtx['kernelCallStack'][0], \
+                        self.nowCtx['userCallStack'][0]
 
                     # Check whether there is nested event or not #
                     if self.nowCtx['nested'] > 0:
@@ -1592,10 +1599,10 @@ class FunctionAnalyzer(object):
         # Filter for event #
         if SystemManager.tgidEnable is True:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+                r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
         else:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
-                    r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+                r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
 
         if m is not None:
             d = m.groupdict()
@@ -1636,12 +1643,12 @@ class FunctionAnalyzer(object):
 
                 # Set global interval #
                 if self.periodicEventCnt > 0 and \
-                        (self.nowCtx['prevComm'] == d['comm'] or self.nowCtx['prevTid'] == thread):
+                    (self.nowCtx['prevComm'] == d['comm'] or self.nowCtx['prevTid'] == thread):
                     diff = float(d['time']) - float(self.nowCtx['prevTime'])
                     self.periodicEventTotal += diff
                     self.periodicContEventCnt += 1
                     self.periodicEventInterval = \
-                            round(self.periodicEventTotal / self.periodicContEventCnt, 3)
+                        round(self.periodicEventTotal / self.periodicContEventCnt, 3)
 
                 self.nowCtx['prevComm'] = d['comm']
                 self.nowCtx['prevTid'] = thread
@@ -1697,7 +1704,7 @@ class FunctionAnalyzer(object):
             # memory allocation event #
             elif d['func'] == "mm_page_alloc:":
                 m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
-                        r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
+                    r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
                 if m is not None:
                     d = m.groupdict()
 
@@ -1759,7 +1766,7 @@ class FunctionAnalyzer(object):
             # memory free event #
             elif d['func'] == "mm_page_free:":
                 m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
-                        r'order=(?P<order>[0-9]+)', d['etc'])
+                    r'order=(?P<order>[0-9]+)', d['etc'])
                 if m is not None:
                     d = m.groupdict()
 
@@ -1800,7 +1807,7 @@ class FunctionAnalyzer(object):
             # block request event #
             elif d['func'] == "block_bio_remap:":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                        r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
+                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
                 if m is not None:
                     b = m.groupdict()
 
@@ -1817,7 +1824,7 @@ class FunctionAnalyzer(object):
             # segmentation fault generation event #
             elif d['func'] == "signal_generate:":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                        r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
+                    r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
                 if m is not None:
                     b = m.groupdict()
 
@@ -1830,7 +1837,7 @@ class FunctionAnalyzer(object):
 
             elif d['func'] == "signal_deliver:":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                        r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', d['etc'])
+                    r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', d['etc'])
                 if m is not None:
                     b = m.groupdict()
 
@@ -1894,25 +1901,25 @@ class FunctionAnalyzer(object):
 
     def parseMapLine(self, string):
         m = re.match(r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' + \
-                r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
         if m is not None:
             d = m.groupdict()
             self.mapData.append(\
-                    {'startAddr': d['startAddr'], 'endAddr': d['endAddr'], 'binName': d['binName']})
+                {'startAddr': d['startAddr'], 'endAddr': d['endAddr'], 'binName': d['binName']})
 
 
 
     def getBinInfo(self, addr):
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                    "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
             sys.exit(0)
 
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
                 if SystemManager.isRelocatableFile(data['binName']) is True:
-                    # Return full path and offset about address in mapping table
+                        # Return full path and offset about address in mapping table
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16) - int(data['startAddr'], 16))
                 else:
@@ -1934,13 +1941,13 @@ class FunctionAnalyzer(object):
 
         # Print profiled thread list #
         SystemManager.pipePrint(\
-                "[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
-                ('Function Thread Info', 'Elapsed time', round(self.totalTime, 7), \
-                 len(self.threadData), SystemManager.logSize / 1024))
+            "[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('Function Thread Info', 'Elapsed time', round(self.totalTime, 7), \
+             len(self.threadData), SystemManager.logSize / 1024))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-                "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|".\
-                format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE"))
+            "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|".\
+            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE"))
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
@@ -1964,10 +1971,10 @@ class FunctionAnalyzer(object):
                 dieMark = 'v'
 
             SystemManager.pipePrint(\
-                    "{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|".\
-                    format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
-                    value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
-                    int(value['nrBlocks'] * 0.5), dieMark))
+                "{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|".\
+                format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
+                value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
+                int(value['nrBlocks'] * 0.5), dieMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -1991,14 +1998,14 @@ class FunctionAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.targetEvent is None:
             SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-                    (self.periodicEventCnt, self.periodicEventInterval * 1000))
+                (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
             SystemManager.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (USER)' % \
-                    (SystemManager.targetEvent, self.periodicEventCnt))
+                (SystemManager.targetEvent, self.periodicEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-                format("Usage", "Function", "Binary", "Source"))
+            format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
@@ -2010,7 +2017,7 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:7}% |{1:^47}|{2:48}|{3:37}".format(cpuPer, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
             targetStack = []
@@ -2045,7 +2052,7 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- None'
                             else:
                                 symbolStack += ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             if pos is None:
@@ -2053,11 +2060,11 @@ class FunctionAnalyzer(object):
                             # No symbol so that just print pos #
                             elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
@@ -2069,10 +2076,10 @@ class FunctionAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.targetEvent is None:
             SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
-                    (self.periodicEventCnt, self.periodicEventInterval * 1000))
+                (self.periodicEventCnt, self.periodicEventInterval * 1000))
         else:
             SystemManager.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % \
-                    (SystemManager.targetEvent, self.periodicEventCnt))
+                (SystemManager.targetEvent, self.periodicEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -2154,13 +2161,13 @@ class FunctionAnalyzer(object):
        # Print mem usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-                '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
-                self.pageFreeCnt * 4, self.pageFreeEventCnt))
+            '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+            (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
+            self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
-                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
+            format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
@@ -2168,9 +2175,9 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
-                    value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
+                value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
             targetStack = []
@@ -2204,7 +2211,7 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- None'
                             else:
                                 symbolStack += ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             if pos is None:
@@ -2212,14 +2219,14 @@ class FunctionAnalyzer(object):
                             # No symbol so that just print pos #
                             elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
-                        userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
+                    userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2228,13 +2235,13 @@ class FunctionAnalyzer(object):
         # Print mem usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-                '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
-                self.pageFreeCnt * 4, self.pageFreeEventCnt))
+            '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
+            self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".\
-                format("Usage", "Usr", "Buf", "Ker", "Function"))
+            format("Usage", "Usr", "Buf", "Ker", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -2254,7 +2261,7 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}".format(value['pageCnt'] * 4, \
-                    value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
+                value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[2], reverse=True)
@@ -2285,7 +2292,7 @@ class FunctionAnalyzer(object):
                         continue
 
                 SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
-                        userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
+                    userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2299,11 +2306,11 @@ class FunctionAnalyzer(object):
         # Print BLOCK usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (self.blockUsageCnt * 0.5, self.blockEventCnt))
+            (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-                format("Usage", "Function", "Binary", "Source"))
+            format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
@@ -2311,8 +2318,8 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                    format(int(value['blockCnt'] * 0.5), idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                format(int(value['blockCnt'] * 0.5), idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
             targetStack = []
@@ -2343,7 +2350,7 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- None'
                             else:
                                 symbolStack += ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
                     elif self.sort is 'pos':
                         for pos in subStack:
                             if pos is None:
@@ -2351,14 +2358,13 @@ class FunctionAnalyzer(object):
                             # No symbol so that just print pos #
                             elif self.posData[pos]['symbol'] == '':
                                 symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
                             # Print symbol #
                             else:
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                    ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".\
-                        format(int(blockCnt * 0.5), symbolStack))
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2367,11 +2373,11 @@ class FunctionAnalyzer(object):
         # Print BLOCK usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-                (self.blockUsageCnt * 0.5, self.blockEventCnt))
+            (self.blockUsageCnt * 0.5, self.blockEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-                format("Usage", "Function", "Binary", "Source"))
+            format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -2391,7 +2397,7 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                    format(int(value['blockCnt'] * 0.5), idx, '', ''))
+                format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[4], reverse=True)
@@ -2418,8 +2424,7 @@ class FunctionAnalyzer(object):
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".\
-                        format(int(blockCnt * 0.5), symbolStack))
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2451,7 +2456,7 @@ class FileAnalyzer(object):
         self.init_procData = {'tids': None, 'pageCnt': int(0), 'procMap': None}
         self.init_threadData = {'comm': ''}
         self.init_mapData = {'offset': int(0), 'size': int(0), 'pageCnt': int(0), 'fd': None, \
-                'totalSize': int(0), 'fileMap': None}
+            'totalSize': int(0), 'fileMap': None}
 
         try:
             import ctypes
@@ -2487,7 +2492,7 @@ class FileAnalyzer(object):
             SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
         except:
             SystemManager.printWarning(\
-                    "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
+                "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
 
         self.startTime = time.time()
 
@@ -2544,11 +2549,11 @@ class FileAnalyzer(object):
 
         # Print proccess list #
         SystemManager.pipePrint(\
-                "[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
-                ('File Process Info', len(self.procData)))
+            "[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
+            ('File Process Info', len(self.procData)))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".\
-                format("Pid", "Size(KB)", "ThreadName", "Tid"))
+            format("Pid", "Size(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
         for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -2562,23 +2567,23 @@ class FileAnalyzer(object):
 
         # Print file list #
         SystemManager.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('File Usage Info', len(self.fileData)))
+            ('File Usage Info', len(self.fileData)))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^5}|{3:_^123}|".\
-                format("Memory(KB)", "File(KB)", "%", "Path"))
+            format("Memory(KB)", "File(KB)", "%", "Path"))
         SystemManager.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             memSize = val['pageCnt'] * SystemManager.pageSize / 1024
             fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                    SystemManager.pageSize) * SystemManager.pageSize / 1024
+                SystemManager.pageSize) * SystemManager.pageSize / 1024
             per = 0
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
 
             SystemManager.pipePrint("{0:11} |{1:9} |{2:5}|{3:123}|".\
-                    format(memSize, fileSize, per, fileName))
+                format(memSize, fileSize, per, fileName))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -2630,10 +2635,10 @@ class FileAnalyzer(object):
 
         # Print proccess list #
         SystemManager.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-                ('File Process Info', len(self.procList)))
+            ('File Process Info', len(self.procList)))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^7}|{1:_^13}|{2:_^16}({3:_^7})".\
-                format("Pid", "MaxSize(KB)", "ThreadName", "Tid"))
+            format("Pid", "MaxSize(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -2648,7 +2653,7 @@ class FileAnalyzer(object):
 
         # Print file list #
         SystemManager.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-        ('File Usage Info', len(self.fileList)))
+            ('File Usage Info', len(self.fileList)))
         SystemManager.pipePrint(twoLine)
 
         printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitMem(KB)", "File(KB)", "%")
@@ -2670,7 +2675,7 @@ class FileAnalyzer(object):
                 memSize = 0
             try:
                 fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                        SystemManager.pageSize) * SystemManager.pageSize / 1024
+                    SystemManager.pageSize) * SystemManager.pageSize / 1024
             except:
                 fileSize = 0
 
@@ -2874,7 +2879,7 @@ class FileAnalyzer(object):
 
     def mergeMapLine(self, string, procMap):
         m = re.match(r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' + \
-                r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)', string)
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)', string)
         if m is not None:
             d = m.groupdict()
 
@@ -3125,7 +3130,7 @@ class SystemManager(object):
         self.SystemManager = dict()
 
         SystemManager.eventLogFile = \
-                str(self.getMountPath()) + '/tracing/trace_marker'
+            str(self.getMountPath()) + '/tracing/trace_marker'
 
         # Save storage info first #
         self.saveMemInfo()
@@ -3153,7 +3158,7 @@ class SystemManager(object):
                 SystemManager.printTitle()
                 SystemManager.pipePrint(SystemManager.procBuffer)
                 SystemManager.printInfo("Saved top usage into %s successfully" % \
-                        SystemManager.inputFile)
+                    SystemManager.inputFile)
             sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -3187,7 +3192,7 @@ class SystemManager(object):
 
             if SystemManager.printFile is not None:
                 SystemManager.printStatus("Saved top usage into %s successfully" % \
-                        SystemManager.inputFile)
+                    SystemManager.inputFile)
         elif SystemManager.resetEnable is True:
             SystemManager.writeEvent("EVENT_START")
         else:
@@ -3298,8 +3303,8 @@ class SystemManager(object):
         try:
             fd = open(SystemManager.mountPath + path, 'w')
         except:
-            SystemManager.printWarning("Fail to use %s event, please confirm kernel configuration" % \
-                    path[0:path.rfind('/')])
+            SystemManager.printWarning(\
+                "Fail to use %s event, please confirm kernel configuration" % path[0:path.rfind('/')])
             return -1
 
         try:
@@ -3322,9 +3327,9 @@ class SystemManager(object):
                 SystemManager.progressCnt = 0
 
             sys.stdout.write('%3d' % \
-                    (SystemManager.curLine / float(SystemManager.totalLine) * 100) + \
-                    '% ' + SystemManager.progressChar[SystemManager.progressCnt / 1000] + \
-                    '\b\b\b\b\b\b')
+                (SystemManager.curLine / float(SystemManager.totalLine) * 100) + \
+                '% ' + SystemManager.progressChar[SystemManager.progressCnt / 1000] + \
+                '\b\b\b\b\b\b')
 
             sys.stdout.flush()
             gc.collect()
@@ -3440,7 +3445,7 @@ class SystemManager(object):
     @staticmethod
     def pipePrint(line):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-                SystemManager.printFile == None and SystemManager.isTopMode() is False:
+            SystemManager.printFile == None and SystemManager.isTopMode() is False:
             try:
                 SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
@@ -3461,7 +3466,7 @@ class SystemManager(object):
                 if  fileNamePos >= 0:
                     SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
                 SystemManager.inputFile = \
-                        SystemManager.printFile + '/' + SystemManager.inputFile.replace('dat', 'out')
+                    SystemManager.printFile + '/' + SystemManager.inputFile.replace('dat', 'out')
             else:
                 SystemManager.inputFile = SystemManager.printFile + '/guider.out'
 
@@ -3591,6 +3596,7 @@ class SystemManager(object):
                         sys.exit(0)
 
             elif option == 'd':
+                # Add somethings to diable when doing analysis #
                 options = value
 
             elif option == 't':
@@ -3655,7 +3661,7 @@ class SystemManager(object):
             elif option == 'S':
                 SystemManager.sort = option
                 if len(SystemManager.sort) != 1 or (SystemManager.sort != 'c' and \
-                        SystemManager.sort != 'm' and SystemManager.sort != 'b' and SystemManager.sort != 'w'):
+                    SystemManager.sort != 'm' and SystemManager.sort != 'b' and SystemManager.sort != 'w'):
                     SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
                     sys.exit(0)
 
@@ -4002,7 +4008,7 @@ class SystemManager(object):
     def getTty():
         try:
             SystemManager.ttyRows, SystemManager.ttyCols = \
-                    os.popen('stty size', 'r').read().split()
+                os.popen('stty size', 'r').read().split()
         except:
             SystemManager.printWarning("Fail to use stty")
 
@@ -4327,7 +4333,7 @@ class SystemManager(object):
         setBufferSize = SystemManager.getBufferSize()
         if int(SystemManager.bufferSize) != setBufferSize:
             SystemManager.printWarning("Set buffer size(%s) is different with %s" % \
-                    (setBufferSize, SystemManager.bufferSize))
+                (setBufferSize, SystemManager.bufferSize))
 
         # initialize event list to enable #
         self.initCmdList()
@@ -4438,9 +4444,9 @@ class SystemManager(object):
         # options for dependency tracing #
         if self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
-            % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
-            ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
-            ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
+                % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
+                ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
+                ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
 
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
@@ -4456,9 +4462,9 @@ class SystemManager(object):
         # options for dependency tracing #
         if self.cmdList["raw_syscalls/sys_exit"] is True:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
-            % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
-            ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
-            ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
+                % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
+                ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
+                ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
 
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
@@ -4715,44 +4721,44 @@ class SystemManager(object):
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Physical', int(self.cpuInfo['physical id']) + 1))
+                format('Physical', int(self.cpuInfo['physical id']) + 1))
         except:
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('CoresPerCPU', self.cpuInfo['cpu cores']))
+                format('CoresPerCPU', self.cpuInfo['cpu cores']))
         except:
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Logical', int(self.cpuInfo['processor']) + 1))
-        except:
-            pass
-
-        try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Vendor', self.cpuInfo['vendor_id']))
-        except:
-            pass
-        try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Model', self.cpuInfo['model name']))
+                format('Logical', int(self.cpuInfo['processor']) + 1))
         except:
             pass
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Cache(L2)', self.cpuInfo['cache size']))
+                format('Vendor', self.cpuInfo['vendor_id']))
         except:
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Perf', self.cpuInfo['bogomips']))
+                format('Model', self.cpuInfo['model name']))
+        except:
+            pass
+
+        try:
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
+                format('Cache(L2)', self.cpuInfo['cache size']))
         except:
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                    format('Address', self.cpuInfo['address sizes']))
+                format('Perf', self.cpuInfo['bogomips']))
+        except:
+            pass
+        try:
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
+                format('Address', self.cpuInfo['address sizes']))
         except:
             pass
 
@@ -4766,8 +4772,8 @@ class SystemManager(object):
             time = 'before'
             for l in self.diskBeforeData:
                 major, minor, name, readComplete, readMerge, sectorRead, readTime, \
-                    writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
-                    l.split()
+                writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
+                l.split()
 
                 name = '/dev/' + name
                 self.diskInfo[time][name] = dict()
@@ -4784,8 +4790,8 @@ class SystemManager(object):
             time = 'after'
             for l in self.diskAfterData:
                 major, minor, name, readComplete, readMerge, sectorRead, readTime, \
-                    writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
-                    l.split()
+                writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
+                l.split()
 
                 name = '/dev/' + name
                 self.diskInfo[time][name] = dict()
@@ -4817,8 +4823,8 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
-                ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
-                "FileSystem", "MountPoint <Option>"))
+            ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
+            "FileSystem", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(oneLine)
 
         for key, val in self.mountInfo.items():
@@ -4829,12 +4835,12 @@ class SystemManager(object):
                 continue
 
             SystemManager.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
-                    (key, afterInfo['major'], afterInfo['minor'], \
-                    (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
-                    (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
-                    (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
-                    (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
-                    val['fs'], val['path'] + ' <' + val['option'] + '>'))
+                (key, afterInfo['major'], afterInfo['minor'], \
+                (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
+                (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
+                (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
+                (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
+                val['fs'], val['path'] + ' <' + val['option'] + '>'))
 
         SystemManager.infoBufferPrint(twoLine + '\n\n')
 
@@ -4888,14 +4894,14 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Memory Info] [ Unit: MB ]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-                "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-                ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
-                "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
+            "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
+            "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
         SystemManager.infoBufferPrint(oneLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
-                (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
+            (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
         SystemManager.infoBufferPrint("[  FREE] %10s %10s" % \
-                (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024))
+            (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024))
 
         memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
         swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
@@ -4903,7 +4909,7 @@ class SystemManager(object):
         swapAfterUsage = int(afterInfo['SwapTotal']) - int(afterInfo['SwapFree'])
 
         SystemManager.infoBufferPrint(\
-                "[USAGE1] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[USAGE1] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memBeforeUsage / 1024, swapBeforeUsage / 1024, \
                 int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
                 int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
@@ -4913,7 +4919,7 @@ class SystemManager(object):
                 int(beforeInfo['Mlocked']) / 1024))
 
         SystemManager.infoBufferPrint(\
-                "[USAGE2] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[USAGE2] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memAfterUsage / 1024, swapAfterUsage / 1024, \
                 int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
                 int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
@@ -4923,7 +4929,7 @@ class SystemManager(object):
                 int(afterInfo['Mlocked']) / 1024))
 
         SystemManager.infoBufferPrint(\
-                "[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memAfterUsage / 1024 - memBeforeUsage / 1024, \
                 swapAfterUsage / 1024 - swapBeforeUsage / 1024, \
                 int(afterInfo['Buffers']) / 1024 - int(beforeInfo['Buffers']) / 1024, \
@@ -4974,7 +4980,7 @@ class EventAnalyzer(object):
             self.eventData[name] = {'list': [], 'summary': []}
 
         self.eventData[name]['list'].append(\
-                [ID, time, sum(t[0] == ID for t in self.eventData[name]['list']) + 1])
+            [ID, time, sum(t[0] == ID for t in self.eventData[name]['list']) + 1])
 
         if sum(id[0] == ID for id in self.eventData[name]['summary']) == 0:
             self.eventData[name]['summary'].append([ID, 1, 0, 0, 0, time, 0])
@@ -5004,7 +5010,7 @@ class EventAnalyzer(object):
                 string = ''
                 for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
                     string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % \
-                              (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
+                        (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
                 SystemManager.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % \
                         (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
 
@@ -5053,46 +5059,53 @@ class ThreadAnalyzer(object):
         self.reclaimDataOld = {}
 
         self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
-                'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
-                'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
-                'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
-                'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
-                'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
-                'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
-                'futexCnt': int(0), 'futexEnter': float(0), 'futexTotal': float(0), 'futexMax': float(0), \
-                'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
-                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
-                'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), 'writeBlock': int(0), \
-                'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-                'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
-                'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
-                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
+            'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
+            'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
+            'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
+            'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
+            'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
+            'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
+            'futexCnt': int(0), 'futexEnter': float(0), 'futexTotal': float(0), 'futexMax': float(0), \
+            'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
+            'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
+            'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), 'writeBlock': int(0), \
+            'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
+            'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
+            'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
+            'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
+
         self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), \
-                'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
+            'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
+
         self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
-                'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': float(0), \
-                'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), \
-                'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), \
-                'totalCoreSchedCnt': int(0), 'preempted': float(0), \
-                'totalPreempted': float(0), 'new': ' ', 'die': ' '}
-        self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+            'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': float(0), \
+            'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), \
+            'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), \
+            'totalCoreSchedCnt': int(0), 'preempted': float(0), \
+            'totalPreempted': float(0), 'new': ' ', 'die': ' '}
+
         self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), \
-                'time': '0', 'waste': int(0), 'core': int(0)}
-        self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
+            'time': '0', 'waste': int(0), 'core': int(0)}
+
         self.wakeupData = {'tid': '0', 'nr': '0', 'ret': '0', 'time': '0', 'args': '0', \
-                'valid': int(0), 'from': '0', 'to': '0', 'corrupt': '0'}
-        self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
+            'valid': int(0), 'from': '0', 'to': '0', 'corrupt': '0'}
+
         self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), \
-                'max': float(0), 'min': float(0)}
+            'max': float(0), 'min': float(0)}
 
         self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
-                'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), \
-                'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
-                'utime': float(0), 'stime': float(0), 'ioFd': None, \
-                'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
-                'cutime': float(0), 'cstime': float(0), 'cttime': float(0)}
+            'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), \
+            'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
+            'utime': float(0), 'stime': float(0), 'ioFd': None, \
+            'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
+            'cutime': float(0), 'cstime': float(0), 'cttime': float(0)}
+
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
-                'wait': long(0), 'irq': long(0), 'softirq': long(0)}
+            'wait': long(0), 'irq': long(0), 'softirq': long(0)}
+
+        self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+        self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
+        self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
 
         self.startTime = '0'
         self.finishTime = '0'
@@ -5130,7 +5143,7 @@ class ThreadAnalyzer(object):
                 SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
             except:
                 SystemManager.printWarning(\
-                        "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
+                    "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -5287,11 +5300,11 @@ class ThreadAnalyzer(object):
                 continue
 
             ConfigManager.writeConfData(\
-                    fd, str(index) + '=' + ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-')\
-                    + '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
-                    str(self.threadData[t]['reqBlock']) + ' ' + \
-                    str(self.threadData[t]['cpuRank']) + ' ' + \
-                    str(self.threadData[t]['usage']) + '\n')
+                fd, str(index) + '=' + ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-')\
+                + '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
+                str(self.threadData[t]['reqBlock']) + ' ' + \
+                str(self.threadData[t]['cpuRank']) + ' ' + \
+                str(self.threadData[t]['usage']) + '\n')
 
         SystemManager.pipePrint("%s.tc is written successfully" % eventInput)
 
@@ -5342,19 +5355,21 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] " + \
-                "[ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]") % \
-                ('Thread Info', 'Elapsed time', round(float(self.totalTime), 7), \
-                self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize / 1024))
+            "[ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]") % \
+            ('Thread Info', 'Elapsed time', round(float(self.totalTime), 7), \
+            self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize / 1024))
         SystemManager.pipePrint(twoLine)
+
         SystemManager.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-                format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
+            format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
         SystemManager.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
-                format("", "", "", "", "", ""))
+            format("", "", "", "", "", ""))
+
         SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|" + \
-                "%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4s(%2s)|") % \
-                ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', \
-                'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
-                'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
+            "%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4s(%2s)|") % \
+            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', \
+            'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
+            'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
 
         # initialize swapper thread per core #
@@ -5392,19 +5407,20 @@ class ThreadAnalyzer(object):
                 usagePercent = 100 - (round(float(value['usage']) / float(self.totalTime), 7) * 100)
                 if value['lastOff'] > 0:
                     value['offTime'] += float(self.finishTime) - value['lastOff']
+
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4.2f(%2d)|\n") \
-                    % (value['comm'], '0', '0', '-', '-', \
-                    self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
-                    round(float(value['offTime']), 7), 0, 0, value['irq'], \
-                    value['offCnt'], '-', '-', '-', \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                    (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
-                    value['dReclaimWait'], value['dReclaimCnt']))
+                        % (value['comm'], '0', '0', '-', '-', \
+                        self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
+                        round(float(value['offTime']), 7), 0, 0, value['irq'], \
+                        value['offCnt'], '-', '-', '-', \
+                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
+                        value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                        value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                        (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
+                        value['dReclaimWait'], value['dReclaimCnt']))
                 count += 1
             else:
                 # convert priority #
@@ -5431,18 +5447,18 @@ class ThreadAnalyzer(object):
                 value['cpuRank'] = count + 1
                 count += 1
             SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
-                    (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], \
-                    str(round(float(usagePercent), 1)), value['cpuWait'], value['maxPreempted'], \
-                    value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
-                    value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                    value['writeBlockCnt'], value['writeBlock'], \
-                    (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                    value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
-                    value['dReclaimWait'], value['dReclaimCnt']))
+                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
+                "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
+                (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], \
+                str(round(float(usagePercent), 1)), value['cpuWait'], value['maxPreempted'], \
+                value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
+                value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
+                value['writeBlockCnt'], value['writeBlock'], \
+                (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                value['dReclaimWait'], value['dReclaimCnt']))
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -5466,11 +5482,11 @@ class ThreadAnalyzer(object):
                 if float(self.preemptData[index][4]) == 0:
                     break
                 SystemManager.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n" \
-                        % (self.threadData[key]['comm'], key, '0', self.threadData[key]['new'], \
-                        self.threadData[key]['die'], value['usage'], \
-                        str(round(float(value['usage']) / float(self.preemptData[index][4]) * 100, 1))))
+                    % (self.threadData[key]['comm'], key, '0', self.threadData[key]['new'], \
+                    self.threadData[key]['die'], value['usage'], \
+                    str(round(float(value['usage']) / float(self.preemptData[index][4]) * 100, 1))))
             SystemManager.pipePrint("%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
-                    ('', 'PRT', tid, self.threadData[tid]['comm'], self.preemptData[index][4], count))
+                ('', 'PRT', tid, self.threadData[tid]['comm'], self.preemptData[index][4], count))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
@@ -5483,18 +5499,18 @@ class ThreadAnalyzer(object):
             count += 1
             if SystemManager.showAll is True:
                 SystemManager.addPrint(\
-                        ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
-                        "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
-                        (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                        value['usage'], str(round(float(usagePercent), 1)), \
-                        value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
-                        value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                        value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                        value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                        value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
-                        value['dReclaimWait'], value['dReclaimCnt']))
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
+                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    value['usage'], str(round(float(usagePercent), 1)), \
+                    value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                    value['yield'], value['preempted'], value['preemption'], value['migrate'], \
+                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
+                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                    value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                    value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'New', count))
             SystemManager.pipePrint(SystemManager.bufferString)
@@ -5510,18 +5526,18 @@ class ThreadAnalyzer(object):
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
             if SystemManager.showAll is True:
                 SystemManager.addPrint(\
-                        ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
-                        "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
-                        (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                        value['usage'], str(round(float(usagePercent), 1)), \
-                        value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
-                        value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                        value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                        value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                        value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
-                        value['dReclaimWait'], value['dReclaimCnt']))
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
+                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    value['usage'], str(round(float(usagePercent), 1)), \
+                    value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                    value['yield'], value['preempted'], value['preemption'], value['migrate'], \
+                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
+                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
+                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
+                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
+                    value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                    value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
             SystemManager.pipePrint(SystemManager.bufferString)
@@ -5531,8 +5547,8 @@ class ThreadAnalyzer(object):
         if SystemManager.showAll is True and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + \
-                    '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
-                    '[Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+                '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
+                '[Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -5547,7 +5563,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread Signal Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s\t %16s(%5s)" % \
-                    ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
+                ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemManager.pipePrint(twoLine)
 
             for val in self.sigData:
@@ -5558,11 +5574,11 @@ class ThreadAnalyzer(object):
 
                 if val[0] == 'SEND':
                     SystemManager.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
-                            (val[0], val[1], val[2], val[3], \
-                            ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                        (val[0], val[1], val[2], val[3], \
+                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
                     SystemManager.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
-                            (val[0], val[1], '', '', ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                        (val[0], val[1], '', '', ConfigManager.sigList[int(val[6])], val[4], val[5]))
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
@@ -5573,7 +5589,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("%16s(%16s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
-                    ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
+                ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
             SystemManager.pipePrint(twoLine)
 
             SystemManager.clearPrint()
@@ -5581,13 +5597,13 @@ class ThreadAnalyzer(object):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SystemManager.addPrint("%16s(%16s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
-                        (key, self.irqData[key]['name'], self.irqData[key]['count'], \
-                        self.irqData[key]['usage'], self.irqData[key]['max'], \
-                        self.irqData[key]['min'], self.irqData[key]['max_period'], \
-                        self.irqData[key]['min_period']))
+                    (key, self.irqData[key]['name'], self.irqData[key]['count'], \
+                    self.irqData[key]['usage'], self.irqData[key]['max'], \
+                    self.irqData[key]['min'], self.irqData[key]['max_period'], \
+                    self.irqData[key]['min_period']))
 
             SystemManager.pipePrint("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
-                    ('', len(self.irqData), totalUsage, totalCnt))
+                ('', len(self.irqData), totalUsage, totalCnt))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
@@ -5619,7 +5635,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n' + '[Thread Module Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
-                format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
+            format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
         SystemManager.pipePrint(twoLine)
 
         for val in self.moduleData:
@@ -5639,8 +5655,8 @@ class ThreadAnalyzer(object):
 
             elif event is 'free':
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
-                        format('FREE', float(time) - float(self.startTime), module, \
-                        self.threadData[tid]['comm'], tid, ''))
+                    format('FREE', float(time) - float(self.startTime), module, \
+                    self.threadData[tid]['comm'], tid, ''))
             elif event is 'put':
                 try:
                     moduleTable[module]
@@ -5651,8 +5667,8 @@ class ThreadAnalyzer(object):
                 moduleTable[module]['startTime'] = 0
 
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
-                        format('LOAD', float(time) - float(self.startTime), module, \
-                        self.threadData[tid]['comm'], tid, moduleTable[module]['elapsed']))
+                    format('LOAD', float(time) - float(self.startTime), module, \
+                    self.threadData[tid]['comm'], tid, moduleTable[module]['elapsed']))
 
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
@@ -5664,7 +5680,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n' + '[Thread Dependency Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
-                ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
+            ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
 
@@ -5683,7 +5699,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
-                    ("Name", "Tid", "Syscall", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
+                ("Name", "Tid", "Syscall", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
@@ -5702,9 +5718,10 @@ class ThreadAnalyzer(object):
                     try:
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
+
                             SystemManager.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f" % \
-                            (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
-                             val['count'], val['min'], val['max'], val['average']))
+                                (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
+                                 val['count'], val['min'], val['max'], val['average']))
                     except:
                         continue
             SystemManager.pipePrint(SystemManager.bufferString)
@@ -5715,7 +5732,7 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint('\n' + '[Thread Syscall History Info]')
                 SystemManager.pipePrint(twoLine)
                 SystemManager.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
-                        ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
+                    ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
                 SystemManager.pipePrint(twoLine)
 
                 for icount in range(0, len(self.syscallData)):
@@ -5726,7 +5743,7 @@ class ThreadAnalyzer(object):
                                 eventType = 'both'
                                 eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
                                 diffTime = float(self.syscallData[icount + 1][1]) - \
-                                        float(self.syscallData[icount][1])
+                                    float(self.syscallData[icount][1])
                                 ret = self.syscallData[icount + 1][5]
                                 param = self.syscallData[icount][5]
                             else:
@@ -5747,10 +5764,10 @@ class ThreadAnalyzer(object):
                                 param = '-'
 
                         SystemManager.pipePrint("%16s(%4s)\t%6.6f\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
-                                (self.threadData[self.syscallData[icount][2]]['comm'], \
-                                self.syscallData[icount][2], eventTime, diffTime, eventType, \
-                                ConfigManager.sysList[int(self.syscallData[icount][4])], \
-                                self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
+                            (self.threadData[self.syscallData[icount][2]]['comm'], \
+                            self.syscallData[icount][2], eventTime, diffTime, eventType, \
+                            ConfigManager.sysList[int(self.syscallData[icount][4])], \
+                            self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
                     except:
                         continue
                 SystemManager.pipePrint(oneLine)
@@ -5762,14 +5779,14 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread Message Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                    "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
+                "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
             SystemManager.pipePrint(twoLine)
 
             for msg in self.consoleData:
                 try:
                     SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
-                            (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
-                             round(float(msg[2]) - float(self.startTime), 7), msg[3]))
+                        (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
+                        round(float(msg[2]) - float(self.startTime), 7), msg[3]))
                 except:
                     continue
 
@@ -5778,8 +5795,7 @@ class ThreadAnalyzer(object):
 
 
     def printIntervalInfo(self):
-        SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % \
-                SystemManager.intervalEnable)
+        SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
         # Total timeline #
@@ -5791,7 +5807,7 @@ class ThreadAnalyzer(object):
             # check suspend event #
             for val in self.suspendData:
                 if float(self.startTime) + cnt * SystemManager.intervalEnable < float(val[0]) < \
-                        float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                    float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
                     if val[1] == 'S':
                         checkEvent = '!'
                     elif val[1] == 'F':
@@ -5802,7 +5818,7 @@ class ThreadAnalyzer(object):
             # check mark event #
             for val in self.markData:
                 if float(self.startTime) + cnt * SystemManager.intervalEnable < float(val) < \
-                        float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                    float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
                     checkEvent = 'v'
 
             # print timeline #
@@ -5829,7 +5845,7 @@ class ThreadAnalyzer(object):
 
                     timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
-                        (value['comm'], '0', value['tgid']) + timeLine + '\n')
+                    (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
                 if SystemManager.graphEnable is True:
                     try:
@@ -5840,11 +5856,11 @@ class ThreadAnalyzer(object):
 
                         subplot(2, 1, 1)
                         range(SystemManager.intervalEnable, \
-                                (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                                SystemManager.intervalEnable)
+                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
+                            SystemManager.intervalEnable)
                         plot(range(SystemManager.intervalEnable, \
-                                (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                                SystemManager.intervalEnable), timeLineData, '.-')
+                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
+                            SystemManager.intervalEnable), timeLineData, '.-')
                         SystemManager.graphLabels.append(value['comm'])
                     except:
                         SystemManager.graphEnable = False
@@ -5873,7 +5889,7 @@ class ThreadAnalyzer(object):
         for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
             try:
                 timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * \
-                        SystemManager.blockSize / 1024 / 1024)
+                    SystemManager.blockSize / 1024 / 1024)
             except:
                 timeLine += '%3d ' % (0)
         SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
@@ -5925,8 +5941,8 @@ class ThreadAnalyzer(object):
 
                     subplot(2, 1, 2)
                     plot(range(SystemManager.intervalEnable, \
-                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable), timeLineData, '.-')
+                        (len(timeLineData)+1)*SystemManager.intervalEnable, \
+                        SystemManager.intervalEnable), timeLineData, '.-')
                     SystemManager.graphLabels.append(value['comm'])
 
                 if value['usage'] / float(self.totalTime) * 100 < 1 and SystemManager.showAll is False:
@@ -5977,8 +5993,8 @@ class ThreadAnalyzer(object):
                         dieFlag = self.intervalData[icount][key]['die']
 
                     timeLine += '%4s' % (newFlag + \
-                            str(int(self.intervalData[icount][key]['preempted'] / \
-                            float(SystemManager.intervalEnable) * 100)) + dieFlag)
+                        str(int(self.intervalData[icount][key]['preempted'] / \
+                        float(SystemManager.intervalEnable) * 100)) + dieFlag)
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -6021,8 +6037,8 @@ class ThreadAnalyzer(object):
                         dieFlag = self.intervalData[icount][key]['die']
 
                     timeLine += '%4s' % (newFlag + \
-                            str(int(self.intervalData[icount][key]['ioUsage'] * \
-                            SystemManager.blockSize / 1024 / 1024)) + dieFlag)
+                        str(int(self.intervalData[icount][key]['ioUsage'] * \
+                        SystemManager.blockSize / 1024 / 1024)) + dieFlag)
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -6034,8 +6050,8 @@ class ThreadAnalyzer(object):
 
                     subplot(2, 1, 1)
                     plot(range(SystemManager.intervalEnable, \
-                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable), timeLineData, '.-')
+                        (len(timeLineData)+1)*SystemManager.intervalEnable, \
+                        SystemManager.intervalEnable), timeLineData, '.-')
                     SystemManager.graphLabels.append(value['comm'])
 
                 if value['readBlock'] < 1 and SystemManager.showAll == False:
@@ -6084,8 +6100,8 @@ class ThreadAnalyzer(object):
                             dieFlag = self.intervalData[icount][key]['die']
 
                         timeLine += '%4s' % (newFlag + \
-                                str(int((self.intervalData[icount][key]['memUsage'] * 4 / 1024) + \
-                                (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))) + dieFlag)
+                            str(int((self.intervalData[icount][key]['memUsage'] * 4 / 1024) + \
+                            (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                     if SystemManager.graphEnable is True:
@@ -6096,8 +6112,8 @@ class ThreadAnalyzer(object):
 
                         subplot(2, 1, 2)
                         plot(range(SystemManager.intervalEnable, \
-                                (len(timeLineData) + 1) * SystemManager.intervalEnable, \
-                                SystemManager.intervalEnable), timeLineData, '.-')
+                            (len(timeLineData) + 1) * SystemManager.intervalEnable, \
+                            SystemManager.intervalEnable), timeLineData, '.-')
                         SystemManager.graphLabels.append(value['comm'])
 
                     if (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024) < 1 and \
@@ -6137,7 +6153,7 @@ class ThreadAnalyzer(object):
                 # Find recognizable log in file #
                 if readLineCnt > 500 and SystemManager.recordStatus is not True:
                     SystemManager.printError(\
-                            "Fail to recognize format: corrupted log or no log collected")
+                        "Fail to recognize format: corrupted log or no log collected")
                     SystemManager.runRecordStopCmd()
                     sys.exit(0)
 
@@ -6157,14 +6173,14 @@ class ThreadAnalyzer(object):
                 readLineCnt += 1
 
                 m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)' + \
-                        r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
                 if m is not None:
                     d = m.groupdict()
                     f.close()
                     return d['time']
 
                 m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' + \
-                        r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
                 if m is not None:
                     d = m.groupdict()
                     f.close()
@@ -6183,10 +6199,10 @@ class ThreadAnalyzer(object):
 
         if SystemManager.tgidEnable is True:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+                r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         else:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
-                    r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         if m is not None:
             d = m.groupdict()
             comm = d['comm']
@@ -6232,9 +6248,9 @@ class ThreadAnalyzer(object):
                 for key, value in sorted(self.lastTidPerCore.items()):
                     try:
                         if float(time) - float(self.threadData[self.lastTidPerCore[key]]['start']) > \
-                                SystemManager.intervalEnable / 1000:
+                            SystemManager.intervalEnable / 1000:
                             self.threadData[self.lastTidPerCore[key]]['usage'] += \
-                                    float(time) - float(self.threadData[self.lastTidPerCore[key]]['start'])
+                                float(time) - float(self.threadData[self.lastTidPerCore[key]]['start'])
 
                             self.threadData[self.lastTidPerCore[key]]['start'] = float(time)
                     except:
@@ -6249,9 +6265,9 @@ class ThreadAnalyzer(object):
 
                 # calculate usage of threads in interval #
                 if SystemManager.intervalEnable > 0:
-                    if float(time) - float(self.startTime) \
-                        > float(SystemManager.intervalNow + SystemManager.intervalEnable) \
-                                                or self.finishTime != '0':
+                    intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
+
+                    if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
                         SystemManager.intervalNow += SystemManager.intervalEnable
 
                         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
@@ -6296,7 +6312,7 @@ class ThreadAnalyzer(object):
                             # add time not calculated yet in this interval to related threads #
                             for idx, val in self.lastTidPerCore.items():
                                 intervalThread['totalUsage'] += \
-                                        (float(time) - float(self.threadData[val]['start']))
+                                    (float(time) - float(self.threadData[val]['start']))
 
                             # mark life flag #
                             if self.threadData[key]['new'] != ' ':
@@ -6321,17 +6337,17 @@ class ThreadAnalyzer(object):
                                 prevIntervalThread = self.intervalData[index - 1][key]
 
                                 intervalThread['cpuUsage'] += \
-                                        intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
+                                    intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
                                 intervalThread['preempted'] += \
-                                        intervalThread['totalPreempted'] - prevIntervalThread['totalPreempted']
+                                    intervalThread['totalPreempted'] - prevIntervalThread['totalPreempted']
                                 intervalThread['coreSchedCnt'] = \
-                                        intervalThread['totalCoreSchedCnt'] - prevIntervalThread['totalCoreSchedCnt']
+                                    intervalThread['totalCoreSchedCnt'] - prevIntervalThread['totalCoreSchedCnt']
                                 intervalThread['ioUsage'] = \
-                                        intervalThread['totalIoUsage'] - prevIntervalThread['totalIoUsage']
+                                    intervalThread['totalIoUsage'] - prevIntervalThread['totalIoUsage']
                                 intervalThread['memUsage'] = \
-                                        intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
+                                    intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
                                 intervalThread['kmemUsage'] = \
-                                        intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
+                                    intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
 
                             # fix cpu usage exceed this interval #
                             self.thisInterval = SystemManager.intervalEnable
@@ -6392,7 +6408,7 @@ class ThreadAnalyzer(object):
 
                             # add remainter of cpu usage exceed interval in this interval to previous interval #
                             if SystemManager.intervalNow - SystemManager.intervalEnable > 0 and \
-                                    self.thisInterval > SystemManager.intervalEnable:
+                                self.thisInterval > SystemManager.intervalEnable:
                                 diff = self.thisInterval - SystemManager.intervalEnable
                                 if prevIntervalThread['cpuUsage'] + diff > SystemManager.intervalEnable:
                                     diff = SystemManager.intervalEnable - prevIntervalThread['cpuUsage']
@@ -6453,9 +6469,9 @@ class ThreadAnalyzer(object):
 
             if func == "sched_switch":
                 m = re.match(r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' + \
-                        r'prev_prio=(?P<prev_prio>\S+)\s+prev_state=(?P<prev_state>\S+)\s+==>\s+' + \
-                        r'next_comm=(?P<next_comm>.*)\s+next_pid=(?P<next_pid>[0-9]+)\s+' + \
-                        r'next_prio=(?P<next_prio>\S+)', etc)
+                    r'prev_prio=(?P<prev_prio>\S+)\s+prev_state=(?P<prev_state>\S+)\s+==>\s+' + \
+                    r'next_comm=(?P<next_comm>.*)\s+next_pid=(?P<next_pid>[0-9]+)\s+' + \
+                    r'next_prio=(?P<next_prio>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6516,7 +6532,7 @@ class ThreadAnalyzer(object):
                         int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
                         self.threadData[prev_id]['pri'] = d['prev_prio']
                     if self.threadData[next_id]['pri'] == '0' or \
-                            int(self.threadData[next_id]['pri']) > int(d['next_prio']):
+                        int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
                     # calculate running time of prev_process #
@@ -6553,7 +6569,7 @@ class ThreadAnalyzer(object):
                                     self.preemptData[index][1][prev_id] = dict(self.init_preemptData)
 
                                 self.preemptData[index][1][prev_id]['usage'] +=  \
-                                self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
+                                    self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
                                 self.preemptData[index][4] += \
                                     self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
 
@@ -6598,6 +6614,7 @@ class ThreadAnalyzer(object):
                             preemptedTime = \
                                 self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
                             self.threadData[next_id]['cpuWait'] += preemptedTime
+
                             if preemptedTime > self.threadData[next_id]['maxPreempted']:
                                 self.threadData[next_id]['maxPreempted'] = preemptedTime
 
@@ -6705,7 +6722,7 @@ class ThreadAnalyzer(object):
 
             elif func == "sched_migrate_task":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
-                        r'orig_cpu=(?P<orig_cpu>[0-9]+)\s+dest_cpu=(?P<dest_cpu>[0-9]+)', etc)
+                    r'orig_cpu=(?P<orig_cpu>[0-9]+)\s+dest_cpu=(?P<dest_cpu>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6731,7 +6748,7 @@ class ThreadAnalyzer(object):
 
             elif func == "mm_page_alloc":
                 m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
-                        r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
+                    r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6817,7 +6834,7 @@ class ThreadAnalyzer(object):
 
             elif func == "mm_filemap_delete_from_page_cache":
                 m = re.match(r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' + \
-                        r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)', etc)
+                    r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6832,7 +6849,7 @@ class ThreadAnalyzer(object):
 
             elif func == "kmalloc":
                 m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+bytes_req=(?P<req>[0-9]+)\s+' + \
-                        r'bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
+                    r'bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6889,7 +6906,7 @@ class ThreadAnalyzer(object):
 
             elif func == "sched_wakeup":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
-                        r'success=(?P<success>[0-9]+)\s+target_cpu=(?P<target>[0-9]+)', etc)
+                    r'success=(?P<success>[0-9]+)\s+target_cpu=(?P<target>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -6901,7 +6918,7 @@ class ThreadAnalyzer(object):
                     elif thread[0] == '0' or pid == '0':
                         return
                     elif self.wakeupData['valid'] > 0 \
-                             and (self.wakeupData['from'] != self.wakeupData['tid'] or self.wakeupData['to'] != pid):
+                        and (self.wakeupData['from'] != self.wakeupData['tid'] or self.wakeupData['to'] != pid):
                         if self.wakeupData['valid'] == 1 and self.wakeupData['corrupt'] == '0':
                             try:
                                 kicker = self.threadData[self.wakeupData['tid']]['comm']
@@ -6912,10 +6929,11 @@ class ThreadAnalyzer(object):
                         else:
                             kicker = self.threadData[thread]['comm']
                             kicker_pid = thread
+
                         self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
-                                (round(float(time) - float(self.startTime), 7), \
-                                 round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                 kicker, kicker_pid, target_comm, pid, "kick"))
+                            (round(float(time) - float(self.startTime), 7), \
+                             round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                             kicker, kicker_pid, target_comm, pid, "kick"))
 
                         self.wakeupData['time'] = float(time) - float(self.startTime)
                         self.wakeupData['from'] = self.wakeupData['tid']
@@ -6946,9 +6964,10 @@ class ThreadAnalyzer(object):
                         self.wakeupData['nr'] = nr
                         self.wakeupData['args'] = args
                         if (self.wakeupData['valid'] > 0 and \
-                                (self.wakeupData['tid'] == thread and \
-                                self.wakeupData['from'] == comm)) is False:
+                            (self.wakeupData['tid'] == thread and \
+                            self.wakeupData['from'] == comm)) is False:
                             self.wakeupData['valid'] += 1
+
                             if self.wakeupData['valid'] > 1:
                                 self.wakeupData['corrupt'] = '1'
                             else:
@@ -6995,24 +7014,24 @@ class ThreadAnalyzer(object):
                     if nr == ConfigManager.sysList.index("sys_write") and self.wakeupData['valid'] > 0:
                         self.wakeupData['valid'] -= 1
                     elif nr == ConfigManager.sysList.index("sys_select") or \
-                            nr == ConfigManager.sysList.index("sys_poll") or \
-                            nr == ConfigManager.sysList.index("sys_epoll_wait"):
+                        nr == ConfigManager.sysList.index("sys_poll") or \
+                        nr == ConfigManager.sysList.index("sys_epoll_wait"):
                         if (self.lastJob[core]['job'] == "sched_switch" or \
-                                self.lastJob[core]['job'] == "sched_wakeup") and \
-                                self.lastJob[core]['prevWakeupTid'] != thread:
+                            self.lastJob[core]['job'] == "sched_wakeup") and \
+                            self.lastJob[core]['prevWakeupTid'] != thread:
                             self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(float(time) - float(self.startTime), 7), \
-                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                    " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
+                                (round(float(time) - float(self.startTime), 7), \
+                                round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
 
                             self.wakeupData['time'] = float(time) - float(self.startTime)
                             self.lastJob[core]['prevWakeupTid'] = thread
                     elif nr == ConfigManager.sysList.index("sys_recv"):
                         if self.lastJob[core]['prevWakeupTid'] != thread:
                             self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(float(time) - float(self.startTime), 7), \
-                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                    " ", " ", self.threadData[thread]['comm'], thread, "recv"))
+                                (round(float(time) - float(self.startTime), 7), \
+                                round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                " ", " ", self.threadData[thread]['comm'], thread, "recv"))
 
                             self.wakeupData['time'] = float(time) - float(self.startTime)
                             self.lastJob[core]['prevWakeupTid'] = thread
@@ -7030,6 +7049,7 @@ class ThreadAnalyzer(object):
                         diff = float(time) - self.threadData[thread]['syscallInfo'][nr]['last']
                         self.threadData[thread]['syscallInfo'][nr]['usage'] += diff
                         self.threadData[thread]['syscallInfo'][nr]['last'] = 0
+                        self.threadData[thread]['syscallInfo'][nr]['count'] += 1
 
                         if self.threadData[thread]['syscallInfo'][nr]['max'] == 0 or \
                             self.threadData[thread]['syscallInfo'][nr]['max'] < diff:
@@ -7037,7 +7057,6 @@ class ThreadAnalyzer(object):
                         if self.threadData[thread]['syscallInfo'][nr]['min'] <= 0 or \
                             self.threadData[thread]['syscallInfo'][nr]['min'] > diff:
                             self.threadData[thread]['syscallInfo'][nr]['min'] = diff
-                        self.threadData[thread]['syscallInfo'][nr]['count'] += 1
 
                     if len(SystemManager.syscallList) > 0:
                         try:
@@ -7061,12 +7080,12 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
 
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
-                            (round(float(time) - float(self.startTime), 7), \
-                            round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                            self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
+                        (round(float(time) - float(self.startTime), 7), \
+                        round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                        self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
 
                     self.sigData.append(('SEND', float(time) - float(self.startTime), \
-                     self.threadData[thread]['comm'], thread, target_comm, pid, sig))
+                        self.threadData[thread]['comm'], thread, target_comm, pid, sig))
 
                     self.wakeupData['time'] = float(time) - float(self.startTime)
 
@@ -7075,7 +7094,7 @@ class ThreadAnalyzer(object):
                         if sig == str(ConfigManager.sigList.index('SIGCHLD')):
                             if self.threadData[pid]['waitStartAsParent'] > 0:
                                 if self.threadData[pid]['waitPid'] == 0 or \
-                                        self.threadData[pid]['waitPid'] == int(thread):
+                                    self.threadData[pid]['waitPid'] == int(thread):
                                     diff = float(time) - self.threadData[pid]['waitStartAsParent']
                                     self.threadData[thread]['waitParent'] = diff
                                     self.threadData[pid]['waitChild'] += diff
@@ -7094,18 +7113,18 @@ class ThreadAnalyzer(object):
                     flags = d['flags']
 
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
-                            (round(float(time) - float(self.startTime), 7), \
-                            round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), "", "", \
-                            self.threadData[thread]['comm'], thread, "sigrecv", sig))
+                        (round(float(time) - float(self.startTime), 7), \
+                        round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), "", "", \
+                        self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
                     self.sigData.append(('RECV', float(time) - float(self.startTime), \
-                            None, None, self.threadData[thread]['comm'], thread, sig))
+                        None, None, self.threadData[thread]['comm'], thread, sig))
 
                     self.wakeupData['time'] = float(time) - float(self.startTime)
 
             elif func == "block_bio_remap":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                        r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7113,8 +7132,8 @@ class ThreadAnalyzer(object):
                         bio = d['major'] + '/' + d['minor'] + '/' + d['operation'][0] + '/' + d['address']
 
                         self.ioData[bio] = {'thread': thread, 'time': float(time), \
-                                'major': d['major'], 'minor': d['minor'], \
-                                'address': int(d['address']), 'size': int(d['size'])}
+                            'major': d['major'], 'minor': d['minor'], \
+                            'address': int(d['address']), 'size': int(d['size'])}
 
                         self.threadData[thread]['reqBlock'] += int(d['size'])
                         self.threadData[thread]['readQueueCnt'] += 1
@@ -7125,7 +7144,7 @@ class ThreadAnalyzer(object):
 
             elif func == "block_rq_complete":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)' + \
-                        r'\s*\(\S*\s*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                    r'\s*\(\S*\s*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7144,7 +7163,7 @@ class ThreadAnalyzer(object):
                     for key, value in sorted(self.ioData.items(), key=lambda e: e[1]['address'], reverse=False):
                         if value['major'] == d['major'] and value['minor'] == d['minor']:
                             if bioStart <= value['address'] < bioEnd or \
-                                    bioStart < value['address'] + value['size'] <= bioEnd:
+                                bioStart < value['address'] + value['size'] <= bioEnd:
 
                                 matchBlock = 0
 
@@ -7200,7 +7219,7 @@ class ThreadAnalyzer(object):
 
             elif func == "writeback_dirty_page":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                        r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', etc)
+                    r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7211,7 +7230,7 @@ class ThreadAnalyzer(object):
 
             elif func == "wbc_writepage":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                        r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', etc)
+                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7289,7 +7308,7 @@ class ThreadAnalyzer(object):
 
             elif func == "task_rename":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' + \
-                        r'newcomm=(?P<newcomm>.*)\s+oom_score_adj', etc)
+                    r'newcomm=(?P<newcomm>.*)\s+oom_score_adj', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7565,17 +7584,17 @@ class ThreadAnalyzer(object):
                     except:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
                         self.cpuData['all'] = {'user': long(statList[1]), \
-                                'nice': long(statList[2]), 'system': long(statList[3]), \
-                                'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                                'irq': long(statList[6]), 'softirq': long(statList[7])}
+                            'nice': long(statList[2]), 'system': long(statList[3]), \
+                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), 'softirq': long(statList[7])}
                 elif cpuId.rfind('cpu') == 0:
                     try:
                         self.cpuData[int(cpuId[3:])]
                     except:
                         self.cpuData[int(cpuId[3:])] = {'user': long(statList[1]), \
-                                'nice': long(statList[2]), 'system': long(statList[3]), \
-                                'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                                'irq': long(statList[6]), 'softirq': long(statList[7])}
+                            'nice': long(statList[2]), 'system': long(statList[3]), \
+                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), 'softirq': long(statList[7])}
                 else:
                     try:
                         self.cpuData[cpuId]
@@ -7964,9 +7983,9 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
-                "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
-                format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-                "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "Flt(KB)", "Mlock"))
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
+            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
+            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "Flt(KB)", "Mlock"))
         SystemManager.addPrint(oneLine + '\n')
 
         # set biggest core number #
@@ -7983,23 +8002,23 @@ class ThreadAnalyzer(object):
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
-        userUsage = int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
-                / maxCore) / interval)
+        userUsage = \
+            int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) / maxCore) / interval)
         kerUsage = int(((nowData['system'] - prevData['system']) / maxCore) / interval)
-        irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-                / maxCore) / interval)
+        irqUsage = \
+            int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) / maxCore) / interval)
         ioUsage = int(((nowData['iowait'] - prevData['iowait']) / maxCore) / interval)
 
         totalUsage = int(userUsage + kerUsage + irqUsage + ioUsage)
 
         SystemManager.addPrint(("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
-                "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
-                format("Total", \
-                str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
-                freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
-                swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
-                str(bgReclaim) + '/' + str(drReclaim), \
-                str(pgInMem) + '/' + str(pgOutMem), majFaultMem, mlockMem))
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
+            format("Total", \
+            str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
+            freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
+            swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
+            str(bgReclaim) + '/' + str(drReclaim), \
+            str(pgInMem) + '/' + str(pgOutMem), majFaultMem, mlockMem))
 
         # print each cpu usage #
         if SystemManager.showAll is True:
@@ -8013,11 +8032,11 @@ class ThreadAnalyzer(object):
                     int(idx)
 
                     userUsage = int((nowData['user'] - prevData['user'] + \
-                                nowData['nice'] - prevData['nice']) / interval)
+                        nowData['nice'] - prevData['nice']) / interval)
                     kerUsage = int((nowData['system'] - prevData['system']) / interval)
                     ioUsage = int((nowData['iowait'] - prevData['iowait']) / interval)
                     irqUsage = int((nowData['irq'] - prevData['irq'] + \
-                                nowData['softirq'] - prevData['softirq']) / interval)
+                        nowData['softirq'] - prevData['softirq']) / interval)
                     totalUsage = userUsage + kerUsage + ioUsage + irqUsage
 
                     if totalUsage > 100:
@@ -8028,8 +8047,7 @@ class ThreadAnalyzer(object):
                         kerUsage = 100
 
                     SystemManager.addPrint("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|\n".\
-                            format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, \
-                            ioUsage, irqUsage))
+                        format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage))
                 except:
                     continue
 
@@ -8093,10 +8111,10 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(\
-                ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
-                "{9:^4}({10:^5}/{11:^4}/{12:^3})| {13:^3}({14:^4}/{15:^4}/{16:^6})|{17:>9}|\n").\
-                format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
-                "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt", "LifeTime"))
+            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
+            "{9:^4}({10:^5}/{11:^4}/{12:^3})| {13:^3}({14:^4}/{15:^4}/{16:^6})|{17:>9}|\n").\
+            format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
+            "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt", "LifeTime"))
 
         SystemManager.addPrint(oneLine + '\n')
 
@@ -8104,19 +8122,19 @@ class ThreadAnalyzer(object):
         if SystemManager.sort is not None:
             if SystemManager.sort == 'c':
                 sortedProcData = sorted(self.procData.items(), \
-                        key=lambda e: e[1]['ttime'], reverse=True)
+                    key=lambda e: e[1]['ttime'], reverse=True)
             elif SystemManager.sort == 'm':
                 sortedProcData = sorted(self.procData.items(), \
-                        key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
             elif SystemManager.sort == 'b':
                 sortedProcData = sorted(self.procData.items(), \
-                        key=lambda e: e[1]['btime'], reverse=True)
+                    key=lambda e: e[1]['btime'], reverse=True)
             elif SystemManager.sort == 'w':
                 sortedProcData = sorted(self.procData.items(), \
-                        key=lambda e: e[1]['cttime'], reverse=True)
+                    key=lambda e: e[1]['cttime'], reverse=True)
             else:
                 sortedProcData = sorted(self.procData.items(), \
-                        key=lambda e: e[1]['ttime'], reverse=True)
+                    key=lambda e: e[1]['ttime'], reverse=True)
         else:
             sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True)
 
@@ -8159,13 +8177,13 @@ class ThreadAnalyzer(object):
             if SystemManager.processEnable is True:
                 pid = value['stat'][self.ppidIdx]
                 stackSize = (long(value['stat'][self.sstackIdx]) - \
-                        long(value['stat'][self.estackIdx])) / 1024 / 1024
+                    long(value['stat'][self.estackIdx])) / 1024 / 1024
             else:
                 pid = value['mainID']
                 stackSize = '-'
 
             codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) / 1024 / 1024
+                long(value['stat'][self.scodeIdx])) / 1024 / 1024
 
             if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                 schedValue = int(value['stat'][self.prioIdx]) - 20
@@ -8188,14 +8206,14 @@ class ThreadAnalyzer(object):
                 writeSize = '-'
 
             SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                    "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
-                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
-                    long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
-                    value['btime'], readSize, writeSize, value['majflt'], lifeTime))
+                ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
+                "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
+                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
+                long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
+                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                value['btime'], readSize, writeSize, value['majflt'], lifeTime))
             procCnt += 1
 
         if procCnt == 0:
@@ -8210,13 +8228,13 @@ class ThreadAnalyzer(object):
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
                     stackSize = (long(value['stat'][self.sstackIdx]) - \
-                            long(value['stat'][self.estackIdx])) / 1024 / 1024
+                        long(value['stat'][self.estackIdx])) / 1024 / 1024
                 else:
                     pid = value['mainID']
                     stackSize = '-'
 
                 codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                        long(value['stat'][self.scodeIdx])) / 1024 / 1024
+                    long(value['stat'][self.scodeIdx])) / 1024 / 1024
 
                 if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                     schedValue = int(value['stat'][self.prioIdx]) - 20
@@ -8240,14 +8258,14 @@ class ThreadAnalyzer(object):
 
                 # print die thread information #
                 SystemManager.addPrint(\
-                        ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                        "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
-                        format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                        ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                        value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
-                        long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                        long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
-                        value['btime'], readSize, writeSize, value['majflt'], lifeTime))
+                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
+                    "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
+                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
+                    long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
+                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                    value['btime'], readSize, writeSize, value['majflt'], lifeTime))
                 dieCnt += 1
 
                 try:
@@ -8258,7 +8276,7 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
-                    SystemManager.printFile is None:
+                SystemManager.printFile is None:
                 return
 
         if dieCnt > 0:
@@ -8268,11 +8286,11 @@ class ThreadAnalyzer(object):
 
     def printTopUsage(self):
         SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
-                "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n") % \
-                (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
-                self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
-                self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
-                self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
+            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n") % \
+            (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
+            self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
+            self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
+            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
 
         # print system usage #
         self.printSystemUsage()
@@ -8446,6 +8464,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.alarm(SystemManager.repeatInterval)
+
             if SystemManager.outputFile is None:
                 SystemManager.printError("wrong option with -s, use parameter for saving data")
                 sys.exit(0)
@@ -8515,7 +8534,7 @@ if __name__ == '__main__':
             # compare init time with now time for buffer verification #
             if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
                 SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
-                        SystemManager.getBufferSize())
+                    SystemManager.getBufferSize())
                 SystemManager.runRecordStopCmd()
                 SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
@@ -8531,7 +8550,7 @@ if __name__ == '__main__':
 
         if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
             SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
-                    SystemManager.getBufferSize())
+                SystemManager.getBufferSize())
             SystemManager.runRecordStopFinalCmd()
             sys.exit(0)
 
@@ -8609,7 +8628,7 @@ if __name__ == '__main__':
                 import matplotlib
                 matplotlib.use('Agg')
                 from pylab import \
-                        rc, rcParams, subplot, plot, title, ylabel, legend, figure, savefig, clf
+                    rc, rcParams, subplot, plot, title, ylabel, legend, figure, savefig, clf
             except:
                 SystemManager.printError("making graph is not supported because of no matplotlib")
                 SystemManager.graphEnable = False
