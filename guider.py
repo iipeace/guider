@@ -63,35 +63,35 @@ class ConfigManager(object):
         'sys_write',
         'sys_open',
         'sys_close',
-        'sys_ni_syscall',            # was sys_waitpid #
+        'sys_sys_waitpid',
         'sys_creat',
         'sys_link',
         'sys_unlink', # 10 #
         'sys_execve',
         'sys_chdir',
-        'sys_time',  # used by libc4 #
+        'sys_time',
         'sys_mknod',
         'sys_chmod',
         'sys_lchown16',
-        'sys_ni_syscall',            # was sys_break #
-        'sys_ni_syscall',            # was sys_stat #
+        'sys_break',
+        'sys_sys_stat',
         'sys_lseek',
         'sys_getpid', # 20 #
         'sys_mount',
-        'sys_oldumount',     # used by libc4 #
+        'sys_oldumount',
         'sys_setuid16',
         'sys_getuid16',
         'sys_stime',
         'sys_ptrace',
-        'sys_alarm', # used by libc4 #
-        'sys_ni_syscall',            # was sys_fstat #
+        'sys_alarm',
+        'sys_fstat',
         'sys_pause',
-        'sys_utime', # used by libc4 # 30 #
-        'sys_ni_syscall',            # was sys_stty #
-        'sys_ni_syscall',            # was sys_getty #
+        'sys_utime', # 30 #
+        'sys_stty',
+        'sys_getty',
         'sys_access',
         'sys_nice',
-        'sys_ni_syscall',            # was sys_ftime #
+        'sys_ftime',
         'sys_sync',
         'sys_kill',
         'sys_rename',
@@ -100,22 +100,22 @@ class ConfigManager(object):
         'sys_dup',
         'sys_pipe',
         'sys_times',
-        'sys_ni_syscall',            # was sys_prof #
+        'sys_prof',
         'sys_brk',
         'sys_setgid16',
         'sys_getgid16',
-        'sys_ni_syscall',            # was sys_signal #
+        'sys_signal',
         'sys_geteuid16',
         'sys_getegid16', # 50 #
         'sys_acct',
         'sys_umount',
-        'sys_ni_syscall',            # was sys_lock #
+        'sys_lock',
         'sys_ioctl',
         'sys_fcntl',
-        'sys_ni_syscall',            # was sys_mpx #
+        'sys_mpx',
         'sys_setpgid',
-        'sys_ni_syscall',            # was sys_ulimit #
-        'sys_ni_syscall',            # was sys_olduname #
+        'sys_ulimit',
+        'sys_olduname',
         'sys_umask', # 60 #
         'sys_chroot',
         'sys_ustat',
@@ -124,29 +124,29 @@ class ConfigManager(object):
         'sys_getpgrp',
         'sys_setsid',
         'sys_sigaction',
-        'sys_ni_syscall',            # was sys_sgetmask #
-        'sys_ni_syscall',            # was sys_ssetmask #
+        'sys_sgetmask',
+        'sys_ssetmask',
         'sys_setreuid16', # 70 #
         'sys_setregid16',
         'sys_sigsuspend',
         'sys_sigpending',
         'sys_sethostname',
         'sys_setrlimit',
-        'sys_old_getrlimit', # used by libc4 #
+        'sys_old_getrlimit',
         'sys_getrusage',
         'sys_gettimeofday',
         'sys_settimeofday',
         'sys_getgroups16', # 80 #
         'sys_setgroups16',
-        'sys_old_select',    # used by libc4 #
+        'sys_old_select',
         'sys_symlink',
-        'sys_ni_syscall',            # was sys_lstat #
+        'sys_lstat',
         'sys_readlink',
         'sys_uselib',
         'sys_swapon',
         'sys_reboot',
-        'sys_old_readdir',   # used by libc4 #
-        'sys_old_mmap',      # used by libc4 # 90 #
+        'sys_old_readdir',
+        'sys_old_mmap', # 90 #
         'sys_munmap',
         'sys_truncate',
         'sys_ftruncate',
@@ -154,10 +154,10 @@ class ConfigManager(object):
         'sys_fchown16',
         'sys_getpriority',
         'sys_setpriority',
-        'sys_ni_syscall',            # was sys_profil #
+        'sys_profil',
         'sys_statfs',
         'sys_fstatfs', # 100 #
-        'sys_ni_syscall',            # sys_ioperm #
+        'sys_ioperm',
         'sys_socketcall',
         'sys_syslog',
         'sys_setitimer',
@@ -165,11 +165,11 @@ class ConfigManager(object):
         'sys_newstat',
         'sys_newlstat',
         'sys_newfstat',
-        'sys_ni_syscall',            # was sys_uname #
-        'sys_ni_syscall',            # was sys_iopl # 110 #
+        'sys_uname',
+        'sys_iopl', # 110 #
         'sys_vhangup',
         'sys_ni_syscall',
-        'sys_syscall',       # call a syscall #
+        'sys_syscall',
         'sys_wait4',
         'sys_swapoff',
         'sys_sysinfo',
@@ -179,21 +179,21 @@ class ConfigManager(object):
         'sys_clone', # 120 #
         'sys_setdomainname',
         'sys_newuname',
-        'sys_ni_syscall',            # modify_ldt #
+        'sys_ni_syscall', # modify_ldt #
         'sys_adjtimex',
         'sys_mprotect',
         'sys_sigprocmask',
-        'sys_ni_syscall',            # was sys_create_module #
+        'sys_create_module',
         'sys_init_module',
         'sys_delete_module',
-        'sys_ni_syscall',            # was sys_get_kernel_syms # 130 #
+        'sys_get_kernel_syms', # 130 #
         'sys_quotactl',
         'sys_getpgid',
         'sys_fchdir',
         'sys_bdflush',
         'sys_sysfs',
         'sys_personality',
-        'sys_ni_syscall',            # reserved for afs_syscall #
+        'sys_ni_syscall', # reserved for afs_syscall #
         'sys_setfsuid16',
         'sys_setfsgid16',
         'sys_llseek', # 140 #
@@ -222,10 +222,10 @@ class ConfigManager(object):
         'sys_mremap',
         'sys_setresuid16',
         'sys_getresuid16',
-        'sys_ni_syscall',            # vm86 #
-        'sys_ni_syscall',            # was sys_query_module #
+        'sys_ni_syscall', # vm86 #
+        'sys_query_module',
         'sys_poll',
-        'sys_ni_syscall',            # was nfsservctl #
+        'sys_nfsservctl',
         'sys_setresgid16', # 170 #
         'sys_getresgid16',
         'sys_prctl',
@@ -244,8 +244,8 @@ class ConfigManager(object):
         'sys_capset',
         'sys_sigaltstack',
         'sys_sendfile',
-        'sys_ni_syscall',            # getpmsg #
-        'sys_ni_syscall',            # putpmsg #
+        'sys_getpmsg',
+        'sys_putpmsg',
         'sys_vfork', # 190 #
         'sys_getrlimit',
         'sys_mmap2',
@@ -310,8 +310,8 @@ class ConfigManager(object):
         'sys_epoll_ctl',
         'sys_epoll_wait',
         'sys_remap_file_pages',
-        'sys_ni_syscall',    # sys_set_thread_area #
-        'sys_ni_syscall',    # sys_get_thread_area #
+        'sys_set_thread_area',
+        'sys_get_thread_area',
         'sys_set_tid_address',
         'sys_timer_create',
         'sys_timer_settime',
@@ -786,6 +786,179 @@ class FunctionAnalyzer(object):
 
 
 
+    def handlePageFree(self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn):
+        self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
+        self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
+
+        for cnt in range(0, pageFreeCnt):
+            pfnv = pfn + cnt
+            subStackPageInfoIdx = 0
+
+            try:
+                # Decrease page count of symbol allocated page  #
+                # toDo: fix bug about wrong count of pos #
+                allocSym = self.pageTable[pfnv]['sym']
+                allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+                allocKernelSym = self.pageTable[pfnv]['kernelSym']
+                allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
+
+                self.userSymData[allocSym]['pageCnt'] -= 1
+                self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
+
+                if pageType is 'USER':
+                    self.userSymData[allocSym]['userPageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
+                    subStackPageInfoIdx = 0
+                elif pageType is 'CACHE':
+                    self.userSymData[allocSym]['cachePageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
+                    subStackPageInfoIdx = 1
+                elif pageType is 'KERNEL':
+                    self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
+                    subStackPageInfoIdx = 2
+
+                # Set user target stack #
+                if self.sort is 'sym':
+                    targetStack = self.userSymData[allocSym]['symStack']
+                elif self.sort is 'pos':
+                    targetStack = self.userSymData[allocSym]['stack']
+
+                # Find subStack allocated this page #
+                for val in targetStack:
+                    if id(val[1]) == allocStackAddr:
+                        val[2] -= 1
+                        val[5][subStackPageInfoIdx] -= 1
+                        break
+
+                # Set kernel target stack #
+                kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
+
+                # Find subStack allocated this page #
+                for val in kernelTargetStack:
+                    if id(val[1]) == allocKernelStackAddr:
+                        val[2] -= 1
+                        val[5][subStackPageInfoIdx] -= 1
+                        break
+
+                del self.pageTable[pfnv]
+                self.pageTable[pfnv] = {}
+            except:
+                # this page is allocated before starting profile #
+                continue
+
+
+
+    def handlePageAlloc(self, sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn):
+        subStackPageInfoIdx = 0
+
+        # Increase counts of page to be allocated #
+        self.userSymData[sym]['pageCnt'] += pageAllocCnt
+        self.kernelSymData[kernelSym]['pageCnt'] += pageAllocCnt
+
+        if pageType == 'USER':
+            self.userSymData[sym]['userPageCnt'] += pageAllocCnt
+            self.kernelSymData[kernelSym]['userPageCnt'] += pageAllocCnt
+            subStackPageInfoIdx = 0
+        elif pageType == 'CACHE':
+            self.userSymData[sym]['cachePageCnt'] += pageAllocCnt
+            self.kernelSymData[kernelSym]['cachePageCnt'] += pageAllocCnt
+            subStackPageInfoIdx = 1
+        elif pageType == 'KERNEL':
+            self.userSymData[sym]['kernelPageCnt'] += pageAllocCnt
+            self.kernelSymData[kernelSym]['kernelPageCnt'] += pageAllocCnt
+            subStackPageInfoIdx = 2
+
+        # Set user target stack #
+        if self.sort is 'sym':
+            targetStack = self.userSymData[sym]['symStack']
+        elif self.sort is 'pos':
+            targetStack = self.userSymData[sym]['stack']
+
+        # Find subStack of symbol allocated this page #
+        for val in targetStack:
+            if id(val[1]) == stackAddr:
+                # Increase page count of subStack #
+                val[5][subStackPageInfoIdx] += pageAllocCnt
+                break
+
+        # Set kernel target stack #
+        kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+
+        # Find subStack of symbol allocated this page #
+        for val in kernelTargetStack:
+            if id(val[1]) == kernelStackAddr:
+                # Increase page count of subStack #
+                val[5][subStackPageInfoIdx] += pageAllocCnt
+                break
+
+        # Make PTE in page table #
+        for cnt in range(0, pageAllocCnt):
+            pfnv = pfn + cnt
+            subStackPageInfoIdx = 0
+
+            try:
+                # Check whether this page is already allocated #
+                allocSym = self.pageTable[pfnv]['sym']
+
+                allocStackAddr = self.pageTable[pfnv]['subStackAddr']
+                allocKernelSym = self.pageTable[pfnv]['kernelSym']
+                allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
+
+                # Decrease counts of page already allocated but no free log #
+                self.pageUsageCnt -= 1
+                self.userSymData[allocSym]['pageCnt'] -= 1
+                self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
+
+                origPageType = self.pageTable[pfnv]['type']
+                if origPageType == 'USER':
+                    self.userSymData[allocSym]['userPageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
+                    subStackPageInfoIdx = 0
+                elif origPageType == 'CACHE':
+                    self.userSymData[allocSym]['cachePageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
+                    subStackPageInfoIdx = 1
+                elif origPageType == 'KERNEL':
+                    self.userSymData[allocSym]['kernelPageCnt'] -= 1
+                    self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
+                    subStackPageInfoIdx = 2
+
+                # Set user target stack #
+                if self.sort is 'sym':
+                    targetStack = self.userSymData[allocSym]['symStack']
+                elif self.sort is 'pos':
+                    targetStack = self.userSymData[allocSym]['stack']
+
+                # Find user subStack of symbol allocated this page #
+                for val in targetStack:
+                    if id(val[1]) == allocStackAddr:
+                        # Decrease allocated page count of substack #
+                        val[2] -= 1
+                        val[5][subStackPageInfoIdx] -= 1
+                        break
+
+                # Set kernel target stack #
+                kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
+
+                # Find user subStack of symbol allocated this page #
+                for val in kernelTargetStack:
+                    if id(val[1]) == allocKernelStackAddr:
+                        # Decrease allocated page count of substack #
+                        val[2] -= 1
+                        val[5][subStackPageInfoIdx] -= 1
+                        break
+            except:
+                self.pageTable[pfnv] = dict(self.init_pageLinkData)
+
+            self.pageTable[pfnv]['sym'] = sym
+            self.pageTable[pfnv]['kernelSym'] = kernelSym
+            self.pageTable[pfnv]['type'] = pageType
+            self.pageTable[pfnv]['subStackAddr'] = stackAddr
+            self.pageTable[pfnv]['kernelSubStackAddr'] = kernelStackAddr
+
+
+
     def mergeStacks(self):
         sym = ''
         kernelSym = ''
@@ -797,7 +970,7 @@ class FunctionAnalyzer(object):
         self.oldPageTable = self.pageTable
         self.pageTable = {}
 
-        # Merge user call data by symbol or address #
+        # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
 
@@ -954,179 +1127,11 @@ class FunctionAnalyzer(object):
 
             # memory allocation event #
             if pageAllocCnt > 0:
-                pageType = arg[0]
-                pfn = arg[1]
-                subStackPageInfoIdx = 0
-
-                # Increase counts of page to be allocated #
-                self.userSymData[sym]['pageCnt'] += pageAllocCnt
-                self.kernelSymData[kernelSym]['pageCnt'] += pageAllocCnt
-
-                if pageType == 'USER':
-                    self.userSymData[sym]['userPageCnt'] += pageAllocCnt
-                    self.kernelSymData[kernelSym]['userPageCnt'] += pageAllocCnt
-                    subStackPageInfoIdx = 0
-                elif pageType == 'CACHE':
-                    self.userSymData[sym]['cachePageCnt'] += pageAllocCnt
-                    self.kernelSymData[kernelSym]['cachePageCnt'] += pageAllocCnt
-                    subStackPageInfoIdx = 1
-                elif pageType == 'KERNEL':
-                    self.userSymData[sym]['kernelPageCnt'] += pageAllocCnt
-                    self.kernelSymData[kernelSym]['kernelPageCnt'] += pageAllocCnt
-                    subStackPageInfoIdx = 2
-
-                # Set user target stack #
-                if self.sort is 'sym':
-                    targetStack = self.userSymData[sym]['symStack']
-                elif self.sort is 'pos':
-                    targetStack = self.userSymData[sym]['stack']
-
-                # Find subStack of symbol allocated this page #
-                for val in targetStack:
-                    if id(val[1]) == stackAddr:
-                        # Increase page count of subStack #
-                        val[5][subStackPageInfoIdx] += pageAllocCnt
-                        break
-
-                # Set kernel target stack #
-                kernelTargetStack = self.kernelSymData[kernelSym]['stack']
-
-                # Find subStack of symbol allocated this page #
-                for val in kernelTargetStack:
-                    if id(val[1]) == kernelStackAddr:
-                        # Increase page count of subStack #
-                        val[5][subStackPageInfoIdx] += pageAllocCnt
-                        break
-
-                # Make PTE in page table #
-                for cnt in range(0, pageAllocCnt):
-                    pfnv = pfn + cnt
-                    subStackPageInfoIdx = 0
-
-                    try:
-                        # Check whether this page is already allocated #
-                        allocSym = self.pageTable[pfnv]['sym']
-
-                        allocStackAddr = self.pageTable[pfnv]['subStackAddr']
-                        allocKernelSym = self.pageTable[pfnv]['kernelSym']
-                        allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
-
-                        # Decrease counts of page already allocated but no free log #
-                        self.pageUsageCnt -= 1
-                        self.userSymData[allocSym]['pageCnt'] -= 1
-                        self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
-
-                        origPageType = self.pageTable[pfnv]['type']
-                        if origPageType == 'USER':
-                            self.userSymData[allocSym]['userPageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
-                            subStackPageInfoIdx = 0
-                        elif origPageType == 'CACHE':
-                            self.userSymData[allocSym]['cachePageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
-                            subStackPageInfoIdx = 1
-                        elif origPageType == 'KERNEL':
-                            self.userSymData[allocSym]['kernelPageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
-                            subStackPageInfoIdx = 2
-
-                        # Set user target stack #
-                        if self.sort is 'sym':
-                            targetStack = self.userSymData[allocSym]['symStack']
-                        elif self.sort is 'pos':
-                            targetStack = self.userSymData[allocSym]['stack']
-
-                        # Find user subStack of symbol allocated this page #
-                        for val in targetStack:
-                            if id(val[1]) == allocStackAddr:
-                                # Decrease allocated page count of substack #
-                                val[2] -= 1
-                                val[5][subStackPageInfoIdx] -= 1
-                                break
-
-                        # Set kernel target stack #
-                        kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
-
-                        # Find user subStack of symbol allocated this page #
-                        for val in kernelTargetStack:
-                            if id(val[1]) == allocKernelStackAddr:
-                                # Decrease allocated page count of substack #
-                                val[2] -= 1
-                                val[5][subStackPageInfoIdx] -= 1
-                                break
-                    except:
-                        self.pageTable[pfnv] = dict(self.init_pageLinkData)
-
-                    self.pageTable[pfnv]['sym'] = sym
-                    self.pageTable[pfnv]['kernelSym'] = kernelSym
-                    self.pageTable[pfnv]['type'] = pageType
-                    self.pageTable[pfnv]['subStackAddr'] = stackAddr
-                    self.pageTable[pfnv]['kernelSubStackAddr'] = kernelStackAddr
+                self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, arg[0], arg[1])
 
             # memory free event #
             elif pageFreeCnt > 0:
-                pageType = arg[0]
-                pfn = arg[1]
-
-                self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
-                self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
-
-                for cnt in range(0, pageFreeCnt):
-                    pfnv = pfn + cnt
-                    subStackPageInfoIdx = 0
-
-                    try:
-                        # Decrease page count of symbol allocated page  #
-                        # toDo: fix bug about wrong count of pos #
-                        allocSym = self.pageTable[pfnv]['sym']
-                        allocStackAddr = self.pageTable[pfnv]['subStackAddr']
-                        allocKernelSym = self.pageTable[pfnv]['kernelSym']
-                        allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
-
-                        self.userSymData[allocSym]['pageCnt'] -= 1
-                        self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
-
-                        if pageType is 'USER':
-                            self.userSymData[allocSym]['userPageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
-                            subStackPageInfoIdx = 0
-                        elif pageType is 'CACHE':
-                            self.userSymData[allocSym]['cachePageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
-                            subStackPageInfoIdx = 1
-                        elif pageType is 'KERNEL':
-                            self.userSymData[allocSym]['kernelPageCnt'] -= 1
-                            self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
-                            subStackPageInfoIdx = 2
-
-                        # Set user target stack #
-                        if self.sort is 'sym':
-                            targetStack = self.userSymData[allocSym]['symStack']
-                        elif self.sort is 'pos':
-                            targetStack = self.userSymData[allocSym]['stack']
-
-                        # Find subStack allocated this page #
-                        for val in targetStack:
-                            if id(val[1]) == allocStackAddr:
-                                val[2] -= 1
-                                val[5][subStackPageInfoIdx] -= 1
-                                break
-
-                        # Set kernel target stack #
-                        kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
-
-                        # Find subStack allocated this page #
-                        for val in kernelTargetStack:
-                            if id(val[1]) == allocKernelStackAddr:
-                                val[2] -= 1
-                                val[5][subStackPageInfoIdx] -= 1
-                                break
-
-                        del self.pageTable[pfnv]
-                        self.pageTable[pfnv] = {}
-                    except:
-                        # this page is allocated before starting profile #
-                        continue
+                self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, arg[0], arg[1])
 
             # block event #
             elif blockCnt > 0:
@@ -1134,10 +1139,13 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[kernelSym]['blockCnt'] += blockCnt
 
             # periodic event such as cpu tick #
-            else:
-                cpuCnt = 1
+            elif cpuCnt > 0:
                 self.userSymData[sym]['cnt'] += 1
                 self.kernelSymData[kernelSym]['cnt'] += 1
+
+            # etc event #
+            else:
+                SystemManager.printWarning("Fail to process for merging")
 
 
 
@@ -1400,6 +1408,161 @@ class FunctionAnalyzer(object):
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, 0, None, targetEvent])
 
+    def saveCallStack(self):
+        # stack of kernel thread #
+        if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel' and \
+            len(self.nowCtx['userCallStack']) == 0 and len(self.nowCtx['kernelCallStack']) > 0:
+                # Set userLastPos to None #
+            self.nowCtx['userLastPos'] = '0'
+            self.nowCtx['userCallStack'].append('0')
+
+        # complicated situation ;( #
+        elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
+            # previous user stack loss or nested interval #
+            if self.nowCtx['curMode'] is 'kernel':
+            # nested interval #
+                if self.nowCtx['nowEvent'] is 'CPU_TICK':
+                    # Backup kernel stack #
+                    self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
+                    self.nowCtx['bakKernelCallStack'] = self.nowCtx['kernelCallStack']
+
+                    # Initialize both stacks #
+                    self.initStacks()
+                # previous user stack loss #
+                else:
+                    # Set userLastPos to None #
+                    self.nowCtx['userLastPos'] = '0'
+                    self.nowCtx['userCallStack'].append('0')
+            # nested interval #
+            elif self.nowCtx['curMode'] is 'user':
+                '''
+                CORE/0 EVENT0
+                CORE/0 <kernel>
+                CORE/0 <user>
+
+                CORE/0 EVENT1
+                CORE/0 <kernel>
+                    CORE/0 EVENT2
+                    CORE/0 <kernel>
+                    CORE/0 <user>
+                CORE/0 <user>
+                '''
+                # Swap nowEvent and savedEvent #
+                self.swapEvents()
+
+        # Save both stacks of previous event before starting to record new kernel stack #
+        if (len(self.nowCtx['userCallStack']) > 0 and self.nowCtx['userLastPos'] != '') and \
+            (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
+                # Remove pc in each stacks #
+            del self.nowCtx['kernelCallStack'][0], \
+                self.nowCtx['userCallStack'][0]
+
+            # Check whether there is nested event or not #
+            if self.nowCtx['nested'] > 0:
+                '''
+                CORE/0 EVENT0
+                CORE/0 <kernel>
+                CORE/0 <user>
+
+                CORE/0 EVENT1
+                    CORE/0 EVENT2
+                    CORE/0 <kernel>
+                    CORE/0 <user>
+                CORE/0 <kernel>
+                CORE/0 <user>
+                '''
+                targetEvent = self.nowCtx['nestedEvent']
+                targetCnt = self.nowCtx['nestedCnt']
+                targetArg = self.nowCtx['nestedArg']
+
+                # Swap nowEvent and savedEvent #
+                self.swapEvents()
+            else:
+                targetEvent = self.nowCtx['savedEvent']
+                targetCnt = self.nowCtx['savedCnt']
+                targetArg = self.nowCtx['savedArg']
+
+            # Save full stack of previous event #
+            self.saveFullStack(targetEvent, targetCnt, targetArg)
+
+            # Recover previous kernel stack after handling nested event #
+            if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
+                self.nowCtx['bakKernelLastPos'] != '0':
+                self.nowCtx['kernelLastPos'] = self.nowCtx['bakKernelLastPos']
+                self.nowCtx['kernelCallStack'] = self.nowCtx['bakKernelCallStack']
+                self.nowCtx['bakKernelLastPos'] = '0'
+                self.nowCtx['bakKernelCallStack'] = []
+            else:
+                self.nowCtx['kernelLastPos'] = ''
+                self.nowCtx['kernelCallStack'] = []
+
+            # Initialize user stack #
+            self.nowCtx['userLastPos'] = ''
+            self.nowCtx['userCallStack'] = []
+            self.nowCtx['nestedEvent'] = ''
+            self.nowCtx['nestedCnt'] = 0
+
+        # On stack recording switch #
+        self.nowCtx['recStat'] = True
+
+
+
+    def savePosData(self, pos, path, offset):
+        if self.nowCtx['nested'] > 0:
+            targetEvent = self.nowCtx['savedEvent']
+        else:
+            targetEvent = self.nowCtx['nowEvent']
+
+        # Register pos #
+        try:
+            self.posData[pos]
+        except:
+            self.posData[pos] = dict(self.init_posData)
+
+        # user mode #
+        if self.nowCtx['curMode'] is 'user':
+            # Set path #
+            if path is not None:
+                self.posData[pos]['origBin'] = path
+                self.posData[pos]['binary'] = SystemManager.rootPath + path
+                self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
+
+                # Set offset #
+                if offset is not None:
+                    if SystemManager.isRelocatableFile(path) is True:
+                        self.posData[pos]['offset'] = offset
+
+            # Save pos #
+            if len(self.nowCtx['userCallStack']) == 0:
+                self.nowCtx['userLastPos'] = pos
+
+                if targetEvent == 'CPU_TICK':
+                    self.posData[pos]['posCnt'] += 1
+
+            self.nowCtx['userCallStack'].append(pos)
+        # kernel mode #
+        elif self.nowCtx['curMode'] is 'kernel':
+            # Save pos #
+            if len(self.nowCtx['kernelCallStack']) == 0:
+                self.nowCtx['kernelLastPos'] = pos
+
+                if targetEvent == 'CPU_TICK':
+                    self.posData[pos]['posCnt'] += 1
+
+            self.posData[pos]['symbol'] = path
+
+            self.nowCtx['kernelCallStack'].append(pos)
+
+        # wrong mode #
+        else:
+            SystemManager.printWarning('wrong current mode %s' % self.nowCtx['curMode'])
+
+        # Increase total call count #
+        if self.nowEvent == 'CPU_TICK':
+            self.posData[pos]['totalCnt'] += 1
+
+
+
     def parseLogs(self, lines, desc):
         for liter in lines:
             SystemManager.logSize += len(liter)
@@ -1417,101 +1580,7 @@ class FunctionAnalyzer(object):
 
             # Save full stack to callData table #
             if ret is True:
-                # stack of kernel thread #
-                if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel' and \
-                    len(self.nowCtx['userCallStack']) == 0 and len(self.nowCtx['kernelCallStack']) > 0:
-                        # Set userLastPos to None #
-                    self.nowCtx['userLastPos'] = '0'
-                    self.nowCtx['userCallStack'].append('0')
-
-                # complicated situation ;( #
-                elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
-                    # previous user stack loss or nested interval #
-                    if self.nowCtx['curMode'] is 'kernel':
-                    # nested interval #
-                        if self.nowCtx['nowEvent'] is 'CPU_TICK':
-                            # Backup kernel stack #
-                            self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
-                            self.nowCtx['bakKernelCallStack'] = self.nowCtx['kernelCallStack']
-
-                            # Initialize both stacks #
-                            self.initStacks()
-                        # previous user stack loss #
-                        else:
-                            # Set userLastPos to None #
-                            self.nowCtx['userLastPos'] = '0'
-                            self.nowCtx['userCallStack'].append('0')
-                    # nested interval #
-                    elif self.nowCtx['curMode'] is 'user':
-                        '''
-                        CORE/0 EVENT0
-                        CORE/0 <kernel>
-                        CORE/0 <user>
-
-                        CORE/0 EVENT1
-                        CORE/0 <kernel>
-                            CORE/0 EVENT2
-                            CORE/0 <kernel>
-                            CORE/0 <user>
-                        CORE/0 <user>
-                        '''
-                        # Swap nowEvent and savedEvent #
-                        self.swapEvents()
-
-                # Save both stacks of previous event before starting to record new kernel stack #
-                if (len(self.nowCtx['userCallStack']) > 0 and self.nowCtx['userLastPos'] != '') and \
-                    (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
-                        # Remove pc in each stacks #
-                    del self.nowCtx['kernelCallStack'][0], \
-                        self.nowCtx['userCallStack'][0]
-
-                    # Check whether there is nested event or not #
-                    if self.nowCtx['nested'] > 0:
-                        '''
-                        CORE/0 EVENT0
-                        CORE/0 <kernel>
-                        CORE/0 <user>
-
-                        CORE/0 EVENT1
-                            CORE/0 EVENT2
-                            CORE/0 <kernel>
-                            CORE/0 <user>
-                        CORE/0 <kernel>
-                        CORE/0 <user>
-                        '''
-                        targetEvent = self.nowCtx['nestedEvent']
-                        targetCnt = self.nowCtx['nestedCnt']
-                        targetArg = self.nowCtx['nestedArg']
-
-                        # Swap nowEvent and savedEvent #
-                        self.swapEvents()
-                    else:
-                        targetEvent = self.nowCtx['savedEvent']
-                        targetCnt = self.nowCtx['savedCnt']
-                        targetArg = self.nowCtx['savedArg']
-
-                    # Save full stack of previous event #
-                    self.saveFullStack(targetEvent, targetCnt, targetArg)
-
-                    # Recover previous kernel stack after handling nested event #
-                    if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
-                        self.nowCtx['bakKernelLastPos'] != '0':
-                        self.nowCtx['kernelLastPos'] = self.nowCtx['bakKernelLastPos']
-                        self.nowCtx['kernelCallStack'] = self.nowCtx['bakKernelCallStack']
-                        self.nowCtx['bakKernelLastPos'] = '0'
-                        self.nowCtx['bakKernelCallStack'] = []
-                    else:
-                        self.nowCtx['kernelLastPos'] = ''
-                        self.nowCtx['kernelCallStack'] = []
-
-                    # Initialize user stack #
-                    self.nowCtx['userLastPos'] = ''
-                    self.nowCtx['userCallStack'] = []
-                    self.nowCtx['nestedEvent'] = ''
-                    self.nowCtx['nestedCnt'] = 0
-
-                # On stack recording switch #
-                self.nowCtx['recStat'] = True
+                self.saveCallStack()
 
             # Ignore this log because its not event or stack info related to target thread #
             elif ret is False:
@@ -1523,58 +1592,7 @@ class FunctionAnalyzer(object):
                 # decode return value #
                 (pos, path, offset) = ret
 
-                if self.nowCtx['nested'] > 0:
-                    targetEvent = self.nowCtx['savedEvent']
-                else:
-                    targetEvent = self.nowCtx['nowEvent']
-
-                # Register pos #
-                try:
-                    self.posData[pos]
-                except:
-                    self.posData[pos] = dict(self.init_posData)
-
-                # user mode #
-                if self.nowCtx['curMode'] is 'user':
-                    # Set path #
-                    if path is not None:
-                        self.posData[pos]['origBin'] = path
-                        self.posData[pos]['binary'] = SystemManager.rootPath + path
-                        self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
-
-                        # Set offset #
-                        if offset is not None:
-                            if SystemManager.isRelocatableFile(path) is True:
-                                self.posData[pos]['offset'] = offset
-
-                    # Save pos #
-                    if len(self.nowCtx['userCallStack']) == 0:
-                        self.nowCtx['userLastPos'] = pos
-
-                        if targetEvent == 'CPU_TICK':
-                            self.posData[pos]['posCnt'] += 1
-
-                    self.nowCtx['userCallStack'].append(pos)
-                # kernel mode #
-                elif self.nowCtx['curMode'] is 'kernel':
-                    # Save pos #
-                    if len(self.nowCtx['kernelCallStack']) == 0:
-                        self.nowCtx['kernelLastPos'] = pos
-
-                        if targetEvent == 'CPU_TICK':
-                            self.posData[pos]['posCnt'] += 1
-
-                    self.posData[pos]['symbol'] = path
-
-                    self.nowCtx['kernelCallStack'].append(pos)
-
-                # wrong mode #
-                else:
-                    SystemManager.printWarning('wrong current mode %s' % self.nowCtx['curMode'])
-
-                # Increase total call count #
-                if self.nowEvent == 'CPU_TICK':
-                    self.posData[pos]['totalCnt'] += 1
+                self.savePosData(pos, path, offset)
 
 
 
