@@ -131,7 +131,7 @@ class ConfigManager(object):
         'sys_bpf', 'sys_execveat', 'sys_userfaultfd', 'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range' #391#
         ]
 
-    # Define syscall for x64 #
+    # Define syscall for x86_64 #
     sysList_x64 = [
         'sys_read', 'sys_write', 'sys_open', 'sys_close', 'sys_stat', 'sys_fstat', 'sys_lstat', 'sys_poll', 'sys_lseek',
         'sys_mmap', 'sys_mprotect', 'sys_munmap', 'sys_brk', 'sys_rt_sigaction', 'sys_rt_sigprocmask', 'sys_rt_sigreturn',
@@ -186,8 +186,8 @@ class ConfigManager(object):
         'sys_mlock2', 'sys_copy_file_range'
         ]
 
-    # Define syscall of target #
-    sysList = sysList_x64
+    # Set default syscall table to arm #
+    sysList = sysList_arm
 
     # Define signal #
     sigList = [
@@ -2712,6 +2712,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
     """
 
+    arch = 'arm'
     mountPath = None
     addr2linePath = None
     rootPath = None
@@ -2837,12 +2838,30 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setArch(arch):
+        SystemManager.arch = arch
+        SystemManager.removeEmptyValue(SystemManager.arch)
+
+        if arch == 'arm':
+            ConfigManager.sysList = ConfigManager.sysList_arm
+        elif arch == 'x64':
+            ConfigManager.sysList = ConfigManager.sysList_x64
+        elif arch == 'x86':
+            pass
+        else:
+            SystemManager.printError('Fail to set archtecture as %s, only support arm / x86 / x64' % arch)
+            SystemManager.arch = 'arm'
+
+
+
+    @staticmethod
     def printAnalOption():
         enableStat = ''
         disableStat = ''
 
         if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
             # common options #
+            enableStat += SystemManager.arch.upper() + ' '
             if SystemManager.warningEnable is True:
                 enableStat += 'WARNING '
 
@@ -2876,6 +2895,7 @@ class SystemManager(object):
         disableStat = ''
 
         # common options #
+        enableStat += SystemManager.arch.upper() + ' '
         if SystemManager.warningEnable is True:
             enableStat += 'WARNING '
         if SystemManager.pipeEnable is True:
@@ -3446,6 +3466,9 @@ class SystemManager(object):
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
 
+            elif option == 'A':
+                SystemManager.setArch(value)
+
             elif option == 'e':
                 options = value
                 if options.rfind('g') > -1:
@@ -3539,6 +3562,9 @@ class SystemManager(object):
 
             elif option == 'y':
                 SystemManager.systemEnable = True
+
+            elif option == 'A':
+                SystemManager.setArch(value)
 
             elif option == 'e':
                 options = value
@@ -6834,30 +6860,34 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['futexTotal'] += futexTime
                         self.threadData[thread]['futexEnter'] = 0
 
-                    if nr == ConfigManager.sysList.index("sys_write") and self.wakeupData['valid'] > 0:
-                        self.wakeupData['valid'] -= 1
-                    elif nr == ConfigManager.sysList.index("sys_select") or \
-                        nr == ConfigManager.sysList.index("sys_poll") or \
-                        nr == ConfigManager.sysList.index("sys_epoll_wait"):
-                        if (self.lastJob[core]['job'] == "sched_switch" or \
-                            self.lastJob[core]['job'] == "sched_wakeup") and \
-                            self.lastJob[core]['prevWakeupTid'] != thread:
-                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                (round(float(time) - float(self.startTime), 7), \
-                                round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
+                    try:
+                        if nr == ConfigManager.sysList.index("sys_write") and self.wakeupData['valid'] > 0:
+                            self.wakeupData['valid'] -= 1
+                        elif nr == ConfigManager.sysList.index("sys_select") or \
+                            nr == ConfigManager.sysList.index("sys_poll") or \
+                            nr == ConfigManager.sysList.index("sys_epoll_wait"):
+                            if (self.lastJob[core]['job'] == "sched_switch" or \
+                                self.lastJob[core]['job'] == "sched_wakeup") and \
+                                self.lastJob[core]['prevWakeupTid'] != thread:
+                                self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                    (round(float(time) - float(self.startTime), 7), \
+                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                    " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
 
-                            self.wakeupData['time'] = float(time) - float(self.startTime)
-                            self.lastJob[core]['prevWakeupTid'] = thread
-                    elif nr == ConfigManager.sysList.index("sys_recv"):
-                        if self.lastJob[core]['prevWakeupTid'] != thread:
-                            self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                (round(float(time) - float(self.startTime), 7), \
-                                round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                " ", " ", self.threadData[thread]['comm'], thread, "recv"))
+                                self.wakeupData['time'] = float(time) - float(self.startTime)
+                                self.lastJob[core]['prevWakeupTid'] = thread
+                        elif nr == ConfigManager.sysList.index("sys_recv"):
+                            if self.lastJob[core]['prevWakeupTid'] != thread:
+                                self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                    (round(float(time) - float(self.startTime), 7), \
+                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                                    " ", " ", self.threadData[thread]['comm'], thread, "recv"))
 
-                            self.wakeupData['time'] = float(time) - float(self.startTime)
-                            self.lastJob[core]['prevWakeupTid'] = thread
+                                self.wakeupData['time'] = float(time) - float(self.startTime)
+                                self.lastJob[core]['prevWakeupTid'] = thread
+                    except:
+                        SystemManager.printWarning('Fail to handle sys_exit event')
+                        pass
 
                     try:
                         self.threadData[thread]['syscallInfo']
@@ -8194,6 +8224,7 @@ if __name__ == '__main__':
         print '\t\t-q [make_taskchain]'
         print '\t[common]'
         print '\t\t-g [filter_specificGroup:comms|tids]'
+        print '\t\t-A [set_arch:arm|x86|x64]'
 
         print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
         print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
