@@ -4,6 +4,7 @@ syntax on
 set ai
 set si
 set cindent
+set smartindent
 set hlsearch 
 set fileencodings=utf-8,euc-kr
 set bs=indent,eol,start
@@ -14,6 +15,9 @@ set showmatch
 set wmnu     
 set shiftwidth=4
 set tabstop=4 
+set softtabstop=4
 set expandtab 
+
+filetype plugin indent on
 
 set tags+=.,/home/iipeace/work/linux-4.5.2/tags

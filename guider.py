@@ -2712,14 +2712,15 @@ class SystemManager(object):
     depEnable = False
     sysEnable = False
     waitEnable = False
-    functionEnable = False
-    systemEnable = False
-    fileEnable = False
-    threadEnable = False
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
     intervalEnable = 0
+
+    functionEnable = False
+    systemEnable = False
+    fileEnable = False
+    threadEnable = False
 
     repeatInterval = 0
     repeatCount = 0
@@ -2778,6 +2779,119 @@ class SystemManager(object):
 
 
     @staticmethod
+    def printAnalOption():
+        enableStat = ''
+        disableStat = ''
+
+
+
+    @staticmethod
+    def printLaunchOption():
+        enableStat = ''
+        disableStat = ''
+
+        # common options #
+        if SystemManager.warningEnable is True:
+            enableStat += 'WARNING '
+        if SystemManager.pipeEnable is True:
+            enableStat += 'PIPE '
+
+        # check current mode #
+        if SystemManager.isFunctionMode() is True:
+            SystemManager.printInfo("FUNCTION MODE")
+
+            if SystemManager.cpuEnable is False:
+                disableStat += 'CPU '
+            else:
+                enableStat += 'CPU '
+
+            if SystemManager.memEnable is False:
+                disableStat += 'MEMORY '
+            else:
+                enableStat += 'MEMORY '
+
+            if SystemManager.blockEnable is False:
+                disableStat += 'BLOCK '
+            else:
+                enableStat += 'BLOCK '
+
+            if SystemManager.userEnable is False:
+                disableStat += 'USER '
+            else:
+                enableStat += 'USER '
+
+        elif SystemManager.isFileMode() is True:
+            SystemManager.printInfo("FILE MODE")
+
+        elif SystemManager.isSystemMode() is True:
+            SystemManager.printInfo("SYSTEM MODE")
+            SystemManager.waitEnable = True
+
+        elif SystemManager.isTopMode() is True:
+            SystemManager.printInfo("TOP MODE")
+
+            if SystemManager.diskEnable is True:
+                enableStat += 'DISK '
+            if SystemManager.processEnable is False:
+                enableStat += 'THREAD '
+
+        else:
+            SystemManager.printInfo("THREAD MODE")
+            SystemManager.threadEnable = True
+
+            if SystemManager.graphEnable is True:
+                enableStat += 'GRAPH '
+            if SystemManager.irqEnable is True:
+                enableStat += 'IRQ '
+            if SystemManager.memEnable is True:
+                enableStat += 'MEMORY '
+            if SystemManager.blockEnable is True:
+                enableStat += 'BLOCK '
+            if SystemManager.futexEnable is True:
+                enableStat += 'FUTEX '
+            if SystemManager.depEnable is True:
+                enableStat += 'DEPENDENCY '
+            if SystemManager.sysEnable is True:
+                enableStat += 'SYSCALL '
+            if SystemManager.resetEnable is True:
+                enableStat += 'RESET '
+            if SystemManager.repeatCount > 0:
+                enableStat += 'REPEAT '
+
+        # print options #
+        if enableStat != '':
+            SystemManager.printInfo("enabled options [ %s]" % enableStat)
+
+        if disableStat != '':
+            SystemManager.printInfo("disabled options [ %s]" % disableStat)
+
+
+
+    @staticmethod
+    def isThreadMode():
+        return SystemManager.threadEnable
+
+
+
+    @staticmethod
+    def isFunctionMode():
+        return SystemManager.functionEnable
+
+
+
+    @staticmethod
+    def isFileMode():
+        return SystemManager.fileEnable
+
+
+
+    @staticmethod
+    def isSystemMode():
+        return SystemManager.systemEnable
+
+
+
+    @staticmethod
     def defaultHandler(signum, frame):
         return
 
@@ -2785,7 +2899,7 @@ class SystemManager(object):
 
     @staticmethod
     def stopHandler(signum, frame):
-        if SystemManager.fileEnable is True:
+        if SystemManager.isFileMode() is True:
             SystemManager.condExit = True
         elif SystemManager.isTopMode() is True:
             if SystemManager.printFile is not None:
@@ -2811,7 +2925,7 @@ class SystemManager(object):
     def newHandler(signum, frame):
         SystemManager.condExit = False
 
-        if SystemManager.fileEnable is True:
+        if SystemManager.isFileMode() is True:
             SystemManager.printStatus("Saved file usage successfully")
         elif SystemManager.isTopMode() is True:
             SystemManager.printTitle()
@@ -3009,7 +3123,7 @@ class SystemManager(object):
 
     @staticmethod
     def applyLaunchOption():
-        if SystemManager.SystemManagerBuffer == '' or SystemManager.functionEnable is not False:
+        if SystemManager.SystemManagerBuffer == '' or SystemManager.isFunctionMode() is True:
             return
 
         launchPosStart = SystemManager.SystemManagerBuffer.find('Launch')
@@ -3204,7 +3318,7 @@ class SystemManager(object):
                 SystemManager.printFile = str(value)
                 if os.path.isdir(SystemManager.printFile) == False:
                     SystemManager.printError("wrong option value %s with -o option, use directory name" % value)
-                    if SystemManager.isRecordMode() is True and SystemManager.systemEnable is False:
+                    if SystemManager.isRecordMode() is True and SystemManager.isSystemMode() is False:
                         SystemManager.runRecordStopFinalCmd()
                     sys.exit(0)
 
@@ -3251,20 +3365,17 @@ class SystemManager(object):
                 options = value
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
-                    SystemManager.printInfo("drawing resource usage graph")
                 if options.rfind('d') > -1:
                     SystemManager.diskEnable = True
-                    SystemManager.printInfo("disk profile")
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('w') > -1:
                     if SystemManager.warningEnable is False:
                         SystemManager.warningEnable = True
-                        SystemManager.printInfo("printing warning message")
 
             elif option == 'f':
                 # Handle error about record option #
-                if SystemManager.functionEnable is not False and SystemManager.outputFile is None:
+                if SystemManager.isFunctionMode() is True and SystemManager.outputFile is None:
                     SystemManager.printError("wrong option with -f, use also -s option for saving data")
                     if SystemManager.isRecordMode() is True:
                         SystemManager.runRecordStopFinalCmd()
@@ -3348,22 +3459,16 @@ class SystemManager(object):
                 options = value
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
-                    SystemManager.printInfo("irq profile")
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
-                    SystemManager.printInfo("memory profile")
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
-                    SystemManager.printInfo("recording from pipe")
                 if options.rfind('f') > -1:
                     SystemManager.futexEnable = True
-                    SystemManager.printInfo("futex profile")
                 if options.rfind('w') > -1:
                     SystemManager.warningEnable = True
-                    SystemManager.printInfo("printing warning message for debug")
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
-                    SystemManager.printInfo(r"reset key(ctrl + \) enabled")
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -3425,16 +3530,12 @@ class SystemManager(object):
                 options = value
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
-                    SystemManager.printInfo("cpu events are disabled")
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = False
-                    SystemManager.printInfo("memory events are disabled")
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = False
-                    SystemManager.printInfo("block events are disabled")
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
-                    SystemManager.printInfo("user mode events are disabled")
 
             elif option == 'l' or option == 'j' or option == 'i' or option == 'a' or option == 'q' or \
                 option == 'g' or option == 'p' or option == 'S':
@@ -3976,7 +4077,7 @@ class SystemManager(object):
         SystemManager.writeCmd('../trace_options', 'noannotate')
         SystemManager.writeCmd('../trace_options', 'print-tgid')
 
-        if SystemManager.functionEnable is not False:
+        if SystemManager.isFunctionMode() is True:
             cmd = "common_pid != 0"
 
             if len(SystemManager.showGroup) > 0:
@@ -8050,18 +8151,7 @@ if __name__ == '__main__':
 
         SystemManager.parseRecordOption()
 
-        if SystemManager.functionEnable is not False:
-            SystemManager.printInfo("function profile mode")
-            # toDo: make periodic event lesser than every 100us for specific thread #
-            # si.runPeriodProc()
-        elif SystemManager.fileEnable is not False:
-            SystemManager.printInfo("file profile mode")
-        elif SystemManager.systemEnable is not False:
-            SystemManager.waitEnable = True
-            SystemManager.printInfo("system profile mode")
-        else:
-            SystemManager.printInfo("thread profile mode")
-            SystemManager.threadEnable = True
+        SystemManager.printLaunchOption()
 
         # run in background #
         if SystemManager.backgroundEnable is True:
@@ -8079,7 +8169,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
-        if SystemManager.systemEnable is True:
+        if SystemManager.isSystemMode() is True:
             # save system info and write it to buffer #
             si.saveAllInfo()
             si.printAllInfoToBuf()
@@ -8097,7 +8187,7 @@ if __name__ == '__main__':
 
         # set signal #
         if SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0 and \
-            SystemManager.threadEnable is True:
+            SystemManager.isThreadMode() is True:
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.alarm(SystemManager.repeatInterval)
@@ -8112,7 +8202,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
         # create FileAnalyzer #
-        if SystemManager.fileEnable is not False:
+        if SystemManager.isFileMode() is True:
             # parse additional option #
             SystemManager.parseAddOption()
 
@@ -8202,7 +8292,7 @@ if __name__ == '__main__':
 
     # create Thread Info using proc #
     if SystemManager.isTopMode() is True:
-        SystemManager.printInfo("top profile mode")
+        SystemManager.printLaunchOption()
 
         # set handler for exit #
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
