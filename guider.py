@@ -2839,6 +2839,9 @@ class SystemManager(object):
 
     @staticmethod
     def setArch(arch):
+        if len(arch) == 0:
+            return
+
         SystemManager.arch = arch
         SystemManager.removeEmptyValue(SystemManager.arch)
 
@@ -2849,7 +2852,7 @@ class SystemManager(object):
         elif arch == 'x86':
             pass
         else:
-            SystemManager.printError('Fail to set archtecture as %s, only support arm / x86 / x64' % arch)
+            SystemManager.printError('Fail to set archtecture to %s, only support arm / x86 / x64' % arch)
             SystemManager.arch = 'arm'
 
 
@@ -4189,37 +4192,29 @@ class SystemManager(object):
         SystemManager.writeCmd('../trace_options', 'print-tgid')
 
         if SystemManager.isFunctionMode() is True:
-            cmd = "common_pid != 0"
+            cmd = ""
 
-            if len(SystemManager.showGroup) > 0:
-                if len(SystemManager.showGroup) > 1:
-                    SystemManager.printError("Only one tid is available to filter in funtion mode")
-                    sys.exit(0)
-
+            for cond in SystemManager.showGroup:
                 try:
-                    int(SystemManager.showGroup[0])
-                    cmd = "common_pid == %s" % SystemManager.showGroup[0]
+                    cmd += "common_pid == %s || " % int(cond)
                 except:
-                    if SystemManager.showGroup[0].find('>') == -1 and SystemManager.showGroup[0].find('<') == -1:
-                        SystemManager.printError("Wrong tid %s" % SystemManager.showGroup[0])
+                    if cond.find('>') == -1 and cond.find('<') == -1:
+                        SystemManager.printError("Wrong tid %s" % cond)
                         sys.exit(0)
                     else:
-                        if SystemManager.showGroup[0].find('>') >= 0:
-                            tid = SystemManager.showGroup[0][0:SystemManager.showGroup[0].find('>')]
-                            try:
-                                int(tid)
-                            except:
-                                SystemManager.printError("Wrong tid %s" % tid)
-                                sys.exit(0)
-                            cmd = "common_pid <= %s" % tid
-                        elif SystemManager.showGroup[0].find('<') >= 0:
-                            tid = SystemManager.showGroup[0][0:SystemManager.showGroup[0].find('<')]
-                            try:
-                                int(tid)
-                            except:
-                                SystemManager.printError("Wrong tid %s" % tid)
-                                sys.exit(0)
-                            cmd = "common_pid >= %s" % tid
+                        try:
+                            if cond.find('>') >= 0:
+                                cmd += "common_pid <= %s ||" % int(cond[:cond.find('>')])
+                            elif cond.find('<') >= 0:
+                                cmd += "common_pid >= %s ||" % int(cond[:cond.find('<')])
+                        except:
+                            SystemManager.printError("Wrong condition %s" % cond)
+                            sys.exit(0)
+
+            if cmd == "":
+                cmd = "common_pid != 0"
+            else:
+                cmd = cmd[:cmd.rfind('||')]
 
             if SystemManager.userEnable is True:
                 SystemManager.writeCmd('../trace_options', 'userstacktrace')
