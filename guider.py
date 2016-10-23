@@ -92,7 +92,7 @@ class ConfigManager(object):
         'sys_setresuid16', 'sys_getresuid16', 'sys_vm86', 'sys_query_module', 'sys_poll', 'sys_nfsservctl', #169#
         'sys_setresgid16', 'sys_getresgid16', 'sys_prctl', 'sys_rt_sigreturn_wrapper', 'sys_rt_sigaction',
         'sys_rt_sigprocmask', 'sys_rt_sigpending', 'sys_rt_sigtimedwait', 'sys_rt_sigqueueinfo', #178#
-        'sys_rt_sigsuspend', 'sys_pread64', 'sys_pwrite64', 'sys_chown16', 'sys_getcwd',  'sys_capget',
+        'sys_rt_sigsuspend', 'sys_pread64', 'sys_pwrite64', 'sys_chown16', 'sys_getcwd', 'sys_capget',
         'sys_capset', 'sys_sigaltstack', 'sys_sendfile', 'sys_getpmsg', 'sys_putpmsg', 'sys_vfork', #190#
         'sys_getrlimit', 'sys_mmap2', 'sys_truncate64', 'sys_ftruncate64', 'sys_stat64', 'sys_lstat64',
         'sys_fstat64', 'sys_lchown', 'sys_getuid', 'sys_getgid', 'sys_geteuid', 'sys_getegid', #203#
@@ -129,6 +129,69 @@ class ConfigManager(object):
         'sys_sendmmsg', 'sys_setns', 'sys_process_vm_readv', 'sys_process_vm_writev', 'sys_kcmp', 'sys_finit_module',
         'sys_sched_setattr', 'sys_sched_getattr', 'sys_renameat2', 'sys_seccomp', 'sys_getrandom', 'sys_memfd_create',
         'sys_bpf', 'sys_execveat', 'sys_userfaultfd', 'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range' #391#
+        ]
+
+    # Define syscall for x86_32 #
+    sysList_x86 = [
+        'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read', 'sys_write', 'sys_open', 'sys_close', 'sys_waitpid',
+        'sys_creat', 'sys_link', 'sys_unlink', 'sys_execve', 'sys_chdir', 'sys_time', 'sys_mknod', 'sys_chmod',
+        'sys_lchown', 'sys_break', 'sys_oldstat', 'sys_lseek', 'sys_getpid', 'sys_mount', 'sys_umount', 'sys_setuid',
+        'sys_getuid', 'sys_stime', 'sys_ptrace', 'sys_alarm', 'sys_oldfstat', 'sys_pause', 'sys_utime', 'sys_stty',
+        'sys_gtty', 'sys_access', 'sys_nice', 'sys_ftime', 'sys_sync', 'sys_kill', 'sys_rename', 'sys_mkdir',
+        'sys_rmdir', 'sys_dup', 'sys_pipe', 'sys_times', 'sys_prof', 'sys_brk', 'sys_setgid', 'sys_getgid', 'sys_signal',
+        'sys_geteuid', 'sys_getegid', 'sys_acct', 'sys_umount2', 'sys_lock', 'sys_ioctl', 'sys_fcntl', 'sys_mpx',
+        'sys_setpgid', 'sys_ulimit', 'sys_oldolduname', 'sys_umask', 'sys_chroot', 'sys_ustat', 'sys_dup2',
+        'sys_getppid', 'sys_getpgrp', 'sys_setsid', 'sys_sigaction', 'sys_sgetmask', 'sys_ssetmask', 'sys_setreuid',
+        'sys_setregid', 'sys_sigsuspend', 'sys_sigpending', 'sys_sethostname', 'sys_setrlimit', 'sys_getrlimit',
+        'sys_getrusage', 'sys_gettimeofday', 'sys_settimeofday', 'sys_getgroups', 'sys_setgroups', 'sys_select',
+        'sys_symlink', 'sys_oldlstat', 'sys_readlink', 'sys_uselib', 'sys_swapon', 'sys_reboot', 'sys_readdir',
+        'sys_mmap', 'sys_munmap', 'sys_truncate', 'sys_ftruncate', 'sys_fchmod', 'sys_fchown', 'sys_getpriority',
+        'sys_setpriority', 'sys_profil', 'sys_statfs', 'sys_fstatfs', 'sys_ioperm', 'sys_socketcall', 'sys_syslog',
+        'sys_setitimer', 'sys_getitimer', 'sys_stat', 'sys_lstat', 'sys_fstat', 'sys_olduname', 'sys_iopl',
+        'sys_vhangup', 'sys_idle', 'sys_vm86old', 'sys_wait4', 'sys_swapoff', 'sys_sysinfo', 'sys_ipc', 'sys_fsync',
+        'sys_sigreturn', 'sys_clone', 'sys_setdomainname', 'sys_uname', 'sys_modify_ldt', 'sys_adjtimex', 'sys_mprotect',
+        'sys_sigprocmask', 'sys_create_module', 'sys_init_module', 'sys_delete_module', 'sys_get_kernel_syms',
+        'sys_quotactl', 'sys_getpgid', 'sys_fchdir', 'sys_bdflush', 'sys_sysfs', 'sys_personality', 'sys_afs_syscall',
+        'sys_setfsuid', 'sys_setfsgid', 'sys__llseek', 'sys_getdents', 'sys__newselect', 'sys_flock', 'sys_msync',
+        'sys_readv', 'sys_writev', 'sys_getsid', 'sys_fdatasync', 'sys__sysctl', 'sys_mlock', 'sys_munlock',
+        'sys_mlockall', 'sys_munlockall', 'sys_sched_setparam', 'sys_sched_getparam', 'sys_sched_setscheduler',
+        'sys_sched_getscheduler', 'sys_sched_yield', 'sys_sched_get_priority_max', 'sys_sched_get_priority_min',
+        'sys_sched_rr_get_interval', 'sys_nanosleep', 'sys_mremap', 'sys_setresuid', 'sys_getresuid', 'sys_vm86',
+        'sys_query_module', 'sys_poll', 'sys_nfsservctl', 'sys_setresgid', 'sys_getresgid', 'sys_prctl',
+        'sys_rt_sigreturn', 'sys_rt_sigaction', 'sys_rt_sigprocmask', 'sys_rt_sigpending', 'sys_rt_sigtimedwait',
+        'sys_rt_sigqueueinfo', 'sys_rt_sigsuspend', 'sys_pread64', 'sys_pwrite64', 'sys_chown', 'sys_getcwd',
+        'sys_capget', 'sys_capset', 'sys_sigaltstack', 'sys_sendfile', 'sys_getpmsg', 'sys_putpmsg', 'sys_vfork',
+        'sys_ugetrlimit', 'sys_mmap2', 'sys_truncate64', 'sys_ftruncate64', 'sys_stat64', 'sys_lstat64', 'sys_fstat64',
+        'sys_lchown32', 'sys_getuid32', 'sys_getgid32', 'sys_geteuid32', 'sys_getegid32', 'sys_setreuid32',
+        'sys_setregid32', 'sys_getgroups32', 'sys_setgroups32', 'sys_fchown32', 'sys_setresuid32', 'sys_getresuid32',
+        'sys_setresgid32', 'sys_getresgid32', 'sys_chown32', 'sys_setuid32', 'sys_setgid32', 'sys_setfsuid32',
+        'sys_setfsgid32', 'sys_pivot_root', 'sys_mincore', 'sys_madvise', 'sys_getdents64', 'sys_fcntl64', 'N/A',
+        'N/A', 'sys_gettid', 'sys_readahead', 'sys_setxattr', 'sys_lsetxattr', 'sys_fsetxattr', 'sys_getxattr',
+        'sys_lgetxattr', 'sys_fgetxattr', 'sys_listxattr', 'sys_llistxattr', 'sys_flistxattr', 'sys_removexattr',
+        'sys_lremovexattr', 'sys_fremovexattr', 'sys_tkill', 'sys_sendfile64', 'sys_futex', 'sys_sched_setaffinity',
+        'sys_sched_getaffinity', 'sys_set_thread_area', 'sys_get_thread_area', 'sys_io_setup', 'sys_io_destroy',
+        'sys_io_getevents', 'sys_io_submit', 'sys_io_cancel', 'sys_fadvise64', 'N/A', 'sys_exit_group',
+        'sys_lookup_dcookie', 'sys_epoll_create', 'sys_epoll_ctl', 'sys_epoll_wait', 'sys_remap_file_pages',
+        'sys_set_tid_address', 'sys_timer_create', 'sys_timer_settime', 'sys_timer_gettime', 'sys_timer_getoverrun',
+        'sys_timer_delete', 'sys_clock_settime', 'sys_clock_gettime', 'sys_clock_getres', 'sys_clock_nanosleep',
+        'sys_statfs64', 'sys_fstatfs64', 'sys_tgkill', 'sys_utimes', 'sys_fadvise64_64', 'sys_vserver', 'sys_mbind',
+        'sys_get_mempolicy', 'sys_set_mempolicy', 'sys_mq_open', 'sys_mq_unlink', 'sys_mq_timedsend',
+        'sys_mq_timedreceive', 'sys_mq_notify', 'sys_mq_getsetattr', 'sys_kexec_load', 'sys_waitid',
+        'sys_setaltroot', 'sys_add_key', 'sys_request_key', 'sys_keyctl', 'sys_ioprio_set', 'sys_ioprio_get',
+        'sys_inotify_init', 'sys_inotify_add_watch', 'sys_inotify_rm_watch', 'sys_migrate_pages', 'sys_openat',
+        'sys_mkdirat', 'sys_mknodat', 'sys_fchownat', 'sys_futimesat', 'sys_fstatat64', 'sys_unlinkat', 'sys_renameat',
+        'sys_linkat', 'sys_symlinkat', 'sys_readlinkat', 'sys_fchmodat', 'sys_faccessat', 'sys_pselect6', 'sys_ppoll',
+        'sys_unshare', 'sys_set_robust_list', 'sys_get_robust_list', 'sys_splice', 'sys_sync_file_range', 'sys_tee',
+        'sys_vmsplice', 'sys_move_pages', 'sys_getcpu', 'sys_epoll_pwait', 'sys_utimensat', 'sys_signalfd',
+        'sys_timerfd_create', 'sys_eventfd', 'sys_fallocate', 'sys_timerfd_settime', 'sys_timerfd_gettime', 'sys_signalfd4',
+        'sys_eventfd2', 'sys_epoll_create1', 'sys_dup3', 'sys_pipe2', 'sys_inotify_init1', 'sys_preadv', 'sys_pwritev',
+        'sys_rt_tgsigqueueinfo', 'sys_perf_event_open', 'sys_recvmmsg', 'sys_fanotify_init', 'sys_fanotify_mark',
+        'sys_prlimit64', 'sys_name_to_handle_at', 'sys_open_by_handle_at', 'sys_clock_adjtime', 'sys_syncfs',
+        'sys_sendmmsg', 'sys_setns', 'sys_process_vm_readv', 'sys_process_vm_writev', 'sys_kcmp', 'sys_finit_module',
+        'sys_sched_setattr', 'sys_sched_getattr', 'sys_renameat2', 'sys_seccomp', 'sys_getrandom', 'sys_memfd_create',
+        'sys_bpf', 'sys_execveat', 'sys_socket', 'sys_socketpair', 'sys_bind', 'sys_connect', 'sys_listen', 'sys_accept4',
+        'sys_getsockopt', 'sys_setsockopt', 'sys_getsockname', 'sys_getpeername', 'sys_sendto', 'sys_sendmsg',
+        'sys_recvfrom', 'sys_recvmsg', 'sys_shutdown', 'sys_userfaultfd', 'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range'
         ]
 
     # Define syscall for x86_64 #
@@ -2856,10 +2919,10 @@ class SystemManager(object):
 
         if arch == 'arm':
             ConfigManager.sysList = ConfigManager.sysList_arm
+        elif arch == 'x86':
+            ConfigManager.sysList = ConfigManager.sysList_x86
         elif arch == 'x64':
             ConfigManager.sysList = ConfigManager.sysList_x64
-        elif arch == 'x86':
-            pass
         else:
             SystemManager.printError('Fail to set archtecture to %s, only support arm / x86 / x64' % arch)
             SystemManager.arch = 'arm'
