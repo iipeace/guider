@@ -1484,8 +1484,8 @@ class FunctionAnalyzer(object):
                             elif origPageType is 'KERNEL':
                                 self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
 
-                            self.pageTable[pfnv] = {}
                             del self.pageTable[pfnv]
+                            self.pageTable[pfnv] = {}
                         except:
                             # this page was allocated before starting profile #
                             continue
@@ -2742,7 +2742,8 @@ class SystemManager(object):
     procBufferSize = 0
     bufferString = ''
     bufferRows = 0
-    SystemManagerBuffer = ''
+    systemInfoBuffer = ''
+    kerSymTable = {}
 
     eventLogFile = None
     eventLogFD = None
@@ -3136,9 +3137,9 @@ class SystemManager(object):
 
                 f = open(SystemManager.outputFile, 'w')
 
-                if SystemManager.SystemManagerBuffer is not '':
+                if SystemManager.systemInfoBuffer is not '':
                     f.writelines(SystemManager.magicString + '\n')
-                    f.writelines(SystemManager.SystemManagerBuffer)
+                    f.writelines(SystemManager.systemInfoBuffer)
                     f.writelines(SystemManager.magicString + '\n')
 
                 f.writelines(lines)
@@ -3217,7 +3218,7 @@ class SystemManager(object):
 
     @staticmethod
     def printInfoBuffer():
-        SystemManager.pipePrint(SystemManager.SystemManagerBuffer)
+        SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
 
 
@@ -3231,17 +3232,17 @@ class SystemManager(object):
 
     @staticmethod
     def applyLaunchOption():
-        if SystemManager.SystemManagerBuffer == '' or SystemManager.isFunctionMode() is True:
+        if SystemManager.systemInfoBuffer == '' or SystemManager.isFunctionMode() is True:
             return
 
-        launchPosStart = SystemManager.SystemManagerBuffer.find('Launch')
+        launchPosStart = SystemManager.systemInfoBuffer.find('Launch')
         if launchPosStart == -1:
             return
-        launchPosEnd = SystemManager.SystemManagerBuffer.find('\n', launchPosStart)
+        launchPosEnd = SystemManager.systemInfoBuffer.find('\n', launchPosStart)
         if launchPosEnd == -1:
             return
 
-        SystemManager.launchBuffer = SystemManager.SystemManagerBuffer[launchPosStart:launchPosEnd]
+        SystemManager.launchBuffer = SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
 
         # apply group filter option #
         filterList = None
@@ -3288,13 +3289,13 @@ class SystemManager(object):
 
     @staticmethod
     def infoBufferPrint(line):
-        SystemManager.SystemManagerBuffer += line + '\n'
+        SystemManager.systemInfoBuffer += line + '\n'
 
 
 
     @staticmethod
     def clearInfoBuffer():
-        SystemManager.SystemManagerBuffer = ''
+        SystemManager.systemInfoBuffer = ''
 
 
 
@@ -3658,6 +3659,35 @@ class SystemManager(object):
             else:
                 SystemManager.printError("wrong option -%s" % option)
                 sys.exit(0)
+
+
+
+    @staticmethod
+    def makeKerSymTable():
+        try:
+            f = open('/proc/kallsyms', 'r')
+
+            lines = f.readlines()
+
+            f.close()
+        except IOError:
+            SystemManager.printWarning("Fail to open %s" % '/proc/kallsyms')
+
+        for line in lines:
+            line = line.split()
+            SystemManager.kerSymTable[line[2]] = line[0]
+
+
+
+    @staticmethod
+    def getKerAddr(symbol):
+        if SystemManager.kerSymTable == {}:
+            SystemManager.makeKerSymTable()
+
+        try:
+            return SystemManager.kerSymTable[symbol]
+        except:
+            return None
 
 
 
@@ -4194,6 +4224,7 @@ class SystemManager(object):
         if SystemManager.isFunctionMode() is True:
             cmd = ""
 
+            # make filter command for function profiler #
             for cond in SystemManager.showGroup:
                 try:
                     cmd += "common_pid == %s || " % int(cond)
@@ -4212,9 +4243,9 @@ class SystemManager(object):
                             sys.exit(0)
 
             if cmd == "":
-                cmd = "common_pid != 0"
+                cmd = "(common_pid != 0)"
             else:
-                cmd = cmd[:cmd.rfind('||')]
+                cmd = "(" + cmd[:cmd.rfind('||')] + ")"
 
             if SystemManager.userEnable is True:
                 SystemManager.writeCmd('../trace_options', 'userstacktrace')
@@ -4228,6 +4259,11 @@ class SystemManager(object):
 
             if SystemManager.cpuEnable is True:
                 self.cmdList["timer/hrtimer_start"] = True
+
+                addr = SystemManager.getKerAddr('tick_sched_timer')
+                if addr is not None:
+                    cmd += " && function == 0x%s" % addr
+
                 SystemManager.writeCmd('timer/hrtimer_start/filter', cmd)
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '1')
             else:
@@ -5985,7 +6021,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def getInitTime(file):
         readLineCnt = 0
-        SystemManagerBuffer = ''
+        systemInfoBuffer = ''
 
         try:
             f = open(file, 'r')
@@ -6009,10 +6045,10 @@ class ThreadAnalyzer(object):
                         l = f.readline()
 
                         if l[0:-1] == SystemManager.magicString:
-                            SystemManager.SystemManagerBuffer = SystemManagerBuffer
+                            SystemManager.systemInfoBuffer = systemInfoBuffer
                             break
                         else:
-                            SystemManagerBuffer += l
+                            systemInfoBuffer += l
 
                 readLineCnt += 1
 
@@ -8179,24 +8215,24 @@ if __name__ == '__main__':
 
         print 'Usage:'
         print '\t# %s record [options]' % cmd
+        print '\t$ %s <file> [options]\n' % cmd
         print '\t# %s top [options]' % cmd
         print '\t# %s start' % cmd
         print '\t# %s stop' % cmd
         print '\t# %s send' % cmd
-        print '\t$ %s <file> [options]\n' % cmd
 
         print 'Example:'
-        print '\t# %s record -s /var/log -e mi -g comm,1243' % cmd
-        print '\t$ %s guider.dat -o /var/log -a' % cmd
+        print '\t# %s record -s /var/log -e mi -g comm, 1243' % cmd
+        print '\t$ %s guider.dat -o /var/log -a -i' % cmd
         print '\t$ %s top\n' % cmd
 
         print 'Options:'
         print '\t[mode]'
-        print '\t\t(default) [thread mode]'
+        print '\t\t    [thread mode]'
         print '\t\ttop [top mode]'
-        print '\t\t-y [system mode]'
-        print '\t\t-f [function mode]'
-        print '\t\t-m [file mode]'
+        print '\t\t-y  [system mode]'
+        print '\t\t-f  [function mode]'
+        print '\t\t-m  [file mode]'
         print '\t[record|top]'
         print '\t\t-s [save_traceData:dir|file]'
         print '\t\t-S [sort_output:c(pu),m(em),b(lock),w(fc)]'
@@ -8292,7 +8328,7 @@ if __name__ == '__main__':
 
             # print system information #
             SystemManager.printTitle()
-            SystemManager.pipePrint(SystemManager.SystemManagerBuffer)
+            SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
             sys.exit(0)
 
