@@ -346,7 +346,6 @@ class FunctionAnalyzer(object):
         self.periodicEventCnt = 0
         self.periodicContEventCnt = 0
         self.periodicEventInterval = 0
-        self.periodicEventTotal = 0
         self.pageAllocEventCnt = 0
         self.pageAllocCnt = 0
         self.pageFreeEventCnt = 0
@@ -816,8 +815,8 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[kernelSym]['cnt'] += 1
 
             # etc event #
-            else:
-                SystemManager.printWarning("Fail to process for merging")
+            elif event is not 'IGNORE':
+                SystemManager.printWarning("Ignore %s event" % event)
 
 
 
@@ -1065,20 +1064,15 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, targetCnt, None, targetEvent])
-        elif targetEvent == 'SIGSEGV_GEN':
+        else:
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
                 0, 0, 0, None, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, 0, None, targetEvent])
-        elif targetEvent == 'SIGSEGV_DLV':
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, targetEvent])
+
+
 
     def saveCallStack(self):
         # stack of kernel thread #
@@ -1092,7 +1086,7 @@ class FunctionAnalyzer(object):
         elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
             # previous user stack loss or nested interval #
             if self.nowCtx['curMode'] is 'kernel':
-            # nested interval #
+                # nested interval #
                 if self.nowCtx['nowEvent'] is 'CPU_TICK':
                     # Backup kernel stack #
                     self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
@@ -1334,13 +1328,10 @@ class FunctionAnalyzer(object):
                 self.threadData[thread]['cpuTick'] += 1
 
                 # Set global interval #
-                if self.periodicEventCnt > 0 and \
-                    (self.nowCtx['prevComm'] == d['comm'] or self.nowCtx['prevTid'] == thread):
+                if self.nowCtx['prevTid'] == thread:
                     diff = float(d['time']) - float(self.nowCtx['prevTime'])
-                    self.periodicEventTotal += diff
+                    self.periodicEventInterval += diff
                     self.periodicContEventCnt += 1
-                    self.periodicEventInterval = \
-                        round(self.periodicEventTotal / self.periodicContEventCnt, 3)
 
                 self.nowCtx['prevComm'] = d['comm']
                 self.nowCtx['prevTid'] = thread
@@ -1349,6 +1340,7 @@ class FunctionAnalyzer(object):
                 # Set max core to calculate cpu usage of thread #
                 if SystemManager.maxCore < int(d['core']):
                     SystemManager.maxCore = int(d['core'])
+
             # Mark die flag of thread that is not able to be profiled #
             elif d['func'] == "sched_process_free:":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', d['etc'])
@@ -1395,12 +1387,17 @@ class FunctionAnalyzer(object):
 
             # memory allocation event #
             elif d['func'] == "mm_page_alloc:":
-                m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
+                m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
                     r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
                 if m is not None:
                     d = m.groupdict()
 
-                    page = d['page']
+                    # check whether it is huge page #
+                    if d['page'] == '(null)':
+                        page = 'huge'
+                    else:
+                        page = d['page']
+
                     pfn = int(d['pfn'])
                     flags = d['flags']
                     pageCnt = pow(2, int(d['order']))
@@ -1510,7 +1507,9 @@ class FunctionAnalyzer(object):
                         self.threadData[thread]['nrBlocks'] += blockCnt
 
                         self.saveEventParam('BLK_READ', blockCnt, 0)
-
+                    else:
+                        # toDo: add BLK_WRITE #
+                        self.saveEventParam('BLK_WRITE', 0, 0)
                 return False
 
             # segmentation fault generation event #
@@ -1551,6 +1550,12 @@ class FunctionAnalyzer(object):
                 self.nowCtx['prevMode'] = self.nowCtx['curMode']
                 self.nowCtx['curMode'] = 'kernel'
                 self.nowCtx['nested'] -= 1
+
+                if self.nowCtx['nested'] < 0:
+                    SystemManager.printError(\
+                        "Fail to analyze because of corrupted data at %s" % SystemManager.dbgEventLine)
+                    sys.exit(0)
+
                 return True
 
             # user-define event #
@@ -1685,6 +1690,9 @@ class FunctionAnalyzer(object):
         # no cpu event #
         if self.cpuEnabled is False:
             return
+
+        # average tick interval #
+        self.periodicEventInterval /= self.periodicContEventCnt
 
         # Print cpu usage in user space #
         SystemManager.clearPrint()
@@ -6627,14 +6635,19 @@ class ThreadAnalyzer(object):
                             self.preemptData[index][3] = core
 
             elif func == "mm_page_alloc":
-                m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
+                m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
                     r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
                     SystemManager.memEnable = True
 
-                    page = d['page']
+                    # check whether it is huge page #
+                    if d['page'] == '(null)':
+                        page = 'huge'
+                    else:
+                        page = d['page']
+
                     pfn = int(d['pfn'])
                     flags = d['flags']
                     order = int(d['order'])
