@@ -42,12 +42,12 @@ CONFIG_TRACING_SUPPORT
 CONFIG_EVENT_TRACING
 CONFIG_NOP_TRACER
 CONFIG_TRACEPOINTS
-CONFIG_FTRACE_SYSCALLS
-CONFIG_HAVE_SYSCALL_TRACEPOINTS
 
 [ Optional ]
 CONFIG_DYNAMIC_FTRACE
 CONFIG_HAVE_DYNAMIC_FTRACE
+CONFIG_FTRACE_SYSCALLS
+CONFIG_HAVE_SYSCALL_TRACEPOINTS
 CONFIG_TRACE_IRQFLAGS
 CONFIG_TRACE_IRQFLAGS_SUPPORT
 CONFIG_STACKTRACE
@@ -63,11 +63,11 @@ Options
 
 ```
         [mode]
-                (default) [thread mode]
+                    [thread mode]
                 top [top mode]
-                -y [system mode]
-                -f [function mode]
-                -m [file mode]
+                -y  [system mode]
+                -f  [function mode]
+                -m  [file mode]
         [record|top]
                 -s [save_traceData:dir|file]
                 -S [sort_output:c(pu),m(em),b(lock),w(fc)]
@@ -90,4 +90,5 @@ Options
                 -q [make_taskchain]
         [common]
                 -g [filter_specificGroup:comms|tids]
+                -A [set_arch:arm|x86|x64]
 ```
