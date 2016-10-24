@@ -391,7 +391,6 @@ class FunctionAnalyzer(object):
         self.totalTick = 0
         self.prevTime = '0'
         self.prevTid = '0'
-        self.prevComm = '0'
 
         self.lastCore = None
         self.coreCtx = {}
@@ -432,8 +431,8 @@ class FunctionAnalyzer(object):
         '''
 
         self.init_threadData = \
-            {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'nrPages': int(0), \
-            'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
+            {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
+            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
@@ -450,7 +449,7 @@ class FunctionAnalyzer(object):
             'nestedCnt': int(0), 'savedCnt': int(0), 'nowCnt': int(0), 'nestedArg': None, 'savedArg': None, \
             'prevMode': None, 'curMode': None, 'userLastPos': '', 'userCallStack': None, 'kernelLastPos': '', \
             'kernelCallStack': None, 'bakKernelLastPos': '', 'bakKernelCallStack': None, 'nowArg': None, \
-            'prevComm': None, 'prevTid': None, 'prevTime': None}
+            'prevTid': None, 'prevTime': None}
 
         self.init_pageLinkData = \
             {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
@@ -481,6 +480,13 @@ class FunctionAnalyzer(object):
             SystemManager.showGroup.insert(0, '')
             self.target = []
         else:
+            for tid in SystemManager.showGroup:
+                try:
+                    int(tid)
+                except:
+                    SystemManager.printError(\
+                        "Fail to use filter value %s, use -g option with number as thread id" % tid)
+                    sys.exit(0)
             self.target = SystemManager.showGroup
 
         # Check root path #
@@ -1300,11 +1306,11 @@ class FunctionAnalyzer(object):
 
             ret = self.parseStackLog(liter, desc)
 
-            # skip lines before first meaningful event #
+            # Skip lines before first meaningful event #
             if self.lastCore is None:
                 continue
 
-            # set context of current core #
+            # Set context of current core #
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Save full stack to callData table #
@@ -1323,6 +1329,11 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
+        # Process last event #
+        self.saveEventParam('IGNORE', 0, 0)
+        self.nowCtx['nested'] -= 1
+        self.saveCallStack()
+
 
 
     def saveEventParam(self, event, count, arg):
@@ -1339,6 +1350,25 @@ class FunctionAnalyzer(object):
         self.nowCtx['nowArg'] = arg
 
         self.nowCtx['nested'] += 1
+
+        if self.nowCtx['nested'] > 2:
+            #self.printDbgInfo()
+            SystemManager.printError(\
+                "Fail to analyze because of corrupted data (over) at %s" % SystemManager.dbgEventLine)
+            sys.exit(0)
+
+
+    def printDbgInfo(self):
+        data = self.nowCtx
+
+        print '[%s]' % self.lastCore, \
+            '(now) %s/%s/%s' %(data['nowEvent'], data['nowCnt'], data['nowArg']), \
+            '(saved) %s/%s/%s' %(data['savedEvent'], data['savedCnt'], data['savedArg']), \
+            '(nested) %s/%s/%s' %(data['nestedEvent'], data['nestedCnt'], data['nestedArg']), \
+            '(user) %s/%s' % (data['userLastPos'], len(data['userCallStack'])), \
+            '(kernel) %s/%s' % (data['kernelLastPos'], len(data['kernelCallStack'])), \
+            '(backup) %s/%s' % (data['bakKernelLastPos'], len(data['bakKernelCallStack'])), \
+            'at %s' % SystemManager.dbgEventLine
 
 
 
@@ -1365,7 +1395,7 @@ class FunctionAnalyzer(object):
             # Make thread entity #
             thread = d['thread']
             try:
-                self.threadData[thread]
+                self.threadData[thread]['comm']
             except:
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
@@ -1396,7 +1426,6 @@ class FunctionAnalyzer(object):
                     self.periodicEventInterval += diff
                     self.periodicContEventCnt += 1
 
-                self.nowCtx['prevComm'] = d['comm']
                 self.nowCtx['prevTid'] = thread
                 self.nowCtx['prevTime'] = d['time']
 
@@ -1405,7 +1434,7 @@ class FunctionAnalyzer(object):
                     SystemManager.maxCore = int(d['core'])
 
             # Mark die flag of thread that is not able to be profiled #
-            elif d['func'] == "sched_process_free:":
+            elif d['func'] == "sched_process_exit:":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', d['etc'])
                 if m is not None:
                     p = m.groupdict()
@@ -1420,6 +1449,22 @@ class FunctionAnalyzer(object):
 
                     self.threadData[pid]['die'] = True
 
+            # Make thread name #
+            elif d['func'] == "task_newtask:":
+                m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', d['etc'])
+                if m is not None:
+                    p = m.groupdict()
+
+                    pid = p['pid']
+
+                    try:
+                        self.threadData[pid]
+                    except:
+                        self.threadData[pid] = dict(self.init_threadData)
+                        self.threadData[pid]['comm'] = p['comm']
+
+                    self.threadData[pid]['new'] = True
+
             # Save tgid(pid) #
             if SystemManager.tgidEnable is True:
                 self.threadData[thread]['tgid'] = d['tgid']
@@ -1427,12 +1472,7 @@ class FunctionAnalyzer(object):
             # tid filter #
             found = False
             for val in desc:
-                try:
-                    tid = int(val)
-                except:
-                    tid = 0
-
-                if tid == int(d['thread']) or d['comm'].rfind(val) > -1:
+                if val == d['thread'] or val == '':
                     self.threadData[thread]['target'] = True
                     found = True
                     break
@@ -1470,7 +1510,7 @@ class FunctionAnalyzer(object):
 
                     # Increase page counts of thread #
                     pageType = None
-                    if flags.find('HIGHUSER') >= 0:
+                    if flags.find('USER') >= 0:
                         pageType = 'USER'
                         self.threadData[thread]['userPages'] += pageCnt
                     elif flags.find('NOFS') >= 0:
@@ -1615,8 +1655,9 @@ class FunctionAnalyzer(object):
                 self.nowCtx['nested'] -= 1
 
                 if self.nowCtx['nested'] < 0:
+                    #self.printDbgInfo()
                     SystemManager.printError(\
-                        "Fail to analyze because of corrupted data at %s" % SystemManager.dbgEventLine)
+                        "Fail to analyze because of corrupted data (under) at %s" % SystemManager.dbgEventLine)
                     sys.exit(0)
 
                 return True
@@ -1706,41 +1747,68 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize / 1024))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|".\
-            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE"))
+            "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|{11:_^5}|".\
+            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuTick'], reverse=True):
+        # set sort value #
+        if SystemManager.sort == 'm':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['nrPages'], reverse=True)
+        elif SystemManager.sort == 'b':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['nrBlocks'], reverse=True)
+        else:
+            # set cpu usage as default #
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['cpuTick'], reverse=True)
+
+        for idx, value in sortedThreadData:
             targetMark = ''
             dieMark = ''
+            newMark = ''
 
+            # check target thread #
             if value['target'] is True:
                 targetCnt += 1
                 if targetCnt == 2:
-                    SystemManager.printWarning("Target threads profiled are more than two")
+                    SystemManager.printWarning("Multiple target threads are profiled")
                 targetMark = '*'
 
+            # get cpu usage #
             if self.totalTick > 0:
                 cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
-                if cpuPer < 1 and SystemManager.showAll is False:
-                    break
             else:
                 cpuPer = 0
+
+            # set break condition #
+            if SystemManager.sort == 'm':
+                breakCond = value['nrPages']
+            elif SystemManager.sort == 'b':
+                breakCond = value['nrBlocks']
+            else:
+                breakCond = cpuPer
+
+            if breakCond < 1 and SystemManager.showAll is False:
+                break
 
             if value['die'] is True:
                 dieMark = 'v'
 
+            if value['new'] is True:
+                newMark = 'v'
+
             SystemManager.pipePrint(\
-                "{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|".\
+                "{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|{11:^5}|".\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
                 value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
-                int(value['nrBlocks'] * 0.5), dieMark))
+                int(value['nrBlocks'] * 0.5), dieMark, newMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
         # Exit because of no target #
         if len(self.target) == 0:
-            SystemManager.printWarning("No specific thread targeted, input comm or tid with -g option")
+            SystemManager.printWarning("No specific thread targeted, input tid with -g option")
 
         # Print resource usage of functions #
         self.printCpuUsage()
@@ -1850,16 +1918,17 @@ class FunctionAnalyzer(object):
 
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == '__irq_usr' or \
-                value['symbol'] == '__irq_svc' or \
-                value['symbol'] == '__hrtimer_start_range_ns' or \
-                value['symbol'] == 'hrtimer_start_range_ns' or \
-                value['symbol'] == 'apic_timer_interrupt':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
+        if SystemManager.showAll is False:
+            for pos, value in self.posData.items():
+                if value['symbol'] == '__irq_usr' or \
+                    value['symbol'] == '__irq_svc' or \
+                    value['symbol'] == '__hrtimer_start_range_ns' or \
+                    value['symbol'] == 'hrtimer_start_range_ns' or \
+                    value['symbol'] == 'apic_timer_interrupt':
+                    try:
+                        exceptList[pos]
+                    except:
+                        exceptList[pos] = dict()
 
         # Print cpu usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
@@ -1895,6 +1964,10 @@ class FunctionAnalyzer(object):
                             continue
 
                 if len(subStack) == 0:
+                    continue
+                elif len(subStack) == 1 and SystemManager.showAll is False and \
+                    (self.posData[subStack[0]]['symbol'] is None or self.posData[subStack[0]]['symbol'] == 'NoFile'):
+                    # Pass unmeaningful part #
                     continue
                 else:
                     # Make stack info by symbol for print #
@@ -3587,7 +3660,7 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'S':
-                SystemManager.sort = option
+                SystemManager.sort = value
                 if len(SystemManager.sort) != 1 or (SystemManager.sort != 'c' and \
                     SystemManager.sort != 'm' and SystemManager.sort != 'b' and SystemManager.sort != 'w'):
                     SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
@@ -4207,7 +4280,7 @@ class SystemManager(object):
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = True
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_process_free"] = True
+        self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["signal"] = SystemManager.depEnable
@@ -4359,8 +4432,10 @@ class SystemManager(object):
             else:
                 self.cmdList["block/block_bio_remap"] = False
 
-            self.cmdList["sched/sched_process_free"] = True
-            SystemManager.writeCmd('sched/sched_process_free/enable', '1')
+            self.cmdList["task"] = True
+            SystemManager.writeCmd('task/enable', '1')
+            self.cmdList["sched/sched_process_exit"] = True
+            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
 
             # options for segmentation fault tracing #
             cmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
@@ -4524,8 +4599,8 @@ class SystemManager(object):
             SystemManager.writeCmd('signal/enable', '1')
         if self.cmdList["sched/sched_migrate_task"] is True:
             SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
-        if self.cmdList["sched/sched_process_free"] is True:
-            SystemManager.writeCmd('sched/sched_process_free/enable', '1')
+        if self.cmdList["sched/sched_process_exit"] is True:
+            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
         if self.cmdList["sched/sched_process_wait"] is True:
             SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
@@ -5385,18 +5460,40 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
+        # set sort value #
+        if SystemManager.sort == 'm':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['nrPages'], reverse=True)
+        elif SystemManager.sort == 'b':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['readBlock'], reverse=True)
+        else:
+            # set cpu usage as default #
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['usage'], reverse=True)
+
         # print thread information after sorting by time of cpu usage #
         count = 0
         SystemManager.clearPrint()
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
+        for key, value in sortedThreadData:
             if key[0:2] == '0[':
                 continue
+
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
-            if round(float(usagePercent), 1) < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
-                break
+
+            # set break condition #
+            if SystemManager.sort == 'm':
+                breakCond = value['nrPages']
+            elif SystemManager.sort == 'b':
+                breakCond = value['readBlock']
             else:
+                breakCond = usagePercent
                 value['cpuRank'] = count + 1
                 count += 1
+
+            if breakCond < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
+               break
+
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
                 "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
@@ -6718,7 +6815,7 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['nrPages'] += pow(2, order)
                     self.threadData[coreId]['nrPages'] += pow(2, order)
 
-                    if flags.find('HIGHUSER') >= 0:
+                    if flags.find('USER') >= 0:
                         pageType = 'USER'
                         self.threadData[thread]['userPages'] += pow(2, order)
                         self.threadData[coreId]['userPages'] += pow(2, order)
@@ -7284,7 +7381,7 @@ class ThreadAnalyzer(object):
 
                     self.threadData[pid]['comm'] = newcomm
 
-            elif func == "sched_process_free":
+            elif func == "sched_process_exit":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
@@ -8079,24 +8176,19 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(oneLine + '\n')
 
         # set sort value #
-        if SystemManager.sort is not None:
-            if SystemManager.sort == 'c':
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['ttime'], reverse=True)
-            elif SystemManager.sort == 'm':
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
-            elif SystemManager.sort == 'b':
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['btime'], reverse=True)
-            elif SystemManager.sort == 'w':
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['cttime'], reverse=True)
-            else:
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['ttime'], reverse=True)
+        if SystemManager.sort == 'm':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+        elif SystemManager.sort == 'b':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['btime'], reverse=True)
+        elif SystemManager.sort == 'w':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['cttime'], reverse=True)
         else:
-            sortedProcData = sorted(self.procData.items(), key=lambda e: e[1]['ttime'], reverse=True)
+            # set cpu usage as default #
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['ttime'], reverse=True)
 
         # print process usage sorted by cpu usage #
         for idx, value in sortedProcData:
