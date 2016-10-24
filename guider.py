@@ -1395,7 +1395,7 @@ class FunctionAnalyzer(object):
             # Make thread entity #
             thread = d['thread']
             try:
-                self.threadData[thread]['comm']
+                self.threadData[thread]['comm'] = d['comm']
             except:
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
