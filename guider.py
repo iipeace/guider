@@ -280,6 +280,8 @@ class ConfigManager(object):
 
     taskChainEnable = None
 
+
+
     @staticmethod
     def readProcData(tid, file, num):
         file = '/proc/'+ tid + '/' + file
@@ -294,6 +296,15 @@ class ConfigManager(object):
             return f.readline().replace('\n', '')
         else:
             return f.readline().replace('\n', '').split(' ')[num - 1]
+
+
+
+    @staticmethod
+    def getMmapId():
+        if SystemManager.arch == 'arm':
+            return ConfigManager.sysList.index('sys_mmap2')
+        else:
+            return ConfigManager.sysList.index('sys_mmap')
 
 
 
@@ -1105,10 +1116,10 @@ class FunctionAnalyzer(object):
 
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, targetEvent])
+                0, 0, 0, None, 0, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, targetEvent])
+                0, 0, 0, None, 0, targetEvent])
         elif targetEvent == 'PAGE_ALLOC':
             self.pageAllocEventCnt += 1
             self.pageAllocCnt += targetCnt
@@ -1338,7 +1349,7 @@ class FunctionAnalyzer(object):
     def allocHeapSeg(self, tid, size):
         try:
             self.heapTable[tid + '-ready']['size'] = size
-            SystemManager.printWarning('Fail to alloc heap segment of %s(%s) at %s' % \
+            SystemManager.printWarning('Overwrite heap segment of %s(%s) at %s' % \
                 (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
         except:
             self.heapTable[tid + '-ready'] = dict(self.init_heapSegData)
@@ -1360,7 +1371,7 @@ class FunctionAnalyzer(object):
             self.heapTable[addr] = dict(self.heapTable[tid + '-ready'])
             del self.heapTable[tid + '-ready']
         except:
-            SystemManager.printWarning('Fail to set heap segment %s of %s(%s) at %s' % \
+            SystemManager.printWarning('Fail to set address of heap segment %s of %s(%s) at %s' % \
                 (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
@@ -1674,7 +1685,7 @@ class FunctionAnalyzer(object):
                     b = m.groupdict()
 
                     if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                        int(b['nr']) == ConfigManager.sysList.index('sys_mmap2'):
+                        int(b['nr']) == ConfigManager.getMmapId():
                         self.heapEnabled = True
 
                         try:
@@ -1710,7 +1721,7 @@ class FunctionAnalyzer(object):
                     b = m.groupdict()
 
                     if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                        int(b['nr']) == ConfigManager.sysList.index('sys_mmap2'):
+                        int(b['nr']) == ConfigManager.getMmapId():
                         self.heapEnabled = True
 
                         self.setHeapSegAddr(thread, b['ret'])
@@ -4691,19 +4702,20 @@ class SystemManager(object):
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
                 SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
 
+                mmapId = ConfigManager.getMmapId()
+
                 self.cmdList["raw_syscalls/sys_enter"] = True
-                cmd = "(id == %s || id == %s || id == %s)" % \
-                    (ConfigManager.sysList.index('sys_brk'), \
-                    ConfigManager.sysList.index('sys_mmap2'), \
+                sysEnterCmd = "(id == %s || id == %s || id == %s)" % \
+                    (ConfigManager.sysList.index('sys_brk'), mmapId, \
                     ConfigManager.sysList.index('sys_munmap'))
-                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
+                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', sysEnterCmd)
                 SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
 
                 self.cmdList["raw_syscalls/sys_exit"] = True
-                cmd = "(id == %s || id == %s)" % \
-                    (ConfigManager.sysList.index('sys_brk'), \
-                    ConfigManager.sysList.index('sys_mmap2'))
-                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
+                sysExitCmd = "(id == %s || id == %s)" % \
+                    (ConfigManager.sysList.index('sys_brk'), mmapId)
+
+                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', sysExitCmd)
                 SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
@@ -4717,8 +4729,8 @@ class SystemManager(object):
 
             if SystemManager.blockEnable is True:
                 self.cmdList["block/block_bio_remap"] = True
-                cmd += " && (rwbs == R || rwbs == RA || rwbs == RM)"
-                SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
+                blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM)"
+                SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
                 SystemManager.writeCmd('block/block_bio_remap/enable', '1')
             else:
                 self.cmdList["block/block_bio_remap"] = False
@@ -4730,9 +4742,9 @@ class SystemManager(object):
             SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
 
             # options for segmentation fault tracing #
-            cmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
+            sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
             self.cmdList["signal"] = True
-            SystemManager.writeCmd('signal/filter', cmd)
+            SystemManager.writeCmd('signal/filter', sigCmd)
             SystemManager.writeCmd('signal/enable', '1')
 
             return
