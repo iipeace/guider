@@ -380,6 +380,7 @@ class FunctionAnalyzer(object):
     def __init__(self, logFile):
         self.cpuEnabled = False
         self.memEnabled = False
+        self.heapEnabled = False
         self.ioEnabled = False
         self.sigEnabled = False
 
@@ -408,6 +409,8 @@ class FunctionAnalyzer(object):
         self.periodicEventCnt = 0
         self.periodicContEventCnt = 0
         self.periodicEventInterval = 0
+        self.heapExpEventCnt = 0
+        self.heapExpSize = 0
         self.pageAllocEventCnt = 0
         self.pageAllocCnt = 0
         self.pageFreeEventCnt = 0
@@ -418,6 +421,7 @@ class FunctionAnalyzer(object):
 
         self.mapData = []
         self.pageTable = {}
+        self.heapTable = {}
         self.oldPageTable = {}
         self.posData = {}
         self.userSymData = {}
@@ -427,22 +431,24 @@ class FunctionAnalyzer(object):
         self.kernelCallData = []
         '''
         userCallData = kernelCallData = \
-            [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument, eventType]
+            [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument, heapExpSize, eventType]
         '''
 
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
-            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0)}
+            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0), \
+            'heapSize': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
-            'blockCnt': int(0), 'pageCnt': int(0)}
+            'blockCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0)}
 
         self.init_symData = \
             {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
-            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None}
-            # stack = symStack = [cpuCnt, stack[], pageCnt, blockCnt] #
+            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
+            'heapSize': int(0)}
+            # stack = symStack = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize, eventType] #
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
@@ -454,6 +460,9 @@ class FunctionAnalyzer(object):
         self.init_pageLinkData = \
             {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
             'type': '0', 'time': '0'}
+
+        self.init_heapSegData = {'tid': '0', 'size': int(0), 'sym': '0', 'subStackAddr': int(0), \
+            'kernelSym': '0', 'kernelSubStackAddr': int(0)}
 
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
 
@@ -720,7 +729,8 @@ class FunctionAnalyzer(object):
             pageFreeCnt = val[3]
             blockCnt = val[4]
             arg = val[5]
-            event = val[6]
+            heapExpSize = val[6]
+            event = val[7]
 
             kernelPos = self.kernelCallData[lineCnt][0]
             kernelStack = self.kernelCallData[lineCnt][1]
@@ -814,7 +824,7 @@ class FunctionAnalyzer(object):
             # First user stack related to this symbol #
             if len(targetStack) == 0:
                 targetStack.append(\
-                    [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                    [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
                 stackAddr = id(stack)
             else:
                 found = False
@@ -824,17 +834,19 @@ class FunctionAnalyzer(object):
                     # Found same stack #
                     if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
                         len(list(set(stackInfo[1]) - set(stack))) == 0:
+                        # stackInfo = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize] #
                         found = True
                         stackInfo[2] += pageAllocCnt
                         stackInfo[3] += pageFreeCnt
                         stackInfo[4] += blockCnt
+                        stackInfo[6] += heapExpSize
                         stackInfo[0] += cpuCnt
                         stackAddr = id(stackInfo[1])
                         break
                 # New stack related to this symbol #
                 if found == False:
                     targetStack.append(\
-                        [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                        [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
                     stackAddr = id(stack)
 
             # Set target kernel stack #
@@ -843,7 +855,7 @@ class FunctionAnalyzer(object):
             # First stack related to this symbol #
             if len(kernelTargetStack) == 0:
                 kernelTargetStack.append(\
-                    [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                    [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
                 kernelStackAddr = id(kernelStack)
             else:
                 found = False
@@ -851,10 +863,12 @@ class FunctionAnalyzer(object):
                     # Found same stack  in stack list #
                     if len(list(set(kernelStack) - set(stackInfo[1]))) == 0 and \
                         len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
+                        # stackInfo = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize] #
                         found = True
                         stackInfo[2] += pageAllocCnt
                         stackInfo[3] += pageFreeCnt
                         stackInfo[4] += blockCnt
+                        stackInfo[6] += heapExpSize
                         stackInfo[0] += cpuCnt
                         kernelStackAddr = id(stackInfo[1])
                         break
@@ -862,24 +876,29 @@ class FunctionAnalyzer(object):
                 # New stack related to this symbol #
                 if found == False:
                     kernelTargetStack.append(\
-                        [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo)])
+                        [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
                     kernelStackAddr = id(kernelStack)
 
             # memory allocation event #
-            if pageAllocCnt > 0:
+            if event == 'PAGE_ALLOC':
                 self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, arg[0], arg[1])
 
             # memory free event #
-            elif pageFreeCnt > 0:
+            elif event == 'PAGE_FREE':
                 self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, arg[0], arg[1])
 
             # block event #
-            elif blockCnt > 0:
+            elif event == 'HEAP_EXPAND':
+                self.userSymData[sym]['heapSize'] += heapExpSize
+                self.kernelSymData[kernelSym]['heapSize'] += heapExpSize
+
+            # block event #
+            elif event == 'BLK_READ':
                 self.userSymData[sym]['blockCnt'] += blockCnt
                 self.kernelSymData[kernelSym]['blockCnt'] += blockCnt
 
             # periodic event such as cpu tick #
-            elif cpuCnt > 0:
+            elif event == 'CPU_TICK':
                 self.userSymData[sym]['cnt'] += 1
                 self.kernelSymData[kernelSym]['cnt'] += 1
 
@@ -1102,10 +1121,10 @@ class FunctionAnalyzer(object):
 
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                targetCnt, 0, 0, [pageType, pfn], targetEvent])
+                targetCnt, 0, 0, [pageType, pfn], 0, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                targetCnt, 0, 0, [pageType, pfn], targetEvent])
+                targetCnt, 0, 0, [pageType, pfn], 0, targetEvent])
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
             self.pageFreeCnt += targetCnt
@@ -1117,10 +1136,10 @@ class FunctionAnalyzer(object):
 
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, targetCnt, 0, [pageType, pfn], targetEvent])
+                0, targetCnt, 0, [pageType, pfn], 0, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, targetCnt, 0, [pageType, pfn], targetEvent])
+                0, targetCnt, 0, [pageType, pfn], 0, targetEvent])
         elif targetEvent == 'BLK_READ':
             self.blockEventCnt += 1
             self.blockUsageCnt += targetCnt
@@ -1129,27 +1148,45 @@ class FunctionAnalyzer(object):
 
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, targetCnt, None, targetEvent])
+                0, 0, targetCnt, None, 0, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, targetCnt, None, targetEvent])
+                0, 0, targetCnt, None, 0, targetEvent])
+        elif targetEvent == 'HEAP_EXPAND':
+            self.heapExpEventCnt += 1
+            self.heapExpSize += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
+
+            self.kernelCallData.append(\
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, 0, None, targetCnt, targetEvent])
+            self.userCallData.append(\
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, 0, None, targetCnt, targetEvent])
         else:
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, targetEvent])
+                0, 0, 0, None, 0, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, targetEvent])
+                0, 0, 0, None, 0, targetEvent])
 
 
 
     def saveCallStack(self):
         # stack of kernel thread #
-        if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel' and \
-            len(self.nowCtx['userCallStack']) == 0 and len(self.nowCtx['kernelCallStack']) > 0:
-                # Set userLastPos to None #
-            self.nowCtx['userLastPos'] = '0'
-            self.nowCtx['userCallStack'].append('0')
+        if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel':
+            if len(self.nowCtx['userCallStack']) == 0 and \
+                len(self.nowCtx['kernelCallStack']) > 0:
+                    # Set userLastPos to None #
+                    self.nowCtx['userLastPos'] = '0'
+                    self.nowCtx['userCallStack'].append('0')
+            if len(self.nowCtx['kernelCallStack']) == 0 and \
+                len(self.nowCtx['userCallStack']) > 0:
+                    # Set kernelLastPos to None #
+                    self.nowCtx['kernelLastPos'] = '0'
+                    self.nowCtx['kernelCallStack'].append('0')
 
         # complicated situation ;( #
         elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
@@ -1295,6 +1332,36 @@ class FunctionAnalyzer(object):
         # Increase total call count #
         if self.nowEvent == 'CPU_TICK':
             self.posData[pos]['totalCnt'] += 1
+
+
+
+    def allocHeapSeg(self, tid, size):
+        try:
+            self.heapTable[tid + '-ready']['size'] = size
+            SystemManager.printWarning('Fail to alloc heap segment of %s(%s) at %s' % \
+                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
+        except:
+            self.heapTable[tid + '-ready'] = dict(self.init_heapSegData)
+            self.heapTable[tid + '-ready']['size'] = size
+
+
+
+    def freeHeapSeg(self, addr):
+        try:
+            del self.heapTable[addr]
+        except:
+            SystemManager.printWarning('Fail to free heap segment %s of %s(%s) at %s' % \
+                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
+
+
+
+    def setHeapSegAddr(self, tid, addr):
+        try:
+            self.heapTable[addr] = dict(self.heapTable[tid + '-ready'])
+            del self.heapTable[tid + '-ready']
+        except:
+            SystemManager.printWarning('Fail to set heap segment %s of %s(%s) at %s' % \
+                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
 
@@ -1594,6 +1661,62 @@ class FunctionAnalyzer(object):
 
                     self.saveEventParam('PAGE_FREE', pageCnt, [origPageType, pfn])
 
+                    return False
+
+                self.saveEventParam('IGNORE', 0, 0)
+
+                return False
+
+            # heap event #
+            elif d['func'] == "sys_enter:":
+                m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', d['etc'])
+                if m is not None:
+                    b = m.groupdict()
+
+                    if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
+                        int(b['nr']) == ConfigManager.sysList.index('sys_mmap2'):
+                        self.heapEnabled = True
+
+                        try:
+                            size = int(b['args'].split(',')[1], 16)
+                            self.threadData[thread]['heapSize'] += size
+                        except:
+                            self.saveEventParam('IGNORE', 0, 0)
+                            return False
+
+                        self.allocHeapSeg(thread, size)
+
+                        self.saveEventParam('HEAP_EXPAND', size, None)
+
+                        return False
+                    elif int(b['nr']) == ConfigManager.sysList.index('sys_munmap'):
+                        self.heapEnabled = True
+
+                        try:
+                            addr = int(b['args'].split(',')[0])
+
+                            self.freeHeapSeg(addr)
+                        except:
+                            pass
+
+                self.saveEventParam('IGNORE', 0, 0)
+
+                return False
+
+            # heap increase return event #
+            elif d['func'] == "sys_exit:":
+                m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', d['etc'])
+                if m is not None:
+                    b = m.groupdict()
+
+                    if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
+                        int(b['nr']) == ConfigManager.sysList.index('sys_mmap2'):
+                        self.heapEnabled = True
+
+                        self.setHeapSegAddr(thread, b['ret'])
+
+                self.saveEventParam('IGNORE', 0, 0)
+
                 return False
 
             # block request event #
@@ -1613,6 +1736,9 @@ class FunctionAnalyzer(object):
                     else:
                         # toDo: add BLK_WRITE #
                         self.saveEventParam('BLK_WRITE', 0, 0)
+                else:
+                    self.saveEventParam('IGNORE', 0, 0)
+
                 return False
 
             # segmentation fault generation event #
@@ -1626,6 +1752,10 @@ class FunctionAnalyzer(object):
                         self.sigEnabled = True
 
                         self.saveEventParam('SIGSEGV_GEN', 0, 0)
+                    else:
+                        self.saveEventParam('IGNORE', 0, 0)
+                else:
+                    self.saveEventParam('IGNORE', 0, 0)
 
                 return False
 
@@ -1639,6 +1769,10 @@ class FunctionAnalyzer(object):
                         self.sigEnabled = True
 
                         self.saveEventParam('SIGSEGV_DLV', 0, 0)
+                    else:
+                        self.saveEventParam('IGNORE', 0, 0)
+                else:
+                    self.saveEventParam('IGNORE', 0, 0)
 
                 return False
 
@@ -1813,6 +1947,7 @@ class FunctionAnalyzer(object):
         # Print resource usage of functions #
         self.printCpuUsage()
         self.printMemUsage()
+        self.printHeapUsage()
         self.printBlockUsage()
 
 
@@ -1840,7 +1975,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if self.cpuEnabled is False or value['cnt'] == 0:
+            if value['cnt'] == 0:
                 break
 
             cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
@@ -1932,7 +2067,7 @@ class FunctionAnalyzer(object):
 
         # Print cpu usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if self.cpuEnabled is False or value['cnt'] == 0:
+            if value['cnt'] == 0:
                 break
 
             cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
@@ -1990,7 +2125,7 @@ class FunctionAnalyzer(object):
 
 
     def printMemUsage(self):
-        # no memory event #
+        # check memory event #
         if self.memEnabled is False:
             return
 
@@ -2007,7 +2142,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0:
+            if value['pageCnt'] == 0:
                 break
 
             SystemManager.pipePrint(\
@@ -2093,7 +2228,7 @@ class FunctionAnalyzer(object):
 
         # Print mem usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if self.memEnabled is False or value['pageCnt'] == 0:
+            if value['pageCnt'] == 0:
                 break
 
             SystemManager.pipePrint("{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}".format(value['pageCnt'] * 4, \
@@ -2134,6 +2269,144 @@ class FunctionAnalyzer(object):
 
         SystemManager.pipePrint('\n\n')
 
+
+
+    def printHeapUsage(self):
+        # check heap memory event #
+        if self.heapEnabled is False:
+            return
+
+        # Print heap usage in user space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Heap Info] [Total: %dKB] [Count: %d] (USER)' % \
+            (self.heapExpSize / 1024, self.heapExpEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['heapSize'], reverse=True):
+            if value['heapSize'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['heapSize'] / 1024), idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = sorted(targetStack, key=lambda x: x[6], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                heapSize = stack[6]
+                subStack = list(stack[1])
+
+                if heapSize == 0:
+                    break
+
+                if len(subStack) == 0:
+                    continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + \
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
+                            # No symbol so that just print pos #
+                            elif self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(heapSize/ 1024), symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+        # Print heap usage in user space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Heap Info] [Total: %dKB] [Count: %d] (USER)' % \
+            (self.heapExpSize / 1024, self.heapExpEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print BLOCK usage of stacks #
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['heapSize'], reverse=True):
+            if value['heapSize'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['heapSize'] / 1024), idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x: x[6], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                heapSize = stack[6]
+                subStack = list(stack[1])
+
+                if heapSize == 0:
+                    continue
+
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16))
+                            else:
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                    except:
+                        continue
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(heapSize / 1024), symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+
+
     def printBlockUsage(self):
         # no block event #
         if self.ioEnabled is False:
@@ -2150,7 +2423,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0:
+            if value['blockCnt'] == 0:
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
@@ -2229,7 +2502,7 @@ class FunctionAnalyzer(object):
 
         # Print BLOCK usage of stacks #
         for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if self.ioEnabled is False or value['blockCnt'] == 0:
+            if value['blockCnt'] == 0:
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
@@ -3022,9 +3295,6 @@ class SystemManager(object):
         if SystemManager.depEnable is True:
             enableStat += 'DEPENDENCY '
 
-        if SystemManager.depEnable is True:
-            enableStat += 'DEPENDENCY '
-
         if len(SystemManager.preemptGroup) > 0:
             enableStat += 'PREEMPT '
 
@@ -3082,6 +3352,7 @@ class SystemManager(object):
 
         elif SystemManager.isTopMode() is True:
             SystemManager.printInfo("TOP MODE")
+            enableStat += 'CPU MEMORY '
 
             if SystemManager.diskEnable is True:
                 enableStat += 'DISK '
@@ -3091,6 +3362,7 @@ class SystemManager(object):
         else:
             SystemManager.printInfo("THREAD MODE")
             SystemManager.threadEnable = True
+            enableStat += 'CPU '
 
             if SystemManager.graphEnable is True:
                 enableStat += 'GRAPH '
@@ -4303,7 +4575,6 @@ class SystemManager(object):
         self.cmdList["sched/sched_migrate_task"] = True
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
-        self.cmdList["power/machine_suspend"] = True
         self.cmdList["power/suspend_resume"] = True
         self.cmdList["printk"] = True
         self.cmdList["module/module_load"] = True
@@ -4406,11 +4677,10 @@ class SystemManager(object):
 
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
-                    cmd += " && function == 0x%s" % addr
-
-                SystemManager.writeCmd('timer/hrtimer_start/filter', cmd)
+                    SystemManager.writeCmd('timer/hrtimer_start/filter', cmd + " && function == 0x%s" % addr)
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '1')
             else:
+                SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
                 self.cmdList["timer/hrtimer_start"] = False
 
             if SystemManager.memEnable is True:
@@ -4420,9 +4690,30 @@ class SystemManager(object):
                 SystemManager.writeCmd('kmem/mm_page_free/filter', cmd)
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
                 SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
+
+                self.cmdList["raw_syscalls/sys_enter"] = True
+                cmd = "(id == %s || id == %s || id == %s)" % \
+                    (ConfigManager.sysList.index('sys_brk'), \
+                    ConfigManager.sysList.index('sys_mmap2'), \
+                    ConfigManager.sysList.index('sys_munmap'))
+                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
+                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
+
+                self.cmdList["raw_syscalls/sys_exit"] = True
+                cmd = "(id == %s || id == %s)" % \
+                    (ConfigManager.sysList.index('sys_brk'), \
+                    ConfigManager.sysList.index('sys_mmap2'))
+                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
+                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             else:
+                SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
+                SystemManager.writeCmd('kmem/mm_page_free/enable', '0')
+                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
+                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
                 self.cmdList["kmem/mm_page_alloc"] = False
                 self.cmdList["kmem/mm_page_free"] = False
+                self.cmdList["raw_syscalls/sys_enter"] = False
+                self.cmdList["raw_syscalls/sys_exit"] = False
 
             if SystemManager.blockEnable is True:
                 self.cmdList["block/block_bio_remap"] = True
@@ -4431,6 +4722,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('block/block_bio_remap/enable', '1')
             else:
                 self.cmdList["block/block_bio_remap"] = False
+                SystemManager.writeCmd('block/block_bio_remap/enable', '0')
 
             self.cmdList["task"] = True
             SystemManager.writeCmd('task/enable', '1')
@@ -4537,8 +4829,6 @@ class SystemManager(object):
                 SystemManager.writeCmd('signal/enable', '1')
 
         # options for hibernation tracing #
-        if self.cmdList["power/machine_suspend"] is True:
-            SystemManager.writeCmd('power/machine_suspend/enable', '1')
         if self.cmdList["power/suspend_resume"] is True:
             SystemManager.writeCmd('power/suspend_resume/enable', '1')
 
@@ -5751,12 +6041,15 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
+                threadInfo = ''
+                syscallInfo = ''
+
                 if key[0:2] == '0[':
                     continue
 
                 try:
                     if len(value['syscallInfo']) > 0:
-                        SystemManager.pipePrint("%16s(%4s)" % (value['comm'], key))
+                        threadInfo = "%16s(%4s)" % (value['comm'], key)
                     else:
                         continue
                 except:
@@ -5767,11 +6060,16 @@ class ThreadAnalyzer(object):
                         if val['count'] > 0:
                             val['average'] = val['usage'] / val['count']
 
-                            SystemManager.pipePrint("%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f" % \
+                            syscallInfo += "%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
                                 (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
-                                 val['count'], val['min'], val['max'], val['average']))
+                                 val['count'], val['min'], val['max'], val['average'])
                     except:
                         continue
+
+                if syscallInfo != '':
+                    SystemManager.pipePrint(threadInfo)
+                    SystemManager.pipePrint(syscallInfo)
+
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
@@ -6959,7 +7257,7 @@ class ThreadAnalyzer(object):
 
             elif func == "sched_wakeup":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
-                    r'success=(?P<success>[0-9]+)\s+target_cpu=(?P<target>[0-9]+)', etc)
+                    r'target_cpu=(?P<target>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -7016,6 +7314,7 @@ class ThreadAnalyzer(object):
                         self.wakeupData['tid'] = thread
                         self.wakeupData['nr'] = nr
                         self.wakeupData['args'] = args
+
                         if (self.wakeupData['valid'] > 0 and \
                             (self.wakeupData['tid'] == thread and \
                             self.wakeupData['from'] == comm)) is False:
@@ -7405,18 +7704,6 @@ class ThreadAnalyzer(object):
 
                     self.threadData[thread]['waitStartAsParent'] = float(time)
                     self.threadData[thread]['waitPid'] = int(d['pid'])
-
-            elif func == "machine_suspend":
-                m = re.match(r'^\s*state=(?P<state>[0-9]+)', etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    if int(d['state']) == 3:
-                        state = 'S'
-                    else:
-                        state = 'R'
-
-                    self.suspendData.append([time, state])
 
             elif func == "suspend_resume":
                 state = None
