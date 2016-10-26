@@ -434,8 +434,9 @@ class FunctionAnalyzer(object):
 
         self.mapData = []
         self.pageTable = {}
-        self.heapTable = {}
         self.oldPageTable = {}
+        self.heapTable = {}
+        self.oldHeapTable = {}
         self.posData = {}
         self.userSymData = {}
         self.kernelSymData = {}
@@ -544,6 +545,17 @@ class FunctionAnalyzer(object):
 
 
     def __del__(self):
+        pass
+
+
+
+    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr):
+        self.userSymData[sym]['heapSize'] += heapExpSize
+        self.kernelSymData[kernelSym]['heapSize'] += heapExpSize
+
+
+
+    def handleHeapReduce(self, sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr):
         pass
 
 
@@ -732,6 +744,10 @@ class FunctionAnalyzer(object):
         self.oldPageTable = self.pageTable
         self.pageTable = {}
 
+        # Backup heap table used previously and Initialize it #
+        self.oldHeapTable = self.heapTable
+        self.heapTable = {}
+
         # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
@@ -894,16 +910,30 @@ class FunctionAnalyzer(object):
 
             # memory allocation event #
             if event == 'PAGE_ALLOC':
-                self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, arg[0], arg[1])
+                pageType = arg[0]
+                pfn = arg[1]
+
+                self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn)
 
             # memory free event #
             elif event == 'PAGE_FREE':
-                self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, arg[0], arg[1])
+                pageType = arg[0]
+                pfn = arg[1]
+
+                self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
-                self.userSymData[sym]['heapSize'] += heapExpSize
-                self.kernelSymData[kernelSym]['heapSize'] += heapExpSize
+                addr = arg
+
+                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr)
+                print addr
+
+            # heap expand event #
+            elif event == 'HEAP_REDUCE':
+                addr = arg
+
+                self.handleHeapReduce(sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr)
 
             # block event #
             elif event == 'BLK_READ':
@@ -1122,6 +1152,7 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, 0, None, 0, targetEvent])
+
         elif targetEvent == 'PAGE_ALLOC':
             self.pageAllocEventCnt += 1
             self.pageAllocCnt += targetCnt
@@ -1138,6 +1169,7 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 targetCnt, 0, 0, [pageType, pfn], 0, targetEvent])
+
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
             self.pageFreeCnt += targetCnt
@@ -1153,6 +1185,7 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, targetCnt, 0, [pageType, pfn], 0, targetEvent])
+
         elif targetEvent == 'BLK_READ':
             self.blockEventCnt += 1
             self.blockUsageCnt += targetCnt
@@ -1165,7 +1198,8 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, targetCnt, None, 0, targetEvent])
-        elif targetEvent == 'HEAP_EXPAND':
+
+        elif targetEvent == 'HEAP_EXPAND' or targetEvent == 'HEAP_REDUCE':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
             self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
@@ -1177,6 +1211,7 @@ class FunctionAnalyzer(object):
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, 0, targetArg, targetCnt, targetEvent])
+
         else:
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
@@ -1689,7 +1724,7 @@ class FunctionAnalyzer(object):
 
                 return False
 
-            # heap event #
+            # heap increase start event #
             elif d['func'] == "sys_enter:":
                 m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', d['etc'])
                 if m is not None:
@@ -1709,11 +1744,13 @@ class FunctionAnalyzer(object):
                             self.threadData[thread]['heapSize'] += size
                         except:
                             self.saveEventParam('IGNORE', 0, 0)
+
                             return False
 
+                        # make heap segment tid-ready #
                         self.allocHeapSeg(thread, size)
 
-                        self.saveEventParam('HEAP_EXPAND', size, thread)
+                        self.saveEventParam('IGNORE', 0, 0)
 
                         return False
 
@@ -1723,7 +1760,12 @@ class FunctionAnalyzer(object):
                         try:
                             addr = int(b['args'][1:].split(',')[0], 16)
 
+                            # remove heap segment #
                             self.freeHeapSeg(addr)
+
+                            self.saveEventParam('HEAP_REDUCE', size, addr)
+
+                            return False
                         except:
                             pass
 
@@ -1741,7 +1783,19 @@ class FunctionAnalyzer(object):
                         int(b['nr']) == ConfigManager.getMmapId():
                         self.heapEnabled = True
 
-                        self.setHeapSegAddr(thread, int(b['ret']))
+                        addr = int(b['ret'])
+
+                        # rename heap segment from tid-ready to addr #
+                        self.setHeapSegAddr(thread, addr)
+
+                        try:
+                            size = self.heapTable[addr]['size']
+
+                            self.saveEventParam('HEAP_EXPAND', size, addr)
+
+                            return False
+                        except:
+                            pass
 
                 self.saveEventParam('IGNORE', 0, 0)
 
@@ -3710,9 +3764,22 @@ class SystemManager(object):
         if launchPosStart > -1:
             SystemManager.functionEnable = True
             SystemManager.threadEnable = False
+
             SystemManager.printInfo("FUNCTION MODE")
         else:
             SystemManager.printInfo("THREAD MODE")
+
+        # apply arch option #
+        launchPosStart = SystemManager.launchBuffer.find(' -A')
+        if launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart:].lstrip(' -A')
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+
+            if SystemManager.arch != filterList:
+                SystemManager.printError(\
+                    "recorded arch(%s) is different with current arch(%s), use -A option with %s" % \
+                    (filterList, SystemManager.arch, filterList))
+                sys.exit(0)
 
         # check filter list #
         if len(SystemManager.showGroup) > 0:
@@ -8982,7 +9049,7 @@ if __name__ == '__main__':
         # write system info to buffer #
         si.printAllInfoToBuf()
     else:
-        # apply launch option from saved file #
+        # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
     # create Event Info #
