@@ -4,7 +4,7 @@ __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.1"
+__version__ = "3.5.5"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -422,6 +422,8 @@ class FunctionAnalyzer(object):
         self.periodicEventInterval = 0
         self.heapExpEventCnt = 0
         self.heapExpSize = 0
+        self.heapRedEventCnt = 0
+        self.heapRedSize = 0
         self.pageAllocEventCnt = 0
         self.pageAllocCnt = 0
         self.pageFreeEventCnt = 0
@@ -898,7 +900,7 @@ class FunctionAnalyzer(object):
             elif event == 'PAGE_FREE':
                 self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, arg[0], arg[1])
 
-            # block event #
+            # heap expand event #
             elif event == 'HEAP_EXPAND':
                 self.userSymData[sym]['heapSize'] += heapExpSize
                 self.kernelSymData[kernelSym]['heapSize'] += heapExpSize
@@ -1171,10 +1173,10 @@ class FunctionAnalyzer(object):
 
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, targetCnt, targetEvent])
+                0, 0, 0, targetArg, targetCnt, targetEvent])
             self.userCallData.append(\
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, targetCnt, targetEvent])
+                0, 0, 0, targetArg, targetCnt, targetEvent])
         else:
             self.kernelCallData.append(\
                 [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
@@ -1349,20 +1351,29 @@ class FunctionAnalyzer(object):
     def allocHeapSeg(self, tid, size):
         try:
             self.heapTable[tid + '-ready']['size'] = size
+            self.heapTable[tid + '-ready']['tid'] = tid
+            self.threadData[thread]['heapSize'] -= size
             SystemManager.printWarning('Overwrite heap segment of %s(%s) at %s' % \
                 (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
         except:
             self.heapTable[tid + '-ready'] = dict(self.init_heapSegData)
             self.heapTable[tid + '-ready']['size'] = size
+            self.heapTable[tid + '-ready']['tid'] = tid
 
 
 
     def freeHeapSeg(self, addr):
         try:
+            self.heapRedEventCnt += 1
+            self.heapRedSize += self.heapTable[addr]['size']
+
+            self.threadData[self.heapTable[addr]['tid']]['heapSize'] -= \
+                self.heapTable[addr]['size']
+
             del self.heapTable[addr]
         except:
             SystemManager.printWarning('Fail to free heap segment %s of %s(%s) at %s' % \
-                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
+                (addr, self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
 
@@ -1372,7 +1383,7 @@ class FunctionAnalyzer(object):
             del self.heapTable[tid + '-ready']
         except:
             SystemManager.printWarning('Fail to set address of heap segment %s of %s(%s) at %s' % \
-                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
+                (addr, self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
 
@@ -1690,6 +1701,11 @@ class FunctionAnalyzer(object):
 
                         try:
                             size = int(b['args'].split(',')[1], 16)
+
+                            # just brk call to check data segment address #
+                            if size == 0:
+                                pass
+
                             self.threadData[thread]['heapSize'] += size
                         except:
                             self.saveEventParam('IGNORE', 0, 0)
@@ -1697,14 +1713,15 @@ class FunctionAnalyzer(object):
 
                         self.allocHeapSeg(thread, size)
 
-                        self.saveEventParam('HEAP_EXPAND', size, None)
+                        self.saveEventParam('HEAP_EXPAND', size, thread)
 
                         return False
+
                     elif int(b['nr']) == ConfigManager.sysList.index('sys_munmap'):
                         self.heapEnabled = True
 
                         try:
-                            addr = int(b['args'].split(',')[0])
+                            addr = int(b['args'][1:].split(',')[0], 16)
 
                             self.freeHeapSeg(addr)
                         except:
@@ -1724,7 +1741,7 @@ class FunctionAnalyzer(object):
                         int(b['nr']) == ConfigManager.getMmapId():
                         self.heapEnabled = True
 
-                        self.setHeapSegAddr(thread, b['ret'])
+                        self.setHeapSegAddr(thread, int(b['ret']))
 
                 self.saveEventParam('IGNORE', 0, 0)
 
@@ -1892,8 +1909,10 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize / 1024))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^5}|{11:_^5}|".\
-            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "BLK_RD", "DIE", "NEW"))
+            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}/{9:_^8})|" + \
+            "{10:_^7}|{11:_^5}|{12:_^5}|").\
+            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "HEAP", \
+            "BLK_RD", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -1935,7 +1954,7 @@ class FunctionAnalyzer(object):
                 breakCond = cpuPer
 
             if breakCond < 1 and SystemManager.showAll is False:
-                break
+                pass
 
             if value['die'] is True:
                 dieMark = 'v'
@@ -1944,10 +1963,11 @@ class FunctionAnalyzer(object):
                 newMark = 'v'
 
             SystemManager.pipePrint(\
-                "{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:^5}|{11:^5}|".\
+                ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k/{9:7}k)|" + \
+                "{10:6}k|{11:^5}|{12:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
                 value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
-                int(value['nrBlocks'] * 0.5), dieMark, newMark))
+                value['heapSize'] / 1024, int(value['nrBlocks'] * 0.5), dieMark, newMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -2290,8 +2310,10 @@ class FunctionAnalyzer(object):
         # Print heap usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Heap Info] [Total: %dKB] [Count: %d] (USER)' % \
-            (self.heapExpSize / 1024, self.heapExpEventCnt))
+            '[Function Heap Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+            ((self.heapExpSize - self.heapRedSize) / 1024, \
+            self.heapExpSize / 1024, self.heapExpEventCnt, \
+            self.heapRedSize / 1024, self.heapRedEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
@@ -2355,11 +2377,13 @@ class FunctionAnalyzer(object):
 
         SystemManager.pipePrint('\n\n')
 
-        # Print heap usage in user space #
+        # Print heap usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Heap Info] [Total: %dKB] [Count: %d] (USER)' % \
-            (self.heapExpSize / 1024, self.heapExpEventCnt))
+            '[Function Heap Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            ((self.heapExpSize - self.heapRedSize) / 1024, \
+            self.heapExpSize / 1024, self.heapExpEventCnt, \
+            self.heapRedSize / 1024, self.heapRedEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
@@ -3681,6 +3705,15 @@ class SystemManager(object):
             SystemManager.removeEmptyValue(SystemManager.showGroup)
             SystemManager.printInfo("only specific threads %s were recorded" % ','.join(SystemManager.showGroup))
 
+        # apply mode option #
+        launchPosStart = SystemManager.launchBuffer.find(' -f')
+        if launchPosStart > -1:
+            SystemManager.functionEnable = True
+            SystemManager.threadEnable = False
+            SystemManager.printInfo("FUNCTION MODE")
+        else:
+            SystemManager.printInfo("THREAD MODE")
+
         # check filter list #
         if len(SystemManager.showGroup) > 0:
             SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
@@ -3944,10 +3977,18 @@ class SystemManager(object):
 
             elif option == 'S':
                 SystemManager.sort = value
-                if len(SystemManager.sort) != 1 or (SystemManager.sort != 'c' and \
-                    SystemManager.sort != 'm' and SystemManager.sort != 'b' and SystemManager.sort != 'w'):
-                    SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
-                    sys.exit(0)
+                if len(SystemManager.sort) > 0:
+                    if SystemManager.sort == 'c':
+                        SystemManager.printInfo("sorted by CPU")
+                    elif SystemManager.sort == 'm':
+                        SystemManager.printInfo("sorted by MEMORY")
+                    elif SystemManager.sort == 'b':
+                        SystemManager.printInfo("sorted by BLOCK_READ")
+                    elif SystemManager.sort == 'w':
+                        SystemManager.printInfo("sorted by WaitForChild")
+                    else:
+                        SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
+                        sys.exit(0)
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
