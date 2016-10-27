@@ -549,18 +549,67 @@ class FunctionAnalyzer(object):
 
 
 
-    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr):
-        self.userSymData[sym]['heapSize'] += heapExpSize
-        self.kernelSymData[kernelSym]['heapSize'] += heapExpSize
+    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, size, addr):
+        self.userSymData[sym]['heapSize'] += size
+        self.kernelSymData[kernelSym]['heapSize'] += size
+
+        try:
+            self.heapTable[addr]['size'] = size
+        except:
+            self.heapTable[addr] = dict(self.init_heapSegData)
+            self.heapTable[addr]['size'] = size
+
+        self.heapTable[addr]['sym'] = sym
+        self.heapTable[addr]['kernelSym'] = kernelSym
+        self.heapTable[addr]['subStackAddr'] = stackAddr
+        self.heapTable[addr]['kernelSubStackAddr'] = kernelStackAddr
+
+        # Set user target stack #
+        if self.sort is 'sym':
+            targetStack = self.userSymData[sym]['symStack']
+        elif self.sort is 'pos':
+            targetStack = self.userSymData[sym]['stack']
 
 
 
-    def handleHeapReduce(self, sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr):
-        pass
+    def handleHeapReduce(self, size, addr):
+        sym = self.heapTable[addr]['sym']
+        kernelSym = self.heapTable[addr]['kernelSym']
+        stackAddr = self.heapTable[addr]['subStackAddr']
+        kernelStackAddr= self.heapTable[addr]['kernelSubStackAddr']
+
+        self.userSymData[sym]['heapSize'] -= size
+        self.kernelSymData[kernelSym]['heapSize'] -= size
+
+        # Set user target stack #
+        if self.sort is 'sym':
+            targetStack = self.userSymData[sym]['symStack']
+        elif self.sort is 'pos':
+            targetStack = self.userSymData[sym]['stack']
+
+        # Find subStack of symbol allocated this segment #
+        for val in targetStack:
+            if id(val[1]) == stackAddr:
+                # Increase page count of subStack #
+                val[6] -= size
+                break
+
+        # Set kernel target stack #
+        kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+
+        # Find subStack of symbol allocated this segment #
+        for val in kernelTargetStack:
+            if id(val[1]) == kernelStackAddr:
+                # Increase page count of subStack #
+                val[6] -= size
+                break
+
+        del self.heapTable[addr]
+        self.heapTable[addr] = {}
 
 
 
-    def handlePageFree(self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn):
+    def handlePageFree(self, sym, kernelSym, pageFreeCnt, pageType, pfn):
         self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
         self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
 
@@ -920,20 +969,19 @@ class FunctionAnalyzer(object):
                 pageType = arg[0]
                 pfn = arg[1]
 
-                self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn)
+                self.handlePageFree(sym, kernelSym, pageFreeCnt, pageType, pfn)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
                 addr = arg
 
                 self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr)
-                print addr
 
             # heap expand event #
             elif event == 'HEAP_REDUCE':
                 addr = arg
 
-                self.handleHeapReduce(sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr)
+                self.handleHeapReduce(heapExpSize, addr)
 
             # block event #
             elif event == 'BLK_READ':
@@ -1199,9 +1247,20 @@ class FunctionAnalyzer(object):
                 [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 0, 0, targetCnt, None, 0, targetEvent])
 
-        elif targetEvent == 'HEAP_EXPAND' or targetEvent == 'HEAP_REDUCE':
+        elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
+
+            self.kernelCallData.append(\
+                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                0, 0, 0, targetArg, targetCnt, targetEvent])
+            self.userCallData.append(\
+                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                0, 0, 0, targetArg, targetCnt, targetEvent])
+
+        elif targetEvent == 'HEAP_REDUCE':
             self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
 
@@ -1759,6 +1818,7 @@ class FunctionAnalyzer(object):
 
                         try:
                             addr = int(b['args'][1:].split(',')[0], 16)
+                            size = self.heapTable[addr]['size']
 
                             # remove heap segment #
                             self.freeHeapSeg(addr)
@@ -2382,6 +2442,10 @@ class FunctionAnalyzer(object):
                 format(int(value['heapSize'] / 1024), idx, \
                 self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
+            if idx == value['pos']:
+                SystemManager.pipePrint(oneLine)
+                continue
+
             # Set target stack #
             targetStack = []
             if self.sort is 'sym':
@@ -2426,69 +2490,6 @@ class FunctionAnalyzer(object):
                                     ' [' + self.posData[pos]['origBin'] + ']'
 
                 SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(heapSize/ 1024), symbolStack))
-
-            SystemManager.pipePrint(oneLine)
-
-        SystemManager.pipePrint('\n\n')
-
-        # Print heap usage in kernel space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint(\
-            '[Function Heap Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
-            ((self.heapExpSize - self.heapRedSize) / 1024, \
-            self.heapExpSize / 1024, self.heapExpEventCnt, \
-            self.heapRedSize / 1024, self.heapRedEventCnt))
-
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
-
-        # Print BLOCK usage of stacks #
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['heapSize'], reverse=True):
-            if value['heapSize'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['heapSize'] / 1024), idx, '', ''))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[6], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                heapSize = stack[6]
-                subStack = list(stack[1])
-
-                if heapSize == 0:
-                    continue
-
-                if len(subStack) == 0:
-                    symbolStack = '\tNone'
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
-                    except:
-                        continue
-
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(heapSize / 1024), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
