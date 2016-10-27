@@ -388,6 +388,10 @@ class NetworkManager(object):
 class FunctionAnalyzer(object):
     """ Analyzer for function profiling """
 
+    symStackIdxTable = \
+        ['CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', \
+        'BLK_READ', 'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE']
+
     def __init__(self, logFile):
         self.cpuEnabled = False
         self.memEnabled = False
@@ -444,8 +448,7 @@ class FunctionAnalyzer(object):
         self.userCallData = []
         self.kernelCallData = []
         '''
-        userCallData = kernelCallData = \
-            [userLastPos, stack[], pageAllocCnt, pageFreeCnt, blockCnt, argument, heapExpSize, eventType]
+        userCallData = kernelCallData = [pos, stack, event, eventCnt, eventArg]
         '''
 
         self.init_threadData = \
@@ -462,7 +465,6 @@ class FunctionAnalyzer(object):
             {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
             'heapSize': int(0)}
-            # stack = symStack = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize, eventType] #
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
@@ -573,13 +575,17 @@ class FunctionAnalyzer(object):
 
 
     def handleHeapReduce(self, size, addr):
-        sym = self.heapTable[addr]['sym']
-        kernelSym = self.heapTable[addr]['kernelSym']
-        stackAddr = self.heapTable[addr]['subStackAddr']
-        kernelStackAddr= self.heapTable[addr]['kernelSubStackAddr']
+        try:
+            sym = self.heapTable[addr]['sym']
+            kernelSym = self.heapTable[addr]['kernelSym']
+            stackAddr = self.heapTable[addr]['subStackAddr']
+            kernelStackAddr= self.heapTable[addr]['kernelSubStackAddr']
 
-        self.userSymData[sym]['heapSize'] -= size
-        self.kernelSymData[kernelSym]['heapSize'] -= size
+            self.userSymData[sym]['heapSize'] -= size
+            self.kernelSymData[kernelSym]['heapSize'] -= size
+        except:
+            SystemManager.printWarning("Fail to find heap segment to be freed")
+            return
 
         # Set user target stack #
         if self.sort is 'sym':
@@ -797,22 +803,24 @@ class FunctionAnalyzer(object):
         self.oldHeapTable = self.heapTable
         self.heapTable = {}
 
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
+
         # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
 
             pos = val[0]
             stack = val[1]
-            pageAllocCnt = val[2]
-            pageFreeCnt = val[3]
-            blockCnt = val[4]
-            arg = val[5]
-            heapExpSize = val[6]
-            event = val[7]
+            event = val[2]
+            eventCnt = val[3]
+            arg = val[4]
+            eventIndex = FunctionAnalyzer.symStackIdxTable.index(event)
 
             kernelPos = self.kernelCallData[lineCnt][0]
             kernelStack = self.kernelCallData[lineCnt][1]
             subStackPageInfo = list(self.init_subStackPageInfo)
+
             targetStack = []
             kernelTargetStack = []
 
@@ -856,12 +864,6 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[kernelSym]['stack'] = []
                 self.kernelSymData[kernelSym]['pos'] = kernelPos
 
-            # Set cpu tick count variable #
-            if event == 'CPU_TICK':
-                cpuCnt = 1
-            else:
-                cpuCnt = 0
-
             # Set target user stack #
             if self.sort is 'sym':
                 tempSymStack = []
@@ -901,8 +903,13 @@ class FunctionAnalyzer(object):
 
             # First user stack related to this symbol #
             if len(targetStack) == 0:
-                targetStack.append(\
-                    [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
+                tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
+
+                tempList[eventIndex] = eventCnt
+                tempList[subStackIndex] = stack
+                tempList[argIndex] = list(subStackPageInfo)
+                targetStack.append(tempList)
+
                 stackAddr = id(stack)
             else:
                 found = False
@@ -912,19 +919,21 @@ class FunctionAnalyzer(object):
                     # Found same stack #
                     if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
                         len(list(set(stackInfo[1]) - set(stack))) == 0:
-                        # stackInfo = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize] #
                         found = True
-                        stackInfo[2] += pageAllocCnt
-                        stackInfo[3] += pageFreeCnt
-                        stackInfo[4] += blockCnt
-                        stackInfo[6] += heapExpSize
-                        stackInfo[0] += cpuCnt
-                        stackAddr = id(stackInfo[1])
+
+                        stackInfo[eventIndex] += eventCnt
+                        stackAddr = id(stackInfo[subStackIndex])
+
                         break
                 # New stack related to this symbol #
                 if found == False:
-                    targetStack.append(\
-                        [cpuCnt, stack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
+                    tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
+
+                    tempList[eventIndex] = eventCnt
+                    tempList[subStackIndex] = stack
+                    tempList[argIndex] = list(subStackPageInfo)
+                    targetStack.append(tempList)
+
                     stackAddr = id(stack)
 
             # Set target kernel stack #
@@ -932,8 +941,13 @@ class FunctionAnalyzer(object):
 
             # First stack related to this symbol #
             if len(kernelTargetStack) == 0:
-                kernelTargetStack.append(\
-                    [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
+                tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
+
+                tempList[eventIndex] = eventCnt
+                tempList[subStackIndex] = kernelStack
+                tempList[argIndex] = list(subStackPageInfo)
+                kernelTargetStack.append(tempList)
+
                 kernelStackAddr = id(kernelStack)
             else:
                 found = False
@@ -941,20 +955,20 @@ class FunctionAnalyzer(object):
                     # Found same stack  in stack list #
                     if len(list(set(kernelStack) - set(stackInfo[1]))) == 0 and \
                         len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
-                        # stackInfo = [cpuCnt, stack[], pageAllocCnt, pageFreeCnt, blockCnt, pageFlag, heapExpSize] #
                         found = True
-                        stackInfo[2] += pageAllocCnt
-                        stackInfo[3] += pageFreeCnt
-                        stackInfo[4] += blockCnt
-                        stackInfo[6] += heapExpSize
-                        stackInfo[0] += cpuCnt
-                        kernelStackAddr = id(stackInfo[1])
+                        stackInfo[eventIndex] += eventCnt
+                        kernelStackAddr = id(stackInfo[subStackIndex])
                         break
 
                 # New stack related to this symbol #
                 if found == False:
-                    kernelTargetStack.append(\
-                        [cpuCnt, kernelStack, pageAllocCnt, pageFreeCnt, blockCnt, list(subStackPageInfo), heapExpSize])
+                    tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
+
+                    tempList[eventIndex] = eventCnt
+                    tempList[subStackIndex] = kernelStack
+                    tempList[argIndex] = list(subStackPageInfo)
+                    kernelTargetStack.append(tempList)
+
                     kernelStackAddr = id(kernelStack)
 
             # memory allocation event #
@@ -962,31 +976,31 @@ class FunctionAnalyzer(object):
                 pageType = arg[0]
                 pfn = arg[1]
 
-                self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn)
+                self.handlePageAlloc(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, pageType, pfn)
 
             # memory free event #
             elif event == 'PAGE_FREE':
                 pageType = arg[0]
                 pfn = arg[1]
 
-                self.handlePageFree(sym, kernelSym, pageFreeCnt, pageType, pfn)
+                self.handlePageFree(sym, kernelSym, eventCnt, pageType, pfn)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
                 addr = arg
 
-                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, heapExpSize, addr)
+                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, addr)
 
             # heap expand event #
             elif event == 'HEAP_REDUCE':
                 addr = arg
 
-                self.handleHeapReduce(heapExpSize, addr)
+                self.handleHeapReduce(eventCnt, addr)
 
             # block event #
             elif event == 'BLK_READ':
-                self.userSymData[sym]['blockCnt'] += blockCnt
-                self.kernelSymData[kernelSym]['blockCnt'] += blockCnt
+                self.userSymData[sym]['blockCnt'] += eventCnt
+                self.kernelSymData[kernelSym]['blockCnt'] += eventCnt
 
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
@@ -994,8 +1008,13 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[kernelSym]['cnt'] += 1
 
             # etc event #
-            elif event is not 'IGNORE':
-                SystemManager.printWarning("Ignore %s event" % event)
+            elif event is 'IGNORE':
+                # do not print IGNORE event #
+                # SystemManager.printWarning("Ignore %s event" % event)
+                pass
+
+            else:
+                SystemManager.printWarning("Fail to recognize event %s" % event)
 
 
 
@@ -1190,16 +1209,18 @@ class FunctionAnalyzer(object):
         self.nowCtx['savedArg'] = tempArg
 
 
-    def saveFullStack(self, targetEvent, targetCnt, targetArg):
+
+    def saveFullStack(self, kernelPos, kernelStack, userPos, userStack, targetEvent, targetCnt, targetArg):
+
+        self.userCallData.append([userPos, userStack, targetEvent, targetCnt, targetArg])
+
+        self.kernelCallData.append([kernelPos, kernelStack, targetEvent, targetCnt, targetArg])
+
+
+
+    def saveEventStack(self, targetEvent, targetCnt, targetArg):
         if targetEvent == 'CPU_TICK':
             self.periodicEventCnt += 1
-
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, 0, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, 0, targetEvent])
 
         elif targetEvent == 'PAGE_ALLOC':
             self.pageAllocEventCnt += 1
@@ -1210,13 +1231,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
-
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                targetCnt, 0, 0, [pageType, pfn], 0, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                targetCnt, 0, 0, [pageType, pfn], 0, targetEvent])
+            targetArg = [pageType, pfn]
 
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
@@ -1226,13 +1241,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
-
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, targetCnt, 0, [pageType, pfn], 0, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, targetCnt, 0, [pageType, pfn], 0, targetEvent])
+            targetArg = [pageType, pfn]
 
         elif targetEvent == 'BLK_READ':
             self.blockEventCnt += 1
@@ -1240,44 +1249,22 @@ class FunctionAnalyzer(object):
             self.posData[self.nowCtx['kernelLastPos']]['blockCnt'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['blockCnt'] += targetCnt
 
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, targetCnt, None, 0, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, targetCnt, None, 0, targetEvent])
-
         elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
             self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
 
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, targetArg, targetCnt, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, targetArg, targetCnt, targetEvent])
-
         elif targetEvent == 'HEAP_REDUCE':
             self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
 
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, targetArg, targetCnt, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, targetArg, targetCnt, targetEvent])
-
         else:
-            self.kernelCallData.append(\
-                [self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-                0, 0, 0, None, 0, targetEvent])
-            self.userCallData.append(\
-                [self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-                0, 0, 0, None, 0, targetEvent])
+            pass
+
+        self.saveFullStack(self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+            self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+            targetEvent, targetCnt, targetArg)
 
 
 
@@ -1362,7 +1349,7 @@ class FunctionAnalyzer(object):
                 targetArg = self.nowCtx['savedArg']
 
             # Save full stack of previous event #
-            self.saveFullStack(targetEvent, targetCnt, targetArg)
+            self.saveEventStack(targetEvent, targetCnt, targetArg)
 
             # Recover previous kernel stack after handling nested event #
             if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
