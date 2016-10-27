@@ -388,9 +388,12 @@ class NetworkManager(object):
 class FunctionAnalyzer(object):
     """ Analyzer for function profiling """
 
-    symStackIdxTable = \
-        ['CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', \
-        'BLK_READ', 'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE']
+    symStackIdxTable = [
+        'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
+        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE'
+        ]
+
+
 
     def __init__(self, logFile):
         self.cpuEnabled = False
@@ -575,6 +578,9 @@ class FunctionAnalyzer(object):
 
 
     def handleHeapReduce(self, size, addr):
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
+
         try:
             sym = self.heapTable[addr]['sym']
             kernelSym = self.heapTable[addr]['kernelSym']
@@ -595,9 +601,9 @@ class FunctionAnalyzer(object):
 
         # Find subStack of symbol allocated this segment #
         for val in targetStack:
-            if id(val[1]) == stackAddr:
-                # Increase page count of subStack #
-                val[6] -= size
+            if id(val[subStackIndex]) == stackAddr:
+                # Increase heap count of subStack #
+                val[heapExpIndex] -= size
                 break
 
         # Set kernel target stack #
@@ -605,9 +611,9 @@ class FunctionAnalyzer(object):
 
         # Find subStack of symbol allocated this segment #
         for val in kernelTargetStack:
-            if id(val[1]) == kernelStackAddr:
-                # Increase page count of subStack #
-                val[6] -= size
+            if id(val[subStackIndex]) == kernelStackAddr:
+                # Increase heap count of subStack #
+                val[heapExpIndex] -= size
                 break
 
         del self.heapTable[addr]
@@ -618,6 +624,10 @@ class FunctionAnalyzer(object):
     def handlePageFree(self, sym, kernelSym, pageFreeCnt, pageType, pfn):
         self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
         self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
+        argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
         for cnt in range(0, pageFreeCnt):
             pfnv = pfn + cnt
@@ -655,9 +665,9 @@ class FunctionAnalyzer(object):
 
                 # Find subStack allocated this page #
                 for val in targetStack:
-                    if id(val[1]) == allocStackAddr:
-                        val[2] -= 1
-                        val[5][subStackPageInfoIdx] -= 1
+                    if id(val[subStackIndex]) == allocStackAddr:
+                        val[pageAllocIndex] -= 1
+                        val[argIndex][subStackPageInfoIdx] -= 1
                         break
 
                 # Set kernel target stack #
@@ -665,9 +675,9 @@ class FunctionAnalyzer(object):
 
                 # Find subStack allocated this page #
                 for val in kernelTargetStack:
-                    if id(val[1]) == allocKernelStackAddr:
-                        val[2] -= 1
-                        val[5][subStackPageInfoIdx] -= 1
+                    if id(val[subStackIndex]) == allocKernelStackAddr:
+                        val[pageAllocIndex] -= 1
+                        val[argIndex][subStackPageInfoIdx] -= 1
                         break
 
                 del self.pageTable[pfnv]
@@ -680,6 +690,10 @@ class FunctionAnalyzer(object):
 
     def handlePageAlloc(self, sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn):
         subStackPageInfoIdx = 0
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
+        argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
         # Increase counts of page to be allocated #
         self.userSymData[sym]['pageCnt'] += pageAllocCnt
@@ -706,9 +720,9 @@ class FunctionAnalyzer(object):
 
         # Find subStack of symbol allocated this page #
         for val in targetStack:
-            if id(val[1]) == stackAddr:
+            if id(val[subStackIndex]) == stackAddr:
                 # Increase page count of subStack #
-                val[5][subStackPageInfoIdx] += pageAllocCnt
+                val[argIndex][subStackPageInfoIdx] += pageAllocCnt
                 break
 
         # Set kernel target stack #
@@ -716,9 +730,9 @@ class FunctionAnalyzer(object):
 
         # Find subStack of symbol allocated this page #
         for val in kernelTargetStack:
-            if id(val[1]) == kernelStackAddr:
+            if id(val[subStackIndex]) == kernelStackAddr:
                 # Increase page count of subStack #
-                val[5][subStackPageInfoIdx] += pageAllocCnt
+                val[argIndex][subStackPageInfoIdx] += pageAllocCnt
                 break
 
         # Make PTE in page table #
@@ -761,10 +775,10 @@ class FunctionAnalyzer(object):
 
                 # Find user subStack of symbol allocated this page #
                 for val in targetStack:
-                    if id(val[1]) == allocStackAddr:
+                    if id(val[subStackIndex]) == allocStackAddr:
                         # Decrease allocated page count of substack #
-                        val[2] -= 1
-                        val[5][subStackPageInfoIdx] -= 1
+                        val[pageAllocIndex] -= 1
+                        val[argIndex][subStackPageInfoIdx] -= 1
                         break
 
                 # Set kernel target stack #
@@ -772,10 +786,10 @@ class FunctionAnalyzer(object):
 
                 # Find user subStack of symbol allocated this page #
                 for val in kernelTargetStack:
-                    if id(val[1]) == allocKernelStackAddr:
+                    if id(val[subStackIndex]) == allocKernelStackAddr:
                         # Decrease allocated page count of substack #
-                        val[2] -= 1
-                        val[5][subStackPageInfoIdx] -= 1
+                        val[pageAllocIndex] -= 1
+                        val[argIndex][subStackPageInfoIdx] -= 1
                         break
             except:
                 self.pageTable[pfnv] = dict(self.init_pageLinkData)
@@ -815,7 +829,11 @@ class FunctionAnalyzer(object):
             event = val[2]
             eventCnt = val[3]
             arg = val[4]
-            eventIndex = FunctionAnalyzer.symStackIdxTable.index(event)
+
+            try:
+                eventIndex = FunctionAnalyzer.symStackIdxTable.index(event)
+            except:
+                eventIndex = FunctionAnalyzer.symStackIdxTable.index('IGNORE')
 
             kernelPos = self.kernelCallData[lineCnt][0]
             kernelStack = self.kernelCallData[lineCnt][1]
@@ -917,8 +935,8 @@ class FunctionAnalyzer(object):
                 # Find same stack by pos in stack list #
                 for stackInfo in targetStack:
                     # Found same stack #
-                    if len(list(set(stack) - set(stackInfo[1]))) == 0 and \
-                        len(list(set(stackInfo[1]) - set(stack))) == 0:
+                    if len(list(set(stack) - set(stackInfo[subStackIndex]))) == 0 and \
+                        len(list(set(stackInfo[subStackIndex]) - set(stack))) == 0:
                         found = True
 
                         stackInfo[eventIndex] += eventCnt
@@ -953,8 +971,8 @@ class FunctionAnalyzer(object):
                 found = False
                 for stackInfo in kernelTargetStack:
                     # Found same stack  in stack list #
-                    if len(list(set(kernelStack) - set(stackInfo[1]))) == 0 and \
-                        len(list(set(stackInfo[1]) - set(kernelStack))) == 0:
+                    if len(list(set(kernelStack) - set(stackInfo[subStackIndex]))) == 0 and \
+                        len(list(set(stackInfo[subStackIndex]) - set(kernelStack))) == 0:
                         found = True
                         stackInfo[eventIndex] += eventCnt
                         kernelStackAddr = id(stackInfo[subStackIndex])
@@ -1591,7 +1609,7 @@ class FunctionAnalyzer(object):
                 self.threadData[thread]['cpuTick'] += 1
 
                 # Set global interval #
-                if self.nowCtx['prevTid'] == thread:
+                if self.nowCtx['prevTid'] is not None:
                     diff = float(d['time']) - float(self.nowCtx['prevTime'])
                     self.periodicEventInterval += diff
                     self.periodicContEventCnt += 1
@@ -1654,7 +1672,7 @@ class FunctionAnalyzer(object):
             if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') > -1:
                 self.cpuEnabled = True
 
-                self.saveEventParam('CPU_TICK', 0, 0)
+                self.saveEventParam('CPU_TICK', 1, 0)
 
                 return False
 
