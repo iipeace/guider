@@ -399,7 +399,8 @@ class FunctionAnalyzer(object):
         self.cpuEnabled = False
         self.memEnabled = False
         self.heapEnabled = False
-        self.ioEnabled = False
+        self.breadEnabled = False
+        self.bwriteEnabled = False
         self.sigEnabled = False
 
         self.sort = 'sym'
@@ -922,7 +923,6 @@ class FunctionAnalyzer(object):
             # First user stack related to this symbol #
             if len(targetStack) == 0:
                 tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
-
                 tempList[eventIndex] = eventCnt
                 tempList[subStackIndex] = stack
                 tempList[argIndex] = list(subStackPageInfo)
@@ -943,10 +943,10 @@ class FunctionAnalyzer(object):
                         stackAddr = id(stackInfo[subStackIndex])
 
                         break
+
                 # New stack related to this symbol #
                 if found == False:
                     tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
-
                     tempList[eventIndex] = eventCnt
                     tempList[subStackIndex] = stack
                     tempList[argIndex] = list(subStackPageInfo)
@@ -960,7 +960,6 @@ class FunctionAnalyzer(object):
             # First stack related to this symbol #
             if len(kernelTargetStack) == 0:
                 tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
-
                 tempList[eventIndex] = eventCnt
                 tempList[subStackIndex] = kernelStack
                 tempList[argIndex] = list(subStackPageInfo)
@@ -981,7 +980,6 @@ class FunctionAnalyzer(object):
                 # New stack related to this symbol #
                 if found == False:
                     tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
-
                     tempList[eventIndex] = eventCnt
                     tempList[subStackIndex] = kernelStack
                     tempList[argIndex] = list(subStackPageInfo)
@@ -1027,9 +1025,7 @@ class FunctionAnalyzer(object):
 
             # etc event #
             elif event is 'IGNORE':
-                # do not print IGNORE event #
-                # SystemManager.printWarning("Ignore %s event" % event)
-                pass
+                SystemManager.printWarning("Ignore %s event" % event)
 
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
@@ -1519,7 +1515,7 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
-        # Process last event #
+        # Save stack of last event #
         self.saveEventParam('IGNORE', 0, 0)
         self.nowCtx['nested'] -= 1
         self.saveCallStack()
@@ -1871,7 +1867,7 @@ class FunctionAnalyzer(object):
 
                 return False
 
-            # block request event #
+            # block read request event #
             elif d['func'] == "block_bio_remap:":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
                     r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
@@ -1879,19 +1875,35 @@ class FunctionAnalyzer(object):
                     b = m.groupdict()
 
                     if b['operation'][0] == 'R':
-                        self.ioEnabled = True
+                        self.breadEnabled = True
 
                         blockCnt = int(b['size'])
                         self.threadData[thread]['nrBlocks'] += blockCnt
 
                         self.saveEventParam('BLK_READ', blockCnt, 0)
-                    else:
-                        # toDo: add BLK_WRITE #
-                        self.saveEventParam('BLK_WRITE', 0, 0)
-                else:
-                    self.saveEventParam('IGNORE', 0, 0)
+
+                        return False
+
+                self.saveEventParam('IGNORE', 0, 0)
 
                 return False
+
+            elif d['func'] == "writeback_dirty_page:":
+                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
+                    r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', d['etc'])
+                if m is not None:
+                    b = m.groupdict()
+
+                    self.bwriteEnabled = True
+
+            elif d['func'] == "wbc_writepage:":
+                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
+                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', d['etc'])
+                if m is not None:
+                    d = m.groupdict()
+
+                    if d['skip'] == '0':
+                        self.bwriteEnabled = True
 
             # segmentation fault generation event #
             elif d['func'] == "signal_generate:":
@@ -1932,6 +1944,7 @@ class FunctionAnalyzer(object):
             elif d['func'] == "<user":
                 self.nowCtx['prevMode'] = self.nowCtx['curMode']
                 self.nowCtx['curMode'] = 'user'
+
                 return True
 
             # Start to record kernel stack #
@@ -1964,22 +1977,28 @@ class FunctionAnalyzer(object):
         else:
             pos = string.find('=>  <')
             m = re.match(r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] \<(?P<pos>.\S+)\>', string)
+
             # exist path, offset, pos #
             if m is not None:
                 d = m.groupdict()
                 return (d['pos'], d['path'], hex(int(d['offset'], 16)))
+
             # exist only pos #
             elif pos > -1:
                 return (string[pos+5:len(string)-2], None, None)
+
             # exist nothing #
             elif string.find('??') > -1:
                 return ('0', None, None)
+
             else:
                 m = re.match(r' => (?P<symbol>.+) \<(?P<pos>.\S+)\>', string)
+
                 # exist symbol, pos #
                 if m is not None:
                     d = m.groupdict()
                     return (d['pos'], d['symbol'], None)
+
                 # garbage log #
                 else:
                     return False
@@ -2324,7 +2343,7 @@ class FunctionAnalyzer(object):
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[2], reverse=True)
+            targetStack = sorted(targetStack, key=lambda x: x[pageAllocIndex], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -2401,7 +2420,7 @@ class FunctionAnalyzer(object):
                 value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[2], reverse=True)
+            value['stack'] = sorted(value['stack'], key=lambda x: x[pageAllocIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -2478,7 +2497,7 @@ class FunctionAnalyzer(object):
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[6], reverse=True)
+            targetStack = sorted(targetStack, key=lambda x: x[heapExpIndex], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -2523,7 +2542,7 @@ class FunctionAnalyzer(object):
 
     def printBlockUsage(self):
         # no block event #
-        if self.ioEnabled is False:
+        if self.breadEnabled is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -2555,7 +2574,7 @@ class FunctionAnalyzer(object):
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[4], reverse=True)
+            targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -2626,7 +2645,7 @@ class FunctionAnalyzer(object):
                 format(int(value['blockCnt'] * 0.5), idx, '', ''))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[4], reverse=True)
+            value['stack'] = sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -3298,8 +3317,9 @@ class SystemManager(object):
     irqEnable = False
     cpuEnable = True
     memEnable = False
+    heapEnable = False
     diskEnable = False
-    blockEnable = True
+    blockEnable = False
     userEnable = True
     futexEnable = False
     pipeEnable = False
@@ -3449,6 +3469,11 @@ class SystemManager(object):
                 disableStat += 'MEMORY '
             else:
                 enableStat += 'MEMORY '
+
+            if SystemManager.heapEnable is False:
+                disableStat += 'HEAP '
+            else:
+                enableStat += 'HEAP '
 
             if SystemManager.blockEnable is False:
                 disableStat += 'BLOCK '
@@ -4053,9 +4078,9 @@ class SystemManager(object):
                     SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
-                if options.rfind('w') > -1:
-                    if SystemManager.warningEnable is False:
-                        SystemManager.warningEnable = True
+
+            elif option == 'v':
+                SystemManager.warningEnable = True
 
             elif option == 'f':
                 # Handle error about record option #
@@ -4156,14 +4181,19 @@ class SystemManager(object):
                     SystemManager.irqEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
+                if options.rfind('h') > -1:
+                    SystemManager.heapEnable = True
+                if options.rfind('b') > -1:
+                    SystemManager.blockEnable = True
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
                 if options.rfind('f') > -1:
                     SystemManager.futexEnable = True
-                if options.rfind('w') > -1:
-                    SystemManager.warningEnable = True
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
+
+            elif option == 'v':
+                SystemManager.warningEnable = True
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -4227,6 +4257,8 @@ class SystemManager(object):
                     SystemManager.cpuEnable = False
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = False
+                if options.rfind('h') > -1:
+                    SystemManager.heapEnable = False
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = False
                 if options.rfind('u') > -1:
@@ -4730,10 +4762,10 @@ class SystemManager(object):
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
         self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = SystemManager.memEnable
         self.cmdList["timer/hrtimer_start"] = False
-        self.cmdList["block/block_bio_remap"] = True
-        self.cmdList["block/block_rq_complete"] = True
-        self.cmdList["writeback/writeback_dirty_page"] = True
-        self.cmdList["writeback/wbc_writepage"] = True
+        self.cmdList["block/block_bio_remap"] = SystemManager.blockEnable
+        self.cmdList["block/block_rq_complete"] = SystemManager.blockEnable
+        self.cmdList["writeback/writeback_dirty_page"] = SystemManager.blockEnable
+        self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["sched/sched_migrate_task"] = True
@@ -4854,7 +4886,13 @@ class SystemManager(object):
                 SystemManager.writeCmd('kmem/mm_page_free/filter', cmd)
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
                 SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
+            else:
+                SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
+                SystemManager.writeCmd('kmem/mm_page_free/enable', '0')
+                self.cmdList["kmem/mm_page_alloc"] = False
+                self.cmdList["kmem/mm_page_free"] = False
 
+            if SystemManager.heapEnable is True:
                 mmapId = ConfigManager.getMmapId()
 
                 self.cmdList["raw_syscalls/sys_enter"] = True
@@ -4871,12 +4909,8 @@ class SystemManager(object):
                 SystemManager.writeCmd('raw_syscalls/sys_exit/filter', sysExitCmd)
                 SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             else:
-                SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
-                SystemManager.writeCmd('kmem/mm_page_free/enable', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
-                self.cmdList["kmem/mm_page_alloc"] = False
-                self.cmdList["kmem/mm_page_free"] = False
                 self.cmdList["raw_syscalls/sys_enter"] = False
                 self.cmdList["raw_syscalls/sys_exit"] = False
 
@@ -6516,68 +6550,6 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
-        # Block timeline #
-        SystemManager.clearPrint()
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
-            if key[0:2] != '0[':
-                icount = 0
-                timeLine = ''
-                for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
-                    newFlag = ' '
-                    dieFlag = ' '
-
-                    try:
-                        self.intervalData[icount][key]
-                    except:
-                        timeLine += '%3d ' % 0
-                        continue
-
-                    if icount > 0:
-                        try:
-                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
-                                newFlag = self.intervalData[icount][key]['new']
-                        except:
-                            newFlag = self.intervalData[icount][key]['new']
-                        try:
-                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
-                                dieFlag = self.intervalData[icount][key]['die']
-                        except:
-                            dieFlag = self.intervalData[icount][key]['die']
-                    else:
-                        newFlag = self.intervalData[icount][key]['new']
-                        dieFlag = self.intervalData[icount][key]['die']
-
-                    timeLine += '%4s' % (newFlag + \
-                        str(int(self.intervalData[icount][key]['ioUsage'] * \
-                        SystemManager.blockSize / 1024 / 1024)) + dieFlag)
-
-                SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
-
-                if SystemManager.graphEnable is True:
-                    timeLine = timeLine.replace('N', '')
-                    timeLine = timeLine.replace('D', '')
-                    timeLine = timeLine.replace('F', '')
-                    timeLineData = [int(n) for n in timeLine.split()]
-
-                    subplot(2, 1, 1)
-                    plot(range(SystemManager.intervalEnable, \
-                        (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                        SystemManager.intervalEnable), timeLineData, '.-')
-                    SystemManager.graphLabels.append(value['comm'])
-
-                if value['readBlock'] < 1 and SystemManager.showAll == False:
-                    break
-
-        if SystemManager.graphEnable is True:
-            title('Disk Usage of Threads')
-            ylabel('Size(MB)', fontsize=10)
-            legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-            del SystemManager.graphLabels[:]
-
-        SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
-        SystemManager.pipePrint(SystemManager.bufferString)
-        SystemManager.pipePrint(oneLine)
-
         # Memory timeline #
         SystemManager.clearPrint()
         if SystemManager.memEnable is True:
@@ -6640,6 +6612,69 @@ class ThreadAnalyzer(object):
                 ylabel('Size(MB)', fontsize=10)
                 legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
                 del SystemManager.graphLabels[:]
+
+        # Block timeline #
+        SystemManager.clearPrint()
+        if SystemManager.blockEnable is True:
+            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
+                if key[0:2] != '0[':
+                    icount = 0
+                    timeLine = ''
+                    for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
+                        try:
+                            self.intervalData[icount][key]
+                        except:
+                            timeLine += '%3d ' % 0
+                            continue
+
+                        if icount > 0:
+                            try:
+                                if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                newFlag = self.intervalData[icount][key]['new']
+                            try:
+                                if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
+                                    dieFlag = self.intervalData[icount][key]['die']
+                            except:
+                                dieFlag = self.intervalData[icount][key]['die']
+                        else:
+                            newFlag = self.intervalData[icount][key]['new']
+                            dieFlag = self.intervalData[icount][key]['die']
+
+                        timeLine += '%4s' % (newFlag + \
+                            str(int(self.intervalData[icount][key]['ioUsage'] * \
+                            SystemManager.blockSize / 1024 / 1024)) + dieFlag)
+
+                    SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+
+                    if SystemManager.graphEnable is True:
+                        timeLine = timeLine.replace('N', '')
+                        timeLine = timeLine.replace('D', '')
+                        timeLine = timeLine.replace('F', '')
+                        timeLineData = [int(n) for n in timeLine.split()]
+
+                        subplot(2, 1, 1)
+                        plot(range(SystemManager.intervalEnable, \
+                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
+                            SystemManager.intervalEnable), timeLineData, '.-')
+                        SystemManager.graphLabels.append(value['comm'])
+
+                    if value['readBlock'] < 1 and SystemManager.showAll == False:
+                        break
+
+            if SystemManager.graphEnable is True:
+                title('Disk Usage of Threads')
+                ylabel('Size(MB)', fontsize=10)
+                legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
+                del SystemManager.graphLabels[:]
+
+            SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.pipePrint(oneLine)
 
         if SystemManager.graphEnable is True:
             figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
@@ -7650,6 +7685,9 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
 
                     if d['operation'][0] == 'R':
+
+                        SystemManager.blockEnable = True
+
                         bio = d['major'] + '/' + d['minor'] + '/' + d['operation'][0] + '/' + d['address']
 
                         self.ioData[bio] = {'thread': thread, 'time': float(time), \
@@ -7744,6 +7782,8 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
+                    SystemManager.blockEnable = True
+
                     self.threadData[thread]['writeBlock'] += 1
                     self.threadData[thread]['writeBlockCnt'] += 1
                     self.threadData[coreId]['writeBlock'] += 1
@@ -7755,9 +7795,9 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    skip = d['skip']
+                    if d['skip'] == '0':
+                        SystemManager.blockEnable = True
 
-                    if skip == '0':
                         self.threadData[thread]['writeBlock'] += 1
                         self.threadData[thread]['writeBlockCnt'] += 1
                         self.threadData[coreId]['writeBlock'] += 1
@@ -8854,18 +8894,20 @@ if __name__ == '__main__':
         print '\t\t-f  [function mode]'
         print '\t\t-m  [file mode]'
         print '\t[record|top]'
-        print '\t\t-s [save_traceData:dir|file]'
-        print '\t\t-S [sort_output:c(pu),m(em),b(lock),w(fc)]'
+        print '\t\t-e [enable_options:bellowCharacters]'
+        print '\t\t   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|'
+        print '\t\t-d [disable_options:bellowCharacters]'
+        print '\t\t   |_c(pu)_m(em)_b(lock)_u(user)_|'
+        print '\t\t-s [save_traceData:dir/file]'
+        print '\t\t-S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
         print '\t\t-u [run_inBackground]'
         print '\t\t-c [wait_forSignal]'
-        print '\t\t-e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]'
-        print '\t\t-d [disable_options:c(pu)|b(lock)|u(user)]'
         print '\t\t-r [record_repeatData:interval,count]'
-        print '\t\t-b [set_bufferSize:kb(record)|10b(top)]'
+        print '\t\t-b [set_bufferSize:kb]'
         print '\t\t-w [trace_threadDependency]'
         print '\t\t-t [trace_syscall:syscallNums]'
         print '\t[analysis]'
-        print '\t\t-o [set_dirOfOutputFile:dir]'
+        print '\t\t-o [save_outputData:dir]'
         print '\t\t-a [show_allInfo]'
         print '\t\t-i [set_interval:sec]'
         print '\t\t-w [show_threadDependency]'
@@ -8875,6 +8917,7 @@ if __name__ == '__main__':
         print '\t\t-q [make_taskchain]'
         print '\t[common]'
         print '\t\t-g [filter_specificGroup:comms|tids]'
+        print '\t\t-v [view_warningMessages]'
         print '\t\t-A [set_arch:arm|x86|x64]'
 
         print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
