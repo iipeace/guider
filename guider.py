@@ -457,7 +457,7 @@ class FunctionAnalyzer(object):
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
             'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0), \
-            'heapSize': int(0)}
+            'heapSize': int(0), 'eventCnt': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
@@ -1045,6 +1045,8 @@ class FunctionAnalyzer(object):
 
         # Get symbols and source pos #
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+            SystemManager.printRunning()
+
             if value['binary'] == '':
                 # user pos without offset #
                 if value['symbol'] == '' or value['symbol'] == '??':
@@ -1588,6 +1590,9 @@ class FunctionAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
 
+            # increase event count #
+            self.threadData[thread]['eventCnt'] += 1
+
             # set current core #
             self.lastCore = d['core']
 
@@ -2051,11 +2056,15 @@ class FunctionAnalyzer(object):
             dieMark = ''
             newMark = ''
 
+            # skip no event count thread #
+            if value['eventCnt'] == 0:
+                continue
+
             # check target thread #
             if value['target'] is True:
                 targetCnt += 1
                 if targetCnt == 2:
-                    SystemManager.printWarning("Multiple target threads are profiled")
+                    SystemManager.printWarning("Multiple target threads are selected")
                 targetMark = '*'
 
             # get cpu usage #
@@ -2107,6 +2116,9 @@ class FunctionAnalyzer(object):
         if self.cpuEnabled is False:
             return
 
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        cpuTickIndex = FunctionAnalyzer.symStackIdxTable.index('CPU_TICK')
+
         # average tick interval #
         self.periodicEventInterval /= self.periodicContEventCnt
 
@@ -2147,8 +2159,8 @@ class FunctionAnalyzer(object):
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                cpuCnt = stack[0]
-                subStack = list(stack[1])
+                cpuCnt = stack[cpuTickIndex]
+                subStack = list(stack[subStackIndex])
 
                 if cpuCnt == 0:
                     break
@@ -2231,8 +2243,8 @@ class FunctionAnalyzer(object):
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                cpuCnt = stack[0]
-                subStack = list(stack[1])
+                cpuCnt = stack[cpuTickIndex]
+                subStack = list(stack[subStackIndex])
 
                 if cpuCnt == 0:
                     break
@@ -2279,6 +2291,10 @@ class FunctionAnalyzer(object):
         if self.memEnabled is False:
             return
 
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
+        argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
+
        # Print mem usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
@@ -2312,11 +2328,11 @@ class FunctionAnalyzer(object):
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                subStack = list(stack[1])
-                pageCnt = stack[2]
-                userPageCnt = stack[5][0]
-                cachePageCnt = stack[5][1]
-                kernelPageCnt = stack[5][2]
+                subStack = list(stack[subStackIndex])
+                pageCnt = stack[pageAllocIndex]
+                userPageCnt = stack[argIndex][0]
+                cachePageCnt = stack[argIndex][1]
+                kernelPageCnt = stack[argIndex][2]
 
                 if pageCnt == 0:
                     break
@@ -2389,11 +2405,11 @@ class FunctionAnalyzer(object):
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                subStack = list(stack[1])
-                pageCnt = stack[2]
-                userPageCnt = stack[5][0]
-                cachePageCnt = stack[5][1]
-                kernelPageCnt = stack[5][2]
+                subStack = list(stack[subStackIndex])
+                pageCnt = stack[pageAllocIndex]
+                userPageCnt = stack[argIndex][0]
+                cachePageCnt = stack[argIndex][1]
+                kernelPageCnt = stack[argIndex][2]
 
                 if pageCnt == 0:
                     continue
@@ -2425,6 +2441,9 @@ class FunctionAnalyzer(object):
         # check heap memory event #
         if self.heapEnabled is False:
             return
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
 
         # Print heap usage in user space #
         SystemManager.clearPrint()
@@ -2463,8 +2482,8 @@ class FunctionAnalyzer(object):
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                heapSize = stack[6]
-                subStack = list(stack[1])
+                heapSize = stack[heapExpIndex]
+                subStack = list(stack[subStackIndex])
 
                 if heapSize == 0:
                     break
@@ -2507,6 +2526,9 @@ class FunctionAnalyzer(object):
         if self.ioEnabled is False:
             return
 
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
+
         # Print BLOCK usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
@@ -2537,8 +2559,8 @@ class FunctionAnalyzer(object):
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                blockCnt = stack[4]
-                subStack = list(stack[1])
+                blockCnt = stack[blkRdIndex]
+                subStack = list(stack[subStackIndex])
 
                 if blockCnt == 0:
                     break
@@ -2608,8 +2630,8 @@ class FunctionAnalyzer(object):
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                blockCnt = stack[4]
-                subStack = list(stack[1])
+                blockCnt = stack[blkRdIndex]
+                subStack = list(stack[subStackIndex])
 
                 if blockCnt == 0:
                     continue
@@ -3683,6 +3705,23 @@ class SystemManager(object):
             return -2
 
         return 0
+
+
+
+    @staticmethod
+    def printRunning():
+        if SystemManager.progressCnt > 800:
+            SystemManager.progressCnt = 0
+
+        SystemManager.progressCnt += 1
+
+        if SystemManager.progressCnt % 100 == 0:
+            sys.stdout.write('processing... ' + \
+                SystemManager.progressChar[SystemManager.progressCnt / 400] + \
+                '\b' * 15)
+
+            sys.stdout.flush()
+            gc.collect()
 
 
 
