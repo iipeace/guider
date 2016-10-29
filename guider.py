@@ -1025,7 +1025,7 @@ class FunctionAnalyzer(object):
 
             # etc event #
             elif event is 'IGNORE':
-                SystemManager.printWarning("Ignore %s event" % event)
+                SystemManager.printWarning("Ignore %s event" % arg)
 
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
@@ -1515,10 +1515,13 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
-        # Save stack of last event #
-        self.saveEventParam('IGNORE', 0, 0)
-        self.nowCtx['nested'] -= 1
-        self.saveCallStack()
+        # Save stack of last events per core #
+        for idx in self.coreCtx.keys():
+            self.nowCtx = self.coreCtx[idx]
+
+            self.saveEventParam('IGNORE', 0, 0)
+            self.nowCtx['nested'] -= 1
+            self.saveCallStack()
 
 
 
@@ -1741,6 +1744,11 @@ class FunctionAnalyzer(object):
                     self.memEnabled = True
 
                     self.saveEventParam('PAGE_ALLOC', pageCnt, [pageType, pfn])
+                else:
+                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
+
+                    SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                            (d['func'][:-1], SystemManager.dbgEventLine))
 
                 return False
 
@@ -1785,7 +1793,10 @@ class FunctionAnalyzer(object):
 
                     return False
 
-                self.saveEventParam('IGNORE', 0, 0)
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (d['func'][:-1], SystemManager.dbgEventLine))
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1808,14 +1819,14 @@ class FunctionAnalyzer(object):
 
                             self.threadData[thread]['heapSize'] += size
                         except:
-                            self.saveEventParam('IGNORE', 0, 0)
+                            self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                             return False
 
                         # make heap segment tid-ready #
                         self.allocHeapSeg(thread, size)
 
-                        self.saveEventParam('IGNORE', 0, 0)
+                        self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                         return False
 
@@ -1835,7 +1846,10 @@ class FunctionAnalyzer(object):
                         except:
                             pass
 
-                self.saveEventParam('IGNORE', 0, 0)
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (d['func'][:-1], SystemManager.dbgEventLine))
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1863,7 +1877,10 @@ class FunctionAnalyzer(object):
                         except:
                             pass
 
-                self.saveEventParam('IGNORE', 0, 0)
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (d['func'][:-1], SystemManager.dbgEventLine))
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1884,7 +1901,10 @@ class FunctionAnalyzer(object):
 
                         return False
 
-                self.saveEventParam('IGNORE', 0, 0)
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (d['func'][:-1], SystemManager.dbgEventLine))
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1916,10 +1936,13 @@ class FunctionAnalyzer(object):
                         self.sigEnabled = True
 
                         self.saveEventParam('SIGSEGV_GEN', 0, 0)
-                    else:
-                        self.saveEventParam('IGNORE', 0, 0)
-                else:
-                    self.saveEventParam('IGNORE', 0, 0)
+
+                        return False
+
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (d['func'][:-1], SystemManager.dbgEventLine))
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1934,9 +1957,9 @@ class FunctionAnalyzer(object):
 
                         self.saveEventParam('SIGSEGV_DLV', 0, 0)
                     else:
-                        self.saveEventParam('IGNORE', 0, 0)
+                        self.saveEventParam('IGNORE', 0, d['func'][:-1])
                 else:
-                    self.saveEventParam('IGNORE', 0, 0)
+                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -1965,11 +1988,13 @@ class FunctionAnalyzer(object):
             elif SystemManager.targetEvent is not None and \
                 d['func'] == SystemManager.targetEvent + ':':
 
-                return False
+                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
+
+                    return False
 
             # Ignore event #
             else:
-                self.saveEventParam('IGNORE', 0, 0)
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
                 return False
 
@@ -3498,32 +3523,54 @@ class SystemManager(object):
 
             if SystemManager.diskEnable is True:
                 enableStat += 'DISK '
+            else:
+                disableStat += 'DISK '
             if SystemManager.processEnable is False:
                 enableStat += 'THREAD '
+            else:
+                disableStat += 'THREAD '
 
         else:
             SystemManager.printInfo("THREAD MODE")
             SystemManager.threadEnable = True
             enableStat += 'CPU '
 
-            if SystemManager.graphEnable is True:
-                enableStat += 'GRAPH '
-            if SystemManager.irqEnable is True:
-                enableStat += 'IRQ '
             if SystemManager.memEnable is True:
                 enableStat += 'MEMORY '
+            else:
+                disableStat += 'MEMORY '
             if SystemManager.blockEnable is True:
                 enableStat += 'BLOCK '
-            if SystemManager.futexEnable is True:
-                enableStat += 'FUTEX '
-            if SystemManager.depEnable is True:
-                enableStat += 'DEPENDENCY '
-            if SystemManager.sysEnable is True:
-                enableStat += 'SYSCALL '
-            if SystemManager.resetEnable is True:
-                enableStat += 'RESET '
+            else:
+                disableStat += 'BLOCK '
+            if SystemManager.irqEnable is True:
+                enableStat += 'IRQ '
+            else:
+                disableStat += 'IRQ '
             if SystemManager.repeatCount > 0:
                 enableStat += 'REPEAT '
+            else:
+                disableStat += 'REPEAT '
+            if SystemManager.depEnable is True:
+                enableStat += 'DEPENDENCY '
+            else:
+                disableStat += 'DEPENDENCY '
+            if SystemManager.sysEnable is True:
+                enableStat += 'SYSCALL '
+            else:
+                disableStat += 'SYSCALL '
+            if SystemManager.graphEnable is True:
+                enableStat += 'GRAPH '
+            else:
+                disableStat += 'GRAPH '
+            if SystemManager.futexEnable is True:
+                enableStat += 'FUTEX '
+            else:
+                disableStat += 'FUTEX '
+            if SystemManager.resetEnable is True:
+                enableStat += 'RESET '
+            else:
+                disableStat += 'RESET '
 
         # print options #
         if enableStat != '':
@@ -5342,10 +5389,13 @@ class SystemManager(object):
             "FileSystem", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(oneLine)
 
+        outputCnt = 0
+
         for key, val in self.mountInfo.items():
             try:
                 beforeInfo = self.diskInfo['before'][key]
                 afterInfo = self.diskInfo['after'][key]
+                outputCnt += 1
             except:
                 continue
 
@@ -5357,6 +5407,8 @@ class SystemManager(object):
                 (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
                 val['fs'], val['path'] + ' <' + val['option'] + '>'))
 
+        if outputCnt == 0:
+            SystemManager.infoBufferPrint('N/A')
         SystemManager.infoBufferPrint(twoLine + '\n\n')
 
 
