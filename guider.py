@@ -390,7 +390,7 @@ class FunctionAnalyzer(object):
 
     symStackIdxTable = [
         'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
-        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE'
+        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE'
         ]
 
 
@@ -437,8 +437,10 @@ class FunctionAnalyzer(object):
         self.pageFreeEventCnt = 0
         self.pageFreeCnt = 0
         self.pageUsageCnt = 0
-        self.blockEventCnt = 0
-        self.blockUsageCnt = 0
+        self.blockRdEventCnt = 0
+        self.blockRdUsageCnt = 0
+        self.blockWrEventCnt = 0
+        self.blockWrUsageCnt = 0
 
         self.ignoreTable = {}
         self.mapData = []
@@ -458,18 +460,18 @@ class FunctionAnalyzer(object):
 
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
-            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrBlocks': int(0), \
-            'heapSize': int(0), 'eventCnt': int(0)}
+            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrRdBlocks': int(0), \
+            'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
-            'blockCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0)}
+            'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0)}
 
         self.init_symData = \
-            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
+            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
-            'heapSize': int(0)}
+            'heapSize': int(0), 'blockWrCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
@@ -1014,10 +1016,15 @@ class FunctionAnalyzer(object):
 
                 self.handleHeapReduce(eventCnt, addr)
 
-            # block event #
+            # block read event #
             elif event == 'BLK_READ':
-                self.userSymData[sym]['blockCnt'] += eventCnt
-                self.kernelSymData[kernelSym]['blockCnt'] += eventCnt
+                self.userSymData[sym]['blockRdCnt'] += eventCnt
+                self.kernelSymData[kernelSym]['blockRdCnt'] += eventCnt
+
+            # block write event #
+            elif event == 'BLK_WRITE':
+                self.userSymData[sym]['blockWrCnt'] += eventCnt
+                self.kernelSymData[kernelSym]['blockWrCnt'] += eventCnt
 
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
@@ -1273,10 +1280,16 @@ class FunctionAnalyzer(object):
             targetArg = [pageType, pfn]
 
         elif targetEvent == 'BLK_READ':
-            self.blockEventCnt += 1
-            self.blockUsageCnt += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['blockCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['blockCnt'] += targetCnt
+            self.blockRdEventCnt += 1
+            self.blockRdUsageCnt += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['blockRdCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['blockRdCnt'] += targetCnt
+
+        elif targetEvent == 'BLK_WRITE':
+            self.blockWrEventCnt += 1
+            self.blockWrUsageCnt += targetCnt
+            self.posData[self.nowCtx['kernelLastPos']]['blockWrCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['blockWrCnt'] += targetCnt
 
         elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
@@ -1908,10 +1921,10 @@ class FunctionAnalyzer(object):
                     if b['operation'][0] == 'R':
                         self.breadEnabled = True
 
-                        blockCnt = int(b['size'])
-                        self.threadData[thread]['nrBlocks'] += blockCnt
+                        blockRdCnt = int(b['size'])
+                        self.threadData[thread]['nrRdBlocks'] += blockRdCnt
 
-                        self.saveEventParam('BLK_READ', blockCnt, 0)
+                        self.saveEventParam('BLK_READ', blockRdCnt, 0)
 
                         return False
 
@@ -1922,14 +1935,25 @@ class FunctionAnalyzer(object):
 
                 return False
 
+            # block write request event #
             elif d['func'] == "writeback_dirty_page:":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
                     r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', d['etc'])
                 if m is not None:
                     b = m.groupdict()
-
                     self.bwriteEnabled = True
 
+                    self.threadData[thread]['nrWrBlocks'] += 1
+
+                    self.saveEventParam('BLK_WRITE', 1, 0)
+
+                    return False
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
+
+                return False
+
+            # block write request event #
             elif d['func'] == "wbc_writepage:":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
                     r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', d['etc'])
@@ -1938,6 +1962,16 @@ class FunctionAnalyzer(object):
 
                     if d['skip'] == '0':
                         self.bwriteEnabled = True
+
+                        self.threadData[thread]['nrWrBlocks'] += 1
+
+                        self.saveEventParam('BLK_WRITE', 1, 0)
+
+                        return False
+
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
+
+                return False
 
             # segmentation fault generation event #
             elif d['func'] == "signal_generate:":
@@ -2092,9 +2126,9 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}/{9:_^8})|" + \
-            "{10:_^7}|{11:_^5}|{12:_^5}|").\
+            "{10:_^7}|{11:_^7}|{12:_^5}|{13:_^5}|").\
             format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "HEAP", \
-            "BLK_RD", "DIE", "NEW"))
+            "BLK_RD", "BLK_WR", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -2103,7 +2137,7 @@ class FunctionAnalyzer(object):
                 key=lambda e: e[1]['nrPages'], reverse=True)
         elif SystemManager.sort == 'b':
             sortedThreadData = sorted(self.threadData.items(), \
-                key=lambda e: e[1]['nrBlocks'], reverse=True)
+                key=lambda e: e[1]['nrRdBlocks'], reverse=True)
         else:
             # set cpu usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
@@ -2135,7 +2169,7 @@ class FunctionAnalyzer(object):
             if SystemManager.sort == 'm':
                 breakCond = value['nrPages']
             elif SystemManager.sort == 'b':
-                breakCond = value['nrBlocks']
+                breakCond = value['nrRdBlocks']
             else:
                 breakCond = cpuPer
 
@@ -2150,10 +2184,11 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(\
                 ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k/{9:7}k)|" + \
-                "{10:6}k|{11:^5}|{12:^5}|").\
+                "{10:6}k|{11:6}k|{12:^5}|{13:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
                 value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
-                value['heapSize'] / 1024, int(value['nrBlocks'] * 0.5), dieMark, newMark))
+                value['heapSize'] / 1024, int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
+                dieMark, newMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -2165,7 +2200,8 @@ class FunctionAnalyzer(object):
         self.printCpuUsage()
         self.printMemUsage()
         self.printHeapUsage()
-        self.printBlockUsage()
+        self.printBlockRdUsage()
+        self.printBlockWrUsage()
 
 
 
@@ -2579,30 +2615,30 @@ class FunctionAnalyzer(object):
 
 
 
-    def printBlockUsage(self):
+    def printBlockWrUsage(self):
         # no block event #
-        if self.breadEnabled is False:
+        if self.bwriteEnabled is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
-        blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
+        blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
 
-        # Print BLOCK usage in user space #
+        # Print block write usage in user space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-            (self.blockUsageCnt * 0.5, self.blockEventCnt))
+        SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
             format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if value['blockCnt'] == 0:
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockWrCnt'], reverse=True):
+            if value['blockWrCnt'] == 0:
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockCnt'] * 0.5), idx, \
+                format(int(value['blockWrCnt'] * 4), idx, \
                 self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             # Set target stack #
@@ -2613,14 +2649,14 @@ class FunctionAnalyzer(object):
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
+            targetStack = sorted(targetStack, key=lambda x: x[blkWrIndex], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
-                blockCnt = stack[blkRdIndex]
+                blockWrCnt = stack[blkWrIndex]
                 subStack = list(stack[subStackIndex])
 
-                if blockCnt == 0:
+                if blockWrCnt == 0:
                     break
 
                 if len(subStack) == 0:
@@ -2648,16 +2684,16 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                     ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
 
-        # Print BLOCK usage in kernel space #
+        # Print block write usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (self.blockUsageCnt * 0.5, self.blockEventCnt))
+        SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+            (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
@@ -2675,23 +2711,23 @@ class FunctionAnalyzer(object):
                     exceptList[pos] = dict()
         '''
 
-        # Print BLOCK usage of stacks #
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockCnt'], reverse=True):
-            if value['blockCnt'] == 0:
+        # Print block write usage of stacks #
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockWrCnt'], reverse=True):
+            if value['blockWrCnt'] == 0:
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockCnt'] * 0.5), idx, '', ''))
+                format(int(value['blockWrCnt'] * 4), idx, '', ''))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
+            value['stack'] = sorted(value['stack'], key=lambda x: x[blkWrIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
-                blockCnt = stack[blkRdIndex]
+                blockWrCnt = stack[blkWrIndex]
                 subStack = list(stack[subStackIndex])
 
-                if blockCnt == 0:
+                if blockWrCnt == 0:
                     continue
 
                 if len(subStack) == 0:
@@ -2708,7 +2744,144 @@ class FunctionAnalyzer(object):
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockCnt * 0.5), symbolStack))
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+
+
+    def printBlockRdUsage(self):
+        # no block event #
+        if self.breadEnabled is False:
+            return
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
+
+        # Print block read usage in user space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockRdCnt'], reverse=True):
+            if value['blockRdCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['blockRdCnt'] * 0.5), idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                blockRdCnt = stack[blkRdIndex]
+                subStack = list(stack[subStackIndex])
+
+                if blockRdCnt == 0:
+                    break
+
+                if len(subStack) == 0:
+                    continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + \
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
+                            # No symbol so that just print pos #
+                            elif self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+        # Print block read usage in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+            (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print block read usage of stacks #
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['blockRdCnt'], reverse=True):
+            if value['blockRdCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['blockRdCnt'] * 0.5), idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                blockRdCnt = stack[blkRdIndex]
+                subStack = list(stack[subStackIndex])
+
+                if blockRdCnt == 0:
+                    continue
+
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16))
+                            else:
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                    except:
+                        continue
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -4980,9 +5153,21 @@ class SystemManager(object):
                 blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM)"
                 SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
                 SystemManager.writeCmd('block/block_bio_remap/enable', '1')
+
+                self.cmdList["writeback/writeback_dirty_page"] = True
+                self.cmdList["writeback/wbc_writepage"] = True
+                SystemManager.writeCmd('writeback/writeback_dirty_page/filter', cmd)
+                SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
+                SystemManager.writeCmd('writeback/wbc_writepage/filter', cmd)
+                SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
             else:
                 self.cmdList["block/block_bio_remap"] = False
                 SystemManager.writeCmd('block/block_bio_remap/enable', '0')
+
+                self.cmdList["writeback/writeback_dirty_page"] = False
+                self.cmdList["writeback/wbc_writepage"] = False
+                SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '0')
+                SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
 
             self.cmdList["task"] = True
             SystemManager.writeCmd('task/enable', '1')
