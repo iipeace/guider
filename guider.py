@@ -440,6 +440,7 @@ class FunctionAnalyzer(object):
         self.blockEventCnt = 0
         self.blockUsageCnt = 0
 
+        self.ignoreTable = {}
         self.mapData = []
         self.pageTable = {}
         self.oldPageTable = {}
@@ -1025,10 +1026,22 @@ class FunctionAnalyzer(object):
 
             # etc event #
             elif event is 'IGNORE':
-                SystemManager.printWarning("Ignore %s event" % arg)
+                try:
+                    self.ignoreTable[arg]['cnt'] += 1
+                except:
+                    self.ignoreTable[arg] = {'cnt': int(1)}
 
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
+
+        # Print summary about ignored events #
+        self.printIgnoreEvents()
+
+
+
+    def printIgnoreEvents(self):
+        for idx, value in self.ignoreTable.items():
+            SystemManager.printWarning("Ignore %s event %d times" % (idx, value['cnt']))
 
 
 
@@ -1846,8 +1859,9 @@ class FunctionAnalyzer(object):
                         except:
                             pass
 
-                SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                        (d['func'][:-1], SystemManager.dbgEventLine))
+                    else:
+                        SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                                (d['func'][:-1], SystemManager.dbgEventLine))
 
                 self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
