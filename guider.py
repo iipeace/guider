@@ -4,7 +4,7 @@ __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.5"
+__version__ = "3.5.6"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -390,7 +390,7 @@ class FunctionAnalyzer(object):
 
     symStackIdxTable = [
         'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
-        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE'
+        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE', 'CUSTOM'
         ]
 
 
@@ -436,6 +436,7 @@ class FunctionAnalyzer(object):
         self.pageAllocCnt = 0
         self.pageFreeEventCnt = 0
         self.pageFreeCnt = 0
+        self.pageUnknownFreeCnt = 0
         self.pageUsageCnt = 0
         self.blockRdEventCnt = 0
         self.blockRdUsageCnt = 0
@@ -461,15 +462,15 @@ class FunctionAnalyzer(object):
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
             'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrRdBlocks': int(0), \
-            'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0)}
+            'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0)}
 
         self.init_posData = \
-            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'pageFreeCnt': int(0), \
+            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'unknownPageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
             'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0)}
 
         self.init_symData = \
-            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'pageFreeCnt': int(0), \
+            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'unknownPageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
             'heapSize': int(0), 'blockWrCnt': int(0)}
 
@@ -625,12 +626,10 @@ class FunctionAnalyzer(object):
 
 
 
-    def handlePageFree(self, sym, kernelSym, pageFreeCnt, pageType, pfn):
-        self.userSymData[sym]['pageFreeCnt'] += pageFreeCnt
-        self.kernelSymData[kernelSym]['pageFreeCnt'] += pageFreeCnt
-
+    def handlePageFree(self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
+        pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
         for cnt in range(0, pageFreeCnt):
@@ -685,9 +684,35 @@ class FunctionAnalyzer(object):
                         break
 
                 del self.pageTable[pfnv]
-                self.pageTable[pfnv] = {}
+                self.pageTable[pfnv] = None
             except:
                 # this page is allocated before starting profile #
+
+                self.pageUnknownFreeCnt += 1
+                self.userSymData[sym]['unknownPageFreeCnt'] += 1
+                self.kernelSymData[kernelSym]['unknownPageFreeCnt'] += 1
+
+                # Set user target stack #
+                if self.sort is 'sym':
+                    targetStack = self.userSymData[sym]['symStack']
+                elif self.sort is 'pos':
+                    targetStack = self.userSymData[sym]['stack']
+
+                # Find subStack allocated this page #
+                for val in targetStack:
+                    if id(val[subStackIndex]) == stackAddr:
+                        val[pageFreeIndex] += 1
+                        break
+
+                # Set kernel target stack #
+                kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+
+                # Find subStack allocated this page #
+                for val in kernelTargetStack:
+                    if id(val[subStackIndex]) == kernelStackAddr:
+                        val[pageFreeIndex] += 1
+                        break
+
                 continue
 
 
@@ -833,6 +858,11 @@ class FunctionAnalyzer(object):
             event = val[2]
             eventCnt = val[3]
             arg = val[4]
+
+            # Do not merge PAGE_FREE count because it will be merged with unknownPageFreeCnt #
+            if event == 'PAGE_FREE':
+                savedEventCnt = eventCnt
+                eventCnt = 0
 
             try:
                 eventIndex = FunctionAnalyzer.symStackIdxTable.index(event)
@@ -990,6 +1020,10 @@ class FunctionAnalyzer(object):
 
                     kernelStackAddr = id(kernelStack)
 
+            # Recover PAGE_FREE count to merge with unknownPageFreeCnt #
+            if event == 'PAGE_FREE':
+                eventCnt = savedEventCnt
+
             # memory allocation event #
             if event == 'PAGE_ALLOC':
                 pageType = arg[0]
@@ -1002,7 +1036,7 @@ class FunctionAnalyzer(object):
                 pageType = arg[0]
                 pfn = arg[1]
 
-                self.handlePageFree(sym, kernelSym, eventCnt, pageType, pfn)
+                self.handlePageFree(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, pageType, pfn)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
@@ -1055,13 +1089,16 @@ class FunctionAnalyzer(object):
     def getSymbols(self):
         binPath = ''
         offsetList = []
+        curIdx = 0
+        lastIdx = len(self.posData)
 
         # Set alarm handler to handle hanged addr2line #
         signal.signal(signal.SIGALRM, SystemManager.timerHandler)
 
         # Get symbols and source pos #
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-            SystemManager.printRunning()
+            curIdx += 1
+            SystemManager.printProgress(curIdx, lastIdx)
 
             if value['binary'] == '':
                 # user pos without offset #
@@ -1272,8 +1309,6 @@ class FunctionAnalyzer(object):
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
             self.pageFreeCnt += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['pageFreeCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['pageFreeCnt'] += targetCnt
 
             pageType = targetArg[0]
             pfn = targetArg[1]
@@ -1511,12 +1546,17 @@ class FunctionAnalyzer(object):
 
 
     def parseLogs(self, lines, desc):
+        curIdx = 0
+        lastIdx = len(lines)
+
         for liter in lines:
+            curIdx += 1
             SystemManager.logSize += len(liter)
             SystemManager.curLine += 1
             SystemManager.dbgEventLine += 1
 
             ret = self.parseStackLog(liter, desc)
+            SystemManager.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
             if self.lastCore is None:
@@ -1588,8 +1628,6 @@ class FunctionAnalyzer(object):
 
 
     def parseStackLog(self, string, desc):
-        SystemManager.printProgress()
-
         # Filter for event #
         if SystemManager.tgidEnable is True:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
@@ -1808,9 +1846,11 @@ class FunctionAnalyzer(object):
                                 self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
 
                             del self.pageTable[pfnv]
-                            self.pageTable[pfnv] = {}
+                            self.pageTable[pfnv] = None
                         except:
                             # this page was allocated before starting profile #
+
+                            self.threadData[thread]['nrUnknownFreePages'] += 1
                             continue
 
                     self.memEnabled = True
@@ -2125,9 +2165,11 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize / 1024))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}/{9:_^8})|" + \
-            "{10:_^7}|{11:_^7}|{12:_^5}|{13:_^5}|").\
-            format("Name", "Tid", "Pid", "Target", "CPU", "MEM", "USER", "BUF", "KERNEL", "HEAP", \
+            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
+            "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}|{9:_^7}|{10:_^8})|" + \
+            "{11:_^7}|{12:_^7}|{13:_^5}|{14:_^5}|").\
+            format("Name", "Tid", "Pid", "Target", "CPU", \
+            "MEM", "USER", "BUF", "KERNEL", "UFREE", "HEAP", \
             "BLK_RD", "BLK_WR", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
@@ -2183,11 +2225,13 @@ class FunctionAnalyzer(object):
                 newMark = 'v'
 
             SystemManager.pipePrint(\
-                ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|{5:6}k({6:6}k/{7:6}k/{8:6}k/{9:7}k)|" + \
-                "{10:6}k|{11:6}k|{12:^5}|{13:^5}|").\
-                format(value['comm'], idx, value['tgid'], targetMark, cpuPer, value['nrPages'] * 4, \
-                value['userPages'] * 4, value['cachePages'] * 4, value['kernelPages'] * 4, \
-                value['heapSize'] / 1024, int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
+                ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|" + \
+                "{5:6}k({6:6}k/{7:6}k/{8:6}k|{9:6}k|{10:7}k)|" + \
+                "{11:6}k|{12:6}k|{13:^5}|{14:^5}|").\
+                format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
+                value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
+                value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] / 1024, \
+                int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
                 dieMark, newMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
@@ -2292,7 +2336,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
 
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
@@ -2373,6 +2417,139 @@ class FunctionAnalyzer(object):
                         continue
 
                 SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+
+
+    def printUnknownMemFree(self):
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
+
+        # Print unknown memory free info in user space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function Unknown Memory Free Info] [Size: %dKB] (USER)' % \
+            (self.pageUnknownFreeCnt * 4))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Free", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
+            if value['unknownPageFreeCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['unknownPageFreeCnt'] * 4), idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = sorted(targetStack, key=lambda x: x[pageFreeIndex], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                pageFreeCnt = stack[pageFreeIndex]
+                subStack = list(stack[subStackIndex])
+
+                if pageFreeCnt == 0:
+                    break
+
+                if len(subStack) == 0:
+                    continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + \
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
+                            # No symbol so that just print pos #
+                            elif self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('')
+
+        # Print unknown memory free info in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function Unknown Memory Free Info] [Size: %dKB] (KERNEL)' % \
+            (self.pageUnknownFreeCnt * 4))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("FREE", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print block write usage of stacks #
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
+            if value['unknownPageFreeCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                format(int(value['unknownPageFreeCnt'] * 4), idx, '', ''))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x: x[pageFreeIndex], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                pageFreeCnt = stack[pageFreeIndex]
+                subStack = list(stack[subStackIndex])
+
+                if pageFreeCnt == 0:
+                    continue
+
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16))
+                            else:
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                    except:
+                        continue
+
+                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2461,7 +2638,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
 
         # Print mem usage in kernel space #
         SystemManager.clearPrint()
@@ -2527,7 +2704,9 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
+
+        self.printUnknownMemFree()
 
 
 
@@ -2688,7 +2867,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
 
         # Print block write usage in kernel space #
         SystemManager.clearPrint()
@@ -2825,7 +3004,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
 
         # Print block read usage in kernel space #
         SystemManager.clearPrint()
@@ -3968,37 +4147,18 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRunning():
-        if SystemManager.progressCnt > 800:
-            SystemManager.progressCnt = 0
+    def printProgress(current, dest):
+        div = round((current / float(dest)) * 100, 1)
+        percent = int(div)
 
-        SystemManager.progressCnt += 1
+        if div != percent:
+            return
 
-        if SystemManager.progressCnt % 100 == 0:
-            sys.stdout.write('processing... ' + \
-                SystemManager.progressChar[SystemManager.progressCnt / 400] + \
-                '\b' * 15)
-
+        mod = percent % 4
+        if mod == 0:
+            sys.stdout.write('%3d' % percent + \
+                ('% ' + SystemManager.progressChar[mod] + '\b' * 6))
             sys.stdout.flush()
-            gc.collect()
-
-
-
-    @staticmethod
-    def printProgress():
-        SystemManager.progressCnt += 1
-
-        if SystemManager.progressCnt % 1000 == 0:
-            if SystemManager.progressCnt == 4000:
-                SystemManager.progressCnt = 0
-
-            sys.stdout.write('%3d' % \
-                (SystemManager.curLine / float(SystemManager.totalLine) * 100) + \
-                '% ' + SystemManager.progressChar[SystemManager.progressCnt / 1000] + \
-                '\b\b\b\b\b\b')
-
-            sys.stdout.flush()
-            gc.collect()
 
 
 
@@ -5962,6 +6122,7 @@ class ThreadAnalyzer(object):
 
         for idx, log in enumerate(lines):
             self.parse(log)
+            SystemManager.printProgress(SystemManager.curLine, SystemManager.totalLine)
 
             # save last job per core #
             try:
@@ -6992,7 +7153,6 @@ class ThreadAnalyzer(object):
 
     def parse(self, string):
         SystemManager.curLine += 1
-        SystemManager.printProgress()
 
         if SystemManager.tgidEnable is True:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
@@ -7627,8 +7787,8 @@ class ThreadAnalyzer(object):
                                 self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
                                 self.threadData[coreId]['kernelPages'] -= 1
 
-                            self.pageTable[pfnv] = {}
                             del self.pageTable[pfnv]
+                            self.pageTable[pfnv] = {}
                         except:
                             # this page is allocated before starting profile #
                             self.threadData[thread]['anonReclaimedPages'] += 1
