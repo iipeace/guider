@@ -4217,11 +4217,16 @@ class SystemManager(object):
         filterList = None
         launchPosStart = SystemManager.launchBuffer.find(' -g')
         if launchPosStart > -1:
-            filterList = SystemManager.launchBuffer[launchPosStart:].lstrip(' -g')
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
             SystemManager.printInfo("only specific threads %s were recorded" % ','.join(SystemManager.showGroup))
+
+        # apply dependency option #
+        launchPosStart = SystemManager.launchBuffer.find(' -D')
+        if launchPosStart > -1:
+            SystemManager.depEnable = True
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -4236,7 +4241,7 @@ class SystemManager(object):
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
         if launchPosStart > -1:
-            filterList = SystemManager.launchBuffer[launchPosStart:].lstrip(' -A')
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
 
             if SystemManager.arch != filterList:
@@ -4429,7 +4434,7 @@ class SystemManager(object):
                 SystemManager.selectMenu = True
                 ConfigManager.taskChainEnable = True
 
-            elif option == 'w':
+            elif option == 'D':
                 SystemManager.depEnable = True
 
             elif option == 'p':
@@ -4446,16 +4451,6 @@ class SystemManager(object):
             elif option == 'd':
                 # Add somethings to diable when doing analysis #
                 options = value
-
-            elif option == 't':
-                SystemManager.sysEnable = True
-                SystemManager.syscallList = value.split(',')
-
-                for val in SystemManager.syscallList:
-                    try:
-                        int(val)
-                    except:
-                        SystemManager.syscallList.remove(val)
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -4492,7 +4487,7 @@ class SystemManager(object):
             elif option == 'l':
                 SystemManager.addr2linePath = value.split(',')
 
-            elif option == 'j':
+            elif option == 'r':
                 SystemManager.rootPath = value
 
             elif option == 'b':
@@ -4524,7 +4519,7 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
-            elif option == 'c' or option == 'y' or option == 's' or option == 'r' or option == 'm':
+            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or option == 'F' or option == 't':
                 continue
 
             else:
@@ -4611,26 +4606,40 @@ class SystemManager(object):
 
                 SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
 
-            elif option == 'w':
+            elif option == 'D':
                 SystemManager.depEnable = True
 
-            elif option == 'c':
+            elif option == 'W':
                 SystemManager.waitEnable = True
 
-            elif option == 'm':
+            elif option == 'F':
                 SystemManager.fileEnable = True
 
             elif option == 't':
                 SystemManager.sysEnable = True
                 SystemManager.syscallList = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.syscallList)
+                enabledSyscall = []
 
                 for val in SystemManager.syscallList:
                     try:
-                        int(val)
+                        if val[0:4] == 'sys_':
+                            nrSyscall = ConfigManager.sysList.index(val)
+                        else:
+                            nrSyscall = ConfigManager.sysList.index('sys_' + val)
+
+                        enabledSyscall.append(ConfigManager.sysList[nrSyscall])
+                        SystemManager.syscallList[SystemManager.syscallList.index(val)] = nrSyscall
                     except:
+                        SystemManager.printError("No %s syscall in %s ABI" % (val, SystemManager.arch))
                         SystemManager.syscallList.remove(val)
 
-            elif option == 'r':
+                if len(enabledSyscall) == 0:
+                    SystemManager.printInfo("enabled syscall list [ ALL ]")
+                else:
+                    SystemManager.printInfo("enabled syscall list [ %s ]" % ','.join(enabledSyscall))
+
+            elif option == 'R':
                 repeatParams = value.split(',')
                 if len(repeatParams) != 2:
                     SystemManager.printError("wrong option with -r, use -r INTERVAL,REPEAT")
@@ -4658,7 +4667,7 @@ class SystemManager(object):
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
 
-            elif option == 'l' or option == 'j' or option == 'i' or option == 'a' or option == 'q' or \
+            elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or option == 'q' or \
                 option == 'g' or option == 'p' or option == 'S':
                 continue
 
@@ -5365,6 +5374,7 @@ class SystemManager(object):
             SystemManager.writeCmd('irq/enable', '1')
 
         # options for dependency tracing #
+        # toDo: support sys_recv systemcall for x86, x64 #
         if self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
                 % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
@@ -6645,6 +6655,7 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
 
         if self.syscallData != []:
+            outputCnt = 0
             SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
@@ -6678,10 +6689,13 @@ class ThreadAnalyzer(object):
                         continue
 
                 if syscallInfo != '':
+                    outputCnt += 1
                     SystemManager.pipePrint(threadInfo)
                     SystemManager.pipePrint(syscallInfo)
 
-            SystemManager.pipePrint(SystemManager.bufferString)
+            if outputCnt == 0:
+                SystemManager.pipePrint('None')
+
             SystemManager.pipePrint(oneLine)
 
             SystemManager.clearPrint()
@@ -9303,7 +9317,7 @@ if __name__ == '__main__':
         print '\t\ttop [top mode]'
         print '\t\t-y  [system mode]'
         print '\t\t-f  [function mode]'
-        print '\t\t-m  [file mode]'
+        print '\t\t-F  [file mode]'
         print '\t[record|top]'
         print '\t\t-e [enable_options:bellowCharacters]'
         print '\t\t   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|'
@@ -9312,24 +9326,24 @@ if __name__ == '__main__':
         print '\t\t-s [save_traceData:dir/file]'
         print '\t\t-S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
         print '\t\t-u [run_inBackground]'
-        print '\t\t-c [wait_forSignal]'
-        print '\t\t-r [record_repeatData:interval,count]'
+        print '\t\t-W [wait_forSignal]'
+        print '\t\t-R [record_repeatData:interval,count]'
         print '\t\t-b [set_bufferSize:kb]'
-        print '\t\t-w [trace_threadDependency]'
-        print '\t\t-t [trace_syscall:syscallNums]'
+        print '\t\t-D [trace_threadDependency]'
+        print '\t\t-t [trace_syscall:syscalls]'
         print '\t[analysis]'
         print '\t\t-o [save_outputData:dir]'
         print '\t\t-a [show_allInfo]'
         print '\t\t-i [set_interval:sec]'
-        print '\t\t-w [show_threadDependency]'
         print '\t\t-p [show_preemptInfo:tids]'
         print '\t\t-l [input_addr2linePath:path]'
-        print '\t\t-j [input_targetRootPath:dir]'
+        print '\t\t-r [input_targetRootPath:dir]'
         print '\t\t-q [make_taskchain]'
         print '\t[common]'
         print '\t\t-g [filter_specificGroup:comms|tids]'
-        print '\t\t-v [view_warningMessages]'
         print '\t\t-A [set_arch:arm|x86|x64]'
+        print '\t\t-c [set_customEvent:event:filter]'
+        print '\t\t-v [verbose]'
 
         print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
         print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
@@ -9403,6 +9417,10 @@ if __name__ == '__main__':
             # print system information #
             SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
+
+            # close pipe for less #
+            if SystemManager.pipeForPrint is not None:
+                SystemManager.pipeForPrint.close()
 
             sys.exit(0)
 
