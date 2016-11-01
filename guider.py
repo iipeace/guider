@@ -645,6 +645,8 @@ class FunctionAnalyzer(object):
                 allocKernelSym = self.pageTable[pfnv]['kernelSym']
                 allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
 
+
+                self.pageUsageCnt -= 1
                 self.userSymData[allocSym]['pageCnt'] -= 1
                 self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
 
@@ -1835,8 +1837,6 @@ class FunctionAnalyzer(object):
 
                         try:
                             origPageType = self.pageTable[pfnv]['type']
-
-                            self.pageUsageCnt -= 1
                             self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
 
                             if origPageType is 'CACHE':
@@ -5640,13 +5640,9 @@ class SystemManager(object):
                     SystemManager.writeCmd(event + '/enable', '0')
                     SystemManager.writeCmd(event + '/filter', '0')
 
-            '''
             if SystemManager.isFunctionMode() is True:
-                SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
-                SystemManager.writeCmd('../trace_options', 'nosym-userobj')
-                SystemManager.writeCmd('../trace_options', 'nosym-addr')
                 SystemManager.writeCmd('../options/stacktrace', '0')
-            '''
+                SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
 
 
 
@@ -9582,7 +9578,6 @@ if __name__ == '__main__':
     # get tty setting #
     SystemManager.getTty()
 
-    # create Thread Info using proc #
     if SystemManager.isTopMode() is True:
         SystemManager.printRecordOption()
 
@@ -9599,7 +9594,7 @@ if __name__ == '__main__':
             else:
                 SystemManager.printStatus("background running as process %s" % os.getpid())
 
-        # create Thread Info using proc #
+        # create ThreadAnalyzer using proc #
         ti = ThreadAnalyzer(None)
 
         # close pipe for less #
@@ -9648,7 +9643,7 @@ if __name__ == '__main__':
                 SystemManager.printError("graph is not supported because of no matplotlib")
                 SystemManager.graphEnable = False
 
-        # create Thread Info using ftrace #
+        # create ThreadAnalyzer using ftrace #
         ti = ThreadAnalyzer(SystemManager.inputFile)
 
     # print event info #
