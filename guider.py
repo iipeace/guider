@@ -22,8 +22,9 @@ try:
     import shutil
     import gc
     import imp
+    import atexit
 except ImportError, err:
-    print "[Error] Fail to import default package because %s" % err
+    print "[Error] Fail to import default packages because %s" % err
     sys.exit(0)
 
 
@@ -289,7 +290,7 @@ class ConfigManager(object):
         try:
             f = open(file, 'r')
         except:
-            SystemManager.printError("Open %s" % (file))
+            SystemManager.printError("Fail to open %s" % (file))
             return None
 
         if num == 0:
@@ -525,7 +526,7 @@ class FunctionAnalyzer(object):
         # Check root path #
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -r option with it for user mode or blank")
             sys.exit(0)
 
         # Register None pos #
@@ -540,7 +541,7 @@ class FunctionAnalyzer(object):
             SystemManager.printError("No collected data related to %s" % self.target)
             sys.exit(0)
         elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
-            SystemManager.printError("No traced user stack data related to %s, " % self.target + \
+            SystemManager.printError("No user stack data related to %s, " % self.target + \
                 "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
             sys.exit(0)
 
@@ -2067,7 +2068,8 @@ class FunctionAnalyzer(object):
                 if self.nowCtx['nested'] < 0:
                     #self.printDbgInfo()
                     SystemManager.printError(\
-                        "Fail to analyze because of corrupted data (under) at %s" % SystemManager.dbgEventLine)
+                        "Fail to analyze data because of corrupted data (under) at %s" % \
+                        SystemManager.dbgEventLine)
                     sys.exit(0)
 
                 return True
@@ -2131,7 +2133,7 @@ class FunctionAnalyzer(object):
     def getBinInfo(self, addr):
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -j option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -r option with it for user mode or blank")
             sys.exit(0)
 
         for data in self.mapData:
@@ -3108,7 +3110,7 @@ class FileAnalyzer(object):
         try:
             imp.find_module('ctypes')
         except:
-            SystemManager.printError('Fail to import ctypes package')
+            SystemManager.printError('Fail to find ctypes package')
             sys.exit(0)
 
         try:
@@ -3666,6 +3668,7 @@ class SystemManager(object):
     outputFile = None
     printFile = None
     optionList = None
+    customCmd = None
 
     tgidEnable = True
     binEnable = False
@@ -3784,6 +3787,71 @@ class SystemManager(object):
 
 
     @staticmethod
+    def printOptions():
+        if len(sys.argv) <= 1:
+            cmd = sys.argv[0]
+
+            print '\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__
+
+            print 'Usage:'
+            print '\t# %s record [options]' % cmd
+            print '\t$ %s <file> [options]\n' % cmd
+            print '\t# %s top [options]' % cmd
+            print '\t# %s start' % cmd
+            print '\t# %s stop' % cmd
+            print '\t# %s send' % cmd
+
+            print 'Example:'
+            print '\t# %s record -s /var/log -e mi -g comm, 1243' % cmd
+            print '\t$ %s guider.dat -o /var/log -a -i' % cmd
+            print '\t$ %s top\n' % cmd
+
+            print 'Options:'
+            print '\t[mode]'
+            print '\t\t    [thread mode]'
+            print '\t\ttop [top mode]'
+            print '\t\t-y  [system mode]'
+            print '\t\t-f  [function mode]'
+            print '\t\t-F  [file mode]'
+            print '\t[record|top]'
+            print '\t\t-e [enable_options:bellowCharacters]'
+            print '\t\t   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|'
+            print '\t\t-d [disable_options:bellowCharacters]'
+            print '\t\t   |_c(pu)_m(em)_b(lock)_u(user)_|'
+            print '\t\t-s [save_traceData:dir/file]'
+            print '\t\t-S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
+            print '\t\t-u [run_inBackground]'
+            print '\t\t-W [wait_forSignal]'
+            print '\t\t-R [record_repeatedly:interval,count]'
+            print '\t\t-b [set_bufferSize:kb]'
+            print '\t\t-D [trace_threadDependency]'
+            print '\t\t-t [trace_syscall:syscalls]'
+            print '\t[analysis]'
+            print '\t\t-o [save_outputData:dir]'
+            print '\t\t-a [show_allInfo]'
+            print '\t\t-i [set_interval:sec]'
+            print '\t\t-p [show_preemptInfo:tids]'
+            print '\t\t-l [input_addr2linePath:path]'
+            print '\t\t-r [input_targetRootPath:dir]'
+            print '\t\t-q [make_taskchain]'
+            print '\t[common]'
+            print '\t\t-g [filter_specificGroup:comms|tids]'
+            print '\t\t-A [set_arch:arm|x86|x64]'
+            print '\t\t-c [set_customEvent:event:filter]'
+            print '\t\t-v [verbose]'
+
+            print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
+            print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
+            print "\nCopyright: "
+            print "\t%s." % (__copyright__)
+            print "\tLicense %s." % (__license__)
+            print "\tThis is free software.\n"
+
+            sys.exit(0)
+
+
+
+    @staticmethod
     def setArch(arch):
         if len(arch) == 0:
             return
@@ -3800,6 +3868,35 @@ class SystemManager(object):
         else:
             SystemManager.printError('Fail to set archtecture to %s, only support arm / x86 / x64' % arch)
             SystemManager.arch = 'arm'
+
+
+
+    @staticmethod
+    def writeCustomCmd():
+        effectiveCmd = []
+
+        if SystemManager.customCmd is None:
+            return
+
+        for cmd in SystemManager.customCmd:
+            cmdFormat = cmd.split(':')
+
+            if cmdFormat[0] == '':
+                SystemManager.printError("wrong event '%s'" % cmdFormat[0])
+                sys.exit(0)
+
+            if len(cmdFormat) > 1 and \
+                SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
+                SystemManager.customCmd.pop(SystemManager.customCmd.index(cmd))
+                continue
+
+            if SystemManager.writeCmd(cmdFormat[0] + '/enable', '1') < 0:
+                SystemManager.customCmd.pop(SystemManager.customCmd.index(cmd))
+            else:
+                effectiveCmd.append(cmdFormat[0])
+
+        if len(effectiveCmd) > 0:
+            SystemManager.printInfo("enabled custom events [ %s ]" % ', '.join(effectiveCmd))
 
 
 
@@ -4088,10 +4185,8 @@ class SystemManager(object):
                 signal.alarm(SystemManager.repeatInterval)
             else:
                 SystemManager.printError('Fail to save trace data because output file is not set')
-                SystemManager.runRecordStopCmd()
                 sys.exit(0)
         else:
-            SystemManager.runRecordStopCmd()
             sys.exit(0)
 
 
@@ -4115,10 +4210,8 @@ class SystemManager(object):
 
                 f.writelines(lines)
 
-                SystemManager.runRecordStopFinalCmd()
                 SystemManager.printInfo('trace data is saved to %s' % SystemManager.outputFile)
 
-                f.close()
                 sys.exit(0)
         except IOError:
             SystemManager.printError("Fail to write data to %s" % SystemManager.outputFile)
@@ -4155,10 +4248,10 @@ class SystemManager(object):
             return
 
         mod = percent % 4
-        if mod == 0:
-            sys.stdout.write('%3d' % percent + \
-                ('% ' + SystemManager.progressChar[mod] + '\b' * 6))
-            sys.stdout.flush()
+
+        sys.stdout.write('%3d' % percent + \
+            ('% ' + SystemManager.progressChar[mod] + '\b' * 6))
+        sys.stdout.flush()
 
 
 
@@ -4221,7 +4314,7 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
-            SystemManager.printInfo("only specific threads %s were recorded" % ','.join(SystemManager.showGroup))
+            SystemManager.printInfo("only specific threads [%s] were recorded" % ', '.join(SystemManager.showGroup))
 
         # apply dependency option #
         launchPosStart = SystemManager.launchBuffer.find(' -D')
@@ -4265,7 +4358,7 @@ class SystemManager(object):
             try:
                 SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
             except:
-                SystemManager.printError("Fail to open %s for writing event\n" % SystemManager.eventLogFD)
+                SystemManager.printError("Fail to open %s to write event\n" % SystemManager.eventLogFD)
 
         if SystemManager.eventLogFD != None:
             try:
@@ -4302,7 +4395,7 @@ class SystemManager(object):
             try:
                 SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
-                SystemManager.printError("Fail to find less util, use -o option to save output to file\n")
+                SystemManager.printError("Fail to find less util, use -o option to save output into file\n")
                 sys.exit(0)
 
         if SystemManager.pipeForPrint != None:
@@ -4415,16 +4508,12 @@ class SystemManager(object):
                         SystemManager.intervalEnable = int(value)
                 except:
                     SystemManager.printError("wrong option value %s with -i option" % value)
-                    if SystemManager.isRecordMode() is True:
-                        SystemManager.runRecordStopFinalCmd()
                     sys.exit(0)
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
                 if os.path.isdir(SystemManager.printFile) == False:
-                    SystemManager.printError("wrong option value %s with -o option, use directory name" % value)
-                    if SystemManager.isRecordMode() is True and SystemManager.isSystemMode() is False:
-                        SystemManager.runRecordStopFinalCmd()
+                    SystemManager.printError("wrong option value %s with -o option, use existing directory path" % value)
                     sys.exit(0)
 
             elif option == 'a':
@@ -4449,8 +4538,12 @@ class SystemManager(object):
                         sys.exit(0)
 
             elif option == 'd':
-                # Add somethings to diable when doing analysis #
+                # Add somethings to diable when analyzing data #
                 options = value
+
+            elif option == 'c':
+                SystemManager.customCmd = str(value).split(',')
+                SystemManager.removeEmptyValue(SystemManager.customCmd)
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -4474,9 +4567,7 @@ class SystemManager(object):
             elif option == 'f':
                 # Handle error about record option #
                 if SystemManager.isFunctionMode() is True and SystemManager.outputFile is None:
-                    SystemManager.printError("wrong option with -f, use also -s option for saving data")
-                    if SystemManager.isRecordMode() is True:
-                        SystemManager.runRecordStopFinalCmd()
+                    SystemManager.printError("wrong option with -f, use also -s option to save data")
                     sys.exit(0)
                 else:
                     SystemManager.functionEnable = True
@@ -4524,8 +4615,6 @@ class SystemManager(object):
 
             else:
                 SystemManager.printError("unrecognized option -%s" % option)
-                if SystemManager.isRecordMode() is True:
-                    SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
 
     @staticmethod
@@ -4587,7 +4676,7 @@ class SystemManager(object):
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
-                SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
+                SystemManager.printInfo("only specific threads [%s] are shown" % ', '.join(SystemManager.showGroup))
 
             elif option == 's':
                 if SystemManager.isRecordMode() is False:
@@ -4637,22 +4726,31 @@ class SystemManager(object):
                 if len(enabledSyscall) == 0:
                     SystemManager.printInfo("enabled syscall list [ ALL ]")
                 else:
-                    SystemManager.printInfo("enabled syscall list [ %s ]" % ','.join(enabledSyscall))
+                    SystemManager.printInfo("enabled syscall list [ %s ]" % ', '.join(enabledSyscall))
 
             elif option == 'R':
                 repeatParams = value.split(',')
                 if len(repeatParams) != 2:
-                    SystemManager.printError("wrong option with -r, use -r INTERVAL,REPEAT")
-                    sys.exit(0)
-                elif int(repeatParams[0]) < 1 or int(repeatParams[1]) < 1:
-                    SystemManager.printError("wrong option with -r, use parameters bigger than 0")
+                    SystemManager.printError("wrong option with -R, use -R INTERVAL,REPEAT")
                     sys.exit(0)
                 else:
-                    SystemManager.repeatInterval = int(repeatParams[0])
-                    SystemManager.repeatCount = int(repeatParams[1])
+                    try:
+                        SystemManager.repeatInterval = int(repeatParams[0])
+                        SystemManager.repeatCount = int(repeatParams[1])
+                    except:
+                        SystemManager.printError("wrong option with -R, use integer values")
+                        sys.exit(0)
+
+                if SystemManager.repeatInterval < 1 or SystemManager.repeatCount < 1:
+                    SystemManager.printError("wrong option with -R, use values bigger than 0")
+                    sys.exit(0)
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
+
+            elif option == 'c':
+                SystemManager.customCmd = str(value).split(',')
+                SystemManager.removeEmptyValue(SystemManager.customCmd)
 
             elif option == 'd':
                 options = value
@@ -4667,6 +4765,7 @@ class SystemManager(object):
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
 
+            # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or option == 'q' or \
                 option == 'g' or option == 'p' or option == 'S':
                 continue
@@ -5013,14 +5112,14 @@ class SystemManager(object):
             self.osData = f.readlines()
             f.close()
         except:
-            SystemManager.printWarning("Fail to open %s" % OSFile)
+            SystemManager.printWarning("Fail to open %s for webOS" % OSFile)
 
         try:
             f = open(devFile, 'r')
             self.devData = f.readlines()
             f.close()
         except:
-            SystemManager.printWarning("Fail to open %s" % devFile)
+            SystemManager.printWarning("Fail to open %s for webOS" % devFile)
 
 
 
@@ -5231,9 +5330,13 @@ class SystemManager(object):
         # initialize event list to enable #
         self.initCmdList()
 
+        # set log format #
         SystemManager.writeCmd('../trace_options', 'noirq-info')
         SystemManager.writeCmd('../trace_options', 'noannotate')
         SystemManager.writeCmd('../trace_options', 'print-tgid')
+
+        # enable custom events #
+        SystemManager.writeCustomCmd()
 
         if SystemManager.isFunctionMode() is True:
             cmd = ""
@@ -5244,7 +5347,7 @@ class SystemManager(object):
                     cmd += "common_pid == %s || " % int(cond)
                 except:
                     if cond.find('>') == -1 and cond.find('<') == -1:
-                        SystemManager.printError("Wrong tid %s" % cond)
+                        SystemManager.printError("wrong tid %s" % cond)
                         sys.exit(0)
                     else:
                         try:
@@ -5253,7 +5356,7 @@ class SystemManager(object):
                             elif cond.find('<') >= 0:
                                 cmd += "common_pid >= %s ||" % int(cond[:cond.find('<')])
                         except:
-                            SystemManager.printError("Wrong condition %s" % cond)
+                            SystemManager.printError("wrong condition %s" % cond)
                             sys.exit(0)
 
             if cmd == "":
@@ -5364,7 +5467,7 @@ class SystemManager(object):
             else: SystemManager.writeCmd('sched/sched_switch/filter', '0')
 
             if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
-                SystemManager.printError("sched option in kernel is not enabled")
+                SystemManager.printError("sched event of ftrace is not enabled in kernel")
                 sys.exit(0)
 
         if self.cmdList["sched/sched_wakeup"] is True:
@@ -5471,11 +5574,13 @@ class SystemManager(object):
             SystemManager.writeCmd('block/block_rq_complete/filter', cmd)
             SystemManager.writeCmd('block/block_rq_complete/enable', '1')
 
+        # options for write event tracing #
         if self.cmdList["writeback/writeback_dirty_page"] is True:
             SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
         if self.cmdList["writeback/wbc_writepage"] is True:
             SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
 
+        # options for module event tracing #
         if self.cmdList["module/module_load"] is True:
             SystemManager.writeCmd('module/module_load/enable', '1')
         if self.cmdList["module/module_free"] is True:
@@ -5483,11 +5588,13 @@ class SystemManager(object):
         if self.cmdList["module/module_put"] is True:
             SystemManager.writeCmd('module/module_put/enable', '1')
 
+        # options for power event tracing #
         if self.cmdList["power/cpu_idle"] is True:
             SystemManager.writeCmd('power/cpu_idle/enable', '1')
         if self.cmdList["power/cpu_frequency"] is True:
             SystemManager.writeCmd('power/cpu_frequency/enable', '1')
 
+        # options for reclaim event tracing #
         if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] is True:
             SystemManager.writeCmd('vmscan/mm_vmscan_wakeup_kswapd/enable', '1')
         if self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] is True:
@@ -5498,6 +5605,7 @@ class SystemManager(object):
         if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] is True:
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_end/enable', '1')
 
+        # options for task event tracing #
         if self.cmdList["task"] is True:
             SystemManager.writeCmd('task/enable', '1')
         if self.cmdList["signal"] is True:
@@ -5518,18 +5626,27 @@ class SystemManager(object):
 
     @staticmethod
     def runRecordStopCmd():
-        for idx, val in SystemManager.cmdList.items():
-            if val is True or val is not False:
-                SystemManager.writeCmd(str(idx) + '/enable', '0')
+        if SystemManager.isRecordMode() is True and \
+            (SystemManager.isThreadMode() is True or SystemManager.isFunctionMode() is True):
+            # disable all ftrace options registered #
+            for idx, val in SystemManager.cmdList.items():
+                if val is True or val is not False:
+                    SystemManager.writeCmd(str(idx) + '/enable', '0')
+                    SystemManager.writeCmd(str(idx) + '/filter', '0')
 
+            if SystemManager.customCmd is not None:
+                for cmd in SystemManager.customCmd:
+                    event = cmd.split(':')[0]
+                    SystemManager.writeCmd(event + '/enable', '0')
+                    SystemManager.writeCmd(event + '/filter', '0')
 
-
-    @staticmethod
-    def runRecordStopFinalCmd():
-        SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
-        SystemManager.writeCmd('../trace_options', 'nosym-userobj')
-        SystemManager.writeCmd('../trace_options', 'nosym-addr')
-        SystemManager.writeCmd('../options/stacktrace', '0')
+            '''
+            if SystemManager.isFunctionMode() is True:
+                SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
+                SystemManager.writeCmd('../trace_options', 'nosym-userobj')
+                SystemManager.writeCmd('../trace_options', 'nosym-addr')
+                SystemManager.writeCmd('../options/stacktrace', '0')
+            '''
 
 
 
@@ -6573,7 +6690,7 @@ class ThreadAnalyzer(object):
                 rc('legend', fontsize=5)
                 rcParams.update({'font.size': 8})
             else:
-                SystemManager.printError("Use -i option if you want to draw graph")
+                SystemManager.printError("Use also -i option if you want to draw graph")
                 SystemManager.graphEnable = False
 
 
@@ -7125,8 +7242,7 @@ class ThreadAnalyzer(object):
                 # Find recognizable log in file #
                 if readLineCnt > 500 and SystemManager.recordStatus is not True:
                     SystemManager.printError(\
-                        "Fail to recognize format: corrupted log or no log collected")
-                    SystemManager.runRecordStopCmd()
+                        "Fail to recognize format: corrupted log / no log collected")
                     sys.exit(0)
 
                 l = f.readline()
@@ -9292,67 +9408,7 @@ if __name__ == '__main__':
     oneLine = "-"*154
     twoLine = "="*154
 
-    # print help #
-    if len(sys.argv) <= 1:
-        cmd = sys.argv[0]
-
-        print '\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__
-
-        print 'Usage:'
-        print '\t# %s record [options]' % cmd
-        print '\t$ %s <file> [options]\n' % cmd
-        print '\t# %s top [options]' % cmd
-        print '\t# %s start' % cmd
-        print '\t# %s stop' % cmd
-        print '\t# %s send' % cmd
-
-        print 'Example:'
-        print '\t# %s record -s /var/log -e mi -g comm, 1243' % cmd
-        print '\t$ %s guider.dat -o /var/log -a -i' % cmd
-        print '\t$ %s top\n' % cmd
-
-        print 'Options:'
-        print '\t[mode]'
-        print '\t\t    [thread mode]'
-        print '\t\ttop [top mode]'
-        print '\t\t-y  [system mode]'
-        print '\t\t-f  [function mode]'
-        print '\t\t-F  [file mode]'
-        print '\t[record|top]'
-        print '\t\t-e [enable_options:bellowCharacters]'
-        print '\t\t   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|'
-        print '\t\t-d [disable_options:bellowCharacters]'
-        print '\t\t   |_c(pu)_m(em)_b(lock)_u(user)_|'
-        print '\t\t-s [save_traceData:dir/file]'
-        print '\t\t-S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
-        print '\t\t-u [run_inBackground]'
-        print '\t\t-W [wait_forSignal]'
-        print '\t\t-R [record_repeatData:interval,count]'
-        print '\t\t-b [set_bufferSize:kb]'
-        print '\t\t-D [trace_threadDependency]'
-        print '\t\t-t [trace_syscall:syscalls]'
-        print '\t[analysis]'
-        print '\t\t-o [save_outputData:dir]'
-        print '\t\t-a [show_allInfo]'
-        print '\t\t-i [set_interval:sec]'
-        print '\t\t-p [show_preemptInfo:tids]'
-        print '\t\t-l [input_addr2linePath:path]'
-        print '\t\t-r [input_targetRootPath:dir]'
-        print '\t\t-q [make_taskchain]'
-        print '\t[common]'
-        print '\t\t-g [filter_specificGroup:comms|tids]'
-        print '\t\t-A [set_arch:arm|x86|x64]'
-        print '\t\t-c [set_customEvent:event:filter]'
-        print '\t\t-v [verbose]'
-
-        print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
-        print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
-        print "\nCopyright: "
-        print "\t%s." % (__copyright__)
-        print "\tLicense %s." % (__license__)
-        print "\tThis is free software.\n"
-
-        sys.exit(0)
+    SystemManager.printOptions()
 
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
@@ -9432,7 +9488,7 @@ if __name__ == '__main__':
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.outputFile is None:
-                SystemManager.printError("wrong option with -s, use parameter for saving data")
+                SystemManager.printError("wrong option with -s, use also path to save data")
                 sys.exit(0)
         else:
             SystemManager.repeatInterval = 0
@@ -9469,16 +9525,17 @@ if __name__ == '__main__':
         SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
         si.runRecordStartCmd()
 
+        # register exit handler #
+        atexit.register(SystemManager.runRecordStopCmd)
+
         if SystemManager.pipeEnable is True:
             if SystemManager.outputFile is not None:
                 SystemManager.setIdlePriority()
                 SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
-                SystemManager.runRecordStopCmd()
                 SystemManager.printInfo("wrote output to %s successfully" % (SystemManager.outputFile))
             else:
-                SystemManager.printError("wrong option with -ep, use also -s option for saving data")
+                SystemManager.printError("wrong option with -ep, use also -s option to save data")
 
-            SystemManager.runRecordStopFinalCmd()
             sys.exit(0)
 
         # get init time from buffer for verification #
@@ -9487,8 +9544,6 @@ if __name__ == '__main__':
         # enter loop to record and save data periodically #
         while SystemManager.repeatInterval > 0:
             if SystemManager.repeatCount == 0:
-                SystemManager.runRecordStopCmd()
-                SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
 
             # get init time in buffer for verification #
@@ -9499,10 +9554,8 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
+                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
                     SystemManager.getBufferSize())
-                SystemManager.runRecordStopCmd()
-                SystemManager.runRecordStopFinalCmd()
                 sys.exit(0)
             else:
                 SystemManager.clearTraceBuffer()
@@ -9515,9 +9568,8 @@ if __name__ == '__main__':
                 break
 
         if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-            SystemManager.printError("Buffer size is not enough (%s KB) to profile" % \
+            SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
                 SystemManager.getBufferSize())
-            SystemManager.runRecordStopFinalCmd()
             sys.exit(0)
 
         # save system information #
@@ -9576,10 +9628,6 @@ if __name__ == '__main__':
     if SystemManager.functionEnable is not False:
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
-        # Disable options related to stacktrace #
-        if SystemManager.isRecordMode() is True:
-            SystemManager.runRecordStopFinalCmd()
-
         # print Function Info #
         fi.printUsage()
 
@@ -9597,7 +9645,7 @@ if __name__ == '__main__':
                 from pylab import \
                     rc, rcParams, subplot, plot, title, ylabel, legend, figure, savefig, clf
             except:
-                SystemManager.printError("making graph is not supported because of no matplotlib")
+                SystemManager.printError("graph is not supported because of no matplotlib")
                 SystemManager.graphEnable = False
 
         # create Thread Info using ftrace #
