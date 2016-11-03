@@ -2,6 +2,7 @@
 
 __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
+__module__ = 'guider'
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.5.6"
@@ -3787,6 +3788,22 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setComm():
+        if sys.platform == 'linux2':
+            try:
+                import ctypes
+                from ctypes import cdll, POINTER
+            except ImportError, err:
+                print "[Warning] Fail to import package because %s" % err
+
+            libc = cdll.LoadLibrary('libc.so.6')
+            libc.prctl(15, __module__, 0, 0, 0)
+        else:
+            print '[Warning] Fail to set comm becuase this platform is not linux'
+
+
+
+    @staticmethod
     def printOptions():
         if len(sys.argv) <= 1:
             cmd = sys.argv[0]
@@ -4862,11 +4879,7 @@ class SystemManager(object):
         nrProc = 0
         printBuf = ''
         myPid = str(os.getpid())
-        commLocation = sys.argv[0].rfind('/')
-        if commLocation >= 0:
-            targetComm = sys.argv[0][commLocation + 1:]
-        else:
-            targetComm = sys.argv[0]
+        compLen = len(__module__)
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
@@ -4883,7 +4896,7 @@ class SystemManager(object):
 
             fd = open(procPath + '/comm', 'r')
             comm = fd.readline()[0:-1]
-            if comm == targetComm:
+            if comm[0:compLen] == __module__:
                 try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
@@ -4908,6 +4921,7 @@ class SystemManager(object):
     def sendSignalProcs(nrSig):
         nrProc = 0
         myPid = str(os.getpid())
+        compLen = len(__module__)
 
         commLocation = sys.argv[0].rfind('/')
         if commLocation >= 0:
@@ -4934,7 +4948,7 @@ class SystemManager(object):
                 continue
 
             comm = fd.readline()[0:-1]
-            if comm == targetComm:
+            if comm[0:compLen] == __module__:
                 if nrSig == signal.SIGINT:
                     waitStatus = False
 
@@ -6145,9 +6159,9 @@ class ThreadAnalyzer(object):
         self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
             'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), \
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
-            'utime': float(0), 'stime': float(0), 'ioFd': None, \
+            'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
             'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
-            'cutime': float(0), 'cstime': float(0), 'cttime': float(0)}
+            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'statusFd': None, 'status': None}
 
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
             'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -8780,6 +8794,7 @@ class ThreadAnalyzer(object):
                 # make process object with constant value #
                 self.procData[pid] = dict(self.init_procData)
                 self.procData[pid]['mainID'] = int(pid)
+                self.procData[pid]['taskPath'] = procPath
 
                 # save stat of process #
                 self.saveProcData(procPath, pid)
@@ -8804,6 +8819,7 @@ class ThreadAnalyzer(object):
                 # make process object with constant value #
                 self.procData[tid] = dict(self.init_procData)
                 self.procData[tid]['mainID'] = int(pid)
+                self.procData[tid]['taskPath'] = threadPath
 
                 # main thread #
                 if pid == tid:
@@ -8820,6 +8836,37 @@ class ThreadAnalyzer(object):
 
                 # save stat of thread #
                 self.saveProcData(threadPath, tid)
+
+
+
+    def saveProcStatusData(self, path, tid):
+        # save status info #
+        try:
+            self.prevProcData[tid]['statusFd'].seek(0)
+            self.procData[tid]['statusFd'] = self.prevProcData[tid]['statusFd']
+            self.procData[tid]['statusFd'].flush()
+            statusBuf = self.procData[tid]['statusFd'].readlines()
+        except:
+            try:
+                statusPath = os.path.join(path, 'status')
+                self.procData[tid]['statusFd'] = open(statusPath, 'r')
+                statusBuf = self.procData[tid]['statusFd'].readlines()
+
+                # fd resource is about to run out #
+                if SystemManager.maxFd - 16 < self.procData[tid]['statusFd'].fileno():
+                    self.procData[tid]['statusFd'].close()
+                    self.procData[tid]['statusFd'] = None
+            except:
+                SystemManager.printWarning('Fail to open %s' % statusPath)
+                del self.procData[tid]
+                return
+
+        if self.procData[tid]['status'] is None:
+            self.procData[tid]['status'] = {}
+
+        for line in statusBuf:
+            statusList = line.split(':')
+            self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
 
 
 
@@ -9198,9 +9245,9 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(\
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
-            "{9:^4}({10:^5}/{11:^4}/{12:^3})| {13:^3}({14:^4}/{15:^4}/{16:^6})|{17:>9}|\n").\
+            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|{18:>9}|\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
-            "Mem", "RSS", "Code", "Stk", "Blk", "RD", "WR", "FltCnt", "LifeTime"))
+            "Mem", "RSS", "Txt", "Lib", "Swp", "Blk", "RD", "WR", "NrFlt", "LifeTime"))
 
         SystemManager.addPrint(oneLine + '\n')
 
@@ -9279,6 +9326,18 @@ class ThreadAnalyzer(object):
             runtimeSec %= 60
             lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
+            # save status info to get memory status #
+            self.saveProcStatusData(value['taskPath'], idx)
+
+            try:
+                vmlib = long(value['status']['VmLib'][:value['status']['VmLib'].find(' kb') - 1]) / 1024
+            except:
+                vmlib = '-'
+            try:
+                vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
+            except:
+                vmswp = '-'
+
             if SystemManager.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
                 writeSize = value['write'] / 1024 / 1024
@@ -9288,12 +9347,12 @@ class ThreadAnalyzer(object):
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|{18:>9}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                 long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, vmlib, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'], lifeTime))
             procCnt += 1
 
@@ -9330,6 +9389,15 @@ class ThreadAnalyzer(object):
                 runtimeSec %= 60
                 lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
+                try:
+                    vmlib = long(value['status']['VmLib'][:value['status']['VmLib'].find(' kb') - 1]) / 1024
+                except:
+                    vmlib = '-'
+                try:
+                    vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
+                except:
+                    vmswp = '-'
+
                 if SystemManager.diskEnable is True:
                     readSize = value['read'] / 1024 / 1024
                     writeSize = value['write'] / 1024 / 1024
@@ -9340,18 +9408,28 @@ class ThreadAnalyzer(object):
                 # print die thread information #
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                    "{9:>4}({10:>5}/{11:>4}/{12:>3})| {13:>3}({14:>4}/{15:>4}/{16:>6})|{17:>9}|\n").\
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|{18:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, stackSize, \
+                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, vmlib, vmswp, \
                     value['btime'], readSize, writeSize, value['majflt'], lifeTime))
                 dieCnt += 1
 
                 try:
-                    value['statFd'].close()
-                    value['ioFd'].close()
+                    if value['statFd'] is not None:
+                        value['statFd'].close()
+                except:
+                    pass
+                try:
+                    if value['statusFd'] is not None:
+                        value['statusFd'].close()
+                except:
+                    pass
+                try:
+                    if value['ioFd'] is not None:
+                        value['ioFd'].close()
                 except:
                     pass
 
@@ -9408,6 +9486,8 @@ if __name__ == '__main__':
 
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
+
+    SystemManager.setComm()
 
     # print backgroud process list #
     if SystemManager.isListMode() is True:

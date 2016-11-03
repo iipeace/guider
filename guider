@@ -1,0 +1,31 @@
+# Light launcher for bytecode of guider
+#
+# Copyright (c) 2016 Peace Lee <iipeace5@gmail.com>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+
+PYTHONEXEC=$(which python)
+
+if [ ! $PYTHONEXEC ]
+    then
+        echo "[Error] Fail to find python"
+        exit
+fi
+
+if [ $BYTECODE ]
+    then
+        if [ -f $BYTECODE ]
+            then
+                $PYTHONEXEC $BYTECODE $*
+            else
+                echo "[Error] Fail to launch guider.pyc"
+        fi
+elif [ -f guider.pyc ]
+    then
+        $PYTHONEXEC guider.pyc $*
+else
+    echo "[Error] Fail to find guider.pyc, try to build or set path"
+fi

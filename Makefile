@@ -1,3 +1,12 @@
+# Makefile to build libguider.so and guider.pyc
+#
+# Copyright (c) 2016 Peace Lee <iipeace5@gmail.com>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+
 
 CC = gcc 
 CFLAGS = -fPIC
@@ -5,8 +14,8 @@ LDFLAGS = -shared
 RM = rm -f
 TARGET_LIB = libguider.so
 
-PCC = python
-COMP = -m py_compile
+PCC = $(shell which python)
+PFLAG = -m py_compile
 TARGET_PY = guider.py
 TARGET_PYC = guider.pyc
 
@@ -17,17 +26,13 @@ OBJS = $(SRCS:.c=.o)
 all: ${TARGET_LIB} ${TARGET_PYC}
 
 $(TARGET_PYC): $(TARGET_PY)
-		$(PCC) $(COMP) $^
+		@test -s ${PCC} || { echo "Fail to compile guider"; false; }
+		$(PCC) $(PFLAG) $^
 
 $(TARGET_LIB): $(OBJS)
 		$(CC) ${LDFLAGS} -o $@ $^
 
-$(SRCS:.c=.d):%.d:%.c
-		$(CC) $(CFLAGS) -MM $< >$@
-
-#include $(SRCS:.c=.d)
-
 .PHONY: clean
 clean:
-	-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
-	-${RM} ${TARGET_PYC}
+	@-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
+	@-${RM} ${TARGET_PYC}
