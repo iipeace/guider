@@ -1355,13 +1355,13 @@ class FunctionAnalyzer(object):
             if len(self.nowCtx['userCallStack']) == 0 and \
                 len(self.nowCtx['kernelCallStack']) > 0:
                     # Set userLastPos to None #
-                    self.nowCtx['userLastPos'] = '0'
-                    self.nowCtx['userCallStack'].append('0')
+                self.nowCtx['userLastPos'] = '0'
+                self.nowCtx['userCallStack'].append('0')
             if len(self.nowCtx['kernelCallStack']) == 0 and \
                 len(self.nowCtx['userCallStack']) > 0:
-                    # Set kernelLastPos to None #
-                    self.nowCtx['kernelLastPos'] = '0'
-                    self.nowCtx['kernelCallStack'].append('0')
+                # Set kernelLastPos to None #
+                self.nowCtx['kernelLastPos'] = '0'
+                self.nowCtx['kernelCallStack'].append('0')
 
         # complicated situation ;( #
         elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
@@ -1369,7 +1369,7 @@ class FunctionAnalyzer(object):
             if self.nowCtx['curMode'] is 'kernel':
                 # nested interval #
                 if self.nowCtx['nowEvent'] is 'CPU_TICK':
-                    # Backup kernel stack #
+                # Backup kernel stack #
                     self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
                     self.nowCtx['bakKernelCallStack'] = self.nowCtx['kernelCallStack']
 
@@ -2079,9 +2079,9 @@ class FunctionAnalyzer(object):
             elif SystemManager.targetEvent is not None and \
                 d['func'] == SystemManager.targetEvent + ':':
 
-                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
+                self.saveEventParam('IGNORE', 0, d['func'][:-1])
 
-                    return False
+                return False
 
             # Ignore event #
             else:
@@ -6530,7 +6530,7 @@ class ThreadAnalyzer(object):
                 count += 1
 
             if breakCond < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
-               break
+                break
 
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
