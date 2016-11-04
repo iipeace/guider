@@ -18,6 +18,7 @@ PCC = $(shell which python)
 PFLAG = -m py_compile
 TARGET_PY = guider.py
 TARGET_PYC = guider.pyc
+INSTALL_DIR = /usr/share/guider
 
 SRCS = guider.c
 OBJS = $(SRCS:.c=.o)
@@ -32,7 +33,14 @@ $(TARGET_PYC): $(TARGET_PY)
 $(TARGET_LIB): $(OBJS)
 		$(CC) ${LDFLAGS} -o $@ $^
 
+.PHONY: install
+install: all
+	@test -s ${INSTALL_DIR} || mkdir ${INSTALL_DIR}
+	@test -s ${INSTALL_DIR} || { echo "Fail to make ${INSTALL_DIR}"; false; }
+	@cp ${TARGET_PYC} ${INSTALL_DIR}/ || { echo "Fail to install into ${INSTALL_DIR}"; false; }
+
 .PHONY: clean
 clean:
 	@-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
 	@-${RM} ${TARGET_PYC}
+	@-${RM} ${INSTALL_DIR}/*

@@ -2,7 +2,7 @@
 
 __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2016, guider"
-__module__ = 'guider'
+__module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.5.7"

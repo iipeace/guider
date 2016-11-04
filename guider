@@ -31,6 +31,9 @@ if [ $OBJPATH ]
 elif [ -f $LAUNCHER_PATH/$OBJFILE ]
     then
         $PYTHON_EXEC $LAUNCHER_PATH/$OBJFILE $*
+elif [ -f /usr/share/guider/$OBJFILE ]
+    then
+        $PYTHON_EXEC /usr/share/guider/$OBJFILE $*
 else
     echo "[Error] Fail to find $OBJFILE," $ERRMSG 
 fi
