@@ -1,7 +1,7 @@
 # guider
 Are you struggle to improve system performance or to find root cause that makes system abnormal?   
 Guider is made to measure system resource usage and to give user hints to improve system performance.   
-You can profile resource usage of thread, process, file, function with this tool.   
+You can profile resource usage of thread, process, function with this tool.   
 
 Guider pursues three characteristics.
 >1. easy to use: just run without install or setting
@@ -13,10 +13,13 @@ How to use
 =======
 
 ```
-Input command as bellow for starting profile
+Input command as bellow to start accurate profile
 # guider.py record 
 
-Input "Ctrl + c" key for finishing profile
+Input "Ctrl + c" key to finish accurate profile
+
+Input command as bellow to start realtime profile
+$ guider.py top 
 ```
 
 
@@ -27,6 +30,18 @@ Requirement
 - linux kernel (>= 3.0)
 - python (>= 2.7)
 - root permission (for recording thread activity)
+```
+
+
+Build
+=======
+
+```
+Input command as bellow to make guider lighter
+$ make
+
+Then bytecode object and library are created
+bytecode object (guider.pyc) is able to be launched by guider script
 ```
 
 
@@ -67,28 +82,31 @@ Options
                 top [top mode]
                 -y  [system mode]
                 -f  [function mode]
-                -m  [file mode]
+                -F  [file mode]
         [record|top]
-                -s [save_traceData:dir|file]
-                -S [sort_output:c(pu),m(em),b(lock),w(fc)]
+                -e [enable_options:bellowCharacters]
+                   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|
+                -d [disable_options:bellowCharacters]
+                   |_c(pu)_m(em)_b(lock)_u(user)_|
+                -s [save_traceData:dir/file]
+                -S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]
                 -u [run_inBackground]
-                -c [wait_forSignal]
-                -e [enable_options:i(rq)|m(em)|f(utex)|g(raph)|p(ipe)|w(arning)|t(hread)|r(eset)|d(isk)]
-                -d [disable_options:c(pu)|b(lock)|u(user)]
-                -r [record_repeatData:interval,count]
-                -b [set_bufferSize:kb(record)|10b(top)]
-                -w [trace_threadDependency]
-                -t [trace_syscall:syscallNums]
+                -W [wait_forSignal]
+                -R [record_repeatedly:interval,count]
+                -b [set_bufferSize:kb]
+                -D [trace_threadDependency]
+                -t [trace_syscall:syscalls]
         [analysis]
-                -o [set_dirOfOutputFile:dir]
+                -o [save_outputData:dir]
                 -a [show_allInfo]
                 -i [set_interval:sec]
-                -w [show_threadDependency]
                 -p [show_preemptInfo:tids]
                 -l [input_addr2linePath:path]
-                -j [input_targetRootPath:dir]
+                -r [input_targetRootPath:dir]
                 -q [make_taskchain]
         [common]
                 -g [filter_specificGroup:comms|tids]
                 -A [set_arch:arm|x86|x64]
+                -c [set_customEvent:event:filter]
+                -v [verbose]
 ```
