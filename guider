@@ -7,25 +7,30 @@
 # Software Foundation; either version 2 of the License, or (at your option)
 # any later version.
 
-PYTHONEXEC=$(which python)
+PYTHON_EXEC=$(which python)
 
-if [ ! $PYTHONEXEC ]
+if [ ! $PYTHON_EXEC ]
     then
         echo "[Error] Fail to find python"
         exit
 fi
 
-if [ $BYTECODE ]
+
+OBJFILE=guider.pyc
+LAUNCHER_PATH=$(dirname "$0")
+ERRMSG="try to build using Makefile or to set OBJPATH variable for guider.pyc"
+
+if [ $OBJPATH ]
     then
-        if [ -f $BYTECODE ]
+        if [ -f $OBJPATH/$OBJFILE ]
             then
-                $PYTHONEXEC $BYTECODE $*
+                $PYTHON_EXEC $OBJPATH/$OBJFILE $*
             else
-                echo "[Error] Fail to launch guider.pyc"
+                echo "[Error] Fail to launch $OBJFILE," $ERRMSG
         fi
-elif [ -f guider.pyc ]
+elif [ -f $LAUNCHER_PATH/$OBJFILE ]
     then
-        $PYTHONEXEC guider.pyc $*
+        $PYTHON_EXEC $LAUNCHER_PATH/$OBJFILE $*
 else
-    echo "[Error] Fail to find guider.pyc, try to build or set path"
+    echo "[Error] Fail to find $OBJFILE," $ERRMSG 
 fi

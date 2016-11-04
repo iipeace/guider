@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2016, guider"
 __module__ = 'guider'
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.6"
+__version__ = "3.5.7"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9009,12 +9009,12 @@ class ThreadAnalyzer(object):
             slabMem = 'NA'
 
         try:
-            majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']) * 4
+            majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault'])
         except:
             majFaultMem = 'NA'
         '''
         try:
-            faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault']) * 4
+            faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault'])
         except:
             faultMem = 'NA'
         try:
@@ -9118,7 +9118,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "Flt(KB)", "Mlock"))
+            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "Mlock"))
         SystemManager.addPrint(oneLine + '\n')
 
         # set biggest core number #
