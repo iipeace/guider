@@ -1174,6 +1174,7 @@ class FunctionAnalyzer(object):
         # No file exist #
         if os.path.isfile(binPath) == False:
             SystemManager.printWarning("Fail to find %s" % binPath)
+
             for addr in offsetList:
                 try:
                     if relocated is False:
@@ -1756,19 +1757,19 @@ class FunctionAnalyzer(object):
                 pageCnt = pow(2, int(d['order']))
 
                 # Increase page count of thread #
-                self.threadData[thread]['nrPages'] += pageCnt
+                self.threadData[tid]['nrPages'] += pageCnt
 
                 # Increase page counts of thread #
                 pageType = None
                 if flags.find('USER') >= 0:
                     pageType = 'USER'
-                    self.threadData[thread]['userPages'] += pageCnt
+                    self.threadData[tid]['userPages'] += pageCnt
                 elif flags.find('NOFS') >= 0:
                     pageType = 'CACHE'
-                    self.threadData[thread]['cachePages'] += pageCnt
+                    self.threadData[tid]['cachePages'] += pageCnt
                 else:
                     pageType = 'KERNEL'
-                    self.threadData[thread]['kernelPages'] += pageCnt
+                    self.threadData[tid]['kernelPages'] += pageCnt
 
                 # Make PTE in page table #
                 for cnt in range(0, pageCnt):
@@ -1793,7 +1794,7 @@ class FunctionAnalyzer(object):
                     except:
                         self.pageTable[pfnv] = dict(self.init_pageData)
 
-                    self.pageTable[pfnv]['tid'] = thread
+                    self.pageTable[pfnv]['tid'] = tid 
                     self.pageTable[pfnv]['page'] = page
                     self.pageTable[pfnv]['flags'] = flags
                     self.pageTable[pfnv]['type'] = pageType
@@ -1842,7 +1843,7 @@ class FunctionAnalyzer(object):
                     except:
                         # this page was allocated before starting profile #
 
-                        self.threadData[thread]['nrUnknownFreePages'] += 1
+                        self.threadData[tid]['nrUnknownFreePages'] += 1
                         continue
 
                 self.memEnabled = True
@@ -1875,14 +1876,14 @@ class FunctionAnalyzer(object):
                         if size == 0:
                             pass
 
-                        self.threadData[thread]['heapSize'] += size
+                        self.threadData[tid]['heapSize'] += size
                     except:
                         self.saveEventParam('IGNORE', 0, func[:-1])
 
                         return False
 
                     # make heap segment tid-ready #
-                    self.allocHeapSeg(thread, size)
+                    self.allocHeapSeg(tid, size)
 
                     self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -1925,7 +1926,7 @@ class FunctionAnalyzer(object):
                     addr = int(b['ret'])
 
                     # rename heap segment from tid-ready to addr #
-                    self.setHeapSegAddr(thread, addr)
+                    self.setHeapSegAddr(tid, addr)
 
                     try:
                         size = self.heapTable[addr]['size']
@@ -1954,7 +1955,7 @@ class FunctionAnalyzer(object):
                     self.breadEnabled = True
 
                     blockRdCnt = int(b['size'])
-                    self.threadData[thread]['nrRdBlocks'] += blockRdCnt
+                    self.threadData[tid]['nrRdBlocks'] += blockRdCnt
 
                     self.saveEventParam('BLK_READ', blockRdCnt, 0)
 
@@ -1975,7 +1976,7 @@ class FunctionAnalyzer(object):
                 b = m.groupdict()
                 self.bwriteEnabled = True
 
-                self.threadData[thread]['nrWrBlocks'] += 1
+                self.threadData[tid]['nrWrBlocks'] += 1
 
                 self.saveEventParam('BLK_WRITE', 1, 0)
 
@@ -1995,7 +1996,7 @@ class FunctionAnalyzer(object):
                 if d['skip'] == '0':
                     self.bwriteEnabled = True
 
-                    self.threadData[thread]['nrWrBlocks'] += 1
+                    self.threadData[tid]['nrWrBlocks'] += 1
 
                     self.saveEventParam('BLK_WRITE', 1, 0)
 
@@ -2028,7 +2029,7 @@ class FunctionAnalyzer(object):
 
         elif func == "signal_deliver:":
             m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', args)
+                r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)', args)
             if m is not None:
                 b = m.groupdict()
 
@@ -2280,7 +2281,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
             "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}|{9:_^7}|{10:_^8})|" + \
-            "{11:_^7}|{12:_^7}|{13:_^7}|{14:_^5}|{15:_^5}|").\
+            "{11:_^7}|{12:_^7}|{13:_^8}|{14:_^5}|{15:_^5}|").\
             format("Name", "Tid", "Pid", "Target", "CPU", \
             "MEM", "USER", "BUF", "KERNEL", "UFREE", "HEAP", \
             "BLK_RD", "BLK_WR", "CUSTOM", "DIE", "NEW"))
@@ -2340,7 +2341,7 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint(\
                 ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|" + \
                 "{5:6}k({6:6}k/{7:6}k/{8:6}k|{9:6}k|{10:7}k)|" + \
-                "{11:6}k|{12:6}k|{13:7}|{14:^5}|{15:^5}|").\
+                "{11:6}k|{12:6}k|{13:8}|{14:^5}|{15:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
                 value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] / 1024, \
@@ -2374,71 +2375,72 @@ class FunctionAnalyzer(object):
         # Make custom event list #
         customList = ', '.join(self.customEventTable.keys())
 
-        # Print custom usage in user space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
-            (customList, self.customTotal, self.customCnt))
+        if SystemManager.userEnable is True:
+            # Print custom usage in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
+                (customList, self.customTotal, self.customCnt))
 
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
-            if value['customCnt'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:7}  |{1:^47}|{2:48}|{3:37}".format(value['customCnt'], idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Set target stack #
-            targetStack = []
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack.sort(reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                eventCnt = stack[eventIndex]
-                subStack = list(stack[subStackIndex])
-
-                if eventCnt == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
+                if value['customCnt'] == 0:
                     break
 
-                if len(subStack) == 0:
-                    continue
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None:
-                                symbolStack += ' <- None'
-                            else:
-                                symbolStack += ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                SystemManager.pipePrint("{0:7}  |{1:^47}|{2:48}|{3:37}".format(value['customCnt'], idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
-                SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
 
-            SystemManager.pipePrint(oneLine)
+                # Sort by usage #
+                targetStack.sort(reverse=True)
 
-        SystemManager.pipePrint('')
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    eventCnt = stack[eventIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if eventCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None:
+                                    symbolStack += ' <- None'
+                                else:
+                                    symbolStack += ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+
+                    SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
 
         # Print custom usage in kernel space #
         SystemManager.clearPrint()
@@ -2504,79 +2506,80 @@ class FunctionAnalyzer(object):
         # average tick interval #
         self.periodicEventInterval /= self.periodicContEventCnt
 
-        # Print cpu usage in user space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-            (self.periodicEventCnt, self.periodicEventInterval * 1000))
+        if SystemManager.userEnable is True:
+            # Print cpu usage in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if value['cnt'] == 0:
-                break
-
-            cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
-            if cpuPer < 1 and SystemManager.showAll is False:
-                break
-
-            SystemManager.pipePrint("{0:7}% |{1:^47}|{2:48}|{3:37}".format(cpuPer, idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Set target stack #
-            targetStack = []
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack.sort(reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                cpuCnt = stack[cpuTickIndex]
-                subStack = list(stack[subStackIndex])
-
-                if cpuCnt == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
+                if value['cnt'] == 0:
                     break
 
-                if len(subStack) == 0:
-                    continue
-                else:
-                    cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
-                    if cpuPer < 1 and SystemManager.showAll is False:
+                cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+                if cpuPer < 1 and SystemManager.showAll is False:
+                    break
+
+                SystemManager.pipePrint("{0:7}% |{1:^47}|{2:48}|{3:37}".format(cpuPer, idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
+
+                # Sort by usage #
+                targetStack.sort(reverse=True)
+
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    cpuCnt = stack[cpuTickIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if cpuCnt == 0:
                         break
 
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None:
-                                symbolStack += ' <- None'
-                            else:
-                                symbolStack += ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
+                        if cpuPer < 1 and SystemManager.showAll is False:
+                            break
 
-                SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None:
+                                    symbolStack += ' <- None'
+                                else:
+                                    symbolStack += ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
 
-            SystemManager.pipePrint(oneLine)
+                    SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
-        SystemManager.pipePrint('')
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
 
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
@@ -2802,79 +2805,80 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-       # Print mem usage in user space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint(\
-            '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-            (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
-            self.pageFreeCnt * 4, self.pageFreeEventCnt))
-
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
-            format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
-
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
-            if value['pageCnt'] == 0:
-                break
-
+        if SystemManager.userEnable is True:
+            # Print mem usage in user space #
+            SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
-                value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
+                self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
-            # Set target stack #
-            targetStack = []
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
+                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
 
-            # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[pageAllocIndex], reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                subStack = list(stack[subStackIndex])
-                pageCnt = stack[pageAllocIndex]
-                userPageCnt = stack[argIndex][0]
-                cachePageCnt = stack[argIndex][1]
-                kernelPageCnt = stack[argIndex][2]
-
-                if pageCnt == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['pageCnt'], reverse=True):
+                if value['pageCnt'] == 0:
                     break
 
-                if len(subStack) == 0:
-                    continue
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None:
-                                symbolStack += ' <- None'
-                            else:
-                                symbolStack += ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                SystemManager.pipePrint(\
+                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".format(value['pageCnt'] * 4, \
+                    value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
-                SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
-                    userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
 
-            SystemManager.pipePrint(oneLine)
+                # Sort by usage #
+                targetStack = sorted(targetStack, key=lambda x: x[pageAllocIndex], reverse=True)
 
-        SystemManager.pipePrint('')
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    subStack = list(stack[subStackIndex])
+                    pageCnt = stack[pageAllocIndex]
+                    userPageCnt = stack[argIndex][0]
+                    cachePageCnt = stack[argIndex][1]
+                    kernelPageCnt = stack[argIndex][2]
+
+                    if pageCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None:
+                                    symbolStack += ' <- None'
+                                else:
+                                    symbolStack += ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+
+                    SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                        userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
 
         # Print mem usage in kernel space #
         SystemManager.clearPrint()
@@ -2948,7 +2952,7 @@ class FunctionAnalyzer(object):
 
     def printHeapUsage(self):
         # check heap memory event #
-        if self.heapEnabled is False:
+        if self.heapEnabled is False or self.userEnable is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -3038,72 +3042,73 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
 
-        # Print block write usage in user space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-            (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
+        if SystemManager.userEnable is True:
+            # Print block write usage in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockWrCnt'], reverse=True):
-            if value['blockWrCnt'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockWrCnt'] * 4), idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Set target stack #
-            targetStack = []
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[blkWrIndex], reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                blockWrCnt = stack[blkWrIndex]
-                subStack = list(stack[subStackIndex])
-
-                if blockWrCnt == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockWrCnt'], reverse=True):
+                if value['blockWrCnt'] == 0:
                     break
 
-                if len(subStack) == 0:
-                    continue
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None:
-                                symbolStack += ' <- None'
-                            else:
-                                symbolStack += ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                    format(int(value['blockWrCnt'] * 4), idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
 
-            SystemManager.pipePrint(oneLine)
+                # Sort by usage #
+                targetStack = sorted(targetStack, key=lambda x: x[blkWrIndex], reverse=True)
 
-        SystemManager.pipePrint('')
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    blockWrCnt = stack[blkWrIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if blockWrCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None:
+                                    symbolStack += ' <- None'
+                                else:
+                                    symbolStack += ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+
+                    SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
 
         # Print block write usage in kernel space #
         SystemManager.clearPrint()
@@ -3175,72 +3180,73 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
 
-        # Print block read usage in user space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-            (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+        if SystemManager.userEnable is True:
+            # Print block read usage in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
-        SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
 
-        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockRdCnt'], reverse=True):
-            if value['blockRdCnt'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockRdCnt'] * 0.5), idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
-
-            # Set target stack #
-            targetStack = []
-            if self.sort is 'sym':
-                targetStack = value['symStack']
-            elif self.sort is 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
-
-            # Merge and Print symbols in stack #
-            for stack in targetStack:
-                blockRdCnt = stack[blkRdIndex]
-                subStack = list(stack[subStackIndex])
-
-                if blockRdCnt == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['blockRdCnt'], reverse=True):
+                if value['blockRdCnt'] == 0:
                     break
 
-                if len(subStack) == 0:
-                    continue
-                else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None:
-                                symbolStack += ' <- None'
-                            else:
-                                symbolStack += ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                    format(int(value['blockRdCnt'] * 0.5), idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
 
-            SystemManager.pipePrint(oneLine)
+                # Sort by usage #
+                targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
 
-        SystemManager.pipePrint('')
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    blockRdCnt = stack[blkRdIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if blockRdCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None:
+                                    symbolStack += ' <- None'
+                                else:
+                                    symbolStack += ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+
+                    SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
 
         # Print block read usage in kernel space #
         SystemManager.clearPrint()
@@ -4134,13 +4140,18 @@ class SystemManager(object):
                 SystemManager.printError("wrong event '%s'" % cmdFormat[0])
                 sys.exit(0)
 
-            if len(cmdFormat) > 1 and \
-                SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
-                SystemManager.customCmd.pop(SystemManager.customCmd.index(cmd))
-                continue
+            if len(cmdFormat) == 1:
+                cmdFormat.append("common_pid != 0")
+            else:
+                cmdFormat[1] = "common_pid != 0 && " + cmdFormat[1]
+
+            if SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
+                SystemManager.printError("wrong filter '%s' for '%s' event" % (cmdFormat[1], cmdFormat[0]))
 
             if SystemManager.writeCmd(cmdFormat[0] + '/enable', '1') < 0:
+                SystemManager.printError("wrong event '%s'" % cmdFormat[0])
                 SystemManager.customCmd.pop(SystemManager.customCmd.index(cmd))
+                sys.exit(0)
             else:
                 effectiveCmd.append(cmdFormat[0])
 
@@ -4579,6 +4590,13 @@ class SystemManager(object):
             SystemManager.printInfo("FUNCTION MODE")
         else:
             SystemManager.printInfo("THREAD MODE")
+
+        # apply disable option #
+        launchPosStart = SystemManager.launchBuffer.find(' -d')
+        if launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            if filterList[:filterList.find(' -')].find('u') > -1:
+                SystemManager.userEnable = False
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -5023,31 +5041,42 @@ class SystemManager(object):
 
 
     @staticmethod
-    def makeKerSymTable():
+    def makeKerSymTable(symbol):
         try:
             f = open('/proc/kallsyms', 'r')
-
-            lines = f.readlines()
-
-            f.close()
         except IOError:
             SystemManager.printWarning("Fail to open %s" % '/proc/kallsyms')
 
-        for line in lines:
+        ret = None
+        startPos = len(SystemManager.kerSymTable)
+        curPos = 0
+
+        while True:
+            line = f.readline()
+            curPos += 1
+
+            if startPos > curPos:
+                continue
+
+            # Cache address and symbol #
             line = line.split()
             SystemManager.kerSymTable[line[2]] = line[0]
+
+            if line[2] == symbol:
+                ret = line[0]
+                break
+
+        f.close()
+        return ret
 
 
 
     @staticmethod
     def getKerAddr(symbol):
-        if SystemManager.kerSymTable == {}:
-            SystemManager.makeKerSymTable()
-
         try:
             return SystemManager.kerSymTable[symbol]
         except:
-            return None
+            return SystemManager.makeKerSymTable(symbol)
 
 
 
@@ -5578,9 +5607,6 @@ class SystemManager(object):
         SystemManager.writeCmd('../trace_options', 'noannotate')
         SystemManager.writeCmd('../trace_options', 'print-tgid')
 
-        # enable custom events #
-        SystemManager.writeCustomCmd()
-
         if SystemManager.isFunctionMode() is True:
             cmd = ""
 
@@ -5616,6 +5642,9 @@ class SystemManager(object):
 
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
+
+            # enable custom events #
+            SystemManager.writeCustomCmd()
 
             if SystemManager.cpuEnable is True:
                 self.cmdList["timer/hrtimer_start"] = True
@@ -5697,6 +5726,9 @@ class SystemManager(object):
 
             return
 
+        # enable custom events #
+        SystemManager.writeCustomCmd()
+
         if self.cmdList["sched/sched_switch"] is True:
             if len(SystemManager.showGroup) > 0:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
@@ -5721,7 +5753,7 @@ class SystemManager(object):
 
         # options for dependency tracing #
         # toDo: support sys_recv systemcall for x86, x64 #
-        if self.cmdList["raw_syscalls/sys_enter"] is True:
+        if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_enter"] is True:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
                 % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
                 ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
@@ -5739,7 +5771,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
         # options for dependency tracing #
-        if self.cmdList["raw_syscalls/sys_exit"] is True:
+        if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_exit"] is True:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
                 % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
                 ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
@@ -5759,21 +5791,26 @@ class SystemManager(object):
 
         # options for systemcall tracing #
         if self.cmdList["raw_syscalls"] is True:
-            cmd = "("
+            cmd = ''
 
+            # tid filter #
             if len(SystemManager.showGroup) > 0:
+                cmd += "("
                 for comm in SystemManager.showGroup:
                     cmd += "common_pid == \"%s\" || " % comm
+                cmd = cmd[:cmd.rfind(" ||")] + ") && "
 
+            # syscall filter #
             if len(SystemManager.syscallList) > 0:
+                cmd += "("
                 for val in SystemManager.syscallList:
                     cmd += " id == %s ||" % val
                     if SystemManager.syscallList.index(val) == len(SystemManager.syscallList) - 1:
                         cmd += " id == %s)" % val
+                cmd = cmd[:cmd.rfind(" ||")] + ")"
                 SystemManager.writeCmd('raw_syscalls/filter', cmd)
             else:
-                cmd = cmd[0:cmd.rfind(" ||")]
-                cmd += ")"
+                cmd = cmd[:cmd.rfind(" &&")]
                 SystemManager.writeCmd('raw_syscalls/filter', cmd)
 
             if SystemManager.sysEnable is True and \
@@ -6863,7 +6900,7 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + \
                 '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
-                '[Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: ()]')
+                '[Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -7948,6 +7985,8 @@ class ThreadAnalyzer(object):
                                 self.preemptData[SystemManager.preemptGroup.index(next_id)][0] = False
                             except:
                                 return
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "irq_handler_entry":
                 m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
@@ -7972,6 +8011,8 @@ class ThreadAnalyzer(object):
                     self.irqData[irqId]['start'] = float(time)
                     self.irqData[irqId]['name'] = d['name']
                     self.irqData[irqId]['count'] += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "irq_handler_exit":
                 m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
@@ -7997,6 +8038,8 @@ class ThreadAnalyzer(object):
                             self.irqData[irqId]['max'] = diff
                         if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "softirq_entry":
                 m = re.match(r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
@@ -8021,6 +8064,8 @@ class ThreadAnalyzer(object):
 
                     self.irqData[irqId]['start'] = float(time)
                     self.irqData[irqId]['count'] += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "softirq_exit":
                 m = re.match(r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
@@ -8045,6 +8090,8 @@ class ThreadAnalyzer(object):
                             self.irqData[irqId]['max'] = diff
                         if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_migrate_task":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
@@ -8071,6 +8118,8 @@ class ThreadAnalyzer(object):
 
                         if index >= 0:
                             self.preemptData[index][3] = core
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_alloc":
                 m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
@@ -8123,6 +8172,8 @@ class ThreadAnalyzer(object):
                         self.pageTable[pfnv]['flags'] = flags
                         self.pageTable[pfnv]['type'] = pageType
                         self.pageTable[pfnv]['time'] = time
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_free":
                 m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)', etc)
@@ -8162,6 +8213,8 @@ class ThreadAnalyzer(object):
                             # this page is allocated before starting profile #
                             self.threadData[thread]['anonReclaimedPages'] += 1
                             self.threadData[coreId]['anonReclaimedPages'] += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_filemap_delete_from_page_cache":
                 m = re.match(r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' + \
@@ -8177,6 +8230,8 @@ class ThreadAnalyzer(object):
                         self.pageTable[pfn]['type'] = 'CACHE'
                     except:
                         return
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "kmalloc":
                 m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+bytes_req=(?P<req>[0-9]+)\s+' + \
@@ -8208,6 +8263,8 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['wasteKmem'] += alloc - req
                     self.threadData[coreId]['remainKmem'] += alloc
                     self.threadData[coreId]['wasteKmem'] += alloc - req
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "kfree":
                 m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)', etc)
@@ -8234,6 +8291,8 @@ class ThreadAnalyzer(object):
                         this object is allocated before starting profile
                         '''
                         return
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_wakeup":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
@@ -8269,6 +8328,8 @@ class ThreadAnalyzer(object):
                         self.wakeupData['time'] = float(time) - float(self.startTime)
                         self.wakeupData['from'] = self.wakeupData['tid']
                         self.wakeupData['to'] = pid
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sys_enter":
                 m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
@@ -8326,9 +8387,11 @@ class ThreadAnalyzer(object):
                             self.syscallData.append(['enter', time, thread, core, nr, args])
                     else:
                         self.syscallData.append(['enter', time, thread, core, nr, args])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sys_exit":
-                m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>[0-9]+)', etc)
+                m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -8369,7 +8432,6 @@ class ThreadAnalyzer(object):
                                 self.wakeupData['time'] = float(time) - float(self.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                     except:
-                        SystemManager.printWarning('Fail to handle sys_exit event')
                         pass
 
                     try:
@@ -8404,6 +8466,8 @@ class ThreadAnalyzer(object):
                             self.syscallData.append(['exit', time, thread, core, nr, ret])
                     else:
                         self.syscallData.append(['exit', time, thread, core, nr, ret])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "signal_generate":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
@@ -8438,10 +8502,12 @@ class ThreadAnalyzer(object):
                             self.threadData[pid]['die'] = 'F'
                     except:
                         return
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "signal_deliver":
                 m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                        r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', etc)
+                        r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -8457,6 +8523,8 @@ class ThreadAnalyzer(object):
                         None, None, self.threadData[thread]['comm'], thread, sig))
 
                     self.wakeupData['time'] = float(time) - float(self.startTime)
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "block_bio_remap":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
@@ -8480,10 +8548,12 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['readBlockCnt'] += 1
                         if self.threadData[thread]['readStart'] == 0:
                             self.threadData[thread]['readStart'] = float(time)
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "block_rq_complete":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)' + \
-                    r'\s*\(\S*\s*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                    r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -8555,6 +8625,8 @@ class ThreadAnalyzer(object):
                                         self.threadData[value['thread']]['readStart'] = 0
 
                                     del value
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "writeback_dirty_page":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
@@ -8568,6 +8640,8 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['writeBlockCnt'] += 1
                     self.threadData[coreId]['writeBlock'] += 1
                     self.threadData[coreId]['writeBlockCnt'] += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "wbc_writepage":
                 m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
@@ -8582,6 +8656,8 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['writeBlockCnt'] += 1
                         self.threadData[coreId]['writeBlock'] += 1
                         self.threadData[coreId]['writeBlockCnt'] += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_vmscan_wakeup_kswapd":
                 try:
@@ -8624,6 +8700,8 @@ class ThreadAnalyzer(object):
                             float(time) - self.threadData[thread]['dReclaimStart']
 
                     self.threadData[thread]['dReclaimStart'] = 0
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "task_newtask":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
@@ -8646,6 +8724,8 @@ class ThreadAnalyzer(object):
 
                     self.threadData[thread]['childList'].append(pid)
                     self.nrNewTask += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "task_rename":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' + \
@@ -8664,6 +8744,8 @@ class ThreadAnalyzer(object):
                         self.threadData[pid]['ptid'] = thread
 
                     self.threadData[pid]['comm'] = newcomm
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_process_exit":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -8681,6 +8763,8 @@ class ThreadAnalyzer(object):
 
                     if self.threadData[pid]['die'] != 'F':
                         self.threadData[pid]['die'] = 'D'
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_process_wait":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -8689,6 +8773,8 @@ class ThreadAnalyzer(object):
 
                     self.threadData[thread]['waitStartAsParent'] = float(time)
                     self.threadData[thread]['waitPid'] = int(d['pid'])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "suspend_resume":
                 state = None
@@ -8716,6 +8802,8 @@ class ThreadAnalyzer(object):
                     address = d['address']
 
                     self.moduleData.append(['load', thread, time, module, address])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "module_free":
                 m = re.match(r'^\s*(?P<module>.*)', etc)
@@ -8725,6 +8813,8 @@ class ThreadAnalyzer(object):
                     module = d['module']
 
                     self.moduleData.append(['free', thread, time, module, None])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "module_put":
                 m = re.match(r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+refcnt=(?P<refcnt>[0-9]+)', etc)
@@ -8735,6 +8825,8 @@ class ThreadAnalyzer(object):
                     refcnt = int(d['refcnt'])
 
                     self.moduleData.append(['put', thread, time, module, refcnt])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "cpu_idle":
                 m = re.match(r'^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
@@ -8760,6 +8852,8 @@ class ThreadAnalyzer(object):
                         if self.threadData[tid]['lastOff'] > 0:
                             self.threadData[tid]['offTime'] += (float(time) - self.threadData[tid]['lastOff'])
                             self.threadData[tid]['lastOff'] = float(0)
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "cpu_frequency":
                 # toDo: calculate power consumption for DVFS system #
