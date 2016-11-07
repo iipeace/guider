@@ -444,7 +444,10 @@ class FunctionAnalyzer(object):
         self.blockRdUsageCnt = 0
         self.blockWrEventCnt = 0
         self.blockWrUsageCnt = 0
+        self.customCnt = 0
+        self.customTotal = 0
 
+        self.customEventTable = {}
         self.ignoreTable = {}
         self.mapData = []
         self.pageTable = {}
@@ -464,17 +467,19 @@ class FunctionAnalyzer(object):
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
             'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrRdBlocks': int(0), \
-            'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0)}
+            'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
+            'customCnt': int(0), 'customTotal': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'unknownPageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
-            'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0)}
+            'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0), 'customCnt': int(0), \
+            'customTotal': int(0)}
 
         self.init_symData = \
             {'pos': '', 'origBin': '', 'cnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'unknownPageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
-            'heapSize': int(0), 'blockWrCnt': int(0)}
+            'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), 'recStat': bool(False), \
@@ -1069,6 +1074,15 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]['cnt'] += 1
                 self.kernelSymData[kernelSym]['cnt'] += 1
 
+            # periodic event such as cpu tick #
+            elif event == 'CUSTOM':
+                if eventCnt > 0:
+                    self.userSymData[sym]['customTotal'] += 1
+                    self.kernelSymData[kernelSym]['customTotal'] += 1
+
+                self.userSymData[sym]['customCnt'] += eventCnt
+                self.kernelSymData[kernelSym]['customCnt'] += eventCnt
+
             # etc event #
             elif event is 'IGNORE':
                 try:
@@ -1340,6 +1354,17 @@ class FunctionAnalyzer(object):
             self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
 
+        elif targetEvent == 'CUSTOM':
+            if targetCnt > 0:
+                self.customTotal += 1
+                self.customCnt += targetCnt
+
+                self.posData[self.nowCtx['kernelLastPos']]['customTotal'] += 1
+                self.posData[self.nowCtx['userLastPos']]['customTotal'] += 1
+
+                self.posData[self.nowCtx['kernelLastPos']]['customCnt'] += targetCnt
+                self.posData[self.nowCtx['userLastPos']]['customCnt'] += targetCnt
+
         else:
             pass
 
@@ -1553,13 +1578,24 @@ class FunctionAnalyzer(object):
         curIdx = 0
         lastIdx = len(lines)
 
+        # make custom event table #
+        if SystemManager.customCmd is not None:
+            for cmd in SystemManager.customCmd:
+                cmd = cmd.split(':')
+
+                if len(cmd) > 1:
+                    self.customEventTable[cmd[0]] = cmd[1]
+                else:
+                    self.customEventTable[cmd[0]] = None
+
+        # start to parse logs #
         for liter in lines:
             curIdx += 1
             SystemManager.logSize += len(liter)
             SystemManager.curLine += 1
             SystemManager.dbgEventLine += 1
 
-            ret = self.parseStackLog(liter, desc)
+            ret = self.parseEventLog(liter, desc)
             SystemManager.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
@@ -1592,6 +1628,67 @@ class FunctionAnalyzer(object):
             self.saveEventParam('IGNORE', 0, 0)
             self.nowCtx['nested'] -= 1
             self.saveCallStack()
+
+
+
+    def getCustomEventValue(self, func, args, cond):
+        if cond is None:
+            return 1
+
+        # set condition #
+        if cond.find('>') >= 0:
+            condVal = cond[cond.find('>') + 1:]
+            condOp = '>'
+            condStr = cond[:cond.find('>')]
+        elif cond.find('<') >= 0:
+            condVal = cond[cond.find('<') + 1:]
+            condOp = '<'
+            condStr = cond[:cond.find('<')]
+        elif cond.find('==') >= 0:
+            condVal = cond[cond.find('==') + 2:]
+            condOp = '=='
+            condStr = cond[:cond.find('==')]
+        else:
+            condStr = cond
+            condOp = None
+            condVal = None
+
+        m = re.match(r'^.+%s=(?P<value>\S+)' % condStr, args)
+        if m is not None:
+            d = m.groupdict()
+
+            value = d['value']
+
+            if condOp is None and value is not None:
+                try:
+                    return int(value)
+                except:
+                    return 0
+            elif condOp is '>':
+                try:
+                    if int(value) > int(condVal):
+                        return int(value)
+                except:
+                    pass
+
+                return 0
+            elif condOp is '<':
+                try:
+                    if int(value) < int(condVal):
+                        return int(value)
+                except:
+                    pass
+
+                return 0
+            elif condOp is '==':
+                if value == condVal:
+                    return 1
+                else:
+                    return 0
+            else:
+                return 0
+        else:
+            return 0
 
 
 
@@ -1631,7 +1728,368 @@ class FunctionAnalyzer(object):
 
 
 
-    def parseStackLog(self, string, desc):
+    def parseEventInfo(self, tid, func, args):
+        # cpu tick event #
+        # toDo: find shorter periodic event for sampling #
+        if func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
+            self.cpuEnabled = True
+
+            self.saveEventParam('CPU_TICK', 1, 0)
+
+            return False
+
+        # memory allocation event #
+        elif func == "mm_page_alloc:":
+            m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
+                r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', args)
+            if m is not None:
+                d = m.groupdict()
+
+                # check whether it is huge page #
+                if d['page'] == '(null)':
+                    page = 'huge'
+                else:
+                    page = d['page']
+
+                pfn = int(d['pfn'])
+                flags = d['flags']
+                pageCnt = pow(2, int(d['order']))
+
+                # Increase page count of thread #
+                self.threadData[thread]['nrPages'] += pageCnt
+
+                # Increase page counts of thread #
+                pageType = None
+                if flags.find('USER') >= 0:
+                    pageType = 'USER'
+                    self.threadData[thread]['userPages'] += pageCnt
+                elif flags.find('NOFS') >= 0:
+                    pageType = 'CACHE'
+                    self.threadData[thread]['cachePages'] += pageCnt
+                else:
+                    pageType = 'KERNEL'
+                    self.threadData[thread]['kernelPages'] += pageCnt
+
+                # Make PTE in page table #
+                for cnt in range(0, pageCnt):
+                    pfnv = pfn + cnt
+
+                    try:
+                        '''
+                        Decrease page count of it's owner \
+                        becuase this page was already allocated but no free log
+                        '''
+
+                        ownerTid = self.pageTable[pfnv]['tid']
+                        self.threadData[ownerTid]['nrPages'] -= 1
+
+                        origPageType = self.pageTable[pfnv]['type']
+                        if origPageType == 'USER':
+                            self.threadData[ownerTid]['userPages'] -= 1
+                        elif origPageType == 'CACHE':
+                            self.threadData[ownerTid]['cachePages'] -= 1
+                        elif origPageType == 'KERNEL':
+                            self.threadData[ownerTid]['kernelPages'] -= 1
+                    except:
+                        self.pageTable[pfnv] = dict(self.init_pageData)
+
+                    self.pageTable[pfnv]['tid'] = thread
+                    self.pageTable[pfnv]['page'] = page
+                    self.pageTable[pfnv]['flags'] = flags
+                    self.pageTable[pfnv]['type'] = pageType
+                    self.pageTable[pfnv]['time'] = time
+
+                self.memEnabled = True
+
+                self.saveEventParam('PAGE_ALLOC', pageCnt, [pageType, pfn])
+            else:
+                self.saveEventParam('IGNORE', 0, func[:-1])
+
+                SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                        (func[:-1], SystemManager.dbgEventLine))
+
+            return False
+
+        # memory free event #
+        elif func == "mm_page_free:":
+            m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
+                r'order=(?P<order>[0-9]+)', args)
+            if m is not None:
+                d = m.groupdict()
+
+                page = d['page']
+                pfn = int(d['pfn'])
+                pageCnt = pow(2, int(d['order']))
+
+                # Update page table #
+                origPageType = None
+                for cnt in range(0, pageCnt):
+                    pfnv = pfn + cnt
+
+                    try:
+                        origPageType = self.pageTable[pfnv]['type']
+                        self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
+
+                        if origPageType is 'CACHE':
+                            self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
+                        elif origPageType is 'USER':
+                            self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
+                        elif origPageType is 'KERNEL':
+                            self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
+
+                        del self.pageTable[pfnv]
+                        self.pageTable[pfnv] = None
+                    except:
+                        # this page was allocated before starting profile #
+
+                        self.threadData[thread]['nrUnknownFreePages'] += 1
+                        continue
+
+                self.memEnabled = True
+
+                self.saveEventParam('PAGE_FREE', pageCnt, [origPageType, pfn])
+
+                return False
+
+            SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # heap increase start event #
+        elif func == "sys_enter:":
+            m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', args)
+            if m is not None:
+                b = m.groupdict()
+
+                if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
+                    int(b['nr']) == ConfigManager.getMmapId():
+                    self.heapEnabled = True
+
+                    try:
+                        size = int(b['args'].split(',')[1], 16)
+
+                        # just brk call to check data segment address #
+                        if size == 0:
+                            pass
+
+                        self.threadData[thread]['heapSize'] += size
+                    except:
+                        self.saveEventParam('IGNORE', 0, func[:-1])
+
+                        return False
+
+                    # make heap segment tid-ready #
+                    self.allocHeapSeg(thread, size)
+
+                    self.saveEventParam('IGNORE', 0, func[:-1])
+
+                    return False
+
+                elif int(b['nr']) == ConfigManager.sysList.index('sys_munmap'):
+                    self.heapEnabled = True
+
+                    try:
+                        addr = int(b['args'][1:].split(',')[0], 16)
+                        size = self.heapTable[addr]['size']
+
+                        # remove heap segment #
+                        self.freeHeapSeg(addr)
+
+                        self.saveEventParam('HEAP_REDUCE', size, addr)
+
+                        return False
+                    except:
+                        pass
+
+                else:
+                    SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                            (func[:-1], SystemManager.dbgEventLine))
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # heap increase return event #
+        elif func == "sys_exit:":
+            m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', args)
+            if m is not None:
+                b = m.groupdict()
+
+                if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
+                    int(b['nr']) == ConfigManager.getMmapId():
+                    self.heapEnabled = True
+
+                    addr = int(b['ret'])
+
+                    # rename heap segment from tid-ready to addr #
+                    self.setHeapSegAddr(thread, addr)
+
+                    try:
+                        size = self.heapTable[addr]['size']
+
+                        self.saveEventParam('HEAP_EXPAND', size, addr)
+
+                        return False
+                    except:
+                        pass
+
+            SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # block read request event #
+        elif func == "block_bio_remap:":
+            m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
+                r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', args)
+            if m is not None:
+                b = m.groupdict()
+
+                if b['operation'][0] == 'R':
+                    self.breadEnabled = True
+
+                    blockRdCnt = int(b['size'])
+                    self.threadData[thread]['nrRdBlocks'] += blockRdCnt
+
+                    self.saveEventParam('BLK_READ', blockRdCnt, 0)
+
+                    return False
+
+            SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # block write request event #
+        elif func == "writeback_dirty_page:":
+            m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
+                r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', args)
+            if m is not None:
+                b = m.groupdict()
+                self.bwriteEnabled = True
+
+                self.threadData[thread]['nrWrBlocks'] += 1
+
+                self.saveEventParam('BLK_WRITE', 1, 0)
+
+                return False
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # block write request event #
+        elif func == "wbc_writepage:":
+            m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
+                r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', args)
+            if m is not None:
+                d = m.groupdict()
+
+                if d['skip'] == '0':
+                    self.bwriteEnabled = True
+
+                    self.threadData[thread]['nrWrBlocks'] += 1
+
+                    self.saveEventParam('BLK_WRITE', 1, 0)
+
+                    return False
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # segmentation fault generation event #
+        elif func == "signal_generate:":
+            m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
+                r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', args)
+            if m is not None:
+                b = m.groupdict()
+
+                if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                    self.sigEnabled = True
+
+                    self.saveEventParam('SIGSEGV_GEN', 0, 0)
+
+                    return False
+
+            SystemManager.printWarning("Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
+
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        elif func == "signal_deliver:":
+            m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
+                r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', args)
+            if m is not None:
+                b = m.groupdict()
+
+                if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                    self.sigEnabled = True
+
+                    self.saveEventParam('SIGSEGV_DLV', 0, 0)
+                else:
+                    self.saveEventParam('IGNORE', 0, func[:-1])
+            else:
+                self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # Start to record user stack #
+        elif func == "<user":
+            self.nowCtx['prevMode'] = self.nowCtx['curMode']
+            self.nowCtx['curMode'] = 'user'
+
+            return True
+
+        # Start to record kernel stack #
+        elif func == "<stack":
+            self.nowCtx['prevMode'] = self.nowCtx['curMode']
+            self.nowCtx['curMode'] = 'kernel'
+            self.nowCtx['nested'] -= 1
+
+            if self.nowCtx['nested'] < 0:
+                #self.printDbgInfo()
+                SystemManager.printError(\
+                    "Fail to analyze data because of corrupted data (under) at %s" % \
+                    SystemManager.dbgEventLine)
+                sys.exit(0)
+
+            return True
+
+        # custom event #
+        elif self.customEventTable != {}:
+            try:
+                cond = self.customEventTable[func[:-1]]
+
+                customCnt = self.getCustomEventValue(func, args, cond)
+
+                if customCnt > 0:
+                    self.threadData[tid]['customTotal'] += customCnt
+
+                self.saveEventParam('CUSTOM', customCnt, func[:-1])
+            except:
+                self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+        # Ignore event #
+        else:
+            self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
+
+
+    def parseEventLog(self, string, desc):
         # Filter for event #
         if SystemManager.tgidEnable is True:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
@@ -1739,355 +2197,7 @@ class FunctionAnalyzer(object):
             if found is False:
                 return False
 
-            # cpu tick event #
-            # toDo: find shorter periodic event for sampling #
-            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') > -1:
-                self.cpuEnabled = True
-
-                self.saveEventParam('CPU_TICK', 1, 0)
-
-                return False
-
-            # memory allocation event #
-            elif d['func'] == "mm_page_alloc:":
-                m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
-                    r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    # check whether it is huge page #
-                    if d['page'] == '(null)':
-                        page = 'huge'
-                    else:
-                        page = d['page']
-
-                    pfn = int(d['pfn'])
-                    flags = d['flags']
-                    pageCnt = pow(2, int(d['order']))
-
-                    # Increase page count of thread #
-                    self.threadData[thread]['nrPages'] += pageCnt
-
-                    # Increase page counts of thread #
-                    pageType = None
-                    if flags.find('USER') >= 0:
-                        pageType = 'USER'
-                        self.threadData[thread]['userPages'] += pageCnt
-                    elif flags.find('NOFS') >= 0:
-                        pageType = 'CACHE'
-                        self.threadData[thread]['cachePages'] += pageCnt
-                    else:
-                        pageType = 'KERNEL'
-                        self.threadData[thread]['kernelPages'] += pageCnt
-
-                    # Make PTE in page table #
-                    for cnt in range(0, pageCnt):
-                        pfnv = pfn + cnt
-
-                        try:
-                            '''
-                            Decrease page count of it's owner \
-                            becuase this page was already allocated but no free log
-                            '''
-
-                            ownerTid = self.pageTable[pfnv]['tid']
-                            self.threadData[ownerTid]['nrPages'] -= 1
-
-                            origPageType = self.pageTable[pfnv]['type']
-                            if origPageType == 'USER':
-                                self.threadData[ownerTid]['userPages'] -= 1
-                            elif origPageType == 'CACHE':
-                                self.threadData[ownerTid]['cachePages'] -= 1
-                            elif origPageType == 'KERNEL':
-                                self.threadData[ownerTid]['kernelPages'] -= 1
-                        except:
-                            self.pageTable[pfnv] = dict(self.init_pageData)
-
-                        self.pageTable[pfnv]['tid'] = thread
-                        self.pageTable[pfnv]['page'] = page
-                        self.pageTable[pfnv]['flags'] = flags
-                        self.pageTable[pfnv]['type'] = pageType
-                        self.pageTable[pfnv]['time'] = time
-
-                    self.memEnabled = True
-
-                    self.saveEventParam('PAGE_ALLOC', pageCnt, [pageType, pfn])
-                else:
-                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                    SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                            (d['func'][:-1], SystemManager.dbgEventLine))
-
-                return False
-
-            # memory free event #
-            elif d['func'] == "mm_page_free:":
-                m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
-                    r'order=(?P<order>[0-9]+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    page = d['page']
-                    pfn = int(d['pfn'])
-                    pageCnt = pow(2, int(d['order']))
-
-                    # Update page table #
-                    origPageType = None
-                    for cnt in range(0, pageCnt):
-                        pfnv = pfn + cnt
-
-                        try:
-                            origPageType = self.pageTable[pfnv]['type']
-                            self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
-
-                            if origPageType is 'CACHE':
-                                self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
-                            elif origPageType is 'USER':
-                                self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
-                            elif origPageType is 'KERNEL':
-                                self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
-
-                            del self.pageTable[pfnv]
-                            self.pageTable[pfnv] = None
-                        except:
-                            # this page was allocated before starting profile #
-
-                            self.threadData[thread]['nrUnknownFreePages'] += 1
-                            continue
-
-                    self.memEnabled = True
-
-                    self.saveEventParam('PAGE_FREE', pageCnt, [origPageType, pfn])
-
-                    return False
-
-                SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                        (d['func'][:-1], SystemManager.dbgEventLine))
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # heap increase start event #
-            elif d['func'] == "sys_enter:":
-                m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-
-                    if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                        int(b['nr']) == ConfigManager.getMmapId():
-                        self.heapEnabled = True
-
-                        try:
-                            size = int(b['args'].split(',')[1], 16)
-
-                            # just brk call to check data segment address #
-                            if size == 0:
-                                pass
-
-                            self.threadData[thread]['heapSize'] += size
-                        except:
-                            self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                            return False
-
-                        # make heap segment tid-ready #
-                        self.allocHeapSeg(thread, size)
-
-                        self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                        return False
-
-                    elif int(b['nr']) == ConfigManager.sysList.index('sys_munmap'):
-                        self.heapEnabled = True
-
-                        try:
-                            addr = int(b['args'][1:].split(',')[0], 16)
-                            size = self.heapTable[addr]['size']
-
-                            # remove heap segment #
-                            self.freeHeapSeg(addr)
-
-                            self.saveEventParam('HEAP_REDUCE', size, addr)
-
-                            return False
-                        except:
-                            pass
-
-                    else:
-                        SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                                (d['func'][:-1], SystemManager.dbgEventLine))
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # heap increase return event #
-            elif d['func'] == "sys_exit:":
-                m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-
-                    if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                        int(b['nr']) == ConfigManager.getMmapId():
-                        self.heapEnabled = True
-
-                        addr = int(b['ret'])
-
-                        # rename heap segment from tid-ready to addr #
-                        self.setHeapSegAddr(thread, addr)
-
-                        try:
-                            size = self.heapTable[addr]['size']
-
-                            self.saveEventParam('HEAP_EXPAND', size, addr)
-
-                            return False
-                        except:
-                            pass
-
-                SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                        (d['func'][:-1], SystemManager.dbgEventLine))
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # block read request event #
-            elif d['func'] == "block_bio_remap:":
-                m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-
-                    if b['operation'][0] == 'R':
-                        self.breadEnabled = True
-
-                        blockRdCnt = int(b['size'])
-                        self.threadData[thread]['nrRdBlocks'] += blockRdCnt
-
-                        self.saveEventParam('BLK_READ', blockRdCnt, 0)
-
-                        return False
-
-                SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                        (d['func'][:-1], SystemManager.dbgEventLine))
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # block write request event #
-            elif d['func'] == "writeback_dirty_page:":
-                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                    r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-                    self.bwriteEnabled = True
-
-                    self.threadData[thread]['nrWrBlocks'] += 1
-
-                    self.saveEventParam('BLK_WRITE', 1, 0)
-
-                    return False
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # block write request event #
-            elif d['func'] == "wbc_writepage:":
-                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', d['etc'])
-                if m is not None:
-                    d = m.groupdict()
-
-                    if d['skip'] == '0':
-                        self.bwriteEnabled = True
-
-                        self.threadData[thread]['nrWrBlocks'] += 1
-
-                        self.saveEventParam('BLK_WRITE', 1, 0)
-
-                        return False
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # segmentation fault generation event #
-            elif d['func'] == "signal_generate:":
-                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                    r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-
-                    if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
-                        self.sigEnabled = True
-
-                        self.saveEventParam('SIGSEGV_GEN', 0, 0)
-
-                        return False
-
-                SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                        (d['func'][:-1], SystemManager.dbgEventLine))
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            elif d['func'] == "signal_deliver:":
-                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                    r'sa_handler=(?P<handler>[0-9]+) sa_flags=(?P<flags>[0-9]+)', d['etc'])
-                if m is not None:
-                    b = m.groupdict()
-
-                    if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
-                        self.sigEnabled = True
-
-                        self.saveEventParam('SIGSEGV_DLV', 0, 0)
-                    else:
-                        self.saveEventParam('IGNORE', 0, d['func'][:-1])
-                else:
-                    self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # Start to record user stack #
-            elif d['func'] == "<user":
-                self.nowCtx['prevMode'] = self.nowCtx['curMode']
-                self.nowCtx['curMode'] = 'user'
-
-                return True
-
-            # Start to record kernel stack #
-            elif d['func'] == "<stack":
-                self.nowCtx['prevMode'] = self.nowCtx['curMode']
-                self.nowCtx['curMode'] = 'kernel'
-                self.nowCtx['nested'] -= 1
-
-                if self.nowCtx['nested'] < 0:
-                    #self.printDbgInfo()
-                    SystemManager.printError(\
-                        "Fail to analyze data because of corrupted data (under) at %s" % \
-                        SystemManager.dbgEventLine)
-                    sys.exit(0)
-
-                return True
-
-            # user-define event #
-            elif SystemManager.targetEvent is not None and \
-                d['func'] == SystemManager.targetEvent + ':':
-
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
-
-            # Ignore event #
-            else:
-                self.saveEventParam('IGNORE', 0, d['func'][:-1])
-
-                return False
+            return self.parseEventInfo(thread, d['func'], d['etc'])
 
         # Parse call stack #
         else:
@@ -2170,10 +2280,10 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
             "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}|{9:_^7}|{10:_^8})|" + \
-            "{11:_^7}|{12:_^7}|{13:_^5}|{14:_^5}|").\
+            "{11:_^7}|{12:_^7}|{13:_^7}|{14:_^5}|{15:_^5}|").\
             format("Name", "Tid", "Pid", "Target", "CPU", \
             "MEM", "USER", "BUF", "KERNEL", "UFREE", "HEAP", \
-            "BLK_RD", "BLK_WR", "DIE", "NEW"))
+            "BLK_RD", "BLK_WR", "CUSTOM", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -2230,12 +2340,12 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint(\
                 ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|" + \
                 "{5:6}k({6:6}k/{7:6}k/{8:6}k|{9:6}k|{10:7}k)|" + \
-                "{11:6}k|{12:6}k|{13:^5}|{14:^5}|").\
+                "{11:6}k|{12:6}k|{13:7}|{14:^5}|{15:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
                 value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] / 1024, \
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
-                dieMark, newMark))
+                value['customTotal'], dieMark, newMark))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -2249,6 +2359,137 @@ class FunctionAnalyzer(object):
         self.printHeapUsage()
         self.printBlockRdUsage()
         self.printBlockWrUsage()
+        self.printCustomUsage()
+
+
+
+    def printCustomUsage(self):
+        # no effective custom event #
+        if self.customTotal == 0:
+            return
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        eventIndex = FunctionAnalyzer.symStackIdxTable.index('CUSTOM')
+
+        # Make custom event list #
+        customList = ', '.join(self.customEventTable.keys())
+
+        # Print custom usage in user space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
+            (customList, self.customTotal, self.customCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
+            if value['customCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}  |{1:^47}|{2:48}|{3:37}".format(value['customCnt'], idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort is 'sym':
+                targetStack = value['symStack']
+            elif self.sort is 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack.sort(reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                eventCnt = stack[eventIndex]
+                subStack = list(stack[subStackIndex])
+
+                if eventCnt == 0:
+                    break
+
+                if len(subStack) == 0:
+                    continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    if self.sort is 'sym':
+                        for sym in subStack:
+                            if sym is None:
+                                symbolStack += ' <- None'
+                            else:
+                                symbolStack += ' <- ' + sym + \
+                                    ' [' + self.userSymData[sym]['origBin'] + ']'
+                    elif self.sort is 'pos':
+                        for pos in subStack:
+                            if pos is None:
+                                symbolStack += ' <- None'
+                            # No symbol so that just print pos #
+                            elif self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+                            # Print symbol #
+                            else:
+                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                    ' [' + self.posData[pos]['origBin'] + ']'
+
+                SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('')
+
+        # Print custom usage in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (KERNEL)' % \
+            (customList, self.customTotal, self.customCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint(twoLine)
+
+        # Print custom usage of stacks #
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
+            if value['customCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:7}  |{1:^134}".format(value['customCnt'], idx))
+
+            # Sort stacks by usage #
+            value['stack'].sort(reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                eventCnt = stack[eventIndex]
+                subStack = list(stack[subStackIndex])
+
+                if eventCnt == 0:
+                    break
+
+                if len(subStack) == 0:
+                    continue
+                elif len(subStack) == 1 and SystemManager.showAll is False and \
+                    (self.posData[subStack[0]]['symbol'] is None or self.posData[subStack[0]]['symbol'] == 'NoFile'):
+                    # Pass unmeaningful part #
+                    continue
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolStack += ' <- ' + hex(int(pos, 16))
+                            else:
+                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                    except:
+                        continue
+
+                SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
 
 
 
@@ -2265,12 +2506,8 @@ class FunctionAnalyzer(object):
 
         # Print cpu usage in user space #
         SystemManager.clearPrint()
-        if SystemManager.targetEvent is None:
-            SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-                (self.periodicEventCnt, self.periodicEventInterval * 1000))
-        else:
-            SystemManager.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (USER)' % \
-                (SystemManager.targetEvent, self.periodicEventCnt))
+        SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+            (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
@@ -2343,12 +2580,8 @@ class FunctionAnalyzer(object):
 
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
-        if SystemManager.targetEvent is None:
-            SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
-                (self.periodicEventCnt, self.periodicEventInterval * 1000))
-        else:
-            SystemManager.pipePrint('[Function EVENT Info] [Event: %s] [Cnt: %d] (KERNEL)' % \
-                (SystemManager.targetEvent, self.periodicEventCnt))
+        SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+            (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -3695,7 +3928,6 @@ class SystemManager(object):
 
     eventLogFile = None
     eventLogFD = None
-    targetEvent = None
 
     showAll = False
     selectMenu = None
@@ -4356,7 +4588,7 @@ class SystemManager(object):
 
             if SystemManager.arch != filterList:
                 SystemManager.printError(\
-                    "recorded arch(%s) is different with current arch(%s), use -A option with %s" % \
+                    "arch(%s) of recorded target is different with current arch(%s), use -A option with %s" % \
                     (filterList, SystemManager.arch, filterList))
                 sys.exit(0)
 
@@ -4588,9 +4820,6 @@ class SystemManager(object):
                     sys.exit(0)
                 else:
                     SystemManager.functionEnable = True
-                    SystemManager.targetEvent = value
-                    if len(SystemManager.targetEvent) == 0:
-                        SystemManager.targetEvent = None
 
             elif option == 'l':
                 SystemManager.addr2linePath = value.split(',')
