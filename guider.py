@@ -551,12 +551,12 @@ class FunctionAnalyzer(object):
                 "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
             sys.exit(0)
 
-        SystemManager.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
-
         # Get symbols from call address #
+        SystemManager.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
         self.getSymbols()
 
         # Merge callstacks by symbol and address #
+        SystemManager.printStatus('start summarizing functions... [ STOP(ctrl + c) ]')
         self.mergeStacks()
 
 
@@ -846,6 +846,7 @@ class FunctionAnalyzer(object):
         stackAddr = 0
         kernelStackAddr = 0
         lineCnt = -1
+        lastIdx = len(self.userCallData)
 
         # Backup page table used previously and Initialize it #
         self.oldPageTable = self.pageTable
@@ -861,6 +862,7 @@ class FunctionAnalyzer(object):
         # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
+            SystemManager.printProgress(lineCnt, lastIdx)
 
             pos = val[0]
             stack = val[1]
@@ -1124,12 +1126,14 @@ class FunctionAnalyzer(object):
                     # toDo: find binary and symbol of pos #
                     value['binary'] = '??'
                     value['origBin'] = '??'
+                    value['symbol'] = idx
+                continue
 
-                    if int(idx, 16) == 0xc0ffee:
-                        value['symbol'] = 'ThumbCode'
-                    else:
-                        value['symbol'] = idx
-
+            # Handle thumbcode #
+            if idx == '00c0ffee':
+                value['binary'] = '??'
+                value['origBin'] = '??'
+                value['symbol'] = 'ThumbCode'
                 continue
 
             # Get symbols from address list of previous binary #
@@ -1206,23 +1210,24 @@ class FunctionAnalyzer(object):
             # Set addr2line command #
             args = [path, "-C", "-f", "-a", "-e", binPath]
 
-            # Prepare for variable to use as index #
-            offset = 0
+            # Limit line number of arguments to pass becuase of ARG_MAX as $(getconf PAGE_SIZE)*32 = 131072 #
             listLen = len(offsetList)
-            maxArg = 512
+            maxArgLine = 256
+            offset = 0
+            timeout = 10
 
-            # Get symbol by address of every maxArg elements in list #
+            # Get symbol by address of every maxArgLine elements in list #
             while offset < listLen:
                 # Launch addr2line #
-                proc = subprocess.Popen(args + offsetList[offset:offset+maxArg-1], \
+                proc = subprocess.Popen(args + offsetList[offset:offset+maxArgLine-1], \
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 # Increase offset count in address list #
-                offset += maxArg
+                offset += maxArgLine
 
                 try:
                     # Set alarm to handle hanged addr2line #
-                    signal.alarm(5)
+                    signal.alarm(timeout)
 
                     # Wait for addr2line to finish its job #
                     proc.wait()
@@ -1230,7 +1235,7 @@ class FunctionAnalyzer(object):
                     # Cancel alarm after addr2line respond #
                     signal.alarm(0)
                 except:
-                    SystemManager.printWarning('No response of addr2line')
+                    SystemManager.printWarning('No response of addr2line for %s' % binPath)
                     continue
 
                 while True:
@@ -4043,8 +4048,11 @@ class SystemManager(object):
 
     @staticmethod
     def printOptions():
-        if len(sys.argv) <= 1:
+        if len(sys.argv) <= 1 or sys.argv[1] == '-h' or sys.argv[1] == '--help':
             cmd = sys.argv[0]
+
+            if cmd.find('.pyc') >= 0:
+                cmd = cmd[:cmd.find('.pyc')]
 
             print '\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__
 
@@ -4845,6 +4853,9 @@ class SystemManager(object):
             elif option == 'r':
                 SystemManager.rootPath = value
 
+            elif option == 'h':
+                SystemManager.printOptions()
+
             elif option == 'b':
                 try:
                     if int(value) > 0:
@@ -5031,7 +5042,7 @@ class SystemManager(object):
 
             # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or option == 'q' or \
-                option == 'g' or option == 'p' or option == 'S':
+                option == 'g' or option == 'p' or option == 'S' or option == 'h':
                 continue
 
             else:
@@ -8339,7 +8350,7 @@ class ThreadAnalyzer(object):
                     nr = d['nr']
                     args = d['args']
 
-                    if nr == ConfigManager.sysList.index("sys_futex"):
+                    if nr == str(ConfigManager.sysList.index("sys_futex")):
                         n = re.match(r'^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), (?P<val>\S+), (?P<timep>\S+),', d['args'])
                         if n is not None:
                             l = n.groupdict()
@@ -8351,7 +8362,7 @@ class ThreadAnalyzer(object):
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(self.startTime)
 
-                    if nr == ConfigManager.sysList.index("sys_write"):
+                    if nr == str(ConfigManager.sysList.index("sys_write")):
                         self.wakeupData['tid'] = thread
                         self.wakeupData['nr'] = nr
                         self.wakeupData['args'] = args
@@ -8398,7 +8409,8 @@ class ThreadAnalyzer(object):
                     nr = d['nr']
                     ret = d['ret']
 
-                    if nr == ConfigManager.sysList.index("sys_futex") and self.threadData[thread]['futexEnter'] > 0:
+                    if nr == str(ConfigManager.sysList.index("sys_futex")) and \
+                        self.threadData[thread]['futexEnter'] > 0:
                         self.threadData[thread]['futexCnt'] += 1
                         futexTime = float(time) - self.threadData[thread]['futexEnter']
                         if futexTime > self.threadData[thread]['futexMax']:
@@ -8407,11 +8419,14 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['futexEnter'] = 0
 
                     try:
-                        if nr == ConfigManager.sysList.index("sys_write") and self.wakeupData['valid'] > 0:
+                        if SystemManager.depEnable is False:
+                            raise
+                        elif nr == str(ConfigManager.sysList.index("sys_write")) and \
+                            self.wakeupData['valid'] > 0:
                             self.wakeupData['valid'] -= 1
-                        elif nr == ConfigManager.sysList.index("sys_select") or \
-                            nr == ConfigManager.sysList.index("sys_poll") or \
-                            nr == ConfigManager.sysList.index("sys_epoll_wait"):
+                        elif nr == str(ConfigManager.sysList.index("sys_select")) or \
+                            nr == str(ConfigManager.sysList.index("sys_poll")) or \
+                            nr == str(ConfigManager.sysList.index("sys_epoll_wait")):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
                                 self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
@@ -8422,7 +8437,7 @@ class ThreadAnalyzer(object):
 
                                 self.wakeupData['time'] = float(time) - float(self.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
-                        elif nr == ConfigManager.sysList.index("sys_recv"):
+                        elif nr == str(ConfigManager.sysList.index("sys_recv")):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
                                 self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(float(time) - float(self.startTime), 7), \
