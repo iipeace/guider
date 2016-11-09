@@ -427,6 +427,7 @@ class FunctionAnalyzer(object):
         self.savedArg = 0
         self.nestedArg = 0
 
+        self.duplicatedPos = 0
         self.periodicEventCnt = 0
         self.periodicContEventCnt = 0
         self.periodicEventInterval = 0
@@ -1256,7 +1257,10 @@ class FunctionAnalyzer(object):
 
                     # Check whether the file is relocatable or not #
                     if relocated is False:
-                        savedSymbol = self.posData[addr]['symbol']
+                        try:
+                            savedSymbol = self.posData[addr]['symbol']
+                        except:
+                            continue
 
                         # Check whether saved symbol found by previous addr2line is right #
                         if savedSymbol == None or savedSymbol == '' or \
@@ -1494,6 +1498,12 @@ class FunctionAnalyzer(object):
         # Register pos #
         try:
             self.posData[pos]
+            if path is not None and path[0] == '/' and path != self.posData[pos]['origBin']:
+                self.duplicatedPos += 1
+                '''
+                SystemManager.printWarning("duplicated address %s in both '%s' and '%s'" % \
+                    (pos, path, self.posData[pos]['origBin']))
+                '''
         except:
             self.posData[pos] = dict(self.init_posData)
 
@@ -1629,11 +1639,20 @@ class FunctionAnalyzer(object):
 
         # Save stack of last events per core #
         for idx in self.coreCtx.keys():
+            self.lastCore = idx
             self.nowCtx = self.coreCtx[idx]
+
+            # Recover previous mode #
+            if SystemManager.userEnable is True:
+                self.nowCtx['prevMode'] = 'user'
+            self.nowCtx['curMode'] = 'kernel'
 
             self.saveEventParam('IGNORE', 0, 0)
             self.nowCtx['nested'] -= 1
             self.saveCallStack()
+
+        if self.duplicatedPos > 0:
+            SystemManager.printWarning("Found %d addresses duplicated" % self.duplicatedPos)
 
 
 
@@ -2957,7 +2976,7 @@ class FunctionAnalyzer(object):
 
     def printHeapUsage(self):
         # check heap memory event #
-        if self.heapEnabled is False or self.userEnable is False:
+        if self.heapEnabled is False or SystemManager.userEnable is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -4951,7 +4970,11 @@ class SystemManager(object):
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
-                SystemManager.printInfo("only specific threads [%s] are shown" % ', '.join(SystemManager.showGroup))
+                if len(SystemManager.showGroup) == 0:
+                    SystemManager.printError("Input value with -g option")
+                    sys.exit(0)
+                SystemManager.printInfo("only specific threads [%s] are shown" % \
+                    ', '.join(SystemManager.showGroup))
 
             elif option == 's':
                 if SystemManager.isRecordMode() is False:
