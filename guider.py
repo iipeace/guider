@@ -4090,37 +4090,39 @@ class SystemManager(object):
 
             print 'Options:'
             print '\t[mode]'
-            print '\t\t    [thread mode]'
-            print '\t\ttop [top mode]'
-            print '\t\t-y  [system mode]'
-            print '\t\t-f  [function mode]'
-            print '\t\t-F  [file mode]'
+            print '\t\t    [thread]'
+            print '\t\ttop [top]'
+            print '\t\t-y  [system]'
+            print '\t\t-f  [function]'
+            print '\t\t-F  [file]'
             print '\t[record|top]'
-            print '\t\t-e [enable_options:bellowCharacters]'
-            print '\t\t   |_m(em)_h(eap)_b(lock)_i(rq)_t(hread)_d(isk)_g(raph)_p(ipe)_f(utex)_r(eset)_|'
-            print '\t\t-d [disable_options:bellowCharacters]'
-            print '\t\t   |_c(pu)_m(em)_b(lock)_u(user)_|'
-            print '\t\t-s [save_traceData:dir/file]'
-            print '\t\t-S [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
-            print '\t\t-u [run_inBackground]'
-            print '\t\t-W [wait_forSignal]'
-            print '\t\t-R [record_repeatedly:interval,count]'
-            print '\t\t-b [set_bufferSize:kb]'
-            print '\t\t-D [trace_threadDependency]'
-            print '\t\t-t [trace_syscall:syscalls]'
+            print '\t\t-e  [enable_optionsPerMode:bellowCharacters]'
+            print '\t\t\t  [top] {t(hread)|d(isk)}'
+            print '\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}'
+            print '\t\t\t  [thread] {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}'
+            print '\t\t-d  [disable_optionsPerMode:bellowCharacters]'
+            print '\t\t\t  [function] {c(pu)|u(user)}'
+            print '\t\t-s  [save_traceData:dir/file]'
+            print '\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
+            print '\t\t-u  [run_inBackground]'
+            print '\t\t-W  [wait_forSignal]'
+            print '\t\t-R  [record_repeatedly:interval,count]'
+            print '\t\t-b  [set_bufferSize:kb]'
+            print '\t\t-D  [trace_threadDependency]'
+            print '\t\t-t  [trace_syscall:syscalls]'
             print '\t[analysis]'
-            print '\t\t-o [save_outputData:dir]'
-            print '\t\t-a [show_allInfo]'
-            print '\t\t-i [set_interval:sec]'
-            print '\t\t-p [show_preemptInfo:tids]'
-            print '\t\t-l [input_addr2linePath:path]'
-            print '\t\t-r [input_targetRootPath:dir]'
-            print '\t\t-q [make_taskchain]'
+            print '\t\t-o  [save_outputData:dir]'
+            print '\t\t-a  [show_allInfo]'
+            print '\t\t-i  [set_interval:sec]'
+            print '\t\t-p  [show_preemptInfo:tids]'
+            print '\t\t-l  [input_addr2linePath:file]'
+            print '\t\t-r  [input_targetRootPath:dir]'
+            print '\t\t-q  [make_taskchain]'
             print '\t[common]'
-            print '\t\t-g [filter_specificGroup:comms|tids]'
-            print '\t\t-A [set_arch:arm|x86|x64]'
-            print '\t\t-c [set_customEvent:event:filter]'
-            print '\t\t-v [verbose]'
+            print '\t\t-g  [filter_specificGroup:comms|tids]'
+            print '\t\t-A  [set_arch:arm|x86|x64]'
+            print '\t\t-c  [set_customEvent:event:filter]'
+            print '\t\t-v  [verbose]'
 
             print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
             print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
@@ -4581,9 +4583,9 @@ class SystemManager(object):
 
     @staticmethod
     def applyLaunchOption():
-        if SystemManager.systemInfoBuffer == '' or SystemManager.isFunctionMode() is True:
+        # check whether there is launch option in saved buffer #
+        if SystemManager.systemInfoBuffer == '':
             return
-
         launchPosStart = SystemManager.systemInfoBuffer.find('Launch')
         if launchPosStart == -1:
             return
@@ -4591,22 +4593,8 @@ class SystemManager(object):
         if launchPosEnd == -1:
             return
 
+        # get launch option recorded #
         SystemManager.launchBuffer = SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
-
-        # apply group filter option #
-        filterList = None
-        launchPosStart = SystemManager.launchBuffer.find(' -g')
-        if launchPosStart > -1:
-            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
-            SystemManager.showGroup = filterList.split(',')
-            SystemManager.removeEmptyValue(SystemManager.showGroup)
-            SystemManager.printInfo("only specific threads [%s] were recorded" % ', '.join(SystemManager.showGroup))
-
-        # apply dependency option #
-        launchPosStart = SystemManager.launchBuffer.find(' -D')
-        if launchPosStart > -1:
-            SystemManager.depEnable = True
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -4617,6 +4605,25 @@ class SystemManager(object):
             SystemManager.printInfo("FUNCTION MODE")
         else:
             SystemManager.printInfo("THREAD MODE")
+
+        # apply group filter option #
+        filterList = None
+        launchPosStart = SystemManager.launchBuffer.find(' -g')
+        if SystemManager.isThreadMode() is True and launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            SystemManager.showGroup = filterList.split(',')
+            SystemManager.removeEmptyValue(SystemManager.showGroup)
+            SystemManager.printInfo("only specific threads [%s] were recorded" % ', '.join(SystemManager.showGroup))
+
+        # check filter list #
+        if len(SystemManager.showGroup) > 0:
+            SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
+
+        # apply dependency option #
+        launchPosStart = SystemManager.launchBuffer.find(' -D')
+        if launchPosStart > -1:
+            SystemManager.depEnable = True
 
         # apply disable option #
         launchPosStart = SystemManager.launchBuffer.find(' -d')
@@ -4636,10 +4643,6 @@ class SystemManager(object):
                     "arch(%s) of recorded target is different with current arch(%s), use -A option with %s" % \
                     (filterList, SystemManager.arch, filterList))
                 sys.exit(0)
-
-        # check filter list #
-        if len(SystemManager.showGroup) > 0:
-            SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
 
 
 
@@ -4971,7 +4974,7 @@ class SystemManager(object):
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
                 if len(SystemManager.showGroup) == 0:
-                    SystemManager.printError("Input value with -g option")
+                    SystemManager.printError("Input value for filtering with -g option")
                     sys.exit(0)
                 SystemManager.printInfo("only specific threads [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
@@ -5615,6 +5618,7 @@ class SystemManager(object):
 
         SystemManager.mountPath += "/tracing/events/"
 
+        # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
             if os.geteuid() == 0:
                 SystemManager.printError("Check whether ftrace options are enabled in kernel")
@@ -6358,7 +6362,7 @@ class EventAnalyzer(object):
 
     def printEventInfo(self):
         if len(self.eventData) > 0:
-            SystemManager.pipePrint('\n' + twoLine)
+            SystemManager.pipePrint('\n\n\n' + twoLine)
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'EVT', len(self.eventData)))
             self.printEvent(ti.startTime)
             SystemManager.pipePrint(twoLine)
@@ -8941,7 +8945,7 @@ class ThreadAnalyzer(object):
                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                         self.startTime = time
                         return
-                    # saving mark event #
+                    # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
 
@@ -8993,11 +8997,80 @@ class ThreadAnalyzer(object):
                         self.totalTimeOld = round(float(time) - float(self.startTime), 7)
                         self.startTime = time
                         return
-                    # saving mark event #
+                    # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
 
                     ei.addEvent(time, event)
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+
+        else:
+            # handle modified type of event #
+            if SystemManager.tgidEnable is True:
+                m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
+                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)', string)
+            else:
+                m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
+                    r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)', string)
+
+            if m is not None:
+                d = m.groupdict()
+                comm = d['comm']
+                core = str(int(d['core']))
+                func = d['func']
+                etc = d['etc']
+                time = d['time']
+
+                if func.find("tracing_mark_write") >= 0:
+                    m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
+                    if m is not None:
+                        d = m.groupdict()
+
+                        event = d['event']
+
+                        # initialize ThreadAnalyzer data #
+                        if event == 'START':
+                            self.threadData = {}
+                            self.irqData = {}
+                            self.ioData = {}
+                            self.reclaimData = {}
+                            self.pageTable = {}
+                            self.kmemTable = {}
+                            self.intervalData = []
+                            self.depData = []
+                            self.syscallData = []
+                            self.lastJob = {}
+                            self.preemptData = []
+                            self.suspendData = []
+                            self.markData = []
+                            self.consoleData = []
+                            self.startTime = time
+                            return
+                        # finish data processing #
+                        elif event == 'STOP':
+                            self.finishTime = time
+                            self.stopFlag = True
+                            return
+                        # restart data processing #
+                        elif event == 'RESTART':
+                            self.threadDataOld = self.threadData
+                            self.threadData = {}
+                            self.irqDataOld = self.irqData
+                            self.irqData = {}
+                            self.ioDataOld = self.ioData
+                            self.ioData = {}
+                            self.reclaimDataOld = self.reclaimData
+                            self.reclaimData = {}
+
+                            self.totalTimeOld = round(float(time) - float(self.startTime), 7)
+                            self.startTime = time
+                            return
+                        # saving mark event #
+                        elif event == 'MARK':
+                            self.markData.append(time)
+
+                        ei.addEvent(time, event)
 
 
 
@@ -9911,7 +9984,7 @@ if __name__ == '__main__':
             SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
-            # close pipe for less #
+            # close pipe for less util #
             if SystemManager.pipeForPrint is not None:
                 SystemManager.pipeForPrint.close()
 
@@ -9935,6 +10008,11 @@ if __name__ == '__main__':
 
         # create FileAnalyzer #
         if SystemManager.isFileMode() is True:
+            # check permission #
+            if os.geteuid() != 0:
+                SystemManager.printError("Fail to get root permission")
+                sys.exit(0)
+
             # parse additional option #
             SystemManager.parseAddOption()
 
@@ -9952,7 +10030,7 @@ if __name__ == '__main__':
             else:
                 pi.printIntervalInfo()
 
-            # close pipe for less #
+            # close pipe for less util #
             if SystemManager.pipeForPrint is not None:
                 SystemManager.pipeForPrint.close()
 
@@ -10014,7 +10092,6 @@ if __name__ == '__main__':
 
     # parse additional option #
     SystemManager.parseAddOption()
-    SystemManager.printAnalOption()
 
     # get tty setting #
     SystemManager.getTty()
@@ -10038,7 +10115,7 @@ if __name__ == '__main__':
         # create ThreadAnalyzer using proc #
         ti = ThreadAnalyzer(None)
 
-        # close pipe for less #
+        # close pipe for less util #
         if SystemManager.pipeForPrint is not None:
             SystemManager.pipeForPrint.close()
 
@@ -10057,6 +10134,9 @@ if __name__ == '__main__':
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
+    # print analysis option #
+    SystemManager.printAnalOption()
+
     # create Event Info #
     ei = EventAnalyzer()
 
@@ -10067,7 +10147,7 @@ if __name__ == '__main__':
         # print Function Info #
         fi.printUsage()
 
-        # close pipe for less #
+        # close pipe for less util #
         if SystemManager.pipeForPrint is not None:
             SystemManager.pipeForPrint.close()
 
@@ -10090,7 +10170,7 @@ if __name__ == '__main__':
     # print event info #
     ei.printEventInfo()
 
-    # close pipe for less #
+    # close pipe for less util #
     if SystemManager.pipeForPrint is not None:
         SystemManager.pipeForPrint.close()
 
