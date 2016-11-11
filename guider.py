@@ -533,7 +533,7 @@ class FunctionAnalyzer(object):
         # Check root path #
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -r option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -r option with blank or path for user mode")
             sys.exit(0)
 
         # Register None pos #
@@ -9641,13 +9641,6 @@ class ThreadAnalyzer(object):
                 value['cstime'] = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
                 value['cttime'] = value['cutime'] + value['cstime']
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
-
-                if value['ttime'] > 100:
-                    value['ttime'] = 100
-                if value['utime'] > 100:
-                    value['utime'] = 100
-                elif value['stime'] > 100:
-                    value['stime'] = 100
 
                 if value['io'] is not None:
                     value['read'] = long(value['io']['read_bytes']) - \
