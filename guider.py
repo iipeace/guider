@@ -4058,8 +4058,11 @@ class SystemManager(object):
             except ImportError, err:
                 print "[Warning] Fail to import package because %s" % err
 
-            libc = cdll.LoadLibrary('libc.so.6')
-            libc.prctl(15, __module__, 0, 0, 0)
+            try:
+                libc = cdll.LoadLibrary('libc.so.6')
+                libc.prctl(15, __module__, 0, 0, 0)
+            except:
+                print '[Warning] Fail to set comm becuase of prctl in libc'
         else:
             print '[Warning] Fail to set comm becuase this platform is not linux'
 
