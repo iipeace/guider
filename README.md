@@ -13,12 +13,12 @@ How to use
 =======
 
 ```
-Input command as bellow to start accurate profile
+Input command as bellow to start accurate profiling (thread mode)
 # guider.py record 
 
-Input "Ctrl + c" key to finish accurate profile
+Input "Ctrl + c" key to finish accurate profiling (thread mode)
 
-Input command as bellow to start realtime profile
+Input command as bellow to start realtime profiling (top mode)
 $ guider.py top 
 ```
 
