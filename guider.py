@@ -9581,14 +9581,16 @@ class ThreadAnalyzer(object):
 
         totalUsage = int(userUsage + kerUsage + irqUsage + ioUsage)
 
-        SystemManager.addPrint(("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
+        totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
             swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), \
-            str(pgInMem) + '/' + str(pgOutMem), majFaultMem, mlockMem))
+            str(pgInMem) + '/' + str(pgOutMem), majFaultMem, mlockMem)
+
+        SystemManager.addPrint(totalCoreStat)
 
         # print each cpu usage #
         if SystemManager.showAll is True:
@@ -9609,15 +9611,27 @@ class ThreadAnalyzer(object):
                         nowData['softirq'] - prevData['softirq']) / interval)
                     totalUsage = userUsage + kerUsage + ioUsage + irqUsage
 
+                    # limit total usage of each cpus #
                     if totalUsage > 100:
                         totalUsage = 100
+
+                    # limit total usage of each modes #
                     if userUsage > 100:
                         userUsage = 100
                     elif kerUsage > 100:
                         kerUsage = 100
 
-                    SystemManager.addPrint("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|\n".\
-                        format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage))
+                    coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage)
+
+                    # print graph of per-core usage #
+                    if totalUsage > 0:
+                        coreGraph = '#' * ((len(totalCoreStat) - len(coreStat) - 2) * totalUsage / 100)
+                        coreGraph += (' ' * (len(totalCoreStat) - len(coreStat) - len(coreGraph) - 2))
+                    else:
+                        coreGraph = ' ' * int(len(totalCoreStat) - len(coreStat) - 2)
+
+                    SystemManager.addPrint(coreStat + coreGraph + '|\n')
                 except:
                     continue
 
