@@ -83,6 +83,7 @@ Options
     -y  [system]
     -f  [function]
     -F  [file]
+    
 [record|top]
     -e  [enable_optionsPerMode:bellowCharacters]
           [top] {t(hread)|d(isk)}
@@ -98,6 +99,7 @@ Options
     -b  [set_bufferSize:kb]
     -D  [trace_threadDependency]
     -t  [trace_syscall:syscalls]
+    
 [analysis]
     -o  [save_outputData:dir]
     -a  [show_allInfo]
@@ -106,6 +108,7 @@ Options
     -l  [input_addr2linePath:file]
     -r  [input_targetRootPath:dir]
     -q  [make_taskchain]
+    
 [common]
     -g  [filter_specificGroup:comms|tids]
     -A  [set_arch:arm|x86|x64]
