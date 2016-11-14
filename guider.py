@@ -9744,9 +9744,9 @@ class ThreadAnalyzer(object):
                 long(value['stat'][self.scodeIdx])) / 1024 / 1024
 
             if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                schedValue = int(value['stat'][self.prioIdx]) - 20
+                schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
             else:
-                schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
+                schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
             runtimeSec = value['runtime']
             runtimeMin = runtimeSec / 60
@@ -9807,9 +9807,9 @@ class ThreadAnalyzer(object):
                     long(value['stat'][self.scodeIdx])) / 1024 / 1024
 
                 if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = int(value['stat'][self.prioIdx]) - 20
+                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
                 else:
-                    schedValue = abs(int(value['stat'][self.prioIdx]) + 1)
+                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
                 runtimeSec = value['runtime'] + SystemManager.uptimeDiff
                 runtimeMin = runtimeSec / 60
