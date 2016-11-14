@@ -6,7 +6,7 @@ You can profile resource usage of thread, process, function with this tool.
 Guider pursues three characteristics.
 >1. easy to use: just run without install or setting
 >2. measure correct: measure time in ms and size in MB/KB
->3. integrate functions: show cpu / memory / disk usage per thread / process / function
+>3. integrate functions: show cpu / memory / disk usage per thread / process / function (user/kernel)
 
 
 How to use
