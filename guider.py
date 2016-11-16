@@ -2466,7 +2466,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 4
+                                    symbolStack += '\n' + ' ' * indentLen
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -2536,7 +2536,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
@@ -2623,7 +2623,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 4
+                                    symbolStack += '\n' + ' ' * indentLen
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -2722,7 +2722,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
@@ -2794,7 +2794,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     elif self.sort is 'pos':
@@ -2873,7 +2873,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
@@ -2957,7 +2957,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 9
+                                    symbolStack += '\n' + ' ' * indentLen
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3042,7 +3042,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 9
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
@@ -3128,7 +3128,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     elif self.sort is 'pos':
@@ -3215,7 +3215,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 4
+                                    symbolStack += '\n' + ' ' * indentLen
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3294,7 +3294,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
@@ -3371,7 +3371,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 4
+                                    symbolStack += '\n' + ' ' * indentLen
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3450,7 +3450,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 4
+                                symbolStack += '\n' + ' ' * indentLen
 
                             symbolStack += symbolSet
                     except:
