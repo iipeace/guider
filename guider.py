@@ -2304,10 +2304,10 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
-            "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7}|{9:_^7}|{10:_^8})|" + \
-            "{11:_^7}|{12:_^7}|{13:_^8}|{14:_^5}|{15:_^5}|").\
+            "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^8}|" + \
+            "{11:_^8}|{12:_^8}|{13:_^8}|{14:_^5}|{15:_^5}|").\
             format("Name", "Tid", "Pid", "Target", "CPU", \
-            "MEM", "USER", "BUF", "KERNEL", "UFREE", "HEAP", \
+            "MEM", "USER", "BUF", "KERN", "UFREE", "HEAP", \
             "BLK_RD", "BLK_WR", "CUSTOM", "DIE", "NEW"))
         SystemManager.pipePrint(twoLine)
 
@@ -2364,8 +2364,8 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(\
                 ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|" + \
-                "{5:6}k({6:6}k/{7:6}k/{8:6}k|{9:6}k|{10:7}k)|" + \
-                "{11:6}k|{12:6}k|{13:8}|{14:^5}|{15:^5}|").\
+                "{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:7}k|" + \
+                "{11:7}k|{12:7}k|{13:8}|{14:^5}|{15:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
                 value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] / 1024, \
@@ -2440,13 +2440,22 @@ class FunctionAnalyzer(object):
                     else:
                         # Make stack info by symbol for print #
                         symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 4)
+
                         if self.sort is 'sym':
                             for sym in subStack:
                                 if sym is None:
-                                    symbolStack += ' <- None'
+                                    symbolSet = ' <- None'
                                 else:
-                                    symbolStack += ' <- ' + sym + \
+                                    symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + '\t' * 4
+
+                                symbolStack += symbolSet
                         elif self.sort is 'pos':
                             for pos in subStack:
                                 if pos is None:
@@ -2460,7 +2469,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+                    SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -2502,16 +2511,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t\t |{0:7} |{1:32}".format(eventCnt, symbolStack))
+                SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2521,7 +2539,7 @@ class FunctionAnalyzer(object):
 
     def printCpuUsage(self):
         # no cpu event #
-        if self.cpuEnabled is False:
+        if self.cpuEnabled is False or self.periodicContEventCnt == 0:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -2579,13 +2597,22 @@ class FunctionAnalyzer(object):
 
                         # Make stack info by symbol for print #
                         symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 5)
+
                         if self.sort is 'sym':
                             for sym in subStack:
                                 if sym is None:
-                                    symbolStack += ' <- None'
+                                    symbolSet = ' <- None'
                                 else:
-                                    symbolStack += ' <- ' + sym + \
+                                    symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + '\t' * 5
+
+                                symbolStack += symbolSet
                         elif self.sort is 'pos':
                             for pos in subStack:
                                 if pos is None:
@@ -2599,7 +2626,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                    SystemManager.pipePrint("\t\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -2670,16 +2697,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 5)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 5
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t\t |{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                SystemManager.pipePrint("\t\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2732,13 +2768,22 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     if self.sort is 'sym':
                         for sym in subStack:
                             if sym is None:
-                                symbolStack += ' <- None'
+                                symbolSet = ' <- None'
                             else:
-                                symbolStack += ' <- ' + sym + \
+                                symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     elif self.sort is 'pos':
                         for pos in subStack:
                             if pos is None:
@@ -2752,7 +2797,7 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                     ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
+                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2803,16 +2848,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
+                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -2877,13 +2931,22 @@ class FunctionAnalyzer(object):
                     else:
                         # Make stack info by symbol for print #
                         symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 9)
+
                         if self.sort is 'sym':
                             for sym in subStack:
                                 if sym is None:
-                                    symbolStack += ' <- None'
+                                    symbolSet = ' <- None'
                                 else:
-                                    symbolStack += ' <- ' + sym + \
+                                    symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + '\t' * 9
+
+                                symbolStack += symbolSet
                         elif self.sort is 'pos':
                             for pos in subStack:
                                 if pos is None:
@@ -2897,7 +2960,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                    SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
                         userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -2954,16 +3017,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 9)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 9
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
                     userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -3030,13 +3102,22 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     if self.sort is 'sym':
                         for sym in subStack:
                             if sym is None:
-                                symbolStack += ' <- None'
+                                symbolSet = ' <- None'
                             else:
-                                symbolStack += ' <- ' + sym + \
+                                symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     elif self.sort is 'pos':
                         for pos in subStack:
                             if pos is None:
@@ -3050,7 +3131,7 @@ class FunctionAnalyzer(object):
                                 symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                     ' [' + self.posData[pos]['origBin'] + ']'
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(heapSize/ 1024), symbolStack))
+                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(heapSize/ 1024), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -3108,13 +3189,22 @@ class FunctionAnalyzer(object):
                     else:
                         # Make stack info by symbol for print #
                         symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 4)
+
                         if self.sort is 'sym':
                             for sym in subStack:
                                 if sym is None:
-                                    symbolStack += ' <- None'
+                                    symbolSet = ' <- None'
                                 else:
-                                    symbolStack += ' <- ' + sym + \
+                                    symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + '\t' * 4
+
+                                symbolStack += symbolSet
                         elif self.sort is 'pos':
                             for pos in subStack:
                                 if pos is None:
@@ -3128,7 +3218,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
+                    SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -3179,16 +3269,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
+                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(blockWrCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -3246,13 +3345,22 @@ class FunctionAnalyzer(object):
                     else:
                         # Make stack info by symbol for print #
                         symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 4)
+
                         if self.sort is 'sym':
                             for sym in subStack:
                                 if sym is None:
-                                    symbolStack += ' <- None'
+                                    symbolSet = ' <- None'
                                 else:
-                                    symbolStack += ' <- ' + sym + \
+                                    symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + '\t' * 4
+
+                                symbolStack += symbolSet
                         elif self.sort is 'pos':
                             for pos in subStack:
                                 if pos is None:
@@ -3266,7 +3374,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
+                    SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -3317,16 +3425,25 @@ class FunctionAnalyzer(object):
                 else:
                     # Make stack info by symbol for print #
                     symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16))
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
-                                symbolStack += ' <- ' + str(self.posData[pos]['symbol'])
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + '\t' * 4
+
+                            symbolStack += symbolSet
                     except:
                         continue
 
-                SystemManager.pipePrint("\t{0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
+                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".format(int(blockRdCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -3914,6 +4031,7 @@ class SystemManager(object):
     procPath = '/proc'
     launchBuffer = None
     maxFd = 1024
+    lineLength = 154
 
     #HZ = 250 # 4ms tick #
     TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
@@ -9923,8 +10041,8 @@ class ThreadAnalyzer(object):
 
 if __name__ == '__main__':
 
-    oneLine = "-"*154
-    twoLine = "="*154
+    oneLine = "-" * SystemManager.lineLength
+    twoLine = "=" * SystemManager.lineLength
 
     SystemManager.printOptions()
 
