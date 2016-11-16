@@ -2639,7 +2639,7 @@ class FunctionAnalyzer(object):
                                     symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
-                    SystemManager.pipePrint("\t\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                    SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -2728,7 +2728,7 @@ class FunctionAnalyzer(object):
                     except:
                         continue
 
-                SystemManager.pipePrint("\t\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
