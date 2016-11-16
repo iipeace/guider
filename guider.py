@@ -2455,7 +2455,7 @@ class FunctionAnalyzer(object):
                         symbolStack = ''
                         stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        applyIndent = indentLen
+                        appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -2465,10 +2465,10 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
-                                    applyIndent = 0
+                                    appliedIndentLen = 0
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -2528,7 +2528,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -2537,10 +2537,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
@@ -2616,7 +2616,7 @@ class FunctionAnalyzer(object):
                         symbolStack = ''
                         stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        applyIndent = indentLen
+                        appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -2626,10 +2626,10 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
-                                    applyIndent = 0
+                                    appliedIndentLen = 0
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -2718,7 +2718,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -2727,10 +2727,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
@@ -2791,7 +2791,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     if self.sort is 'sym':
                         for sym in subStack:
@@ -2801,10 +2801,10 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     elif self.sort is 'pos':
@@ -2873,7 +2873,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -2882,10 +2882,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
@@ -2958,7 +2958,7 @@ class FunctionAnalyzer(object):
                         symbolStack = ''
                         stackIdx = 0
                         indentLen = len("\t" * 4 * 9)
-                        applyIndent = indentLen
+                        appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -2968,10 +2968,10 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
-                                    applyIndent = 0
+                                    appliedIndentLen = 0
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3046,7 +3046,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 9)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -3055,10 +3055,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
@@ -3133,7 +3133,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     if self.sort is 'sym':
                         for sym in subStack:
@@ -3143,10 +3143,10 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     elif self.sort is 'pos':
@@ -3222,7 +3222,7 @@ class FunctionAnalyzer(object):
                         symbolStack = ''
                         stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        applyIndent = indentLen
+                        appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -3232,10 +3232,10 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
-                                    applyIndent = 0
+                                    appliedIndentLen = 0
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3304,7 +3304,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -3313,10 +3313,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
@@ -3382,7 +3382,7 @@ class FunctionAnalyzer(object):
                         symbolStack = ''
                         stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        applyIndent = indentLen
+                        appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -3392,10 +3392,10 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
-                                    applyIndent = 0
+                                    appliedIndentLen = 0
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -3464,7 +3464,7 @@ class FunctionAnalyzer(object):
                     symbolStack = ''
                     stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    applyIndent = indentLen
+                    appliedIndentLen = indentLen
 
                     try:
                         for pos in subStack:
@@ -3473,10 +3473,10 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if applyIndent + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
-                                applyIndent = 0
+                                appliedIndentLen = 0
 
                             symbolStack += symbolSet
                     except:
