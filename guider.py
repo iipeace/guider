@@ -6193,7 +6193,12 @@ class SystemManager(object):
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('cmdline', self.cmdlineData))
+            title = 'Cmdline'
+            splitLen = SystemManager.lineLength - 21
+            cmdlineList = [self.cmdlineData[i:i+splitLen] for i in range(0, len(self.cmdlineData), splitLen)]
+            for string in cmdlineList:
+                SystemManager.infoBufferPrint("{0:20} {1:<100}".format(title, string))
+                title = ''
         except:
             pass
 
