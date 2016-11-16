@@ -1798,12 +1798,12 @@ class FunctionAnalyzer(object):
 
                 # Increase page counts of thread #
                 pageType = None
-                if flags.find('USER') >= 0:
-                    pageType = 'USER'
-                    self.threadData[tid]['userPages'] += pageCnt
-                elif flags.find('NOFS') >= 0:
+                if flags.find('NOFS') >= 0 or flags.find('GFP_WRITE') >= 0 or flags.find('0x1000000') >= 0:
                     pageType = 'CACHE'
                     self.threadData[tid]['cachePages'] += pageCnt
+                elif flags.find('USER') >= 0:
+                    pageType = 'USER'
+                    self.threadData[tid]['userPages'] += pageCnt
                 else:
                     pageType = 'KERNEL'
                     self.threadData[tid]['kernelPages'] += pageCnt
@@ -8345,14 +8345,14 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['nrPages'] += pow(2, order)
                     self.threadData[coreId]['nrPages'] += pow(2, order)
 
-                    if flags.find('USER') >= 0:
-                        pageType = 'USER'
-                        self.threadData[thread]['userPages'] += pow(2, order)
-                        self.threadData[coreId]['userPages'] += pow(2, order)
-                    elif flags.find('NOFS') >= 0:
+                    if flags.find('NOFS') >= 0 or flags.find('GFP_WRITE') >= 0 or flags.find('0x1000000') >= 0:
                         pageType = 'CACHE'
                         self.threadData[thread]['cachePages'] += pow(2, order)
                         self.threadData[coreId]['cachePages'] += pow(2, order)
+                    elif flags.find('USER') >= 0:
+                        pageType = 'USER'
+                        self.threadData[thread]['userPages'] += pow(2, order)
+                        self.threadData[coreId]['userPages'] += pow(2, order)
                     else:
                         pageType = 'KERNEL'
                         self.threadData[thread]['kernelPages'] += pow(2, order)
@@ -8363,10 +8363,12 @@ class ThreadAnalyzer(object):
                         pfnv = pfn + cnt
 
                         try:
-                            self.pageTable[pfnv] = self.pageTable[pfnv]
                             # this allocated page is not freed #
-                            self.threadData[thread]['nrPages'] -= 1
-                            self.threadData[coreId]['nrPages'] -= 1
+                            if self.pageTable[pfnv] == {}:
+                                raise
+                            else:
+                                self.threadData[thread]['nrPages'] -= 1
+                                self.threadData[coreId]['nrPages'] -= 1
                         except:
                             self.pageTable[pfnv] = dict(self.init_pageData)
 
@@ -8430,6 +8432,18 @@ class ThreadAnalyzer(object):
                     pfn = int(d['pfn'])
 
                     try:
+                        # attribute of page is changed to file #
+                        if self.pageTable[pfn]['type'] is 'USER':
+                            self.threadData[self.pageTable[pfn]['tid']]['userPages'] -= 1
+                            self.threadData[coreId]['userPages'] -= 1
+                            self.threadData[self.pageTable[pfn]['tid']]['cachePages'] += 1
+                            self.threadData[coreId]['cachePages'] += 1
+                        elif self.pageTable[pfn]['type'] is 'KERNEL':
+                            self.threadData[self.pageTable[pfn]['tid']]['kernelPages'] -= 1
+                            self.threadData[coreId]['kernelPages'] -= 1
+                            self.threadData[self.pageTable[pfn]['tid']]['cachePages'] += 1
+                            self.threadData[coreId]['cachePages'] += 1
+
                         self.pageTable[pfn]['type'] = 'CACHE'
                     except:
                         return
@@ -8488,6 +8502,9 @@ class ThreadAnalyzer(object):
                             self.kmemTable[ptr]['waste']
                         self.threadData[self.kmemTable[ptr]['core']]['wasteKmem'] -= \
                             self.kmemTable[ptr]['waste']
+
+                        self.kmemTable[ptr] = {}
+                        del self.kmemTable[ptr]
                     except:
                         '''
                         this allocated object is not logged or \
