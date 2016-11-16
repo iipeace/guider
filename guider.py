@@ -1266,7 +1266,13 @@ class FunctionAnalyzer(object):
                         if savedSymbol == None or savedSymbol == '' or \
                             savedSymbol == addr or savedSymbol[0] == '$':
                             self.posData[addr]['symbol'] = symbol
-                            self.posData[addr]['src'] = src
+
+                            if SystemManager.showAll is True:
+                                self.posData[addr]['src'] = src
+                            else:
+                                fileIdx = src.rfind('/')
+                                if fileIdx >= 0:
+                                    self.posData[addr]['src'] = src[fileIdx + 1:]
                     else:
                         inBinArea = False
 
@@ -1281,7 +1287,14 @@ class FunctionAnalyzer(object):
                                     if savedSymbol == None or savedSymbol == '' or \
                                         savedSymbol == addr or savedSymbol[0] == '$':
                                         self.posData[idx]['symbol'] = symbol
-                                        self.posData[idx]['src'] = src
+
+                                        if SystemManager.showAll is True:
+                                            self.posData[idx]['src'] = src
+                                        else:
+                                            fileIdx = src.rfind('/')
+                                            if fileIdx >= 0:
+                                                self.posData[idx]['src'] = src[fileIdx + 1:]
+
                                         break
                             elif inBinArea is True:
                                 break
