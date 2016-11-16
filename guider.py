@@ -2611,7 +2611,7 @@ class FunctionAnalyzer(object):
                         # Make stack info by symbol for print #
                         symbolStack = ''
                         stackIdx = 0
-                        indentLen = len("\t" * 4 * 5)
+                        indentLen = len("\t" * 4 * 4)
 
                         if self.sort is 'sym':
                             for sym in subStack:
@@ -2623,7 +2623,7 @@ class FunctionAnalyzer(object):
 
                                 if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + '\t' * 5
+                                    symbolStack += '\n' + '\t' * 4
 
                                 symbolStack += symbolSet
                         elif self.sort is 'pos':
@@ -2711,7 +2711,7 @@ class FunctionAnalyzer(object):
                     # Make stack info by symbol for print #
                     symbolStack = ''
                     stackIdx = 0
-                    indentLen = len("\t" * 4 * 5)
+                    indentLen = len("\t" * 4 * 4)
 
                     try:
                         for pos in subStack:
@@ -2722,7 +2722,7 @@ class FunctionAnalyzer(object):
 
                             if indentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
-                                symbolStack += '\n' + '\t' * 5
+                                symbolStack += '\n' + '\t' * 4
 
                             symbolStack += symbolSet
                     except:
