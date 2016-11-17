@@ -5,7 +5,7 @@ guider
 =======
 Are you struggle to improve system performance or to find root cause that makes system abnormal?   
 Guider is made to measure system resource usage and to give user hints to improve system performance.   
-You can profile resource usage of thread, process, function with this tool.   
+You can trace and analyze resource usage of thread, process, function with this tool.   
 
 Guider pursues three characteristics.
 >1. easy to use: just run without install or setting
