@@ -2156,6 +2156,12 @@ class FunctionAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
 
+                # Set pid of thread #
+                try:
+                    self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
+                except:
+                    pass
+
             # increase event count #
             self.threadData[thread]['eventCnt'] += 1
 
@@ -3799,7 +3805,7 @@ class FileAnalyzer(object):
 
 
     def scanProcs(self):
-        # get process list in proc directory #
+        # get process list in /proc directory #
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
@@ -4165,6 +4171,7 @@ class SystemManager(object):
     }
 
     cmdList = {}
+    savedProcTree = {}
     preemptGroup = []
     showGroup = []
     syscallList = []
@@ -4188,6 +4195,7 @@ class SystemManager(object):
         self.cmdlineData = None
         self.osData = None
         self.devData = None
+        self.procData = None
 
         self.cpuInfo = dict()
         self.memInfo['before'] = dict()
@@ -4227,6 +4235,45 @@ class SystemManager(object):
                 print('[Warning] Fail to set comm becuase of prctl in libc')
         else:
             print('[Warning] Fail to set comm becuase this platform is not linux')
+
+
+
+    @staticmethod
+    def getProcTree():
+        procTree = {}
+
+        # get process list in /proc directory #
+        try:
+            pids = os.listdir(SystemManager.procPath)
+        except:
+            SystemManager.printError('Fail to open %s' % (SystemManager.procPath))
+            return None
+
+        # scan comms include words in SystemManager.showGroup #
+        for pid in pids:
+            try:
+                int(pid)
+            except:
+                continue
+
+            # make path of tid #
+            procPath = os.path.join(SystemManager.procPath, pid)
+            taskPath = os.path.join(procPath, 'task')
+
+            try:
+                tids = os.listdir(taskPath)
+            except:
+                SystemManager.printWarning('Fail to open %s' % (taskPath))
+                continue
+
+            for tid in tids:
+                try:
+                    int(tid)
+                    procTree[tid] = pid
+                except:
+                    continue
+
+        return procTree
 
 
 
@@ -4743,6 +4790,31 @@ class SystemManager(object):
         for val in targetList:
             if val == '':
                 del targetList[targetList.index('')]
+
+
+
+    @staticmethod
+    def getProcTreeInfo():
+        # check whether there is procTreeInfo in saved buffer #
+        if SystemManager.systemInfoBuffer == '':
+            return
+        treePosStart = SystemManager.systemInfoBuffer.find('!!!!!')
+        if treePosStart == -1:
+            return
+
+        # check whether there is procTreeInfo in saved buffer #
+        procTree = SystemManager.systemInfoBuffer[treePosStart + len('!!!!!'):].split(',')
+        for pair in procTree:
+            try:
+                ids = pair.split(':')
+                tid = ids[0]
+                pid = ids[1]
+                SystemManager.savedProcTree[tid] = pid
+            except:
+                break
+
+        # remove process tree info #
+        SystemManager.systemInfoBuffer = SystemManager.systemInfoBuffer[:treePosStart]
 
 
 
@@ -5569,11 +5641,22 @@ class SystemManager(object):
 
 
     def saveAllInfo(self):
+        self.saveProcInfo()
         self.saveCpuInfo()
         self.saveMemInfo()
         self.saveDiskInfo()
         self.saveSystemManager()
         self.saveWebOSInfo()
+
+
+
+    def saveProcInfo(self):
+        procTree = SystemManager.getProcTree()
+
+        if procTree is not None:
+            self.procData = '!!!!!'
+            for tid, pid in procTree.items():
+                self.procData += tid + ':' + pid + ','
 
 
 
@@ -6135,6 +6218,13 @@ class SystemManager(object):
         self.printCpuInfo()
         self.printMemInfo()
         self.printDiskInfo()
+        self.printProcInfo()
+
+
+
+    def printProcInfo(self):
+        if self.procData is not None:
+            SystemManager.infoBufferPrint(self.procData)
 
 
 
@@ -6967,6 +7057,12 @@ class ThreadAnalyzer(object):
                     value['pri'] = str(prio)
                 else:
                     value['pri'] = 'R%2s' % abs(prio + 21)
+
+                # set pid of thread #
+                try:
+                    value['tgid'] = SystemManager.savedProcTree[key]
+                except:
+                    pass
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -9392,14 +9488,14 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
-        # get process list in proc directory #
+        # get process list in /proc directory #
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
             sys.exit(0)
 
-        # get thread list in proc directory #
+        # get thread list in /proc directory #
         for pid in pids:
             try:
                 int(pid)
@@ -10325,6 +10421,9 @@ if __name__ == '__main__':
         # write system info to buffer #
         si.printAllInfoToBuf()
     else:
+        # get process tree from data file #
+        SystemManager.getProcTreeInfo()
+
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
