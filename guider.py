@@ -24,7 +24,7 @@ try:
     import gc
     import imp
     import atexit
-except ImportError, err:
+except ImportError as err:
     print "[Error] Fail to import default packages because %s" % err
     sys.exit(0)
 
@@ -354,7 +354,7 @@ class NetworkManager(object):
     def __init__(self, mode):
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
-        except ImportError, err:
+        except ImportError as err:
             print "[Error] Fail to import package because %s" % err
             sys.exit(0)
 
@@ -1169,7 +1169,7 @@ class FunctionAnalyzer(object):
     def getSymbolInfo(self, binPath, offsetList):
         try:
             import subprocess
-        except ImportError, e:
+        except ImportError as e:
             SystemManager.printError("Fail to import package because %s" % e)
             sys.exit(0)
 
@@ -3519,7 +3519,7 @@ class FileAnalyzer(object):
         try:
             import ctypes
             from ctypes import cdll, POINTER
-        except ImportError, err:
+        except ImportError as err:
             SystemManager.printError("Fail to import package because %s" % err)
             sys.exit(0)
 
@@ -4212,7 +4212,7 @@ class SystemManager(object):
             try:
                 import ctypes
                 from ctypes import cdll, POINTER
-            except ImportError, err:
+            except ImportError as err:
                 print "[Warning] Fail to import package because %s" % err
 
             try:
