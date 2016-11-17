@@ -24,8 +24,9 @@ try:
     import gc
     import imp
     import atexit
-except ImportError as err:
-    print "[Error] Fail to import default packages: " + str(err)
+except ImportError:
+    err = sys.exc_info()[1]
+    print "[Error] Fail to import default packages: " + err.args[0]
     sys.exit(0)
 
 
@@ -354,8 +355,9 @@ class NetworkManager(object):
     def __init__(self, mode):
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
-        except ImportError as err:
-            print "[Error] Fail to import package: " + str(err)
+        except ImportError:
+            err = sys.exc_info()[1]
+            print "[Error] Fail to import package: " + err.args[0]
             sys.exit(0)
 
         if mode is 'server':
@@ -1169,8 +1171,9 @@ class FunctionAnalyzer(object):
     def getSymbolInfo(self, binPath, offsetList):
         try:
             import subprocess
-        except ImportError as e:
-            SystemManager.printError("Fail to import package: " + str(e))
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError("Fail to import package: " + err.args[0])
             sys.exit(0)
 
         # Recognize binary type #
@@ -3519,8 +3522,9 @@ class FileAnalyzer(object):
         try:
             import ctypes
             from ctypes import cdll, POINTER
-        except ImportError as err:
-            SystemManager.printError("Fail to import package: " + str(err))
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError("Fail to import package: " + err.args[0])
             sys.exit(0)
 
         # handle no target case #
@@ -4212,8 +4216,9 @@ class SystemManager(object):
             try:
                 import ctypes
                 from ctypes import cdll, POINTER
-            except ImportError as err:
-                print "[Warning] Fail to import package: " + str(err)
+            except ImportError:
+                err = sys.exc_info()[1]
+                print "[Warning] Fail to import package: " + err.args[0]
 
             try:
                 libc = cdll.LoadLibrary('libc.so.6')
