@@ -25,7 +25,7 @@ try:
     import imp
     import atexit
 except ImportError as err:
-    print "[Error] Fail to import default packages because %s" % err
+    print "[Error] Fail to import default packages: " + str(err)
     sys.exit(0)
 
 
@@ -355,7 +355,7 @@ class NetworkManager(object):
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
         except ImportError as err:
-            print "[Error] Fail to import package because %s" % err
+            print "[Error] Fail to import package: " + str(err)
             sys.exit(0)
 
         if mode is 'server':
@@ -1170,7 +1170,7 @@ class FunctionAnalyzer(object):
         try:
             import subprocess
         except ImportError as e:
-            SystemManager.printError("Fail to import package because %s" % e)
+            SystemManager.printError("Fail to import package: " + str(e))
             sys.exit(0)
 
         # Recognize binary type #
@@ -3520,7 +3520,7 @@ class FileAnalyzer(object):
             import ctypes
             from ctypes import cdll, POINTER
         except ImportError as err:
-            SystemManager.printError("Fail to import package because %s" % err)
+            SystemManager.printError("Fail to import package: " + str(err))
             sys.exit(0)
 
         # handle no target case #
@@ -4213,7 +4213,7 @@ class SystemManager(object):
                 import ctypes
                 from ctypes import cdll, POINTER
             except ImportError as err:
-                print "[Warning] Fail to import package because %s" % err
+                print "[Warning] Fail to import package: " + str(err)
 
             try:
                 libc = cdll.LoadLibrary('libc.so.6')
