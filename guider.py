@@ -2231,7 +2231,7 @@ class FunctionAnalyzer(object):
                     self.threadData[pid]['new'] = True
 
             # Save tgid(pid) #
-            if SystemManager.tgidEnable is True:
+            if SystemManager.tgidEnable is True and self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
 
             # tid filter #
@@ -4104,6 +4104,7 @@ class SystemManager(object):
     tgidEnable = True
     binEnable = False
     processEnable = True
+    groupProcEnable = False
 
     maxCore = 0
     logSize = 0
@@ -4326,6 +4327,7 @@ class SystemManager(object):
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-i  [set_interval:sec]')
+            print('\t\t-P  [group_processUnit]')
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
@@ -4420,6 +4422,9 @@ class SystemManager(object):
 
         if SystemManager.depEnable is True:
             enableStat += 'DEPENDENCY '
+
+        if SystemManager.groupProcEnable is True:
+            enableStat += 'PROCESS '
 
         if len(SystemManager.preemptGroup) > 0:
             enableStat += 'PREEMPT '
@@ -5020,7 +5025,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def parseAddOption():
+    def parseAnalOption():
         if len(sys.argv) <= 2:
             return
 
@@ -5059,6 +5064,9 @@ class SystemManager(object):
 
             elif option == 'D':
                 SystemManager.depEnable = True
+
+            elif option == 'P':
+                SystemManager.groupProcEnable = True
 
             elif option == 'p':
                 if SystemManager.intervalEnable > 0:
@@ -5305,7 +5313,7 @@ class SystemManager(object):
 
             # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or option == 'q' or \
-                option == 'g' or option == 'p' or option == 'S' or option == 'h':
+                option == 'g' or option == 'p' or option == 'S' or option == 'h' or option == 'P':
                 continue
 
             else:
@@ -7039,7 +7047,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s|%3s|%3s)|%3s|%3s|%4.2f(%2d)|\n") \
-                        % (value['comm'], '0', '0', '-', '-', \
+                        % (value['comm'], '-'*5, '-'*5, '-', '-', \
                         self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
                         round(float(value['offTime']), 7), 0, 0, value['irq'], \
                         value['offCnt'], '-', '-', '-', \
@@ -7057,12 +7065,6 @@ class ThreadAnalyzer(object):
                     value['pri'] = str(prio)
                 else:
                     value['pri'] = 'R%2s' % abs(prio + 21)
-
-                # set pid of thread #
-                try:
-                    value['tgid'] = SystemManager.savedProcTree[key]
-                except:
-                    pass
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -7907,8 +7909,12 @@ class ThreadAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = comm
 
-            if SystemManager.tgidEnable is True:
-                self.threadData[thread]['tgid'] = d['tgid']
+            # set pid of thread #
+            try:
+                self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
+            except:
+                if SystemManager.tgidEnable is True:
+                    self.threadData[thread]['tgid'] = d['tgid']
 
             # calculate usage of threads had been running longer than interval #
             if SystemManager.intervalEnable > 0:
@@ -10266,7 +10272,7 @@ if __name__ == '__main__':
             si.printAllInfoToBuf()
 
             # parse all options and make output file path #
-            SystemManager.parseAddOption()
+            SystemManager.parseAnalOption()
             if SystemManager.printFile is not None:
                 SystemManager.outputFile = SystemManager.printFile + '/guider.out'
 
@@ -10303,8 +10309,8 @@ if __name__ == '__main__':
                 SystemManager.printError("Fail to get root permission")
                 sys.exit(0)
 
-            # parse additional option #
-            SystemManager.parseAddOption()
+            # parse analysis option #
+            SystemManager.parseAnalOption()
 
             # start file profiling #
             pi = FileAnalyzer()
@@ -10380,8 +10386,8 @@ if __name__ == '__main__':
         # save system information #
         si.saveAllInfo()
 
-    # parse additional option #
-    SystemManager.parseAddOption()
+    # parse analysis option #
+    SystemManager.parseAnalOption()
 
     # get tty setting #
     SystemManager.getTty()
