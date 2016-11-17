@@ -4906,7 +4906,7 @@ class SystemManager(object):
                 SystemManager.printError("Failed to print to file\n")
                 SystemManager.pipeForPrint = None
         else:
-            print line
+            print(line)
 
 
 
