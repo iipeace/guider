@@ -1,8 +1,7 @@
-[![Build Status](https://travis-ci.org/iipeace/guider.svg?branch=master)](https://travis-ci.org/iipeace/guider)
-
-# guider
-
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+guider
+=======
 Are you struggle to improve system performance or to find root cause that makes system abnormal?   
 Guider is made to measure system resource usage and to give user hints to improve system performance.   
 You can profile resource usage of thread, process, function with this tool.   
