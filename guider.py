@@ -26,7 +26,7 @@ try:
     import atexit
 except ImportError:
     err = sys.exc_info()[1]
-    print "[Error] Fail to import default packages: " + err.args[0]
+    print("[Error] Fail to import default packages: " + err.args[0])
     sys.exit(0)
 
 
@@ -357,7 +357,7 @@ class NetworkManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM
         except ImportError:
             err = sys.exc_info()[1]
-            print "[Error] Fail to import package: " + err.args[0]
+            print("[Error] Fail to import package: " + err.args[0])
             sys.exit(0)
 
         if mode is 'server':
@@ -4218,15 +4218,15 @@ class SystemManager(object):
                 from ctypes import cdll, POINTER
             except ImportError:
                 err = sys.exc_info()[1]
-                print "[Warning] Fail to import package: " + err.args[0]
+                print("[Warning] Fail to import package: " + err.args[0])
 
             try:
                 libc = cdll.LoadLibrary('libc.so.6')
                 libc.prctl(15, __module__, 0, 0, 0)
             except:
-                print '[Warning] Fail to set comm becuase of prctl in libc'
+                print('[Warning] Fail to set comm becuase of prctl in libc')
         else:
-            print '[Warning] Fail to set comm becuase this platform is not linux'
+            print('[Warning] Fail to set comm becuase this platform is not linux')
 
 
 
