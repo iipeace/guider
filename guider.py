@@ -378,9 +378,9 @@ class NetworkManager(object):
 
             try:
                 data, server = clientSocket.recvfrom(1024)
-                print '%s %d' % (data, pings)
+                print('%s %d' % (data, pings))
             except timeout:
-                print 'REQUEST TIMED OUT'
+                print('REQUEST TIMED OUT')
 
 
 
@@ -1758,14 +1758,14 @@ class FunctionAnalyzer(object):
     def printDbgInfo(self):
         data = self.nowCtx
 
-        print '[%s]' % self.lastCore, \
+        print('[%s]' % self.lastCore, \
             '(now) %s/%s/%s' %(data['nowEvent'], data['nowCnt'], data['nowArg']), \
             '(saved) %s/%s/%s' %(data['savedEvent'], data['savedCnt'], data['savedArg']), \
             '(nested) %s/%s/%s' %(data['nestedEvent'], data['nestedCnt'], data['nestedArg']), \
             '(user) %s/%s' % (data['userLastPos'], len(data['userCallStack'])), \
             '(kernel) %s/%s' % (data['kernelLastPos'], len(data['kernelCallStack'])), \
             '(backup) %s/%s' % (data['bakKernelLastPos'], len(data['bakKernelCallStack'])), \
-            'at %s' % SystemManager.dbgEventLine
+            'at %s' % SystemManager.dbgEventLine)
 
 
 
@@ -4238,63 +4238,63 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
-            print '\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__
+            print('\n[ g.u.i.d.e.r \t%s ]\n\n' % __version__)
 
-            print 'Usage:'
-            print '\t# %s record [options]' % cmd
-            print '\t$ %s <file> [options]\n' % cmd
-            print '\t# %s top [options]' % cmd
-            print '\t# %s start' % cmd
-            print '\t# %s stop' % cmd
-            print '\t# %s send' % cmd
+            print('Usage:')
+            print('\t# %s record [options]' % cmd)
+            print('\t$ %s <file> [options]\n' % cmd)
+            print('\t# %s top [options]' % cmd)
+            print('\t# %s start' % cmd)
+            print('\t# %s stop' % cmd)
+            print('\t# %s send' % cmd)
 
-            print 'Example:'
-            print '\t# %s record -s /var/log -e mi -g comm, 1243' % cmd
-            print '\t$ %s guider.dat -o /var/log -a -i' % cmd
-            print '\t$ %s top\n' % cmd
+            print('Example:')
+            print('\t# %s record -s /var/log -e mi -g comm, 1243' % cmd)
+            print('\t$ %s guider.dat -o /var/log -a -i' % cmd)
+            print('\t$ %s top\n' % cmd)
 
-            print 'Options:'
-            print '\t[mode]'
-            print '\t\t    [thread]'
-            print '\t\ttop [top]'
-            print '\t\t-y  [system]'
-            print '\t\t-f  [function]'
-            print '\t\t-F  [file]'
-            print '\t[record|top]'
-            print '\t\t-e  [enable_optionsPerMode:bellowCharacters]'
-            print '\t\t\t  [top] {t(hread)|d(isk)}'
-            print '\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}'
-            print '\t\t\t  [thread] {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}'
-            print '\t\t-d  [disable_optionsPerMode:bellowCharacters]'
-            print '\t\t\t  [function] {c(pu)|u(user)}'
-            print '\t\t-s  [save_traceData:dir/file]'
-            print '\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]'
-            print '\t\t-u  [run_inBackground]'
-            print '\t\t-W  [wait_forSignal]'
-            print '\t\t-R  [record_repeatedly:interval,count]'
-            print '\t\t-b  [set_bufferSize:kb]'
-            print '\t\t-D  [trace_threadDependency]'
-            print '\t\t-t  [trace_syscall:syscalls]'
-            print '\t[analysis]'
-            print '\t\t-o  [save_outputData:dir]'
-            print '\t\t-a  [show_allInfo]'
-            print '\t\t-i  [set_interval:sec]'
-            print '\t\t-p  [show_preemptInfo:tids]'
-            print '\t\t-l  [input_addr2linePath:file]'
-            print '\t\t-r  [input_targetRootPath:dir]'
-            print '\t\t-q  [make_taskchain]'
-            print '\t[common]'
-            print '\t\t-g  [filter_specificGroup:comms|tids]'
-            print '\t\t-A  [set_arch:arm|x86|x64]'
-            print '\t\t-c  [set_customEvent:event:filter]'
-            print '\t\t-v  [verbose]'
+            print('Options:')
+            print('\t[mode]')
+            print('\t\t    [thread]')
+            print('\t\ttop [top]')
+            print('\t\t-y  [system]')
+            print('\t\t-f  [function]')
+            print('\t\t-F  [file]')
+            print('\t[record|top]')
+            print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
+            print('\t\t\t  [top] {t(hread)|d(isk)}')
+            print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
+            print('\t\t\t  [thread] {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+            print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
+            print('\t\t\t  [function] {c(pu)|u(user)}')
+            print('\t\t-s  [save_traceData:dir/file]')
+            print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]')
+            print('\t\t-u  [run_inBackground]')
+            print('\t\t-W  [wait_forSignal]')
+            print('\t\t-R  [record_repeatedly:interval,count]')
+            print('\t\t-b  [set_bufferSize:kb]')
+            print('\t\t-D  [trace_threadDependency]')
+            print('\t\t-t  [trace_syscall:syscalls]')
+            print('\t[analysis]')
+            print('\t\t-o  [save_outputData:dir]')
+            print('\t\t-a  [show_allInfo]')
+            print('\t\t-i  [set_interval:sec]')
+            print('\t\t-p  [show_preemptInfo:tids]')
+            print('\t\t-l  [input_addr2linePath:file]')
+            print('\t\t-r  [input_targetRootPath:dir]')
+            print('\t\t-q  [make_taskchain]')
+            print('\t[common]')
+            print('\t\t-g  [filter_specificGroup:comms|tids]')
+            print('\t\t-A  [set_arch:arm|x86|x64]')
+            print('\t\t-c  [set_customEvent:event:filter]')
+            print('\t\t-v  [verbose]')
 
-            print "\nAuthor: \n\t%s(%s)" % (__author__, __email__)
-            print "\nReporting bugs: \n\t%s or %s" % (__email__, __repository__)
-            print "\nCopyright: "
-            print "\t%s." % (__copyright__)
-            print "\tLicense %s." % (__license__)
-            print "\tThis is free software.\n"
+            print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
+            print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
+            print("\nCopyright: ")
+            print("\t%s." % (__copyright__))
+            print("\tLicense %s." % (__license__))
+            print("\tThis is free software.\n")
 
             sys.exit(0)
 
@@ -4913,37 +4913,37 @@ class SystemManager(object):
     @staticmethod
     def printWarning(line):
         if SystemManager.warningEnable is True:
-            print '\n' + ConfigManager.WARNING + '[Warning] ' + line + ConfigManager.ENDC
+            print('\n' + ConfigManager.WARNING + '[Warning] ' + line + ConfigManager.ENDC)
 
 
 
     @staticmethod
     def printError(line):
-        print '\n' + ConfigManager.FAIL + '[Error] ' + line + ConfigManager.ENDC
+        print('\n' + ConfigManager.FAIL + '[Error] ' + line + ConfigManager.ENDC)
 
 
 
     @staticmethod
     def printInfo(line):
-        print '\n' + ConfigManager.BOLD + '[Info] ' + line + ConfigManager.ENDC
+        print('\n' + ConfigManager.BOLD + '[Info] ' + line + ConfigManager.ENDC)
 
 
 
     @staticmethod
     def printGood(line):
-        print '\n' + ConfigManager.OKGREEN + '[Info] ' + line + ConfigManager.ENDC
+        print('\n' + ConfigManager.OKGREEN + '[Info] ' + line + ConfigManager.ENDC)
 
 
 
     @staticmethod
     def printUnderline(line):
-        print '\n' + ConfigManager.UNDERLINE + line + ConfigManager.ENDC
+        print('\n' + ConfigManager.UNDERLINE + line + ConfigManager.ENDC)
 
 
 
     @staticmethod
     def printStatus(line):
-        print '\n' + ConfigManager.SPECIAL + '[Step] ' + line + ConfigManager.ENDC
+        print('\n' + ConfigManager.SPECIAL + '[Step] ' + line + ConfigManager.ENDC)
 
 
 
@@ -5369,12 +5369,12 @@ class SystemManager(object):
         if nrProc == 0:
             SystemManager.printInfo("No running process in background")
         else:
-            print '\n[Running Process]'
-            print twoLine
-            print "%6s\t%s" % ("PID", "COMMAND")
-            print oneLine
-            print printBuf,
-            print oneLine, '\n'
+            print('\n[Running Process]')
+            print(twoLine)
+            print("%6s\t%s" % ("PID", "COMMAND"))
+            print(oneLine)
+            print(printBuf,)
+            print(oneLine, '\n')
 
 
     @staticmethod
