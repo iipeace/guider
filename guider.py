@@ -2156,11 +2156,11 @@ class FunctionAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
 
-                # Set pid of thread #
-                try:
-                    self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
-                except:
-                    pass
+            # Set pid of thread #
+            try:
+                self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
+            except:
+                pass
 
             # increase event count #
             self.threadData[thread]['eventCnt'] += 1
@@ -2237,10 +2237,19 @@ class FunctionAnalyzer(object):
             # tid filter #
             found = False
             for val in desc:
-                if val == d['thread'] or val == '':
+                if val == thread or val == '':
                     self.threadData[thread]['target'] = True
                     found = True
                     break
+                elif SystemManager.groupProcEnable is True:
+                    try:
+                        if self.threadData[thread]['tgid'] == SystemManager.savedProcTree[val]:
+                            self.threadData[thread]['target'] = True
+                            found = True
+                            break
+                    except:
+                        pass
+
             if found is False:
                 return False
 
@@ -4327,7 +4336,7 @@ class SystemManager(object):
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-i  [set_interval:sec]')
-            print('\t\t-P  [group_processUnit]')
+            print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
@@ -6863,8 +6872,17 @@ class ThreadAnalyzer(object):
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
                 for val in SystemManager.showGroup:
-                    if value['comm'].rfind(val) > -1 or value['tgid'].rfind(val) > -1 or key == val:
+                    if value['comm'].rfind(val) > -1 or key == val:
                         checkResult = True
+                    else:
+                        try:
+                            if SystemManager.groupProcEnable is True and \
+                                self.threadData[val]['tgid'] == value['tgid']:
+                                checkResult = True
+                        except:
+                            pass
+
+                # remove thread information #
                 if checkResult == False and key[0:2] != '0[':
                     try:
                         del self.threadData[key]
@@ -10318,6 +10336,9 @@ if __name__ == '__main__':
             # save system info and write it to buffer #
             si.saveAllInfo()
             si.printAllInfoToBuf()
+
+            # remove process tree from data file #
+            SystemManager.getProcTreeInfo()
 
             # print total file usage per process #
             if SystemManager.intervalEnable == 0:
