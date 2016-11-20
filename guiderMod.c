@@ -1,23 +1,28 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/hrtimer.h>
+#include <linux/jiffies.h>
 #include <linux/ktime.h>
 
 #define MS_TO_NS(x) (x * 1E6L)
 
 static struct hrtimer guider_timer;
+static ktime_t ktime;
 
 enum hrtimer_restart guider_hrtimer_callback(struct hrtimer *timer)
 {
-    printk("guider_timer called\n");
+    ktime_t now = hrtimer_cb_get_time(&guider_timer);
+
+    //printk("guider_timer called\n");
+
+    hrtimer_forward(&guider_timer, now, ktime);
 
     return HRTIMER_RESTART;
 }
 
 int init_module(void)
 {
-    ktime_t ktime;
-    unsigned long delay_in_ms = 50L;
+    unsigned long delay_in_ms = 1L;
 
     printk("guider_timer registered\n");
 
