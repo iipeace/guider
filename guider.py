@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2016, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.7"
+__version__ = "3.5.8"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3559,7 +3559,7 @@ class FileAnalyzer(object):
             # load the library #
             self.libguider = cdll.LoadLibrary(self.libguiderPath)
         except:
-            SystemManager.printError('Fail to open %s, use LD_LIBRARY_PATH if it exist' % self.libguiderPath)
+            SystemManager.printError('Fail to open %s, use LD_LIBRARY_PATH variable' % self.libguiderPath)
             sys.exit(0)
 
         # set the argument type #

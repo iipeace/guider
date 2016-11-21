@@ -19,22 +19,23 @@ fi
 OBJFILE=guider.pyc
 SHARE_DIR=/usr/share/guider
 LAUNCHER_DIR=$(dirname "$0")
+LIBPATH=$LD_LIBRARY_PATH:$LAUNCHER_DIR:/usr/lib
 ERRMSG="try to rebuild or to set proper PYC_DIR variable for guider.pyc"
 
 if [ $PYC_DIR ]
     then
         if [ -f $PYC_DIR/$OBJFILE ]
             then
-                $PYTHON_EXEC $PYC_DIR/$OBJFILE $*
+                LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $PYC_DIR/$OBJFILE $*
             else
                 echo "[Error] Fail to launch $PYC_DIR/$OBJFILE," $ERRMSG
         fi
 elif [ -f $LAUNCHER_DIR/$OBJFILE ]
     then
-        $PYTHON_EXEC $LAUNCHER_DIR/$OBJFILE $*
+        LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $LAUNCHER_DIR/$OBJFILE $*
 elif [ -f $SHARE_DIR/$OBJFILE ]
     then
-        $PYTHON_EXEC $SHARE_DIR/$OBJFILE $*
+        LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $SHARE_DIR/$OBJFILE $*
 else
     echo "[Error] Fail to find $OBJFILE," $ERRMSG 
 fi
