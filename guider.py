@@ -4182,6 +4182,7 @@ class SystemManager(object):
 
     cmdList = {}
     savedProcTree = {}
+    savedMountTree = {}
     preemptGroup = []
     showGroup = []
     syscallList = []
@@ -4804,6 +4805,40 @@ class SystemManager(object):
         for val in targetList:
             if val == '':
                 del targetList[targetList.index('')]
+
+
+
+    @staticmethod
+    def getMountInfo():
+        # check whether there is mount info in saved buffer #
+        if SystemManager.systemInfoBuffer == '':
+            return
+        mountPosStart = SystemManager.systemInfoBuffer.find('Disk Info')
+        if mountPosStart == -1:
+            return
+        mountPosStart = SystemManager.systemInfoBuffer.find(oneLine, mountPosStart)
+        if mountPosStart == -1:
+            return
+        mountPosStart = SystemManager.systemInfoBuffer.find('\n', mountPosStart)
+        if mountPosStart == -1:
+            return
+        mountPosEnd = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart)
+        if mountPosEnd == -1:
+            return
+
+        init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
+        mountTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
+        for item in mountTable:
+            m = re.match(r'\s+(?P<dev>\S+)\s+(?P<maj>[0-9]+)\s+(?P<min>[0-9]+)\s+' + \
+                r'(?P<readSize>[0-9]+)\s+(?P<readTime>[0-9]+)\s+(?P<writeSize>[0-9]+)\s+(?P<writeTime>[0-9]+)\s+' + \
+                r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
+            if m is not None:
+                d = m.groupdict()
+                mid = d['maj'] + ':' + d['min']
+                SystemManager.savedMountTree[mid] = dict(init_mountData)
+                SystemManager.savedMountTree[mid]['dev'] = d['dev']
+                SystemManager.savedMountTree[mid]['filesystem'] = d['filesystem']
+                SystemManager.savedMountTree[mid]['mount'] = d['mount']
 
 
 
@@ -6671,6 +6706,7 @@ class ThreadAnalyzer(object):
         self.reclaimData = {}
         self.pageTable = {}
         self.kmemTable = {}
+        self.blockTable = [{}, {}]
         self.moduleData = []
         self.intervalData = []
         self.depData = []
@@ -6896,17 +6932,17 @@ class ThreadAnalyzer(object):
         # print thread usage #
         self.printUsage()
 
+        # print block usage #
+        self.printBlockInfo()
+
         # print resource usage of threads on timeline #
-        if SystemManager.intervalEnable > 0:
-            self.printIntervalInfo()
+        self.printIntervalInfo()
 
         # print module information #
-        if len(self.moduleData) > 0:
-            self.printModuleInfo()
+        self.printModuleInfo()
 
         # print dependency of threads #
-        if SystemManager.depEnable is True:
-            self.printDepInfo()
+        self.printDepInfo()
 
         # print kernel messages #
         self.printConsoleInfo()
@@ -7296,6 +7332,9 @@ class ThreadAnalyzer(object):
 
 
     def printModuleInfo(self):
+        if len(self.moduleData) <= 0:
+            return
+
         eventCnt = 0
         for val in self.moduleData:
             event = val[0]
@@ -7352,6 +7391,9 @@ class ThreadAnalyzer(object):
 
 
     def printDepInfo(self):
+        if SystemManager.depEnable is False:
+            return
+
         SystemManager.clearPrint()
         SystemManager.pipePrint('\n' + '[Thread Dependency Info]')
         SystemManager.pipePrint(twoLine)
@@ -7482,7 +7524,55 @@ class ThreadAnalyzer(object):
 
 
 
+    def printBlockInfo(self):
+        if SystemManager.blockEnable is False:
+            return
+
+        SystemManager.pipePrint('\n' + '[Thread Block Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:^8} {1:^8} {2:^12} {3:^16} {4:>32}\n".\
+            format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
+        SystemManager.pipePrint(oneLine)
+
+        if len(self.blockTable[0]) > 0:
+            SystemManager.pipePrint('# READ')
+            for num, size in self.blockTable[0].items():
+                try:
+                    dev = SystemManager.savedMountTree[num]['dev']
+                    filesystem = SystemManager.savedMountTree[num]['filesystem']
+                    mount = SystemManager.savedMountTree[num]['mount']
+                except:
+                    dev = '?'
+                    filesystem = '?'
+                    mount = '?'
+
+                SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
+                    format(num, size / 1024, filesystem, dev, mount))
+
+            SystemManager.pipePrint(oneLine)
+        if len(self.blockTable[1]) > 0:
+            SystemManager.pipePrint('# WRITE')
+            for num, size in self.blockTable[1].items():
+                try:
+                    dev = SystemManager.savedMountTree[num]['dev']
+                    filesystem = SystemManager.savedMountTree[num]['filesystem']
+                    mount = SystemManager.savedMountTree[num]['mount']
+                except:
+                    dev = ''
+                    filesystem = ''
+                    mount = ''
+
+                SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
+                    format(num, size / 1024, filesystem, dev, mount))
+
+            SystemManager.pipePrint(oneLine)
+
+
+
     def printIntervalInfo(self):
+        if SystemManager.intervalEnable <= 0:
+            return
+
         SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
@@ -7878,6 +7968,34 @@ class ThreadAnalyzer(object):
         except IOError:
             SystemManager.printError("Fail to open %s" % file)
             sys.exit(0)
+
+
+
+    def savePartOpt(self, tid, comm, opt, major, minor, addr, size):
+        # filter #
+        if len(SystemManager.showGroup) > 0:
+            found = False
+            for val in SystemManager.showGroup:
+                if comm.rfind(val) > -1 or tid == val:
+                    found = True
+                    break
+            if found is False:
+                return
+
+        if opt == 'R':
+            try:
+                self.blockTable[0][major + ':' + minor] += int(size)
+            except:
+                self.blockTable[0][major + ':' + minor] = 0
+                self.blockTable[0][major + ':' + minor] += int(size)
+        elif opt == 'W':
+            try:
+                self.blockTable[1][major + ':' + minor] += int(size)
+            except:
+                self.blockTable[1][major + ':' + minor] = 0
+                self.blockTable[1][major + ':' + minor] += int(size)
+        else:
+            SystemManager.printWarning("Fail to recognize operation of block event")
 
 
 
@@ -8877,7 +8995,7 @@ class ThreadAnalyzer(object):
 
             elif func == "block_bio_remap":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)(?P<part>.+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -8895,6 +9013,19 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
                         self.threadData[coreId]['readBlockCnt'] += 1
+
+                        try:
+                            partInfo = d['part'].split()
+                            partSet = partInfo[1].split(',')
+                            major = partSet[0][1:]
+                            minor = partSet[1][:-1]
+                            addr = partInfo[2]
+
+                            self.savePartOpt(thread, comm, 'R', major, minor, addr, \
+                                SystemManager.blockSize * int(d['size']))
+                        except:
+                            SystemManager.printWarning("Fail to save partition info")
+
                         if self.threadData[thread]['readStart'] == 0:
                             self.threadData[thread]['readStart'] = float(time)
                 else:
@@ -8989,6 +9120,8 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['writeBlockCnt'] += 1
                     self.threadData[coreId]['writeBlock'] += 1
                     self.threadData[coreId]['writeBlockCnt'] += 1
+
+                    self.savePartOpt(thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -9005,6 +9138,8 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['writeBlockCnt'] += 1
                         self.threadData[coreId]['writeBlock'] += 1
                         self.threadData[coreId]['writeBlockCnt'] += 1
+
+                        self.savePartOpt(thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -10448,11 +10583,14 @@ if __name__ == '__main__':
         # write system info to buffer #
         si.printAllInfoToBuf()
     else:
-        # get process tree from data file #
-        SystemManager.getProcTreeInfo()
-
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
+
+    # get process tree from data file #
+    SystemManager.getProcTreeInfo()
+
+    # get mount info from data file #
+    SystemManager.getMountInfo()
 
     # print analysis option #
     SystemManager.printAnalOption()
