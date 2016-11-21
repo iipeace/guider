@@ -19,7 +19,7 @@ fi
 OBJFILE=guider.pyc
 SHARE_DIR=/usr/share/guider
 LAUNCHER_DIR=$(dirname "$0")
-LIBPATH=$LD_LIBRARY_PATH:$LAUNCHER_DIR:/usr/lib
+LIBPATH=$LD_LIBRARY_PATH:$LAUNCHER_DIR:/usr/lib:$SHARE_DIR
 ERRMSG="try to rebuild or to set proper PYC_DIR variable for guider.pyc"
 
 if [ $PYC_DIR ]

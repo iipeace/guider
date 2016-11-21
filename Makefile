@@ -17,6 +17,7 @@ endif
 
 CC = gcc 
 RM = rm -f
+TARGET_BIN = guider
 TARGET_LIB = libguider.so
 
 PCC = $(shell which python)
@@ -24,6 +25,7 @@ PFLAGS = -m py_compile
 TARGET_PY = guider.py
 TARGET_PYC = guider.pyc
 INSTALL_DIR = /usr/share/guider
+SBIN_DIR = /usr/sbin
 
 SRCS = guiderLib.c
 OBJS = $(SRCS:.c=.o)
@@ -47,6 +49,7 @@ install: all
 	@test -s ${INSTALL_DIR} || mkdir ${INSTALL_DIR}
 	@test -s ${INSTALL_DIR} || { echo "Fail to make ${INSTALL_DIR}"; false; }
 	@cp ${TARGET_PYC} ${INSTALL_DIR}/ || { echo "Fail to install into ${INSTALL_DIR}"; false; }
+	@cp ${TARGET_BIN} ${SBIN_DIR}/ || { echo "Fail to install into ${SBIN_DIR}"; false; }
 
 .PHONY: kernel
 kernel: all
@@ -57,4 +60,5 @@ clean:
 	@-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
 	@-${RM} ${TARGET_PYC}
 	@-${RM} ${INSTALL_DIR}/*
+	@-${RM} ${SBIN_DIR}/${TARGET_BIN}
 	@make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
