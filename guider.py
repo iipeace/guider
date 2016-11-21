@@ -5270,7 +5270,7 @@ class SystemManager(object):
 
             elif option == 's':
                 if SystemManager.isRecordMode() is False:
-                    SystemManager.printError("Fail to save data because now is not in recording mode")
+                    SystemManager.printError("Fail to save data because it is not in recording mode")
                     sys.exit(0)
 
                 SystemManager.outputFile = str(value)
@@ -6496,8 +6496,9 @@ class SystemManager(object):
         # print disk info #
         SystemManager.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
-            ("Dev", "Major", "Minor", "ReadSize", "ReadTime", "writeSize", "writeTime", \
+        SystemManager.infoBufferPrint(\
+            "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^20}". \
+            format("Dev", "Maj", "Min", "RdSize", "RdTime", "WrSize", "WrTime", \
             "FileSystem", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(oneLine)
 
@@ -6511,8 +6512,9 @@ class SystemManager(object):
             except:
                 continue
 
-            SystemManager.infoBufferPrint("%16s %10s %10s %10s %10s %10s %10s %10s %20s" % \
-                (key, afterInfo['major'], afterInfo['minor'], \
+            SystemManager.infoBufferPrint(\
+                "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^20}". \
+                format(key, afterInfo['major'], afterInfo['minor'], \
                 (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                 (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
                 (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
@@ -7542,9 +7544,9 @@ class ThreadAnalyzer(object):
                     filesystem = SystemManager.savedMountTree[num]['filesystem']
                     mount = SystemManager.savedMountTree[num]['mount']
                 except:
-                    dev = '?'
+                    dev = '\t\t\t?'
                     filesystem = '?'
-                    mount = '?'
+                    mount = '\t\t\t?'
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size / 1024, filesystem, dev, mount))
@@ -7558,9 +7560,9 @@ class ThreadAnalyzer(object):
                     filesystem = SystemManager.savedMountTree[num]['filesystem']
                     mount = SystemManager.savedMountTree[num]['mount']
                 except:
-                    dev = ''
-                    filesystem = ''
-                    mount = ''
+                    dev = '\t\t\t?'
+                    filesystem = '?'
+                    mount = '\t\t\t?'
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size / 1024, filesystem, dev, mount))
@@ -10426,8 +10428,14 @@ if __name__ == '__main__':
 
             # parse all options and make output file path #
             SystemManager.parseAnalOption()
+
             if SystemManager.printFile is not None:
                 SystemManager.outputFile = SystemManager.printFile + '/guider.out'
+            elif SystemManager.outputFile is not None:
+                SystemManager.printFile = SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]
+
+            # get process tree from data file #
+            SystemManager.getProcTreeInfo()
 
             # print system information #
             SystemManager.printTitle()
