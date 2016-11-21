@@ -541,6 +541,9 @@ class FunctionAnalyzer(object):
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
 
+        # get and remove process tree from data file #
+        SystemManager.getProcTreeInfo()
+
         # Parse logs #
         SystemManager.totalLine = len(lines)
         self.parseLogs(lines, SystemManager.showGroup)
@@ -6872,6 +6875,9 @@ class ThreadAnalyzer(object):
         # save data and exit if output file is set #
         SystemManager.saveDataAndExit(lines)
 
+        # get and remove process tree from data file #
+        SystemManager.getProcTreeInfo()
+
         # start parsing logs #
         SystemManager.printStatus('start analyzing... [ STOP(ctrl + c) ]')
         SystemManager.totalLine = len(lines)
@@ -6930,27 +6936,6 @@ class ThreadAnalyzer(object):
             SystemManager.printWarning("-g option is not enabled, -t option is disabled")
             SystemManager.sysEnable = False
             SystemManager.syscallList = []
-
-        # print thread usage #
-        self.printUsage()
-
-        # print block usage #
-        self.printBlockInfo()
-
-        # print resource usage of threads on timeline #
-        self.printIntervalInfo()
-
-        # print module information #
-        self.printModuleInfo()
-
-        # print dependency of threads #
-        self.printDepInfo()
-
-        # print kernel messages #
-        self.printConsoleInfo()
-
-        # print system call usage #
-        self.printSyscallInfo()
 
 
 
@@ -10434,7 +10419,7 @@ if __name__ == '__main__':
             elif SystemManager.outputFile is not None:
                 SystemManager.printFile = SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]
 
-            # get process tree from data file #
+            # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
             # print system information #
@@ -10594,9 +10579,6 @@ if __name__ == '__main__':
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
-    # get process tree from data file #
-    SystemManager.getProcTreeInfo()
-
     # get mount info from data file #
     SystemManager.getMountInfo()
 
@@ -10606,7 +10588,7 @@ if __name__ == '__main__':
     # create Event Info #
     ei = EventAnalyzer()
 
-    # create Function Info #
+    # create FunctionAnalyzer using ftrace log #
     if SystemManager.functionEnable is not False:
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
@@ -10630,8 +10612,29 @@ if __name__ == '__main__':
                 SystemManager.printError("graph is not supported because of no matplotlib")
                 SystemManager.graphEnable = False
 
-        # create ThreadAnalyzer using ftrace #
+        # create ThreadAnalyzer using ftrace log #
         ti = ThreadAnalyzer(SystemManager.inputFile)
+
+        # print thread usage #
+        ti.printUsage()
+
+        # print block usage #
+        ti.printBlockInfo()
+
+        # print resource usage of threads on timeline #
+        ti.printIntervalInfo()
+
+        # print module information #
+        ti.printModuleInfo()
+
+        # print dependency of threads #
+        ti.printDepInfo()
+
+        # print kernel messages #
+        ti.printConsoleInfo()
+
+        # print system call usage #
+        ti.printSyscallInfo()
 
     # print event info #
     ei.printEventInfo()
