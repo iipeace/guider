@@ -4832,7 +4832,7 @@ class SystemManager(object):
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         mountTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
         for item in mountTable:
-            m = re.match(r'\s+(?P<dev>\S+)\s+(?P<maj>[0-9]+)\s+(?P<min>[0-9]+)\s+' + \
+            m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+)\s+(?P<min>[0-9]+)\s+' + \
                 r'(?P<readSize>[0-9]+)\s+(?P<readTime>[0-9]+)\s+(?P<writeSize>[0-9]+)\s+(?P<writeTime>[0-9]+)\s+' + \
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
             if m is not None:
