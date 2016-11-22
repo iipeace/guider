@@ -281,6 +281,17 @@ class ConfigManager(object):
         'I', # 5: IDLE #
         ]
 
+    # Define statm of process #
+    statmList = [
+        'TOTAL',    # 0 #
+        'RSS',      # 1 #
+        'SHR',      # 2 #
+        'TEXT',     # 3 #
+        'DATA',     # 4 #
+        'LIB',      # 5 #
+        'DIRTY',    # 6 #
+        ]
+
     taskChainEnable = None
 
 
@@ -6783,7 +6794,8 @@ class ThreadAnalyzer(object):
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
             'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
             'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
-            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'statusFd': None, 'status': None}
+            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), \
+            'statusFd': None, 'status': None, 'statmFd': None, 'statm': None}
 
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
             'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -6822,6 +6834,7 @@ class ThreadAnalyzer(object):
             self.statIdx = ConfigManager.statList.index("STATE")
             self.coreIdx = ConfigManager.statList.index("PROCESSOR")
             self.runtimeIdx = ConfigManager.statList.index("STARTTIME")
+            self.shrIdx = ConfigManager.statmList.index("SHR")
 
             try:
                 import resource
@@ -9731,6 +9744,30 @@ class ThreadAnalyzer(object):
             statusList = line.split(':')
             self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
 
+        # save statm info #
+        try:
+            statmBuf = None
+            self.prevProcData[tid]['statmFd'].seek(0)
+            self.procData[tid]['statmFd'] = self.prevProcData[tid]['statmFd']
+            statmBuf = self.procData[tid]['statmFd'].readlines()
+        except:
+            try:
+                statmPath = os.path.join(path, 'statm')
+                self.procData[tid]['statmFd'] = open(statmPath, 'r')
+                statmBuf = self.procData[tid]['statmFd'].readlines()
+
+                # fd resource is about to run out #
+                if SystemManager.maxFd - 16 < self.procData[tid]['statmFd'].fileno():
+                    self.procData[tid]['statmFd'].close()
+                    self.procData[tid]['statmFd'] = None
+            except:
+                SystemManager.printWarning('Fail to open %s' % statmPath)
+                del self.procData[tid]
+                return
+
+        if statmBuf is not None:
+            self.procData[tid]['statm'] = statmBuf[0].split()
+
 
 
     def saveProcData(self, path, tid):
@@ -10117,7 +10154,7 @@ class ThreadAnalyzer(object):
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|{18:>9}|\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
-            "Mem", "RSS", "Txt", "Lib", "Swp", "Blk", "RD", "WR", "NrFlt", "LifeTime"))
+            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt", "LifeTime"))
 
         SystemManager.addPrint(oneLine + '\n')
 
@@ -10200,13 +10237,13 @@ class ThreadAnalyzer(object):
             self.saveProcStatusData(value['taskPath'], idx)
 
             try:
-                vmlib = long(value['status']['VmLib'][:value['status']['VmLib'].find(' kb') - 1]) / 1024
-            except:
-                vmlib = '-'
-            try:
                 vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
             except:
                 vmswp = '-'
+            try:
+                shr = long(value['statm'][self.shrIdx]) * 4 / 1024
+            except:
+                shr = '-'
 
             if SystemManager.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
@@ -10222,7 +10259,7 @@ class ThreadAnalyzer(object):
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                 long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, vmlib, vmswp, \
+                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'], lifeTime))
             procCnt += 1
 
@@ -10260,13 +10297,13 @@ class ThreadAnalyzer(object):
                 lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 try:
-                    vmlib = long(value['status']['VmLib'][:value['status']['VmLib'].find(' kb') - 1]) / 1024
-                except:
-                    vmlib = '-'
-                try:
                     vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
                 except:
                     vmswp = '-'
+                try:
+                    shr = long(value['statm'][self.shrIdx]) * 4 / 1024
+                except:
+                    shr = '-'
 
                 if SystemManager.diskEnable is True:
                     readSize = value['read'] / 1024 / 1024
@@ -10283,7 +10320,7 @@ class ThreadAnalyzer(object):
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, vmlib, vmswp, \
+                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
                     value['btime'], readSize, writeSize, value['majflt'], lifeTime))
                 dieCnt += 1
 
@@ -10295,6 +10332,11 @@ class ThreadAnalyzer(object):
                 try:
                     if value['statusFd'] is not None:
                         value['statusFd'].close()
+                except:
+                    pass
+                try:
+                    if value['statmFd'] is not None:
+                        value['statmFd'].close()
                 except:
                     pass
                 try:
