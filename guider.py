@@ -3534,6 +3534,7 @@ class FileAnalyzer(object):
         self.startTime = None
         self.profSuccessCnt = 0
         self.profFailedCnt = 0
+        self.profPageCnt = 0
         self.procData = {}
         self.fileData = {}
 
@@ -3640,11 +3641,11 @@ class FileAnalyzer(object):
 
         # Print proccess list #
         SystemManager.pipePrint(\
-            "[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+| ]" % \
-            ('File Process Info', len(self.procData)))
+            "[%s] [ Process : %d ] [ RAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
+            ('File Process Info', len(self.procData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".\
-            format("Pid", "Size(KB)", "ThreadName", "Tid"))
+            format("Pid", "RAM(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
         for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -3657,11 +3658,11 @@ class FileAnalyzer(object):
         SystemManager.pipePrint(oneLine + '\n')
 
         # Print file list #
-        SystemManager.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileData)))
+        SystemManager.pipePrint("[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^5}|{3:_^123}|".\
-            format("Memory(KB)", "File(KB)", "%", "Path"))
+            format("RAM(KB)", "File(KB)", "%", "Path"))
         SystemManager.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -3725,11 +3726,12 @@ class FileAnalyzer(object):
         SystemManager.printInfoBuffer()
 
         # Print proccess list #
-        SystemManager.pipePrint("[%s] [ Process : %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Process Info', len(self.procList)))
+        SystemManager.pipePrint(\
+            "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
+            ('File Process Info', len(self.procList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^7}|{1:_^13}|{2:_^16}({3:_^7})".\
-            format("Pid", "MaxSize(KB)", "ThreadName", "Tid"))
+            format("Pid", "MaxRAM(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -3743,17 +3745,17 @@ class FileAnalyzer(object):
         SystemManager.pipePrint(oneLine + '\n')
 
         # Print file list #
-        SystemManager.pipePrint("[%s] [ File: %d ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileList)))
+        SystemManager.pipePrint("[%s] [ File: %d ] [ LastRAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('File Usage Info', len(self.fileList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
 
-        printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitMem(KB)", "File(KB)", "%")
+        printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitRAM(KB)", "File(KB)", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in range(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
-        printMsg += "{0:_^13}|{1:_^5}|{2:_^60}|".format("LastMem(KB)", "%", "Path")
+        printMsg += "{0:_^13}|{1:_^5}|{2:_^60}|".format("LastRAM(KB)", "%", "Path")
 
         SystemManager.pipePrint(printMsg)
 
@@ -3895,9 +3897,12 @@ class FileAnalyzer(object):
 
 
     def fillFileMaps(self):
+        self.profPageCnt = 0
+
         for fileName, val in self.fileData.items():
             if val['fileMap'] is not None:
                 val['pageCnt'] = val['fileMap'].count(1)
+                self.profPageCnt += val['pageCnt']
 
         for pid, val in self.procData.items():
             for fileName, mapInfo in val['procMap'].items():
@@ -4082,7 +4087,8 @@ class FileAnalyzer(object):
         if len(self.fileData) > 0:
             SystemManager.printGood('Profiled a total of %d files' % self.profSuccessCnt)
         else:
-            SystemManager.printWarning('Profiled a total of %d files' % self.profSuccessCnt)
+            SystemManager.printError('Fail to profile files')
+            sys.exit(0)
 
         if self.profFailedCnt > 0:
             SystemManager.printWarning('Failed to open a total of %d files' % self.profFailedCnt)
