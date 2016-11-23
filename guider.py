@@ -3537,6 +3537,7 @@ class FileAnalyzer(object):
         self.profPageCnt = 0
         self.procData = {}
         self.fileData = {}
+        self.inodeData = {}
 
         self.procList = {}
         self.fileList = {}
@@ -3544,10 +3545,12 @@ class FileAnalyzer(object):
         self.intervalProcData = []
         self.intervalFileData = []
 
-        self.init_procData = {'tids': None, 'pageCnt': int(0), 'procMap': None}
+        self.init_procData = {'tids': None, 'pageCnt': int(0), 'procMap': None, 'comm': ''}
         self.init_threadData = {'comm': ''}
+        self.init_inodeData = {}
         self.init_mapData = {'offset': int(0), 'size': int(0), 'pageCnt': int(0), 'fd': None, \
-            'totalSize': int(0), 'fileMap': None}
+            'totalSize': int(0), 'fileMap': None, 'pids': None, 'linkCnt': int(0), 'inode': None, \
+            'accessTime': None, 'devid': None, 'original': True}
 
         try:
             import ctypes
@@ -3602,7 +3605,7 @@ class FileAnalyzer(object):
             self.fillFileMaps()
 
             if SystemManager.intervalEnable > 0:
-                # save previous file usage and initialize variables #
+                # save previous file usage and initialize all variables #
                 self.intervalProcData.append(self.procData)
                 self.intervalFileData.append(self.fileData)
                 self.procData = {}
@@ -3644,16 +3647,33 @@ class FileAnalyzer(object):
             "[%s] [ Process : %d ] [ RAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
             ('File Process Info', len(self.procData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^7}|{1:_^10}|{2:_^16}({3:_^7})".\
-            format("Pid", "RAM(KB)", "ThreadName", "Tid"))
+        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^9}|{3:_^16}({4:_^5}) |".\
+            format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
         SystemManager.pipePrint(twoLine)
 
+        procInfo = "{0:^16}({0:^5})|{1:8} |".format('', '', '')
+        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procLength = len(procInfo)
+        threadLength = len(threadInfo)
+        lineLength = len(oneLine)
+
         for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            printMsg = "{0:^7}|{1:9} ".format(pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+            printMsg = "{0:>16}({1:>5})|{2:>8} |".\
+                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+            linePos = len(printMsg)
+
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                printMsg += "|{0:^16}({1:^7})".format(threadVal['comm'], tid)
-                SystemManager.pipePrint(printMsg)
-                printMsg = "{0:^7}{1:^11}".format('', '')
+                threadInfo = "{0:^16}({1:^5}) |".format(threadVal['comm'], tid)
+
+                linePos += threadLength
+
+                if linePos > lineLength:
+                    linePos = procLength + threadLength
+                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
+
+                printMsg += threadInfo
+
+            SystemManager.pipePrint(printMsg)
 
         SystemManager.pipePrint(oneLine + '\n')
 
@@ -3661,7 +3681,7 @@ class FileAnalyzer(object):
         SystemManager.pipePrint("[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
             ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^5}|{3:_^123}|".\
+        SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
             format("RAM(KB)", "File(KB)", "%", "Path"))
         SystemManager.pipePrint(twoLine)
 
@@ -3669,12 +3689,18 @@ class FileAnalyzer(object):
             memSize = val['pageCnt'] * SystemManager.pageSize / 1024
             fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
                 SystemManager.pageSize) * SystemManager.pageSize / 1024
-            per = 0
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
+            else:
+                per = 0
 
-            SystemManager.pipePrint("{0:11} |{1:9} |{2:5}|{3:123}|".\
+            if val['original'] is False:
+                memSize = '-'
+                fileSize = 'LINKED'
+                per = '-'
+
+            SystemManager.pipePrint("{0:>11} |{1:>9} |{2:>5} |{3:123}".\
                 format(memSize, fileSize, per, fileName))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
@@ -3692,6 +3718,7 @@ class FileAnalyzer(object):
                     self.procList[pid] = dict(self.init_procData)
                     self.procList[pid]['tids'] = {}
                     self.procList[pid]['pageCnt'] = procInfo['pageCnt']
+                    self.procList[pid]['comm'] = procInfo['comm']
 
                 for tid, val in procInfo['tids'].items():
                     try:
@@ -3730,17 +3757,33 @@ class FileAnalyzer(object):
             "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
             ('File Process Info', len(self.procList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^7}|{1:_^13}|{2:_^16}({3:_^7})".\
-            format("Pid", "MaxRAM(KB)", "ThreadName", "Tid"))
+        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
+            format("Process", "Pid", "MaxRAM(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
+        procInfo = "{0:_^16}({1:^5})|{2:11} |".format('', '', '')
+        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procLength = len(procInfo)
+        threadLength = len(threadInfo)
+        lineLength = len(oneLine)
+
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            printMsg = "{0:^7}|{1:12} ".format(pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+            printMsg = "{0:>16}({1:>5})|{2:>11} |".\
+                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+            linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                printMsg += "|{0:>16}({1:>7})".format(threadVal['comm'], tid)
-                SystemManager.pipePrint(printMsg)
-                printMsg = "{0:^7}{1:^14}".format('', '')
+                threadInfo = "{0:>16}({1:>5}) |".format(threadVal['comm'], tid)
+
+                linePos += threadLength
+
+                if linePos > lineLength:
+                    linePos = procLength + threadLength
+                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
+
+                printMsg += threadInfo
+
+            SystemManager.pipePrint(printMsg)
 
         SystemManager.pipePrint(oneLine + '\n')
 
@@ -3749,13 +3792,19 @@ class FileAnalyzer(object):
             ('File Usage Info', len(self.fileList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
 
-        printMsg = "{0:_^13}|{1:_^10}|{2:_^5}|".format("InitRAM(KB)", "File(KB)", "%")
+        printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format("InitRAM(KB)", "File(KB)", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in range(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
-        printMsg += "{0:_^13}|{1:_^5}|{2:_^60}|".format("LastRAM(KB)", "%", "Path")
+        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM(KB)", "%")
+
+        lineLength = len(oneLine)
+
+        printMsg += '_' * ((lineLength - len(printMsg)) / 2 - 2)
+        printMsg += 'Path'
+        printMsg += '_' * (lineLength - len(printMsg))
 
         SystemManager.pipePrint(printMsg)
 
@@ -3772,12 +3821,21 @@ class FileAnalyzer(object):
             except:
                 fileSize = 0
 
-            per = 0
-
+            # set percentage #
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
+            else:
+                per = 0
 
-            printMsg = "{0:12} |{1:9} |{2:5}|".format(memSize, fileSize, per)
+            # check whether this file was profiled or not #
+            isOrig = True
+            for fileData in reversed(self.intervalFileData):
+                if fileName in fileData:
+                    if fileData[fileName]['original'] is True:
+                        printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
+                    else:
+                        printMsg = "{0:>10} |{1:>7} |{2:>3}|".format('-', 'LINKED', '-')
+
             if len(self.intervalFileData) > 1:
                 for idx in range(1, len(self.intervalFileData)):
                     diffNew = 0
@@ -3816,7 +3874,8 @@ class FileAnalyzer(object):
                 per = int(int(totalMemSize) / float(fileSize) * 100)
             else:
                 per = 0
-            printMsg += "{0:13}|{1:5}|{2:60}|".format(totalMemSize, per, fileName)
+
+            printMsg += "{0:11}|{1:3}|{2:1}".format(totalMemSize, per, fileName)
 
             SystemManager.pipePrint(printMsg)
 
@@ -3844,8 +3903,25 @@ class FileAnalyzer(object):
             except:
                 continue
 
-            # make path of tid #
+            # make path of comm #
             procPath = os.path.join(SystemManager.procPath, pid)
+            commPath = os.path.join(procPath, 'comm')
+            pidComm = ''
+
+            # make comm path of process #
+            try:
+                self.procData[pid]['comm']
+            except:
+                try:
+                    fd = open(commPath, 'r')
+                    pidComm = fd.readline()
+                    pidComm = pidComm[0:len(pidComm) - 1]
+                    fd.close()
+                except:
+                    SystemManager.printWarning('Fail to open %s' % (commPath))
+                    continue
+
+            # make path of tid #
             taskPath = os.path.join(procPath, 'task')
 
             try:
@@ -3854,13 +3930,14 @@ class FileAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % (taskPath))
                 continue
 
+            # make thread list in process object #
             for tid in tids:
                 try:
                     int(tid)
                 except:
                     continue
 
-                # make path of comm #
+                # make comm path of thread #
                 threadPath = os.path.join(taskPath, tid)
                 commPath = os.path.join(threadPath, 'comm')
 
@@ -3883,6 +3960,7 @@ class FileAnalyzer(object):
                             self.procData[pid] = dict(self.init_procData)
                             self.procData[pid]['tids'] = {}
                             self.procData[pid]['procMap'] = {}
+                            self.procData[pid]['comm'] = pidComm
 
                             # make or update mapInfo per process #
                             self.makeProcMapInfo(pid, threadPath + '/maps')
@@ -3900,7 +3978,7 @@ class FileAnalyzer(object):
         self.profPageCnt = 0
 
         for fileName, val in self.fileData.items():
-            if val['fileMap'] is not None:
+            if val['fileMap'] is not None and val['original'] is True:
                 val['pageCnt'] = val['fileMap'].count(1)
                 self.profPageCnt += val['pageCnt']
 
@@ -4020,34 +4098,70 @@ class FileAnalyzer(object):
         self.profFailedCnt = 0
 
         for fileName, val in self.fileData.items():
-            if SystemManager.intervalEnable > 0:
+            if len(self.intervalFileData) > 0:
                 # use file descriptor already saved as possible #
                 try:
                     val['fd'] = \
                         self.intervalFileData[len(self.intervalFileData) - 1][fileName]['fd']
                     val['totalSize'] = \
                         self.intervalFileData[len(self.intervalFileData) - 1][fileName]['totalSize']
+                    val['original'] = \
+                        self.intervalFileData[len(self.intervalFileData) - 1][fileName]['original']
                 except:
                     pass
 
+                if val['original'] is False:
+                    continue
+
             if val['fd'] is None:
                 try:
-                    # open binary file to check page whether it is on memory or not #
-                    fd = open(fileName, "r")
-                    size = os.stat(fileName).st_size
+                    # open binary file to check whether pages are on memory or not #
+                    stat = os.stat(fileName)
 
-                    val['fd'] = fd
+                    devid = stat.st_dev
+                    inode = stat.st_ino
+
+                    # check whether this file was profiled or not #
+                    if inode in self.inodeData:
+                        found = False
+                        for savedFileName, savedDevId in self.inodeData[inode].items():
+                            # this file was already profiled with hard-linked others #
+                            if savedDevId == devid:
+                                found = True
+                                break
+
+                        if found is True:
+                            self.inodeData[inode][fileName] = devid
+                            self.fileData[fileName]['original'] = False
+
+                            continue
+                        else:
+                            self.inodeData[inode][fileName] = devid
+                    else:
+                        self.inodeData[inode] = dict(self.init_inodeData)
+                        self.inodeData[inode][fileName] = devid
+
+                    size = stat.st_size
+                    linkCnt = stat.st_nlink
+                    time = stat.st_atime
+
+                    val['inode'] = inode
                     val['totalSize'] = size
+                    val['linkCnt'] = linkCnt
+                    val['accessTime'] = time
+
+                    fd = open(fileName, "r")
+                    val['fd'] = fd
                 except:
                     self.profFailedCnt += 1
-                    if SystemManager.showAll is True:
+                    if SystemManager.warningEnable is True:
                         SystemManager.printWarning('Fail to open %s' % fileName)
                     continue
 
             # check file size whether it is readable or not #
             if val['totalSize'] <= 0:
                 self.profFailedCnt += 1
-                if SystemManager.showAll is True:
+                if SystemManager.warningEnable is True:
                     SystemManager.printWarning('Fail to mmap %s' % fileName)
                 continue
 
@@ -4064,24 +4178,19 @@ class FileAnalyzer(object):
                 try:
                     val['fileMap'] = \
                         [pagemap[i] for i in range(size / SystemManager.pageSize)]
+
                     self.profSuccessCnt += 1
 
                     # fd resource is about to run out #
                     if SystemManager.maxFd - 16 < fd:
-                        try:
-                            val['fd'].close()
-                        except:
-                            pass
+                        val['fd'].close()
                         val['fd'] = None
                 except:
                     SystemManager.printWarning('Fail to access %s' % fileName)
                     val['fileMap'] = None
                     self.profFailedCnt += 1
             else:
-                try:
-                    val['fd'].close()
-                except:
-                    pass
+                val['fd'].close()
                 val['fd'] = None
 
         if len(self.fileData) > 0:
