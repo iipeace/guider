@@ -3682,7 +3682,7 @@ class FileAnalyzer(object):
             ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
-            format("RAM(KB)", "File(KB)", "%", "Path"))
+            format("RAM(KB)", "File(KB)", "%", "Library & Process"))
         SystemManager.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
@@ -3700,8 +3700,26 @@ class FileAnalyzer(object):
                 fileSize = 'LINKED'
                 per = '-'
 
-            SystemManager.pipePrint("{0:>11} |{1:>9} |{2:>5} |{3:123}".\
-                format(memSize, fileSize, per, fileName))
+            SystemManager.pipePrint("{0:>11} |{1:>9} |{2:>5} | {3:1} [{4:1}]".\
+                format(memSize, fileSize, per, fileName, len(val['pids'])))
+
+            pidInfo = ''
+            lineLength = len(oneLine)
+            pidLength = len(" %16s (%5s) |" % ('', ''))
+            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
+            linePos = indentLength + pidLength
+
+            for pid, comm in val['pids'].items():
+                pidInfo += " %16s (%5s) |" % (comm, pid)
+
+                linePos += pidLength
+
+                if linePos > lineLength:
+                    linePos = indentLength + pidLength
+                    pidInfo += '\n' + (' ' * indentLength) + '|'
+
+            SystemManager.pipePrint((' ' * indentLength) + '|' + pidInfo)
+            SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -3803,7 +3821,7 @@ class FileAnalyzer(object):
         lineLength = len(oneLine)
 
         printMsg += '_' * ((lineLength - len(printMsg)) / 2 - 2)
-        printMsg += 'Path'
+        printMsg += 'Library'
         printMsg += '_' * (lineLength - len(printMsg))
 
         SystemManager.pipePrint(printMsg)
@@ -3875,7 +3893,7 @@ class FileAnalyzer(object):
             else:
                 per = 0
 
-            printMsg += "{0:11}|{1:3}|{2:1}".format(totalMemSize, per, fileName)
+            printMsg += "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
 
             SystemManager.pipePrint(printMsg)
 
@@ -4016,7 +4034,7 @@ class FileAnalyzer(object):
 
 
     def mergeFileMapInfo(self):
-        for idx, val in self.procData.items():
+        for pid, val in self.procData.items():
             for fileName, scope in val['procMap'].items():
                 newOffset = scope['offset']
                 newSize = scope['size']
@@ -4027,6 +4045,10 @@ class FileAnalyzer(object):
                     savedOffset = self.fileData[fileName]['offset']
                     savedSize = self.fileData[fileName]['size']
                     savedEnd = savedOffset + savedSize
+
+                    # add pid into file info #
+                    if not pid in self.fileData[fileName]['pids']:
+                        self.fileData[fileName]['pids'][pid] = val['comm']
 
                     # bigger start address then saved one #
                     if savedOffset <= newOffset:
@@ -4048,6 +4070,8 @@ class FileAnalyzer(object):
                     self.fileData[fileName] = dict(self.init_mapData)
                     self.fileData[fileName]['offset'] = newOffset
                     self.fileData[fileName]['size'] = newSize
+                    self.fileData[fileName]['pids'] = dict()
+                    self.fileData[fileName]['pids'][pid] = val['comm']
 
 
 
@@ -4090,6 +4114,8 @@ class FileAnalyzer(object):
                 procMap[fileName] = dict(self.init_mapData)
                 procMap[fileName]['offset'] = newOffset
                 procMap[fileName]['size'] = newSize
+        else:
+            SystemManager.printWarning("Fail to recognize '%s' line in maps" % string)
 
 
 
