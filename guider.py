@@ -3550,7 +3550,8 @@ class FileAnalyzer(object):
         self.init_inodeData = {}
         self.init_mapData = {'offset': int(0), 'size': int(0), 'pageCnt': int(0), 'fd': None, \
             'totalSize': int(0), 'fileMap': None, 'pids': None, 'linkCnt': int(0), 'inode': None, \
-            'accessTime': None, 'devid': None, 'original': True}
+            'accessTime': None, 'devid': None, 'isRep': True, 'repFile': None, 'hardLink': int(1), \
+            'linkList': None}
 
         try:
             import ctypes
@@ -3610,6 +3611,7 @@ class FileAnalyzer(object):
                 self.intervalFileData.append(self.fileData)
                 self.procData = {}
                 self.fileData = {}
+                self.inodeData = {}
                 self.profSuccessCnt = 0
                 self.profFailedCnt = 0
 
@@ -3695,33 +3697,39 @@ class FileAnalyzer(object):
             else:
                 per = 0
 
-            if val['original'] is False:
-                memSize = '-'
-                fileSize = 'LINKED'
-                per = '-'
+            if val['isRep'] is False:
+                continue
+            else:
+                SystemManager.pipePrint("{0:>11} |{1:>9} |{2:>5} | {3:1} [Proc: {4:1}] [Link: {5:1}]".\
+                    format(memSize, fileSize, per, fileName, len(val['pids']), val['hardLink']))
 
-            SystemManager.pipePrint("{0:>11} |{1:>9} |{2:>5} | {3:1} [{4:1}]".\
-                format(memSize, fileSize, per, fileName, len(val['pids'])))
-
+            # prepare for printing process list #
             pidInfo = ''
             lineLength = len(oneLine)
             pidLength = len(" %16s (%5s) |" % ('', ''))
             indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
             linePos = indentLength + pidLength
 
+            # print hard-linked list #
+            if val['hardLink'] > 1:
+                for fileLink, tmpVal in val['linkList'].items():
+                    if fileName != fileLink:
+                        SystemManager.pipePrint((' ' * indentLength) + '| -> ' + fileLink)
+
+            # print process list #
             for pid, comm in val['pids'].items():
-                pidInfo += " %16s (%5s) |" % (comm, pid)
-
-                linePos += pidLength
-
                 if linePos > lineLength:
                     linePos = indentLength + pidLength
                     pidInfo += '\n' + (' ' * indentLength) + '|'
 
+                pidInfo += " %16s (%5s) |" % (comm, pid)
+
+                linePos += pidLength
+
             SystemManager.pipePrint((' ' * indentLength) + '|' + pidInfo)
             SystemManager.pipePrint(oneLine)
 
-        SystemManager.pipePrint(oneLine + '\n\n\n')
+        SystemManager.pipePrint('\n\n\n')
 
 
 
@@ -3846,14 +3854,17 @@ class FileAnalyzer(object):
                 per = 0
 
             # check whether this file was profiled or not #
-            isOrig = True
+            isRep = False
             for fileData in reversed(self.intervalFileData):
-                if fileName in fileData:
-                    if fileData[fileName]['original'] is True:
-                        printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
-                    else:
-                        printMsg = "{0:>10} |{1:>7} |{2:>3}|".format('-', 'LINKED', '-')
+                if fileName in fileData and fileData[fileName]['isRep'] is True:
+                    printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
+                    isRep = True
+                    break
 
+            if isRep is False:
+                continue
+
+            # calculate diff of on-memory file size #
             if len(self.intervalFileData) > 1:
                 for idx in range(1, len(self.intervalFileData)):
                     diffNew = 0
@@ -3996,7 +4007,7 @@ class FileAnalyzer(object):
         self.profPageCnt = 0
 
         for fileName, val in self.fileData.items():
-            if val['fileMap'] is not None and val['original'] is True:
+            if val['fileMap'] is not None and val['isRep'] is True:
                 val['pageCnt'] = val['fileMap'].count(1)
                 self.profPageCnt += val['pageCnt']
 
@@ -4115,7 +4126,8 @@ class FileAnalyzer(object):
                 procMap[fileName]['offset'] = newOffset
                 procMap[fileName]['size'] = newSize
         else:
-            SystemManager.printWarning("Fail to recognize '%s' line in maps" % string)
+            if SystemManager.showAll is True:
+                SystemManager.printWarning("Fail to recognize '%s' line in maps" % string)
 
 
 
@@ -4131,15 +4143,22 @@ class FileAnalyzer(object):
                         self.intervalFileData[len(self.intervalFileData) - 1][fileName]['fd']
                     val['totalSize'] = \
                         self.intervalFileData[len(self.intervalFileData) - 1][fileName]['totalSize']
-                    val['original'] = \
-                        self.intervalFileData[len(self.intervalFileData) - 1][fileName]['original']
+                    val['isRep'] = \
+                        self.intervalFileData[len(self.intervalFileData) - 1][fileName]['isRep']
                 except:
                     pass
 
-                if val['original'] is False:
+                if val['isRep'] is False:
                     continue
 
             if val['fd'] is None:
+                '''
+                no fd related to this file
+                case 1) no opened
+                case 2) closed by mincore error
+                case 3) closed because of rlimit
+                '''
+
                 try:
                     # open binary file to check whether pages are on memory or not #
                     stat = os.stat(fileName)
@@ -4150,15 +4169,44 @@ class FileAnalyzer(object):
                     # check whether this file was profiled or not #
                     if inode in self.inodeData:
                         found = False
-                        for savedFileName, savedDevId in self.inodeData[inode].items():
+                        repFile = ''
+                        fileList = {}
+                        procList = dict(val['pids'].items())
+
+                        for fileIdx, fileDevid in self.inodeData[inode].items():
                             # this file was already profiled with hard-linked others #
-                            if savedDevId == devid:
+                            if devid == fileDevid:
                                 found = True
-                                break
+
+                                # add file into same file list #
+                                fileList[fileName] = True
+                                fileList[fileIdx] = True
+
+                                # merge process list related to this file #
+                                procList = dict(procList.items() + self.fileData[fileIdx]['pids'].items())
+
+                                if self.fileData[fileIdx]['isRep'] is True:
+                                    repFile = fileIdx
 
                         if found is True:
                             self.inodeData[inode][fileName] = devid
-                            self.fileData[fileName]['original'] = False
+                            self.fileData[fileName]['isRep'] = False
+                            hardLinkCnt = len(fileList)
+
+                            # set representative file #
+                            for fileIdx, value in fileList.items():
+                                self.fileData[fileIdx]['repFile'] = repFile
+                                self.fileData[fileIdx]['hardLink'] = hardLinkCnt
+
+                            # assign merged process list to representative file #
+                            self.fileData[repFile]['pids'] = procList
+                            self.fileData[repFile]['hardLink'] = hardLinkCnt
+
+                            if self.fileData[repFile]['linkList'] is not None:
+                                self.fileData[repFile]['linkList'] = \
+                                    dict(self.fileData[repFile]['linkList'].items() + fileList.items())
+                            else:
+                                self.fileData[repFile]['linkList'] = fileList
 
                             continue
                         else:
