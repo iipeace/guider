@@ -1,5 +1,5 @@
 diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
-index 92b7237..0bcebe1 100644
+index 92b7237..6aca7ad 100644
 --- a/arch/arm/kernel/stacktrace.c
 +++ b/arch/arm/kernel/stacktrace.c
 @@ -1,7 +1,9 @@
@@ -12,25 +12,25 @@ index 92b7237..0bcebe1 100644
  #include <asm/stacktrace.h>
  #include <asm/traps.h>
  
-@@ -177,3 +179,105 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -177,3 +179,102 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
 +
 +#ifdef CONFIG_USER_STACKTRACE_SUPPORT
 +/*
-+ * Patch to use user stack tracer for ARM archtecture
-+ * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option
-+ * 2. patch this file and rebuild your kernel
-+ * 3. rebuild target binary with -g -rdynamic -fno-omit-frame-pointer option
++ * User-stack-tracer for ARM archtecture
++ * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option in Kconfig
++ * 2. patch and rebuild kernel
++ * 3. build target binary with -g -rdynamic -fno-omit-frame-pointer option
 + */
 +struct stack_frame_user {
-+        unsigned long next_fp;
-+        unsigned long pc;
++	unsigned long next_fp;
++	unsigned long pc;
 +};
 +
-+static int
-+copy_stack_frame_user(const void __user *fp, struct stack_frame_user *frame)
++static int copy_stack_frame_user(const void __user *fp,
++	struct stack_frame_user *frame)
 +{
 +	int ret = 0;
 +
@@ -52,11 +52,11 @@ index 92b7237..0bcebe1 100644
 +	int addrSize = sizeof(unsigned long);
 +	struct stack_frame_user frame;
 +
-+        const struct pt_regs *regs = task_pt_regs(current);
-+        const void __user *fp = (const void __user *)regs->ARM_fp;
-+        const void __user *pc = (const void __user *)regs->ARM_pc;
-+        const void __user *lr = (const void __user *)regs->ARM_lr;
-+        const void __user *sp = (const void __user *)regs->ARM_sp;
++	const struct pt_regs *regs = task_pt_regs(current);
++	const void __user *fp = (const void __user *)regs->ARM_fp;
++	const void __user *pc = (const void __user *)regs->ARM_pc;
++	const void __user *lr = (const void __user *)regs->ARM_lr;
++	const void __user *sp = (const void __user *)regs->ARM_sp;
 +
 +	/* Save pc and lr */
 +	trace->entries[trace->nr_entries++] = pc;
@@ -65,23 +65,21 @@ index 92b7237..0bcebe1 100644
 +	/* Get second frame pointer */
 +	if (!copy_stack_frame_user(fp, &frame)) {
 +		return;
-+	} else {
-+		if (frame.next_fp > (unsigned long)sp)
-+			fp = frame.next_fp;
++	} else if (frame.next_fp > (unsigned long)sp) {
++		fp = frame.next_fp;
 +	}
 +
-+        while (trace->nr_entries < trace->max_entries &&
-+	       nr_try++ < trace->max_entries) {
++	while (trace->nr_entries < trace->max_entries &&
++		nr_try++ < trace->max_entries) {
 +		/* Thumb mode */
 +		if ((unsigned long)pc & 0x1) {
 +			/*
 +			 * Thumb code is not supported because
-+			 * FP register is not used in Thumb mode.
++			 * FP register is not used in thumb mode.
 +			 * so that it is impossible to know
 +			 * base addr or size of stack frame.
 +			 */
-+			trace->entries[trace->nr_entries++] =
-+				0xC0FFEE;
++			trace->entries[trace->nr_entries++] = 0xC0FFEE;
 +			break;
 +		/* ARM mode */
 +		} else {
@@ -92,8 +90,7 @@ index 92b7237..0bcebe1 100644
 +				break;
 +			} else if (frame.pc < frame.next_fp) {
 +				if (frame.pc != lr)
-+					trace->entries[trace->nr_entries++] =
-+						frame.pc;
++					trace->entries[trace->nr_entries++] = frame.pc;
 +
 +				fp = (const void __user *)frame.next_fp;
 +			} else if (frame.pc > (unsigned long)sp) {
@@ -109,12 +106,12 @@ index 92b7237..0bcebe1 100644
 +
 +void save_stack_trace_user(struct stack_trace *trace)
 +{
-+        if (current->mm) {
-+                __save_stack_trace_user(trace);
++	if (current->mm) {
++		__save_stack_trace_user(trace);
 +
 +		if (trace->nr_entries < trace->max_entries)
-+			trace->entries[trace->nr_entries++] =
-+				ULONG_MAX;
-+        }
++			trace->entries[trace->nr_entries++] = ULONG_MAX;
++	}
 +}
++EXPORT_SYMBOL_GPL(save_stack_trace_user);
 +#endif
