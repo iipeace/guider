@@ -1137,6 +1137,13 @@ class FunctionAnalyzer(object):
             curIdx += 1
             SystemManager.printProgress(curIdx, lastIdx)
 
+            # Handle thumbcode #
+            if idx == '00c0ffee':
+                value['binary'] = '??'
+                value['origBin'] = '??'
+                value['symbol'] = 'ThumbCode'
+                continue
+
             if value['binary'] == '':
                 # user pos without offset #
                 if value['symbol'] == '' or value['symbol'] == '??':
@@ -1144,13 +1151,6 @@ class FunctionAnalyzer(object):
                     value['binary'] = '??'
                     value['origBin'] = '??'
                     value['symbol'] = idx
-                continue
-
-            # Handle thumbcode #
-            if idx == '00c0ffee':
-                value['binary'] = '??'
-                value['origBin'] = '??'
-                value['symbol'] = 'ThumbCode'
                 continue
 
             # Get symbols from address list of previous binary #
