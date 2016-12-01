@@ -1,5 +1,5 @@
 diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
-index 92b7237..19bc879 100644
+index 92b7237..5ac52e2 100644
 --- a/arch/arm/kernel/stacktrace.c
 +++ b/arch/arm/kernel/stacktrace.c
 @@ -1,7 +1,9 @@
@@ -12,7 +12,7 @@ index 92b7237..19bc879 100644
  #include <asm/stacktrace.h>
  #include <asm/traps.h>
  
-@@ -177,3 +179,94 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -177,3 +179,98 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
@@ -22,10 +22,13 @@ index 92b7237..19bc879 100644
 + * User-stack-tracer for ARM archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option in Kconfig
 + * 2. patch and rebuild kernel
-+ * 3. build target binary with -g -rdynamic -fno-omit-frame-pointer option
++ * 3. build target binary with bellow options
++ *	-g -mapcs-frame -rdynamic -fno-omit-frame-pointer option
 + */
 +struct stack_frame_user {
 +	unsigned long next_fp;
++	unsigned long ip;
++	unsigned long lr;
 +	unsigned long pc;
 +};
 +
@@ -48,37 +51,32 @@ index 92b7237..19bc879 100644
 +
 +static inline void __save_stack_trace_user(struct stack_trace *trace)
 +{
-+	int nr_try = 0;
-+	int addrSize = sizeof(unsigned long);
++	int try = 0;
++	int max_try = trace->max_entries * 2;
++	int offset = sizeof(struct stack_frame_user) - 4;
 +	struct stack_frame_user frame;
++	const void __user *saved_addr;
 +
 +	const struct pt_regs *regs = task_pt_regs(current);
 +	const void __user *fp = (const void __user *)regs->ARM_fp;
-+	const void __user *pc = (const void __user *)regs->ARM_pc;
-+	const void __user *lr = (const void __user *)regs->ARM_lr;
 +	const void __user *sp = (const void __user *)regs->ARM_sp;
 +
-+	/* Save pc and lr */
-+	trace->entries[trace->nr_entries++] = (unsigned long)pc;
-+	if (lr)
-+		trace->entries[trace->nr_entries++] = (unsigned long)lr;
++	trace->entries[trace->nr_entries++] = regs->ARM_pc;
 +
-+	/* Get second frame pointer */
-+	if (!copy_stack_frame_user(fp, &frame)) {
-+		return;
-+	} else if (frame.next_fp > (unsigned long)sp) {
-+		fp = (const void __user *)frame.next_fp;
++	if (regs->ARM_lr) {
++		trace->entries[trace->nr_entries++] = regs->ARM_lr;
++		saved_addr = (const void __user *)regs->ARM_lr;
++	} else {
++		saved_addr = (const void __user *)regs->ARM_pc;
 +	}
 +
-+	while (trace->nr_entries < trace->max_entries &&
-+		nr_try++ < trace->max_entries) {
-+
-+		if (!copy_stack_frame_user(fp - addrSize, &frame))
++	while (trace->nr_entries < trace->max_entries && try++ < max_try) {
++		if (!fp || !copy_stack_frame_user(fp - offset, &frame))
 +			break;
 +
-+		if (!frame.pc) {
-+			break;
-+		} else if ((unsigned long)frame.pc & 0x1) {
++		if (!frame.lr) {
++			while(0);
++		} else if ((unsigned long)frame.lr & 0x1) {
 +			/*
 +			 * Thumb code is not supported because
 +			 * FP register is not used in thumb mode.
@@ -87,9 +85,15 @@ index 92b7237..19bc879 100644
 +			 */
 +			trace->entries[trace->nr_entries++] = 0xC0FFEE;
 +			break;
-+		} else if (frame.pc < frame.next_fp) {
-+			trace->entries[trace->nr_entries++] = frame.pc;
++		} else if (saved_addr != (const void __user *)frame.lr) {
++			trace->entries[trace->nr_entries++] = frame.lr;
++			saved_addr = (const void __user *)frame.lr;
++		}
++
++		if (frame.next_fp > (unsigned long)sp) {
 +			fp = (const void __user *)frame.next_fp;
++		} else if (frame.ip > (unsigned long)sp) {
++			fp = (const void __user *)frame.ip;
 +		} else {
 +			break;
 +		}
