@@ -7478,7 +7478,7 @@ class ThreadAnalyzer(object):
                         (val[0], val[1], val[2], val[3], \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
-                    SystemManager.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
+                    SystemManager.pipePrint("%4s\t %3.6f\t %16s %5s  \t%9s\t %16s(%5s)" % \
                         (val[0], val[1], '', '', ConfigManager.sigList[int(val[6])], val[4], val[5]))
             SystemManager.pipePrint(oneLine)
 
@@ -7765,7 +7765,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
-        # Total timeline #
+        # timeline #
         timeLine = ''
         for icount in range(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
             checkEvent = ' '
@@ -7798,7 +7798,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.clearPrint()
 
-        # total CPU in timeline #
+        # total CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
             if key[0:2] == '0[':
                 icount = 0
@@ -7839,7 +7839,7 @@ class ThreadAnalyzer(object):
             legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
             del SystemManager.graphLabels[:]
 
-        # total MEM in timeline #
+        # total memory usage on timeline #
         icount = 0
         timeLine = ''
         for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -7848,9 +7848,10 @@ class ThreadAnalyzer(object):
                     (self.intervalData[icount]['toTal']['totalKmem'] / 1024 / 1024))
             except:
                 timeLine += '%3d ' % (0)
-        SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
+        if SystemManager.memEnable is True:
+            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
 
-        # total BLOCK_READ in timeline #
+        # total block(read) usage on timeline #
         icount = 0
         timeLine = ''
         for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -7859,14 +7860,15 @@ class ThreadAnalyzer(object):
                     SystemManager.blockSize / 1024 / 1024)
             except:
                 timeLine += '%3d ' % (0)
-        SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
+        if SystemManager.blockEnable is True:
+            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB)'))
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
 
-        # CPU timeline #
+        # CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
             if key[0:2] != '0[':
                 icount = 0
@@ -7928,7 +7930,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
-        # Preempted timeline #
+        # preempted units on timeline #
         SystemManager.clearPrint()
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
             if key[0:2] != '0[':
@@ -7972,7 +7974,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
-        # Memory timeline #
+        # memory usage on timeline #
         SystemManager.clearPrint()
         if SystemManager.memEnable is True:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['nrPages'], reverse=True):
@@ -8035,7 +8037,7 @@ class ThreadAnalyzer(object):
                 legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
                 del SystemManager.graphLabels[:]
 
-        # Block timeline #
+        # block usage on timeline #
         SystemManager.clearPrint()
         if SystemManager.blockEnable is True:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
