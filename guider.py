@@ -5093,6 +5093,7 @@ class SystemManager(object):
 
             SystemManager.printInfo("FUNCTION MODE")
         else:
+            SystemManager.threadEnable = True
             SystemManager.printInfo("THREAD MODE")
 
         # apply group filter option #
