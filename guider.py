@@ -491,7 +491,7 @@ class FunctionAnalyzer(object):
             'customTotal': int(0)}
 
         self.init_symData = \
-            {'pos': '', 'origBin': '', 'cnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'unknownPageFreeCnt': int(0), \
+            {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'unknownPageFreeCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
             'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0)}
 
@@ -1090,8 +1090,8 @@ class FunctionAnalyzer(object):
 
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
-                self.userSymData[sym]['cnt'] += 1
-                self.kernelSymData[kernelSym]['cnt'] += 1
+                self.userSymData[sym]['tickCnt'] += 1
+                self.kernelSymData[kernelSym]['tickCnt'] += 1
 
             # periodic event such as cpu tick #
             elif event == 'CUSTOM':
@@ -1105,9 +1105,9 @@ class FunctionAnalyzer(object):
             # etc event #
             elif event is 'IGNORE':
                 try:
-                    self.ignoreTable[arg]['cnt'] += 1
+                    self.ignoreTable[arg]['ignCnt'] += 1
                 except:
-                    self.ignoreTable[arg] = {'cnt': int(1)}
+                    self.ignoreTable[arg] = {'ignCnt': int(1)}
 
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
@@ -1119,7 +1119,7 @@ class FunctionAnalyzer(object):
 
     def printIgnoreEvents(self):
         for idx, value in self.ignoreTable.items():
-            SystemManager.printWarning("Ignore %s event %d times" % (idx, value['cnt']))
+            SystemManager.printWarning("Ignore %s event %d times" % (idx, value['ignCnt']))
 
 
 
@@ -2608,11 +2608,11 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
-            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-                if value['cnt'] == 0:
+            for idx, value in sorted(self.userSymData.items(), key=lambda e: e[1]['tickCnt'], reverse=True):
+                if value['tickCnt'] == 0:
                     break
 
-                cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+                cpuPer = round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
@@ -2640,7 +2640,7 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
+                        cpuPer = round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
                         if cpuPer < 1 and SystemManager.showAll is False:
                             break
 
@@ -2707,11 +2707,11 @@ class FunctionAnalyzer(object):
                         exceptList[pos] = dict()
 
         # Print cpu usage of stacks #
-        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['cnt'], reverse=True):
-            if value['cnt'] == 0:
+        for idx, value in sorted(self.kernelSymData.items(), key=lambda e: e[1]['tickCnt'], reverse=True):
+            if value['tickCnt'] == 0:
                 break
 
-            cpuPer = round(float(value['cnt']) / float(self.periodicEventCnt) * 100, 1)
+            cpuPer = round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
             if cpuPer < 1 and SystemManager.showAll is False:
                 break
 
@@ -2728,7 +2728,7 @@ class FunctionAnalyzer(object):
                 if cpuCnt == 0:
                     break
                 else:
-                    cpuPer = round(float(cpuCnt) / float(value['cnt']) * 100, 1)
+                    cpuPer = round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
                     if cpuPer < 1 and SystemManager.showAll is False:
                         break
 
