@@ -4800,6 +4800,7 @@ class SystemManager(object):
         elif SystemManager.isTopMode() is True:
             if SystemManager.printFile is not None:
                 SystemManager.printTitle()
+                ThreadAnalyzer.printIntervalUsage()
                 SystemManager.pipePrint(SystemManager.procBuffer)
                 SystemManager.printInfo("Saved top usage into %s successfully" % \
                     SystemManager.inputFile)
@@ -6905,6 +6906,13 @@ class EventAnalyzer(object):
 class ThreadAnalyzer(object):
     """ Analyzer for thread profiling """
 
+    procTotalData = {}
+    procIntervalData = []
+    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': ''}
+    init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'blk': int(0)}
+
+
+
     def __init__(self, file):
         self.threadData = {}
         self.irqData = {}
@@ -8106,6 +8114,56 @@ class ThreadAnalyzer(object):
             savefig("ioInfo.png", dpi=(200))
 
 
+
+    @staticmethod
+    def parseProcLine(index, procLine):
+        print procLine
+        if 'total' not in ThreadAnalyzer.procIntervalData[index]:
+            tokenList = procLine.split('|')
+
+            if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
+                return
+
+            m = re.match(r'.+(?P<cpu>[0-9]+)\s*%', tokenList[1])
+            if m is not None:
+                d = m.groupdict()
+                ThreadAnalyzer.procIntervalData[index]['total'] = dict(ThreadAnalyzer.init_procIntervalData)
+                try:
+                    ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = int(d['cpu'])
+                except:
+                    ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = 0
+
+            m = re.match(r'.+\(\s*(?P<free>\-*[0-9]+)', tokenList[2])
+            if m is not None:
+                d = m.groupdict()
+                try:
+                    ThreadAnalyzer.procIntervalData[index]['total']['mem'] = int(d['free'])
+                except:
+                    ThreadAnalyzer.procIntervalData[index]['total']['mem'] = 0
+
+            print ThreadAnalyzer.procIntervalData[index]['total']['cpu'], ThreadAnalyzer.procIntervalData[index]['total']['mem']
+
+
+
+    @staticmethod
+    def summarizeIntervalUsage():
+        idx = 0
+        for val in reversed(SystemManager.procBuffer):
+            if len(ThreadAnalyzer.procIntervalData) < idx + 1:
+                ThreadAnalyzer.procIntervalData.append({})
+
+            procData = val.split('\n')
+
+            for line in procData:
+                ThreadAnalyzer.parseProcLine(idx, line)
+
+            idx += 1
+
+
+
+    @staticmethod
+    def printIntervalUsage():
+        ThreadAnalyzer.summarizeIntervalUsage()
 
 
 
@@ -10699,7 +10757,7 @@ if __name__ == '__main__':
             si.saveAllInfo()
             si.printAllInfoToBuf()
 
-            # remove process tree from data file #
+            # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
             # print total file usage per process #
