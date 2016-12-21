@@ -6908,8 +6908,9 @@ class ThreadAnalyzer(object):
 
     procTotalData = {}
     procIntervalData = []
-    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': ''}
-    init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'blk': int(0)}
+    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', 'startIdx': int(0), \
+        'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), 'memDiff': int(0), 'blk': int(0)}
+    init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
 
 
 
@@ -8117,37 +8118,116 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def parseProcLine(index, procLine):
-        print procLine
+        # Get time info #
+        if 'time' not in ThreadAnalyzer.procIntervalData[index]:
+            m = re.match(r'.+\[Time: (?P<time>[0-9]+.[0-9]+)\]', procLine)
+            if m is not None:
+                d = m.groupdict()
+                ThreadAnalyzer.procIntervalData[index]['time'] = d['time']
+            return
+
+        # Get total resource usage #
         if 'total' not in ThreadAnalyzer.procIntervalData[index]:
             tokenList = procLine.split('|')
 
             if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
                 return
 
-            m = re.match(r'.+(?P<cpu>[0-9]+)\s*%', tokenList[1])
+            m = re.match(r'\s*(?P<cpu>[0-9]+)\s*%', tokenList[1])
             if m is not None:
                 d = m.groupdict()
+
+                ThreadAnalyzer.procTotalData['total']['cpu'] += int(d['cpu'])
+
                 ThreadAnalyzer.procIntervalData[index]['total'] = dict(ThreadAnalyzer.init_procIntervalData)
                 try:
                     ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = int(d['cpu'])
                 except:
                     ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = 0
+            else:
+                return
 
             m = re.match(r'.+\(\s*(?P<free>\-*[0-9]+)', tokenList[2])
             if m is not None:
                 d = m.groupdict()
+
+                ThreadAnalyzer.procTotalData['total']['lastMem'] += int(d['free'])
+
                 try:
                     ThreadAnalyzer.procIntervalData[index]['total']['mem'] = int(d['free'])
                 except:
                     ThreadAnalyzer.procIntervalData[index]['total']['mem'] = 0
+            else:
+                return
 
-            print ThreadAnalyzer.procIntervalData[index]['total']['cpu'], ThreadAnalyzer.procIntervalData[index]['total']['mem']
+            try:
+                ThreadAnalyzer.procIntervalData[index]['total']['blk'] = tokenList[5]
+            except:
+                ThreadAnalyzer.procIntervalData[index]['total']['blk'] = '-'
+
+            m = re.match(r'.+\(\s*(?P<swap>\-*[0-9]+)', tokenList[3])
+            if m is not None:
+                d = m.groupdict()
+
+                ThreadAnalyzer.procIntervalData[index]['total']['swap'] = int(d['swap'])
+            else:
+                return
+
+            try:
+                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = tokenList[4]
+            except:
+                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = '-'
+
+            try:
+                ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = int(tokenList[6])
+            except:
+                ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = '-'
+
+            return
+
+        # Get process resource usage #
+        m = re.match(r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)' + \
+            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>[0-9]+)' + \
+            r'\(.+\)\|.+\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>[0-9]+)\(', procLine)
+        if m is not None:
+            d = m.groupdict()
+            pid = d['pid']
+
+            if pid not in ThreadAnalyzer.procTotalData:
+                ThreadAnalyzer.procTotalData[pid] = dict(ThreadAnalyzer.init_procTotalData)
+                ThreadAnalyzer.procTotalData[pid]['startIdx'] = index
+
+            ThreadAnalyzer.procTotalData[pid]['comm'] = d['comm']
+            ThreadAnalyzer.procTotalData[pid]['ppid'] = d['ppid']
+            ThreadAnalyzer.procTotalData[pid]['nrThreads'] = d['nrThreads']
+            ThreadAnalyzer.procTotalData[pid]['pri'] = d['pri']
+
+            ThreadAnalyzer.procTotalData[pid]['cpu'] += int(d['cpu'])
+            ThreadAnalyzer.procTotalData[pid]['blk'] += int(d['blk'])
+
+            if ThreadAnalyzer.procTotalData[pid]['initMem'] == 0:
+                ThreadAnalyzer.procTotalData[pid]['initMem'] = int(d['rss'])
+                ThreadAnalyzer.procTotalData[pid]['lastMem'] = int(d['rss'])
+
+            if pid not in ThreadAnalyzer.procIntervalData[index]:
+                ThreadAnalyzer.procIntervalData[index][pid] = dict(ThreadAnalyzer.init_procIntervalData)
+                ThreadAnalyzer.procIntervalData[index][pid]['cpu'] = int(d['cpu'])
+                ThreadAnalyzer.procIntervalData[index][pid]['blk'] = int(d['blk'])
+                ThreadAnalyzer.procIntervalData[index][pid]['mem'] = int(d['rss'])
+                ThreadAnalyzer.procIntervalData[index][pid]['memDiff'] = \
+                    int(d['rss']) - ThreadAnalyzer.procTotalData[pid]['lastMem']
+
+                ThreadAnalyzer.procTotalData[pid]['lastMem'] = int(d['rss'])
 
 
 
     @staticmethod
     def summarizeIntervalUsage():
         idx = 0
+
+        if 'total' not in ThreadAnalyzer.procTotalData:
+            ThreadAnalyzer.procTotalData['total'] = dict(ThreadAnalyzer.init_procTotalData)
+
         for val in reversed(SystemManager.procBuffer):
             if len(ThreadAnalyzer.procIntervalData) < idx + 1:
                 ThreadAnalyzer.procIntervalData.append({})
@@ -8159,11 +8239,143 @@ class ThreadAnalyzer(object):
 
             idx += 1
 
+        if idx > 0:
+            for pid, val in ThreadAnalyzer.procTotalData.items():
+                val['cpu'] /= idx
+                val['memDiff'] = val['lastMem'] - val['initMem']
+                val['blk'] /= idx
+
+
+
+    @staticmethod
+    def printTimeline():
+        SystemManager.pipePrint('\n[Timeline]\n')
+        SystemManager.pipePrint(twoLine + '\n')
+
+        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | " +\
+                "{5:^8} | {6:^12} | {7:^5} |\n").\
+            format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BLKRW(MB)', 'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt'))
+        SystemManager.pipePrint(oneLine + '\n')
+
+        for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
+            if idx == 0:
+                before = 'START'
+            else:
+                before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
+
+            SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:^6} | {4:^8} | {5:^9} | " +\
+                "{6:^8} | {7:^12} | {8:^5} |\n").\
+                format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
+                val['total']['blk'], val['total']['swap'], val['total']['rclm'], val['total']['nrFlt']))
+
+        SystemManager.pipePrint(oneLine + '\n')
+
+
+
+    @staticmethod
+    def printCpuInterval():
+        # Print title #
+        SystemManager.pipePrint('\n[Top CPU Info] [Unit: %]\n')
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print menu #
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Avg")
+        procInfoLen = len(procInfo)
+        maxLineLen = len(oneLine)
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(procInfo)
+        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                lineLen = len(procInfo)
+
+            timeLine += '{0:^5}'.format(i)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print total cpu usage #
+        value = ThreadAnalyzer.procTotalData['total']
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            format('TOTAL', '-', '-', '-', '-', value['cpu'])
+        procInfoLen = len(procInfo)
+        maxLineLen = len(oneLine)
+
+        timeLine = ''
+        lineLen = len(procInfo)
+        for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                lineLen = len(procInfo)
+
+            if 'total' in ThreadAnalyzer.procIntervalData[idx]:
+                usage = ThreadAnalyzer.procIntervalData[idx]['total']['cpu']
+            else:
+                usage = 0
+
+            timeLine += '{0:^5}'.format(usage)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+        SystemManager.pipePrint(oneLine + '\n')
+
+        # Print cpu usage of processes #
+        for pid, value in sorted(ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['cpu'], reverse=True):
+            if pid is 'total':
+                continue
+
+            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+                format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['cpu'])
+            procInfoLen = len(procInfo)
+            maxLineLen = len(oneLine)
+
+            timeLine = ''
+            lineLen = len(procInfo)
+            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+                if lineLen + 5 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    lineLen = len(procInfo)
+
+                if pid in ThreadAnalyzer.procIntervalData[idx]:
+                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['cpu']
+                else:
+                    usage = 0
+
+                timeLine += '{0:^5}'.format(usage)
+                lineLen += 5
+
+            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(oneLine + '\n')
+
+
+
+    @staticmethod
+    def printMemInterval():
+        None
+
+
+
+    @staticmethod
+    def printBlkInterval():
+        None
+
 
 
     @staticmethod
     def printIntervalUsage():
         ThreadAnalyzer.summarizeIntervalUsage()
+
+        ThreadAnalyzer.printTimeline()
+        ThreadAnalyzer.printCpuInterval()
+        ThreadAnalyzer.printMemInterval()
+        ThreadAnalyzer.printBlkInterval()
+
+        del ThreadAnalyzer.procTotalData
+        del ThreadAnalyzer.procIntervalData
 
 
 
