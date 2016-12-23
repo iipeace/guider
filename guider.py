@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2016, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.5.8"
+__version__ = "3.6.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4826,6 +4826,7 @@ class SystemManager(object):
             SystemManager.printStatus("Saved file usage successfully")
         elif SystemManager.isTopMode() is True:
             SystemManager.printTitle()
+            ThreadAnalyzer.printIntervalUsage()
             SystemManager.pipePrint(SystemManager.procBuffer)
 
             if SystemManager.fileForPrint is not None:
@@ -6718,7 +6719,7 @@ class SystemManager(object):
                 continue
 
             SystemManager.infoBufferPrint(\
-                "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^20}". \
+                "{0:<16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:<20}". \
                 format(key, afterInfo['major'], afterInfo['minor'], \
                 (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                 (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
@@ -7777,6 +7778,10 @@ class ThreadAnalyzer(object):
 
         # timeline #
         timeLine = ''
+        titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
+        maxLineLen = len(oneLine)
+        titleLineLen = len(titleLine)
+        timeLineLen = titleLineLen
         for icount in range(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
             checkEvent = ' '
             cnt = icount - 1
@@ -7798,13 +7803,19 @@ class ThreadAnalyzer(object):
                     float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
                     checkEvent = 'v'
 
+            if timeLineLen + 4 > maxLineLen:
+                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                timeLineLen = titleLineLen + 4
+            else:
+                timeLineLen += 4
+
             # print timeline #
             if icount * SystemManager.intervalEnable < float(self.totalTime):
                 timeLine += '%s%2d ' % (checkEvent, icount * SystemManager.intervalEnable)
             else:
                 timeLine += '%s%.2f ' % (checkEvent, self.totalTime)
 
-        SystemManager.pipePrint("%16s(%5s/%5s): %s" % ('Name', 'Tid', 'Pid', timeLine))
+        SystemManager.pipePrint("%s %s" % (titleLine, timeLine))
         SystemManager.pipePrint(twoLine)
         SystemManager.clearPrint()
 
@@ -7813,6 +7824,7 @@ class ThreadAnalyzer(object):
             if key[0:2] == '0[':
                 icount = 0
                 timeLine = ''
+                timeLineLen = titleLineLen
                 for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     try:
                         self.intervalData[icount][key]
@@ -7821,6 +7833,13 @@ class ThreadAnalyzer(object):
                         continue
 
                     timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
+
+                    if timeLineLen + 4 >= maxLineLen:
+                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
+
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
@@ -7852,24 +7871,40 @@ class ThreadAnalyzer(object):
         # total memory usage on timeline #
         icount = 0
         timeLine = ''
+        timeLineLen = titleLineLen
         for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+            if timeLineLen + 4 > maxLineLen:
+                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                timeLineLen = titleLineLen + 4
+            else:
+                timeLineLen += 4
+
             try:
                 timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalMem'] * 4 / 1024) + \
                     (self.intervalData[icount]['toTal']['totalKmem'] / 1024 / 1024))
             except:
                 timeLine += '%3d ' % (0)
+
         if SystemManager.memEnable is True:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
 
         # total block(read) usage on timeline #
         icount = 0
         timeLine = ''
+        timeLineLen = titleLineLen
         for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+            if timeLineLen + 4 > maxLineLen:
+                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                timeLineLen = titleLineLen + 4
+            else:
+                timeLineLen += 4
+
             try:
                 timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * \
                     SystemManager.blockSize / 1024 / 1024)
             except:
                 timeLine += '%3d ' % (0)
+
         if SystemManager.blockEnable is True:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
 
@@ -7883,10 +7918,17 @@ class ThreadAnalyzer(object):
             if key[0:2] != '0[':
                 icount = 0
                 timeLine = ''
+                timeLineLen = titleLineLen
 
                 for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     newFlag = ' '
                     dieFlag = ' '
+
+                    if timeLineLen + 4 > maxLineLen:
+                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
 
                     try:
                         self.intervalData[icount][key]
@@ -7910,6 +7952,7 @@ class ThreadAnalyzer(object):
                         dieFlag = self.intervalData[icount][key]['die']
 
                     timeLine += '%4s' % (newFlag + str(int(self.intervalData[icount][key]['cpuPer'])) + dieFlag)
+
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if SystemManager.graphEnable is True:
@@ -7946,9 +7989,17 @@ class ThreadAnalyzer(object):
             if key[0:2] != '0[':
                 icount = 0
                 timeLine = ''
+                timeLineLen = titleLineLen
+
                 for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     newFlag = ' '
                     dieFlag = ' '
+
+                    if timeLineLen + 4 > maxLineLen:
+                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
 
                     try:
                         self.intervalData[icount][key]
@@ -7991,9 +8042,17 @@ class ThreadAnalyzer(object):
                 if key[0:2] != '0[':
                     icount = 0
                     timeLine = ''
+                    timeLineLen = titleLineLen
+
                     for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                         newFlag = ' '
                         dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
 
                         try:
                             self.intervalData[icount][key]
@@ -8054,9 +8113,17 @@ class ThreadAnalyzer(object):
                 if key[0:2] != '0[':
                     icount = 0
                     timeLine = ''
+                    timeLineLen = titleLineLen
+
                     for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                         newFlag = ' '
                         dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
 
                         try:
                             self.intervalData[icount][key]
@@ -8243,7 +8310,6 @@ class ThreadAnalyzer(object):
             for pid, val in ThreadAnalyzer.procTotalData.items():
                 val['cpu'] /= idx
                 val['memDiff'] = val['lastMem'] - val['initMem']
-                val['blk'] /= idx
 
 
 
@@ -8301,7 +8367,7 @@ class ThreadAnalyzer(object):
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotalData['total']
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
-            format('TOTAL', '-', '-', '-', '-', value['cpu'])
+            format('[CPU]', '-', '-', '-', '-', value['cpu'])
         procInfoLen = len(procInfo)
         maxLineLen = len(oneLine)
 
@@ -8355,13 +8421,144 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printMemInterval():
-        None
+        # Print title #
+        SystemManager.pipePrint('\n[Top Memory Info] [Unit: MB]\n')
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print menu #
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
+        procInfoLen = len(procInfo)
+        maxLineLen = len(oneLine)
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(procInfo)
+        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                lineLen = len(procInfo)
+
+            timeLine += '{0:^5}'.format(i)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print total memory usage #
+        value = ThreadAnalyzer.procTotalData['total']
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            format('[FREE]', '-', '-', '-', '-', value['memDiff'])
+        procInfoLen = len(procInfo)
+        maxLineLen = len(oneLine)
+
+        timeLine = ''
+        lineLen = len(procInfo)
+        for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                lineLen = len(procInfo)
+
+            if 'total' in ThreadAnalyzer.procIntervalData[idx]:
+                usage = ThreadAnalyzer.procIntervalData[idx]['total']['mem']
+            else:
+                usage = 0
+
+            timeLine += '{0:^5}'.format(usage)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+        SystemManager.pipePrint(oneLine + '\n')
+
+        # Print memory usage of processes #
+        for pid, value in sorted(ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['memDiff'], reverse=True):
+            if pid is 'total' or value['memDiff'] == 0:
+                continue
+
+            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+                format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['memDiff'])
+            procInfoLen = len(procInfo)
+            maxLineLen = len(oneLine)
+
+            timeLine = ''
+            lineLen = len(procInfo)
+            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+                if lineLen + 5 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    lineLen = len(procInfo)
+
+                if pid in ThreadAnalyzer.procIntervalData[idx]:
+                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['memDiff']
+                else:
+                    usage = 0
+
+                timeLine += '{0:^5}'.format(usage)
+                lineLen += 5
+
+            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(oneLine + '\n')
 
 
 
     @staticmethod
     def printBlkInterval():
-        None
+        # Print title #
+        SystemManager.pipePrint('\n[Top Block Info] [Unit: %]\n')
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print menu #
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
+        procInfoLen = len(procInfo)
+        maxLineLen = len(oneLine)
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(procInfo)
+        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                lineLen = len(procInfo)
+
+            timeLine += '{0:^5}'.format(i)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print block usage of processes #
+        itemCnt = 0
+        for pid, value in sorted(ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['blk'], reverse=True):
+            if pid is 'total' or value['blk'] == 0:
+                continue
+
+            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+                format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['blk'])
+            procInfoLen = len(procInfo)
+            maxLineLen = len(oneLine)
+
+            timeLine = ''
+            lineLen = len(procInfo)
+            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+                if lineLen + 5 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    lineLen = len(procInfo)
+
+                if pid in ThreadAnalyzer.procIntervalData[idx]:
+                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['blk']
+                else:
+                    usage = 0
+
+                timeLine += '{0:^5}'.format(usage)
+                lineLen += 5
+
+            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(oneLine + '\n')
+            itemCnt += 1
+
+        if itemCnt == 0:
+            SystemManager.pipePrint('\tNone\n')
+            SystemManager.pipePrint(oneLine + '\n')
 
 
 
@@ -8374,8 +8571,8 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printMemInterval()
         ThreadAnalyzer.printBlkInterval()
 
-        del ThreadAnalyzer.procTotalData
-        del ThreadAnalyzer.procIntervalData
+        ThreadAnalyzer.procTotalData = {}
+        ThreadAnalyzer.procIntervalData = []
 
 
 
