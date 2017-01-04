@@ -1228,7 +1228,7 @@ class FunctionAnalyzer(object):
             # Set addr2line command #
             args = [path, "-C", "-f", "-a", "-e", binPath]
 
-            # Limit line number of arguments to pass becuase of ARG_MAX as $(getconf PAGE_SIZE)*32 = 131072 #
+            # Limit line number of arguments to pass because of ARG_MAX as $(getconf PAGE_SIZE)*32 = 131072 #
             listLen = len(offsetList)
             maxArgLine = 256
             offset = 0
@@ -1832,7 +1832,7 @@ class FunctionAnalyzer(object):
                     try:
                         '''
                         Decrease page count of it's owner \
-                        becuase this page was already allocated but no free log
+                        because this page was already allocated but no free log
                         '''
 
                         ownerTid = self.pageTable[pfnv]['tid']
@@ -4446,9 +4446,9 @@ class SystemManager(object):
                 libc = cdll.LoadLibrary('libc.so.6')
                 libc.prctl(15, __module__, 0, 0, 0)
             except:
-                print('[Warning] Fail to set comm becuase of prctl in libc')
+                print('[Warning] Fail to set comm because of prctl in libc')
         else:
-            print('[Warning] Fail to set comm becuase this platform is not linux')
+            print('[Warning] Fail to set comm because this platform is not linux')
 
 
 
@@ -5690,7 +5690,7 @@ class SystemManager(object):
                 try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf += "%6s\t%s\n" % (pid, cmdline)
+                    printBuf += '%6s\t%s\n' % (pid, cmdline)
                 except:
                     continue
 
@@ -5701,10 +5701,10 @@ class SystemManager(object):
         else:
             print('\n[Running Process]')
             print(twoLine)
-            print("%6s\t%s" % ("PID", "COMMAND"))
+            print('%6s\t%s' % ("PID", "COMMAND"))
             print(oneLine)
-            print(printBuf,)
-            print(oneLine, '\n')
+            print(printBuf)
+            print(oneLine + '\n')
 
 
     @staticmethod
@@ -8187,7 +8187,7 @@ class ThreadAnalyzer(object):
     def parseProcLine(index, procLine):
         # Get time info #
         if 'time' not in ThreadAnalyzer.procIntervalData[index]:
-            m = re.match(r'.+\[Time: (?P<time>[0-9]+.[0-9]+)\]', procLine)
+            m = re.match(r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\]', procLine)
             if m is not None:
                 d = m.groupdict()
                 ThreadAnalyzer.procIntervalData[index]['time'] = d['time']
@@ -10926,7 +10926,7 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint("{0:^16}\n".format('None'))
         SystemManager.addPrint(oneLine + '\n')
 
-        # close fd that thread who already termiated created becuase of limited resource #
+        # close fd that thread who already termiated created because of limited resource #
         for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
             if value['alive'] is False:
                 comm = '#' + value['stat'][self.commIdx][1:-1]
