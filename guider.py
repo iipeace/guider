@@ -10719,11 +10719,11 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint(oneLine + '\n')
 
             for idx, value in sorted(self.cpuData.items(), reverse=False):
-                nowData = self.cpuData[idx]
-                prevData = self.prevCpuData[idx]
-
                 try:
                     int(idx)
+
+                    nowData = self.cpuData[idx]
+                    prevData = self.prevCpuData[idx]
 
                     userUsage = int((nowData['user'] - prevData['user'] + \
                         nowData['nice'] - prevData['nice']) / interval)
