@@ -6948,6 +6948,8 @@ class ThreadAnalyzer(object):
         self.cxtSwitch = 0
         self.nrNewTask = 0
         self.thisInterval = 0
+        self.nrThread = 0
+        self.nrProcess = 0
 
         self.threadDataOld = {}
         self.irqDataOld = {}
@@ -6994,8 +6996,8 @@ class ThreadAnalyzer(object):
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
             'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
             'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
-            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), \
-            'statusFd': None, 'status': None, 'statmFd': None, 'statm': None}
+            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'preempted': long(0), \
+            'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
 
         self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
             'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -7069,6 +7071,8 @@ class ThreadAnalyzer(object):
 
                 self.prevProcData = self.procData
                 self.procData = {}
+                self.nrThread = 0
+                self.nrProcess = 0
 
             sys.exit(0)
 
@@ -10317,6 +10321,7 @@ class ThreadAnalyzer(object):
         for pid in pids:
             try:
                 int(pid)
+                self.nrProcess += 1
             except:
                 continue
 
@@ -10346,6 +10351,7 @@ class ThreadAnalyzer(object):
             for tid in tids:
                 try:
                     int(tid)
+                    self.nrThread += 1
                 except:
                     continue
 
@@ -10904,6 +10910,27 @@ class ThreadAnalyzer(object):
             except:
                 shr = '-'
 
+            try:
+                value['yield'] = long(value['status']['voluntary_ctxt_switches'])
+            except:
+                value['yield'] = '-'
+            try:
+                value['preempted'] = long(value['status']['nonvoluntary_ctxt_switches'])
+            except:
+                value['preempted'] = '-'
+
+            if idx in self.prevProcData:
+                try:
+                    yld = long(value['yield']) - \
+                        long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
+                except:
+                    yld = '-'
+                try:
+                    preempted = long(value['preempted']) - \
+                        long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
+                except:
+                    preempted = '-'
+
             if SystemManager.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
                 writeSize = value['write'] / 1024 / 1024
@@ -11016,11 +11043,12 @@ class ThreadAnalyzer(object):
 
     def printTopUsage(self):
         SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
-            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Unit: %%/MB]\n") % \
+            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
             (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
-            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']))
+            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
+            self.nrProcess, self.nrThread))
 
         # print system usage #
         self.printSystemUsage()
