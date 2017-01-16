@@ -4319,6 +4319,7 @@ class SystemManager(object):
     groupProcEnable = False
 
     maxCore = 0
+    nrCore = 0
     logSize = 0
     curLine = 0
     totalLine = 0
@@ -8204,7 +8205,7 @@ class ThreadAnalyzer(object):
             if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
                 return
 
-            m = re.match(r'\s*(?P<cpu>[0-9]+)\s*%', tokenList[1])
+            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%', tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
@@ -10218,26 +10219,20 @@ class ThreadAnalyzer(object):
                 statList = line.split()
                 cpuId = statList[0]
                 if cpuId == 'cpu':
-                    try:
-                        self.cpuData['all']
-                    except:
+                    if not 'all' in self.cpuData:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
                         self.cpuData['all'] = {'user': long(statList[1]), \
                             'nice': long(statList[2]), 'system': long(statList[3]), \
                             'idle': long(statList[4]), 'iowait': long(statList[5]), \
                             'irq': long(statList[6]), 'softirq': long(statList[7])}
                 elif cpuId.rfind('cpu') == 0:
-                    try:
-                        self.cpuData[int(cpuId[3:])]
-                    except:
+                    if not int(cpuId[3:]) in self.cpuData:
                         self.cpuData[int(cpuId[3:])] = {'user': long(statList[1]), \
                             'nice': long(statList[2]), 'system': long(statList[3]), \
                             'idle': long(statList[4]), 'iowait': long(statList[5]), \
                             'irq': long(statList[6]), 'softirq': long(statList[7])}
                 else:
-                    try:
-                        self.cpuData[cpuId]
-                    except:
+                    if not cpuId in self.cpuData:
                         self.cpuData[cpuId] = {cpuId: long(statList[1])}
 
         # save vmstat info #
@@ -10679,44 +10674,49 @@ class ThreadAnalyzer(object):
             shMem = 'NA'
         '''
 
+        try:
+            nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
+        except:
+            nrBlocked = 0
+
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "Mlock"))
+            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "Mlock"))
         SystemManager.addPrint(oneLine + '\n')
 
-        # set biggest core number #
-        for idx, val in sorted(self.cpuData.items(), reverse=False):
-            try:
-                SystemManager.maxCore = int(idx)
-            except:
-                continue
-
-        maxCore = SystemManager.maxCore + 1
         interval = SystemManager.uptimeDiff
+        softIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
 
         # print total cpu usage #
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
-        userUsage = \
-            int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) / maxCore) / interval)
-        kerUsage = int(((nowData['system'] - prevData['system']) / maxCore) / interval)
-        irqUsage = \
-            int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) / maxCore) / interval)
-        ioUsage = int(((nowData['iowait'] - prevData['iowait']) / maxCore) / interval)
+        userUsage = int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
+            / SystemManager.nrCore) / interval)
+        kerUsage = int(((nowData['system'] - prevData['system']) / SystemManager.nrCore) / interval)
+        irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
+            / SystemManager.nrCore) / interval)
 
-        totalUsage = int(userUsage + kerUsage + irqUsage + ioUsage)
+        totalUsage = int(userUsage + kerUsage + irqUsage)
+
+        ioUsage = 0
+        for idx, value in self.cpuData.items():
+            try:
+                ioUsage += (self.cpuData[int(idx)]['iowait'] - self.prevCpuData[int(idx)]['iowait'])
+            except:
+                pass
+        ioUsage = int(ioUsage / SystemManager.nrCore / interval)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
             swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
-            str(bgReclaim) + '/' + str(drReclaim), \
-            str(pgInMem) + '/' + str(pgOutMem), majFaultMem, mlockMem)
+            str(bgReclaim) + '/' + str(drReclaim), str(pgInMem) + '/' + str(pgOutMem), \
+            majFaultMem, nrBlocked, softIrq, mlockMem)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -10726,10 +10726,16 @@ class ThreadAnalyzer(object):
 
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
-                    int(idx)
+                    nowData = self.cpuData[int(idx)]
 
-                    nowData = self.cpuData[idx]
-                    prevData = self.prevCpuData[idx]
+                    if not int(idx) in self.prevCpuData:
+                        coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                            format("Core/" + str(idx), '- %', '-', '-', '-', '-')
+                        coreGraph = ' ' * int(len(totalCoreStat) - len(coreStat) - 2)
+                        SystemManager.addPrint(coreStat + coreGraph + '|\n')
+                        continue
+
+                    prevData = self.prevCpuData[int(idx)]
 
                     userUsage = int((nowData['user'] - prevData['user'] + \
                         nowData['nice'] - prevData['nice']) / interval)
@@ -10817,9 +10823,10 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(\
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|{18:>9}|\n").\
+            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" + \
+            "{18:^7}|{19:^9}|{20:>9}|\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
-            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt", "LifeTime"))
+            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt", "Yield", "Preempt", "LifeTime"))
 
         SystemManager.addPrint(oneLine + '\n')
 
@@ -10925,11 +10932,17 @@ class ThreadAnalyzer(object):
                         long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
                 except:
                     yld = '-'
+            else:
+                yld = '-'
+
+            if idx in self.prevProcData:
                 try:
-                    preempted = long(value['preempted']) - \
+                    prtd = long(value['preempted']) - \
                         long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
                 except:
-                    preempted = '-'
+                    prtd = '-'
+            else:
+                prtd = '-'
 
             if SystemManager.diskEnable is True:
                 readSize = value['read'] / 1024 / 1024
@@ -10940,13 +10953,14 @@ class ThreadAnalyzer(object):
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|{18:>9}|\n").\
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" + \
+                "{18:>7}|{19:>9}|{20:>9}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                 long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                 long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
-                value['btime'], readSize, writeSize, value['majflt'], lifeTime))
+                value['btime'], readSize, writeSize, value['majflt'], yld, prtd, lifeTime))
             procCnt += 1
 
         if procCnt == 0:
@@ -11042,13 +11056,23 @@ class ThreadAnalyzer(object):
 
 
     def printTopUsage(self):
+        # set core number #
+        SystemManager.nrCore = 0
+        for idx, val in sorted(self.cpuData.items(), reverse=False):
+            try:
+                SystemManager.maxCore = int(idx)
+                SystemManager.nrCore += 1
+            except:
+                continue
+        maxCore = SystemManager.maxCore + 1
+
         SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
-            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
+            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
             (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
-            self.nrProcess, self.nrThread))
+            SystemManager.nrCore, self.nrProcess, self.nrThread))
 
         # print system usage #
         self.printSystemUsage()
