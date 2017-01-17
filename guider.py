@@ -1848,7 +1848,7 @@ class FunctionAnalyzer(object):
                     except:
                         self.pageTable[pfnv] = dict(self.init_pageData)
 
-                    self.pageTable[pfnv]['tid'] = tid 
+                    self.pageTable[pfnv]['tid'] = tid
                     self.pageTable[pfnv]['page'] = page
                     self.pageTable[pfnv]['flags'] = flags
                     self.pageTable[pfnv]['type'] = pageType
@@ -10235,6 +10235,15 @@ class ThreadAnalyzer(object):
                     if not cpuId in self.cpuData:
                         self.cpuData[cpuId] = {cpuId: long(statList[1])}
 
+            # set the number of core #
+            SystemManager.nrCore = 0
+            for idx, val in sorted(self.cpuData.items(), reverse=False):
+                try:
+                    SystemManager.maxCore = int(idx)
+                    SystemManager.nrCore += 1
+                except:
+                    continue
+
         # save vmstat info #
         try:
             vmBuf = None
@@ -10333,6 +10342,9 @@ class ThreadAnalyzer(object):
 
                 # save stat of process #
                 self.saveProcData(procPath, pid)
+
+                # calculate number of threads #
+                self.nrThread += int(self.procData[pid]['stat'][self.nrthreadIdx])
 
                 continue
 
@@ -11015,13 +11027,14 @@ class ThreadAnalyzer(object):
                 # print die thread information #
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|{18:>9}|\n").\
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" + \
+                    "{18:>7}|{19:>9}|{20:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                     long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
-                    value['btime'], readSize, writeSize, value['majflt'], lifeTime))
+                    value['btime'], readSize, writeSize, value['majflt'], '-', '-', lifeTime))
                 dieCnt += 1
 
                 try:
@@ -11056,16 +11069,6 @@ class ThreadAnalyzer(object):
 
 
     def printTopUsage(self):
-        # set core number #
-        SystemManager.nrCore = 0
-        for idx, val in sorted(self.cpuData.items(), reverse=False):
-            try:
-                SystemManager.maxCore = int(idx)
-                SystemManager.nrCore += 1
-            except:
-                continue
-        maxCore = SystemManager.maxCore + 1
-
         SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
             "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
             (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
