@@ -3657,7 +3657,7 @@ class FileAnalyzer(object):
         threadInfo = " {0:^16}({1:^5}) |".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
-        lineLength = len(oneLine)
+        lineLength = SystemManager.lineLength
 
         for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>5})|{2:>8} |".\
@@ -3705,7 +3705,7 @@ class FileAnalyzer(object):
 
             # prepare for printing process list #
             pidInfo = ''
-            lineLength = len(oneLine)
+            lineLength = SystemManager.lineLength
             pidLength = len(" %16s (%5s) |" % ('', ''))
             indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
             linePos = indentLength + pidLength
@@ -3791,7 +3791,7 @@ class FileAnalyzer(object):
         threadInfo = " {0:^16}({1:^5}) |".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
-        lineLength = len(oneLine)
+        lineLength = SystemManager.lineLength
 
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>5})|{2:>11} |".\
@@ -3826,7 +3826,7 @@ class FileAnalyzer(object):
 
         printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM(KB)", "%")
 
-        lineLength = len(oneLine)
+        lineLength = SystemManager.lineLength
 
         printMsg += '_' * ((lineLength - len(printMsg)) / 2 - 2)
         printMsg += 'Library'
@@ -4274,7 +4274,7 @@ class FileAnalyzer(object):
             sys.exit(0)
 
         if self.profFailedCnt > 0:
-            SystemManager.printWarning('Failed to open a total of %d files' % self.profFailedCnt)
+            SystemManager.printWarning('Fail to open a total of %d files' % self.profFailedCnt)
 
 
 
@@ -4312,6 +4312,7 @@ class SystemManager(object):
     printFile = None
     optionList = None
     customCmd = None
+    imagePath = None
 
     tgidEnable = True
     binEnable = False
@@ -5179,6 +5180,53 @@ class SystemManager(object):
 
 
     @staticmethod
+    def drawText(lines):
+        try:
+            import PIL
+            import textwrap
+            from PIL import Image, ImageFont, ImageDraw
+        except ImportError:
+            err = sys.exc_info()[1]
+            print("[Error] Fail to import package: " + err.args[0])
+            return
+
+        # load default font #
+        imageFont = ImageFont.load_default().font
+
+        # get default font size and image length #
+        text = textwrap.fill('A', width=150)
+        fontSizeX, fontSizeY = imageFont.getsize(text)
+
+        # check input parameter #
+        if type(lines) is list:
+            lines = ''.join(lines)
+
+        # convert string to list #
+        lines = lines.split('\n')
+
+        # calculate image size #
+        imageSizeX = fontSizeX * SystemManager.lineLength
+        imageSizeY = fontSizeY * len(lines)
+        imagePosY = 1
+
+        # make new blink image #
+        imageObject = Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
+        drawnImage = ImageDraw.Draw(imageObject)
+
+        for line in lines:
+            text = textwrap.fill(line, width=150)
+
+            imagePosY += fontSizeY
+
+            # write text on image #
+            drawnImage.text((0, imagePosY), text, (0,0,0), font=imageFont)
+
+        # save image as png file #
+        imageObject.save("guider.png")
+
+
+
+    @staticmethod
     def pipePrint(line):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
             SystemManager.printFile == None and SystemManager.isTopMode() is False:
@@ -5193,7 +5241,7 @@ class SystemManager(object):
                 SystemManager.pipeForPrint.write(line + '\n')
                 return
             except:
-                SystemManager.printError("Failed to print to pipe\n")
+                SystemManager.printError("Fail to print to pipe\n")
                 SystemManager.pipeForPrint = None
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
@@ -5212,7 +5260,7 @@ class SystemManager(object):
                 # backup output file #
                 shutil.copy(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
             except:
-                pass
+                SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
 
             try:
                 SystemManager.fileForPrint = open(SystemManager.inputFile, 'w')
@@ -5231,7 +5279,7 @@ class SystemManager(object):
                 else:
                     SystemManager.fileForPrint.writelines(line)
             except:
-                SystemManager.printError("Failed to print to file\n")
+                SystemManager.printError("Fail to print to file\n")
                 SystemManager.pipeForPrint = None
         else:
             print(line)
@@ -5341,6 +5389,9 @@ class SystemManager(object):
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
+
+            elif option == 'I':
+                SystemManager.imagePath = value
 
             elif option == 'A':
                 SystemManager.setArch(value)
@@ -5563,8 +5614,9 @@ class SystemManager(object):
                     SystemManager.userEnable = False
 
             # Ignore options #
-            elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or option == 'q' or \
-                option == 'g' or option == 'p' or option == 'S' or option == 'h' or option == 'P':
+            elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
+                option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
+                option == 'h' or option == 'P' or option == 'I':
                 continue
 
             else:
@@ -7784,7 +7836,7 @@ class ThreadAnalyzer(object):
         # timeline #
         timeLine = ''
         titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
         titleLineLen = len(titleLine)
         timeLineLen = titleLineLen
         for icount in range(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
@@ -8358,7 +8410,7 @@ class ThreadAnalyzer(object):
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Avg")
         procInfoLen = len(procInfo)
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
 
         # Print timeline #
         timeLine = ''
@@ -8379,7 +8431,7 @@ class ThreadAnalyzer(object):
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
             format('[CPU]', '-', '-', '-', '-', value['cpu'])
         procInfoLen = len(procInfo)
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
 
         timeLine = ''
         lineLen = len(procInfo)
@@ -8407,7 +8459,7 @@ class ThreadAnalyzer(object):
             procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['cpu'])
             procInfoLen = len(procInfo)
-            maxLineLen = len(oneLine)
+            maxLineLen = SystemManager.lineLength
 
             timeLine = ''
             lineLen = len(procInfo)
@@ -8439,7 +8491,7 @@ class ThreadAnalyzer(object):
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
         procInfoLen = len(procInfo)
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
 
         # Print timeline #
         timeLine = ''
@@ -8460,7 +8512,7 @@ class ThreadAnalyzer(object):
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
             format('[FREE]', '-', '-', '-', '-', value['memDiff'])
         procInfoLen = len(procInfo)
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
 
         timeLine = ''
         lineLen = len(procInfo)
@@ -8488,7 +8540,7 @@ class ThreadAnalyzer(object):
             procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['memDiff'])
             procInfoLen = len(procInfo)
-            maxLineLen = len(oneLine)
+            maxLineLen = SystemManager.lineLength
 
             timeLine = ''
             lineLen = len(procInfo)
@@ -8520,7 +8572,7 @@ class ThreadAnalyzer(object):
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
         procInfoLen = len(procInfo)
-        maxLineLen = len(oneLine)
+        maxLineLen = SystemManager.lineLength
 
         # Print timeline #
         timeLine = ''
@@ -8545,7 +8597,7 @@ class ThreadAnalyzer(object):
             procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['blk'])
             procInfoLen = len(procInfo)
-            maxLineLen = len(oneLine)
+            maxLineLen = SystemManager.lineLength
 
             timeLine = ''
             lineLen = len(procInfo)
