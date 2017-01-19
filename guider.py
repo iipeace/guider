@@ -4311,8 +4311,8 @@ class SystemManager(object):
     outputFile = None
     printFile = None
     optionList = None
+    savedOptionList = None
     customCmd = None
-    imagePath = None
 
     tgidEnable = True
     binEnable = False
@@ -4329,6 +4329,7 @@ class SystemManager(object):
     prevUptime = 0
     uptimeDiff = 0
 
+    imageEnable = False
     graphEnable = False
     graphLabels = []
     procBuffer = []
@@ -4525,10 +4526,11 @@ class SystemManager(object):
             print('\t\t-F  [file]')
             print('\t[record|top]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
-            print('\t\t\t  [top] {t(hread)|d(isk)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)}')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
-            print('\t\t\t  [thread] {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+            print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
+            print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(user)}')
             print('\t\t-s  [save_traceData:dir/file]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]')
@@ -4709,48 +4711,71 @@ class SystemManager(object):
                 enableStat += 'DISK '
             else:
                 disableStat += 'DISK '
+
             if SystemManager.processEnable is False:
                 enableStat += 'THREAD '
             else:
                 disableStat += 'THREAD '
 
+            if SystemManager.graphEnable is True:
+                enableStat += 'GRAPH '
+            else:
+                disableStat += 'GRAPH '
+
+            if SystemManager.imageEnable is True:
+                enableStat += 'IMAGE '
+            else:
+                disableStat += 'IMAGE '
+
         else:
             SystemManager.printInfo("THREAD MODE")
             SystemManager.threadEnable = True
-            enableStat += 'CPU '
+
+            if SystemManager.cpuEnable is False:
+                disableStat += 'CPU '
+            else:
+                enableStat += 'CPU '
 
             if SystemManager.memEnable is True:
                 enableStat += 'MEMORY '
             else:
                 disableStat += 'MEMORY '
+
             if SystemManager.blockEnable is True:
                 enableStat += 'BLOCK '
             else:
                 disableStat += 'BLOCK '
+
             if SystemManager.irqEnable is True:
                 enableStat += 'IRQ '
             else:
                 disableStat += 'IRQ '
+
             if SystemManager.repeatCount > 0:
                 enableStat += 'REPEAT '
             else:
                 disableStat += 'REPEAT '
+
             if SystemManager.depEnable is True:
                 enableStat += 'DEPENDENCY '
             else:
                 disableStat += 'DEPENDENCY '
+
             if SystemManager.sysEnable is True:
                 enableStat += 'SYSCALL '
             else:
                 disableStat += 'SYSCALL '
+
             if SystemManager.graphEnable is True:
                 enableStat += 'GRAPH '
             else:
                 disableStat += 'GRAPH '
+
             if SystemManager.futexEnable is True:
                 enableStat += 'FUTEX '
             else:
                 disableStat += 'FUTEX '
+
             if SystemManager.resetEnable is True:
                 enableStat += 'RESET '
             else:
@@ -4806,6 +4831,10 @@ class SystemManager(object):
                 SystemManager.pipePrint(SystemManager.procBuffer)
                 SystemManager.printInfo("Saved top usage into %s successfully" % \
                     SystemManager.inputFile)
+
+            if SystemManager.imageEnable is True:
+                SystemManager.makeLogImage()
+
             sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -4831,16 +4860,19 @@ class SystemManager(object):
             ThreadAnalyzer.printIntervalUsage()
             SystemManager.pipePrint(SystemManager.procBuffer)
 
+            SystemManager.procBuffer = []
+            SystemManager.procBufferSize = 0
+
             if SystemManager.fileForPrint is not None:
                 SystemManager.fileForPrint.close()
                 SystemManager.fileForPrint = None
 
-            SystemManager.procBuffer = []
-            SystemManager.procBufferSize = 0
-
             if SystemManager.printFile is not None:
                 SystemManager.printStatus("Saved top usage into %s successfully" % \
                     SystemManager.inputFile)
+
+            if SystemManager.imageEnable is True:
+                SystemManager.makeLogImage()
         elif SystemManager.resetEnable is True:
             SystemManager.writeEvent("EVENT_START")
         else:
@@ -5108,11 +5140,17 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
-            SystemManager.printInfo("only specific threads [%s] were recorded" % ', '.join(SystemManager.showGroup))
+            SystemManager.printInfo("only specific threads [%s] were recorded" % \
+                ', '.join(SystemManager.showGroup))
 
         # check filter list #
         if len(SystemManager.showGroup) > 0:
-            SystemManager.printInfo("only specific threads %s are shown" % ','.join(SystemManager.showGroup))
+            if SystemManager.groupProcEnable is False:
+                SystemManager.printInfo("only specific threads [%s] are shown" % \
+                    ','.join(SystemManager.showGroup))
+            else:
+                SystemManager.printInfo("only specific threads involved in process group of [%s] are shown" % \
+                    ','.join(SystemManager.showGroup))
 
         # apply dependency option #
         launchPosStart = SystemManager.launchBuffer.find(' -D')
@@ -5180,6 +5218,12 @@ class SystemManager(object):
 
 
     @staticmethod
+    def makeLogImage():
+        print SystemManager.inputFile
+
+
+
+    @staticmethod
     def drawText(lines):
         try:
             import PIL
@@ -5223,6 +5267,8 @@ class SystemManager(object):
 
         # save image as png file #
         imageObject.save("guider.png")
+
+        SystemManager.printStatus("Saved image into %s successfully" % "guider.png")
 
 
 
@@ -5324,6 +5370,25 @@ class SystemManager(object):
 
 
     @staticmethod
+    def findOption(option):
+        if len(sys.argv) <= 2:
+            return False
+
+        if SystemManager.savedOptionList is None:
+            SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
+            for seq in range(0, len(SystemManager.savedOptionList)):
+                SystemManager.savedOptionList[seq] = \
+                    SystemManager.savedOptionList[seq].replace(" ", "")
+
+        for item in SystemManager.savedOptionList:
+            if item[0] == option:
+                return True
+
+        return False
+
+
+
+    @staticmethod
     def parseAnalOption():
         if len(sys.argv) <= 2:
             return
@@ -5365,6 +5430,10 @@ class SystemManager(object):
                 SystemManager.depEnable = True
 
             elif option == 'P':
+                if SystemManager.findOption('g') is False:
+                    SystemManager.printError("wrong option with -P, use also -g option to group threads as process")
+                    sys.exit(0)
+
                 SystemManager.groupProcEnable = True
 
             elif option == 'p':
@@ -5390,9 +5459,6 @@ class SystemManager(object):
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
 
-            elif option == 'I':
-                SystemManager.imagePath = value
-
             elif option == 'A':
                 SystemManager.setArch(value)
 
@@ -5404,6 +5470,8 @@ class SystemManager(object):
                     SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+                if options.rfind('I') > -1:
+                    SystemManager.imageEnable = True
 
             elif option == 'v':
                 SystemManager.warningEnable = True
@@ -5523,6 +5591,7 @@ class SystemManager(object):
                 if len(SystemManager.showGroup) == 0:
                     SystemManager.printError("Input value for filtering with -g option")
                     sys.exit(0)
+
                 SystemManager.printInfo("only specific threads [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
 
@@ -5616,7 +5685,7 @@ class SystemManager(object):
             # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
                 option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
-                option == 'h' or option == 'P' or option == 'I':
+                option == 'h' or option == 'P':
                 continue
 
             else:
@@ -6117,6 +6186,7 @@ class SystemManager(object):
 
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = True
+        self.cmdList["sched/sched_migrate_task"] = True
         self.cmdList["sched/sched_process_wait"] = True
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
@@ -6138,7 +6208,6 @@ class SystemManager(object):
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
-        self.cmdList["sched/sched_migrate_task"] = True
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
         self.cmdList["power/suspend_resume"] = True
@@ -6326,24 +6395,31 @@ class SystemManager(object):
         # enable custom events #
         SystemManager.writeCustomCmd()
 
-        if self.cmdList["sched/sched_switch"] is True:
-            if len(SystemManager.showGroup) > 0:
-                cmd = "prev_pid == 0 || next_pid == 0 || "
+        if SystemManager.cpuEnable is True:
+            if self.cmdList["sched/sched_switch"] is True:
+                if len(SystemManager.showGroup) > 0:
+                    cmd = "prev_pid == 0 || next_pid == 0 || "
 
-                for comm in SystemManager.showGroup:
-                    cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
-                    cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
+                    for comm in SystemManager.showGroup:
+                        cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
+                        cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
 
-                cmd = cmd[0:cmd.rfind("||")]
-                SystemManager.writeCmd('sched/sched_switch/filter', cmd)
-            else: SystemManager.writeCmd('sched/sched_switch/filter', '0')
+                    cmd = cmd[0:cmd.rfind("||")]
+                    SystemManager.writeCmd('sched/sched_switch/filter', cmd)
+                else: SystemManager.writeCmd('sched/sched_switch/filter', '0')
 
-            if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
-                SystemManager.printError("sched event of ftrace is not enabled in kernel")
-                sys.exit(0)
+                if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
+                    SystemManager.printError("sched event of ftrace is not enabled in kernel")
+                    sys.exit(0)
 
-        if self.cmdList["sched/sched_wakeup"] is True:
-            SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+            if self.cmdList["sched/sched_wakeup"] is True:
+                SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+            if self.cmdList["sched/sched_migrate_task"] is True:
+                SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
+            if self.cmdList["sched/sched_process_exit"] is True:
+                SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
+            if self.cmdList["sched/sched_process_wait"] is True:
+                SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
         if self.cmdList["irq"] is True:
             SystemManager.writeCmd('irq/enable', '1')
@@ -6466,10 +6542,11 @@ class SystemManager(object):
             SystemManager.writeCmd('module/module_put/enable', '1')
 
         # options for power event tracing #
-        if self.cmdList["power/cpu_idle"] is True:
-            SystemManager.writeCmd('power/cpu_idle/enable', '1')
-        if self.cmdList["power/cpu_frequency"] is True:
-            SystemManager.writeCmd('power/cpu_frequency/enable', '1')
+        if SystemManager.cpuEnable is True:
+            if self.cmdList["power/cpu_idle"] is True:
+                SystemManager.writeCmd('power/cpu_idle/enable', '1')
+            if self.cmdList["power/cpu_frequency"] is True:
+                SystemManager.writeCmd('power/cpu_frequency/enable', '1')
 
         # options for reclaim event tracing #
         if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] is True:
@@ -6487,13 +6564,8 @@ class SystemManager(object):
             SystemManager.writeCmd('task/enable', '1')
         if self.cmdList["signal"] is True:
             SystemManager.writeCmd('signal/enable', '1')
-        if self.cmdList["sched/sched_migrate_task"] is True:
-            SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
-        if self.cmdList["sched/sched_process_exit"] is True:
-            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
-        if self.cmdList["sched/sched_process_wait"] is True:
-            SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
+        # options for printk event tracing #
         if self.cmdList["printk"] is True:
             SystemManager.writeCmd('printk/enable', '1')
 
