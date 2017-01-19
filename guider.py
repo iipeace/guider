@@ -4829,6 +4829,7 @@ class SystemManager(object):
                 SystemManager.printTitle()
                 ThreadAnalyzer.printIntervalUsage()
                 SystemManager.pipePrint(SystemManager.procBuffer)
+                SystemManager.fileForPrint.close()
                 SystemManager.printInfo("Saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
@@ -5219,12 +5220,27 @@ class SystemManager(object):
 
     @staticmethod
     def makeLogImage():
-        print SystemManager.inputFile
+        logFd = None
+
+        try:
+            logFd = open(SystemManager.inputFile, 'r')
+        except:
+            SystemManager.printError("Fail to open %s to read log\n" % SystemManager.inputFile)
+            return
+
+        textBuf = logFd.read()
+
+        logFd.close()
+
+        imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
+            '_' + str(long(SystemManager.uptime)) + '.png'
+
+        SystemManager.drawText(textBuf, imagePath)
 
 
 
     @staticmethod
-    def drawText(lines):
+    def drawText(lines, imagePath):
         try:
             import PIL
             import textwrap
@@ -5250,7 +5266,7 @@ class SystemManager(object):
 
         # calculate image size #
         imageSizeX = fontSizeX * SystemManager.lineLength
-        imageSizeY = fontSizeY * len(lines)
+        imageSizeY = fontSizeY * len(lines) + (fontSizeY * 2)
         imagePosY = 1
 
         # make new blink image #
@@ -5265,10 +5281,14 @@ class SystemManager(object):
             # write text on image #
             drawnImage.text((0, imagePosY), text, (0,0,0), font=imageFont)
 
-        # save image as png file #
-        imageObject.save("guider.png")
+        try:
+            # save image as png file #
+            imageObject.save(imagePath)
+        except:
+            SystemManager.printError("Fail to save image as %s\n" % SystemManager.inputFile)
+            return
 
-        SystemManager.printStatus("Saved image into %s successfully" % "guider.png")
+        SystemManager.printStatus("Saved image into %s successfully" % imagePath)
 
 
 
