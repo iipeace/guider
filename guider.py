@@ -4305,6 +4305,7 @@ class SystemManager(object):
     mountPath = None
     addr2linePath = None
     rootPath = None
+    fontPath = None
     pipeForPrint = None
     fileForPrint = None
     inputFile = None
@@ -4548,6 +4549,7 @@ class SystemManager(object):
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
+            print('\t\t-T  [set_fontPath]')
             print('\t\t-q  [make_taskchain]')
             print('\t[common]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
@@ -5248,7 +5250,6 @@ class SystemManager(object):
     @staticmethod
     def drawText(lines, imagePath):
         try:
-            import PIL
             import textwrap
             from PIL import Image, ImageFont, ImageDraw
         except ImportError:
@@ -5256,8 +5257,12 @@ class SystemManager(object):
             print("[Error] Fail to import package: " + err.args[0])
             return
 
-        # load default font #
-        imageFont = ImageFont.load_default().font
+        try:
+            # load specific font #
+            imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
+        except:
+            # load default font #
+            imageFont = ImageFont.load_default().font
 
         # get default font size and image length #
         text = textwrap.fill('A', width=150)
@@ -5291,7 +5296,7 @@ class SystemManager(object):
             # save image as png file #
             imageObject.save(imagePath)
         except:
-            SystemManager.printError("Fail to save image as %s\n" % SystemManager.inputFile)
+            SystemManager.printError("Fail to save image as %s\n" % imagePath)
             return
 
         SystemManager.printStatus("Saved image into %s successfully" % imagePath)
@@ -5516,6 +5521,9 @@ class SystemManager(object):
             elif option == 'r':
                 SystemManager.rootPath = value
 
+            elif option == 'T':
+                SystemManager.fontPath = value
+
             elif option == 'h':
                 SystemManager.printOptions()
 
@@ -5711,7 +5719,7 @@ class SystemManager(object):
             # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
                 option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
-                option == 'h' or option == 'P':
+                option == 'h' or option == 'P' or option == 'T':
                 continue
 
             else:
