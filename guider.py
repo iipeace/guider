@@ -5228,13 +5228,19 @@ class SystemManager(object):
             SystemManager.printError("Fail to open %s to read log\n" % SystemManager.inputFile)
             return
 
+        # load log #
         textBuf = logFd.read()
 
         logFd.close()
 
+        # trim from process info #
+        textBuf = textBuf[:textBuf.find('[Top Info]')]
+
+        # make image path #
         imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
             '_' + str(long(SystemManager.uptime)) + '.png'
 
+        # draw image #
         SystemManager.drawText(textBuf, imagePath)
 
 
@@ -5274,12 +5280,12 @@ class SystemManager(object):
         drawnImage = ImageDraw.Draw(imageObject)
 
         for line in lines:
-            text = textwrap.fill(line, width=150)
+            text = textwrap.fill(line, width=170)
 
             imagePosY += fontSizeY
 
             # write text on image #
-            drawnImage.text((0, imagePosY), text, (0,0,0), font=imageFont)
+            drawnImage.text((1, imagePosY), text, (0,0,0), font=imageFont)
 
         try:
             # save image as png file #
