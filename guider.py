@@ -5240,7 +5240,7 @@ class SystemManager(object):
 
         # make image path #
         imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
-            '_' + str(long(SystemManager.uptime)) + '.png'
+            '_' + str(long(SystemManager.uptime))
 
         # draw image #
         SystemManager.drawText(textBuf, imagePath)
@@ -5249,20 +5249,51 @@ class SystemManager(object):
 
     @staticmethod
     def drawText(lines, imagePath):
+        imageType = None
+
         try:
             import textwrap
             from PIL import Image, ImageFont, ImageDraw
         except ImportError:
             err = sys.exc_info()[1]
-            print("[Error] Fail to import package: " + err.args[0])
+            SystemManager.printError("Fail to import package: " + err.args[0])
             return
 
         try:
-            # load specific font #
-            imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
-        except:
-            # load default font #
-            imageFont = ImageFont.load_default().font
+            # load png plugin #
+            from PIL import PngImagePlugin
+            imageType = 'png'
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning("Fail to import package: " + err.args[0] + \
+                ", try to use bmp image")
+
+            try:
+                # load bmp plugin #
+                from PIL import BmpImagePlugin
+                imageType = 'bmp'
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError("Fail to import package: " + err.args[0])
+                return
+
+        # set image name #
+        imagePath += '.' + imageType
+
+        if SystemManager.fontPath is not None:
+            try:
+                # load specific font #
+                imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
+            except:
+                SystemManager.printError("Fail to load font from %s" + SystemManager.fontPath)
+                return
+        else:
+            try:
+                # load default font #
+                imageFont = ImageFont.load_default().font
+            except:
+                SystemManager.printError("Fail to load default font, try to use -T option")
+                return
 
         # get default font size and image length #
         text = textwrap.fill('A', width=150)
@@ -5281,7 +5312,15 @@ class SystemManager(object):
         imagePosY = 1
 
         # make new blink image #
-        imageObject = Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
+        if imageType is 'png':
+            imageObject = Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
+        elif imageType is 'bmp':
+            imageObject = Image.new("RGB", (900, imageSizeY), (255, 255, 255))
+        else:
+            SystemManager.printError("No output image type")
+            return
+
+        # make palette #
         drawnImage = ImageDraw.Draw(imageObject)
 
         for line in lines:
@@ -5293,7 +5332,7 @@ class SystemManager(object):
             drawnImage.text((1, imagePosY), text, (0,0,0), font=imageFont)
 
         try:
-            # save image as png file #
+            # save image as file #
             imageObject.save(imagePath)
         except:
             SystemManager.printError("Fail to save image as %s\n" % imagePath)
