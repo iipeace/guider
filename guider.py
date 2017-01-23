@@ -7263,7 +7263,11 @@ class ThreadAnalyzer(object):
                     if SystemManager.printFile is None:
                         SystemManager.printTitle()
 
+                    # print system resource usage #
                     self.printTopUsage()
+
+                    # check and report system status #
+                    self.reportTopUsage()
 
                 time.sleep(SystemManager.intervalEnable)
 
@@ -10895,7 +10899,8 @@ class ThreadAnalyzer(object):
             nrBlocked = 0
 
         SystemManager.addPrint(twoLine + '\n')
-        SystemManager.addPrint(("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
+        SystemManager.addPrint(\
+            ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
             "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "Mlock"))
@@ -11271,8 +11276,14 @@ class ThreadAnalyzer(object):
 
 
 
+    def reportTopUsage(self):
+        pass
+
+
+
     def printTopUsage(self):
-        SystemManager.addPrint((" \n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
+        SystemManager.addPrint(\
+            ("\n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
             "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
             (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
