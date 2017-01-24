@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2016, guider"
+__copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
@@ -4308,6 +4308,8 @@ class SystemManager(object):
     fontPath = None
     pipeForPrint = None
     fileForPrint = None
+    ipListForPrint = []
+    ipListForReport = []
     inputFile = None
     outputFile = None
     printFile = None
@@ -4330,6 +4332,7 @@ class SystemManager(object):
     prevUptime = 0
     uptimeDiff = 0
 
+    reportEnable = False
     imageEnable = False
     graphEnable = False
     graphLabels = []
@@ -4339,6 +4342,7 @@ class SystemManager(object):
     bufferRows = 0
     systemInfoBuffer = ''
     kerSymTable = {}
+    reportData = {}
 
     eventLogFile = None
     eventLogFD = None
@@ -4728,6 +4732,11 @@ class SystemManager(object):
                 enableStat += 'IMAGE '
             else:
                 disableStat += 'IMAGE '
+
+            if SystemManager.reportEnable is True:
+                enableStat += 'REPORT '
+            else:
+                disableStat += 'REPORT '
 
         else:
             SystemManager.printInfo("THREAD MODE")
@@ -5542,6 +5551,8 @@ class SystemManager(object):
                     SystemManager.processEnable = False
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
+                if options.rfind('r') > -1:
+                    SystemManager.reportEnable = True
 
             elif option == 'v':
                 SystemManager.warningEnable = True
@@ -7105,10 +7116,32 @@ class EventAnalyzer(object):
 class ThreadAnalyzer(object):
     """ Analyzer for thread profiling """
 
+    reportData = {}
     procTotalData = {}
     procIntervalData = []
+
+    # constant to check system status for reporting #
+    reportBoundary = {
+        'cpu' : {
+            'total' : 90
+        },
+        'mem' : {
+            'free' : 10
+        },
+        'swap' : {
+            'usage' : 90
+        },
+        'block' : {
+            'ioWait' : 30
+        },
+        'task' : {
+            'nrCtx' : 5000
+        }
+    }
+
     init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', 'startIdx': int(0), \
         'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), 'memDiff': int(0), 'blk': int(0)}
+
     init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
 
 
@@ -7263,11 +7296,11 @@ class ThreadAnalyzer(object):
                     if SystemManager.printFile is None:
                         SystemManager.printTitle()
 
-                    # print system resource usage #
-                    self.printTopUsage()
+                    # print system status #
+                    self.printSystemStat()
 
-                    # check and report system status #
-                    self.reportTopUsage()
+                    # report system status #
+                    self.reportSystemStat()
 
                 time.sleep(SystemManager.intervalEnable)
 
@@ -10812,20 +10845,18 @@ class ThreadAnalyzer(object):
         except:
             pgOutMem = 'NA'
 
-        '''
         try:
-            swapTotal = (self.vmData['swapTotal'] - self.prevVmData['swapTotal']) / 1024
+            swapTotal = self.vmData['swapTotal'] / 1024
         except:
             swapTotal = 'NA'
-        '''
         try:
-            swapFree = self.vmData['swapUsed'] / 1024
+            swapUsage = self.vmData['swapUsed'] / 1024
         except:
-            swapFree = 'NA'
+            swapUsage = 'NA'
         try:
-            swapUsed = (self.vmData['swapUsed'] - self.prevVmData['swapUsed']) / 1024
+            swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) / 1024
         except:
-            swapUsed = 'NA'
+            swapUsageDiff = 'NA'
         try:
             swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
         except:
@@ -10907,6 +10938,8 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(oneLine + '\n')
 
         interval = SystemManager.uptimeDiff
+        ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+        nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
         softIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
 
         # print total cpu usage #
@@ -10934,11 +10967,49 @@ class ThreadAnalyzer(object):
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
-            swapFree, swapUsed, str(swapInMem) + '/' + str(swapOutMem), \
+            swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMem) + '/' + str(pgOutMem), \
             majFaultMem, nrBlocked, softIrq, mlockMem)
 
         SystemManager.addPrint(totalCoreStat)
+
+        # save report data #
+        if SystemManager.reportEnable is True:
+            self.reportData = {}
+
+            self.reportData['cpu'] = {}
+            self.reportData['cpu']['total'] = totalUsage
+            self.reportData['cpu']['user'] = userUsage
+            self.reportData['cpu']['kernel'] = kerUsage
+            self.reportData['cpu']['irq'] = irqUsage
+            self.reportData['cpu']['nrIrq'] = nrIrq
+            self.reportData['cpu']['nrCore'] = SystemManager.nrCore
+
+            self.reportData['mem'] = {}
+            self.reportData['mem']['free'] = freeMem
+            self.reportData['mem']['freeDiff'] = freeDiffMem
+            self.reportData['mem']['anonDiff'] = anonMem
+            self.reportData['mem']['fileDiff'] = fileMem
+            self.reportData['mem']['slabDiff'] = slabMem
+
+            self.reportData['swap'] = {}
+            self.reportData['swap']['total'] = swapTotal
+            self.reportData['swap']['usage'] = swapUsage
+            self.reportData['swap']['useDiff'] = swapUsageDiff
+            self.reportData['swap']['bgReclaim'] = bgReclaim
+            self.reportData['swap']['drReclaim'] = drReclaim
+
+            self.reportData['block'] = {}
+            self.reportData['block']['ioWait'] = ioUsage
+            self.reportData['block']['read'] = pgInMem
+            self.reportData['block']['write'] = pgOutMem
+            self.reportData['block']['nrFault'] = majFaultMem
+
+            self.reportData['task'] = {}
+            self.reportData['task']['nrBlocked'] = nrBlocked
+            self.reportData['task']['nrProc'] = self.nrProcess
+            self.reportData['task']['nrThread'] = self.nrThread
+            self.reportData['task']['nrCtx'] = ctxSwc
 
         # print each cpu usage #
         if SystemManager.showAll is True:
@@ -11276,12 +11347,46 @@ class ThreadAnalyzer(object):
 
 
 
-    def reportTopUsage(self):
-        pass
+    def reportSystemStat(self):
+        if SystemManager.reportEnable is False:
+            return
+
+        # initialize report reason list #
+        self.reportData['reason'] = {}
+        # CPU_FULL, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE #
+
+        # analyze cpu status #
+        if 'cpu' in self.reportData:
+            if ThreadAnalyzer.reportBoundary['cpu']['total'] < self.reportData['cpu']['total']:
+                self.reportData['reason']['CPU_FULL'] = self.reportData['cpu']['total']
+
+        # analyze memory status #
+        if 'mem' in self.reportData:
+            if ThreadAnalyzer.reportBoundary['mem']['free'] > self.reportData['mem']['free']:
+                self.reportData['reason']['MEM_PRESSURE'] = self.reportData['mem']['free']
+
+        # analyze swap status #
+        if 'swap' in self.reportData:
+            swapUsagePer = int(self.reportData['swap']['usage'] / self.reportData['swap']['total'] * 100)
+            if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
+                self.reportData['reason']['SWAP_PRESSURE'] = swapUsagePer
+
+        # analyze block status #
+        if 'block' in self.reportData:
+            if ThreadAnalyzer.reportBoundary['block']['ioWait'] < self.reportData['block']['ioWait']:
+                self.reportData['reason']['IO_INTENSIVE'] = self.reportData['block']['ioWait']
+
+        # analyze task status #
+        if 'task' in self.reportData:
+            pass
+
+        # report system status #
+        if len(self.reportData['reason']) > 0:
+            pass
 
 
 
-    def printTopUsage(self):
+    def printSystemStat(self):
         SystemManager.addPrint(\
             ("\n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
             "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
