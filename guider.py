@@ -8427,10 +8427,13 @@ class ThreadAnalyzer(object):
         # Get time info #
         if 'time' not in ThreadAnalyzer.procIntervalData[index]:
             m = re.match(r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' + \
+                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' + \
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)', procLine)
             if m is not None:
                 d = m.groupdict()
                 ThreadAnalyzer.procIntervalData[index]['time'] = d['time']
+                ThreadAnalyzer.procIntervalData[index]['nrCtxt'] = d['nrCtxt']
+                ThreadAnalyzer.procIntervalData[index]['nrIrq'] = d['nrIrq']
                 ThreadAnalyzer.procIntervalData[index]['nrProc'] = d['nrProc']
                 ThreadAnalyzer.procIntervalData[index]['nrThread'] = d['nrThread']
             return
@@ -8561,9 +8564,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine + '\n')
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | " +\
-            "{5:^8} | {6:^12} | {7:^5} | {8:^6} | {9:^8} |\n").\
+            "{5:^8} | {6:^12} | {7:^5} | {8:^6} | {9:^6} | {10:^6} | {11:^8} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BLKRW(MB)', \
-            'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt', 'NrProc', 'NrThread'))
+            'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
         SystemManager.pipePrint(oneLine + '\n')
 
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -8573,10 +8576,10 @@ class ThreadAnalyzer(object):
                 before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
 
             SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:^6} | {4:^8} | {5:^9} | " +\
-                "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^8} |\n").\
+                "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
                 val['total']['blk'], val['total']['swap'], val['total']['rclm'], \
-                val['total']['nrFlt'], val['nrProc'], val['nrThread']))
+                val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
 
         SystemManager.pipePrint(oneLine + '\n')
 
