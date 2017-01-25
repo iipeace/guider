@@ -7132,7 +7132,7 @@ class ThreadAnalyzer(object):
             'usage' : 90
         },
         'block' : {
-            'ioWait' : 30
+            'ioWait' : 5
         },
         'task' : {
             'nrCtx' : 5000
@@ -10774,9 +10774,9 @@ class ThreadAnalyzer(object):
         except:
             freeMem = 'NA'
         try:
-            freeDiffMem = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
+            freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
         except:
-            freeDiffMem = 'NA'
+            freeMemDiff = 'NA'
 
         try:
             anonMem = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
@@ -10966,7 +10966,7 @@ class ThreadAnalyzer(object):
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
-            freeMem, freeDiffMem, anonMem, fileMem, slabMem, \
+            freeMem, freeMemDiff, anonMem, fileMem, slabMem, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMem) + '/' + str(pgOutMem), \
             majFaultMem, nrBlocked, softIrq, mlockMem)
@@ -10987,7 +10987,7 @@ class ThreadAnalyzer(object):
 
             self.reportData['mem'] = {}
             self.reportData['mem']['free'] = freeMem
-            self.reportData['mem']['freeDiff'] = freeDiffMem
+            self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMem
             self.reportData['mem']['fileDiff'] = fileMem
             self.reportData['mem']['slabDiff'] = slabMem
@@ -11352,29 +11352,94 @@ class ThreadAnalyzer(object):
             return
 
         # initialize report reason list #
-        self.reportData['reason'] = {}
         # CPU_FULL, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE #
+        self.reportData['reason'] = {}
 
         # analyze cpu status #
         if 'cpu' in self.reportData:
             if ThreadAnalyzer.reportBoundary['cpu']['total'] < self.reportData['cpu']['total']:
-                self.reportData['reason']['CPU_FULL'] = self.reportData['cpu']['total']
+                self.reportData['reason']['CPU_FULL'] = {}
+
+                rank = 1
+                sortedProcData = sorted(self.procData.items(), \
+                    key=lambda e: e[1]['ttime'], reverse=True)
+
+                for pid, data in sortedProcData:
+                    if data['ttime'] > 10:
+                        self.reportData['reason']['CPU_FULL'][rank] = {}
+                        self.reportData['reason']['CPU_FULL'][rank]['pid'] = pid
+                        self.reportData['reason']['CPU_FULL'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['reason']['CPU_FULL'][rank]['ttime'] = data['ttime']
+                        self.reportData['reason']['CPU_FULL'][rank]['utime'] = data['utime']
+                        self.reportData['reason']['CPU_FULL'][rank]['stime'] = data['stime']
+
+                        rank += 1
+                    else:
+                        break
 
         # analyze memory status #
         if 'mem' in self.reportData:
             if ThreadAnalyzer.reportBoundary['mem']['free'] > self.reportData['mem']['free']:
-                self.reportData['reason']['MEM_PRESSURE'] = self.reportData['mem']['free']
+                self.reportData['reason']['MEM_PRESSURE'] = {}
+
+                rank = 1
+                sortedProcData = sorted(self.procData.items(), \
+                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+
+                for pid, data in sortedProcData:
+                    rss = long(data['stat'][self.rssIdx]) * 4 / 1024
+
+                    if  rss > 1 and rank < 10:
+                        text = (long(data['stat'][self.ecodeIdx]) - \
+                            long(data['stat'][self.scodeIdx])) / 1024 / 1024
+
+                        self.reportData['reason']['MEM_PRESSURE'][rank] = {}
+                        self.reportData['reason']['MEM_PRESSURE'][rank]['pid'] = pid
+                        self.reportData['reason']['MEM_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['reason']['MEM_PRESSURE'][rank]['rss'] = rss
+                        self.reportData['reason']['MEM_PRESSURE'][rank]['text'] = text
+
+                        try:
+                            self.reportData['reason']['MEM_PRESSURE'][rank]['swap'] = \
+                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
+                        except:
+                            pass
+
+                        try:
+                            self.reportData['reason']['MEM_PRESSURE'][rank]['shared'] = \
+                                long(data['statm'][self.shrIdx]) * 4 / 1024
+                        except:
+                            pass
+
+                        rank += 1
+                    else:
+                        break
 
         # analyze swap status #
         if 'swap' in self.reportData:
-            swapUsagePer = int(self.reportData['swap']['usage'] / self.reportData['swap']['total'] * 100)
+            swapUsagePer = int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
             if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
-                self.reportData['reason']['SWAP_PRESSURE'] = swapUsagePer
+                self.reportData['reason']['SWAP_PRESSURE'] = {}
 
         # analyze block status #
         if 'block' in self.reportData:
             if ThreadAnalyzer.reportBoundary['block']['ioWait'] < self.reportData['block']['ioWait']:
-                self.reportData['reason']['IO_INTENSIVE'] = self.reportData['block']['ioWait']
+                self.reportData['reason']['IO_INTENSIVE'] = {}
+
+                rank = 1
+                sortedProcData = sorted(self.procData.items(), \
+                    key=lambda e: e[1]['btime'], reverse=True)
+
+                for pid, data in sortedProcData:
+                    if data['btime'] > 0:
+                        self.reportData['reason']['IO_INTENSIVE'][rank] = {}
+                        self.reportData['reason']['IO_INTENSIVE'][rank]['pid'] = pid
+                        self.reportData['reason']['IO_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['reason']['IO_INTENSIVE'][rank]['btime'] = data['btime']
+
+                        rank += 1
+                    else:
+                        break
 
         # analyze task status #
         if 'task' in self.reportData:
