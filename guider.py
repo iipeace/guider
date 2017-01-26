@@ -8576,7 +8576,7 @@ class ThreadAnalyzer(object):
                 before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
 
             SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:^6} | {4:^8} | {5:^9} | " +\
-                "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
+                "{6:^8} | {7:^12} | {8:>5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
                 val['total']['blk'], val['total']['swap'], val['total']['rclm'], \
                 val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
@@ -11392,7 +11392,7 @@ class ThreadAnalyzer(object):
                 for pid, data in sortedProcData:
                     rss = long(data['stat'][self.rssIdx]) * 4 / 1024
 
-                    if  rss > 1 and rank < 10:
+                    if  rss > 1 and rank < 5:
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) / 1024 / 1024
 
@@ -11423,6 +11423,39 @@ class ThreadAnalyzer(object):
             swapUsagePer = int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
             if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
                 self.reportData['reason']['SWAP_PRESSURE'] = {}
+
+                rank = 1
+                sortedProcData = sorted(self.procData.items(), \
+                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+
+                for pid, data in sortedProcData:
+                    rss = long(data['stat'][self.rssIdx]) * 4 / 1024
+
+                    if  rss > 1 and rank < 5:
+                        text = (long(data['stat'][self.ecodeIdx]) - \
+                            long(data['stat'][self.scodeIdx])) / 1024 / 1024
+
+                        self.reportData['reason']['SWAP_PRESSURE'][rank] = {}
+                        self.reportData['reason']['SWAP_PRESSURE'][rank]['pid'] = pid
+                        self.reportData['reason']['SWAP_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['reason']['SWAP_PRESSURE'][rank]['rss'] = rss
+                        self.reportData['reason']['SWAP_PRESSURE'][rank]['text'] = text
+
+                        try:
+                            self.reportData['reason']['SWAP_PRESSURE'][rank]['swap'] = \
+                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
+                        except:
+                            pass
+
+                        try:
+                            self.reportData['reason']['SWAP_PRESSURE'][rank]['shared'] = \
+                                long(data['statm'][self.shrIdx]) * 4 / 1024
+                        except:
+                            pass
+
+                        rank += 1
+                    else:
+                        break
 
         # analyze block status #
         if 'block' in self.reportData:
