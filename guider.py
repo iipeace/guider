@@ -363,7 +363,11 @@ class ConfigManager(object):
 class NetworkManager(object):
     """ Manager for remote communication """
 
-    def __init__(self, mode):
+    def __init__(self, mode, ip, port):
+        self.ip = None
+        self.port = None
+        self.socket = None
+
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
         except ImportError:
@@ -372,26 +376,62 @@ class NetworkManager(object):
             sys.exit(0)
 
         if mode is 'server':
-            serverSocket = socket(AF_INET, SOCK_DGRAM)
-            serverSocket.bind(('', 12000))
-
-            while True:
-                message, address = serverSocket.recvfrom(1024)
-                message = message.upper()
-                serverSocket.sendto(message, address)
-        elif mode is 'client':
-            clientSocket = socket(AF_INET, SOCK_DGRAM)
-            clientSocket.settimeout(1)
-            message = 'test'
-            addr = ("127.0.0.1", 12000)
-
-            clientSocket.sendto(message, addr)
-
             try:
-                data, server = clientSocket.recvfrom(1024)
-                print('%s %d' % (data, pings))
-            except timeout:
-                print('REQUEST TIMED OUT')
+                self.ip = ip
+                self.port = port
+                self.socket = socket(AF_INET, SOCK_DGRAM)
+                self.socket.bind((ip, port))
+                self.socket.setblocking(0)
+            except:
+                self.ip = None
+                self.port = None
+                SystemManager.printError("Fail to create socket as server")
+                return None
+
+        elif mode is 'client':
+            try:
+                self.ip = ip
+                self.port = port
+                self.socket = socket(AF_INET, SOCK_DGRAM)
+            except:
+                self.ip = None
+                self.port = None
+                SystemManager.printError("Fail to create socket as client")
+                return None
+
+
+
+    def send(self, message):
+        if self.ip is None or self.port is None:
+            SystemManager.printError("Fail to use IP address for client because it is not set")
+            return False
+        elif self.socket is None:
+            SystemManager.printError("Fail to use socket for client because it is not set")
+            return False
+
+        try:
+            self.socket.sendto(message, (self.ip, self.port))
+            return True
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(("Fail to send data to %s:%d, " % (self.ip, self.port)) + str(err.args))
+            return False
+
+
+
+    def recv(self):
+        if self.ip is None or self.port is None:
+            SystemManager.printError("Fail to use IP address for server because it is not set")
+            return False
+        elif self.socket is None:
+            SystemManager.printError("Fail to use socket for client because it is not set")
+            return False
+
+        try:
+            message, address = self.socket.recvfrom(4096)
+            return (message, address)
+        except:
+            return None
 
 
 
@@ -4308,14 +4348,17 @@ class SystemManager(object):
     fontPath = None
     pipeForPrint = None
     fileForPrint = None
-    ipListForPrint = []
-    ipListForReport = []
     inputFile = None
     outputFile = None
     printFile = None
     optionList = None
     savedOptionList = None
     customCmd = None
+
+    ipAsServer = None
+    ipListForPrint = []
+    ipListForReport = []
+    jsonObject = None
 
     tgidEnable = True
     binEnable = False
@@ -4545,6 +4588,7 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
+            print('\t\t-x  [set_addressForServer:port]')
             print('\t[analysis]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-a  [show_allInfo]')
@@ -4554,6 +4598,8 @@ class SystemManager(object):
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
             print('\t\t-T  [set_fontPath]')
+            print('\t\t-n  [set_addressForPrint:ip:port]')
+            print('\t\t-N  [set_addressForReport:ip:port]')
             print('\t\t-q  [make_taskchain]')
             print('\t[common]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
@@ -5588,6 +5634,77 @@ class SystemManager(object):
                     SystemManager.printError("wrong option value %s with -b option" % value)
                     sys.exit(0)
 
+            elif option == 'n':
+                delimiterPos = value.find(':')
+                if delimiterPos < 0:
+                    SystemManager.printError( \
+                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                    sys.exit(0)
+
+                try:
+                    ip = value[:delimiterPos]
+                    port = int(value[delimiterPos + 1:])
+                except:
+                    SystemManager.printError( \
+                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                    sys.exit(0)
+
+                networkObject = NetworkManager('client', ip, port)
+                if networkObject.ip is None:
+                    sys.exit(0)
+                else:
+                    SystemManager.ipListForPrint.append(networkObject)
+
+                SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
+
+            elif option == 'N':
+                try:
+                    import json
+                    SystemManager.jsonObject = json
+                except ImportError:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError("Fail to import package: " + err.args[0])
+                    sys.exit(0)
+
+                delimiterPos = value.find(':')
+                if delimiterPos < 0:
+                    SystemManager.printError( \
+                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                    sys.exit(0)
+
+                try:
+                    ip = value[:delimiterPos]
+                    port = int(value[delimiterPos + 1:])
+                except:
+                    SystemManager.printError( \
+                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                    sys.exit(0)
+
+                networkObject = NetworkManager('client', ip, port)
+                if networkObject.ip is None:
+                    sys.exit(0)
+                else:
+                    SystemManager.ipListForReport.append(networkObject)
+
+                SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
+
+            elif option == 'x':
+                try:
+                    ip = '127.0.0.1'
+                    port = int(value)
+                except:
+                    SystemManager.printError( \
+                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                    sys.exit(0)
+
+                networkObject = NetworkManager('server', ip, port)
+                if networkObject.ip is None:
+                    sys.exit(0)
+                else:
+                    SystemManager.ipAsServer = networkObject
+
+                SystemManager.printInfo("Use %s:%d as server address" % (ip, port))
+
             elif option == 'S':
                 SystemManager.sort = value
                 if len(SystemManager.sort) > 0:
@@ -5769,7 +5886,8 @@ class SystemManager(object):
             # Ignore options #
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
                 option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
-                option == 'h' or option == 'P' or option == 'T':
+                option == 'h' or option == 'P' or option == 'T' or option == 'n' or \
+                option == 'N' or option == 'x':
                 continue
 
             else:
@@ -7303,6 +7421,8 @@ class ThreadAnalyzer(object):
                     self.reportSystemStat()
 
                 time.sleep(SystemManager.intervalEnable)
+
+                self.checkServer()
 
                 self.prevProcData = self.procData
                 self.procData = {}
@@ -11350,6 +11470,21 @@ class ThreadAnalyzer(object):
 
 
 
+    def checkServer(self):
+        if SystemManager.ipAsServer is None:
+            return
+
+        ret = SystemManager.ipAsServer.recv()
+        if ret is False:
+            SystemManager.ipAsServer = None
+        elif ret is None:
+            return
+        else:
+            # handle request #
+            pass
+
+
+
     def reportSystemStat(self):
         if SystemManager.reportEnable is False:
             return
@@ -11482,8 +11617,20 @@ class ThreadAnalyzer(object):
             pass
 
         # report system status #
-        if len(self.reportData['reason']) > 0:
-            pass
+        if len(self.reportData['reason']) > 0 and len(SystemManager.ipListForReport) > 0:
+            jsonObj = self.makeJsonObject(self.reportData)
+
+            # send report data as json type #
+            if jsonObj is not False:
+                for cli in SystemManager.ipListForReport:
+                    ret = cli.send(jsonObj)
+                    if ret is False:
+                        SystemManager.ipListForReport.pop(SystemManager.ipListForReport.index(cli))
+
+
+
+    def makeJsonObject(self, dictObj):
+        return SystemManager.jsonObject.dumps(dictObj)
 
 
 
@@ -11502,6 +11649,13 @@ class ThreadAnalyzer(object):
 
         # print process info #
         self.printProcUsage()
+
+        # send remote server #
+        if len(SystemManager.ipListForPrint) > 0:
+            for cli in SystemManager.ipListForPrint:
+                ret = cli.send(SystemManager.bufferString)
+                if ret is False:
+                    SystemManager.ipListForPrint.pop(SystemManager.ipListForPrint.index(cli))
 
         # realtime mode #
         if SystemManager.printFile is None:
