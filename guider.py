@@ -4378,10 +4378,10 @@ class SystemManager(object):
     savedOptionList = None
     customCmd = None
 
-    ipAsServer = None
-    ipOfServer = None
-    ipListForPrint = []
-    ipListForReport = []
+    addrAsServer = None
+    addrOfServer = None
+    addrListForPrint = []
+    addrListForReport = []
     jsonObject = None
 
     tgidEnable = True
@@ -5704,7 +5704,7 @@ class SystemManager(object):
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
-                    SystemManager.ipListForPrint.append(networkObject)
+                    SystemManager.addrListForPrint.append(networkObject)
 
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
@@ -5730,7 +5730,7 @@ class SystemManager(object):
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
-                    SystemManager.ipListForReport.append(networkObject)
+                    SystemManager.addrListForReport.append(networkObject)
 
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
@@ -5757,10 +5757,10 @@ class SystemManager(object):
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
-                    SystemManager.ipAsServer = networkObject
+                    SystemManager.addrAsServer = networkObject
 
                 SystemManager.printInfo("Use %s:%d as server address" % \
-                    (SystemManager.ipAsServer.ip, SystemManager.ipAsServer.port))
+                    (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
             elif option == 'X':
                 if SystemManager.findOption('x') is False:
@@ -5796,7 +5796,7 @@ class SystemManager(object):
                     sys.exit(0)
                 else:
                     networkObject.request = request
-                    SystemManager.ipOfServer = networkObject
+                    SystemManager.addrOfServer = networkObject
 
                 SystemManager.printInfo("Use %s:%d as remote server address" % (ip, port))
 
@@ -7512,9 +7512,9 @@ class ThreadAnalyzer(object):
             self.requestService()
 
             while True:
-                if SystemManager.ipOfServer is not None:
+                if SystemManager.addrOfServer is not None:
                     # receive response from server #
-                    ret = SystemManager.ipAsServer.recv()
+                    ret = SystemManager.addrAsServer.recv()
 
                     # handle response from server #
                     self.handleResponse(ret)
@@ -11641,36 +11641,36 @@ class ThreadAnalyzer(object):
 
 
     def requestService(self):
-        if SystemManager.ipOfServer is None or SystemManager.ipAsServer is None:
-            SystemManager.ipOfServer = None
+        if SystemManager.addrOfServer is None or SystemManager.addrAsServer is None:
+            SystemManager.addrOfServer = None
             return False
 
-        if SystemManager.isEffectiveRequest(SystemManager.ipOfServer.request) is True:
+        if SystemManager.isEffectiveRequest(SystemManager.addrOfServer.request) is True:
             try:
                 # set non-block socket #
-                SystemManager.ipAsServer.socket.setblocking(1)
+                SystemManager.addrAsServer.socket.setblocking(1)
 
                 # send request to server #
-                SystemManager.ipAsServer.sendto(\
-                    SystemManager.ipOfServer.request, SystemManager.ipOfServer.ip, SystemManager.ipOfServer.port)
+                SystemManager.addrAsServer.sendto(\
+                    SystemManager.addrOfServer.request, SystemManager.addrOfServer.ip, SystemManager.addrOfServer.port)
             except:
-                SystemManager.printError("Fail to send request '%s'" % SystemManager.ipOfServer.request)
+                SystemManager.printError("Fail to send request '%s'" % SystemManager.addrOfServer.request)
         else:
-            SystemManager.printError("Fail to recognize request '%s'" % SystemManager.ipOfServer.request)
+            SystemManager.printError("Fail to recognize request '%s'" % SystemManager.addrOfServer.request)
             return False
 
 
 
     def checkServer(self):
-        if SystemManager.ipAsServer is None:
+        if SystemManager.addrAsServer is None:
             return
 
         # get message from clients #
-        ret = SystemManager.ipAsServer.recv()
+        ret = SystemManager.addrAsServer.recv()
 
         # check request status #
         if ret is False:
-            SystemManager.ipAsServer = None
+            SystemManager.addrAsServer = None
             return
         elif ret is None:
             return
@@ -11691,14 +11691,14 @@ class ThreadAnalyzer(object):
                 return
 
             if message.find('REGISTER_PRINT') == 0:
-                if self.isDupServer(SystemManager.ipListForPrint, ip, port) is False:
-                    SystemManager.ipListForPrint.append(networkObject)
+                if self.isDupServer(SystemManager.addrListForPrint, ip, port) is False:
+                    SystemManager.addrListForPrint.append(networkObject)
                     SystemManager.printInfo("Added %s:%d as remote output address" % (ip, port))
                 else:
                     SystemManager.printError("Duplicated %s:%d as remote output address" % (ip, port))
             elif message.find('REGISTER_REPORT') == 0:
-                if self.isDupServer(SystemManager.ipListForReport, ip, port) is False:
-                    SystemManager.ipListForReport.append(networkObject)
+                if self.isDupServer(SystemManager.addrListForReport, ip, port) is False:
+                    SystemManager.addrListForReport.append(networkObject)
                     SystemManager.printInfo("Added %s:%d as remote report address" % (ip, port))
                 else:
                     SystemManager.printError("Duplicated %s:%d as remote report address" % (ip, port))
@@ -11840,15 +11840,15 @@ class ThreadAnalyzer(object):
             pass
 
         # report system status #
-        if len(self.reportData['reason']) > 0 and len(SystemManager.ipListForReport) > 0:
+        if len(self.reportData['reason']) > 0 and len(SystemManager.addrListForReport) > 0:
             jsonObj = self.makeJsonObject(self.reportData)
 
             # send report data as json type #
             if jsonObj is not False:
-                for cli in SystemManager.ipListForReport:
+                for cli in SystemManager.addrListForReport:
                     ret = cli.send(jsonObj)
                     if ret is False:
-                        SystemManager.ipListForReport.pop(SystemManager.ipListForReport.index(cli))
+                        SystemManager.addrListForReport.pop(SystemManager.addrListForReport.index(cli))
 
 
 
@@ -11877,11 +11877,11 @@ class ThreadAnalyzer(object):
         self.printProcUsage()
 
         # send remote server #
-        if len(SystemManager.ipListForPrint) > 0:
-            for cli in SystemManager.ipListForPrint:
+        if len(SystemManager.addrListForPrint) > 0:
+            for cli in SystemManager.addrListForPrint:
                 ret = cli.send(SystemManager.bufferString)
                 if ret is False:
-                    SystemManager.ipListForPrint.pop(SystemManager.ipListForPrint.index(cli))
+                    SystemManager.addrListForPrint.pop(SystemManager.addrListForPrint.index(cli))
 
         # realtime mode #
         if SystemManager.printFile is None:
