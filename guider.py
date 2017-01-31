@@ -5715,7 +5715,8 @@ class SystemManager(object):
                 else:
                     SystemManager.ipAsServer = networkObject
 
-                SystemManager.printInfo("Use %s:%d as server address" % (ip, port))
+                SystemManager.printInfo("Use %s:%d as server address" % \
+                    (SystemManager.ipAsServer.ip, SystemManager.ipAsServer.port))
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -11490,15 +11491,39 @@ class ThreadAnalyzer(object):
         if SystemManager.ipAsServer is None:
             return
 
+        # get message from clients #
         ret = SystemManager.ipAsServer.recv()
+
         if ret is False:
             SystemManager.ipAsServer = None
+            return
         elif ret is None:
             return
-        else:
-            print 'ret', ret
-            # handle request #
-            pass
+
+        # handle request #
+        if type(ret) is tuple and type(ret[0]) is str:
+            message = ret[0]
+
+            try:
+                ip = ret[1][0]
+                port = ret[1][1]
+            except:
+                SystemManager.printWarning("Fail to get ip address of client from message")
+                return
+
+            networkObject = NetworkManager('client', ip, port)
+            if networkObject.ip is None:
+                return
+
+            if message.find('REGISTER_PRINT') == 0:
+                SystemManager.ipListForPrint.append(networkObject)
+                SystemManager.printInfo("Added %s:%d as remote output address" % (ip, port))
+            elif message.find('REGISTER_REPORT') == 0:
+                SystemManager.ipListForReport.append(networkObject)
+                SystemManager.printInfo("Added %s:%d as remote report address" % (ip, port))
+            else:
+                SystemManager.printWarning("Unknown request '%s' from client" % message)
+                return
 
 
 
