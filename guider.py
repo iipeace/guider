@@ -377,10 +377,14 @@ class NetworkManager(object):
 
         if mode is 'server':
             try:
-                self.ip = ip
+                if ip is None:
+                    self.ip = '0.0.0.0'
+                else:
+                    self.ip = ip
+
                 self.port = port
                 self.socket = socket(AF_INET, SOCK_DGRAM)
-                self.socket.bind((ip, port))
+                self.socket.bind((self.ip, self.port))
                 self.socket.setblocking(0)
             except:
                 self.ip = None
@@ -4588,7 +4592,7 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
-            print('\t\t-x  [set_addressForServer:port]')
+            print('\t\t-x  [set_addressForServer:ip:port]')
             print('\t[analysis]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-a  [show_allInfo]')
@@ -5620,9 +5624,6 @@ class SystemManager(object):
             elif option == 'T':
                 SystemManager.fontPath = value
 
-            elif option == 'h':
-                SystemManager.printOptions()
-
             elif option == 'b':
                 try:
                     if int(value) > 0:
@@ -5658,18 +5659,19 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
             elif option == 'N':
-                try:
-                    import json
-                    SystemManager.jsonObject = json
-                except ImportError:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import package: " + err.args[0])
-                    sys.exit(0)
+                if SystemManager.jsonObject is None:
+                    try:
+                        import json
+                        SystemManager.jsonObject = json
+                    except ImportError:
+                        err = sys.exc_info()[1]
+                        SystemManager.printError("Fail to import package: " + err.args[0])
+                        sys.exit(0)
 
                 delimiterPos = value.find(':')
                 if delimiterPos < 0:
                     SystemManager.printError( \
-                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                        "wrong option value %s with -N option, input IP:PORT as number type" % value)
                     sys.exit(0)
 
                 try:
@@ -5677,7 +5679,7 @@ class SystemManager(object):
                     port = int(value[delimiterPos + 1:])
                 except:
                     SystemManager.printError( \
-                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                        "wrong option value %s with -N option, input IP:PORT as number type" % value)
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -5689,13 +5691,23 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
             elif option == 'x':
-                try:
-                    ip = '127.0.0.1'
-                    port = int(value)
-                except:
-                    SystemManager.printError( \
-                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
-                    sys.exit(0)
+                delimiterPos = value.find(':')
+                if delimiterPos < 0:
+                    try:
+                        ip = None
+                        port = int(value)
+                    except:
+                        SystemManager.printError( \
+                            "wrong option value %s with -x option, input IP:PORT as number type" % value)
+                        sys.exit(0)
+                else:
+                    try:
+                        ip = value[:delimiterPos]
+                        port = int(value[delimiterPos + 1:])
+                    except:
+                        SystemManager.printError( \
+                            "wrong option value %s with -x option, input PORT as number type" % value)
+                        sys.exit(0)
 
                 networkObject = NetworkManager('server', ip, port)
                 if networkObject.ip is None:
@@ -5723,7 +5735,8 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
-            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or option == 'F' or option == 't':
+            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or option == 'F' or \
+                option == 't' or option == 'h':
                 continue
 
             else:
@@ -7420,10 +7433,13 @@ class ThreadAnalyzer(object):
                     # report system status #
                     self.reportSystemStat()
 
+                # wait for next interval #
                 time.sleep(SystemManager.intervalEnable)
 
+                # check request from client #
                 self.checkServer()
 
+                # reset system status #
                 self.prevProcData = self.procData
                 self.procData = {}
                 self.nrThread = 0
@@ -11480,6 +11496,7 @@ class ThreadAnalyzer(object):
         elif ret is None:
             return
         else:
+            print 'ret', ret
             # handle request #
             pass
 
@@ -11490,7 +11507,7 @@ class ThreadAnalyzer(object):
             return
 
         # initialize report reason list #
-        # CPU_FULL, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE #
+        # CPU_FULL, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
         self.reportData['reason'] = {}
 
         # analyze cpu status #
