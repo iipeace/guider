@@ -367,6 +367,7 @@ class NetworkManager(object):
         self.ip = None
         self.port = None
         self.socket = None
+        self.request = None
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
@@ -419,6 +420,24 @@ class NetworkManager(object):
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(("Fail to send data to %s:%d, " % (self.ip, self.port)) + str(err.args))
+            return False
+
+
+
+    def sendto(self, message, ip, port):
+        if ip is None or port is None:
+            SystemManager.printError("Fail to use IP address for client because it is not set")
+            return False
+        elif self.socket is None:
+            SystemManager.printError("Fail to use socket for client because it is not set")
+            return False
+
+        try:
+            self.socket.sendto(message, (ip, port))
+            return True
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(("Fail to send data to %s:%d, " % (ip, port)) + str(err.args))
             return False
 
 
@@ -4360,6 +4379,7 @@ class SystemManager(object):
     customCmd = None
 
     ipAsServer = None
+    ipOfServer = None
     ipListForPrint = []
     ipListForReport = []
     jsonObject = None
@@ -4592,7 +4612,8 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
-            print('\t\t-x  [set_addressForServer:ip:port]')
+            print('\t\t-x  [set_addressForLocalServer:ip:port]')
+            print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
             print('\t[analysis]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-a  [show_allInfo]')
@@ -5499,6 +5520,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isEffectiveRequest(request):
+        try:
+            ThreadAnalyzer.requestType.index(request)
+
+            if request == 'REGISTER_REPORT' and SystemManager.jsonObject is None:
+                try:
+                    import json
+                    SystemManager.jsonObject = json
+                except ImportError:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError("Fail to import package: " + err.args[0])
+                    sys.exit(0)
+
+            return True
+        except:
+            return False
+
+
+
+    @staticmethod
     def findOption(option):
         if len(sys.argv) <= 2:
             return False
@@ -5602,6 +5643,15 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('r') > -1:
+                    if SystemManager.jsonObject is None:
+                        try:
+                            import json
+                            SystemManager.jsonObject = json
+                        except ImportError:
+                            err = sys.exc_info()[1]
+                            SystemManager.printError("Fail to import package: " + err.args[0])
+                            sys.exit(0)
+
                     SystemManager.reportEnable = True
 
             elif option == 'v':
@@ -5659,14 +5709,8 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
             elif option == 'N':
-                if SystemManager.jsonObject is None:
-                    try:
-                        import json
-                        SystemManager.jsonObject = json
-                    except ImportError:
-                        err = sys.exc_info()[1]
-                        SystemManager.printError("Fail to import package: " + err.args[0])
-                        sys.exit(0)
+                if SystemManager.isEffectiveRequest('REGISTER_REPORT') is False:
+                    sys.exit(0)
 
                 delimiterPos = value.find(':')
                 if delimiterPos < 0:
@@ -5717,6 +5761,44 @@ class SystemManager(object):
 
                 SystemManager.printInfo("Use %s:%d as server address" % \
                     (SystemManager.ipAsServer.ip, SystemManager.ipAsServer.port))
+
+            elif option == 'X':
+                if SystemManager.findOption('x') is False:
+                    SystemManager.printError(\
+                        "wrong option value '%s' with -X, use also -x option to request service" % value)
+                    sys.exit(0)
+
+                optDelimiterPos = value.find('@')
+                if optDelimiterPos < 0:
+                    SystemManager.printError(\
+                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
+                    sys.exit(0)
+
+                request = value[:optDelimiterPos]
+                addr = value[optDelimiterPos + 1:]
+
+                addrDelimiterPos = addr.find(':')
+                if addrDelimiterPos < 0:
+                    SystemManager.printError(\
+                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
+                    sys.exit(0)
+
+                try:
+                    ip = addr[:addrDelimiterPos]
+                    port = int(addr[addrDelimiterPos + 1:])
+                except:
+                    SystemManager.printError( \
+                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
+                    sys.exit(0)
+
+                networkObject = NetworkManager('client', ip, port)
+                if networkObject.ip is None:
+                    sys.exit(0)
+                else:
+                    networkObject.request = request
+                    SystemManager.ipOfServer = networkObject
+
+                SystemManager.printInfo("Use %s:%d as remote server address" % (ip, port))
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -7252,6 +7334,12 @@ class ThreadAnalyzer(object):
     procTotalData = {}
     procIntervalData = []
 
+    # request type #
+    requestType = [
+        'REGISTER_PRINT',
+        'REGISTER_REPORT',
+    ]
+
     # constant to check system status for reporting #
     reportBoundary = {
         'cpu' : {
@@ -7420,9 +7508,21 @@ class ThreadAnalyzer(object):
             if SystemManager.printFile is not None:
                 SystemManager.printStatus(r"start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
 
+            # request service to remote server #
+            self.requestService()
+
             while True:
-                # collect stats of process as soon as possible #
-                self.saveProcs()
+                if SystemManager.ipOfServer is not None:
+                    # receive response from server #
+                    ret = SystemManager.ipAsServer.recv()
+
+                    # handle response from server #
+                    self.handleResponse(ret)
+
+                    continue
+
+                # collect system stats as soon as possible #
+                self.saveSystemStat()
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
@@ -10576,7 +10676,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcs(self):
+    def saveSystemStat(self):
         # save cpu info #
         try:
             cpuBuf = None
@@ -11487,6 +11587,80 @@ class ThreadAnalyzer(object):
 
 
 
+    def isDupServer(self, networkList, ip, port):
+        if networkList is None:
+            return None
+
+        for network in networkList:
+            if network.ip == ip and network.port == port:
+                return True
+
+        return False
+
+
+
+    def handleResponse(self, packet):
+        # return by interrupt from recv #
+        if packet is False or packet is None:
+            sys.exit(0)
+
+        if type(packet) is tuple:
+            data = packet[0]
+            addr = packet[1]
+        else:
+            return
+
+        if type(data) is not str:
+            SystemManager.printWarning("Fail to recognize data from server")
+            return
+
+        # REPORT service #
+        if data[0] == '{':
+            pass
+        # PRINT service #
+        else:
+            if SystemManager.printFile is None:
+                SystemManager.printTitle()
+
+            # realtime mode #
+            if SystemManager.printFile is None:
+                SystemManager.pipePrint(data)
+                SystemManager.clearPrint()
+                SystemManager.bufferRows = 0
+            # buffered mode #
+            else:
+                SystemManager.procBuffer.insert(0, data)
+                SystemManager.procBufferSize += len(data)
+                SystemManager.clearPrint()
+                SystemManager.bufferRows = 0
+
+                while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                    SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
+                    SystemManager.procBuffer.pop(-1)
+
+
+
+    def requestService(self):
+        if SystemManager.ipOfServer is None or SystemManager.ipAsServer is None:
+            SystemManager.ipOfServer = None
+            return False
+
+        if SystemManager.isEffectiveRequest(SystemManager.ipOfServer.request) is True:
+            try:
+                # set non-block socket #
+                SystemManager.ipAsServer.socket.setblocking(1)
+
+                # send request to server #
+                SystemManager.ipAsServer.sendto(\
+                    SystemManager.ipOfServer.request, SystemManager.ipOfServer.ip, SystemManager.ipOfServer.port)
+            except:
+                SystemManager.printError("Fail to send request '%s'" % SystemManager.ipOfServer.request)
+        else:
+            SystemManager.printError("Fail to recognize request '%s'" % SystemManager.ipOfServer.request)
+            return False
+
+
+
     def checkServer(self):
         if SystemManager.ipAsServer is None:
             return
@@ -11494,6 +11668,7 @@ class ThreadAnalyzer(object):
         # get message from clients #
         ret = SystemManager.ipAsServer.recv()
 
+        # check request status #
         if ret is False:
             SystemManager.ipAsServer = None
             return
@@ -11516,11 +11691,17 @@ class ThreadAnalyzer(object):
                 return
 
             if message.find('REGISTER_PRINT') == 0:
-                SystemManager.ipListForPrint.append(networkObject)
-                SystemManager.printInfo("Added %s:%d as remote output address" % (ip, port))
+                if self.isDupServer(SystemManager.ipListForPrint, ip, port) is False:
+                    SystemManager.ipListForPrint.append(networkObject)
+                    SystemManager.printInfo("Added %s:%d as remote output address" % (ip, port))
+                else:
+                    SystemManager.printError("Duplicated %s:%d as remote output address" % (ip, port))
             elif message.find('REGISTER_REPORT') == 0:
-                SystemManager.ipListForReport.append(networkObject)
-                SystemManager.printInfo("Added %s:%d as remote report address" % (ip, port))
+                if self.isDupServer(SystemManager.ipListForReport, ip, port) is False:
+                    SystemManager.ipListForReport.append(networkObject)
+                    SystemManager.printInfo("Added %s:%d as remote report address" % (ip, port))
+                else:
+                    SystemManager.printError("Duplicated %s:%d as remote report address" % (ip, port))
             else:
                 SystemManager.printWarning("Unknown request '%s' from client" % message)
                 return
@@ -11672,7 +11853,10 @@ class ThreadAnalyzer(object):
 
 
     def makeJsonObject(self, dictObj):
-        return SystemManager.jsonObject.dumps(dictObj)
+        if SystemManager.jsonObject is None:
+            return False
+        else:
+            return SystemManager.jsonObject.dumps(dictObj)
 
 
 
