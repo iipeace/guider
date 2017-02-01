@@ -4624,7 +4624,7 @@ class SystemManager(object):
             print('\t\t-r  [input_targetRootPath:dir]')
             print('\t\t-T  [set_fontPath]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
-            print('\t\t-N  [set_addressForReport:ip:port]')
+            print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-q  [make_taskchain]')
             print('\t[common]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
@@ -5524,7 +5524,7 @@ class SystemManager(object):
         try:
             ThreadAnalyzer.requestType.index(request)
 
-            if request == 'REGISTER_REPORT' and SystemManager.jsonObject is None:
+            if request.find('REGISTER_REPORT') >= 0 and SystemManager.jsonObject is None:
                 try:
                     import json
                     SystemManager.jsonObject = json
@@ -5536,6 +5536,36 @@ class SystemManager(object):
             return True
         except:
             return False
+
+
+
+    @staticmethod
+    def parseAddr(value):
+        service = None
+        ip = None
+        port = None
+
+        optDelimiterPos = value.find('@')
+        if optDelimiterPos >= 0:
+            service = value[:optDelimiterPos]
+            addr = value[optDelimiterPos + 1:]
+        else:
+            addr = value
+
+        addrDelimiterPos = addr.find(':')
+        if addrDelimiterPos >= 0:
+            try:
+                ip = addr[:addrDelimiterPos]
+                port = int(addr[addrDelimiterPos + 1:])
+            except:
+                pass
+        else:
+            try:
+                port = int(addr)
+            except:
+                pass
+
+        return (service, ip, port)
 
 
 
@@ -5643,14 +5673,13 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('r') > -1:
-                    if SystemManager.jsonObject is None:
-                        try:
-                            import json
-                            SystemManager.jsonObject = json
-                        except ImportError:
-                            err = sys.exc_info()[1]
-                            SystemManager.printError("Fail to import package: " + err.args[0])
-                            sys.exit(0)
+                    try:
+                        import json
+                        SystemManager.jsonObject = json
+                    except ImportError:
+                        err = sys.exc_info()[1]
+                        SystemManager.printError("Fail to import package: " + err.args[0])
+                        sys.exit(0)
 
                     SystemManager.reportEnable = True
 
@@ -5686,16 +5715,13 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'n':
-                delimiterPos = value.find(':')
-                if delimiterPos < 0:
-                    SystemManager.printError( \
-                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
-                    sys.exit(0)
+                ret = SystemManager.parseAddr(value)
 
-                try:
-                    ip = value[:delimiterPos]
-                    port = int(value[delimiterPos + 1:])
-                except:
+                service = ret[0]
+                ip = ret[1]
+                port = ret[2]
+
+                if ip is None or port is None:
                     SystemManager.printError( \
                         "wrong option value %s with -n option, input IP:PORT as number type" % value)
                     sys.exit(0)
@@ -5709,49 +5735,40 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
             elif option == 'N':
-                if SystemManager.isEffectiveRequest('REGISTER_REPORT') is False:
+                ret = SystemManager.parseAddr(value)
+
+                service = ret[0]
+                ip = ret[1]
+                port = ret[2]
+
+                if (service != 'ALWAYS' and service != 'BOUND') or ip is None or port is None:
+                    SystemManager.printError(\
+                        "wrong option value %s with -N option, input [ALWAYS|BOUND]@IP:PORT as number type" % value)
                     sys.exit(0)
 
-                delimiterPos = value.find(':')
-                if delimiterPos < 0:
-                    SystemManager.printError( \
-                        "wrong option value %s with -N option, input IP:PORT as number type" % value)
-                    sys.exit(0)
-
-                try:
-                    ip = value[:delimiterPos]
-                    port = int(value[delimiterPos + 1:])
-                except:
-                    SystemManager.printError( \
-                        "wrong option value %s with -N option, input IP:PORT as number type" % value)
+                if SystemManager.isEffectiveRequest('REGISTER_REPORT_' + service) is False:
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
+                    networkObject.request = service
                     SystemManager.addrListForReport.append(networkObject)
 
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
             elif option == 'x':
-                delimiterPos = value.find(':')
-                if delimiterPos < 0:
-                    try:
-                        ip = None
-                        port = int(value)
-                    except:
-                        SystemManager.printError( \
-                            "wrong option value %s with -x option, input IP:PORT as number type" % value)
-                        sys.exit(0)
-                else:
-                    try:
-                        ip = value[:delimiterPos]
-                        port = int(value[delimiterPos + 1:])
-                    except:
-                        SystemManager.printError( \
-                            "wrong option value %s with -x option, input PORT as number type" % value)
-                        sys.exit(0)
+                ret = SystemManager.parseAddr(value)
+
+                service = ret[0]
+                ip = ret[1]
+                port = ret[2]
+
+                if port is None:
+                    SystemManager.printError( \
+                        "wrong option value '%s' with -x option, input IP:PORT as number type" % value)
+                    sys.exit(0)
 
                 networkObject = NetworkManager('server', ip, port)
                 if networkObject.ip is None:
@@ -5768,34 +5785,28 @@ class SystemManager(object):
                         "wrong option value '%s' with -X, use also -x option to request service" % value)
                     sys.exit(0)
 
-                optDelimiterPos = value.find('@')
-                if optDelimiterPos < 0:
-                    SystemManager.printError(\
-                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
-                    sys.exit(0)
+                # receive mode #
+                if len(value) == 0:
+                    SystemManager.addrOfServer = 'NONE'
+                    continue
+                # receive mode #
+                else:
+                    ret = SystemManager.parseAddr(value)
 
-                request = value[:optDelimiterPos]
-                addr = value[optDelimiterPos + 1:]
+                    service = ret[0]
+                    ip = ret[1]
+                    port = ret[2]
 
-                addrDelimiterPos = addr.find(':')
-                if addrDelimiterPos < 0:
-                    SystemManager.printError(\
-                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
-                    sys.exit(0)
-
-                try:
-                    ip = addr[:addrDelimiterPos]
-                    port = int(addr[addrDelimiterPos + 1:])
-                except:
-                    SystemManager.printError( \
-                        "wrong option '%s' with -X, input REQ@IP:PORT as remote server address" % value)
-                    sys.exit(0)
+                    if service is None or ip is None or port is None:
+                        SystemManager.printError(\
+                            "wrong option value '%s' with -X, input REQUEST@IP:PORT as remote server address" % value)
+                        sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
-                    networkObject.request = request
+                    networkObject.request = service
                     SystemManager.addrOfServer = networkObject
 
                 SystemManager.printInfo("Use %s:%d as remote server address" % (ip, port))
@@ -7337,7 +7348,8 @@ class ThreadAnalyzer(object):
     # request type #
     requestType = [
         'REGISTER_PRINT',
-        'REGISTER_REPORT',
+        'REGISTER_REPORT_ALWAYS',
+        'REGISTER_REPORT_BOUND',
     ]
 
     # constant to check system status for reporting #
@@ -7517,7 +7529,7 @@ class ThreadAnalyzer(object):
                     ret = SystemManager.addrAsServer.recv()
 
                     # handle response from server #
-                    self.handleResponse(ret)
+                    self.handleServerResponse(ret)
 
                     continue
 
@@ -11180,7 +11192,7 @@ class ThreadAnalyzer(object):
         interval = SystemManager.uptimeDiff
         ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
         nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
-        softIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
+        nrSoftIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
 
         # print total cpu usage #
         nowData = self.cpuData['all']
@@ -11209,7 +11221,7 @@ class ThreadAnalyzer(object):
             freeMem, freeMemDiff, anonMem, fileMem, slabMem, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMem) + '/' + str(pgOutMem), \
-            majFaultMem, nrBlocked, softIrq, mlockMem)
+            majFaultMem, nrBlocked, nrSoftIrq, mlockMem)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -11217,12 +11229,17 @@ class ThreadAnalyzer(object):
         if SystemManager.reportEnable is True:
             self.reportData = {}
 
+            self.reportData['system'] = {}
+            self.reportData['system']['uptime'] = SystemManager.uptime
+            self.reportData['system']['interval'] = interval
+            self.reportData['system']['nrIrq'] = nrIrq
+            self.reportData['system']['nrSoftIrq'] = nrSoftIrq
+
             self.reportData['cpu'] = {}
             self.reportData['cpu']['total'] = totalUsage
             self.reportData['cpu']['user'] = userUsage
             self.reportData['cpu']['kernel'] = kerUsage
             self.reportData['cpu']['irq'] = irqUsage
-            self.reportData['cpu']['nrIrq'] = nrIrq
             self.reportData['cpu']['nrCore'] = SystemManager.nrCore
 
             self.reportData['mem'] = {}
@@ -11587,7 +11604,22 @@ class ThreadAnalyzer(object):
 
 
 
-    def isDupServer(self, networkList, ip, port):
+    def removeAddr(self, networkList, ip, port):
+        if networkList is None:
+            return None
+
+        count = 0
+        for network in networkList:
+            if network.ip == ip and network.port == port:
+                networkList.pop(0)
+                return True
+            count += 1
+
+        return False
+
+
+
+    def isDupAddr(self, networkList, ip, port):
         if networkList is None:
             return None
 
@@ -11599,7 +11631,44 @@ class ThreadAnalyzer(object):
 
 
 
-    def handleResponse(self, packet):
+    def printReportStat(self, reportStat):
+        if reportStat is None or type(reportStat) is not dict:
+            SystemManager.printWarning("Fail to recognize report data")
+            return
+
+        printBuf = twoLine + '\n'
+
+        if 'reason' in reportStat:
+            for reason, proc in reportStat['reason'].items():
+                printBuf += '[reason] (%s)\n' % (reason)
+
+                for rank, stat in proc.items():
+                    printBuf += '[%s] ' % (rank)
+
+                    for item, val in stat.items():
+                        printBuf += '(%s: %s) ' % (item, val)
+
+                    printBuf += '\n'
+
+                printBuf += oneLine + '\n'
+
+            del reportStat['reason']
+
+        for idx, stat in reportStat.items():
+            printBuf += '[%s] ' % idx
+
+            for item, val in stat.items():
+                printBuf += '(%s: %s) ' % (item, val)
+
+            printBuf += '\n'
+
+        printBuf += twoLine + '\n'
+
+        SystemManager.pipePrint(printBuf)
+
+
+
+    def handleServerResponse(self, packet):
         # return by interrupt from recv #
         if packet is False or packet is None:
             sys.exit(0)
@@ -11616,7 +11685,19 @@ class ThreadAnalyzer(object):
 
         # REPORT service #
         if data[0] == '{':
-            pass
+            if SystemManager.jsonObject is None:
+                try:
+                    import json
+                    SystemManager.jsonObject = json
+                except ImportError:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError("Fail to import package: " + err.args[0])
+
+            # convert report data to dictionary type #
+            reportStat = self.makeJsonDict(data)
+
+            # print report data #
+            self.printReportStat(reportStat)
         # PRINT service #
         else:
             if SystemManager.printFile is None:
@@ -11643,9 +11724,15 @@ class ThreadAnalyzer(object):
     def requestService(self):
         if SystemManager.addrOfServer is None or SystemManager.addrAsServer is None:
             SystemManager.addrOfServer = None
-            return False
+        elif SystemManager.addrOfServer is 'NONE' and SystemManager.addrAsServer is not None:
+            try:
+                # set non-block socket #
+                SystemManager.addrAsServer.socket.setblocking(1)
 
-        if SystemManager.isEffectiveRequest(SystemManager.addrOfServer.request) is True:
+                SystemManager.printStatus("Wait for response from server")
+            except:
+                SystemManager.printError("Fail to set socket to non-block")
+        elif SystemManager.isEffectiveRequest(SystemManager.addrOfServer.request) is True:
             try:
                 # set non-block socket #
                 SystemManager.addrAsServer.socket.setblocking(1)
@@ -11653,11 +11740,12 @@ class ThreadAnalyzer(object):
                 # send request to server #
                 SystemManager.addrAsServer.sendto(\
                     SystemManager.addrOfServer.request, SystemManager.addrOfServer.ip, SystemManager.addrOfServer.port)
+
+                SystemManager.printStatus("Wait for response from server")
             except:
                 SystemManager.printError("Fail to send request '%s'" % SystemManager.addrOfServer.request)
         else:
             SystemManager.printError("Fail to recognize request '%s'" % SystemManager.addrOfServer.request)
-            return False
 
 
 
@@ -11668,7 +11756,7 @@ class ThreadAnalyzer(object):
         # get message from clients #
         ret = SystemManager.addrAsServer.recv()
 
-        # check request status #
+        # verify request type #
         if ret is False:
             SystemManager.addrAsServer = None
             return
@@ -11691,20 +11779,26 @@ class ThreadAnalyzer(object):
                 return
 
             if message.find('REGISTER_PRINT') == 0:
-                if self.isDupServer(SystemManager.addrListForPrint, ip, port) is False:
+                if self.isDupAddr(SystemManager.addrListForPrint, ip, port) is False:
                     SystemManager.addrListForPrint.append(networkObject)
-                    SystemManager.printInfo("Added %s:%d as remote output address" % (ip, port))
+                    SystemManager.printInfo("Registered %s:%d as remote output address" % (ip, port))
                 else:
-                    SystemManager.printError("Duplicated %s:%d as remote output address" % (ip, port))
+                    SystemManager.printWarning("Duplicated %s:%d as remote output address" % (ip, port))
             elif message.find('REGISTER_REPORT') == 0:
-                if self.isDupServer(SystemManager.addrListForReport, ip, port) is False:
+                if message == 'REGISTER_REPORT_ALWAYS':
+                    networkObject.request = 'ALWAYS'
+
+                if self.isDupAddr(SystemManager.addrListForReport, ip, port) is False:
                     SystemManager.addrListForReport.append(networkObject)
-                    SystemManager.printInfo("Added %s:%d as remote report address" % (ip, port))
+                    SystemManager.printInfo("Registered %s:%d as remote report address" % (ip, port))
+                elif self.removeAddr(SystemManager.addrListForReport, ip, port) is True:
+                    SystemManager.addrListForReport.append(networkObject)
+                    SystemManager.printInfo("Updated %s:%d as remote report address" % (ip, port))
                 else:
-                    SystemManager.printError("Duplicated %s:%d as remote report address" % (ip, port))
+                    SystemManager.printWarning("Failed to update %s:%d as remote report address" % (ip, port))
+            # wrong request or just data from server #
             else:
-                SystemManager.printWarning("Unknown request '%s' from client" % message)
-                return
+                pass
 
 
 
@@ -11713,13 +11807,13 @@ class ThreadAnalyzer(object):
             return
 
         # initialize report reason list #
-        # CPU_FULL, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
+        # CPU_INTENSIVE, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
         self.reportData['reason'] = {}
 
         # analyze cpu status #
         if 'cpu' in self.reportData:
             if ThreadAnalyzer.reportBoundary['cpu']['total'] < self.reportData['cpu']['total']:
-                self.reportData['reason']['CPU_FULL'] = {}
+                self.reportData['reason']['CPU_INTENSIVE'] = {}
 
                 rank = 1
                 sortedProcData = sorted(self.procData.items(), \
@@ -11727,12 +11821,12 @@ class ThreadAnalyzer(object):
 
                 for pid, data in sortedProcData:
                     if data['ttime'] > 10:
-                        self.reportData['reason']['CPU_FULL'][rank] = {}
-                        self.reportData['reason']['CPU_FULL'][rank]['pid'] = pid
-                        self.reportData['reason']['CPU_FULL'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['reason']['CPU_FULL'][rank]['ttime'] = data['ttime']
-                        self.reportData['reason']['CPU_FULL'][rank]['utime'] = data['utime']
-                        self.reportData['reason']['CPU_FULL'][rank]['stime'] = data['stime']
+                        self.reportData['reason']['CPU_INTENSIVE'][rank] = {}
+                        self.reportData['reason']['CPU_INTENSIVE'][rank]['pid'] = pid
+                        self.reportData['reason']['CPU_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['reason']['CPU_INTENSIVE'][rank]['ttime'] = data['ttime']
+                        self.reportData['reason']['CPU_INTENSIVE'][rank]['utime'] = data['utime']
+                        self.reportData['reason']['CPU_INTENSIVE'][rank]['stime'] = data['stime']
 
                         rank += 1
                     else:
@@ -11778,7 +11872,9 @@ class ThreadAnalyzer(object):
 
         # analyze swap status #
         if 'swap' in self.reportData:
-            swapUsagePer = int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
+            swapUsagePer = \
+                int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
+
             if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
                 self.reportData['reason']['SWAP_PRESSURE'] = {}
 
@@ -11835,28 +11931,39 @@ class ThreadAnalyzer(object):
                     else:
                         break
 
+        # analyze system status #
+        if 'system' in self.reportData:
+            pass
+
         # analyze task status #
         if 'task' in self.reportData:
             pass
 
         # report system status #
-        if len(self.reportData['reason']) > 0 and len(SystemManager.addrListForReport) > 0:
-            jsonObj = self.makeJsonObject(self.reportData)
-
-            # send report data as json type #
-            if jsonObj is not False:
-                for cli in SystemManager.addrListForReport:
+        nrReason = len(self.reportData['reason'])
+        for cli in SystemManager.addrListForReport:
+            if cli.request == 'ALWAYS' or  nrReason > 0:
+                jsonObj = self.makeJsonString(self.reportData)
+                if jsonObj is not None:
                     ret = cli.send(jsonObj)
                     if ret is False:
                         SystemManager.addrListForReport.pop(SystemManager.addrListForReport.index(cli))
 
 
 
-    def makeJsonObject(self, dictObj):
+    def makeJsonString(self, dictObj):
         if SystemManager.jsonObject is None:
-            return False
+            return None
         else:
             return SystemManager.jsonObject.dumps(dictObj)
+
+
+
+    def makeJsonDict(self, strObj):
+        if SystemManager.jsonObject is None:
+            return None
+        else:
+            return SystemManager.jsonObject.loads(strObj)
 
 
 
