@@ -5524,7 +5524,7 @@ class SystemManager(object):
         try:
             ThreadAnalyzer.requestType.index(request)
 
-            if request.find('REGISTER_REPORT') >= 0 and SystemManager.jsonObject is None:
+            if request.find('REPORT') >= 0 and SystemManager.jsonObject is None:
                 try:
                     import json
                     SystemManager.jsonObject = json
@@ -5607,16 +5607,24 @@ class SystemManager(object):
                     continue
 
                 try:
-                    if int(value) > 0:
-                        SystemManager.intervalEnable = int(value)
+                    SystemManager.intervalEnable = int(value)
+
+                    if SystemManager.intervalEnable <= 0:
+                        SystemManager.printError(\
+                            "wrong option value with -i option, input number bigger than 0")
+                        sys.exit(0)
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    SystemManager.printError("wrong option value %s with -i option" % value)
+                    SystemManager.printError(\
+                        "wrong option value with -i option, input number in integer format")
                     sys.exit(0)
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
                 if os.path.isdir(SystemManager.printFile) == False:
-                    SystemManager.printError("wrong option value %s with -o option, use existing directory path" % value)
+                    SystemManager.printError(\
+                        "wrong option value with -o option, use existing directory path")
                     sys.exit(0)
 
             elif option == 'a':
@@ -5708,10 +5716,12 @@ class SystemManager(object):
                     if int(value) > 0:
                         SystemManager.bufferSize = str(value)
                     else:
-                        SystemManager.printError("wrong option value %s with -b option" % value)
+                        SystemManager.printError(\
+                            "wrong option value with -b option, input number bigger than 0")
                         sys.exit(0)
                 except:
-                    SystemManager.printError("wrong option value %s with -b option" % value)
+                    SystemManager.printError(\
+                            "wrong option value with -b option, input number in integer format")
                     sys.exit(0)
 
             elif option == 'n':
@@ -5723,7 +5733,7 @@ class SystemManager(object):
 
                 if ip is None or port is None:
                     SystemManager.printError( \
-                        "wrong option value %s with -n option, input IP:PORT as number type" % value)
+                        "wrong option value with -n option, input IP:PORT in format")
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -5741,12 +5751,16 @@ class SystemManager(object):
                 ip = ret[1]
                 port = ret[2]
 
-                if (service != 'ALWAYS' and service != 'BOUND') or ip is None or port is None:
-                    SystemManager.printError(\
-                        "wrong option value %s with -N option, input [ALWAYS|BOUND]@IP:PORT as number type" % value)
-                    sys.exit(0)
+                if ip is None or port is None or \
+                    SystemManager.isEffectiveRequest(service) is False:
+                    reqList = ''
+                    for req in ThreadAnalyzer.requestType:
+                        if req.find('REPORT_') == 0:
+                            reqList += req + '|'
 
-                if SystemManager.isEffectiveRequest('REGISTER_REPORT_' + service) is False:
+                    SystemManager.printError(\
+                        "wrong option value with -N option, input [%s]@IP:PORT in format" % \
+                        reqList[:-1])
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -5767,7 +5781,7 @@ class SystemManager(object):
 
                 if port is None:
                     SystemManager.printError( \
-                        "wrong option value '%s' with -x option, input IP:PORT as number type" % value)
+                        "wrong option value with -x option, input IP:PORT in format")
                     sys.exit(0)
 
                 networkObject = NetworkManager('server', ip, port)
@@ -5782,7 +5796,7 @@ class SystemManager(object):
             elif option == 'X':
                 if SystemManager.findOption('x') is False:
                     SystemManager.printError(\
-                        "wrong option value '%s' with -X, use also -x option to request service" % value)
+                        "wrong option with -X, use also -x option to request service")
                     sys.exit(0)
 
                 # receive mode #
@@ -5797,9 +5811,15 @@ class SystemManager(object):
                     ip = ret[1]
                     port = ret[2]
 
-                    if service is None or ip is None or port is None:
+                    if service is None or ip is None or port is None or \
+                        SystemManager.isEffectiveRequest(service) is False:
+                        reqList = ''
+                        for req in ThreadAnalyzer.requestType:
+                            reqList += req + '|'
+
                         SystemManager.printError(\
-                            "wrong option value '%s' with -X, input REQUEST@IP:PORT as remote server address" % value)
+                            "wrong option value with -X, input [%s]@IP:PORT as remote server address" % \
+                            reqList[:-1])
                         sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -5823,7 +5843,7 @@ class SystemManager(object):
                     elif SystemManager.sort == 'w':
                         SystemManager.printInfo("sorted by WaitForChild")
                     else:
-                        SystemManager.printError("wrong option value %s with -S option" % SystemManager.sort)
+                        SystemManager.printError("wrong option value with -S option")
                         sys.exit(0)
 
             elif option == 'u':
@@ -5855,10 +5875,14 @@ class SystemManager(object):
                     if int(value) > 0:
                         SystemManager.bufferSize = str(value)
                     else:
-                        SystemManager.printError("wrong option value %s with -b option" % value)
+                        SystemManager.printError(\
+                            "wrong option value with -b option, input number bigger than 0")
                         sys.exit(0)
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    SystemManager.printError("wrong option value %s with -b option" % value)
+                    SystemManager.printError(\
+                        "wrong option value with -b option, input number in integer format")
                     sys.exit(0)
 
             elif option == 'f':
@@ -5915,7 +5939,7 @@ class SystemManager(object):
                 elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]) is True:
                     continue
                 else:
-                    SystemManager.printError("wrong option value %s with -s option" % value)
+                    SystemManager.printError("wrong option value with -s option")
                     sys.exit(0)
 
                 SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
@@ -5956,18 +5980,18 @@ class SystemManager(object):
             elif option == 'R':
                 repeatParams = value.split(',')
                 if len(repeatParams) != 2:
-                    SystemManager.printError("wrong option with -R, use -R INTERVAL,REPEAT")
+                    SystemManager.printError("wrong option value with -R, input INTERVAL,REPEAT in format")
                     sys.exit(0)
                 else:
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
                     except:
-                        SystemManager.printError("wrong option with -R, use integer values")
+                        SystemManager.printError("wrong option value with -R, input integer values")
                         sys.exit(0)
 
                 if SystemManager.repeatInterval < 1 or SystemManager.repeatCount < 1:
-                    SystemManager.printError("wrong option with -R, use values bigger than 0")
+                    SystemManager.printError("wrong option value with -R, input values bigger than 0")
                     sys.exit(0)
 
             elif option == 'o':
@@ -7347,9 +7371,9 @@ class ThreadAnalyzer(object):
 
     # request type #
     requestType = [
-        'REGISTER_PRINT',
-        'REGISTER_REPORT_ALWAYS',
-        'REGISTER_REPORT_BOUND',
+        'PRINT',
+        'REPORT_ALWAYS',
+        'REPORT_BOUND',
     ]
 
     # constant to check system status for reporting #
@@ -11724,28 +11748,22 @@ class ThreadAnalyzer(object):
     def requestService(self):
         if SystemManager.addrOfServer is None or SystemManager.addrAsServer is None:
             SystemManager.addrOfServer = None
-        elif SystemManager.addrOfServer is 'NONE' and SystemManager.addrAsServer is not None:
-            try:
-                # set non-block socket #
-                SystemManager.addrAsServer.socket.setblocking(1)
+            return
 
-                SystemManager.printStatus("Wait for response from server")
-            except:
-                SystemManager.printError("Fail to set socket to non-block")
-        elif SystemManager.isEffectiveRequest(SystemManager.addrOfServer.request) is True:
-            try:
-                # set non-block socket #
-                SystemManager.addrAsServer.socket.setblocking(1)
+        try:
+            # set non-block socket #
+            SystemManager.addrAsServer.socket.setblocking(1)
 
+            if SystemManager.addrOfServer is not 'NONE':
                 # send request to server #
                 SystemManager.addrAsServer.sendto(\
-                    SystemManager.addrOfServer.request, SystemManager.addrOfServer.ip, SystemManager.addrOfServer.port)
+                    SystemManager.addrOfServer.request, \
+                    SystemManager.addrOfServer.ip, \
+                    SystemManager.addrOfServer.port)
 
-                SystemManager.printStatus("Wait for response from server")
-            except:
-                SystemManager.printError("Fail to send request '%s'" % SystemManager.addrOfServer.request)
-        else:
-            SystemManager.printError("Fail to recognize request '%s'" % SystemManager.addrOfServer.request)
+            SystemManager.printStatus("Wait for response from server")
+        except:
+            SystemManager.printError("Fail to send request '%s'" % SystemManager.addrOfServer.request)
 
 
 
@@ -11778,15 +11796,14 @@ class ThreadAnalyzer(object):
             if networkObject.ip is None:
                 return
 
-            if message.find('REGISTER_PRINT') == 0:
+            if message.find('PRINT') == 0:
                 if self.isDupAddr(SystemManager.addrListForPrint, ip, port) is False:
                     SystemManager.addrListForPrint.append(networkObject)
                     SystemManager.printInfo("Registered %s:%d as remote output address" % (ip, port))
                 else:
                     SystemManager.printWarning("Duplicated %s:%d as remote output address" % (ip, port))
-            elif message.find('REGISTER_REPORT') == 0:
-                if message == 'REGISTER_REPORT_ALWAYS':
-                    networkObject.request = 'ALWAYS'
+            elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
+                networkObject.request = message
 
                 if self.isDupAddr(SystemManager.addrListForReport, ip, port) is False:
                     SystemManager.addrListForReport.append(networkObject)
@@ -11942,7 +11959,7 @@ class ThreadAnalyzer(object):
         # report system status #
         nrReason = len(self.reportData['reason'])
         for cli in SystemManager.addrListForReport:
-            if cli.request == 'ALWAYS' or  nrReason > 0:
+            if cli.request == 'REPORT_ALWAYS' or  nrReason > 0:
                 jsonObj = self.makeJsonString(self.reportData)
                 if jsonObj is not None:
                     ret = cli.send(jsonObj)
@@ -12103,7 +12120,7 @@ if __name__ == '__main__':
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.outputFile is None:
-                SystemManager.printError("wrong option with -s, use also path to save data")
+                SystemManager.printError("wrong option with -s, input also path to save data")
                 sys.exit(0)
         else:
             SystemManager.repeatInterval = 0
