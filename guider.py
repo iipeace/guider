@@ -11050,165 +11050,93 @@ class ThreadAnalyzer(object):
 
     def printSystemUsage(self):
         try:
+            # free memory #
             freeMem = self.vmData['nr_free_pages'] * 4 / 1024
-        except:
-            freeMem = 'NA'
-        try:
             freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
-        except:
-            freeMemDiff = 'NA'
 
-        try:
-            anonMem = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
-        except:
-            anonMem = 'NA'
-        try:
-            fileMem = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
-        except:
-            fileMem = 'NA'
+            # anonymous memory #
+            actAnonMem = self.vmData['nr_active_anon'] * 4 / 1024
+            inactAnonMem = self.vmData['nr_inactive_anon'] * 4 / 1024
+            anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
 
-        '''
-        try:
-            anonInMem = (self.vmData['nr_inactive_anon'] - self.prevVmData['nr_inactive_anon']) * 4 / 1024
-        except:
-            anonInMem = 'NA'
-        try:
-            anonAcMem = (self.vmData['nr_active_anon'] - self.prevVmData['nr_active_anon']) * 4 / 1024
-        except:
-            anonAcMem = 'NA'
+            # file memory #
+            actFileMem = self.vmData['nr_active_file'] * 4 / 1024
+            inactFileMem = self.vmData['nr_inactive_file'] * 4 / 1024
+            fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
 
-        try:
-            fileInMem = (self.vmData['nr_inactive_file'] - self.prevVmData['nr_inactive_file']) * 4 / 1024
-        except:
-            fileInMem = 'NA'
-        try:
-            fileAcMem = (self.vmData['nr_active_file'] - self.prevVmData['nr_active_file']) * 4 / 1024
-        except:
-            fileAcMem = 'NA'
-        '''
+            # slab memory #
+            slabReclmDiff = self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable']
+            slabUnReclmDiff = self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable']
+            slabMemDiff = (slabReclmDiff + slabUnReclmDiff) * 4 / 1024
 
-        try:
-            slabReclm = (self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable'])
-        except:
-            slabReclm = 'NA'
-        try:
-            slabUnReclm = (self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable'])
-        except:
-            slabUnReclm = 'NA'
-        try:
-            slabMem = (slabReclm + slabUnReclm) * 4 / 1024
-        except:
-            slabMem = 'NA'
+            # fault #
+            nrMajFault = self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']
+            nrTotalFault = self.vmData['pgfault'] - self.prevVmData['pgfault']
+            nrMinFault = nrTotalFault - nrMajFault
 
-        try:
-            majFaultMem = (self.vmData['pgmajfault'] - self.prevVmData['pgmajfault'])
-        except:
-            majFaultMem = 'NA'
-        '''
-        try:
-            faultMem = (self.vmData['pgfault'] - self.prevVmData['pgfault'])
-        except:
-            faultMem = 'NA'
-        try:
-            minFaultMem = faultMem - majFaultMem
-        except:
-            minFaultMem = 'NA'
-        '''
+            # paged in/out from/to disk #
+            pgInMemDiff = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) / 1024
+            pgOutMemDiff = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) / 1024
 
-        # paged in/out from/to disk #
-        try:
-            pgInMem = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) / 1024
-        except:
-            pgInMem = 'NA'
-        try:
-            pgOutMem = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) / 1024
-        except:
-            pgOutMem = 'NA'
-
-        try:
+            # swap memory #
             swapTotal = self.vmData['swapTotal'] / 1024
-        except:
-            swapTotal = 'NA'
-        try:
             swapUsage = self.vmData['swapUsed'] / 1024
-        except:
-            swapUsage = 'NA'
-        try:
             swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) / 1024
-        except:
-            swapUsageDiff = 'NA'
-        try:
             swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
-        except:
-            swapInMem = 'NA'
-        try:
             swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) / 1024
-        except:
-            swapOutMem = 'NA'
 
-        '''
-        try:
-            nrBgReclaim = (self.vmData['pageoutrun'] - self.prevVmData['pageoutrun'])
-        except:
-            nrBgReclaim = 'NA'
-        '''
-        try:
-            bgReclaimNormal = (self.vmData['pgsteal_kswapd_normal'] - \
-                self.prevVmData['pgsteal_kswapd_normal'])
-        except:
-            bgReclaimNormal = 0
-        try:
-            bgReclaimHigh = (self.vmData['pgsteal_kswapd_high'] - \
-                self.prevVmData['pgsteal_kswapd_high'])
-        except:
-            bgReclaimHigh = 0
-        try:
-            bgReclaim = (bgReclaimNormal + bgReclaimHigh) * 4 / 1024
-        except:
-            bgReclaim = 'NA'
 
-        '''
-        try:
-            nrDrReclaim = (self.vmData['allocstall'] - self.prevVmData['allocstall'])
-        except:
-            nrDrReclaim = 'NA'
-        '''
-        try:
-            drReclaimNormal = (self.vmData['pgsteal_direct_normal'] - \
-                self.prevVmData['pgsteal_direct_normal'])
-        except:
-            drReclaimNormal = 0
-        try:
-            drReclaimHigh = (self.vmData['pgsteal_direct_high'] - \
-                self.prevVmData['pgsteal_direct_high'])
-        except:
-            drReclaimHigh = 0
-        try:
-            drReclaim = (drReclaimNormal + drReclaimHigh) * 4 / 1024
-        except:
-            drReclaim = 'NA'
+            # background reclaim #
+            bgReclaim = 0
+            if 'pgsteal_kswapd_normal' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd_normal'] - self.prevVmData['pgsteal_kswapd_normal']
+            if 'pgsteal_kswapd_high' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd_high'] - self.prevVmData['pgsteal_kswapd_high']
+            if 'pgsteal_kswapd_dma' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd_dma'] - self.prevVmData['pgsteal_kswapd_dma']
+            if 'pgsteal_kswapd_dma32' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd_dma32'] - self.prevVmData['pgsteal_kswapd_dma32']
+            if 'pgsteal_kswapd_movable' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd_movable'] - self.prevVmData['pgsteal_kswapd_movable']
+            bgReclaim = bgReclaim * 4 / 1024
+            nrBgReclaim = self.vmData['pageoutrun'] - self.prevVmData['pageoutrun']
 
-        try:
+            # direct reclaim #
+            drReclaim = 0
+            if 'pgsteal_direct_normal' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct_normal'] - self.prevVmData['pgsteal_direct_normal']
+            if 'pgsteal_direct_high' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct_high'] - self.prevVmData['pgsteal_direct_high']
+            if 'pgsteal_direct_dma' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct_dma'] - self.prevVmData['pgsteal_direct_dma']
+            if 'pgsteal_direct_dma32' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct_dma32'] - self.prevVmData['pgsteal_direct_dma32']
+            if 'pgsteal_direct_movable' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct_movable'] - self.prevVmData['pgsteal_direct_movable']
+            drReclaim = drReclaim * 4 / 1024
+            nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
+
+
             mlockMem = self.vmData['nr_mlock'] * 4 / 1024
-        except:
-            mlockMem = 'NA'
-
-        '''
-        try:
             mappedMem = self.vmData['nr_mapped'] * 4 / 1024
-        except:
-            mappedMem = 'NA'
-        try:
             shMem = self.vmData['nr_shmem'] * 4 / 1024
-        except:
-            shMem = 'NA'
-        '''
 
-        try:
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
         except:
-            nrBlocked = 0
+            SystemManager.printError("Fail to get all system stat")
+            return
 
+        # print system status menu #
         SystemManager.addPrint(twoLine + '\n')
         SystemManager.addPrint(\
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
@@ -11246,10 +11174,10 @@ class ThreadAnalyzer(object):
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
-            freeMem, freeMemDiff, anonMem, fileMem, slabMem, \
+            freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
-            str(bgReclaim) + '/' + str(drReclaim), str(pgInMem) + '/' + str(pgOutMem), \
-            majFaultMem, nrBlocked, nrSoftIrq, mlockMem)
+            str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
+            nrMajFault, nrBlocked, nrSoftIrq, mlockMem)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -11273,9 +11201,9 @@ class ThreadAnalyzer(object):
             self.reportData['mem'] = {}
             self.reportData['mem']['free'] = freeMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
-            self.reportData['mem']['anonDiff'] = anonMem
-            self.reportData['mem']['fileDiff'] = fileMem
-            self.reportData['mem']['slabDiff'] = slabMem
+            self.reportData['mem']['anonDiff'] = anonMemDiff
+            self.reportData['mem']['fileDiff'] = fileMemDiff
+            self.reportData['mem']['slabDiff'] = slabMemDiff
 
             self.reportData['swap'] = {}
             self.reportData['swap']['total'] = swapTotal
@@ -11286,9 +11214,9 @@ class ThreadAnalyzer(object):
 
             self.reportData['block'] = {}
             self.reportData['block']['ioWait'] = ioUsage
-            self.reportData['block']['read'] = pgInMem
-            self.reportData['block']['write'] = pgOutMem
-            self.reportData['block']['nrFault'] = majFaultMem
+            self.reportData['block']['read'] = pgInMemDiff
+            self.reportData['block']['write'] = pgOutMemDiff
+            self.reportData['block']['nrFault'] = nrMajFault
 
             self.reportData['task'] = {}
             self.reportData['task']['nrBlocked'] = nrBlocked
@@ -11666,9 +11594,9 @@ class ThreadAnalyzer(object):
 
         printBuf = twoLine + '\n'
 
-        if 'reason' in reportStat:
-            for reason, proc in reportStat['reason'].items():
-                printBuf += '[reason] (%s)\n' % (reason)
+        if 'event' in reportStat:
+            for event, proc in reportStat['event'].items():
+                printBuf += '[event] (%s)\n' % (event)
 
                 for rank, stat in proc.items():
                     printBuf += '[%s] ' % (rank)
@@ -11680,7 +11608,7 @@ class ThreadAnalyzer(object):
 
                 printBuf += oneLine + '\n'
 
-            del reportStat['reason']
+            del reportStat['event']
 
         for idx, stat in reportStat.items():
             printBuf += '[%s] ' % idx
@@ -11827,14 +11755,14 @@ class ThreadAnalyzer(object):
         if SystemManager.reportEnable is False:
             return
 
-        # initialize report reason list #
+        # initialize report event list #
         # CPU_INTENSIVE, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
-        self.reportData['reason'] = {}
+        self.reportData['event'] = {}
 
         # analyze cpu status #
         if 'cpu' in self.reportData:
             if ThreadAnalyzer.reportBoundary['cpu']['total'] < self.reportData['cpu']['total']:
-                self.reportData['reason']['CPU_INTENSIVE'] = {}
+                self.reportData['event']['CPU_INTENSIVE'] = {}
 
                 rank = 1
                 sortedProcData = sorted(self.procData.items(), \
@@ -11842,12 +11770,12 @@ class ThreadAnalyzer(object):
 
                 for pid, data in sortedProcData:
                     if data['ttime'] > 10:
-                        self.reportData['reason']['CPU_INTENSIVE'][rank] = {}
-                        self.reportData['reason']['CPU_INTENSIVE'][rank]['pid'] = pid
-                        self.reportData['reason']['CPU_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['reason']['CPU_INTENSIVE'][rank]['ttime'] = data['ttime']
-                        self.reportData['reason']['CPU_INTENSIVE'][rank]['utime'] = data['utime']
-                        self.reportData['reason']['CPU_INTENSIVE'][rank]['stime'] = data['stime']
+                        self.reportData['event']['CPU_INTENSIVE'][rank] = {}
+                        self.reportData['event']['CPU_INTENSIVE'][rank]['pid'] = pid
+                        self.reportData['event']['CPU_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['event']['CPU_INTENSIVE'][rank]['ttime'] = data['ttime']
+                        self.reportData['event']['CPU_INTENSIVE'][rank]['utime'] = data['utime']
+                        self.reportData['event']['CPU_INTENSIVE'][rank]['stime'] = data['stime']
 
                         rank += 1
                     else:
@@ -11856,7 +11784,7 @@ class ThreadAnalyzer(object):
         # analyze memory status #
         if 'mem' in self.reportData:
             if ThreadAnalyzer.reportBoundary['mem']['free'] > self.reportData['mem']['free']:
-                self.reportData['reason']['MEM_PRESSURE'] = {}
+                self.reportData['event']['MEM_PRESSURE'] = {}
 
                 rank = 1
                 sortedProcData = sorted(self.procData.items(), \
@@ -11869,20 +11797,20 @@ class ThreadAnalyzer(object):
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) / 1024 / 1024
 
-                        self.reportData['reason']['MEM_PRESSURE'][rank] = {}
-                        self.reportData['reason']['MEM_PRESSURE'][rank]['pid'] = pid
-                        self.reportData['reason']['MEM_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['reason']['MEM_PRESSURE'][rank]['rss'] = rss
-                        self.reportData['reason']['MEM_PRESSURE'][rank]['text'] = text
+                        self.reportData['event']['MEM_PRESSURE'][rank] = {}
+                        self.reportData['event']['MEM_PRESSURE'][rank]['pid'] = pid
+                        self.reportData['event']['MEM_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['event']['MEM_PRESSURE'][rank]['rss'] = rss
+                        self.reportData['event']['MEM_PRESSURE'][rank]['text'] = text
 
                         try:
-                            self.reportData['reason']['MEM_PRESSURE'][rank]['swap'] = \
+                            self.reportData['event']['MEM_PRESSURE'][rank]['swap'] = \
                                 long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
                         except:
                             pass
 
                         try:
-                            self.reportData['reason']['MEM_PRESSURE'][rank]['shared'] = \
+                            self.reportData['event']['MEM_PRESSURE'][rank]['shared'] = \
                                 long(data['statm'][self.shrIdx]) * 4 / 1024
                         except:
                             pass
@@ -11897,7 +11825,7 @@ class ThreadAnalyzer(object):
                 int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
 
             if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
-                self.reportData['reason']['SWAP_PRESSURE'] = {}
+                self.reportData['event']['SWAP_PRESSURE'] = {}
 
                 rank = 1
                 sortedProcData = sorted(self.procData.items(), \
@@ -11910,20 +11838,20 @@ class ThreadAnalyzer(object):
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) / 1024 / 1024
 
-                        self.reportData['reason']['SWAP_PRESSURE'][rank] = {}
-                        self.reportData['reason']['SWAP_PRESSURE'][rank]['pid'] = pid
-                        self.reportData['reason']['SWAP_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['reason']['SWAP_PRESSURE'][rank]['rss'] = rss
-                        self.reportData['reason']['SWAP_PRESSURE'][rank]['text'] = text
+                        self.reportData['event']['SWAP_PRESSURE'][rank] = {}
+                        self.reportData['event']['SWAP_PRESSURE'][rank]['pid'] = pid
+                        self.reportData['event']['SWAP_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['event']['SWAP_PRESSURE'][rank]['rss'] = rss
+                        self.reportData['event']['SWAP_PRESSURE'][rank]['text'] = text
 
                         try:
-                            self.reportData['reason']['SWAP_PRESSURE'][rank]['swap'] = \
+                            self.reportData['event']['SWAP_PRESSURE'][rank]['swap'] = \
                                 long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
                         except:
                             pass
 
                         try:
-                            self.reportData['reason']['SWAP_PRESSURE'][rank]['shared'] = \
+                            self.reportData['event']['SWAP_PRESSURE'][rank]['shared'] = \
                                 long(data['statm'][self.shrIdx]) * 4 / 1024
                         except:
                             pass
@@ -11935,7 +11863,7 @@ class ThreadAnalyzer(object):
         # analyze block status #
         if 'block' in self.reportData:
             if ThreadAnalyzer.reportBoundary['block']['ioWait'] < self.reportData['block']['ioWait']:
-                self.reportData['reason']['IO_INTENSIVE'] = {}
+                self.reportData['event']['IO_INTENSIVE'] = {}
 
                 rank = 1
                 sortedProcData = sorted(self.procData.items(), \
@@ -11943,10 +11871,10 @@ class ThreadAnalyzer(object):
 
                 for pid, data in sortedProcData:
                     if data['btime'] > 0:
-                        self.reportData['reason']['IO_INTENSIVE'][rank] = {}
-                        self.reportData['reason']['IO_INTENSIVE'][rank]['pid'] = pid
-                        self.reportData['reason']['IO_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['reason']['IO_INTENSIVE'][rank]['btime'] = data['btime']
+                        self.reportData['event']['IO_INTENSIVE'][rank] = {}
+                        self.reportData['event']['IO_INTENSIVE'][rank]['pid'] = pid
+                        self.reportData['event']['IO_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        self.reportData['event']['IO_INTENSIVE'][rank]['btime'] = data['btime']
 
                         rank += 1
                     else:
@@ -11961,7 +11889,7 @@ class ThreadAnalyzer(object):
             pass
 
         # report system status #
-        nrReason = len(self.reportData['reason'])
+        nrReason = len(self.reportData['event'])
         for cli in SystemManager.addrListForReport:
             if cli.request == 'REPORT_ALWAYS' or  nrReason > 0:
                 jsonObj = self.makeJsonString(self.reportData)
