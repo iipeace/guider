@@ -11977,13 +11977,15 @@ class ThreadAnalyzer(object):
 
     def printSystemStat(self):
         SystemManager.addPrint(\
-            ("\n[Top Info] [Time: %7.3f] [Period: %d sec] [Interval: %.1f sec] " + \
-            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] [Unit: %%/MB]\n") % \
+            ("\n[Top Info] [Time: %7.3f] [Period: %d] [Interval: %.1f] " + \
+            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] " + \
+            "[RAM: %d] [Swap: %d] [Unit: %%/MB]\n") % \
             (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
-            SystemManager.nrCore, self.nrProcess, self.nrThread))
+            SystemManager.nrCore, self.nrProcess, self.nrThread, \
+            self.memData['MemTotal'] / 1024, self.memData['SwapTotal'] / 1024))
 
         # print system usage #
         self.printSystemUsage()
