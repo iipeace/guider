@@ -327,7 +327,7 @@ class ConfigManager(object):
         file += '.tc'
         if os.path.isfile(file) is True:
             SystemManager.printWarning(\
-                "%s already exist, make new one" % file)
+                "%s already exist, make it new one" % file)
 
         try:
             fd = open(file, 'w')
@@ -4625,7 +4625,7 @@ class SystemManager(object):
             print('\t\t-T  [set_fontPath]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
-            print('\t\t-q  [make_taskchain]')
+            print('\t\t-q  [make_taskchainFile]')
             print('\t[common]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
@@ -5534,6 +5534,8 @@ class SystemManager(object):
                     sys.exit(0)
 
             return True
+        except SystemExit:
+            sys.exit(0)
         except:
             return False
 
@@ -5719,6 +5721,8 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "wrong option value with -b option, input number bigger than 0")
                         sys.exit(0)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printError(\
                             "wrong option value with -b option, input number in integer format")
@@ -7674,13 +7678,13 @@ class ThreadAnalyzer(object):
             return
 
         while True:
-            eventInput = raw_input('Input event name for taskchain: ')
+            eventInput = raw_input('\nInput event(file) name for taskchain: ')
             fd = ConfigManager.openConfFile(eventInput)
             if fd != None:
                 break
 
         ConfigManager.writeConfData(fd, '[%s]\n' % (eventInput))
-        threadInput = raw_input('Input tids of hot threads for taskchain (ex. 13,144,235): ')
+        threadInput = raw_input('Input id of target threads for taskchain (ex. 13,144,235): ')
         threadList = threadInput.split(',')
         ConfigManager.writeConfData(fd, 'nr_tid=' + str(len(threadList)) + '\n')
 
@@ -7698,7 +7702,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[t]
             except:
-                SystemManager.printWarning("thread %s is not in profiled data" % t)
+                SystemManager.printWarning("thread [%s] is not in profiled data" % t)
                 continue
 
             ConfigManager.writeConfData(\
@@ -9906,7 +9910,7 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "kfree":
-                m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)', etc)
+                m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
