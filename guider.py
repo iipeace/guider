@@ -11598,7 +11598,7 @@ class ThreadAnalyzer(object):
             for event, proc in reportStat['event'].items():
                 printBuf += '[event] (%s)\n' % (event)
 
-                for rank, stat in proc.items():
+                for rank, stat in sorted(proc.items(), key=lambda e: int(e[0]), reverse=False):
                     printBuf += '[%s] ' % (rank)
 
                     for item, val in stat.items():
@@ -11912,7 +11912,11 @@ class ThreadAnalyzer(object):
         if SystemManager.jsonObject is None:
             return None
         else:
-            return SystemManager.jsonObject.loads(strObj)
+            try:
+                strObj = strObj.replace("'", '"')
+                return SystemManager.jsonObject.loads(strObj)
+            except:
+                return None
 
 
 
