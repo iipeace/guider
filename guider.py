@@ -4422,6 +4422,7 @@ class SystemManager(object):
     sort = None
 
     statFd = None
+    memFd = None
     vmstatFd = None
     swapFd = None
     uptimeFd = None
@@ -7429,6 +7430,8 @@ class ThreadAnalyzer(object):
         self.prevProcData = {}
         self.cpuData = {}
         self.prevCpuData = {}
+        self.memData = {}
+        self.prevMemData = {}
         self.vmData = {}
         self.prevVmData = {}
         self.systemData = {}
@@ -10763,6 +10766,28 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
+        # save mem info #
+        try:
+            memBuf = None
+            SystemManager.memFd.seek(0)
+            memBuf = SystemManager.memFd.readlines()
+        except:
+            try:
+                memPath = os.path.join(SystemManager.procPath, 'meminfo')
+                SystemManager.memFd = open(memPath, 'r')
+
+                memBuf = SystemManager.memFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % memPath)
+
+        if memBuf is not None:
+            self.prevMemData = self.memData
+            self.memData = {}
+
+            for line in memBuf:
+                memList = line.split()
+                self.memData[memList[0][:-1]] = long(memList[1])
+
         # save vmstat info #
         try:
             vmBuf = None
@@ -11065,6 +11090,8 @@ class ThreadAnalyzer(object):
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
 
             # slab memory #
+            slabReclm = self.vmData['nr_slab_reclaimable'] * 4 / 1024
+            slabUnReclm = self.vmData['nr_slab_unreclaimable'] * 4 / 1024
             slabReclmDiff = self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable']
             slabUnReclmDiff = self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable']
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) * 4 / 1024
@@ -11084,7 +11111,6 @@ class ThreadAnalyzer(object):
             swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) / 1024
             swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
             swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) / 1024
-
 
             # background reclaim #
             bgReclaim = 0
@@ -11127,11 +11153,35 @@ class ThreadAnalyzer(object):
             nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
 
 
+            # etc #
             mlockMem = self.vmData['nr_mlock'] * 4 / 1024
             mappedMem = self.vmData['nr_mapped'] * 4 / 1024
-            shMem = self.vmData['nr_shmem'] * 4 / 1024
 
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
+
+            # total mem #
+            totalMem = self.memData['MemTotal'] / 1024
+
+            # cma mem #
+            if 'CmaTotal' in self.memData:
+                cmaTotalMem = self.memData['CmaTotal']
+
+                if 'CmaFree' in self.memData:
+                    cmaFreeMem = self.memData['CmaFree']
+                else:
+                    cmaFreeMem = 0
+                if 'CmaDeviceAlloc' in self.memData:
+                    cmaDevMem = self.memData['CmaDeviceAlloc']
+                else:
+                    cmaDevMem = 0
+            else:
+                cmaTotalMem = 0
+
+            '''
+            shMem = self.vmData['nr_shmem'] * 4 / 1024
+            pageTableMem = self.vmData['nr_page_table_pages'] * 4 / 1024
+            kernelStackMem = self.vmData['nr_kernel_stack'] * 8 / 1024
+            '''
         except:
             SystemManager.printError("Fail to get all system stat")
             return
@@ -11199,11 +11249,16 @@ class ThreadAnalyzer(object):
             self.reportData['cpu']['nrCore'] = SystemManager.nrCore
 
             self.reportData['mem'] = {}
+            self.reportData['mem']['total'] = totalMem
             self.reportData['mem']['free'] = freeMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
             self.reportData['mem']['slabDiff'] = slabMemDiff
+            if cmaTotalMem > 0:
+                self.reportData['mem']['cmaTotal'] = cmaTotalMem
+                self.reportData['mem']['cmaFree'] = cmaFreeMem
+                self.reportData['mem']['cmaDev'] = cmaDevMem
 
             self.reportData['swap'] = {}
             self.reportData['swap']['total'] = swapTotal
