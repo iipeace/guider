@@ -11094,11 +11094,13 @@ class ThreadAnalyzer(object):
             # anonymous memory #
             actAnonMem = self.vmData['nr_active_anon'] * 4 / 1024
             inactAnonMem = self.vmData['nr_inactive_anon'] * 4 / 1024
+            totalAnonMem = self.vmData['nr_anon_pages'] * 4 / 1024
             anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
 
             # file memory #
             actFileMem = self.vmData['nr_active_file'] * 4 / 1024
             inactFileMem = self.vmData['nr_inactive_file'] * 4 / 1024
+            totalFileMem = self.vmData['nr_file_pages'] * 4 / 1024
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
 
             # slab memory #
@@ -11106,6 +11108,8 @@ class ThreadAnalyzer(object):
             slabUnReclm = self.vmData['nr_slab_unreclaimable'] * 4 / 1024
             slabReclmDiff = self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable']
             slabUnReclmDiff = self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable']
+            totalSlabMem = \
+                (self.vmData['nr_slab_reclaimable'] + self.vmData['nr_slab_unreclaimable']) * 4 / 1024
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) * 4 / 1024
 
             # fault #
@@ -11263,6 +11267,9 @@ class ThreadAnalyzer(object):
             self.reportData['mem'] = {}
             self.reportData['mem']['total'] = totalMem
             self.reportData['mem']['free'] = freeMem
+            self.reportData['mem']['anon'] = totalAnonMem
+            self.reportData['mem']['file'] = totalFileMem
+            self.reportData['mem']['slab'] = totalSlabMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
