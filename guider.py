@@ -7405,7 +7405,7 @@ class ThreadAnalyzer(object):
             'usage' : 90
         },
         'block' : {
-            'ioWait' : 5
+            'ioWait' : 20
         },
         'task' : {
             'nrCtx' : 5000
@@ -11230,7 +11230,7 @@ class ThreadAnalyzer(object):
                 ioUsage += (self.cpuData[int(idx)]['iowait'] - self.prevCpuData[int(idx)]['iowait'])
             except:
                 pass
-        ioUsage = int(ioUsage / SystemManager.nrCore / interval)
+        ioUsage = int(ioUsage / interval)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
