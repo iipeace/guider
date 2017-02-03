@@ -33,7 +33,8 @@ Requirement
 ```
 - linux kernel (>= 3.0)
 - python (>= 2.7)
-- root permission (in thread mode)
+- root permission (except for top mode)
+- kernel configuration (except for top mode)
 ```
 
 
@@ -81,41 +82,45 @@ Options
 * Use comma(,) as delimiter for multiple values
 
 ```
-[mode]
-        [thread]
-    top [top]
-    -y  [system]
-    -f  [function]
-    -F  [file]
-    
-[record|top]
-    -e  [enable_optionsPerMode:bellowCharacters]
-          [top] {t(hread)|d(isk)}
-          [function] {m(em)|b(lock)|h(eap)|p(ipe)}
-          [thread] {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}
-    -d  [disable_optionsPerMode:bellowCharacters]
-          [function] {c(pu)|u(user)}
-    -s  [save_traceData:dir/file]
-    -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]
-    -u  [run_inBackground]
-    -W  [wait_forSignal]
-    -R  [record_repeatedly:interval,count]
-    -b  [set_bufferSize:kb]
-    -D  [trace_threadDependency]
-    -t  [trace_syscall:syscalls]
-    
-[analysis]
-    -o  [save_outputData:dir]
-    -a  [show_allInfo]
-    -i  [set_interval:sec]
-    -p  [show_preemptInfo:tids]
-    -l  [input_addr2linePath:file]
-    -r  [input_targetRootPath:dir]
-    -q  [make_taskchain]
-    
-[common]
-    -g  [filter_specificGroup:comms|tids]
-    -A  [set_arch:arm|x86|x64]
-    -c  [set_customEvent:event:filter]
-    -v  [verbose]
+    [mode]
+            [thread]
+        top [top]
+        -y  [system]
+        -f  [function]
+        -F  [file]
+    [record|top]
+        -e  [enable_optionsPerMode:bellowCharacters]
+              [top]      {t(hread)|d(isk)|I(mage)}
+              [function] {m(em)|b(lock)|h(eap)|p(ipe)}
+              [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}
+        -d  [disable_optionsPerMode:bellowCharacters]
+              [thread]   {c(pu)}
+              [function] {c(pu)|u(user)}
+        -s  [save_traceData:dir/file]
+        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]
+        -u  [run_inBackground]
+        -W  [wait_forSignal]
+        -R  [record_repeatedly:interval,count]
+        -b  [set_bufferSize:kb]
+        -D  [trace_threadDependency]
+        -t  [trace_syscall:syscalls]
+        -x  [set_addressForLocalServer:ip:port]
+        -X  [set_requestToRemoteServer:req@ip:port]
+    [analysis]
+        -o  [save_outputData:dir]
+        -a  [show_allInfo]
+        -i  [set_interval:sec]
+        -P  [group_perProcessBasis]
+        -p  [show_preemptInfo:tids]
+        -l  [input_addr2linePath:file]
+        -r  [input_targetRootPath:dir]
+        -T  [set_fontPath]
+        -n  [set_addressForPrint:ip:port]
+        -N  [set_addressForReport:req@ip:port]
+        -q  [make_taskchainFile]
+    [common]
+        -g  [filter_specificGroup:comms|tids]
+        -A  [set_arch:arm|x86|x64]
+        -c  [set_customEvent:event:filter]
+        -v  [verbose]
 ```
