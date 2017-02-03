@@ -11282,7 +11282,7 @@ class ThreadAnalyzer(object):
             self.reportData['swap'] = {}
             self.reportData['swap']['total'] = swapTotal
             self.reportData['swap']['usage'] = swapUsage
-            self.reportData['swap']['useDiff'] = swapUsageDiff
+            self.reportData['swap']['usageDiff'] = swapUsageDiff
             self.reportData['swap']['bgReclaim'] = bgReclaim
             self.reportData['swap']['drReclaim'] = drReclaim
 
@@ -11660,7 +11660,7 @@ class ThreadAnalyzer(object):
         for idx, stat in reportStat.items():
             printBuf += '[%s] ' % idx
 
-            for item, val in stat.items():
+            for item, val in sorted(stat.items(), reverse=False):
                 printBuf += '(%s: %s) ' % (item, val)
 
             printBuf += '\n'
