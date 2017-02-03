@@ -7396,16 +7396,16 @@ class ThreadAnalyzer(object):
     # constant to check system status for reporting #
     reportBoundary = {
         'cpu' : {
-            'total' : 90
+            'total' : 80
         },
         'mem' : {
-            'free' : 10
+            'free' : 20
         },
         'swap' : {
             'usage' : 90
         },
         'block' : {
-            'ioWait' : 20
+            'ioWait' : 10
         },
         'task' : {
             'nrCtx' : 5000
