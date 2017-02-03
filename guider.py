@@ -369,6 +369,7 @@ class NetworkManager(object):
         self.socket = None
         self.request = None
         self.status = None
+        self.ignore = 0
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
@@ -7548,7 +7549,7 @@ class ThreadAnalyzer(object):
                 SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
             except:
                 SystemManager.printWarning(\
-                    "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
+                    "Fail to get maxFd because of no resource package, use %d as default value" % SystemManager.maxFd)
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -11811,8 +11812,10 @@ class ThreadAnalyzer(object):
             elif message == 'ACK':
                 index = ip + ':' + str(port)
                 if index in SystemManager.addrListForPrint:
+                    SystemManager.addrListForPrint[index].ignore -= 1
                     SystemManager.addrListForPrint[index].status = 'READY'
                 elif index in SystemManager.addrListForReport:
+                    SystemManager.addrListForReport[index].ignore -= 1
                     SystemManager.addrListForReport[index].status = 'READY'
                 else:
                     SystemManager.printWarning("Fail to find %s:%d as remote report address" % (ip, port))
@@ -11967,14 +11970,16 @@ class ThreadAnalyzer(object):
         nrReason = len(self.reportData['event'])
         for addr, cli in SystemManager.addrListForReport.items():
             if cli.request == 'REPORT_ALWAYS' or  nrReason > 0:
-                if cli.status == 'SENT':
+                if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printWarning(\
-                        "Stop to send report data to %s:%d becuase of no response" % (cli.ip, cli.port))
+                        "Stop to send data for report to %s:%d because of no response" % (cli.ip, cli.port))
                     del SystemManager.addrListForReport[addr]
                 else:
                     ret = cli.send(jsonObj)
                     if ret is False:
                         del SystemManager.addrListForReport[addr]
+                    else:
+                        cli.ignore += 1
 
 
 
@@ -12018,14 +12023,16 @@ class ThreadAnalyzer(object):
         # send remote server #
         if len(SystemManager.addrListForPrint) > 0:
             for addr, cli in SystemManager.addrListForPrint.items():
-                if cli.status == 'SENT':
+                if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printWarning(\
-                        "Stop to send print data to %s:%d becuase of no response" % (cli.ip, cli.port))
+                        "Stop to send data for print to %s:%d because of no response" % (cli.ip, cli.port))
                     del SystemManager.addrListForPrint[addr]
                 else:
                     ret = cli.send(SystemManager.bufferString)
                     if ret is False:
                         del SystemManager.addrListForPrint[addr]
+                    else:
+                        cli.ignore += 1
 
         # realtime mode #
         if SystemManager.printFile is None:
