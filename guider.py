@@ -368,6 +368,7 @@ class NetworkManager(object):
         self.port = None
         self.socket = None
         self.request = None
+        self.status = None
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM
@@ -415,11 +416,18 @@ class NetworkManager(object):
             return False
 
         try:
-            self.socket.sendto(message, (self.ip, self.port))
+            if SystemManager.addrAsServer is not None:
+                SystemManager.addrAsServer.socket.sendto(message, (self.ip, self.port))
+            else:
+                self.socket.sendto(message, (self.ip, self.port))
+
+            if self.status is not 'ALWAYS':
+                self.status = 'SENT'
             return True
         except:
             err = sys.exc_info()[1]
-            SystemManager.printError(("Fail to send data to %s:%d, " % (self.ip, self.port)) + str(err.args))
+            SystemManager.printError(\
+                ("Fail to send data to %s:%d as server, " % (self.ip, self.port)) + str(err.args))
             return False
 
 
@@ -437,7 +445,8 @@ class NetworkManager(object):
             return True
         except:
             err = sys.exc_info()[1]
-            SystemManager.printError(("Fail to send data to %s:%d, " % (ip, port)) + str(err.args))
+            SystemManager.printError(\
+                ("Fail to send data to %s:%d as client, " % (ip, port)) + str(err.args))
             return False
 
 
@@ -3651,7 +3660,7 @@ class FileAnalyzer(object):
             SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
         except:
             SystemManager.printWarning(\
-                "Fail to get maxFd because of no resource package, default %d" % SystemManager.maxFd)
+                "Fail to get maxFd because of no resource package, use %d as default value" % SystemManager.maxFd)
 
         self.startTime = time.time()
 
@@ -4380,8 +4389,8 @@ class SystemManager(object):
 
     addrAsServer = None
     addrOfServer = None
-    addrListForPrint = []
-    addrListForReport = []
+    addrListForPrint = {}
+    addrListForReport = {}
     jsonObject = None
 
     tgidEnable = True
@@ -5745,7 +5754,8 @@ class SystemManager(object):
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
-                    SystemManager.addrListForPrint.append(networkObject)
+                    networkObject.status = 'ALWAYS'
+                    SystemManager.addrListForPrint[ip + ':' + str(port)] = networkObject
 
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
@@ -5772,8 +5782,9 @@ class SystemManager(object):
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
+                    networkObject.status = 'ALWAYS'
                     networkObject.request = service
-                    SystemManager.addrListForReport.append(networkObject)
+                    SystemManager.addrListForReport[ip + ':' + str(port)] = networkObject
 
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
@@ -11615,33 +11626,6 @@ class ThreadAnalyzer(object):
 
 
 
-    def removeAddr(self, networkList, ip, port):
-        if networkList is None:
-            return None
-
-        count = 0
-        for network in networkList:
-            if network.ip == ip and network.port == port:
-                networkList.pop(0)
-                return True
-            count += 1
-
-        return False
-
-
-
-    def isDupAddr(self, networkList, ip, port):
-        if networkList is None:
-            return None
-
-        for network in networkList:
-            if network.ip == ip and network.port == port:
-                return True
-
-        return False
-
-
-
     def printReportStat(self, reportStat):
         if reportStat is None or type(reportStat) is not dict:
             SystemManager.printWarning("Fail to recognize report data")
@@ -11679,6 +11663,17 @@ class ThreadAnalyzer(object):
 
 
 
+    def replyService(self, ip, port):
+        if SystemManager.addrOfServer is None:
+            SystemManager.printError("Fail to use server because it is not initialized")
+            return
+
+        # send reply message to server #
+        message = 'ACK'
+        SystemManager.addrAsServer.sendto(message, ip, port)
+
+
+
     def handleServerResponse(self, packet):
         # return by interrupt from recv #
         if packet is False or packet is None:
@@ -11691,8 +11686,21 @@ class ThreadAnalyzer(object):
             return
 
         if type(data) is not str:
-            SystemManager.printWarning("Fail to recognize data from server")
+            SystemManager.printError("Fail to recognize data from server")
             return
+
+        # get address info from server #
+        try:
+            ip = addr[0]
+            port = int(addr[1])
+        except:
+            SystemManager.printError("Fail to recognize address from server")
+
+        # reply ACK to server #
+        try:
+            self.replyService(ip, port)
+        except:
+            SystemManager.printError("Fail to send ACK to server")
 
         # REPORT service #
         if data[0] == '{':
@@ -11783,23 +11791,31 @@ class ThreadAnalyzer(object):
             if networkObject.ip is None:
                 return
 
-            if message.find('PRINT') == 0:
-                if self.isDupAddr(SystemManager.addrListForPrint, ip, port) is False:
-                    SystemManager.addrListForPrint.append(networkObject)
+            if message == 'PRINT':
+                index = ip + ':' + str(port)
+                if not index in SystemManager.addrListForPrint:
+                    SystemManager.addrListForPrint[index] = networkObject
                     SystemManager.printInfo("Registered %s:%d as remote output address" % (ip, port))
                 else:
                     SystemManager.printWarning("Duplicated %s:%d as remote output address" % (ip, port))
             elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                 networkObject.request = message
 
-                if self.isDupAddr(SystemManager.addrListForReport, ip, port) is False:
-                    SystemManager.addrListForReport.append(networkObject)
+                index = ip + ':' + str(port)
+                if not index in SystemManager.addrListForReport:
+                    SystemManager.addrListForReport[index] = networkObject
                     SystemManager.printInfo("Registered %s:%d as remote report address" % (ip, port))
-                elif self.removeAddr(SystemManager.addrListForReport, ip, port) is True:
-                    SystemManager.addrListForReport.append(networkObject)
-                    SystemManager.printInfo("Updated %s:%d as remote report address" % (ip, port))
                 else:
-                    SystemManager.printWarning("Failed to update %s:%d as remote report address" % (ip, port))
+                    SystemManager.addrListForReport[index] = networkObject
+                    SystemManager.printInfo("Updated %s:%d as remote report address" % (ip, port))
+            elif message == 'ACK':
+                index = ip + ':' + str(port)
+                if index in SystemManager.addrListForPrint:
+                    SystemManager.addrListForPrint[index].status = 'READY'
+                elif index in SystemManager.addrListForReport:
+                    SystemManager.addrListForReport[index].status = 'READY'
+                else:
+                    SystemManager.printWarning("Fail to find %s:%d as remote report address" % (ip, port))
             # wrong request or just data from server #
             else:
                 pass
@@ -11943,15 +11959,22 @@ class ThreadAnalyzer(object):
         if 'task' in self.reportData:
             pass
 
+        jsonObj = self.makeJsonString(self.reportData)
+        if jsonObj is None:
+            return
+
         # report system status #
         nrReason = len(self.reportData['event'])
-        for cli in SystemManager.addrListForReport:
+        for addr, cli in SystemManager.addrListForReport.items():
             if cli.request == 'REPORT_ALWAYS' or  nrReason > 0:
-                jsonObj = self.makeJsonString(self.reportData)
-                if jsonObj is not None:
+                if cli.status == 'SENT':
+                    SystemManager.printWarning(\
+                        "Stop to send report data to %s:%d becuase of no response" % (cli.ip, cli.port))
+                    del SystemManager.addrListForReport[addr]
+                else:
                     ret = cli.send(jsonObj)
                     if ret is False:
-                        SystemManager.addrListForReport.pop(SystemManager.addrListForReport.index(cli))
+                        del SystemManager.addrListForReport[addr]
 
 
 
@@ -11977,10 +12000,9 @@ class ThreadAnalyzer(object):
 
     def printSystemStat(self):
         SystemManager.addPrint(\
-            ("\n[Top Info] [Time: %7.3f] [Period: %d] [Interval: %.1f] " + \
-            "[Ctxt: %d] [Fork: %d] [IRQ: %d] [Core: %d] [Task: %d/%d] " + \
-            "[RAM: %d] [Swap: %d] [Unit: %%/MB]\n") % \
-            (SystemManager.uptime, SystemManager.intervalEnable, SystemManager.uptimeDiff, \
+            ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Fork: %d] " + \
+            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] [Unit: %%/MB]\n") % \
+            (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
@@ -11995,10 +12017,15 @@ class ThreadAnalyzer(object):
 
         # send remote server #
         if len(SystemManager.addrListForPrint) > 0:
-            for cli in SystemManager.addrListForPrint:
-                ret = cli.send(SystemManager.bufferString)
-                if ret is False:
-                    SystemManager.addrListForPrint.pop(SystemManager.addrListForPrint.index(cli))
+            for addr, cli in SystemManager.addrListForPrint.items():
+                if cli.status == 'SENT':
+                    SystemManager.printWarning(\
+                        "Stop to send print data to %s:%d becuase of no response" % (cli.ip, cli.port))
+                    del SystemManager.addrListForPrint[addr]
+                else:
+                    ret = cli.send(SystemManager.bufferString)
+                    if ret is False:
+                        del SystemManager.addrListForPrint[addr]
 
         # realtime mode #
         if SystemManager.printFile is None:
