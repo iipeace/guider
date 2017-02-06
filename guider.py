@@ -4410,6 +4410,7 @@ class SystemManager(object):
     uptimeDiff = 0
 
     reportEnable = False
+    reportPath = None
     reportFileEnable = True
     imageEnable = False
     graphEnable = False
@@ -4540,6 +4541,21 @@ class SystemManager(object):
 
 
     @staticmethod
+    def makeJsonString(dictObj):
+        if SystemManager.jsonObject is None:
+            return None
+        else:
+            return SystemManager.jsonObject.dumps(dictObj)
+
+
+
+    @staticmethod
+    def writeJsonObject(jsonObj):
+        pass
+
+
+
+    @staticmethod
     def getProcTree():
         procTree = {}
 
@@ -4636,6 +4652,7 @@ class SystemManager(object):
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
             print('\t\t-T  [set_fontPath]')
+            print('\t\t-j  [set_pathForReport:file]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-q  [make_taskchainFile]')
@@ -5799,6 +5816,10 @@ class SystemManager(object):
 
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
+            elif option == 'j':
+                SystemManager.reportPath = value
+                SystemManager.printInfo("Use %s as local report file" % value)
+
             elif option == 'x':
                 ret = SystemManager.parseAddr(value)
 
@@ -6045,7 +6066,7 @@ class SystemManager(object):
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
                 option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
                 option == 'h' or option == 'P' or option == 'T' or option == 'n' or \
-                option == 'N' or option == 'x':
+                option == 'N' or option == 'x' or option == 'j':
                 continue
 
             else:
@@ -11979,13 +12000,10 @@ class ThreadAnalyzer(object):
         if 'task' in self.reportData:
             pass
 
-        jsonObj = self.makeJsonString(self.reportData)
-        if jsonObj is None:
-            return
-
+        # get event number #
         nrReason = len(self.reportData['event'])
 
-        # print system status #
+        # print system status to file #
         if SystemManager.reportFileEnable is True and \
             SystemManager.printFile is not None and nrReason > 0:
 
@@ -12017,6 +12035,15 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning(\
                     "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
 
+        # convert dict data to json data #
+        jsonObj = SystemManager.makeJsonString(self.reportData)
+        if jsonObj is None:
+            return
+
+        # write report data to file #
+        if SystemManager.reportPath is not None and nrReason > 0:
+            SystemManager.writeJsonObject(jsonObj)
+
         # report system status #
         for addr, cli in SystemManager.addrListForReport.items():
             if cli.request == 'REPORT_ALWAYS' or nrReason > 0:
@@ -12031,14 +12058,6 @@ class ThreadAnalyzer(object):
                         del SystemManager.addrListForReport[addr]
                     else:
                         cli.ignore += 1
-
-
-
-    def makeJsonString(self, dictObj):
-        if SystemManager.jsonObject is None:
-            return None
-        else:
-            return SystemManager.jsonObject.dumps(dictObj)
 
 
 
