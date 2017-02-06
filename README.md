@@ -94,6 +94,7 @@ Options
               [function] {m(em)|b(lock)|h(eap)|p(ipe)}
               [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}
         -d  [disable_optionsPerMode:bellowCharacters]
+              [top]   {f(ile)}
               [thread]   {c(pu)}
               [function] {c(pu)|u(user)}
         -s  [save_traceData:dir/file]
