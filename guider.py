@@ -4410,6 +4410,7 @@ class SystemManager(object):
     uptimeDiff = 0
 
     reportEnable = False
+    reportFileEnable = True
     imageEnable = False
     graphEnable = False
     graphLabels = []
@@ -4613,6 +4614,7 @@ class SystemManager(object):
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
+            print('\t\t\t  [top]      {f(ile)}')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(user)}')
             print('\t\t-s  [save_traceData:dir/file]')
@@ -4814,6 +4816,11 @@ class SystemManager(object):
                 enableStat += 'IMAGE '
             else:
                 disableStat += 'IMAGE '
+
+            if SystemManager.reportFileEnable is True:
+                enableStat += 'FILE '
+            else:
+                disableStat += 'FILE '
 
             if SystemManager.reportEnable is True:
                 enableStat += 'REPORT '
@@ -5465,7 +5472,8 @@ class SystemManager(object):
 
             try:
                 # backup output file #
-                shutil.copy(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
+                if os.path.isfile(SystemManager.inputFile) is True:
+                    shutil.copy(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
             except:
                 SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
 
@@ -5671,6 +5679,8 @@ class SystemManager(object):
             elif option == 'd':
                 # Add somethings to diable when analyzing data #
                 options = value
+                if options.rfind('f') > -1:
+                    SystemManager.reportFileEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -11973,13 +11983,47 @@ class ThreadAnalyzer(object):
         if jsonObj is None:
             return
 
-        # report system status #
         nrReason = len(self.reportData['event'])
+
+        # print system status #
+        if SystemManager.reportFileEnable is True and \
+            SystemManager.printFile is not None and nrReason > 0:
+
+            # print output into file #
+            SystemManager.printTitle()
+            ThreadAnalyzer.printIntervalUsage()
+            SystemManager.pipePrint(SystemManager.procBuffer)
+
+            # sync and close output file #
+            if SystemManager.fileForPrint is not None:
+                try:
+                    SystemManager.fileForPrint.close()
+                except:
+                    pass
+                SystemManager.fileForPrint = None
+
+            # make output path #
+            filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
+            for event in self.reportData['event'].keys():
+                filePath += '_' + event
+            filePath += '_' + str(long(SystemManager.uptime)) + '.out'
+
+            try:
+                # rename output file #
+                os.rename(SystemManager.inputFile, filePath)
+                SystemManager.printStatus(\
+                    "Saved top usage by report event into %s successfully" % filePath)
+            except:
+                SystemManager.printWarning(\
+                    "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
+
+        # report system status #
         for addr, cli in SystemManager.addrListForReport.items():
-            if cli.request == 'REPORT_ALWAYS' or  nrReason > 0:
+            if cli.request == 'REPORT_ALWAYS' or nrReason > 0:
                 if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printWarning(\
-                        "Stop to send data for report to %s:%d because of no response" % (cli.ip, cli.port))
+                        "Stop to send data for report to %s:%d because of no response" % \
+                        (cli.ip, cli.port))
                     del SystemManager.addrListForReport[addr]
                 else:
                     ret = cli.send(jsonObj)
