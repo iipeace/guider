@@ -4551,7 +4551,35 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
-        pass
+        try:
+            fd = open(SystemManager.reportPath, 'w')
+        except:
+            SystemManager.printWarning(\
+                "Fail to open %s to write json data" % SystemManager.reportPath)
+            return False
+
+        try:
+            fd.write(jsonObj)
+            fd.close()
+        except:
+            SystemManager.printWarning(\
+                "Fail to write json data to %s" % SystemManager.reportPath)
+            return False
+
+        return True
+
+
+
+    @staticmethod
+    def makeJsonDict(strObj):
+        if SystemManager.jsonObject is None:
+            return None
+        else:
+            try:
+                strObj = strObj.replace("'", '"')
+                return SystemManager.jsonObject.loads(strObj)
+            except:
+                return None
 
 
 
@@ -4652,7 +4680,7 @@ class SystemManager(object):
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
             print('\t\t-T  [set_fontPath]')
-            print('\t\t-j  [set_pathForReport:file]')
+            print('\t\t-j  [set_pathForReport:dir]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-q  [make_taskchainFile]')
@@ -4972,7 +5000,7 @@ class SystemManager(object):
         SystemManager.condExit = False
 
         if SystemManager.isFileMode() is True:
-            SystemManager.printStatus("Saved file usage successfully")
+            SystemManager.printStatus("saved file usage successfully")
         elif SystemManager.isTopMode() is True:
             SystemManager.printTitle()
             ThreadAnalyzer.printIntervalUsage()
@@ -4986,7 +5014,7 @@ class SystemManager(object):
                 SystemManager.fileForPrint = None
 
             if SystemManager.printFile is not None:
-                SystemManager.printStatus("Saved top usage into %s successfully" % \
+                SystemManager.printStatus("saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
             if SystemManager.imageEnable is True:
@@ -5453,7 +5481,7 @@ class SystemManager(object):
             SystemManager.printError("Fail to save image as %s\n" % imagePath)
             return
 
-        SystemManager.printStatus("Saved image into %s successfully" % imagePath)
+        SystemManager.printStatus("saved image into %s successfully" % imagePath)
 
 
 
@@ -5694,7 +5722,6 @@ class SystemManager(object):
                         sys.exit(0)
 
             elif option == 'd':
-                # Add somethings to diable when analyzing data #
                 options = value
                 if options.rfind('f') > -1:
                     SystemManager.reportFileEnable = False
@@ -5724,12 +5751,11 @@ class SystemManager(object):
                     try:
                         import json
                         SystemManager.jsonObject = json
+                        SystemManager.reportEnable = True
                     except ImportError:
                         err = sys.exc_info()[1]
                         SystemManager.printError("Fail to import package: " + err.args[0])
                         sys.exit(0)
-
-                    SystemManager.reportEnable = True
 
             elif option == 'v':
                 SystemManager.warningEnable = True
@@ -5818,7 +5844,9 @@ class SystemManager(object):
 
             elif option == 'j':
                 SystemManager.reportPath = value
-                SystemManager.printInfo("Use %s as local report file" % value)
+                SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
+                SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
+                SystemManager.printInfo("Use %s as local report file" % SystemManager.reportPath)
 
             elif option == 'x':
                 ret = SystemManager.parseAddr(value)
@@ -11752,7 +11780,7 @@ class ThreadAnalyzer(object):
                     SystemManager.printError("Fail to import package: " + err.args[0])
 
             # convert report data to dictionary type #
-            reportStat = self.makeJsonDict(data)
+            reportStat = SystemManager.makeJsonDict(data)
 
             # print report data #
             self.printReportStat(reportStat)
@@ -11795,7 +11823,7 @@ class ThreadAnalyzer(object):
                     SystemManager.addrOfServer.ip, \
                     SystemManager.addrOfServer.port)
 
-            SystemManager.printStatus("Wait for response from server")
+            SystemManager.printStatus("wait for response from server")
         except:
             SystemManager.printError("Fail to send request '%s'" % SystemManager.addrOfServer.request)
 
@@ -11932,7 +11960,7 @@ class ThreadAnalyzer(object):
                         break
 
         # analyze swap status #
-        if 'swap' in self.reportData:
+        if 'swap' in self.reportData and self.reportData['swap']['total'] > 0:
             swapUsagePer = \
                 int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
 
@@ -12030,7 +12058,7 @@ class ThreadAnalyzer(object):
                 # rename output file #
                 os.rename(SystemManager.inputFile, filePath)
                 SystemManager.printStatus(\
-                    "Saved top usage by report event into %s successfully" % filePath)
+                    "saved top usage by report event into %s successfully" % filePath)
             except:
                 SystemManager.printWarning(\
                     "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
@@ -12038,13 +12066,17 @@ class ThreadAnalyzer(object):
         # convert dict data to json data #
         jsonObj = SystemManager.makeJsonString(self.reportData)
         if jsonObj is None:
+            SystemManager.printWarning("Fail to convert report data to json type")
             return
 
-        # write report data to file #
+        # report system status to file #
         if SystemManager.reportPath is not None and nrReason > 0:
-            SystemManager.writeJsonObject(jsonObj)
+            ret = SystemManager.writeJsonObject(jsonObj)
+            if ret is True:
+                SystemManager.printStatus(\
+                    "wrote report data into %s successfully" % SystemManager.reportPath)
 
-        # report system status #
+        # report system status to socket #
         for addr, cli in SystemManager.addrListForReport.items():
             if cli.request == 'REPORT_ALWAYS' or nrReason > 0:
                 if cli.status == 'SENT' and cli.ignore > 1:
@@ -12058,18 +12090,6 @@ class ThreadAnalyzer(object):
                         del SystemManager.addrListForReport[addr]
                     else:
                         cli.ignore += 1
-
-
-
-    def makeJsonDict(self, strObj):
-        if SystemManager.jsonObject is None:
-            return None
-        else:
-            try:
-                strObj = strObj.replace("'", '"')
-                return SystemManager.jsonObject.loads(strObj)
-            except:
-                return None
 
 
 
