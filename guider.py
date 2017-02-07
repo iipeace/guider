@@ -4366,6 +4366,7 @@ class SystemManager(object):
     launchBuffer = None
     maxFd = 1024
     lineLength = 154
+    pid = 0
 
     #HZ = 250 # 4ms tick #
     TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
@@ -6201,7 +6202,7 @@ class SystemManager(object):
     def printBackgroundProcs():
         nrProc = 0
         printBuf = ''
-        myPid = str(os.getpid())
+        myPid = str(SystemManager.pid)
         compLen = len(__module__)
 
         pids = os.listdir(SystemManager.procPath)
@@ -6243,7 +6244,7 @@ class SystemManager(object):
     @staticmethod
     def sendSignalProcs(nrSig):
         nrProc = 0
-        myPid = str(os.getpid())
+        myPid = str(SystemManager.pid)
         compLen = len(__module__)
 
         commLocation = sys.argv[0].rfind('/')
@@ -6312,13 +6313,13 @@ class SystemManager(object):
 
     @staticmethod
     def setRtPriority(pri):
-        os.system('chrt -a -p %s %s 2> /dev/null &' % (pri, os.getpid()))
+        os.system('chrt -a -p %s %s 2> /dev/null &' % (pri, SystemManager.pid))
 
 
 
     @staticmethod
     def setIdlePriority():
-        os.system('chrt -a -i -p %s %s 2> /dev/null &' % (0, os.getpid()))
+        os.system('chrt -a -i -p %s %s 2> /dev/null &' % (0, SystemManager.pid))
 
 
 
@@ -11313,6 +11314,7 @@ class ThreadAnalyzer(object):
             self.reportData = {}
 
             self.reportData['system'] = {}
+            self.reportData['system']['pid'] = SystemManager.pid
             self.reportData['system']['uptime'] = SystemManager.uptime
             self.reportData['system']['interval'] = interval
             self.reportData['system']['nrIrq'] = nrIrq
@@ -12156,7 +12158,11 @@ if __name__ == '__main__':
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
 
+    # set comm #
     SystemManager.setComm()
+
+    # save pid #
+    SystemManager.pid = os.getpid()
 
     # print backgroud process list #
     if SystemManager.isListMode() is True:
@@ -12196,7 +12202,7 @@ if __name__ == '__main__':
             if pid > 0:
                 sys.exit(0)
             else:
-                SystemManager.printStatus("background running as process %s" % os.getpid())
+                SystemManager.printStatus("background running as process %s" % SystemManager.pid)
 
         # wait for signal #
         if SystemManager.waitEnable is True:
@@ -12354,7 +12360,7 @@ if __name__ == '__main__':
             if pid > 0:
                 sys.exit(0)
             else:
-                SystemManager.printStatus("background running as process %s" % os.getpid())
+                SystemManager.printStatus("background running as process %s" % SystemManager.pid)
 
         # create ThreadAnalyzer using proc #
         ti = ThreadAnalyzer(None)
