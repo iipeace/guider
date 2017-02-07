@@ -4551,6 +4551,9 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
+        if os.path.exists(SystemManager.reportPath) is True:
+            os.remove(SystemManager.reportPath)
+
         try:
             fd = open(SystemManager.reportPath, 'w')
         except:
