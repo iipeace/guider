@@ -4411,7 +4411,7 @@ class SystemManager(object):
 
     reportEnable = False
     reportPath = None
-    reportFileEnable = True
+    reportFileEnable = False
     imageEnable = False
     graphEnable = False
     graphLabels = []
@@ -4654,13 +4654,12 @@ class SystemManager(object):
             print('\t\t-F  [file]')
             print('\t[record|top]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)}')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)|f(ile)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
-            print('\t\t\t  [top]      {f(ile)}')
             print('\t\t\t  [thread]   {c(pu)}')
-            print('\t\t\t  [function] {c(pu)|u(user)}')
+            print('\t\t\t  [function] {c(pu)|u(ser)}')
             print('\t\t-s  [save_traceData:dir/file]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]')
             print('\t\t-u  [run_inBackground]')
@@ -4669,22 +4668,22 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
+            print('\t\t-T  [set_fontPath]')
             print('\t\t-x  [set_addressForLocalServer:ip:port]')
             print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
+            print('\t\t-j  [set_pathForReport:dir]')
+            print('\t\t-N  [set_addressForReport:req@ip:port]')
+            print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t[analysis]')
             print('\t\t-o  [save_outputData:dir]')
-            print('\t\t-a  [show_allInfo]')
-            print('\t\t-i  [set_interval:sec]')
             print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [input_addr2linePath:file]')
             print('\t\t-r  [input_targetRootPath:dir]')
-            print('\t\t-T  [set_fontPath]')
-            print('\t\t-j  [set_pathForReport:dir]')
-            print('\t\t-n  [set_addressForPrint:ip:port]')
-            print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-q  [make_taskchainFile]')
             print('\t[common]')
+            print('\t\t-a  [show_allInfo]')
+            print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
@@ -5723,8 +5722,6 @@ class SystemManager(object):
 
             elif option == 'd':
                 options = value
-                if options.rfind('f') > -1:
-                    SystemManager.reportFileEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -5747,6 +5744,8 @@ class SystemManager(object):
                     SystemManager.processEnable = False
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
+                if options.rfind('f') > -1:
+                    SystemManager.reportFileEnable = True
                 if options.rfind('r') > -1:
                     try:
                         import json
@@ -12070,7 +12069,7 @@ class ThreadAnalyzer(object):
             return
 
         # report system status to file #
-        if SystemManager.reportPath is not None and nrReason > 0:
+        if SystemManager.reportPath is not None:
             ret = SystemManager.writeJsonObject(jsonObj)
             if ret is True:
                 SystemManager.printStatus(\
