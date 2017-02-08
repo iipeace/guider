@@ -4546,7 +4546,7 @@ class SystemManager(object):
         if SystemManager.jsonObject is None:
             return None
         else:
-            return SystemManager.jsonObject.dumps(dictObj)
+            return SystemManager.jsonObject.dumps(dictObj, indent=2)
 
 
 
