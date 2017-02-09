@@ -7455,16 +7455,16 @@ class ThreadAnalyzer(object):
         'REPORT_BOUND',
     ]
 
-    # constant to check system status for reporting #
+    # default constant to check system status for reporting #
     reportBoundary = {
         'cpu' : {
             'total' : 80
         },
         'mem' : {
-            'free' : 20
+            'free' : 50
         },
         'swap' : {
-            'usage' : 90
+            'usage' : 70
         },
         'block' : {
             'ioWait' : 10
