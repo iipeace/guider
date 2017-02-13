@@ -11288,8 +11288,6 @@ class ThreadAnalyzer(object):
         irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
             / SystemManager.nrCore) / interval)
 
-        totalUsage = int(userUsage + kerUsage + irqUsage)
-
         ioUsage = 0
         for idx, value in self.cpuData.items():
             try:
@@ -11297,6 +11295,8 @@ class ThreadAnalyzer(object):
             except:
                 pass
         ioUsage = int((ioUsage / SystemManager.nrCore) / interval)
+
+        totalUsage = int(userUsage + kerUsage + irqUsage + ioUsage)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" + \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
@@ -11384,7 +11384,7 @@ class ThreadAnalyzer(object):
                     ioUsage = int((nowData['iowait'] - prevData['iowait']) / interval)
                     irqUsage = int((nowData['irq'] - prevData['irq'] + \
                         nowData['softirq'] - prevData['softirq']) / interval)
-                    totalUsage = userUsage + kerUsage + irqUsage
+                    totalUsage = userUsage + kerUsage + irqUsage + ioUsage
 
                     # limit total usage of each cpus #
                     if totalUsage > 100:
@@ -12076,9 +12076,6 @@ class ThreadAnalyzer(object):
         # report system status to file #
         if SystemManager.reportPath is not None:
             ret = SystemManager.writeJsonObject(jsonObj)
-            if ret is True:
-                SystemManager.printStatus(\
-                    "wrote report data into %s successfully" % SystemManager.reportPath)
 
         # report system status to socket #
         for addr, cli in SystemManager.addrListForReport.items():
