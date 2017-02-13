@@ -5009,9 +5009,6 @@ class SystemManager(object):
             ThreadAnalyzer.printIntervalUsage()
             SystemManager.pipePrint(SystemManager.procBuffer)
 
-            SystemManager.procBuffer = []
-            SystemManager.procBufferSize = 0
-
             if SystemManager.fileForPrint is not None:
                 SystemManager.fileForPrint.close()
                 SystemManager.fileForPrint = None
