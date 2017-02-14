@@ -4363,6 +4363,7 @@ class SystemManager(object):
     ttyCols = '156'
     magicString = '@@@@@'
     procPath = '/proc'
+    imagePath = None
     launchBuffer = None
     maxFd = 1024
     lineLength = 154
@@ -5382,16 +5383,16 @@ class SystemManager(object):
         textBuf = textBuf[:textBuf.find('[Top Info]')]
 
         # make image path #
-        imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
+        SystemManager.imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
             '_' + str(long(SystemManager.uptime))
 
         # draw image #
-        SystemManager.drawText(textBuf, imagePath)
+        SystemManager.drawText(textBuf)
 
 
 
     @staticmethod
-    def drawText(lines, imagePath):
+    def drawText(lines):
         imageType = None
 
         try:
@@ -5403,16 +5404,15 @@ class SystemManager(object):
             return
 
         try:
-            # load png plugin #
-            from PIL import PngImagePlugin
-            imageType = 'png'
+            # load jpeg plugin #
+            from PIL import JpegImagePlugin
+            imageType = 'jpg'
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printWarning("Fail to import package: " + err.args[0] + \
-                ", try to use bmp image")
+            SystemManager.printWarning("Fail to import package: " + err.args[0])
 
             try:
-                # load bmp plugin #
+                # load bmp plugin instead of jpeg #
                 from PIL import BmpImagePlugin
                 imageType = 'bmp'
             except ImportError:
@@ -5420,8 +5420,12 @@ class SystemManager(object):
                 SystemManager.printError("Fail to import package: " + err.args[0])
                 return
 
-        # set image name #
-        imagePath += '.' + imageType
+        if SystemManager.imagePath is None:
+            SystemManager.printError("Fail to read image name")
+            return
+
+        # set image file extention #
+        SystemManager.imagePath += '.' + imageType
 
         if SystemManager.fontPath is not None:
             try:
@@ -5455,7 +5459,7 @@ class SystemManager(object):
         imagePosY = 1
 
         # make new blink image #
-        if imageType is 'png':
+        if imageType is 'jpg':
             imageObject = Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
         elif imageType is 'bmp':
             imageObject = Image.new("RGB", (900, imageSizeY), (255, 255, 255))
@@ -5476,12 +5480,12 @@ class SystemManager(object):
 
         try:
             # save image as file #
-            imageObject.save(imagePath)
+            imageObject.save(SystemManager.imagePath)
         except:
-            SystemManager.printError("Fail to save image as %s\n" % imagePath)
+            SystemManager.printError("Fail to save image as %s\n" % SystemManager.imagePath)
             return
 
-        SystemManager.printStatus("saved image into %s successfully" % imagePath)
+        SystemManager.printStatus("saved image into %s successfully" % SystemManager.imagePath)
 
 
 
@@ -8454,7 +8458,7 @@ class ThreadAnalyzer(object):
 
         if SystemManager.graphEnable is True:
             title('Core Usage')
-            ylabel('Percentage(%)', fontsize=10)
+            ylabel('Per(%)', fontsize=10)
             legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
             del SystemManager.graphLabels[:]
 
@@ -8562,11 +8566,11 @@ class ThreadAnalyzer(object):
 
         if SystemManager.graphEnable is True:
             title('CPU Usage of Threads')
-            ylabel('Percentage(%)', fontsize=10)
+            ylabel('Per(%)', fontsize=10)
             legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
             del SystemManager.graphLabels[:]
             figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-            savefig("cpuInfo.png", dpi=(200))
+            savefig("cpuGraph.png", dpi=(200))
             clf()
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
@@ -8767,9 +8771,10 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        if SystemManager.graphEnable is True:
+        if SystemManager.graphEnable is True and \
+            (SystemManager.memEnable is True or SystemManager.blockEnable is True):
             figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-            savefig("ioInfo.png", dpi=(200))
+            savefig("ioGraph.png", dpi=(200))
 
 
 
@@ -11899,6 +11904,11 @@ class ThreadAnalyzer(object):
         # initialize report event list #
         # CPU_INTENSIVE, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
         self.reportData['event'] = {}
+
+        # check image created #
+        if SystemManager.imagePath is not None:
+            self.reportData['event']['IMAGE_CREATED'] = SystemManager.imagePath
+            SystemManager.imagePath = None
 
         # analyze cpu status #
         if 'cpu' in self.reportData:
