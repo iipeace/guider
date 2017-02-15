@@ -5380,7 +5380,7 @@ class SystemManager(object):
         logFd.close()
 
         # trim from process info #
-        textBuf = textBuf[:textBuf.find('[Top Info]')]
+        textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
 
         # make image path #
         SystemManager.imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
@@ -5432,7 +5432,7 @@ class SystemManager(object):
                 # load specific font #
                 imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
             except:
-                SystemManager.printError("Fail to load font from %s" + SystemManager.fontPath)
+                SystemManager.printError("Fail to load font from %s" % SystemManager.fontPath)
                 return
         else:
             try:
@@ -9004,6 +9004,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
+            total = 0
             for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
@@ -9011,11 +9012,16 @@ class ThreadAnalyzer(object):
 
                 if pid in ThreadAnalyzer.procIntervalData[idx]:
                     usage = ThreadAnalyzer.procIntervalData[idx][pid]['cpu']
+                    total += ThreadAnalyzer.procIntervalData[idx][pid]['cpu']
                 else:
                     usage = 0
 
                 timeLine += '{0:^5}'.format(usage)
                 lineLen += 5
+
+            # skip process used no cpu #
+            if total == 0:
+                continue
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint(oneLine + '\n')
