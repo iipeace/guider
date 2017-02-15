@@ -8815,16 +8815,20 @@ class ThreadAnalyzer(object):
             else:
                 return
 
-            m = re.match(r'.+\(\s*(?P<free>\-*[0-9]+)', tokenList[2])
+            m = re.match(r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)', tokenList[2])
             if m is not None:
                 d = m.groupdict()
 
-                ThreadAnalyzer.procTotalData['total']['lastMem'] += int(d['free'])
+                freeMem = int(d['free'])
+                freeMemDiff = int(d['freeDiff'])
 
-                try:
-                    ThreadAnalyzer.procIntervalData[index]['total']['mem'] = int(d['free'])
-                except:
-                    ThreadAnalyzer.procIntervalData[index]['total']['mem'] = 0
+                if ThreadAnalyzer.procTotalData['total']['initMem'] == 0:
+                    ThreadAnalyzer.procTotalData['total']['initMem'] = freeMem
+
+                ThreadAnalyzer.procTotalData['total']['lastMem'] = freeMem
+
+                ThreadAnalyzer.procIntervalData[index]['total']['mem'] = freeMem
+                ThreadAnalyzer.procIntervalData[index]['total']['memDiff'] = freeMemDiff
             else:
                 return
 
@@ -8833,7 +8837,7 @@ class ThreadAnalyzer(object):
             except:
                 ThreadAnalyzer.procIntervalData[index]['total']['blk'] = '-'
 
-            m = re.match(r'.+\(\s*(?P<swap>\-*[0-9]+)', tokenList[3])
+            m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
             if m is not None:
                 d = m.groupdict()
 
@@ -8916,7 +8920,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printTimeline():
-        SystemManager.pipePrint('\n[Timeline]\n')
+        SystemManager.pipePrint('\n[Summary]\n')
         SystemManager.pipePrint(twoLine + '\n')
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | " +\
@@ -9035,8 +9039,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine + '\n')
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Diff")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -9056,7 +9060,7 @@ class ThreadAnalyzer(object):
 
         # Print total memory usage #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
             format('[FREE]', '-', '-', '-', '-', value['memDiff'])
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -9069,7 +9073,7 @@ class ThreadAnalyzer(object):
                 lineLen = len(procInfo)
 
             if 'total' in ThreadAnalyzer.procIntervalData[idx]:
-                usage = ThreadAnalyzer.procIntervalData[idx]['total']['mem']
+                usage = ThreadAnalyzer.procIntervalData[idx]['total']['memDiff']
             else:
                 usage = 0
 
@@ -9084,7 +9088,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['memDiff'] == 0:
                 continue
 
-            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['memDiff'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
