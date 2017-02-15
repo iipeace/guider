@@ -4641,9 +4641,8 @@ class SystemManager(object):
             print('\t# %s record [options]' % cmd)
             print('\t$ %s <file> [options]\n' % cmd)
             print('\t# %s top [options]' % cmd)
-            print('\t# %s start' % cmd)
-            print('\t# %s stop' % cmd)
-            print('\t# %s send' % cmd)
+            print('\t# %s start|stop|send [pid]' % cmd)
+            print('\t# %s list' % cmd)
 
             print('Example:')
             print('\t# %s record -s /var/log -e mi -g comm, 1243' % cmd)
@@ -6238,15 +6237,23 @@ class SystemManager(object):
             print(twoLine)
             print('%6s\t%s' % ("PID", "COMMAND"))
             print(oneLine)
-            print(printBuf)
-            print(oneLine + '\n')
+            print(printBuf + oneLine + '\n')
+
 
 
     @staticmethod
-    def sendSignalProcs(nrSig):
+    def sendSignalProcs(nrSig, pidList):
         nrProc = 0
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
+
+        if type(pidList) is list:
+            for pid in pidList:
+                try:
+                    os.kill(int(pid), nrSig)
+                except:
+                    SystemManager.printError("Fail to send signal to pid %s" % pid)
+            return
 
         commLocation = sys.argv[0].rfind('/')
         if commLocation >= 0:
@@ -8920,7 +8927,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printTimeline():
-        SystemManager.pipePrint('\n[Summary]\n')
+        SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint(twoLine + '\n')
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | " +\
@@ -12183,14 +12190,20 @@ if __name__ == '__main__':
         SystemManager.printBackgroundProcs()
         sys.exit(0)
 
+    # make list for arguments #
+    if len(sys.argv) > 2:
+        argList = sys.argv[2:]
+    else:
+        argList = None
+
     # send start / stop signal to background process #
     if SystemManager.isStartMode() is True or SystemManager.isStopMode() is True:
-        SystemManager.sendSignalProcs(signal.SIGINT)
+        SystemManager.sendSignalProcs(signal.SIGINT, argList)
         sys.exit(0)
 
     # send event signal to background process #
     if SystemManager.isSendMode() is True:
-        SystemManager.sendSignalProcs(signal.SIGQUIT)
+        SystemManager.sendSignalProcs(signal.SIGQUIT, argList)
         sys.exit(0)
 
     # parse recording option #
