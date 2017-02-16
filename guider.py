@@ -297,13 +297,13 @@ class ConfigManager(object):
 
 
     @staticmethod
-    def readProcData(tid, file, num):
-        file = '/proc/'+ tid + '/' + file
+    def readProcData(tid, path, num):
+        path = '/proc/'+ tid + '/' + path 
 
         try:
-            f = open(file, 'r')
+            f = open(path, 'r')
         except:
-            SystemManager.printError("Fail to open %s" % (file))
+            SystemManager.printError("Fail to open %s" % path)
             return None
 
         if num == 0:
@@ -323,16 +323,16 @@ class ConfigManager(object):
 
 
     @staticmethod
-    def openConfFile(file):
-        file += '.tc'
-        if os.path.isfile(file) is True:
+    def openConfFile(path):
+        path += '.tc'
+        if os.path.isfile(path) is True:
             SystemManager.printWarning(\
-                "%s already exist, make it new one" % file)
+                "%s already exists so that make new one" % path)
 
         try:
-            fd = open(file, 'w')
+            fd = open(path, 'w')
         except:
-            SystemManager.printError("Fail to open %s" % (file))
+            SystemManager.printError("Fail to open %s" % path)
             return None
 
         return fd
@@ -599,8 +599,8 @@ class FunctionAnalyzer(object):
         # Get binary and offset info #
         lines = logFd.readlines()
 
-        # Save data and exit if output file is set #
-        SystemManager.saveDataAndExit(lines)
+        # Save data and quit #
+        SystemManager.saveAndQuit(lines)
 
         # Check target thread setting #
         if len(SystemManager.showGroup) == 0:
@@ -4771,18 +4771,33 @@ class SystemManager(object):
 
         if SystemManager.showAll is True:
             enableStat += 'ALL '
+        else:
+            disableStat += 'ALL '
 
         if SystemManager.intervalEnable > 0:
             enableStat += 'INTERVAL '
+        else:
+            disableStat += 'INTERVAL '
 
         if SystemManager.depEnable is True:
             enableStat += 'DEPENDENCY '
+        else:
+            disableStat += 'DEPENDENCY '
 
         if SystemManager.groupProcEnable is True:
             enableStat += 'PROCESS '
+        else:
+            disableStat += 'PROCESS '
+
+        if SystemManager.graphEnable is True:
+            enableStat += 'GRAPH '
+        else:
+            disableStat += 'GRAPH '
 
         if len(SystemManager.preemptGroup) > 0:
             enableStat += 'PREEMPT '
+        else:
+            disableStat += 'PREEMPT '
 
         # print options #
         if enableStat != '':
@@ -4913,11 +4928,6 @@ class SystemManager(object):
                 enableStat += 'SYSCALL '
             else:
                 disableStat += 'SYSCALL '
-
-            if SystemManager.graphEnable is True:
-                enableStat += 'GRAPH '
-            else:
-                disableStat += 'GRAPH '
 
             if SystemManager.futexEnable is True:
                 enableStat += 'FUTEX '
@@ -5093,7 +5103,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def saveDataAndExit(lines):
+    def saveAndQuit(lines):
         # save trace data to file #
         try:
             if SystemManager.outputFile != None:
@@ -5365,18 +5375,12 @@ class SystemManager(object):
 
     @staticmethod
     def makeLogImage():
-        logFd = None
-
         try:
-            logFd = open(SystemManager.inputFile, 'r')
+            with open(SystemManager.inputFile, 'r') as fd:
+                textBuf = fd.read()
         except:
-            SystemManager.printError("Fail to open %s to read log\n" % SystemManager.inputFile)
+            SystemManager.printError("Fail to read log from %s\n" % SystemManager.inputFile)
             return
-
-        # load log #
-        textBuf = logFd.read()
-
-        logFd.close()
 
         # trim from process info #
         textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
@@ -5420,7 +5424,7 @@ class SystemManager(object):
                 return
 
         if SystemManager.imagePath is None:
-            SystemManager.printError("Fail to read image name")
+            SystemManager.printError("Fail to load image path")
             return
 
         # set image file extention #
@@ -5530,7 +5534,7 @@ class SystemManager(object):
 
                 # print output file name #
                 if SystemManager.printFile != None:
-                    SystemManager.printInfo("write to %s" % (SystemManager.inputFile))
+                    SystemManager.printInfo("write statistics to %s" % (SystemManager.inputFile))
             except:
                 SystemManager.printError("Fail to open %s\n" % (SystemManager.inputFile))
                 sys.exit(0)
@@ -7682,12 +7686,13 @@ class ThreadAnalyzer(object):
         try:
             f = open(file, 'r')
             lines = f.readlines()
+            f.close()
         except IOError:
-            SystemManager.printError("Open %s" % file)
+            SystemManager.printError("Fail to open %s" % file)
             sys.exit(0)
 
-        # save data and exit if output file is set #
-        SystemManager.saveDataAndExit(lines)
+        # save data and quit #
+        SystemManager.saveAndQuit(lines)
 
         # get and remove process tree from data file #
         SystemManager.getProcTreeInfo()
@@ -7716,8 +7721,6 @@ class ThreadAnalyzer(object):
         for idx, val in self.lastTidPerCore.items():
             self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
             # toDo: add blocking time to read blocks from disk #
-
-        f.close()
 
         if len(self.threadData) == 0:
             SystemManager.printError("No recognized data in %s" % SystemManager.inputFile)
@@ -8120,7 +8123,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        # set option for making graph #
+        # prepare to draw graph #
         if SystemManager.graphEnable is True:
             if SystemManager.intervalEnable > 0:
                 os.environ['DISPLAY'] = 'localhost:0'
@@ -8575,10 +8578,17 @@ class ThreadAnalyzer(object):
             title('CPU Usage of Threads')
             ylabel('Per(%)', fontsize=10)
             legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-            del SystemManager.graphLabels[:]
             figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-            savefig("cpuGraph.png", dpi=(200))
-            clf()
+            del SystemManager.graphLabels[:]
+
+            dirPos = SystemManager.inputFile.rfind('/')
+            if dirPos >= 0:
+                graphPath = SystemManager.inputFile[:dirPos + 1] + 'cpuGraph.png'
+                savefig(graphPath, dpi=(200))
+                clf()
+                SystemManager.printInfo("write CPU graph to %s" % graphPath)
+            else:
+                SystemManager.printWarning("Fail to write CPU graph")
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -8781,7 +8791,15 @@ class ThreadAnalyzer(object):
         if SystemManager.graphEnable is True and \
             (SystemManager.memEnable is True or SystemManager.blockEnable is True):
             figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-            savefig("ioGraph.png", dpi=(200))
+
+            dirPos = SystemManager.inputFile.rfind('/')
+            if dirPos >= 0:
+                graphPath = SystemManager.inputFile[:dirPos + 1] + 'ioGraph.png'
+                savefig(graphPath, dpi=(200))
+                clf()
+                SystemManager.printInfo("write I/O graph to %s" % graphPath)
+            else:
+                SystemManager.printWarning("Fail to write I/O graph")
 
 
 
@@ -8902,11 +8920,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def summarizeIntervalUsage():
-        idx = 0
-
         if 'total' not in ThreadAnalyzer.procTotalData:
             ThreadAnalyzer.procTotalData['total'] = dict(ThreadAnalyzer.init_procTotalData)
 
+        idx = 0
         for val in reversed(SystemManager.procBuffer):
             if len(ThreadAnalyzer.procIntervalData) < idx + 1:
                 ThreadAnalyzer.procIntervalData.append({})
@@ -12440,8 +12457,9 @@ if __name__ == '__main__':
                 matplotlib.use('Agg')
                 from pylab import \
                     rc, rcParams, subplot, plot, title, ylabel, legend, figure, savefig, clf
-            except:
-                SystemManager.printError("graph is not supported because of no matplotlib")
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError("Fail to import package: " + err.args[0])
                 SystemManager.graphEnable = False
 
         # create ThreadAnalyzer using ftrace log #
