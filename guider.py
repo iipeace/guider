@@ -11501,9 +11501,10 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(\
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " + \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" + \
-            "{18:^7}|{19:^9}|{20:>9}|\n").\
+            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
-            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt", "Yield", "Preempt", "LifeTime"))
+            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "Yld", "Prmt", "FD", "LifeTime"))
 
         SystemManager.addPrint(oneLine + '\n')
 
@@ -11603,6 +11604,12 @@ class ThreadAnalyzer(object):
             except:
                 value['preempted'] = '-'
 
+            # save size of file descriptor table #
+            try:
+                value['fdsize'] = long(value['status']['FDSize'])
+            except:
+                value['fdsize'] = 0
+
             if idx in self.prevProcData:
                 try:
                     yld = long(value['yield']) - \
@@ -11631,13 +11638,14 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" + \
-                "{18:>7}|{19:>9}|{20:>9}|\n").\
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                 long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                 long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
-                value['btime'], readSize, writeSize, value['majflt'], yld, prtd, lifeTime))
+                value['btime'], readSize, writeSize, value['majflt'],\
+                yld, prtd, value['fdsize'], lifeTime))
             procCnt += 1
 
         if procCnt == 0:
@@ -11693,13 +11701,14 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" + \
-                    "{18:>7}|{19:>9}|{20:>9}|\n").\
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
                     long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
                     long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
-                    value['btime'], readSize, writeSize, value['majflt'], '-', '-', lifeTime))
+                    value['btime'], readSize, writeSize, value['majflt'],\
+                    '-', '-', '-', lifeTime))
                 dieCnt += 1
 
                 try:
