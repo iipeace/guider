@@ -4385,6 +4385,7 @@ class SystemManager(object):
     fileForPrint = None
     inputFile = None
     outputFile = None
+    sourceFile = None
     printFile = None
     optionList = None
     savedOptionList = None
@@ -4659,7 +4660,7 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)|f(ile)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)|f(ile)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
@@ -5701,6 +5702,9 @@ class SystemManager(object):
                         "wrong option value with -o option, use existing directory path")
                     sys.exit(0)
 
+            elif option == 'I':
+                SystemManager.sourceFile = value
+
             elif option == 'a':
                 SystemManager.showAll = True
 
@@ -6102,7 +6106,7 @@ class SystemManager(object):
             elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
                 option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
                 option == 'h' or option == 'P' or option == 'T' or option == 'n' or \
-                option == 'N' or option == 'x' or option == 'j':
+                option == 'N' or option == 'x' or option == 'j' or option == 'I':
                 continue
 
             else:
@@ -7595,6 +7599,12 @@ class ThreadAnalyzer(object):
 
         # top mode #
         if file is None:
+            if SystemManager.graphEnable is True:
+                # convert statistics in file to graph #
+                if SystemManager.sourceFile is not None:
+                    self.convertGraph(SystemManager.sourceFile)
+                    sys.exit(0)
+
             # set index of attributes #
             self.minfltIdx = ConfigManager.statList.index("MINFLT")
             self.majfltIdx = ConfigManager.statList.index("MAJFLT")
@@ -7762,7 +7772,115 @@ class ThreadAnalyzer(object):
 
 
 
-    def makeTaskChain(self):
+    def convertGraph(self, logFile):
+        logBuf = None
+        labelList = []
+
+        timeline = []
+        cpuUsage = []
+        memFree = []
+        swapUsage = []
+        blkRead = []
+        blkWrite = []
+
+        try:
+            with open(logFile, 'r') as fd:
+                logBuf = fd.readlines()
+        except:
+            SystemManager.printError("Fail to read log from %s\n" % logFile)
+            return
+
+        # parse summary info #
+        nrStatistics = 12
+        for line in logBuf:
+            summaryList = line.split('|')
+            if len(summaryList) > nrStatistics:
+                try:
+                    idx = int(summaryList[0])
+                except:
+                    continue
+
+                timeline.append(float(summaryList[1].split('-')[1]))
+                cpuUsage.append(int(summaryList[2]))
+                memFree.append(int(summaryList[3]))
+                swapUsage.append(int(summaryList[5]))
+                blkUsage = summaryList[4].split('/')
+                blkRead.append(int(blkUsage[0]))
+                blkWrite.append(int(blkUsage[1]))
+
+        title('Resource Usage')
+
+        try:
+            # CPU usage #
+            subplot(3, 1, 1)
+            plot(range(1, len(timeline) + 1), cpuUsage, '.-')
+            labelList.append('Total')
+            ylabel('CPU(%)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
+            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
+            labelList = []
+
+            # RAM & SWAP usage #
+            subplot(3, 1, 2)
+            plot(range(1, len(timeline) + 1), memFree, '.-')
+            labelList.append('Free Memory')
+            plot(range(1, len(timeline) + 1), swapUsage, '.-')
+            labelList.append('Swap Usage')
+            ylabel('MEMORY(MB)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
+            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
+            labelList = []
+
+            # BLOCK usage #
+            subplot(3, 1, 3)
+            plot(range(1, len(timeline) + 1), blkRead, '.-')
+            labelList.append('READ')
+            plot(range(1, len(timeline) + 1), blkWrite, '.-')
+            labelList.append('WRITE')
+            ylabel('BLOCK(MB)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
+            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
+            labelList = []
+        except:
+            SystemManager.printError("Fail to draw graph while setting property")
+            return
+
+        try:
+            # build output file name #
+            outputFile = logFile
+
+            dirPos = logFile.rfind('/')
+            if dirPos < 0:
+                expandPos = logFile.rfind('.')
+                if expandPos < 0:
+                    outputFile = "guider.png"
+                else:
+                    outputFile = outputFile[:expandPos] + ".png"
+            else:
+                dirPath = outputFile[:dirPos + 1]
+                fileName = outputFile[dirPos + 1:]
+
+                expandPos = fileName.rfind('.')
+                if expandPos < 0:
+                    outputFile = dirPath + "guider.png"
+                else:
+                    outputFile = dirPath + fileName[:expandPos] + ".png"
+        except:
+            SystemManager.printError("Fail to draw graph while building file name")
+            return
+
+        try:
+            # save graph #
+            savefig(outputFile, dpi=(300))
+            clf()
+            SystemManager.printInfo("write resource graph to %s" % outputFile)
+        except:
+            SystemManager.printError("Fail to draw graph while saving graph")
+            return
+
+
+
+    def makeTaskChainList(self):
         if ConfigManager.taskChainEnable != True:
             return
 
@@ -8572,7 +8690,8 @@ class ThreadAnalyzer(object):
                         SystemManager.intervalEnable), timeLineData, '.-')
                     SystemManager.graphLabels.append(value['comm'])
 
-                if value['usage'] / float(self.totalTime) * 100 < 1 and SystemManager.showAll is False:
+                if SystemManager.showAll is False and \
+                    value['usage'] / float(self.totalTime) * 100 < 1:
                     break
 
         if SystemManager.graphEnable is True:
@@ -12400,6 +12519,18 @@ if __name__ == '__main__':
     # get tty setting #
     SystemManager.getTty()
 
+    # import packages to draw graph #
+    if SystemManager.graphEnable is True:
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            from pylab import \
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, legend, figure, savefig, clf
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError("Fail to import package: " + err.args[0])
+            SystemManager.graphEnable = False
+
     if SystemManager.isTopMode() is True:
         SystemManager.printRecordOption()
 
@@ -12460,18 +12591,6 @@ if __name__ == '__main__':
 
         sys.exit(0)
     else:
-        # import packages to draw graph #
-        if SystemManager.graphEnable is True:
-            try:
-                import matplotlib
-                matplotlib.use('Agg')
-                from pylab import \
-                    rc, rcParams, subplot, plot, title, ylabel, legend, figure, savefig, clf
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import package: " + err.args[0])
-                SystemManager.graphEnable = False
-
         # create ThreadAnalyzer using ftrace log #
         ti = ThreadAnalyzer(SystemManager.inputFile)
 
@@ -12506,4 +12625,4 @@ if __name__ == '__main__':
     # start input menu #
     if SystemManager.selectMenu != None:
         # make file related to taskchain #
-        ti.makeTaskChain()
+        ti.makeTaskChainList()
