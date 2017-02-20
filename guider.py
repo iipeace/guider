@@ -7780,8 +7780,10 @@ class ThreadAnalyzer(object):
         cpuUsage = []
         memFree = []
         swapUsage = []
+        blkWait = []
         blkRead = []
         blkWrite = []
+        cpuProcUsage = {}
 
         try:
             with open(logFile, 'r') as fd:
@@ -7790,9 +7792,15 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to read log from %s\n" % logFile)
             return
 
-        # parse summary info #
+        # parse summary #
+        interval = 0
+        finalLine = 0
+        compareString = '[Top CPU Info]'
+        compareLen = len(compareString)
         nrStatistics = 12
+
         for line in logBuf:
+            finalLine += 1
             summaryList = line.split('|')
             if len(summaryList) > nrStatistics:
                 try:
@@ -7800,46 +7808,159 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
-                timeline.append(float(summaryList[1].split('-')[1]))
-                cpuUsage.append(int(summaryList[2]))
-                memFree.append(int(summaryList[3]))
-                swapUsage.append(int(summaryList[5]))
-                blkUsage = summaryList[4].split('/')
-                blkRead.append(int(blkUsage[0]))
-                blkWrite.append(int(blkUsage[1]))
+                try:
+                    timeline.append(int(float(summaryList[1].split('-')[1])))
+                except:
+                    timeline.append(0)
+                try:
+                    cpuUsage.append(int(summaryList[2]))
+                except:
+                    cpuUsage.append(0)
+                try:
+                    memFree.append(int(summaryList[3]))
+                except:
+                    memFree.append(0)
+                try:
+                    blkWait.append(int(summaryList[5]))
+                except:
+                    blkWait.append(0)
+                try:
+                    swapUsage.append(int(summaryList[6]))
+                except:
+                    swapUsage.append(0)
+                try:
+                    blkUsage = summaryList[4].split('/')
+                    blkRead.append(int(blkUsage[0]))
+                    blkWrite.append(int(blkUsage[1]))
+                except:
+                    blkRead.append(0)
+                    blkWrite.append(0)
+            if line[:compareLen] == compareString:
+                break
 
-        title('Resource Usage')
+        # parse cpu usage of processes #
+        compareString = '[Top Memory Info]'
+        compareLen = len(compareString)
+        pname = None
+        pid = 0
+        average = 0
+        intervalList = None
+
+        for line in logBuf[finalLine:]:
+            if line[:compareLen] == compareString:
+                break
+
+            sline = line.split('|')
+            slen = len(sline)
+
+            if slen == 3:
+                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
+                if m is not None:
+                    d = m.groupdict()
+
+                    # save previous info #
+                    if intervalList is not None:
+                        cpuProcUsage[pname] = {}
+                        cpuProcUsage[pname]['pid'] = pid
+                        cpuProcUsage[pname]['average'] = average
+                        cpuProcUsage[pname]['usage'] = intervalList
+
+                    pname = d['comm'].strip() + '(' + d['pid'] + ')'
+                    pid = d['pid']
+                    average = int(sline[1])
+                    intervalList = sline[2]
+            elif slen == 2:
+                if intervalList is not None:
+                    intervalList += sline[1]
 
         try:
             # CPU usage #
-            subplot(3, 1, 1)
-            plot(range(1, len(timeline) + 1), cpuUsage, '.-')
-            labelList.append('Total')
+            subplot2grid((3,1), (0,0), rowspan=2, colspan=1)
+            title('guider top report')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[TOTAL USAGE]')
+            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+            labelList.append('[I/O WAIT]')
+
+            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+                usage = item['usage'].split()
+                usage = map(int, usage)
+                maxIdx = usage.index(max(usage))
+                color = plot(timeline, usage, '-')[0].get_color()
+                text(timeline[maxIdx], usage[maxIdx] + 3, item['pid'],\
+                        fontsize=3, rotation=90, color=color, fontweight='bold')
+                labelList.append(idx)
+
             ylabel('CPU(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
-            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
+            legend(labelList, bbox_to_anchor=(1.123, 1), fontsize=3.5)
+            grid(which='both')
+            yticks(fontsize = 7)
+            xticks(fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
             labelList = []
 
-            # RAM & SWAP usage #
-            subplot(3, 1, 2)
-            plot(range(1, len(timeline) + 1), memFree, '.-')
+            # MEMORY usage #
+            subplot2grid((3,1), (2,0), rowspan=1, colspan=1)
+
+            usage = map(int, memFree)
+            plot(timeline, usage, '-', c='blue', linewidth=3)
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
             labelList.append('Free Memory')
-            plot(range(1, len(timeline) + 1), swapUsage, '.-')
-            labelList.append('Swap Usage')
-            ylabel('MEMORY(MB)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
-            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
-            labelList = []
 
-            # BLOCK usage #
-            subplot(3, 1, 3)
-            plot(range(1, len(timeline) + 1), blkRead, '.-')
-            labelList.append('READ')
-            plot(range(1, len(timeline) + 1), blkWrite, '.-')
-            labelList.append('WRITE')
-            ylabel('BLOCK(MB)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.135, 1.02), fontsize=5)
-            figure(num=1, figsize=(10, 10), dpi=300, facecolor='b', edgecolor='k')
+            usage = map(int, swapUsage)
+            plot(timeline, swapUsage, '-', c='orange', linewidth=3)
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            labelList.append('Swap Usage')
+
+            usage = map(int, blkRead)
+            plot(timeline, blkRead, '-', c='red', linewidth=3)
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            labelList.append('Block Read')
+
+            usage = map(int, blkWrite)
+            plot(timeline, blkWrite, '-', c='yellow', linewidth=3)
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            labelList.append('Block Write')
+
+            ylabel('MEMORY(MB)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.08, 0.22), fontsize=3.5)
+            grid(which='both')
+            yticks(fontsize = 7)
+            xticks(fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
             labelList = []
         except:
             SystemManager.printError("Fail to draw graph while setting property")
@@ -8946,7 +9067,7 @@ class ThreadAnalyzer(object):
             if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
                 return
 
-            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%', tokenList[1])
+            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)', tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
@@ -8957,6 +9078,11 @@ class ThreadAnalyzer(object):
                     ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = int(d['cpu'])
                 except:
                     ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = 0
+
+                try:
+                    ThreadAnalyzer.procIntervalData[index]['total']['blkwait'] = int(d['block'])
+                except:
+                    ThreadAnalyzer.procIntervalData[index]['total']['blkwait'] = 0
             else:
                 return
 
@@ -9067,9 +9193,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint(twoLine + '\n')
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | " +\
-            "{5:^8} | {6:^12} | {7:^5} | {8:^6} | {9:^6} | {10:^6} | {11:^8} |\n").\
-            format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BLKRW(MB)', \
+        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
+            "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
+            format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BLKRW(MB)', 'BLKWAIT(%)',\
             'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
         SystemManager.pipePrint(oneLine + '\n')
 
@@ -9080,9 +9206,9 @@ class ThreadAnalyzer(object):
                 before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
 
             SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:^6} | {4:^8} | {5:^9} | " +\
-                "{6:^8} | {7:^12} | {8:>5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
+                "{6:^10} | {7:^8} | {8:^12} | {9:>5} | {10:^6} | {11:^6} | {12:^6} | {13:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
-                val['total']['blk'], val['total']['swap'], val['total']['rclm'], \
+                val['total']['blk'], val['total']['blkwait'], val['total']['swap'], val['total']['rclm'], \
                 val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
 
         SystemManager.pipePrint(oneLine + '\n')
@@ -12525,7 +12651,9 @@ if __name__ == '__main__':
             import matplotlib
             matplotlib.use('Agg')
             from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, legend, figure, savefig, clf
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, text,\
+                subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
+                grid, yticks, xticks, locator_params, subplot2grid
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import package: " + err.args[0])
