@@ -7791,7 +7791,7 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to read log from %s\n" % logFile)
             return
-
+ 
         # parse summary #
         interval = 0
         finalLine = 0
@@ -7875,7 +7875,8 @@ class ThreadAnalyzer(object):
 
         try:
             # CPU usage #
-            subplot2grid((3,1), (0,0), rowspan=2, colspan=1)
+            ax = subplot2grid((3,1), (0,0), rowspan=2, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             title('guider top report')
             plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
             labelList.append('[TOTAL USAGE]')
@@ -7903,7 +7904,8 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # MEMORY usage #
-            subplot2grid((3,1), (2,0), rowspan=1, colspan=1)
+            ax = subplot2grid((3,1), (2,0), rowspan=1, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             usage = map(int, memFree)
             plot(timeline, usage, '-', c='blue', linewidth=3)
@@ -12654,6 +12656,7 @@ if __name__ == '__main__':
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text,\
                 subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
                 grid, yticks, xticks, locator_params, subplot2grid
+            from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import package: " + err.args[0])
