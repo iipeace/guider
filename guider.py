@@ -7880,7 +7880,7 @@ class ThreadAnalyzer(object):
 
         try:
             # CPU usage #
-            ax = subplot2grid((3,1), (0,0), rowspan=2, colspan=1)
+            ax = subplot2grid((4,1), (0,0), rowspan=3, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             title('guider top report')
             plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
@@ -7898,7 +7898,7 @@ class ThreadAnalyzer(object):
                 labelList.append(idx)
 
             ylabel('CPU(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.123, 1), fontsize=3.5)
+            legend(labelList, bbox_to_anchor=(1.115, 1), fontsize=3.5)
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -7909,7 +7909,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # MEMORY usage #
-            ax = subplot2grid((3,1), (2,0), rowspan=1, colspan=1)
+            ax = subplot2grid((4,1), (3,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             usage = map(int, memFree)
