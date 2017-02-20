@@ -7604,6 +7604,11 @@ class ThreadAnalyzer(object):
                 if SystemManager.sourceFile is not None:
                     self.convertGraph(SystemManager.sourceFile)
                     sys.exit(0)
+                # no path of statistics file #
+                else:
+                    SystemManager.printError(\
+                        "wrong option with -eg, use also -I option to load statistics data")
+                    sys.exit(0)
 
             # set index of attributes #
             self.minfltIdx = ConfigManager.statList.index("MINFLT")
