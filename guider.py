@@ -8014,15 +8014,15 @@ class ThreadAnalyzer(object):
             labelList.append('Block Read')
 
             usage = map(int, blkWrite)
-            plot(timeline, blkWrite, '-', c='yellow', linewidth=1)
+            plot(timeline, blkWrite, '-', c='green', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='yellow', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='yellow', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
             labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
