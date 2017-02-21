@@ -7937,10 +7937,10 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='red', fontweight='bold')
             labelList.append('Swap Usage')
 
             usage = map(int, blkRead)
