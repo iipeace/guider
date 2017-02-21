@@ -7932,9 +7932,9 @@ class ThreadAnalyzer(object):
                 blkWait[idx] += cpuUsage[idx]
 
             plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ TOTAL + I/O WAIT ]')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
             labelList.append('[ TOTAL ]')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU Only ]')
 
             for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
                 usage = item['usage'].split()
