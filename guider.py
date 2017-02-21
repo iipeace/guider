@@ -7983,10 +7983,10 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='blue', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='blue', fontweight='bold')
             labelList.append('RAM Free')
 
             usage = map(int, swapUsage)
@@ -7995,10 +7995,10 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='orange', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='orange', fontweight='bold')
             labelList.append('Swap Usage')
 
             usage = map(int, blkRead)
@@ -8010,7 +8010,7 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='red', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='red', fontweight='bold')
             labelList.append('Block Read')
 
             usage = map(int, blkWrite)
@@ -8019,10 +8019,10 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='yellow', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='yellow', fontweight='bold')
             labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
