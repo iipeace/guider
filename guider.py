@@ -8026,7 +8026,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.08, 0.28), fontsize=3.5, loc='upper right')
+            legend(labelList, bbox_to_anchor=(1.07, 0.45), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
