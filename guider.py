@@ -7978,7 +7978,7 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             usage = map(int, memFree)
-            plot(timeline, usage, '-', c='blue', linewidth=3)
+            plot(timeline, usage, '-', c='blue', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
@@ -7990,7 +7990,7 @@ class ThreadAnalyzer(object):
             labelList.append('RAM Free')
 
             usage = map(int, swapUsage)
-            plot(timeline, swapUsage, '-', c='orange', linewidth=3)
+            plot(timeline, swapUsage, '-', c='orange', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
@@ -8002,7 +8002,7 @@ class ThreadAnalyzer(object):
             labelList.append('Swap Usage')
 
             usage = map(int, blkRead)
-            plot(timeline, blkRead, '-', c='red', linewidth=3)
+            plot(timeline, blkRead, '-', c='red', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
@@ -8014,7 +8014,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Read')
 
             usage = map(int, blkWrite)
-            plot(timeline, blkWrite, '-', c='yellow', linewidth=3)
+            plot(timeline, blkWrite, '-', c='yellow', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
