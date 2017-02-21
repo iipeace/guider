@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7789,6 +7789,7 @@ class ThreadAnalyzer(object):
         blkRead = []
         blkWrite = []
         cpuProcUsage = {}
+        blkProcUsage = {}
 
         try:
             with open(logFile, 'r') as fd:
@@ -7878,34 +7879,91 @@ class ThreadAnalyzer(object):
                 if intervalList is not None:
                     intervalList += sline[1]
 
+        # trim log from Block Info #
+        compareString = '[Top Block Info]'
+        compareLen = len(compareString)
+        for line in logBuf[finalLine:]:
+            finalLine += 1
+            if line[:compareLen] == compareString:
+                break
+
+        # parse block wait of processes #
+        compareString = '[Top Info]'
+        compareLen = len(compareString)
+        pname = None
+        pid = 0
+        average = 0
+        intervalList = None
+
+        for line in logBuf[finalLine:]:
+            if line[:compareLen] == compareString:
+                break
+
+            sline = line.split('|')
+            slen = len(sline)
+
+            if slen == 3:
+                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
+                if m is not None:
+                    d = m.groupdict()
+
+                    # save previous info #
+                    if intervalList is not None:
+                        blkProcUsage[pname] = {}
+                        blkProcUsage[pname]['pid'] = pid
+                        blkProcUsage[pname]['average'] = average
+                        blkProcUsage[pname]['usage'] = intervalList
+
+                    pname = d['comm'].strip() + '(' + d['pid'] + ')'
+                    pid = d['pid']
+                    average = int(sline[1])
+                    intervalList = sline[2]
+            elif slen == 2:
+                if intervalList is not None:
+                    intervalList += sline[1]
+
         try:
             # CPU usage #
             ax = subplot2grid((4,1), (0,0), rowspan=3, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             title('guider top report')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-            labelList.append('[TOTAL USAGE]')
+
+            for idx, item in enumerate(blkWait):
+                blkWait[idx] += cpuUsage[idx]
+
             plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[I/O WAIT]')
+            labelList.append('[ RUN + I/O WAIT ]')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[ RUN ]')
 
             for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
                 usage = item['usage'].split()
                 usage = map(int, usage)
+
+                # merge cpu usage and wait time of processes #
+                try:
+                    blkUsage = blkProcUsage[idx]['usage'].split()
+                    blkUsage = map(int, blkUsage)
+                    for interval, value in enumerate(blkUsage):
+                        usage[interval] += value
+                except:
+                    pass
+
                 maxIdx = usage.index(max(usage))
                 color = plot(timeline, usage, '-')[0].get_color()
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / len(ytick) * 2
+                    margin = (ytick[1] - ytick[0]) / len(ytick)
                 else:
                     margin = 0
 
-                text(timeline[maxIdx], usage[maxIdx] + margin, item['pid'],\
-                        fontsize=3, rotation=90, color=color, fontweight='bold')
+                text(timeline[maxIdx], usage[maxIdx] + margin, idx,\
+                        fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
             ylabel('CPU(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.115, 1), fontsize=3.5, loc='upper right')
+            legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -7929,7 +7987,7 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='green', fontweight='bold')
-            labelList.append('Free Memory')
+            labelList.append('RAM Free')
 
             usage = map(int, swapUsage)
             plot(timeline, swapUsage, '-', c='orange', linewidth=3)
@@ -9226,8 +9284,8 @@ class ThreadAnalyzer(object):
             else:
                 before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
 
-            SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:^6} | {4:^8} | {5:^9} | " +\
-                "{6:^10} | {7:^8} | {8:^12} | {9:>5} | {10:^6} | {11:^6} | {12:^6} | {13:^8} |\n").\
+            SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:>6} | {4:>8} | {5:^9} | " +\
+                "{6:>10} | {7:>8} | {8:^12} | {9:>5} | {10:>6} | {11:>6} | {12:>6} | {13:>8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], val['total']['rclm'], \
                 val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
