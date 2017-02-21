@@ -7932,9 +7932,9 @@ class ThreadAnalyzer(object):
                 blkWait[idx] += cpuUsage[idx]
 
             plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ RUN + I/O WAIT ]')
+            labelList.append('[ TOTAL + I/O WAIT ]')
             plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-            labelList.append('[ RUN ]')
+            labelList.append('[ TOTAL ]')
 
             for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
                 usage = item['usage'].split()
@@ -7962,7 +7962,7 @@ class ThreadAnalyzer(object):
                         fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
-            ylabel('CPU(%)', fontsize=8)
+            ylabel('CPU+I/O(%)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
