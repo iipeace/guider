@@ -7893,12 +7893,19 @@ class ThreadAnalyzer(object):
                 usage = map(int, usage)
                 maxIdx = usage.index(max(usage))
                 color = plot(timeline, usage, '-')[0].get_color()
-                text(timeline[maxIdx], usage[maxIdx] + 3, item['pid'],\
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / len(ytick) * 2
+                else:
+                    margin = 0
+
+                text(timeline[maxIdx], usage[maxIdx] + margin, item['pid'],\
                         fontsize=3, rotation=90, color=color, fontweight='bold')
                 labelList.append(idx)
 
             ylabel('CPU(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.115, 1), fontsize=3.5)
+            legend(labelList, bbox_to_anchor=(1.115, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -7961,7 +7968,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.08, 0.22), fontsize=3.5)
+            legend(labelList, bbox_to_anchor=(1.08, 0.28), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -7993,6 +8000,13 @@ class ThreadAnalyzer(object):
                     outputFile = dirPath + "guider.png"
                 else:
                     outputFile = dirPath + fileName[:expandPos] + ".png"
+
+            if SystemManager.printFile is not None:
+                dirPath = os.path.dirname(SystemManager.printFile)
+                if dirPath is '':
+                    outputFile = SystemManager.printFile + '/' + os.path.basename(outputFile)
+                else:
+                    outputFile = dirPath + '/' + os.path.basename(outputFile)
         except:
             SystemManager.printError("Fail to draw graph while building file name")
             return
