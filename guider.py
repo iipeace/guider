@@ -7924,7 +7924,7 @@ class ThreadAnalyzer(object):
 
         try:
             # CPU usage #
-            ax = subplot2grid((4,1), (0,0), rowspan=3, colspan=1)
+            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             title('guider top report')
 
@@ -7974,7 +7974,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # MEMORY usage #
-            ax = subplot2grid((4,1), (3,0), rowspan=1, colspan=1)
+            ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             usage = map(int, memFree)
