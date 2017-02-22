@@ -7656,6 +7656,7 @@ class ThreadAnalyzer(object):
             # request service to remote server #
             self.requestService()
 
+            prevTime = 0
             while True:
                 if SystemManager.addrOfServer is not None:
                     # receive response from server #
@@ -7668,6 +7669,7 @@ class ThreadAnalyzer(object):
 
                 # collect system stats as soon as possible #
                 self.saveSystemStat()
+                delayTime = 0
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
@@ -7679,8 +7681,12 @@ class ThreadAnalyzer(object):
                     # report system status #
                     self.reportSystemStat()
 
+                    if prevTime > 0:
+                        delayTime = time.time() - prevTime
+
                 # wait for next interval #
-                time.sleep(SystemManager.intervalEnable)
+                time.sleep(SystemManager.intervalEnable - delayTime)
+                prevTime = time.time()
 
                 # check request from client #
                 self.checkServer()
@@ -8355,7 +8361,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        # print die thread information after sorting by die thread flags #
+        # print terminated thread information after sorting by die flags #
         count = 0
         SystemManager.clearPrint()
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['die'], reverse=True):
@@ -9218,6 +9224,10 @@ class ThreadAnalyzer(object):
         if m is not None:
             d = m.groupdict()
             pid = d['pid']
+
+            # ignore already terminated process #
+            if d['comm'][0] == '#':
+                return
 
             if pid not in ThreadAnalyzer.procTotalData:
                 ThreadAnalyzer.procTotalData[pid] = dict(ThreadAnalyzer.init_procTotalData)
@@ -12026,7 +12036,7 @@ class ThreadAnalyzer(object):
                     readSize = '-'
                     writeSize = '-'
 
-                # print die thread information #
+                # print terminated thread information #
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " + \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" + \
