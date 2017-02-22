@@ -7905,6 +7905,8 @@ class ThreadAnalyzer(object):
             if line[:compareLen] == compareString:
                 break
 
+            finalLine += 1
+
             sline = line.split('|')
             slen = len(sline)
 
@@ -7926,6 +7928,19 @@ class ThreadAnalyzer(object):
                 blkProcUsage[pname]['total'] = total
                 blkProcUsage[pname]['usage'] = intervalList
 
+        # get total size of RAM and Swap #
+        line = logBuf[finalLine]
+        strPos = line.find('[RAM')
+        sline = line[strPos:].split()
+        try:
+            totalRAM = sline[1][:-1]
+        except:
+            totalRAM = None
+        try:
+            totalSwap = sline[3][:-1]
+        except:
+            totalSwap = None
+
         try:
             # MEMORY usage #
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
@@ -7941,7 +7956,10 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='blue', fontweight='bold')
-            labelList.append('RAM Free')
+            if totalRAM is not None:
+                labelList.append('RAM Free(' + totalRAM + '~)')
+            else:
+                labelList.append('RAM Free')
 
             usage = map(int, swapUsage)
             plot(timeline, swapUsage, '-', c='orange', linewidth=1)
@@ -7953,7 +7971,10 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='orange', fontweight='bold')
-            labelList.append('Swap Usage')
+            if totalSwap is not None:
+                labelList.append('Swap Usage(~' + totalSwap + ')')
+            else:
+                labelList.append('Swap Usage')
 
             usage = map(int, blkRead)
             plot(timeline, blkRead, '-', c='red', linewidth=1)
@@ -7980,7 +8001,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.07, 0.45), fontsize=3.5, loc='upper right')
+            legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
