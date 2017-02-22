@@ -7069,6 +7069,8 @@ class SystemManager(object):
             if SystemManager.saveCmd is not None:
                 try:
                     SystemManager.cmdFd.write(SystemManager.saveCmd)
+                    SystemManager.cmdFd.write("echo '\ntrace data is saved to %s\n'\n"\
+                        % SystemManager.outputFile)
                 except:
                     SystemManager.printError("Fail to write save command")
 
