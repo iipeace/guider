@@ -7863,14 +7863,6 @@ class ThreadAnalyzer(object):
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                 if m is not None:
                     d = m.groupdict()
-
-                    # save previous info #
-                    if intervalList is not None:
-                        cpuProcUsage[pname] = {}
-                        cpuProcUsage[pname]['pid'] = pid
-                        cpuProcUsage[pname]['average'] = average
-                        cpuProcUsage[pname]['usage'] = intervalList
-
                     pname = d['comm'].strip() + '(' + d['pid'] + ')'
                     pid = d['pid']
                     average = int(sline[1])
@@ -7878,6 +7870,12 @@ class ThreadAnalyzer(object):
             elif slen == 2:
                 if intervalList is not None:
                     intervalList += sline[1]
+            elif intervalList is not None:
+                # save previous info #
+                cpuProcUsage[pname] = {}
+                cpuProcUsage[pname]['pid'] = pid
+                cpuProcUsage[pname]['average'] = average
+                cpuProcUsage[pname]['usage'] = intervalList
 
         # trim log from Block Info #
         compareString = '[Top Block Info]'
@@ -7892,7 +7890,7 @@ class ThreadAnalyzer(object):
         compareLen = len(compareString)
         pname = None
         pid = 0
-        average = 0
+        total = 0
         intervalList = None
 
         for line in logBuf[finalLine:]:
@@ -7906,73 +7904,21 @@ class ThreadAnalyzer(object):
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                 if m is not None:
                     d = m.groupdict()
-
-                    # save previous info #
-                    if intervalList is not None:
-                        blkProcUsage[pname] = {}
-                        blkProcUsage[pname]['pid'] = pid
-                        blkProcUsage[pname]['average'] = average
-                        blkProcUsage[pname]['usage'] = intervalList
-
                     pname = d['comm'].strip() + '(' + d['pid'] + ')'
                     pid = d['pid']
-                    average = int(sline[1])
+                    total = int(sline[1])
                     intervalList = sline[2]
             elif slen == 2:
                 if intervalList is not None:
                     intervalList += sline[1]
+            elif intervalList is not None:
+                # save previous info #
+                blkProcUsage[pname] = {}
+                blkProcUsage[pname]['pid'] = pid
+                blkProcUsage[pname]['total'] = total
+                blkProcUsage[pname]['usage'] = intervalList
 
         try:
-            # CPU usage #
-            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider top report')
-
-            for idx, item in enumerate(blkWait):
-                blkWait[idx] += cpuUsage[idx]
-
-            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ TOTAL ]')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-            labelList.append('[ CPU Only ]')
-
-            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
-                usage = item['usage'].split()
-                usage = map(int, usage)
-
-                # merge cpu usage and wait time of processes #
-                try:
-                    blkUsage = blkProcUsage[idx]['usage'].split()
-                    blkUsage = map(int, blkUsage)
-                    for interval, value in enumerate(blkUsage):
-                        usage[interval] += value
-                except:
-                    pass
-
-                maxIdx = usage.index(max(usage))
-                color = plot(timeline, usage, '-')[0].get_color()
-
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / len(ytick)
-                else:
-                    margin = 0
-
-                text(timeline[maxIdx], usage[maxIdx] + margin, idx,\
-                        fontsize=3, color=color, fontweight='bold')
-                labelList.append(idx)
-
-            ylabel('CPU+I/O(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
-            grid(which='both')
-            yticks(fontsize = 7)
-            xticks(fontsize = 5)
-            ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
-            labelList = []
-
             # MEMORY usage #
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -8033,6 +7979,64 @@ class ThreadAnalyzer(object):
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+            labelList = []
+
+            # CPU total usage #
+            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            title('guider top report')
+
+            for idx, item in enumerate(blkWait):
+                blkWait[idx] += cpuUsage[idx]
+
+            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+            labelList.append('[ TOTAL ]')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU Only ]')
+
+            # CPU usage of processes #
+            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+                usage = item['usage'].split()
+                usage = map(int, usage)
+                cpuUsage = list(usage)
+
+                # merge cpu usage and wait time of processes #
+                try:
+                    blkUsage = blkProcUsage[idx]['usage'].split()
+                    blkUsage = map(int, blkUsage)
+                    for interval, value in enumerate(blkUsage):
+                        usage[interval] += value
+                except:
+                    pass
+
+                maxIdx = usage.index(max(usage))
+                color = plot(timeline, usage, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / len(ytick)
+                else:
+                    margin = 0
+
+                maxCpuPer = str(cpuUsage[maxIdx])
+                if idx in blkProcUsage:
+                    maxBlkPer = str(blkUsage[maxIdx])
+                else:
+                    maxBlkPer = '0'
+                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
+                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
+                        fontsize=3, color=color, fontweight='bold')
+                labelList.append(idx)
+
+            ylabel('CPU+I/O(%)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
+            grid(which='both')
+            yticks(fontsize = 7)
+            xticks(fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
             labelList = []
         except:
             SystemManager.printError("Fail to draw graph while setting property")
