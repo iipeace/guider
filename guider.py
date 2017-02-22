@@ -4378,6 +4378,9 @@ class SystemManager(object):
 
     arch = 'arm'
     mountPath = None
+    mountCmd = None
+    signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
+    saveCmd = None
     addr2linePath = None
     rootPath = None
     fontPath = None
@@ -4441,6 +4444,7 @@ class SystemManager(object):
     vmstatFd = None
     swapFd = None
     uptimeFd = None
+    cmdFd = None
 
     irqEnable = False
     cpuEnable = True
@@ -4454,6 +4458,7 @@ class SystemManager(object):
     depEnable = False
     sysEnable = False
     waitEnable = False
+    cmdEnable = False
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
@@ -4676,9 +4681,10 @@ class SystemManager(object):
             print('\t\t-T  [set_fontPath]')
             print('\t\t-x  [set_addressForLocalServer:ip:port]')
             print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
-            print('\t\t-j  [set_pathForReport:dir]')
+            print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
+            print('\t\t-C  [set_commandScriptPath:file]')
             print('\t[analysis options]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-P  [group_perProcessBasis]')
@@ -5107,8 +5113,8 @@ class SystemManager(object):
     @staticmethod
     def saveAndQuit(lines):
         # save trace data to file #
-        try:
-            if SystemManager.outputFile != None:
+        if SystemManager.outputFile != None:
+            try:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile) is True:
                     shutil.copy(SystemManager.outputFile, \
@@ -5124,16 +5130,32 @@ class SystemManager(object):
                 f.writelines(lines)
 
                 SystemManager.printInfo('trace data is saved to %s' % SystemManager.outputFile)
+            except IOError:
+                SystemManager.printError("Fail to write data to %s" % SystemManager.outputFile)
 
-                sys.exit(0)
-        except IOError:
-            SystemManager.printError("Fail to write data to %s" % SystemManager.outputFile)
-            sys.exit(0)
+        sys.exit(0)
 
 
 
     @staticmethod
     def writeCmd(path, val):
+        if SystemManager.cmdEnable is not False:
+            if SystemManager.cmdFd is None:
+                try:
+                    SystemManager.cmdFd = open(SystemManager.cmdEnable, 'w')
+                    SystemManager.cmdFd.write(SystemManager.mountCmd + ' 2>/dev/null\n')
+                    SystemManager.cmdFd.write('echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
+                except:
+                    SystemManager.printError("Fail to open %s to write command" %\
+                            SystemManager.cmdEnable)
+                    SystemManager.cmdEnable = False
+            if SystemManager.cmdFd is not None:
+                try:
+                    cmd = 'echo ' + str(val) + ' > ' + SystemManager.mountPath + path + ' 2>/dev/null\n'
+                    SystemManager.cmdFd.write(cmd)
+                except:
+                    SystemManager.printError("Fail to write command")
+
         try:
             fd = open(SystemManager.mountPath + path, 'w')
         except:
@@ -5938,7 +5960,7 @@ class SystemManager(object):
                 SystemManager.backgroundEnable = True
 
             elif option == 'W' or option == 'y' or option == 's' or option == 'R' or option == 'F' or \
-                option == 't' or option == 'h':
+                option == 't' or option == 'h' or option == 'C':
                 continue
 
             else:
@@ -6040,6 +6062,9 @@ class SystemManager(object):
 
             elif option == 'F':
                 SystemManager.fileEnable = True
+
+            elif option == 'C':
+                SystemManager.cmdEnable = str(value)
 
             elif option == 't':
                 SystemManager.sysEnable = True
@@ -6665,13 +6690,15 @@ class SystemManager(object):
 
 
     def runRecordStartCmd(self):
-        cmd = self.getMountPath()
-        if cmd == None:
+        SystemManager.mountPath = self.getMountPath()
+        if SystemManager.mountPath is None:
             SystemManager.mountPath = "/sys/kernel/debug"
-            cmd = "mount -t debugfs nodev " + SystemManager.mountPath + ";"
-            os.system(cmd)
+            SystemManager.mountCmd =\
+                "mount -t debugfs nodev " + SystemManager.mountPath
+            os.system(SystemManager.mountCmd)
         else:
-            SystemManager.mountPath = str(cmd)
+            SystemManager.mountCmd =\
+                "mount -t debugfs nodev " + SystemManager.mountPath
 
         SystemManager.mountPath += "/tracing/events/"
 
@@ -7006,6 +7033,22 @@ class SystemManager(object):
     def runRecordStopCmd():
         if SystemManager.isRecordMode() is True and \
             (SystemManager.isThreadMode() is True or SystemManager.isFunctionMode() is True):
+
+            # write signal command #
+            if SystemManager.cmdEnable is not False and SystemManager.cmdFd is not None:
+                if SystemManager.signalCmd is not None:
+                    try:
+                        SystemManager.cmdFd.write(SystemManager.signalCmd)
+                        SystemManager.signalCmd = None
+                        SystemManager.printInfo("write commands to %s" %\
+                            SystemManager.cmdEnable)
+                    except:
+                        SystemManager.printError("Fail to write signal command")
+                elif SystemManager.outputFile is not None:
+                        SystemManager.saveCmd =\
+                            'cat ' + SystemManager.mountPath + '../trace > ' +\
+                            SystemManager.outputFile + '\n'
+
             # disable all ftrace options registered #
             for idx, val in SystemManager.cmdList.items():
                 if val is True or val is not False:
@@ -7021,6 +7064,13 @@ class SystemManager(object):
             if SystemManager.isFunctionMode() is True:
                 SystemManager.writeCmd('../options/stacktrace', '0')
                 SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
+
+            # write save command #
+            if SystemManager.saveCmd is not None:
+                try:
+                    SystemManager.cmdFd.write(SystemManager.saveCmd)
+                except:
+                    SystemManager.printError("Fail to write save command")
 
 
 
@@ -12712,7 +12762,7 @@ if __name__ == '__main__':
             if SystemManager.outputFile is not None:
                 SystemManager.setIdlePriority()
                 SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
-                SystemManager.printInfo("wrote output to %s successfully" % (SystemManager.outputFile))
+                SystemManager.printInfo("wrote data to %s successfully" % (SystemManager.outputFile))
             else:
                 SystemManager.printError("wrong option with -ep, use also -s option to save data")
 
