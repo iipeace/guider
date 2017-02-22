@@ -7683,6 +7683,8 @@ class ThreadAnalyzer(object):
 
                     if prevTime > 0:
                         delayTime = time.time() - prevTime
+                        if delayTime < 0:
+                            delayTime = SystemManager.intervalEnable
 
                 # wait for next interval #
                 time.sleep(SystemManager.intervalEnable - delayTime)
