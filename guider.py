@@ -5133,7 +5133,7 @@ class SystemManager(object):
             except IOError:
                 SystemManager.printError("Fail to write data to %s" % SystemManager.outputFile)
 
-        sys.exit(0)
+            sys.exit(0)
 
 
 
