@@ -12827,6 +12827,7 @@ if __name__ == '__main__':
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import package: " + err.args[0])
             SystemManager.graphEnable = False
+            sys.exit(0)
 
     if SystemManager.isTopMode() is True:
         SystemManager.printRecordOption()
