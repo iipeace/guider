@@ -5192,7 +5192,7 @@ class SystemManager(object):
 
     @staticmethod
     def addPrint(string):
-        SystemManager.bufferString += string
+        SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += 1
 
 
@@ -11863,11 +11863,8 @@ class ThreadAnalyzer(object):
 
 
     def printProcUsage(self):
-        procCnt = 0
-        dieCnt = 0
-        interval = SystemManager.uptimeDiff
-
         # calculate diff between previous and now #
+        interval = SystemManager.uptimeDiff
         for pid, value in self.procData.items():
             try:
                 nowData = value['stat']
@@ -11938,6 +11935,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['ttime'], reverse=True)
 
         # print process usage sorted by cpu usage #
+        procCnt = 0
         for idx, value in sortedProcData:
             # filter #
             if SystemManager.showGroup != []:
@@ -11965,7 +11963,9 @@ class ThreadAnalyzer(object):
                 targetValue = value['cttime']
 
             # check limit #
-            if SystemManager.showGroup == [] and SystemManager.showAll is False and targetValue == 0:
+            if SystemManager.showGroup == [] and\
+                SystemManager.showAll is False and\
+                targetValue == 0:
                 break
 
             if value['new'] is True:
@@ -12001,7 +12001,8 @@ class ThreadAnalyzer(object):
             self.saveProcStatusData(value['taskPath'], idx)
 
             try:
-                vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
+                vmswp =\
+                    long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
             except:
                 vmswp = '-'
             try:
@@ -12067,7 +12068,8 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(oneLine + '\n')
 
         # close fd that thread who already termiated created because of limited resource #
-        for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=True):
+        dieCnt = 0
+        for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
             if value['alive'] is False:
                 comm = '#' + value['stat'][self.commIdx][1:-1]
 
@@ -12145,14 +12147,15 @@ class ThreadAnalyzer(object):
                         value['ioFd'].close()
                 except:
                     pass
+            else:
+                if dieCnt > 0:
+                    SystemManager.addPrint(oneLine + '\n')
+                return
 
             # cut by rows of terminal #
             if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
                 SystemManager.printFile is None:
                 return
-
-        if dieCnt > 0:
-            SystemManager.addPrint(oneLine + '\n')
 
 
 
