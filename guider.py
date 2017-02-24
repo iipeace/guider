@@ -4006,8 +4006,8 @@ class FileAnalyzer(object):
                 continue
 
             # make path of comm #
-            procPath = os.path.join(SystemManager.procPath, pid)
-            commPath = os.path.join(procPath, 'comm')
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            commPath = "%s/%s" % (procPath, 'comm')
             pidComm = ''
 
             # make comm path of process #
@@ -4024,7 +4024,7 @@ class FileAnalyzer(object):
                     continue
 
             # make path of tid #
-            taskPath = os.path.join(procPath, 'task')
+            taskPath = "%s/%s" % (procPath, 'task')
 
             try:
                 tids = os.listdir(taskPath)
@@ -4040,8 +4040,8 @@ class FileAnalyzer(object):
                     continue
 
                 # make comm path of thread #
-                threadPath = os.path.join(taskPath, tid)
-                commPath = os.path.join(threadPath, 'comm')
+                threadPath = "%s/%s" % (taskPath, tid)
+                commPath = "%s/%s" % (threadPath, 'comm')
 
                 try:
                     fd = open(commPath, 'r')
@@ -4613,8 +4613,8 @@ class SystemManager(object):
                 continue
 
             # make path of tid #
-            procPath = os.path.join(SystemManager.procPath, pid)
-            taskPath = os.path.join(procPath, 'task')
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            taskPath = "%s/%s" % (procPath, 'task')
 
             try:
                 tids = os.listdir(taskPath)
@@ -6250,7 +6250,7 @@ class SystemManager(object):
                 continue
 
             # make comm path of pid #
-            procPath = os.path.join(SystemManager.procPath, pid)
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
 
             fd = open(procPath + '/comm', 'r')
             comm = fd.readline()[0:-1]
@@ -6306,7 +6306,7 @@ class SystemManager(object):
                 continue
 
             # make comm path of pid #
-            procPath = os.path.join(SystemManager.procPath, pid)
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
 
             try:
                 fd = open(procPath + '/comm', 'r')
@@ -11251,7 +11251,7 @@ class ThreadAnalyzer(object):
             cpuBuf = SystemManager.statFd.readlines()
         except:
             try:
-                cpuPath = os.path.join(SystemManager.procPath, 'stat')
+                cpuPath = "%s/%s" % (SystemManager.procPath, 'stat')
                 SystemManager.statFd = open(cpuPath, 'r')
                 cpuBuf = SystemManager.statFd.readlines()
             except:
@@ -11297,7 +11297,7 @@ class ThreadAnalyzer(object):
             memBuf = SystemManager.memFd.readlines()
         except:
             try:
-                memPath = os.path.join(SystemManager.procPath, 'meminfo')
+                memPath = "%s/%s" % (SystemManager.procPath, 'meminfo')
                 SystemManager.memFd = open(memPath, 'r')
 
                 memBuf = SystemManager.memFd.readlines()
@@ -11319,7 +11319,7 @@ class ThreadAnalyzer(object):
             vmBuf = SystemManager.vmstatFd.readlines()
         except:
             try:
-                vmstatPath = os.path.join(SystemManager.procPath, 'vmstat')
+                vmstatPath = "%s/%s" % (SystemManager.procPath, 'vmstat')
                 SystemManager.vmstatFd = open(vmstatPath, 'r')
 
                 # vmstat list from https://access.redhat.com/solutions/406773 #
@@ -11342,7 +11342,7 @@ class ThreadAnalyzer(object):
             swapBuf = SystemManager.swapFd.readlines()
         except:
             try:
-                swapPath = os.path.join(SystemManager.procPath, 'swaps')
+                swapPath = "%s/%s" % (SystemManager.procPath, 'swaps')
                 SystemManager.swapFd = open(swapPath, 'r')
 
                 swapBuf = SystemManager.swapFd.readlines()
@@ -11374,7 +11374,7 @@ class ThreadAnalyzer(object):
             SystemManager.uptimeFd.flush()
         except:
             try:
-                uptimePath = os.path.join(SystemManager.procPath, 'uptime')
+                uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
                 SystemManager.uptimeFd = open(uptimePath, 'r')
 
                 SystemManager.uptime = float(SystemManager.uptimeFd.readline().split()[0])
@@ -11398,8 +11398,8 @@ class ThreadAnalyzer(object):
                 continue
 
             # make path of tid #
-            procPath = os.path.join(SystemManager.procPath, pid)
-            taskPath = os.path.join(procPath, 'task')
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            taskPath = "%s/%s" % (procPath, 'task')
 
             # save info per process #
             if SystemManager.processEnable is True:
@@ -11431,7 +11431,7 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
-                threadPath = os.path.join(taskPath, tid)
+                threadPath = "%s/%s" % (taskPath, tid)
 
                 # make process object with constant value #
                 self.procData[tid] = dict(self.init_procData)
@@ -11465,7 +11465,7 @@ class ThreadAnalyzer(object):
             statusBuf = self.procData[tid]['statusFd'].readlines()
         except:
             try:
-                statusPath = os.path.join(path, 'status')
+                statusPath = "%s/%s" % (path, 'status')
                 self.procData[tid]['statusFd'] = open(statusPath, 'r')
                 statusBuf = self.procData[tid]['statusFd'].readlines()
 
@@ -11493,7 +11493,7 @@ class ThreadAnalyzer(object):
             statmBuf = self.procData[tid]['statmFd'].readlines()
         except:
             try:
-                statmPath = os.path.join(path, 'statm')
+                statmPath = "%s/%s" % (path, 'statm')
                 self.procData[tid]['statmFd'] = open(statmPath, 'r')
                 statmBuf = self.procData[tid]['statmFd'].readlines()
 
@@ -11521,7 +11521,7 @@ class ThreadAnalyzer(object):
             self.prevProcData[tid]['alive'] = True
         except:
             try:
-                statPath = os.path.join(path, 'stat')
+                statPath = "%s/%s" % (path, 'stat')
                 self.procData[tid]['statFd'] = open(statPath, 'r')
                 statBuf = self.procData[tid]['statFd'].readline()
 
@@ -11541,7 +11541,7 @@ class ThreadAnalyzer(object):
         if statList[commIndex][-1] != ')':
             idx = ConfigManager.statList.index("COMM") + 1
             while True:
-                statList[commIndex] += ' ' + str(statList[idx])
+                statList[commIndex] = "%s %s" % (statList[commIndex], str(statList[idx]))
                 if statList[idx].rfind(')') > -1:
                     statList.pop(idx)
                     break
@@ -11567,7 +11567,7 @@ class ThreadAnalyzer(object):
                 self.prevProcData[tid]['alive'] = True
             except:
                 try:
-                    ioPath = os.path.join(path, 'io')
+                    ioPath = "%s/%s" % (path, 'io')
                     self.procData[tid]['ioFd'] = open(ioPath, 'r')
                     ioBuf = self.procData[tid]['ioFd'].readlines()
 
