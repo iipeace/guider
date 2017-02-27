@@ -4420,7 +4420,6 @@ class SystemManager(object):
     reportFileEnable = False
     imageEnable = False
     graphEnable = False
-    graphLabels = []
     procBuffer = []
     procBufferSize = 0
     bufferString = ''
@@ -7649,6 +7648,8 @@ class ThreadAnalyzer(object):
         self.lastCore = '0'
         self.lastEvent = '0'
 
+        SystemManager.cpuEnable = False
+
         # top mode #
         if file is None:
             if SystemManager.graphEnable is True:
@@ -8784,12 +8785,19 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
+        # graph list #
+        cpuLabelList = []
+        cpuUsageList = []
+        cpuThrLabelList = []
+        cpuThrUsageList = []
+        ioLabelList = []
+        ioUsageList = []
+
         # timeline #
         timeLine = ''
         titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
         maxLineLen = SystemManager.lineLength
-        titleLineLen = len(titleLine)
-        timeLineLen = titleLineLen
+        timeLineLen = titleLineLen = len(titleLine)
         for icount in range(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
             checkEvent = ' '
             cnt = icount - 1
@@ -8851,30 +8859,13 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
-                if SystemManager.graphEnable is True:
-                    try:
-                        timeLine = timeLine.replace('N', '')
-                        timeLine = timeLine.replace('D', '')
-                        timeLine = timeLine.replace('F', '')
-                        timeLineData = [int(n) for n in timeLine.split()]
-
-                        subplot(2, 1, 1)
-                        range(SystemManager.intervalEnable, \
-                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable)
-                        plot(range(SystemManager.intervalEnable, \
-                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable), timeLineData, '.-')
-                        SystemManager.graphLabels.append(value['comm'])
-                    except:
-                        SystemManager.graphEnable = False
-                        SystemManager.printError("Fail to draw graph")
-
-        if SystemManager.graphEnable is True:
-            title('Core Usage')
-            ylabel('Per(%)', fontsize=10)
-            legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-            del SystemManager.graphLabels[:]
+                if SystemManager.graphEnable is True and SystemManager.cpuEnable is True:
+                    timeLine = timeLine.replace('N', '')
+                    timeLine = timeLine.replace('D', '')
+                    timeLine = timeLine.replace('F', '')
+                    timeLineData = [int(n) for n in timeLine.split()]
+                    cpuUsageList.append(timeLineData)
+                    cpuLabelList.append('[' + value['comm'] + ']')
 
         # total memory usage on timeline #
         icount = 0
@@ -8895,6 +8886,10 @@ class ThreadAnalyzer(object):
 
         if SystemManager.memEnable is True:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
+            if SystemManager.graphEnable is True:
+                timeLineData = [int(n) for n in timeLine.split()]
+                ioUsageList.append(timeLineData)
+                ioLabelList.append('RAM Usage')
 
         # total block(read) usage on timeline #
         icount = 0
@@ -8915,11 +8910,55 @@ class ThreadAnalyzer(object):
 
         if SystemManager.blockEnable is True:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
+            if SystemManager.graphEnable is True:
+                timeLineData = [int(n) for n in timeLine.split()]
+                ioUsageList.append(timeLineData)
+                ioLabelList.append('Block Read')
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB)'))
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
+
+        if SystemManager.graphEnable is True and len(ioUsageList) > 0:
+            timelen = len(ioUsageList[0])
+            ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            # total usage #
+            for item in ioUsageList:
+                minIdx = item.index(min(item))
+                maxIdx = item.index(max(item))
+
+                color = plot(range(SystemManager.intervalEnable,\
+                    (timelen+1)*SystemManager.intervalEnable,\
+                    SystemManager.intervalEnable), item, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / len(ytick)
+                else:
+                    margin = 0
+
+                if minIdx > 0:
+                    minUsage = str(item[minIdx])
+                    text(minIdx + 1, item[minIdx] + margin, minUsage, fontsize=5,\
+                        color=color, fontweight='bold')
+                if maxIdx > 0:
+                    maxUsage = str(item[maxIdx])
+                    text(maxIdx + 1, item[maxIdx] + margin, maxUsage, fontsize=5,\
+                        color=color, fontweight='bold')
+
+            # draw io graph #
+            ylabel('Memory(MB)', fontsize=8)
+            legend(ioLabelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
+            grid(which='both')
+            yticks(fontsize = 7)
+            xticks(fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis='x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         # CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
@@ -8963,37 +9002,61 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                if SystemManager.graphEnable is True:
+                if SystemManager.graphEnable is True and SystemManager.cpuEnable is True:
                     timeLine = timeLine.replace('N', '')
                     timeLine = timeLine.replace('D', '')
                     timeLine = timeLine.replace('F', '')
-                    timeLineData = [int(n) for n in timeLine.split()]
-
-                    subplot(2, 1, 2)
-                    plot(range(SystemManager.intervalEnable, \
-                        (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                        SystemManager.intervalEnable), timeLineData, '.-')
-                    SystemManager.graphLabels.append(value['comm'])
+                    cpuThrUsageList.append([int(n) for n in timeLine.split()])
+                    tinfo = '%s(%s)' % (value['comm'], key)
+                    cpuThrLabelList.append(tinfo)
 
                 if SystemManager.showAll is False and \
                     value['usage'] / float(self.totalTime) * 100 < 1:
                     break
 
-        if SystemManager.graphEnable is True:
-            title('CPU Usage of Threads')
-            ylabel('Per(%)', fontsize=10)
-            legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-            figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-            del SystemManager.graphLabels[:]
+        if SystemManager.graphEnable is True and len(cpuUsageList) > 0:
+            timelen = len(cpuUsageList[0])
+            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            title('guider interval report')
 
-            dirPos = SystemManager.inputFile.rfind('/')
-            if dirPos >= 0:
-                graphPath = SystemManager.inputFile[:dirPos + 1] + 'cpuGraph.png'
-                savefig(graphPath, dpi=(200))
-                clf()
-                SystemManager.printInfo("write CPU graph to %s" % graphPath)
-            else:
-                SystemManager.printWarning("Fail to write CPU graph")
+            # cpu total usage #
+            for item in cpuUsageList:
+                plot(range(SystemManager.intervalEnable,\
+                    (timelen+1)*SystemManager.intervalEnable,\
+                    SystemManager.intervalEnable), item, '.-',\
+                    linewidth=3, solid_capstyle='round')
+
+            # cpu usage of threads #
+            for idx, item in enumerate(cpuThrUsageList):
+                maxIdx = item.index(max(item))
+
+                color = plot(range(SystemManager.intervalEnable,\
+                    (timelen+1)*SystemManager.intervalEnable,\
+                    SystemManager.intervalEnable), item, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / (len(ytick) * 2)
+                else:
+                    margin = 0
+
+                maxCpuPer = str(item[maxIdx])
+                label = '[' + maxCpuPer + '%]' + cpuThrLabelList[idx]
+                text(maxIdx + 1, item[maxIdx] + margin, label,\
+                    fontsize=3, color=color, fontweight='bold')
+
+            # draw cpu graph #
+            ylabel('CPU(%)', fontsize=8)
+            legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
+                fontsize=3.5, loc='upper right')
+            grid(which='both')
+            yticks(fontsize = 7)
+            xticks(fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis='x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -9096,18 +9159,6 @@ class ThreadAnalyzer(object):
                             (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if SystemManager.graphEnable is True:
-                        timeLine = timeLine.replace('N', '')
-                        timeLine = timeLine.replace('D', '')
-                        timeLine = timeLine.replace('F', '')
-                        timeLineData = [int(n) for n in timeLine.split()]
-
-                        subplot(2, 1, 2)
-                        plot(range(SystemManager.intervalEnable, \
-                            (len(timeLineData) + 1) * SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable), timeLineData, '.-')
-                        SystemManager.graphLabels.append(value['comm'])
-
                     if (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024) < 1 and \
                         SystemManager.showAll == False:
                         break
@@ -9115,12 +9166,6 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint("%s# %s\n" % ('', 'MEM(MB)'))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
-
-            if SystemManager.graphEnable is True:
-                title('MEM Usage of Threads')
-                ylabel('Size(MB)', fontsize=10)
-                legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-                del SystemManager.graphLabels[:]
 
         # block usage on timeline #
         SystemManager.clearPrint()
@@ -9168,43 +9213,24 @@ class ThreadAnalyzer(object):
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if SystemManager.graphEnable is True:
-                        timeLine = timeLine.replace('N', '')
-                        timeLine = timeLine.replace('D', '')
-                        timeLine = timeLine.replace('F', '')
-                        timeLineData = [int(n) for n in timeLine.split()]
-
-                        subplot(2, 1, 1)
-                        plot(range(SystemManager.intervalEnable, \
-                            (len(timeLineData)+1)*SystemManager.intervalEnable, \
-                            SystemManager.intervalEnable), timeLineData, '.-')
-                        SystemManager.graphLabels.append(value['comm'])
-
                     if value['readBlock'] < 1 and SystemManager.showAll == False:
                         break
-
-            if SystemManager.graphEnable is True:
-                title('Disk Usage of Threads')
-                ylabel('Size(MB)', fontsize=10)
-                legend(SystemManager.graphLabels, bbox_to_anchor=(1.135, 1.02))
-                del SystemManager.graphLabels[:]
 
             SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        if SystemManager.graphEnable is True and \
-            (SystemManager.memEnable is True or SystemManager.blockEnable is True):
-            figure(num=1, figsize=(20, 20), dpi=200, facecolor='b', edgecolor='k')
-
+        # save graph #
+        if SystemManager.graphEnable is True and\
+            (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
             dirPos = SystemManager.inputFile.rfind('/')
             if dirPos >= 0:
-                graphPath = SystemManager.inputFile[:dirPos + 1] + 'ioGraph.png'
+                graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider.png'
                 savefig(graphPath, dpi=(200))
                 clf()
-                SystemManager.printInfo("write I/O graph to %s" % graphPath)
+                SystemManager.printInfo("write resource graph to %s" % graphPath)
             else:
-                SystemManager.printWarning("Fail to write I/O graph")
+                SystemManager.printWarning("Fail to draw graph")
 
 
 
@@ -9993,6 +10019,8 @@ class ThreadAnalyzer(object):
                     r'next_prio=(?P<next_prio>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
+
+                    SystemManager.cpuEnable = True
 
                     self.cxtSwitch += 1
 
