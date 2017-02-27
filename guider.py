@@ -4770,6 +4770,9 @@ class SystemManager(object):
         enableStat = ''
         disableStat = ''
 
+        if SystemManager.outputFile != None:
+            return
+
         if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
             # common options #
             enableStat += SystemManager.arch.upper() + ' '
@@ -8936,13 +8939,13 @@ class ThreadAnalyzer(object):
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / len(ytick)
+                    margin = (ytick[1] - ytick[0])
                 else:
                     margin = 0
 
                 if minIdx > 0:
                     minUsage = str(item[minIdx])
-                    text(minIdx + 1, item[minIdx] + margin, minUsage, fontsize=5,\
+                    text(minIdx + 1, item[minIdx] - margin, minUsage, fontsize=5,\
                         color=color, fontweight='bold')
                 if maxIdx > 0:
                     maxUsage = str(item[maxIdx])
