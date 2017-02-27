@@ -8939,7 +8939,7 @@ class ThreadAnalyzer(object):
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0])
+                    margin = (ytick[1] - ytick[0]) / 2
                 else:
                     margin = 0
 
@@ -8954,7 +8954,7 @@ class ThreadAnalyzer(object):
 
             # draw io graph #
             ylabel('Memory(MB)', fontsize=8)
-            legend(ioLabelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
+            legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
