@@ -8013,7 +8013,7 @@ class ThreadAnalyzer(object):
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='blue', fontweight='bold')
             if totalRAM is not None:
-                labelList.append('RAM Free(' + totalRAM + '~)')
+                labelList.append('RAM Free(<' + totalRAM + ')')
             else:
                 labelList.append('RAM Free')
 
@@ -8028,7 +8028,7 @@ class ThreadAnalyzer(object):
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='orange', fontweight='bold')
             if totalSwap is not None:
-                labelList.append('Swap Usage(~' + totalSwap + ')')
+                labelList.append('Swap Usage(<' + totalSwap + ')')
             else:
                 labelList.append('Swap Usage')
 
@@ -8075,7 +8075,7 @@ class ThreadAnalyzer(object):
                 blkWait[idx] += cpuUsage[idx]
 
             plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ TOTAL ]')
+            labelList.append('[ CPU + I/O ]')
             plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
             labelList.append('[ CPU Only ]')
 
@@ -8929,13 +8929,17 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             # total usage #
-            for item in ioUsageList:
+            for idx, item in enumerate(ioUsageList):
                 minIdx = item.index(min(item))
                 maxIdx = item.index(max(item))
+                if int(idx) % 2 > 0:
+                    color = 'blue'
+                else:
+                    color = 'red'
 
-                color = plot(range(SystemManager.intervalEnable,\
+                plot(range(SystemManager.intervalEnable,\
                     (timelen+1)*SystemManager.intervalEnable,\
-                    SystemManager.intervalEnable), item, '-')[0].get_color()
+                    SystemManager.intervalEnable), item, '-', c=color)
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
@@ -8949,7 +8953,7 @@ class ThreadAnalyzer(object):
                         color=color, fontweight='bold')
                 if maxIdx > 0:
                     maxUsage = str(item[maxIdx])
-                    text(maxIdx + 1, item[maxIdx] + margin, maxUsage, fontsize=5,\
+                    text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=5,\
                         color=color, fontweight='bold')
 
             # draw io graph #
