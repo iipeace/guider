@@ -5728,10 +5728,10 @@ class SystemManager(object):
                         "wrong option value with -o option, use existing directory path")
                     sys.exit(0)
 
-            elif option == 'I':
+            elif option == 'I' and SystemManager.isTopMode() is True:
                 SystemManager.sourceFile = value
 
-            elif option == 'L':
+            elif option == 'L' and SystemManager.isTopMode() is False:
                 SystemManager.imageEnable = True
 
             elif option == 'a':
@@ -5741,17 +5741,17 @@ class SystemManager(object):
                 SystemManager.selectMenu = True
                 ConfigManager.taskChainEnable = True
 
-            elif option == 'D':
+            elif option == 'D' and SystemManager.isTopMode() is False:
                 SystemManager.depEnable = True
 
-            elif option == 'P':
+            elif option == 'P' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('g') is False:
                     SystemManager.printError("wrong option with -P, use also -g option to group threads as process")
                     sys.exit(0)
 
                 SystemManager.groupProcEnable = True
 
-            elif option == 'p':
+            elif option == 'p' and SystemManager.isTopMode() is False:
                 if SystemManager.intervalEnable > 0:
                     SystemManager.printWarning("-i option is already enabled, -p option is disabled")
                 else:
@@ -5809,10 +5809,10 @@ class SystemManager(object):
                 else:
                     SystemManager.functionEnable = True
 
-            elif option == 'l':
+            elif option == 'l' and SystemManager.isTopMode() is False:
                 SystemManager.addr2linePath = value.split(',')
 
-            elif option == 'r':
+            elif option == 'r' and SystemManager.isTopMode() is False:
                 SystemManager.rootPath = value
 
             elif option == 'T':
@@ -5833,7 +5833,7 @@ class SystemManager(object):
                             "wrong option value with -b option, input number in integer format")
                     sys.exit(0)
 
-            elif option == 'n':
+            elif option == 'n' and SystemManager.isTopMode() is True:
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -5854,7 +5854,7 @@ class SystemManager(object):
 
                 SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
 
-            elif option == 'N':
+            elif option == 'N' and SystemManager.isTopMode() is True:
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -5883,13 +5883,13 @@ class SystemManager(object):
 
                 SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
 
-            elif option == 'j':
+            elif option == 'j' and SystemManager.isTopMode() is True:
                 SystemManager.reportPath = value
                 SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
                 SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
                 SystemManager.printInfo("Use %s as local report file" % SystemManager.reportPath)
 
-            elif option == 'x':
+            elif option == 'x' and SystemManager.isTopMode() is True:
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -5910,7 +5910,7 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as server address" % \
                     (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
-            elif option == 'X':
+            elif option == 'X' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('x') is False:
                     SystemManager.printError(\
                         "wrong option with -X, use also -x option to request service")
@@ -5966,12 +5966,12 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
-            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or option == 'F' or \
-                option == 't' or option == 'h' or option == 'C':
+            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or\
+                option == 'F' or option == 't' or option == 'h' or option == 'C':
                 continue
 
             else:
-                SystemManager.printError("unrecognized option -%s" % option)
+                SystemManager.printError("unrecognized option -%s for analysis" % option)
                 sys.exit(0)
 
     @staticmethod
@@ -6135,14 +6135,13 @@ class SystemManager(object):
                     SystemManager.userEnable = False
 
             # Ignore options #
-            elif option == 'l' or option == 'r' or option == 'i' or option == 'a' or \
-                option == 'q' or option == 'g' or option == 'p' or option == 'S' or \
-                option == 'h' or option == 'P' or option == 'T' or option == 'n' or \
-                option == 'N' or option == 'x' or option == 'j' or option == 'I':
+            elif option == 'i' or option == 'a' or option == 'N' or option == 'x' or \
+                option == 'g' or option == 'p' or option == 'S' or option == 'j' or \
+                option == 'h' or option == 'P' or option == 'T' or option == 'n':
                 continue
 
             else:
-                SystemManager.printError("wrong option -%s" % option)
+                SystemManager.printError("unrecognized option -%s for record" % option)
                 sys.exit(0)
 
 
