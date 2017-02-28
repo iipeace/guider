@@ -4692,6 +4692,7 @@ class SystemManager(object):
             print('\t\t-r  [set_targetRootPath:dir]')
             print('\t\t-I  [set_inputPath:file]')
             print('\t\t-q  [configure_taskList]')
+            print('\t\t-L  [convert_textToImage]')
             print('\t[common options]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-i  [set_interval:sec]')
@@ -5408,8 +5409,9 @@ class SystemManager(object):
             SystemManager.printError("Fail to read log from %s\n" % SystemManager.inputFile)
             return
 
-        # trim from process info #
-        textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
+        # trim from process info in top mode #
+        if SystemManager.isTopMode() is True:
+            textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
 
         # make image path #
         SystemManager.imagePath = SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
@@ -5728,6 +5730,9 @@ class SystemManager(object):
 
             elif option == 'I':
                 SystemManager.sourceFile = value
+
+            elif option == 'L':
+                SystemManager.imageEnable = True
 
             elif option == 'a':
                 SystemManager.showAll = True
@@ -12866,6 +12871,11 @@ if __name__ == '__main__':
             SystemManager.printError("Fail to import package: " + err.args[0])
             SystemManager.graphEnable = False
             sys.exit(0)
+
+    if SystemManager.imageEnable is True:
+        SystemManager.printStatus("start converting...")
+        SystemManager.makeLogImage()
+        sys.exit(0)
 
     if SystemManager.isTopMode() is True:
         SystemManager.printRecordOption()
