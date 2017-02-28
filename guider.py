@@ -4419,6 +4419,7 @@ class SystemManager(object):
     reportPath = None
     reportFileEnable = False
     imageEnable = False
+    customImageEnable = False
     graphEnable = False
     procBuffer = []
     procBufferSize = 0
@@ -5732,7 +5733,7 @@ class SystemManager(object):
                 SystemManager.sourceFile = value
 
             elif option == 'L' and SystemManager.isTopMode() is False:
-                SystemManager.imageEnable = True
+                SystemManager.customImageEnable = True
 
             elif option == 'a':
                 SystemManager.showAll = True
@@ -12871,7 +12872,7 @@ if __name__ == '__main__':
             SystemManager.graphEnable = False
             sys.exit(0)
 
-    if SystemManager.imageEnable is True:
+    if SystemManager.customImageEnable is True:
         SystemManager.printStatus("start converting...")
         SystemManager.makeLogImage()
         sys.exit(0)
