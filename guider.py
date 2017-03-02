@@ -2418,7 +2418,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(\
             "[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
             ('Function Thread Info', 'Elapsed time', round(self.totalTime, 7), \
-             len(self.threadData), SystemManager.logSize / 1024))
+             len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
@@ -2486,7 +2486,7 @@ class FunctionAnalyzer(object):
                 "{11:7}k|{12:7}k|{13:8}|{14:^5}|{15:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
                 value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
-                value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] / 1024, \
+                value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
                 value['customTotal'], dieMark, newMark))
 
@@ -3192,9 +3192,9 @@ class FunctionAnalyzer(object):
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
             '[Function Heap Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-            ((self.heapExpSize - self.heapRedSize) / 1024, \
-            self.heapExpSize / 1024, self.heapExpEventCnt, \
-            self.heapRedSize / 1024, self.heapRedEventCnt))
+            ((self.heapExpSize - self.heapRedSize) >> 10, \
+            self.heapExpSize >> 10, self.heapExpEventCnt, \
+            self.heapRedSize >> 10, self.heapRedEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
@@ -3206,7 +3206,7 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['heapSize'] / 1024), idx, \
+                format(int(value['heapSize'] >> 10), idx, \
                 self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
             if idx == value['pos']:
@@ -3734,7 +3734,7 @@ class FileAnalyzer(object):
 
         for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>5})|{2:>8} |".\
-                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize >> 10)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -3761,9 +3761,9 @@ class FileAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         for fileName, val in sorted(self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            memSize = val['pageCnt'] * SystemManager.pageSize / 1024
+            memSize = val['pageCnt'] * SystemManager.pageSize >> 10
             fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                SystemManager.pageSize) * SystemManager.pageSize / 1024
+                SystemManager.pageSize) * SystemManager.pageSize >> 10
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
@@ -3868,7 +3868,7 @@ class FileAnalyzer(object):
 
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>5})|{2:>11} |".\
-                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize / 1024)
+                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize >> 10)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -3911,12 +3911,12 @@ class FileAnalyzer(object):
 
         for fileName, val in sorted(self.fileList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
-                memSize = self.intervalFileData[0][fileName]['pageCnt'] * SystemManager.pageSize / 1024
+                memSize = self.intervalFileData[0][fileName]['pageCnt'] * SystemManager.pageSize >> 10
             except:
                 memSize = 0
             try:
                 fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                    SystemManager.pageSize) * SystemManager.pageSize / 1024
+                    SystemManager.pageSize) * SystemManager.pageSize >> 10
             except:
                 fileSize = 0
 
@@ -3966,11 +3966,11 @@ class FileAnalyzer(object):
                                     elif nowFileMap[i] < prevFileMap[i]:
                                         diffDel += 1
 
-                    diffNew = diffNew * SystemManager.pageSize / 1024
-                    diffDel = diffDel * SystemManager.pageSize / 1024
+                    diffNew = diffNew * SystemManager.pageSize >> 10
+                    diffDel = diffDel * SystemManager.pageSize >> 10
                     printMsg += "+%6d/-%6d|" % (diffNew, diffDel)
 
-            totalMemSize = val['pageCnt'] * SystemManager.pageSize / 1024
+            totalMemSize = val['pageCnt'] * SystemManager.pageSize >> 10
 
             if fileSize != 0:
                 per = int(int(totalMemSize) / float(fileSize) * 100)
@@ -5753,8 +5753,9 @@ class SystemManager(object):
                 SystemManager.groupProcEnable = True
 
             elif option == 'p' and SystemManager.isTopMode() is False:
-                if SystemManager.intervalEnable > 0:
-                    SystemManager.printWarning("-i option is already enabled, -p option is disabled")
+                if SystemManager.findOption('i') is True:
+                    SystemManager.printError("wrong option with -p, -i option is already enabled")
+                    sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
                     SystemManager.removeEmptyValue(SystemManager.preemptGroup)
@@ -7399,9 +7400,9 @@ class SystemManager(object):
             "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
         SystemManager.infoBufferPrint(oneLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
-            (int(beforeInfo['MemTotal']) / 1024, int(beforeInfo['SwapTotal']) / 1024))
+            (int(beforeInfo['MemTotal']) >> 10, int(beforeInfo['SwapTotal']) >> 10))
         SystemManager.infoBufferPrint("[  FREE] %10s %10s" % \
-            (int(beforeInfo['MemFree']) / 1024, int(beforeInfo['SwapFree']) / 1024))
+            (int(beforeInfo['MemFree']) >> 10, int(beforeInfo['SwapFree']) >> 10))
 
         memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
         swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
@@ -7410,39 +7411,39 @@ class SystemManager(object):
 
         SystemManager.infoBufferPrint(\
             "[USAGE1] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-                (memBeforeUsage / 1024, swapBeforeUsage / 1024, \
-                int(beforeInfo['Buffers']) / 1024, int(beforeInfo['Cached']) / 1024, \
-                int(beforeInfo['Shmem']) / 1024, int(beforeInfo['Mapped']) / 1024, \
-                int(beforeInfo['Active']) / 1024, int(beforeInfo['Inactive']) / 1024, \
-                int(beforeInfo['PageTables']) / 1024, int(beforeInfo['Slab']) / 1024, \
-                int(beforeInfo['SReclaimable']) / 1024, int(beforeInfo['SUnreclaim']) / 1024, \
-                int(beforeInfo['Mlocked']) / 1024))
+                (memBeforeUsage >> 10, swapBeforeUsage >> 10, \
+                int(beforeInfo['Buffers']) >> 10, int(beforeInfo['Cached']) >> 10, \
+                int(beforeInfo['Shmem']) >> 10, int(beforeInfo['Mapped']) >> 10, \
+                int(beforeInfo['Active']) >> 10, int(beforeInfo['Inactive']) >> 10, \
+                int(beforeInfo['PageTables']) >> 10, int(beforeInfo['Slab']) >> 10, \
+                int(beforeInfo['SReclaimable']) >> 10, int(beforeInfo['SUnreclaim']) >> 10, \
+                int(beforeInfo['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint(\
             "[USAGE2] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-                (memAfterUsage / 1024, swapAfterUsage / 1024, \
-                int(afterInfo['Buffers']) / 1024, int(afterInfo['Cached']) / 1024, \
-                int(afterInfo['Shmem']) / 1024, int(afterInfo['Mapped']) / 1024, \
-                int(afterInfo['Active']) / 1024, int(afterInfo['Inactive']) / 1024, \
-                int(afterInfo['PageTables']) / 1024, int(afterInfo['Slab']) / 1024, \
-                int(afterInfo['SReclaimable']) / 1024, int(afterInfo['SUnreclaim']) / 1024, \
-                int(afterInfo['Mlocked']) / 1024))
+                (memAfterUsage >> 10, swapAfterUsage >> 10, \
+                int(afterInfo['Buffers']) >> 10, int(afterInfo['Cached']) >> 10, \
+                int(afterInfo['Shmem']) >> 10, int(afterInfo['Mapped']) >> 10, \
+                int(afterInfo['Active']) >> 10, int(afterInfo['Inactive']) >> 10, \
+                int(afterInfo['PageTables']) >> 10, int(afterInfo['Slab']) >> 10, \
+                int(afterInfo['SReclaimable']) >> 10, int(afterInfo['SUnreclaim']) >> 10, \
+                int(afterInfo['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint(\
             "[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-                (memAfterUsage / 1024 - memBeforeUsage / 1024, \
-                swapAfterUsage / 1024 - swapBeforeUsage / 1024, \
-                int(afterInfo['Buffers']) / 1024 - int(beforeInfo['Buffers']) / 1024, \
-                int(afterInfo['Cached']) / 1024 - int(beforeInfo['Cached']) / 1024, \
-                int(afterInfo['Shmem']) / 1024 - int(beforeInfo['Shmem']) / 1024, \
-                int(afterInfo['Mapped']) / 1024 - int(beforeInfo['Mapped']) / 1024, \
-                int(afterInfo['Active']) / 1024 - int(beforeInfo['Active']) / 1024, \
-                int(afterInfo['Inactive']) / 1024 - int(beforeInfo['Inactive']) / 1024, \
-                int(afterInfo['PageTables']) / 1024 - int(beforeInfo['PageTables']) / 1024, \
-                int(afterInfo['Slab']) / 1024 - int(beforeInfo['Slab']) / 1024, \
-                int(afterInfo['SReclaimable']) / 1024 - int(beforeInfo['SReclaimable']) / 1024, \
-                int(afterInfo['SUnreclaim']) / 1024 - int(beforeInfo['SUnreclaim']) / 1024, \
-                int(afterInfo['Mlocked']) / 1024 - int(beforeInfo['Mlocked']) / 1024))
+                ((memAfterUsage - memBeforeUsage ) >> 10, \
+                (swapAfterUsage - swapBeforeUsage) >> 10, \
+                (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) >> 10, \
+                (int(afterInfo['Cached']) - int(beforeInfo['Cached'])) >> 10, \
+                (int(afterInfo['Shmem']) - int(beforeInfo['Shmem'])) >> 10, \
+                (int(afterInfo['Mapped']) - int(beforeInfo['Mapped'])) >> 10, \
+                (int(afterInfo['Active']) - int(beforeInfo['Active'])) >> 10, \
+                (int(afterInfo['Inactive']) - int(beforeInfo['Inactive'])) >> 10, \
+                (int(afterInfo['PageTables']) - int(beforeInfo['PageTables'])) >> 10, \
+                (int(afterInfo['Slab']) - int(beforeInfo['Slab'])) >> 10, \
+                (int(afterInfo['SReclaimable']) - int(beforeInfo['SReclaimable'])) >> 10, \
+                (int(afterInfo['SUnreclaim']) - int(beforeInfo['SUnreclaim'])) >> 10, \
+                (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) >> 10))
 
         SystemManager.infoBufferPrint(twoLine)
 
@@ -7620,9 +7621,9 @@ class ThreadAnalyzer(object):
             'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
 
         self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
-            'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': float(0), \
-            'ioUsage': float(0), 'totalIoUsage': float(0), 'irqUsage': float(0), 'memUsage': float(0), \
-            'kmemUsage': float(0), 'totalKmemUsage': float(0), 'coreSchedCnt': int(0), \
+            'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
+            'ioUsage': int(0), 'totalIoUsage': int(0), 'irqUsage': float(0), 'memUsage': int(0), \
+            'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
             'totalCoreSchedCnt': int(0), 'preempted': float(0), \
             'totalPreempted': float(0), 'new': ' ', 'die': ' '}
 
@@ -8264,7 +8265,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] " + \
             "[ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]") % \
             ('Thread Info', 'Elapsed time', round(float(self.totalTime), 7), \
-            self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize / 1024))
+            self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
 
         SystemManager.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
@@ -8293,10 +8294,12 @@ class ThreadAnalyzer(object):
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['readBlock'], reverse=True):
             value['ioRank'] = count + 1
             if value['readBlock'] > 0:
-                value['readBlock'] = value['readBlock'] * SystemManager.blockSize / 1024 / 1024
+                value['readBlock'] =\
+                    value['readBlock'] * SystemManager.blockSize / MBSIZE
                 count += 1
             if value['writeBlock'] > 0:
-                value['writeBlock'] = value['writeBlock'] * SystemManager.pageSize / 1024 / 1024
+                value['writeBlock'] =\
+                    value['writeBlock'] * SystemManager.pageSize / MBSIZE
 
        # print total information after sorting by time of cpu usage #
         count = 0
@@ -8323,10 +8326,10 @@ class ThreadAnalyzer(object):
                         round(float(value['offTime']), 7), 0, 0, value['irq'], \
                         value['offCnt'], '-', '-', '-', \
                         value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                        value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                        value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                        value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                        (value['reclaimedPages'] * 4 / 1024), value['wasteKmem'] / 1024 / 1024, \
+                        value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                        value['userPages'] >> 8, value['cachePages'] >> 8, \
+                        value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
+                        (value['reclaimedPages'] >> 8), value['wasteKmem'] / MBSIZE, \
                         value['dReclaimWait'], value['dReclaimCnt']))
                 count += 1
             else:
@@ -8383,10 +8386,10 @@ class ThreadAnalyzer(object):
                 value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
                 value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
                 value['writeBlockCnt'], value['writeBlock'], \
-                (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                value['userPages'] >> 8, value['cachePages'] >> 8, \
+                value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
+                value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
                 value['dReclaimWait'], value['dReclaimCnt']))
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
@@ -8435,10 +8438,10 @@ class ThreadAnalyzer(object):
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                    value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                    value['userPages'] >> 8, value['cachePages'] >> 8, \
+                    value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
+                    value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
                     value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'New', count))
@@ -8462,10 +8465,10 @@ class ThreadAnalyzer(object):
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024), \
-                    value['userPages'] * 4 / 1024, value['cachePages'] * 4 / 1024, \
-                    value['kernelPages'] * 4 / 1024 + (value['remainKmem'] / 1024 / 1024), \
-                    value['reclaimedPages'] * 4 / 1024, value['wasteKmem'] / 1024 / 1024, \
+                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                    value['userPages'] >> 8, value['cachePages'] >> 8, \
+                    value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
+                    value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
                     value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
@@ -8764,7 +8767,7 @@ class ThreadAnalyzer(object):
                     mount = '\t\t\t?'
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
-                    format(num, size / 1024, filesystem, dev, mount))
+                    format(num, size >> 10, filesystem, dev, mount))
 
             SystemManager.pipePrint(oneLine)
         if len(self.blockTable[1]) > 0:
@@ -8780,7 +8783,7 @@ class ThreadAnalyzer(object):
                     mount = '\t\t\t?'
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
-                    format(num, size / 1024, filesystem, dev, mount))
+                    format(num, size >> 10, filesystem, dev, mount))
 
             SystemManager.pipePrint(oneLine)
 
@@ -8887,8 +8890,8 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             try:
-                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalMem'] * 4 / 1024) + \
-                    (self.intervalData[icount]['toTal']['totalKmem'] / 1024 / 1024))
+                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalMem'] >> 8) + \
+                    (self.intervalData[icount]['toTal']['totalKmem'] / MBSIZE))
             except:
                 timeLine += '%3d ' % (0)
 
@@ -8912,7 +8915,7 @@ class ThreadAnalyzer(object):
 
             try:
                 timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * \
-                    SystemManager.blockSize / 1024 / 1024)
+                    SystemManager.blockSize / MBSIZE)
             except:
                 timeLine += '%3d ' % (0)
 
@@ -9166,12 +9169,12 @@ class ThreadAnalyzer(object):
                             newFlag = self.intervalData[icount][key]['new']
                             dieFlag = self.intervalData[icount][key]['die']
 
-                        timeLine += '%4s' % (newFlag + \
-                            str(int((self.intervalData[icount][key]['memUsage'] * 4 / 1024) + \
-                            (self.intervalData[icount][key]['kmemUsage'] / 1024 / 1024))) + dieFlag)
+                        memUsage = self.intervalData[icount][key]['memUsage'] >> 8
+                        kmemUsage = self.intervalData[icount][key]['kmemUsage'] / MBSIZE
+                        timeLine += '%4s' % (newFlag + str(memUsage + kmemUsage) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if (value['nrPages'] * 4 / 1024) + (value['remainKmem'] / 1024 / 1024) < 1 and \
+                    if (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE) < 1 and \
                         SystemManager.showAll == False:
                         break
 
@@ -9221,7 +9224,7 @@ class ThreadAnalyzer(object):
 
                         timeLine += '%4s' % (newFlag + \
                             str(int(self.intervalData[icount][key]['ioUsage'] * \
-                            SystemManager.blockSize / 1024 / 1024)) + dieFlag)
+                            SystemManager.blockSize / MBSIZE)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -9861,10 +9864,10 @@ class ThreadAnalyzer(object):
                             # save total usage in this interval #
                             intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
                             intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
-                            intervalThread['totalCoreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                            intervalThread['totalIoUsage'] = float(self.threadData[key]['reqBlock'])
-                            intervalThread['totalMemUsage'] = float(self.threadData[key]['nrPages'])
-                            intervalThread['totalKmemUsage'] = float(self.threadData[key]['remainKmem'])
+                            intervalThread['totalCoreSchedCnt'] = int(self.threadData[key]['coreSchedCnt'])
+                            intervalThread['totalIoUsage'] = int(self.threadData[key]['reqBlock'])
+                            intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
+                            intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
 
                             # add time not calculated yet in this interval to related threads #
                             for idx, val in self.lastTidPerCore.items():
@@ -9882,9 +9885,9 @@ class ThreadAnalyzer(object):
                                 intervalThread['cpuUsage'] += float(self.threadData[key]['usage'])
                                 intervalThread['preempted'] += float(self.threadData[key]['cpuWait'])
                                 intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                                intervalThread['ioUsage'] = float(self.threadData[key]['reqBlock'])
-                                intervalThread['memUsage'] = float(self.threadData[key]['nrPages'])
-                                intervalThread['kmemUsage'] = float(self.threadData[key]['remainKmem'])
+                                intervalThread['ioUsage'] = int(self.threadData[key]['reqBlock'])
+                                intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
+                                intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
                             # later intervals #
                             else:
                                 try:
@@ -11640,29 +11643,29 @@ class ThreadAnalyzer(object):
     def printSystemUsage(self):
         try:
             # free memory #
-            freeMem = self.vmData['nr_free_pages'] * 4 / 1024
-            freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) * 4 / 1024
+            freeMem = self.vmData['nr_free_pages'] >> 8
+            freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) >> 8
 
             # anonymous memory #
-            actAnonMem = self.vmData['nr_active_anon'] * 4 / 1024
-            inactAnonMem = self.vmData['nr_inactive_anon'] * 4 / 1024
-            totalAnonMem = self.vmData['nr_anon_pages'] * 4 / 1024
-            anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) * 4 / 1024
+            actAnonMem = self.vmData['nr_active_anon'] >> 8
+            inactAnonMem = self.vmData['nr_inactive_anon'] >> 8
+            totalAnonMem = self.vmData['nr_anon_pages'] >> 8
+            anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) >> 8
 
             # file memory #
-            actFileMem = self.vmData['nr_active_file'] * 4 / 1024
-            inactFileMem = self.vmData['nr_inactive_file'] * 4 / 1024
-            totalFileMem = self.vmData['nr_file_pages'] * 4 / 1024
-            fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) * 4 / 1024
+            actFileMem = self.vmData['nr_active_file'] >> 8
+            inactFileMem = self.vmData['nr_inactive_file'] >> 8
+            totalFileMem = self.vmData['nr_file_pages'] >> 8
+            fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
 
             # slab memory #
-            slabReclm = self.vmData['nr_slab_reclaimable'] * 4 / 1024
-            slabUnReclm = self.vmData['nr_slab_unreclaimable'] * 4 / 1024
+            slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
+            slabUnReclm = self.vmData['nr_slab_unreclaimable'] >> 8
             slabReclmDiff = self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable']
             slabUnReclmDiff = self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable']
             totalSlabMem = \
-                (self.vmData['nr_slab_reclaimable'] + self.vmData['nr_slab_unreclaimable']) * 4 / 1024
-            slabMemDiff = (slabReclmDiff + slabUnReclmDiff) * 4 / 1024
+                (self.vmData['nr_slab_reclaimable'] + self.vmData['nr_slab_unreclaimable']) >> 8
+            slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
 
             # fault #
             nrMajFault = self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']
@@ -11670,15 +11673,15 @@ class ThreadAnalyzer(object):
             nrMinFault = nrTotalFault - nrMajFault
 
             # paged in/out from/to disk #
-            pgInMemDiff = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) / 1024
-            pgOutMemDiff = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) / 1024
+            pgInMemDiff = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
+            pgOutMemDiff = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
 
             # swap memory #
-            swapTotal = self.vmData['swapTotal'] / 1024
-            swapUsage = self.vmData['swapUsed'] / 1024
-            swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) / 1024
-            swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) / 1024
-            swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) / 1024
+            swapTotal = self.vmData['swapTotal'] >> 10
+            swapUsage = self.vmData['swapUsed'] >> 10
+            swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) >> 10
+            swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
+            swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
 
             # background reclaim #
             bgReclaim = 0
@@ -11697,7 +11700,7 @@ class ThreadAnalyzer(object):
             if 'pgsteal_kswapd_movable' in self.vmData:
                 bgReclaim += \
                     self.vmData['pgsteal_kswapd_movable'] - self.prevVmData['pgsteal_kswapd_movable']
-            bgReclaim = bgReclaim * 4 / 1024
+            bgReclaim = bgReclaim >> 8
             nrBgReclaim = self.vmData['pageoutrun'] - self.prevVmData['pageoutrun']
 
             # direct reclaim #
@@ -11717,18 +11720,18 @@ class ThreadAnalyzer(object):
             if 'pgsteal_direct_movable' in self.vmData:
                 drReclaim += \
                     self.vmData['pgsteal_direct_movable'] - self.prevVmData['pgsteal_direct_movable']
-            drReclaim = drReclaim * 4 / 1024
+            drReclaim = drReclaim >> 8
             nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
 
 
             # etc #
-            mlockMem = self.vmData['nr_mlock'] * 4 / 1024
-            mappedMem = self.vmData['nr_mapped'] * 4 / 1024
+            mlockMem = self.vmData['nr_mlock'] >> 8
+            mappedMem = self.vmData['nr_mapped'] >> 8
 
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
 
             # total mem #
-            totalMem = self.memData['MemTotal'] / 1024
+            totalMem = self.memData['MemTotal'] >> 10
 
             # cma mem #
             if 'CmaTotal' in self.memData:
@@ -11746,9 +11749,9 @@ class ThreadAnalyzer(object):
                 cmaTotalMem = 0
 
             '''
-            shMem = self.vmData['nr_shmem'] * 4 / 1024
-            pageTableMem = self.vmData['nr_page_table_pages'] * 4 / 1024
-            kernelStackMem = self.vmData['nr_kernel_stack'] * 8 / 1024
+            shMem = self.vmData['nr_shmem'] >> 8
+            pageTableMem = self.vmData['nr_page_table_pages'] >> 8
+            kernelStackMem = self.vmData['nr_kernel_stack'] * 8 >> 10
             '''
         except:
             SystemManager.printError("Fail to get all system stat")
@@ -11910,7 +11913,7 @@ class ThreadAnalyzer(object):
                 nowData = value['stat']
                 prevData = self.prevProcData[pid]['stat']
 
-                value['runtime'] = int(SystemManager.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
+                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.runtimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
@@ -11928,15 +11931,16 @@ class ThreadAnalyzer(object):
                             long(self.prevProcData[pid]['io']['write_bytes'])
             except:
                 value['new'] = True
-                value['runtime'] = int(SystemManager.uptime - (float(value['stat'][self.runtimeIdx]) / 100))
+                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.runtimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
                 value['stime'] = int(nowData[self.stimeIdx] / interval)
+                value['ttime'] = value['utime'] + value['stime']
                 value['cutime'] = int(nowData[self.cutimeIdx] / interval)
                 value['cstime'] = int(nowData[self.cstimeIdx] / interval)
+                value['cttime'] = value['cutime'] + value['cstime']
                 value['btime'] = int(nowData[self.btimeIdx] / interval)
-                value['ttime'] = value['utime'] + value['stime']
 
                 if value['io'] is not None:
                     value['read'] = long(value['io']['read_bytes'])
@@ -11996,7 +12000,7 @@ class ThreadAnalyzer(object):
             if SystemManager.sort == 'c' or SystemManager.sort is None:
                 targetValue = value['ttime']
             elif SystemManager.sort == 'm':
-                targetValue = long(value['stat'][self.rssIdx]) * 4 / 1024
+                targetValue = long(value['stat'][self.rssIdx]) >> 8
             elif SystemManager.sort == 'b':
                 targetValue = value['btime']
             elif SystemManager.sort == 'w':
@@ -12016,13 +12020,13 @@ class ThreadAnalyzer(object):
             if SystemManager.processEnable is True:
                 pid = value['stat'][self.ppidIdx]
                 stackSize = (long(value['stat'][self.sstackIdx]) - \
-                    long(value['stat'][self.estackIdx])) / 1024 / 1024
+                    long(value['stat'][self.estackIdx])) / MBSIZE
             else:
                 pid = value['mainID']
                 stackSize = '-'
 
             codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                long(value['stat'][self.scodeIdx])) / 1024 / 1024
+                long(value['stat'][self.scodeIdx])) / MBSIZE
 
             if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                 schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
@@ -12042,11 +12046,11 @@ class ThreadAnalyzer(object):
 
             try:
                 vmswp =\
-                    long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
+                    long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
             except:
                 vmswp = '-'
             try:
-                shr = long(value['statm'][self.shrIdx]) * 4 / 1024
+                shr = long(value['statm'][self.shrIdx]) >> 8
             except:
                 shr = '-'
 
@@ -12084,8 +12088,8 @@ class ThreadAnalyzer(object):
                 prtd = '-'
 
             if SystemManager.diskEnable is True:
-                readSize = value['read'] / 1024 / 1024
-                writeSize = value['write'] / 1024 / 1024
+                readSize = value['read'] / MBSIZE
+                writeSize = value['write'] / MBSIZE
             else:
                 readSize = '-'
                 writeSize = '-'
@@ -12097,8 +12101,8 @@ class ThreadAnalyzer(object):
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
-                long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
+                long(value['stat'][self.vsizeIdx]) / MBSIZE, \
+                long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime))
             procCnt += 1
@@ -12116,13 +12120,13 @@ class ThreadAnalyzer(object):
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
                     stackSize = (long(value['stat'][self.sstackIdx]) - \
-                        long(value['stat'][self.estackIdx])) / 1024 / 1024
+                        long(value['stat'][self.estackIdx])) / MBSIZE
                 else:
                     pid = value['mainID']
                     stackSize = '-'
 
                 codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) / 1024 / 1024
+                    long(value['stat'][self.scodeIdx])) / MBSIZE
 
                 if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                     schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
@@ -12138,17 +12142,17 @@ class ThreadAnalyzer(object):
                 lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 try:
-                    vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) / 1024
+                    vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
                 except:
                     vmswp = '-'
                 try:
-                    shr = long(value['statm'][self.shrIdx]) * 4 / 1024
+                    shr = long(value['statm'][self.shrIdx]) >> 8
                 except:
                     shr = '-'
 
                 if SystemManager.diskEnable is True:
-                    readSize = value['read'] / 1024 / 1024
-                    writeSize = value['write'] / 1024 / 1024
+                    readSize = value['read'] / MBSIZE
+                    writeSize = value['write'] / MBSIZE
                 else:
                     readSize = '-'
                     writeSize = '-'
@@ -12160,10 +12164,10 @@ class ThreadAnalyzer(object):
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
-                    long(value['stat'][self.vsizeIdx]) / 1024 / 1024, \
-                    long(value['stat'][self.rssIdx]) * 4 / 1024, codeSize, shr, vmswp, \
-                    value['btime'], readSize, writeSize, value['majflt'],\
+                    int(value['ttime']), int(value['utime']), int(value['stime']), int(value['cttime']), \
+                    long(value['stat'][self.vsizeIdx]) / MBSIZE, \
+                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime))
                 dieCnt += 1
 
@@ -12442,11 +12446,11 @@ class ThreadAnalyzer(object):
                     key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
 
                 for pid, data in sortedProcData:
-                    rss = long(data['stat'][self.rssIdx]) * 4 / 1024
+                    rss = long(data['stat'][self.rssIdx]) >> 8
 
                     if  rss > 1 and rank < 5:
                         text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) / 1024 / 1024
+                            long(data['stat'][self.scodeIdx])) / MBSIZE
 
                         self.reportData['event']['MEM_PRESSURE'][rank] = {}
                         self.reportData['event']['MEM_PRESSURE'][rank]['pid'] = pid
@@ -12456,13 +12460,13 @@ class ThreadAnalyzer(object):
 
                         try:
                             self.reportData['event']['MEM_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
+                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) >> 10
                         except:
                             pass
 
                         try:
                             self.reportData['event']['MEM_PRESSURE'][rank]['shared'] = \
-                                long(data['statm'][self.shrIdx]) * 4 / 1024
+                                long(data['statm'][self.shrIdx]) >> 8
                         except:
                             pass
 
@@ -12483,11 +12487,11 @@ class ThreadAnalyzer(object):
                     key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
 
                 for pid, data in sortedProcData:
-                    rss = long(data['stat'][self.rssIdx]) * 4 / 1024
+                    rss = long(data['stat'][self.rssIdx]) >> 8
 
                     if  rss > 1 and rank < 5:
                         text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) / 1024 / 1024
+                            long(data['stat'][self.scodeIdx])) / MBSIZE
 
                         self.reportData['event']['SWAP_PRESSURE'][rank] = {}
                         self.reportData['event']['SWAP_PRESSURE'][rank]['pid'] = pid
@@ -12497,13 +12501,13 @@ class ThreadAnalyzer(object):
 
                         try:
                             self.reportData['event']['SWAP_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) / 1024
+                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) >> 10
                         except:
                             pass
 
                         try:
                             self.reportData['event']['SWAP_PRESSURE'][rank]['shared'] = \
-                                long(data['statm'][self.shrIdx]) * 4 / 1024
+                                long(data['statm'][self.shrIdx]) >> 8
                         except:
                             pass
 
@@ -12610,7 +12614,7 @@ class ThreadAnalyzer(object):
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
             SystemManager.nrCore, self.nrProcess, self.nrThread, \
-            self.memData['MemTotal'] / 1024, self.memData['SwapTotal'] / 1024))
+            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
         # print system usage #
         self.printSystemUsage()
@@ -12656,6 +12660,7 @@ if __name__ == '__main__':
 
     oneLine = "-" * SystemManager.lineLength
     twoLine = "=" * SystemManager.lineLength
+    MBSIZE = 1024 * 1024
 
     SystemManager.printOptions()
 
