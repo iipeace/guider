@@ -5912,7 +5912,7 @@ class SystemManager(object):
                 SystemManager.printInfo("Use %s:%d as server address" % \
                     (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
-            elif option == 'X' and SystemManager.isTopMode() is False:
+            elif option == 'X' and SystemManager.isTopMode() is True:
                 if SystemManager.findOption('x') is False:
                     SystemManager.printError(\
                         "wrong option with -X, use also -x option to request service")
