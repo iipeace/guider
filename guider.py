@@ -7718,8 +7718,9 @@ class ThreadAnalyzer(object):
             # request service to remote server #
             self.requestService()
 
-            prevTime = time.time()
             while True:
+                prevTime = time.time()
+
                 if SystemManager.addrOfServer is not None:
                     # receive response from server #
                     ret = SystemManager.addrAsServer.recv()
@@ -7731,7 +7732,6 @@ class ThreadAnalyzer(object):
 
                 # collect system stats as soon as possible #
                 self.saveSystemStat()
-                delayTime = 0
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
@@ -7743,13 +7743,13 @@ class ThreadAnalyzer(object):
                     # report system status #
                     self.reportSystemStat()
 
+                # get delayed time #
                 delayTime = time.time() - prevTime
                 if delayTime > SystemManager.intervalEnable:
                     delayTime = SystemManager.intervalEnable
 
                 # wait for next interval #
                 time.sleep(SystemManager.intervalEnable - delayTime)
-                prevTime = time.time()
 
                 # check request from client #
                 self.checkServer()
