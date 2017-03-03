@@ -8008,58 +8008,70 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             usage = map(int, memFree)
-            plot(timeline, usage, '-', c='blue', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='blue', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='blue', fontweight='bold')
-            if totalRAM is not None:
-                labelList.append('RAM Free(<' + totalRAM + ')')
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
             else:
-                labelList.append('RAM Free')
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='blue', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='blue', fontweight='bold')
+                plot(timeline, usage, '-', c='blue', linewidth=1)
+                if totalRAM is not None:
+                    labelList.append('RAM Free(<' + totalRAM + ')')
+                else:
+                    labelList.append('RAM Free')
 
             usage = map(int, swapUsage)
-            plot(timeline, swapUsage, '-', c='orange', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='orange', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='orange', fontweight='bold')
-            if totalSwap is not None:
-                labelList.append('Swap Usage(<' + totalSwap + ')')
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
             else:
-                labelList.append('Swap Usage')
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+                if totalSwap is not None:
+                    labelList.append('Swap Usage(<' + totalSwap + ')')
+                else:
+                    labelList.append('Swap Usage')
 
             usage = map(int, blkRead)
-            plot(timeline, blkRead, '-', c='red', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='red', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='red', fontweight='bold')
-            labelList.append('Block Read')
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='red', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='red', fontweight='bold')
+                plot(timeline, blkRead, '-', c='red', linewidth=1)
+                labelList.append('Block Read')
 
             usage = map(int, blkWrite)
-            plot(timeline, blkWrite, '-', c='green', linewidth=1)
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='green', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
-            labelList.append('Block Write')
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='green', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='green', fontweight='bold')
+                plot(timeline, blkWrite, '-', c='green', linewidth=1)
+                labelList.append('Block Write')
 
             ylabel('MEMORY(MB)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
