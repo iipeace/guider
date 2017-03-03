@@ -5121,7 +5121,7 @@ class SystemManager(object):
             try:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile) is True:
-                    shutil.copy(SystemManager.outputFile, \
+                    shutil.move(SystemManager.outputFile, \
                             os.path.join(SystemManager.outputFile + '.old'))
 
                 f = open(SystemManager.outputFile, 'w')
@@ -5554,7 +5554,7 @@ class SystemManager(object):
             try:
                 # backup output file #
                 if os.path.isfile(SystemManager.inputFile) is True:
-                    shutil.copy(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
+                    shutil.move(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
             except:
                 SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
 
