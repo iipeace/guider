@@ -11626,16 +11626,16 @@ class ThreadAnalyzer(object):
                 line = line.split()
                 if line[0] == 'read_bytes:':
                     try:
-                        self.procData[tid]['io']['read_bytes'] = line[1]
+                        self.procData[tid]['io']['read_bytes'] = long(line[1])
                     except:
                         self.procData[tid]['io'] = {}
-                        self.procData[tid]['io']['read_bytes'] = line[1]
+                        self.procData[tid]['io']['read_bytes'] = long(line[1])
                 elif line[0] == 'write_bytes:':
                     try:
-                        self.procData[tid]['io']['write_bytes'] = line[1]
+                        self.procData[tid]['io']['write_bytes'] = long(line[1])
                     except:
                         self.procData[tid]['io'] = {}
-                        self.procData[tid]['io']['write_bytes'] = line[1]
+                        self.procData[tid]['io']['write_bytes'] = long(line[1])
 
 
 
@@ -11924,10 +11924,10 @@ class ThreadAnalyzer(object):
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
 
                 if value['io'] is not None:
-                    value['read'] = long(value['io']['read_bytes']) - \
-                            long(self.prevProcData[pid]['io']['read_bytes'])
-                    value['write'] = long(value['io']['write_bytes']) - \
-                            long(self.prevProcData[pid]['io']['write_bytes'])
+                    value['read'] = value['io']['read_bytes'] - \
+                            self.prevProcData[pid]['io']['read_bytes']
+                    value['write'] = value['io']['write_bytes'] - \
+                            self.prevProcData[pid]['io']['write_bytes']
             except:
                 value['new'] = True
                 value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
@@ -11942,8 +11942,8 @@ class ThreadAnalyzer(object):
                 value['btime'] = int(nowData[self.btimeIdx] / interval)
 
                 if value['io'] is not None:
-                    value['read'] = long(value['io']['read_bytes'])
-                    value['write'] = long(value['io']['write_bytes'])
+                    value['read'] = value['io']['read_bytes']
+                    value['write'] = value['io']['write_bytes']
 
         # get profile mode #
         if SystemManager.processEnable is True:
