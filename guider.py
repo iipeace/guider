@@ -298,7 +298,7 @@ class ConfigManager(object):
 
     @staticmethod
     def readProcData(tid, path, num):
-        path = '/proc/'+ tid + '/' + path 
+        path = '/proc/'+ tid + '/' + path
 
         try:
             f = open(path, 'r')
@@ -7053,9 +7053,9 @@ class SystemManager(object):
                     except:
                         SystemManager.printError("Fail to write signal command")
                 elif SystemManager.outputFile is not None:
-                        SystemManager.saveCmd =\
-                            'cat ' + SystemManager.mountPath + '../trace > ' +\
-                            SystemManager.outputFile + '\n'
+                    SystemManager.saveCmd =\
+                        'cat ' + SystemManager.mountPath + '../trace > ' +\
+                        SystemManager.outputFile + '\n'
 
             # disable all ftrace options registered #
             for idx, val in SystemManager.cmdList.items():
@@ -7693,7 +7693,7 @@ class ThreadAnalyzer(object):
             self.ecodeIdx = ConfigManager.statList.index("ENDCODE")
             self.statIdx = ConfigManager.statList.index("STATE")
             self.coreIdx = ConfigManager.statList.index("PROCESSOR")
-            self.runtimeIdx = ConfigManager.statList.index("STARTTIME")
+            self.starttimeIdx = ConfigManager.statList.index("STARTTIME")
             self.shrIdx = ConfigManager.statmList.index("SHR")
 
             try:
@@ -7866,7 +7866,7 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to read log from %s\n" % logFile)
             return
- 
+
         # parse summary #
         interval = 0
         finalLine = 0
@@ -11912,7 +11912,7 @@ class ThreadAnalyzer(object):
                 nowData = value['stat']
                 prevData = self.prevProcData[pid]['stat']
 
-                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.runtimeIdx]) / 100))
+                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
@@ -11930,7 +11930,7 @@ class ThreadAnalyzer(object):
                             long(self.prevProcData[pid]['io']['write_bytes'])
             except:
                 value['new'] = True
-                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.runtimeIdx]) / 100))
+                value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
