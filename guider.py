@@ -7707,10 +7707,14 @@ class ThreadAnalyzer(object):
             if SystemManager.intervalEnable == 0:
                 SystemManager.intervalEnable = 1
 
+            # remove wrong filter #
             if len(SystemManager.showGroup) > 0:
                 for idx, val in enumerate(SystemManager.showGroup):
                     if len(val) == 0:
                         SystemManager.showGroup.pop(idx)
+
+            # set configuration from file #
+            self.getConf()
 
             if SystemManager.printFile is not None:
                 SystemManager.printStatus(r"start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
@@ -8021,7 +8025,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', linewidth=1)
                 if totalRAM is not None:
-                    labelList.append('RAM Free(<' + totalRAM + ')')
+                    labelList.append('RAM Free (<' + totalRAM + ')')
                 else:
                     labelList.append('RAM Free')
 
@@ -8039,7 +8043,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='orange', fontweight='bold')
                 plot(timeline, swapUsage, '-', c='orange', linewidth=1)
                 if totalSwap is not None:
-                    labelList.append('Swap Usage(<' + totalSwap + ')')
+                    labelList.append('Swap Usage (<' + totalSwap + ')')
                 else:
                     labelList.append('Swap Usage')
 
@@ -8559,6 +8563,43 @@ class ThreadAnalyzer(object):
             else:
                 SystemManager.printError("Use also -i option if you want to draw graph")
                 SystemManager.graphEnable = False
+
+
+
+    def getConf(self):
+        if SystemManager.sourceFile is not None:
+            confBuf = None
+            confDict = None
+
+            try:
+                with open(SystemManager.sourceFile, 'r') as fd:
+                    confBuf = fd.read()
+            except:
+                SystemManager.printError("Fail to open %s to set configuration")
+                sys.exit(0)
+
+            if confBuf is None:
+                SystemManager.printError("Fail to read %s to set configuration")
+                sys.exit(0)
+
+            try:
+                import json
+                SystemManager.jsonObject = json
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError("Fail to import package: " + err.args[0])
+
+            try:
+                confBuf = confBuf.replace("'", '"')
+                confDict = SystemManager.jsonObject.loads(confBuf)
+
+                if 'bound' in confDict:
+                    ThreadAnalyzer.reportBoundary = confDict['bound']
+                else:
+                    raise
+            except:
+                SystemManager.printError("Fail to load configuration")
+                sys.exit(0)
 
 
 
