@@ -4781,6 +4781,7 @@ class SystemManager(object):
             if SystemManager.warningEnable is True:
                 enableStat += 'WARNING '
 
+        # function mode #
         if SystemManager.isFunctionMode() is True:
             if SystemManager.heapEnable is False:
                 disableStat += 'HEAP '
@@ -4791,6 +4792,7 @@ class SystemManager(object):
                 disableStat += 'USER '
             else:
                 enableStat += 'USER '
+        # thread mode #
         else:
             if SystemManager.intervalEnable > 0:
                 enableStat += 'INTERVAL '
@@ -4822,6 +4824,7 @@ class SystemManager(object):
             else:
                 disableStat += 'PREEMPT '
 
+        # common options #
         if SystemManager.showAll is True:
             enableStat += 'ALL '
         else:
