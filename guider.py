@@ -8183,7 +8183,7 @@ class ThreadAnalyzer(object):
             # save graph #
             savefig(outputFile, dpi=(300))
             clf()
-            SystemManager.printInfo("write resource graph to %s" % outputFile)
+            SystemManager.printStatus("write resource graph to %s" % outputFile)
         except:
             SystemManager.printError("Fail to draw graph while saving graph")
             return
@@ -9296,7 +9296,7 @@ class ThreadAnalyzer(object):
                 graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider.png'
                 savefig(graphPath, dpi=(200))
                 clf()
-                SystemManager.printInfo("write resource graph to %s" % graphPath)
+                SystemManager.printStatus("write resource graph to %s" % graphPath)
             else:
                 SystemManager.printWarning("Fail to draw graph")
 
