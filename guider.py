@@ -617,7 +617,7 @@ class FunctionAnalyzer(object):
             self.target = SystemManager.showGroup
 
         # Check root path #
-        if SystemManager.rootPath is None:
+        if SystemManager.rootPath is None and SystemManager.userEnable is True:
             SystemManager.printError(\
                 "Fail to recognize sysroot path for target, use also -r option with blank or path for user mode")
             sys.exit(0)
@@ -2387,7 +2387,7 @@ class FunctionAnalyzer(object):
     def getBinInfo(self, addr):
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -r option with it for user mode or blank")
+                "Fail to recognize sysroot path for target, use also -r option with blank or path for user mode")
             sys.exit(0)
 
         for data in self.mapData:
@@ -4781,35 +4781,71 @@ class SystemManager(object):
             if SystemManager.warningEnable is True:
                 enableStat += 'WARNING '
 
+        if SystemManager.isFunctionMode() is True:
+            if SystemManager.heapEnable is False:
+                disableStat += 'HEAP '
+            else:
+                enableStat += 'HEAP '
+
+            if SystemManager.userEnable is False:
+                disableStat += 'USER '
+            else:
+                enableStat += 'USER '
+        else:
+            if SystemManager.intervalEnable > 0:
+                enableStat += 'INTERVAL '
+            else:
+                disableStat += 'INTERVAL '
+
+            if SystemManager.depEnable is True:
+                enableStat += 'DEPENDENCY '
+            else:
+                disableStat += 'DEPENDENCY '
+
+            if SystemManager.graphEnable is True:
+                enableStat += 'GRAPH '
+            else:
+                disableStat += 'GRAPH '
+
+            if SystemManager.irqEnable is True:
+                enableStat += 'IRQ '
+            else:
+                disableStat += 'IRQ '
+
+            if SystemManager.sysEnable is True:
+                enableStat += 'SYSCALL '
+            else:
+                disableStat += 'SYSCALL '
+
+            if len(SystemManager.preemptGroup) > 0:
+                enableStat += 'PREEMPT '
+            else:
+                disableStat += 'PREEMPT '
+
         if SystemManager.showAll is True:
             enableStat += 'ALL '
         else:
             disableStat += 'ALL '
-
-        if SystemManager.intervalEnable > 0:
-            enableStat += 'INTERVAL '
-        else:
-            disableStat += 'INTERVAL '
-
-        if SystemManager.depEnable is True:
-            enableStat += 'DEPENDENCY '
-        else:
-            disableStat += 'DEPENDENCY '
 
         if SystemManager.groupProcEnable is True:
             enableStat += 'PROCESS '
         else:
             disableStat += 'PROCESS '
 
-        if SystemManager.graphEnable is True:
-            enableStat += 'GRAPH '
+        if SystemManager.cpuEnable is False:
+            disableStat += 'CPU '
         else:
-            disableStat += 'GRAPH '
+            enableStat += 'CPU '
 
-        if len(SystemManager.preemptGroup) > 0:
-            enableStat += 'PREEMPT '
+        if SystemManager.memEnable is False:
+            disableStat += 'MEMORY '
         else:
-            disableStat += 'PREEMPT '
+            enableStat += 'MEMORY '
+
+        if SystemManager.blockEnable is False:
+            disableStat += 'BLOCK '
+        else:
+            enableStat += 'BLOCK '
 
         # print options #
         if enableStat != '':
@@ -5333,7 +5369,8 @@ class SystemManager(object):
                 SystemManager.printInfo("only specific threads [%s] are shown" % \
                     ','.join(SystemManager.showGroup))
             else:
-                SystemManager.printInfo("only specific threads involved in process group of [%s] are shown" % \
+                SystemManager.printInfo(\
+                    "only specific threads that involved in [%s] process groups are shown" % \
                     ','.join(SystemManager.showGroup))
 
         # apply dependency option #
@@ -5341,12 +5378,34 @@ class SystemManager(object):
         if launchPosStart > -1:
             SystemManager.depEnable = True
 
+        # apply syscall option #
+        launchPosStart = SystemManager.launchBuffer.find(' -t')
+        if launchPosStart > -1:
+            SystemManager.sysEnable = True
+
         # apply disable option #
         launchPosStart = SystemManager.launchBuffer.find(' -d')
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            if filterList[:filterList.find(' -')].find('u') > -1:
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            if filterList.find('u') > -1:
                 SystemManager.userEnable = False
+            if filterList.find('c') > -1:
+                SystemManager.cpuEnable = False
+
+        # apply enable option #
+        launchPosStart = SystemManager.launchBuffer.find(' -e')
+        if launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            if filterList.find('m') > -1:
+                SystemManager.memEnable = True
+            if filterList.find('b') > -1:
+                SystemManager.blockEnable = True
+            if filterList.find('h') > -1:
+                SystemManager.heapEnable = True
+            if filterList.find('i') > -1:
+                SystemManager.irqEnable = True
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -8803,7 +8862,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n' + '[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^8} {1:^8} {2:^12} {3:^16} {4:>32}\n".\
+        SystemManager.pipePrint("{0:^8} {1:^8} {2:^12} {3:^16} {4:>32}".\
             format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
         SystemManager.pipePrint(oneLine)
 
@@ -8821,8 +8880,8 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
-
             SystemManager.pipePrint(oneLine)
+
         if len(self.blockTable[1]) > 0:
             SystemManager.pipePrint('# WRITE')
             for num, size in self.blockTable[1].items():
@@ -8837,7 +8896,6 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
-
             SystemManager.pipePrint(oneLine)
 
 
