@@ -4792,6 +4792,10 @@ class SystemManager(object):
                 disableStat += 'USER '
             else:
                 enableStat += 'USER '
+
+            if SystemManager.customCmd is not None:
+                SystemManager.printInfo(\
+                    "enabled custom events [ %s ]" % ', '.join(SystemManager.customCmd))
         # thread mode #
         else:
             if SystemManager.intervalEnable > 0:
@@ -5409,6 +5413,20 @@ class SystemManager(object):
                 SystemManager.heapEnable = True
             if filterList.find('i') > -1:
                 SystemManager.irqEnable = True
+
+        # apply custom option #
+        launchPosStart = SystemManager.launchBuffer.find(' -c')
+        if launchPosStart > -1:
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            filterList = filterList[:filterList.find(' -')]
+            filterList = filterList.split(',')
+            for idx, item in enumerate(filterList):
+                tempItem = filterList[idx].split('/')
+                if len(tempItem) == 2:
+                    filterList[idx] = tempItem[1]
+                else:
+                    filterList.pop(idx)
+            SystemManager.printInfo("profiled custom events [ %s ]" % ', '.join(filterList))
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
