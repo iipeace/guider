@@ -8582,12 +8582,13 @@ class ThreadAnalyzer(object):
                 SystemManager.printError("Fail to read %s to set configuration")
                 sys.exit(0)
 
-            try:
-                import json
-                SystemManager.jsonObject = json
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import package: " + err.args[0])
+            if SystemManager.jsonObject is None:
+                try:
+                    import json
+                    SystemManager.jsonObject = json
+                except ImportError:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError("Fail to import package: " + err.args[0])
 
             try:
                 confBuf = confBuf.replace("'", '"')
