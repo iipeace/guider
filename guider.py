@@ -8870,7 +8870,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(oneLine)
 
         if len(self.blockTable[0]) > 0:
-            SystemManager.pipePrint('# READ')
+            SystemManager.pipePrint('# READ\n')
             for num, size in self.blockTable[0].items():
                 try:
                     dev = SystemManager.savedMountTree[num]['dev']
@@ -8886,7 +8886,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         if len(self.blockTable[1]) > 0:
-            SystemManager.pipePrint('# WRITE')
+            SystemManager.pipePrint('# WRITE\n')
             for num, size in self.blockTable[1].items():
                 try:
                     dev = SystemManager.savedMountTree[num]['dev']
