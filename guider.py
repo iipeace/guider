@@ -2543,7 +2543,7 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack.sort(reverse=True)
+                targetStack = sorted(targetStack, key=lambda x: x[eventIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -2612,7 +2612,7 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint("{0:7}  |{1:^134}".format(value['customCnt'], idx))
 
             # Sort stacks by usage #
-            value['stack'].sort(reverse=True)
+            value['stack'] = sorted(value['stack'], key=lambda x: x[eventIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -4699,7 +4699,7 @@ class SystemManager(object):
             print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
-            print('\t\t-c  [set_customEvent:event:filter]')
+            print('\t\t-c  [set_customEvent:event:recFilter]')
             print('\t\t-v  [verbose]')
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
@@ -4748,12 +4748,14 @@ class SystemManager(object):
                 sys.exit(0)
 
             if len(cmdFormat) == 1:
+                origFilter = ''
                 cmdFormat.append("common_pid != 0")
             else:
+                origFilter = cmdFormat[1]
                 cmdFormat[1] = "common_pid != 0 && " + cmdFormat[1]
 
             if SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
-                SystemManager.printError("wrong filter '%s' for '%s' event" % (cmdFormat[1], cmdFormat[0]))
+                SystemManager.printError("wrong filter '%s' for '%s' event" % (origFilter, cmdFormat[0]))
 
             if SystemManager.writeCmd(cmdFormat[0] + '/enable', '1') < 0:
                 SystemManager.printError("wrong event '%s'" % cmdFormat[0])
