@@ -11970,12 +11970,20 @@ class ThreadAnalyzer(object):
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
+                if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['utime'] = 100
                 value['stime'] = int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
+                if value['stime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['stime'] = 100
                 value['ttime'] = value['utime'] + value['stime']
+                if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['ttime'] = 100
                 value['cutime'] = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
                 value['cstime'] = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
                 value['cttime'] = value['cutime'] + value['cstime']
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
+                if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['btime'] = 100 - value['ttime']
 
                 if value['io'] is not None:
                     value['read'] = value['io']['read_bytes'] - \
@@ -11988,12 +11996,20 @@ class ThreadAnalyzer(object):
                 value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
+                if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['utime'] = 100
                 value['stime'] = int(nowData[self.stimeIdx] / interval)
+                if value['stime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['stime'] = 100
                 value['ttime'] = value['utime'] + value['stime']
+                if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['ttime'] = 100
                 value['cutime'] = int(nowData[self.cutimeIdx] / interval)
                 value['cstime'] = int(nowData[self.cstimeIdx] / interval)
                 value['cttime'] = value['cutime'] + value['cstime']
                 value['btime'] = int(nowData[self.btimeIdx] / interval)
+                if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                    value['btime'] = 100 - value['ttime']
 
                 if value['io'] is not None:
                     value['read'] = value['io']['read_bytes']
