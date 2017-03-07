@@ -729,7 +729,7 @@ class FunctionAnalyzer(object):
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-        for cnt in range(0, pageFreeCnt):
+        for cnt in xrange(0, pageFreeCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = 0
 
@@ -864,7 +864,7 @@ class FunctionAnalyzer(object):
                 break
 
         # Make PTE in page table #
-        for cnt in range(0, pageAllocCnt):
+        for cnt in xrange(0, pageAllocCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = 0
 
@@ -1899,7 +1899,7 @@ class FunctionAnalyzer(object):
                     self.threadData[tid]['kernelPages'] += pageCnt
 
                 # Make PTE in page table #
-                for cnt in range(0, pageCnt):
+                for cnt in xrange(0, pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -1951,7 +1951,7 @@ class FunctionAnalyzer(object):
 
                 # Update page table #
                 origPageType = None
-                for cnt in range(0, pageCnt):
+                for cnt in xrange(0, pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -3894,7 +3894,7 @@ class FileAnalyzer(object):
         printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format("InitRAM(KB)", "File(KB)", "%")
 
         if len(self.intervalFileData) > 1:
-            for idx in range(1, len(self.intervalFileData)):
+            for idx in xrange(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
         printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM(KB)", "%")
@@ -3939,7 +3939,7 @@ class FileAnalyzer(object):
 
             # calculate diff of on-memory file size #
             if len(self.intervalFileData) > 1:
-                for idx in range(1, len(self.intervalFileData)):
+                for idx in xrange(1, len(self.intervalFileData)):
                     diffNew = 0
                     diffDel = 0
 
@@ -3960,7 +3960,7 @@ class FileAnalyzer(object):
                             diffNew = self.intervalFileData[idx][fileName]['pageCnt']
                         else:
                             if len(nowFileMap) == len(prevFileMap):
-                                for i in range(len(nowFileMap)):
+                                for i in xrange(len(nowFileMap)):
                                     if nowFileMap[i] > prevFileMap[i]:
                                         diffNew += 1
                                     elif nowFileMap[i] < prevFileMap[i]:
@@ -4324,7 +4324,7 @@ class FileAnalyzer(object):
             if pagemap is not None:
                 try:
                     val['fileMap'] = \
-                        [pagemap[i] for i in range(size / SystemManager.pageSize)]
+                        [pagemap[i] for i in xrange(size / SystemManager.pageSize)]
 
                     self.profSuccessCnt += 1
 
@@ -5760,7 +5760,7 @@ class SystemManager(object):
 
         if SystemManager.savedOptionList is None:
             SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-            for seq in range(0, len(SystemManager.savedOptionList)):
+            for seq in xrange(0, len(SystemManager.savedOptionList)):
                 SystemManager.savedOptionList[seq] = \
                     SystemManager.savedOptionList[seq].replace(" ", "")
 
@@ -5778,7 +5778,7 @@ class SystemManager(object):
             return
 
         SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-        for seq in range(0, len(SystemManager.optionList)):
+        for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
         for item in SystemManager.optionList:
@@ -6064,7 +6064,7 @@ class SystemManager(object):
             return
 
         SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-        for seq in range(0, len(SystemManager.optionList)):
+        for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
         for item in SystemManager.optionList:
@@ -7270,7 +7270,7 @@ class SystemManager(object):
         try:
             title = 'Cmdline'
             splitLen = SystemManager.lineLength - 21
-            cmdlineList = [self.cmdlineData[i:i+splitLen] for i in range(0, len(self.cmdlineData), splitLen)]
+            cmdlineList = [self.cmdlineData[i:i+splitLen] for i in xrange(0, len(self.cmdlineData), splitLen)]
             for string in cmdlineList:
                 SystemManager.infoBufferPrint("{0:20} {1:<100}".format(title, string))
                 title = ''
@@ -8386,7 +8386,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         # initialize swapper thread per core #
-        for n in range(0, SystemManager.maxCore + 1):
+        for n in xrange(0, SystemManager.maxCore + 1):
             try:
                 self.threadData['0[' + str(n) + ']']
             except:
@@ -8765,7 +8765,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
 
-        for icount in range(0, len(self.depData)):
+        for icount in xrange(0, len(self.depData)):
             SystemManager.addPrint(self.depData[icount] + '\n')
 
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -8828,7 +8828,7 @@ class ThreadAnalyzer(object):
                     ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
                 SystemManager.pipePrint(twoLine)
 
-                for icount in range(0, len(self.syscallData)):
+                for icount in xrange(0, len(self.syscallData)):
                     try:
                         if self.syscallData[icount][0] == 'enter':
                             if self.syscallData[icount + 1][0] == 'exit' and \
@@ -8951,7 +8951,7 @@ class ThreadAnalyzer(object):
         titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
         maxLineLen = SystemManager.lineLength
         timeLineLen = titleLineLen = len(titleLine)
-        for icount in range(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
+        for icount in xrange(1, int(float(self.totalTime) / SystemManager.intervalEnable) + 2):
             checkEvent = ' '
             cnt = icount - 1
 
@@ -8994,7 +8994,7 @@ class ThreadAnalyzer(object):
                 icount = 0
                 timeLine = ''
                 timeLineLen = titleLineLen
-                for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     try:
                         self.intervalData[icount][key]
                     except:
@@ -9024,7 +9024,7 @@ class ThreadAnalyzer(object):
         icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
-        for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+        for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                 timeLineLen = titleLineLen + 4
@@ -9048,7 +9048,7 @@ class ThreadAnalyzer(object):
         icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
-        for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+        for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                 timeLineLen = titleLineLen + 4
@@ -9124,7 +9124,7 @@ class ThreadAnalyzer(object):
                 timeLine = ''
                 timeLineLen = titleLineLen
 
-                for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     newFlag = ' '
                     dieFlag = ' '
 
@@ -9227,7 +9227,7 @@ class ThreadAnalyzer(object):
                 timeLine = ''
                 timeLineLen = titleLineLen
 
-                for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     newFlag = ' '
                     dieFlag = ' '
 
@@ -9280,7 +9280,7 @@ class ThreadAnalyzer(object):
                     timeLine = ''
                     timeLineLen = titleLineLen
 
-                    for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                         newFlag = ' '
                         dieFlag = ' '
 
@@ -9333,7 +9333,7 @@ class ThreadAnalyzer(object):
                     timeLine = ''
                     timeLineLen = titleLineLen
 
-                    for icount in range(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                         newFlag = ' '
                         dieFlag = ' '
 
@@ -9581,7 +9581,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -9601,7 +9601,7 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+        for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -9630,7 +9630,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(procInfo)
             total = 0
-            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -9668,7 +9668,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -9688,7 +9688,7 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+        for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -9716,7 +9716,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -9749,7 +9749,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in range(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -9773,7 +9773,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in range(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -10063,7 +10063,7 @@ class ThreadAnalyzer(object):
                                         float(time) - float(self.intervalData[index - 1][key]['firstLogTime'])
                                 # long time running intervals #
                                 else:
-                                    for idx in range(index - 1, -1, -1):
+                                    for idx in xrange(index - 1, -1, -1):
                                         if float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
                                             self.thisInterval = \
                                                 float(time) - float(self.intervalData[idx][key]['firstLogTime'])
@@ -10074,7 +10074,7 @@ class ThreadAnalyzer(object):
                                 # recalculate previous intervals if there was no context switching since profile start #
                                 remainTime = intervalThread['cpuUsage']
                                 if intervalThread['cpuUsage'] > self.thisInterval:
-                                    for idx in range(int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
+                                    for idx in xrange(int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
                                         try:
                                             self.intervalData[idx][key]
                                         except:
@@ -10136,7 +10136,7 @@ class ThreadAnalyzer(object):
                                 # recalculate previous intervals if there was no context switching since profile start #
                                 remainTime = intervalThread['preempted']
                                 if intervalThread['preempted'] > self.thisInterval:
-                                    for idx in range(index + 1, -1, -1):
+                                    for idx in xrange(index + 1, -1, -1):
                                         try:
                                             self.intervalData[idx][key]
                                         except:
@@ -10497,7 +10497,7 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['kernelPages'] += pow(2, order)
 
                     # make PTE in page table #
-                    for cnt in range(0, pow(2, order)):
+                    for cnt in xrange(0, pow(2, order)):
                         pfnv = pfn + cnt
 
                         try:
@@ -10529,7 +10529,7 @@ class ThreadAnalyzer(object):
                     pfn = int(d['pfn'])
                     order = int(d['order'])
 
-                    for cnt in range(0, pow(2, order)):
+                    for cnt in xrange(0, pow(2, order)):
                         pfnv = pfn + cnt
 
                         try:
