@@ -8219,7 +8219,7 @@ class ThreadAnalyzer(object):
             ylabel('CPU+I/O(%)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
-            yticks(fontsize = 7)
+            yticks(range(0, 110, 10), fontsize = 7)
             xticks(fontsize = 4)
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
