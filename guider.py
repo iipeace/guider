@@ -12973,12 +12973,12 @@ if __name__ == '__main__':
 
             sys.exit(0)
 
+        # register exit handler #
+        atexit.register(SystemManager.runRecordStopCmd)
+
         # start recording for thread profile #
         SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
         si.runRecordStartCmd()
-
-        # register exit handler #
-        atexit.register(SystemManager.runRecordStopCmd)
 
         if SystemManager.pipeEnable is True:
             if SystemManager.outputFile is not None:
