@@ -4751,6 +4751,7 @@ class SystemManager(object):
                 SystemManager.printError("wrong event '%s'" % cmdFormat[0])
                 sys.exit(0)
 
+            # check filter #
             if len(cmdFormat) == 1:
                 origFilter = ''
                 cmdFormat.append("common_pid != 0")
@@ -4758,12 +4759,20 @@ class SystemManager(object):
                 origFilter = cmdFormat[1]
                 cmdFormat[1] = "common_pid != 0 && " + cmdFormat[1]
 
-            if SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
-                SystemManager.printError("wrong filter '%s' for '%s' event" % (origFilter, cmdFormat[0]))
+            # check effective event #
+            if SystemManager.writeCmd(cmdFormat[0] + '/enable', '0') < 0:
+                SystemManager.printError("wrong event '%s'" % cmdFormat[0])
+                sys.exit(0)
 
+            # check and enable effective filter #
+            if len(cmdFormat) > 1 and \
+                SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
+                SystemManager.printError("wrong filter '%s' for '%s' event" % (origFilter, cmdFormat[0]))
+                sys.exit(0)
+
+            # check and enable effective event #
             if SystemManager.writeCmd(cmdFormat[0] + '/enable', '1') < 0:
                 SystemManager.printError("wrong event '%s'" % cmdFormat[0])
-                SystemManager.customCmd.pop(SystemManager.customCmd.index(cmd))
                 sys.exit(0)
             else:
                 effectiveCmd.append(cmdFormat[0])
@@ -5424,8 +5433,10 @@ class SystemManager(object):
         launchPosStart = SystemManager.launchBuffer.find(' -c')
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')]
-            filterList = filterList.split(',')
+            endIdx = filterList.find(' -')
+            if endIdx >= 0:
+                filterList = filterList[:endIdx]
+            filterList = filterList.strip().split(',')
             for idx, item in enumerate(filterList):
                 tempItem = filterList[idx].split('/')
                 if len(tempItem) == 2:
