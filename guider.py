@@ -8170,12 +8170,15 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # CPU total usage #
+            ymax = 0
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             title('guider top report')
 
             for idx, item in enumerate(blkWait):
                 blkWait[idx] += cpuUsage[idx]
+                if ymax < blkWait[idx]:
+                    ymax = blkWait[idx]
 
             plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
             labelList.append('[ CPU + I/O ]')
@@ -8197,7 +8200,11 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-                maxIdx = usage.index(max(usage))
+                maxusage = max(usage)
+                if ymax < maxusage:
+                    ymax = maxusage
+
+                maxIdx = usage.index(maxusage)
                 color = plot(timeline, usage, '-')[0].get_color()
 
                 ytick = yticks()[0]
@@ -8219,8 +8226,9 @@ class ThreadAnalyzer(object):
             ylabel('CPU+I/O(%)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
             grid(which='both')
-            yticks(range(0, 110, 10), fontsize = 7)
             xticks(fontsize = 4)
+            ylim([0, ymax])
+            yticks(range(0, ymax + ymax / 10, ymax / 10), fontsize = 7)
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
@@ -13018,7 +13026,7 @@ if __name__ == '__main__':
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text,\
                 subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
-                grid, yticks, xticks, locator_params, subplot2grid
+                grid, yticks, xticks, locator_params, subplot2grid, ylim
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
