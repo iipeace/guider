@@ -633,10 +633,14 @@ class FunctionAnalyzer(object):
         self.parseLogs(lines, SystemManager.showGroup)
 
         # Check whether data of target thread is collected or nothing #
-        if len(self.userCallData) == 0 and len(self.kernelCallData) == 0 and len(self.target) > 0:
+        if len(self.userCallData) == 0 and \
+            len(self.kernelCallData) == 0 and \
+            len(self.target) > 0:
             SystemManager.printError("No collected data related to %s" % self.target)
             sys.exit(0)
-        elif len(self.userCallData) == 1 and self.userCallData[0][0] == '0':
+        elif SystemManager.userEnable is True and \
+            len(self.userCallData) == 1 and \
+            self.userCallData[0][0] == '0':
             SystemManager.printError("No user stack data related to %s, " % self.target + \
                 "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
             sys.exit(0)
