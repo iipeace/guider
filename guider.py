@@ -12169,8 +12169,10 @@ class ThreadAnalyzer(object):
 
             if SystemManager.processEnable is True:
                 pid = value['stat'][self.ppidIdx]
+                '''
                 stackSize = (long(value['stat'][self.sstackIdx]) - \
                     long(value['stat'][self.estackIdx])) / MBSIZE
+                '''
             else:
                 pid = value['mainID']
                 stackSize = '-'
@@ -12205,36 +12207,30 @@ class ThreadAnalyzer(object):
                 shr = '-'
 
             try:
-                value['yield'] = long(value['status']['voluntary_ctxt_switches'])
+                value['yield'] = value['status']['voluntary_ctxt_switches']
             except:
                 value['yield'] = '-'
             try:
-                value['preempted'] = long(value['status']['nonvoluntary_ctxt_switches'])
+                value['preempted'] = value['status']['nonvoluntary_ctxt_switches']
             except:
                 value['preempted'] = '-'
 
             # save size of file descriptor table #
             try:
-                value['fdsize'] = long(value['status']['FDSize'])
+                value['fdsize'] = value['status']['FDSize']
             except:
-                value['fdsize'] = 0
+                value['fdsize'] = '-'
 
-            if idx in self.prevProcData:
-                try:
-                    yld = long(value['yield']) - \
-                        long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
-                except:
-                    yld = '-'
-            else:
+            try:
+                yld = long(value['yield']) - \
+                    long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
+            except:
                 yld = '-'
 
-            if idx in self.prevProcData:
-                try:
-                    prtd = long(value['preempted']) - \
-                        long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
-                except:
-                    prtd = '-'
-            else:
+            try:
+                prtd = long(value['preempted']) - \
+                    long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
+            except:
                 prtd = '-'
 
             if SystemManager.diskEnable is True:
@@ -12269,8 +12265,10 @@ class ThreadAnalyzer(object):
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
+                    '''
                     stackSize = (long(value['stat'][self.sstackIdx]) - \
                         long(value['stat'][self.estackIdx])) / MBSIZE
+                    '''
                 else:
                     pid = value['mainID']
                     stackSize = '-'
@@ -12574,7 +12572,7 @@ class ThreadAnalyzer(object):
                     key=lambda e: e[1]['ttime'], reverse=True)
 
                 for pid, data in sortedProcData:
-                    if data['ttime'] > 10:
+                    if data['ttime'] > 0:
                         self.reportData['event']['CPU_INTENSIVE'][rank] = {}
                         self.reportData['event']['CPU_INTENSIVE'][rank]['pid'] = pid
                         self.reportData['event']['CPU_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
@@ -12598,7 +12596,7 @@ class ThreadAnalyzer(object):
                 for pid, data in sortedProcData:
                     rss = long(data['stat'][self.rssIdx]) >> 8
 
-                    if  rss > 1 and rank < 5:
+                    if  rss > 0 and rank < 10:
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) / MBSIZE
 
@@ -12639,7 +12637,7 @@ class ThreadAnalyzer(object):
                 for pid, data in sortedProcData:
                     rss = long(data['stat'][self.rssIdx]) >> 8
 
-                    if  rss > 1 and rank < 5:
+                    if  rss > 0 and rank < 10:
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) / MBSIZE
 
@@ -12698,7 +12696,8 @@ class ThreadAnalyzer(object):
 
         # print system status to file #
         if SystemManager.reportFileEnable is True and \
-            SystemManager.printFile is not None and nrReason > 0:
+            SystemManager.printFile is not None and \
+            nrReason > 0:
 
             # print output into file #
             SystemManager.printTitle()
