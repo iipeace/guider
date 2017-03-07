@@ -8680,11 +8680,13 @@ class ThreadAnalyzer(object):
                 with open(SystemManager.sourceFile, 'r') as fd:
                     confBuf = fd.read()
             except:
-                SystemManager.printError("Fail to open %s to set configuration")
+                SystemManager.printError("Fail to open %s to set configuration" % \
+                    SystemManager.sourceFile)
                 sys.exit(0)
 
             if confBuf is None:
-                SystemManager.printError("Fail to read %s to set configuration")
+                SystemManager.printError("Fail to read %s to set configuration" % \
+                    SystemManager.sourceFile)
                 sys.exit(0)
 
             if SystemManager.jsonObject is None:
@@ -8704,7 +8706,8 @@ class ThreadAnalyzer(object):
                 else:
                     raise
             except:
-                SystemManager.printError("Fail to load configuration")
+                SystemManager.printError("Fail to load configuration from %s" % \
+                    SystemManager.sourceFile)
                 sys.exit(0)
 
 
