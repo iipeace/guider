@@ -4703,7 +4703,7 @@ class SystemManager(object):
             print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [filter_specificGroup:comms|tids]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
-            print('\t\t-c  [set_customEvent:event:recFilter]')
+            print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-v  [verbose]')
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
