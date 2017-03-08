@@ -5797,6 +5797,9 @@ class SystemManager(object):
         for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
+        if SystemManager.findOption('v') is True:
+            SystemManager.warningEnable = True
+
         for item in SystemManager.optionList:
             option = item[0]
             value = item[1:]
@@ -5901,9 +5904,6 @@ class SystemManager(object):
                         err = sys.exc_info()[1]
                         SystemManager.printError("Fail to import package: " + err.args[0])
                         sys.exit(0)
-
-            elif option == 'v':
-                SystemManager.warningEnable = True
 
             elif option == 'f':
                 # Handle error about record option #
@@ -6074,8 +6074,8 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
-            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or\
-                option == 'F' or option == 't' or option == 'h' or option == 'C':
+            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or \
+                option == 't' or option == 'h' or option == 'C' or option == 'v':
                 continue
 
             else:
@@ -6090,6 +6090,9 @@ class SystemManager(object):
         SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
         for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
+
+        if SystemManager.findOption('v') is True:
+            SystemManager.warningEnable = True
 
         for item in SystemManager.optionList:
             option = item[0]
@@ -6144,9 +6147,6 @@ class SystemManager(object):
                     SystemManager.futexEnable = True
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
-
-            elif option == 'v':
-                SystemManager.warningEnable = True
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -6249,9 +6249,9 @@ class SystemManager(object):
                     SystemManager.userEnable = False
 
             # Ignore options #
-            elif option == 'i' or option == 'a' or option == 'N' or option == 'x' or \
-                option == 'g' or option == 'p' or option == 'S' or option == 'j' or \
-                option == 'h' or option == 'P' or option == 'T' or option == 'n':
+            elif option == 'i' or option == 'a' or option == 'v' or \
+                option == 'g' or option == 'p' or option == 'S' or \
+                option == 'h' or option == 'P' or option == 'T':
                 continue
 
             else:
