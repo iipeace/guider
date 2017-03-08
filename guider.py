@@ -4397,6 +4397,7 @@ class SystemManager(object):
     optionList = None
     savedOptionList = None
     customCmd = None
+    libcObj = None
 
     addrAsServer = None
     addrOfServer = None
@@ -4543,8 +4544,8 @@ class SystemManager(object):
                 print("[Warning] Fail to import package: " + err.args[0])
 
             try:
-                libc = cdll.LoadLibrary('libc.so.6')
-                libc.prctl(15, __module__, 0, 0, 0)
+                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
             except:
                 print('[Warning] Fail to set comm because of prctl in libc')
         else:
@@ -5880,7 +5881,11 @@ class SystemManager(object):
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
                 if options.rfind('d') > -1:
-                    SystemManager.diskEnable = True
+                    if os.geteuid() != 0:
+                        SystemManager.printWarning("Fail to get root permission, disable disk profile")
+                        SystemManager.diskEnable = False
+                    else:
+                        SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('I') > -1:
@@ -7734,7 +7739,7 @@ class ThreadAnalyzer(object):
             'max': float(0), 'min': float(0)}
 
         self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
-            'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), \
+            'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
             'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
             'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
@@ -11737,28 +11742,36 @@ class ThreadAnalyzer(object):
                 del self.procData[tid]
                 return
 
-        statList = statBuf.split()
+        # check change of stat #
+        self.procData[tid]['statOrig'] = statBuf
+        if tid in self.prevProcData and \
+            self.prevProcData[tid]['statOrig'] == statBuf:
+            self.procData[tid]['stat'] = self.prevProcData[tid]['stat']
+            self.procData[tid]['changed'] = False
+        else:
+            # convert string to list #
+            statList = statBuf.split()
 
-        # merge comm parts that splited by space #
-        commIndex = ConfigManager.statList.index("COMM")
-        if statList[commIndex][-1] != ')':
-            idx = ConfigManager.statList.index("COMM") + 1
-            while True:
-                statList[commIndex] = "%s %s" % (statList[commIndex], str(statList[idx]))
-                if statList[idx].rfind(')') > -1:
+            # merge comm parts that splited by space #
+            commIndex = ConfigManager.statList.index("COMM")
+            if statList[commIndex][-1] != ')':
+                idx = ConfigManager.statList.index("COMM") + 1
+                while True:
+                    statList[commIndex] = "%s %s" % (statList[commIndex], str(statList[idx]))
+                    if statList[idx].rfind(')') > -1:
+                        statList.pop(idx)
+                        break
                     statList.pop(idx)
-                    break
-                statList.pop(idx)
 
-        # convert type of values #
-        self.procData[tid]['stat'] = statList
-        statList[self.minfltIdx] = long(statList[self.minfltIdx])
-        statList[self.majfltIdx] = long(statList[self.majfltIdx])
-        statList[self.utimeIdx] = long(statList[self.utimeIdx])
-        statList[self.stimeIdx] = long(statList[self.stimeIdx])
-        statList[self.btimeIdx] = long(statList[self.btimeIdx])
-        statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
-        statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
+            # convert type of values #
+            self.procData[tid]['stat'] = statList
+            statList[self.minfltIdx] = long(statList[self.minfltIdx])
+            statList[self.majfltIdx] = long(statList[self.majfltIdx])
+            statList[self.utimeIdx] = long(statList[self.utimeIdx])
+            statList[self.stimeIdx] = long(statList[self.stimeIdx])
+            statList[self.btimeIdx] = long(statList[self.btimeIdx])
+            statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
+            statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # save io info #
         if SystemManager.diskEnable is True:
@@ -11783,20 +11796,15 @@ class ThreadAnalyzer(object):
                     del self.procData[tid]
                     return
 
+            # parse io usage #
             for line in ioBuf:
                 line = line.split()
-                if line[0] == 'read_bytes:':
+                if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
                     try:
-                        self.procData[tid]['io']['read_bytes'] = long(line[1])
+                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
                     except:
                         self.procData[tid]['io'] = {}
-                        self.procData[tid]['io']['read_bytes'] = long(line[1])
-                elif line[0] == 'write_bytes:':
-                    try:
-                        self.procData[tid]['io']['write_bytes'] = long(line[1])
-                    except:
-                        self.procData[tid]['io'] = {}
-                        self.procData[tid]['io']['write_bytes'] = long(line[1])
+                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
 
 
@@ -12074,6 +12082,13 @@ class ThreadAnalyzer(object):
                 prevData = self.prevProcData[pid]['stat']
 
                 value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
+
+                # no changed value #
+                if value['changed'] is False:
+                    value['utime'] = value['stime'] = value['ttime'] = value['btime'] = 0
+                    value['cutime'] = value['cstime'] = value['cttime'] = 0
+                    continue
+
                 value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
