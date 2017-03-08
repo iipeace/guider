@@ -8420,12 +8420,10 @@ class ThreadAnalyzer(object):
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['readBlock'], reverse=True):
             value['ioRank'] = count + 1
             if value['readBlock'] > 0:
-                value['readBlock'] =\
-                    value['readBlock'] * SystemManager.blockSize / MBSIZE
+                value['readBlock'] = (value['readBlock'] * SystemManager.blockSize) >> 20
                 count += 1
             if value['writeBlock'] > 0:
-                value['writeBlock'] =\
-                    value['writeBlock'] * SystemManager.pageSize / MBSIZE
+                value['writeBlock'] = (value['writeBlock'] * SystemManager.pageSize) >> 20
 
        # print total information after sorting by time of cpu usage #
         count = 0
@@ -8452,10 +8450,10 @@ class ThreadAnalyzer(object):
                         round(float(value['offTime']), 7), 0, 0, value['irq'], \
                         value['offCnt'], '-', '-', '-', \
                         value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                        value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                        value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                         value['userPages'] >> 8, value['cachePages'] >> 8, \
-                        value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
-                        (value['reclaimedPages'] >> 8), value['wasteKmem'] / MBSIZE, \
+                        value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
+                        (value['reclaimedPages'] >> 8), value['wasteKmem'] >> 20, \
                         value['dReclaimWait'], value['dReclaimCnt']))
                 count += 1
             else:
@@ -8512,10 +8510,10 @@ class ThreadAnalyzer(object):
                 value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
                 value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
                 value['writeBlockCnt'], value['writeBlock'], \
-                (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                 value['userPages'] >> 8, value['cachePages'] >> 8, \
-                value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
-                value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
+                value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
+                value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
                 value['dReclaimWait'], value['dReclaimCnt']))
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
@@ -8564,10 +8562,10 @@ class ThreadAnalyzer(object):
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                     value['userPages'] >> 8, value['cachePages'] >> 8, \
-                    value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
-                    value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
+                    value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
+                    value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
                     value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'New', count))
@@ -8591,10 +8589,10 @@ class ThreadAnalyzer(object):
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE), \
+                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                     value['userPages'] >> 8, value['cachePages'] >> 8, \
-                    value['kernelPages'] >> 8 + (value['remainKmem'] / MBSIZE), \
-                    value['reclaimedPages'] >> 8, value['wasteKmem'] / MBSIZE, \
+                    value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
+                    value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
                     value['dReclaimWait'], value['dReclaimCnt']))
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
@@ -9057,7 +9055,7 @@ class ThreadAnalyzer(object):
 
             try:
                 timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalMem'] >> 8) + \
-                    (self.intervalData[icount]['toTal']['totalKmem'] / MBSIZE))
+                    (self.intervalData[icount]['toTal']['totalKmem'] >> 20))
             except:
                 timeLine += '%3d ' % (0)
 
@@ -9080,8 +9078,8 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             try:
-                timeLine += '%3d ' % (self.intervalData[icount]['toTal']['totalIo'] * \
-                    SystemManager.blockSize / MBSIZE)
+                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalIo'] * \
+                    SystemManager.blockSize) >> 20)
             except:
                 timeLine += '%3d ' % (0)
 
@@ -9336,11 +9334,11 @@ class ThreadAnalyzer(object):
                             dieFlag = self.intervalData[icount][key]['die']
 
                         memUsage = self.intervalData[icount][key]['memUsage'] >> 8
-                        kmemUsage = self.intervalData[icount][key]['kmemUsage'] / MBSIZE
+                        kmemUsage = self.intervalData[icount][key]['kmemUsage'] >> 20
                         timeLine += '%4s' % (newFlag + str(memUsage + kmemUsage) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if (value['nrPages'] >> 8) + (value['remainKmem'] / MBSIZE) < 1 and \
+                    if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
                         SystemManager.showAll == False:
                         break
 
@@ -9389,8 +9387,8 @@ class ThreadAnalyzer(object):
                             dieFlag = self.intervalData[icount][key]['die']
 
                         timeLine += '%4s' % (newFlag + \
-                            str(int(self.intervalData[icount][key]['ioUsage'] * \
-                            SystemManager.blockSize / MBSIZE)) + dieFlag)
+                            str(int((self.intervalData[icount][key]['ioUsage'] * \
+                            SystemManager.blockSize) >> 20)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -12214,14 +12212,14 @@ class ThreadAnalyzer(object):
                 pid = value['stat'][self.ppidIdx]
                 '''
                 stackSize = (long(value['stat'][self.sstackIdx]) - \
-                    long(value['stat'][self.estackIdx])) / MBSIZE
+                    long(value['stat'][self.estackIdx])) >> 20
                 '''
             else:
                 pid = value['mainID']
                 stackSize = '-'
 
             codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                long(value['stat'][self.scodeIdx])) / MBSIZE
+                long(value['stat'][self.scodeIdx])) >> 20
 
             if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                 schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
@@ -12277,8 +12275,8 @@ class ThreadAnalyzer(object):
                 prtd = '-'
 
             if SystemManager.diskEnable is True:
-                readSize = value['read'] / MBSIZE
-                writeSize = value['write'] / MBSIZE
+                readSize = value['read'] >> 20
+                writeSize = value['write'] >> 20
             else:
                 readSize = '-'
                 writeSize = '-'
@@ -12290,7 +12288,7 @@ class ThreadAnalyzer(object):
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
-                long(value['stat'][self.vsizeIdx]) / MBSIZE, \
+                long(value['stat'][self.vsizeIdx]) >> 20, \
                 long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime))
@@ -12310,14 +12308,14 @@ class ThreadAnalyzer(object):
                     pid = value['stat'][self.ppidIdx]
                     '''
                     stackSize = (long(value['stat'][self.sstackIdx]) - \
-                        long(value['stat'][self.estackIdx])) / MBSIZE
+                        long(value['stat'][self.estackIdx])) >> 20
                     '''
                 else:
                     pid = value['mainID']
                     stackSize = '-'
 
                 codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) / MBSIZE
+                    long(value['stat'][self.scodeIdx])) >> 20
 
                 if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
                     schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
@@ -12342,8 +12340,8 @@ class ThreadAnalyzer(object):
                     shr = '-'
 
                 if SystemManager.diskEnable is True:
-                    readSize = value['read'] / MBSIZE
-                    writeSize = value['write'] / MBSIZE
+                    readSize = value['read'] >> 20
+                    writeSize = value['write'] >> 20
                 else:
                     readSize = '-'
                     writeSize = '-'
@@ -12356,7 +12354,7 @@ class ThreadAnalyzer(object):
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), int(value['cttime']), \
-                    long(value['stat'][self.vsizeIdx]) / MBSIZE, \
+                    long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime))
@@ -12641,7 +12639,7 @@ class ThreadAnalyzer(object):
 
                     if  rss > 0 and rank < 10:
                         text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) / MBSIZE
+                            long(data['stat'][self.scodeIdx])) >> 20
 
                         self.reportData['event']['MEM_PRESSURE'][rank] = {}
                         self.reportData['event']['MEM_PRESSURE'][rank]['pid'] = pid
@@ -12682,7 +12680,7 @@ class ThreadAnalyzer(object):
 
                     if  rss > 0 and rank < 10:
                         text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) / MBSIZE
+                            long(data['stat'][self.scodeIdx])) >> 20
 
                         self.reportData['event']['SWAP_PRESSURE'][rank] = {}
                         self.reportData['event']['SWAP_PRESSURE'][rank]['pid'] = pid
@@ -12852,7 +12850,6 @@ if __name__ == '__main__':
 
     oneLine = "-" * SystemManager.lineLength
     twoLine = "=" * SystemManager.lineLength
-    MBSIZE = 1024 * 1024
 
     SystemManager.printOptions()
 
@@ -12909,6 +12906,7 @@ if __name__ == '__main__':
             if pid > 0:
                 sys.exit(0)
             else:
+                SystemManager.pid = os.getpid()
                 SystemManager.printStatus("background running as process %s" % SystemManager.pid)
 
         # wait for signal #
@@ -13088,6 +13086,7 @@ if __name__ == '__main__':
             if pid > 0:
                 sys.exit(0)
             else:
+                SystemManager.pid = os.getpid()
                 SystemManager.printStatus("background running as process %s" % SystemManager.pid)
 
         # create ThreadAnalyzer using proc #
