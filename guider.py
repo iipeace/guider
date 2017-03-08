@@ -7861,6 +7861,7 @@ class ThreadAnalyzer(object):
                 self.checkServer()
 
                 # reset system status #
+                del self.prevProcData
                 self.prevProcData = self.procData
                 self.procData = {}
                 self.nrThread = 0
@@ -11747,6 +11748,7 @@ class ThreadAnalyzer(object):
         if tid in self.prevProcData and \
             self.prevProcData[tid]['statOrig'] == statBuf:
             self.procData[tid]['stat'] = self.prevProcData[tid]['stat']
+            del self.prevProcData[tid]['statOrig']
             self.procData[tid]['changed'] = False
         else:
             # convert string to list #
