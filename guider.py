@@ -5086,17 +5086,21 @@ class SystemManager(object):
         if SystemManager.isFileMode() is True:
             SystemManager.printStatus("saved file usage successfully")
         elif SystemManager.isTopMode() is True:
+            if SystemManager.printFile is None:
+                return
+
             SystemManager.printTitle()
             ThreadAnalyzer.printIntervalUsage()
             SystemManager.pipePrint(SystemManager.procBuffer)
 
-            if SystemManager.fileForPrint is not None:
+            try:
                 SystemManager.fileForPrint.close()
-                SystemManager.fileForPrint = None
+            except:
+                pass
+            SystemManager.fileForPrint = None
 
-            if SystemManager.printFile is not None:
-                SystemManager.printStatus("saved top usage into %s successfully" % \
-                    SystemManager.inputFile)
+            SystemManager.printStatus("saved top usage into %s successfully" % \
+                SystemManager.inputFile)
 
             if SystemManager.imageEnable is True:
                 SystemManager.makeLogImage()
