@@ -5059,7 +5059,7 @@ class SystemManager(object):
                 ThreadAnalyzer.printIntervalUsage()
                 SystemManager.pipePrint(SystemManager.procBuffer)
                 SystemManager.fileForPrint.close()
-                SystemManager.printInfo("Saved top usage into %s successfully" % \
+                SystemManager.printInfo("saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
             if SystemManager.imageEnable is True:
@@ -5924,8 +5924,12 @@ class SystemManager(object):
 
             elif option == 'b':
                 try:
-                    if int(value) > 0:
+                    bsize = int(value)
+                    if bsize > 0:
                         SystemManager.bufferSize = str(value)
+
+                        if SystemManager.isTopMode() is True:
+                            SystemManager.printInfo("set buffer size to %sKB" % (bsize * 10))
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, input number bigger than 0")
@@ -5956,7 +5960,7 @@ class SystemManager(object):
                     networkObject.status = 'ALWAYS'
                     SystemManager.addrListForPrint[ip + ':' + str(port)] = networkObject
 
-                SystemManager.printInfo("Use %s:%d as remote output address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote output address" % (ip, port))
 
             elif option == 'N' and SystemManager.isTopMode() is True:
                 ret = SystemManager.parseAddr(value)
@@ -5985,13 +5989,13 @@ class SystemManager(object):
                     networkObject.request = service
                     SystemManager.addrListForReport[ip + ':' + str(port)] = networkObject
 
-                SystemManager.printInfo("Use %s:%d as remote report address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote report address" % (ip, port))
 
             elif option == 'j' and SystemManager.isTopMode() is True:
                 SystemManager.reportPath = value
                 SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
                 SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
-                SystemManager.printInfo("Use %s as local report file" % SystemManager.reportPath)
+                SystemManager.printInfo("use %s as local report file" % SystemManager.reportPath)
 
             elif option == 'x' and SystemManager.isTopMode() is True:
                 ret = SystemManager.parseAddr(value)
@@ -6011,7 +6015,7 @@ class SystemManager(object):
                 else:
                     SystemManager.addrAsServer = networkObject
 
-                SystemManager.printInfo("Use %s:%d as server address" % \
+                SystemManager.printInfo("use %s:%d as server address" % \
                     (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
             elif option == 'X' and SystemManager.isTopMode() is True:
@@ -6050,7 +6054,7 @@ class SystemManager(object):
                     networkObject.request = service
                     SystemManager.addrOfServer = networkObject
 
-                SystemManager.printInfo("Use %s:%d as remote server address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote server address" % (ip, port))
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -6093,8 +6097,14 @@ class SystemManager(object):
 
             if option == 'b':
                 try:
-                    if int(value) > 0:
+                    bsize = int(value)
+                    if bsize > 0:
                         SystemManager.bufferSize = str(value)
+
+                        if SystemManager.isTopMode() is True:
+                            bsize *= 10
+
+                        SystemManager.printInfo("set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, input number bigger than 0")
@@ -6375,7 +6385,7 @@ class SystemManager(object):
                 nrProc += 1
 
         if nrProc == 0:
-            SystemManager.printInfo("No running process in background")
+            SystemManager.printInfo("no running process in background")
         else:
             print('\n[Running Process]')
             print(twoLine)
@@ -6459,7 +6469,7 @@ class SystemManager(object):
                 nrProc += 1
 
         if nrProc == 0:
-            SystemManager.printInfo("No running process in background")
+            SystemManager.printInfo("no running process in background")
 
 
 
@@ -12561,7 +12571,7 @@ class ThreadAnalyzer(object):
                 index = ip + ':' + str(port)
                 if not index in SystemManager.addrListForPrint:
                     SystemManager.addrListForPrint[index] = networkObject
-                    SystemManager.printInfo("Registered %s:%d as remote output address" % (ip, port))
+                    SystemManager.printInfo("registered %s:%d as remote output address" % (ip, port))
                 else:
                     SystemManager.printWarning("Duplicated %s:%d as remote output address" % (ip, port))
             elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
@@ -12570,10 +12580,10 @@ class ThreadAnalyzer(object):
                 index = ip + ':' + str(port)
                 if not index in SystemManager.addrListForReport:
                     SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo("Registered %s:%d as remote report address" % (ip, port))
+                    SystemManager.printInfo("registered %s:%d as remote report address" % (ip, port))
                 else:
                     SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo("Updated %s:%d as remote report address" % (ip, port))
+                    SystemManager.printInfo("updated %s:%d as remote report address" % (ip, port))
             elif message == 'ACK':
                 index = ip + ':' + str(port)
                 if index in SystemManager.addrListForPrint:
