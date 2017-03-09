@@ -7863,6 +7863,13 @@ class ThreadAnalyzer(object):
                     # report system status #
                     self.reportSystemStat()
 
+                # reset system status #
+                del self.prevProcData
+                self.prevProcData = self.procData
+                self.procData = {}
+                self.nrThread = 0
+                self.nrProcess = 0
+
                 # get delayed time #
                 delayTime = time.time() - prevTime
                 if delayTime > SystemManager.intervalEnable:
@@ -7873,13 +7880,6 @@ class ThreadAnalyzer(object):
 
                 # check request from client #
                 self.checkServer()
-
-                # reset system status #
-                del self.prevProcData
-                self.prevProcData = self.procData
-                self.procData = {}
-                self.nrThread = 0
-                self.nrProcess = 0
 
             sys.exit(0)
 
@@ -11746,6 +11746,9 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['statFd'] = open(statPath, 'r')
                 statBuf = self.procData[tid]['statFd'].readline()
 
+                if tid in self.prevProcData:
+                    self.prevProcData[tid]['alive'] = True
+
                 # fd resource is about to run out #
                 if SystemManager.maxFd - 16 < self.procData[tid]['statFd'].fileno():
                     self.procData[tid]['statFd'].close()
@@ -11771,11 +11774,11 @@ class ThreadAnalyzer(object):
             if statList[commIndex][-1] != ')':
                 idx = ConfigManager.statList.index("COMM") + 1
                 while True:
-                    statList[commIndex] = "%s %s" % (statList[commIndex], str(statList[idx]))
-                    if statList[idx].rfind(')') > -1:
-                        statList.pop(idx)
-                        break
+                    tmpStr = str(statList[idx])
+                    statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
                     statList.pop(idx)
+                    if tmpStr.rfind(')') > -1:
+                        break
 
             # convert type of values #
             self.procData[tid]['stat'] = statList
@@ -12097,6 +12100,12 @@ class ThreadAnalyzer(object):
 
                 value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
 
+                if value['io'] is not None:
+                    value['read'] = value['io']['read_bytes'] - \
+                            self.prevProcData[pid]['io']['read_bytes']
+                    value['write'] = value['io']['write_bytes'] - \
+                            self.prevProcData[pid]['io']['write_bytes']
+
                 # no changed value #
                 if value['changed'] is False:
                     value['utime'] = value['stime'] = value['ttime'] = value['btime'] = 0
@@ -12120,12 +12129,6 @@ class ThreadAnalyzer(object):
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
                 if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
-
-                if value['io'] is not None:
-                    value['read'] = value['io']['read_bytes'] - \
-                            self.prevProcData[pid]['io']['read_bytes']
-                    value['write'] = value['io']['write_bytes'] - \
-                            self.prevProcData[pid]['io']['write_bytes']
             except:
                 value['new'] = True
                 value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
