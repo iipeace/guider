@@ -12528,6 +12528,10 @@ class ThreadAnalyzer(object):
 
             # print report data #
             self.printReportStat(reportStat)
+        # REFUSE response #
+        elif data == 'REFUSE':
+            SystemManager.printError("Fail to request service because no supported service")
+            sys.exit(0)
         # PRINT service #
         else:
             if SystemManager.printFile is None:
@@ -12610,6 +12614,13 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Duplicated %s:%d as remote output address" % (ip, port))
             elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
+                if SystemManager.reportEnable is False:
+                    SystemManager.printWarning(\
+                        "Ignored %s request from %s:%d because no report service" % (message, ip, port))
+                    networkObject.send("REFUSE")
+                    del networkObject
+                    return
+
                 networkObject.request = message
 
                 index = ip + ':' + str(port)
@@ -12631,7 +12642,7 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to find %s:%d as remote report address" % (ip, port))
             # wrong request or just data from server #
             else:
-                pass
+                SystemManager.printError("Fail to request wrong service %s" % message)
 
 
 
