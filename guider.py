@@ -11804,6 +11804,9 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['ioFd'] = open(ioPath, 'r')
                     ioBuf = self.procData[tid]['ioFd'].readlines()
 
+                    if tid in self.prevProcData:
+                        self.prevProcData[tid]['alive'] = True
+
                     # fd resource is about to run out #
                     if SystemManager.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
                         self.procData[tid]['ioFd'].close()
