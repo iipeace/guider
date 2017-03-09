@@ -4692,12 +4692,12 @@ class SystemManager(object):
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
             print('\t\t-T  [set_fontPath]')
-            print('\t\t-x  [set_addressForLocalServer:ip:port]')
-            print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
             print('\t\t-j  [set_reportPath:dir]')
+            print('\t\t-C  [set_commandScriptPath:file]')
+            print('\t\t-x  [set_addressForLocalServer:[ip]:port]')
+            print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
-            print('\t\t-C  [set_commandScriptPath:file]')
             print('\t[analysis options]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-P  [group_perProcessBasis]')
@@ -5281,8 +5281,11 @@ class SystemManager(object):
 
     @staticmethod
     def printTitle():
-        if SystemManager.printFile is None and sys.platform.startswith('linux') is True:
-            os.system('clear')
+        if SystemManager.printFile is None:
+            if sys.platform.startswith('linux') is True:
+                os.system('clear')
+            elif sys.platform.startswith('win') is True:
+                os.system('cls')
 
         SystemManager.pipePrint("[ g.u.i.d.e.r \tver.%s ]\n" % __version__)
 
@@ -5634,7 +5637,8 @@ class SystemManager(object):
     @staticmethod
     def pipePrint(line):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-            SystemManager.printFile == None and SystemManager.isTopMode() is False:
+            SystemManager.printFile == None and SystemManager.isTopMode() is False and \
+            sys.platform.startswith('linux') is True:
             try:
                 SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
@@ -5650,19 +5654,21 @@ class SystemManager(object):
                 SystemManager.pipeForPrint = None
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
+            if sys.platform.startswith('linux') is True:
+                token = '/'
+            else:
+                token = '\\'
+
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
-                if sys.platform.startswith('linux') is True:
-                    fileNamePos = SystemManager.inputFile.rfind('/')
-                else:
-                    fileNamePos = SystemManager.inputFile.rfind('\\')
+                fileNamePos = SystemManager.inputFile.rfind(token)
                 if  fileNamePos >= 0:
                     SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
                 SystemManager.inputFile = \
-                    SystemManager.printFile + '/' + SystemManager.inputFile.replace('dat', 'out')
+                    SystemManager.printFile + token + SystemManager.inputFile.replace('dat', 'out')
             else:
-                SystemManager.inputFile = SystemManager.printFile + '/guider.out'
+                SystemManager.inputFile = SystemManager.printFile + token + 'guider.out'
 
-            SystemManager.inputFile = SystemManager.inputFile.replace('//', '/')
+            SystemManager.inputFile = SystemManager.inputFile.replace(token * 2, token)
 
             try:
                 # backup output file #
@@ -6039,7 +6045,7 @@ class SystemManager(object):
                         "wrong option with -X, use also -x option to request service")
                     sys.exit(0)
 
-                # receive mode #
+                # wait mode #
                 if len(value) == 0:
                     SystemManager.addrOfServer = 'NONE'
                     continue
