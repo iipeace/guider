@@ -5651,7 +5651,10 @@ class SystemManager(object):
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
-                fileNamePos = SystemManager.inputFile.rfind('/')
+                if sys.platform.startswith('linux') is True:
+                    fileNamePos = SystemManager.inputFile.rfind('/')
+                else:
+                    fileNamePos = SystemManager.inputFile.rfind('\\')
                 if  fileNamePos >= 0:
                     SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
                 SystemManager.inputFile = \
