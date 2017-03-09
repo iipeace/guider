@@ -37,15 +37,24 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define color #
-    WARNING = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    SPECIAL = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
+    if sys.platform.startswith('linux') is True:
+        WARNING = '\033[95m'
+        OKBLUE = '\033[94m'
+        OKGREEN = '\033[92m'
+        SPECIAL = '\033[93m'
+        FAIL = '\033[91m'
+        ENDC = '\033[0m'
+        BOLD = '\033[1m'
+        UNDERLINE = '\033[4m'
+    else:
+        WARNING = ''
+        OKBLUE = ''
+        OKGREEN = ''
+        SPECIAL = ''
+        FAIL = ''
+        ENDC = ''
+        BOLD = ''
+        UNDERLINE = ''
 
     # Define state of process #
     procStatList = {
@@ -4373,12 +4382,11 @@ class SystemManager(object):
     lineLength = 154
     pid = 0
 
-    #HZ = 250 # 4ms tick #
-    TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
-    """
-    tick value for top profiler
+    HZ = 250 # 4ms tick #
+    if sys.platform.startswith('linux') is True:
+        TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+    else:
         TICK = int((1 / float(HZ)) * 1000)
-    """
 
     arch = 'arm'
     mountPath = None
@@ -4535,7 +4543,7 @@ class SystemManager(object):
 
     @staticmethod
     def setComm():
-        if sys.platform == 'linux2':
+        if sys.platform.startswith('linux') is True:
             try:
                 import ctypes
                 from ctypes import cdll, POINTER
@@ -5273,7 +5281,7 @@ class SystemManager(object):
 
     @staticmethod
     def printTitle():
-        if SystemManager.printFile is None:
+        if SystemManager.printFile is None and sys.platform.startswith('linux') is True:
             os.system('clear')
 
         SystemManager.pipePrint("[ g.u.i.d.e.r \tver.%s ]\n" % __version__)
@@ -8124,6 +8132,77 @@ class ThreadAnalyzer(object):
             totalSwap = None
 
         try:
+            # CPU total usage #
+            ymax = 0
+            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            title('guider top report')
+
+            for idx, item in enumerate(blkWait):
+                blkWait[idx] += cpuUsage[idx]
+                if ymax < blkWait[idx]:
+                    ymax = blkWait[idx]
+
+            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU + I/O ]')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU Only ]')
+
+            # CPU usage of processes #
+            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+                usage = item['usage'].split()
+                usage = map(int, usage)
+                cpuUsage = list(usage)
+
+                # merge cpu usage and wait time of processes #
+                try:
+                    blkUsage = blkProcUsage[idx]['usage'].split()
+                    blkUsage = map(int, blkUsage)
+                    for interval, value in enumerate(blkUsage):
+                        usage[interval] += value
+                except:
+                    pass
+
+                maxusage = max(usage)
+                if ymax < maxusage:
+                    ymax = maxusage
+
+                maxIdx = usage.index(maxusage)
+                color = plot(timeline, usage, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / len(ytick)
+                else:
+                    margin = 0
+
+                maxCpuPer = str(cpuUsage[maxIdx])
+                if idx in blkProcUsage:
+                    maxBlkPer = str(blkUsage[maxIdx])
+                else:
+                    maxBlkPer = '0'
+                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
+                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
+                        fontsize=3, color=color, fontweight='bold')
+                labelList.append(idx)
+
+            ylabel('CPU+I/O(%)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+            grid(which='both')
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+            xticks(fontsize = 4)
+            ylim([0, ymax])
+            inc = ymax / 10
+            if inc == 0:
+                inc = 1
+            yticks(xrange(0, ymax + inc, inc), fontsize = 5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            labelList = []
+
             # MEMORY usage #
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -8194,9 +8273,11 @@ class ThreadAnalyzer(object):
                 plot(timeline, blkWrite, '-', c='green', linewidth=1)
                 labelList.append('Block Write')
 
-            ylabel('MEMORY(MB)', fontsize=8)
+            ylabel('MEMORY(MB)', fontsize=7)
             legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
             grid(which='both')
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
             yticks(fontsize = 5)
             xticks(fontsize = 4)
             ticklabel_format(useOffset=False)
@@ -8204,71 +8285,6 @@ class ThreadAnalyzer(object):
             figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
             labelList = []
 
-            # CPU total usage #
-            ymax = 0
-            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider top report')
-
-            for idx, item in enumerate(blkWait):
-                blkWait[idx] += cpuUsage[idx]
-                if ymax < blkWait[idx]:
-                    ymax = blkWait[idx]
-
-            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ CPU + I/O ]')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-            labelList.append('[ CPU Only ]')
-
-            # CPU usage of processes #
-            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
-                usage = item['usage'].split()
-                usage = map(int, usage)
-                cpuUsage = list(usage)
-
-                # merge cpu usage and wait time of processes #
-                try:
-                    blkUsage = blkProcUsage[idx]['usage'].split()
-                    blkUsage = map(int, blkUsage)
-                    for interval, value in enumerate(blkUsage):
-                        usage[interval] += value
-                except:
-                    pass
-
-                maxusage = max(usage)
-                if ymax < maxusage:
-                    ymax = maxusage
-
-                maxIdx = usage.index(maxusage)
-                color = plot(timeline, usage, '-')[0].get_color()
-
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / len(ytick)
-                else:
-                    margin = 0
-
-                maxCpuPer = str(cpuUsage[maxIdx])
-                if idx in blkProcUsage:
-                    maxBlkPer = str(blkUsage[maxIdx])
-                else:
-                    maxBlkPer = '0'
-                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
-                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
-                        fontsize=3, color=color, fontweight='bold')
-                labelList.append(idx)
-
-            ylabel('CPU+I/O(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.12, 1), fontsize=3.5, loc='upper right')
-            grid(which='both')
-            xticks(fontsize = 4)
-            ylim([0, ymax])
-            yticks(range(0, ymax + ymax / 10, ymax / 10), fontsize = 7)
-            ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
-            labelList = []
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
@@ -12905,6 +12921,10 @@ if __name__ == '__main__':
 
     # parse recording option #
     if SystemManager.isRecordMode() is True:
+        if sys.platform.startswith('linux') is False:
+            print('[Error] Fail to record because this platform is not linux')
+            sys.exit(0)
+
         # update record status #
         SystemManager.recordStatus = True
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
@@ -13079,7 +13099,7 @@ if __name__ == '__main__':
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text,\
                 subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
-                grid, yticks, xticks, locator_params, subplot2grid, ylim
+                grid, yticks, xticks, locator_params, subplot2grid, ylim, tick_params
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
@@ -13096,8 +13116,9 @@ if __name__ == '__main__':
         SystemManager.printRecordOption()
 
         # set handler for exit #
-        signal.signal(signal.SIGINT, SystemManager.stopHandler)
-        signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+        if sys.platform.startswith('linux') is True:
+            signal.signal(signal.SIGINT, SystemManager.stopHandler)
+            signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
         # run in background #
         if SystemManager.backgroundEnable is True:
@@ -13188,3 +13209,4 @@ if __name__ == '__main__':
     if SystemManager.selectMenu != None:
         # make file related to taskchain #
         ti.makeTaskChainList()
+
