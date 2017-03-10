@@ -12216,7 +12216,7 @@ class ThreadAnalyzer(object):
                     if curFreq is not None:
                         coreFreq = '%d Mhz' % (int(curFreq) >> 10)
                     else:
-                        coreFreq = '?'
+                        coreFreq = '? Mhz'
                     if minFreq is not None and maxFreq is not None:
                         coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
 
