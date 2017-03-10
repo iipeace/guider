@@ -12141,6 +12141,8 @@ class ThreadAnalyzer(object):
         if SystemManager.showAll is True:
             SystemManager.addPrint(oneLine + '\n')
 
+            freqPath = '/sys/devices/system/cpu/cpu'
+
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
                     nowData = self.cpuData[int(idx)]
@@ -12182,7 +12184,41 @@ class ThreadAnalyzer(object):
                     else:
                         coreGraph = ' ' * int(len(totalCoreStat) - len(coreStat) - 2)
 
-                    SystemManager.addPrint(coreStat + coreGraph + '|\n')
+                    # get current cpu frequency #
+                    curPath = freqPath + str(idx) + '/cpufreq/cpuinfo_cur_freq'
+                    try:
+                        with open(curPath, 'r') as fd:
+                            curFreq = fd.readline()[:-1]
+                    except:
+                        curFreq = None
+                        pass
+
+                    # get min cpu frequency #
+                    minPath = freqPath + str(idx) + '/cpufreq/cpuinfo_min_freq'
+                    try:
+                        with open(minPath, 'r') as fd:
+                            minFreq = fd.readline()[:-1]
+                    except:
+                        minFreq = None
+                        pass
+
+                    # get max cpu frequency #
+                    maxPath = freqPath + str(idx) + '/cpufreq/cpuinfo_max_freq'
+                    try:
+                        with open(maxPath, 'r') as fd:
+                            maxFreq = fd.readline()[:-1]
+                    except:
+                        maxFreq = None
+                        pass
+
+                    # set frequency info #
+                    coreFreq = ''
+                    if curFreq is not None:
+                        coreFreq = '%dMhz' % (int(curFreq) >> 10)
+                    if minFreq is not None and maxFreq is not None:
+                        coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
+
+                    SystemManager.addPrint('%s| %s\n' % (coreStat + coreGraph, coreFreq))
                 except:
                     continue
 
