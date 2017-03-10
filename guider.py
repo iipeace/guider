@@ -562,19 +562,20 @@ class FunctionAnalyzer(object):
 
         self.init_threadData = \
             {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), 'die': False, 'new': False, \
-            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), 'nrRdBlocks': int(0), \
+            'nrPages': int(0), 'userPages': int(0), 'cachePages': int(0), 'kernelPages': int(0), \
             'heapSize': int(0), 'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
-            'customCnt': int(0), 'customTotal': int(0)}
+            'customCnt': int(0), 'nrRdBlocks': int(0), 'customTotal': int(0)}
 
         self.init_posData = \
-            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), 'unknownPageFreeCnt': int(0), \
-            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), 'src': '', \
-            'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0), 'customCnt': int(0), \
-            'customTotal': int(0)}
+            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), \
+            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'totalCnt': int(0), \
+            'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0), \
+            'unknownPageFreeCnt': int(0), 'src': '', 'customCnt': int(0), 'customTotal': int(0)}
 
         self.init_symData = \
-            {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), 'pageCnt': int(0), 'unknownPageFreeCnt': int(0), \
-            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), 'stack': None, 'symStack': None, \
+            {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), \
+            'pageCnt': int(0), 'unknownPageFreeCnt': int(0), 'stack': None, 'symStack': None, \
+            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
             'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0)}
 
         self.init_ctxData = \
@@ -628,7 +629,7 @@ class FunctionAnalyzer(object):
         # Check root path #
         if SystemManager.rootPath is None and SystemManager.userEnable is True:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -r option with blank or path for user mode")
+                "Fail to recognize sysroot path of target for user mode, use also -r option")
             sys.exit(0)
 
         # Register None pos #
@@ -2400,7 +2401,7 @@ class FunctionAnalyzer(object):
     def getBinInfo(self, addr):
         if SystemManager.rootPath is None:
             SystemManager.printError(\
-                "Fail to recognize sysroot path for target, use also -r option with blank or path for user mode")
+                "Fail to recognize sysroot path of target for user mode, use also -r option")
             sys.exit(0)
 
         for data in self.mapData:
@@ -2583,7 +2584,8 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -2638,7 +2640,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     continue
                 elif len(subStack) == 1 and SystemManager.showAll is False and \
-                    (self.posData[subStack[0]]['symbol'] is None or self.posData[subStack[0]]['symbol'] == 'NoFile'):
+                    (self.posData[subStack[0]]['symbol'] is None or \
+                    self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
                     continue
                 else:
@@ -2655,7 +2658,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -2744,7 +2748,8 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -2828,7 +2833,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     continue
                 elif len(subStack) == 1 and SystemManager.showAll is False and \
-                    (self.posData[subStack[0]]['symbol'] is None or self.posData[subStack[0]]['symbol'] == 'NoFile'):
+                    (self.posData[subStack[0]]['symbol'] is None or \
+                    self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
                     continue
                 else:
@@ -2845,7 +2851,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -2919,7 +2926,8 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3000,7 +3008,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3086,7 +3095,8 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3173,7 +3183,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3261,7 +3272,8 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3350,7 +3362,8 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3431,7 +3444,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3510,7 +3524,8 @@ class FunctionAnalyzer(object):
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
-                                if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3591,7 +3606,8 @@ class FunctionAnalyzer(object):
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
-                            if appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet) > SystemManager.lineLength:
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3674,7 +3690,8 @@ class FileAnalyzer(object):
             SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
         except:
             SystemManager.printWarning(\
-                "Fail to get maxFd because of no resource package, use %d as default value" % SystemManager.maxFd)
+                "Fail to get maxFd because of no resource package, use %d as default value" % \
+                SystemManager.maxFd)
 
         self.startTime = time.time()
 
@@ -5327,8 +5344,8 @@ class SystemManager(object):
         mountTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
         for item in mountTable:
             m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+)\s+(?P<min>[0-9]+)\s+' + \
-                r'(?P<readSize>[0-9]+)\s+(?P<readTime>[0-9]+)\s+(?P<writeSize>[0-9]+)\s+(?P<writeTime>[0-9]+)\s+' + \
-                r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
+                r'(?P<readSize>[0-9]+)\s+(?P<readTime>[0-9]+)\s+(?P<writeSize>[0-9]+)\s+' + \
+                r'(?P<writeTime>[0-9]+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
             if m is not None:
                 d = m.groupdict()
                 mid = d['maj'] + ':' + d['min']
@@ -5869,7 +5886,8 @@ class SystemManager(object):
 
             elif option == 'P' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('g') is False:
-                    SystemManager.printError("wrong option with -P, use also -g option to group threads as process")
+                    SystemManager.printError(\
+                        "wrong option with -P, use also -g option to group threads as process")
                     sys.exit(0)
 
                 SystemManager.groupProcEnable = True
@@ -5883,7 +5901,8 @@ class SystemManager(object):
                     SystemManager.removeEmptyValue(SystemManager.preemptGroup)
 
                     if len(SystemManager.preemptGroup) == 0:
-                        SystemManager.printError("No specific thread targeted, input tid with -p option")
+                        SystemManager.printError(\
+                            "No specific thread targeted, input tid with -p option")
                         sys.exit(0)
 
             elif option == 'd':
@@ -6914,7 +6933,8 @@ class SystemManager(object):
 
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
-                    SystemManager.writeCmd('timer/hrtimer_start/filter', cmd + " && function == 0x%s" % addr)
+                    SystemManager.writeCmd(\
+                        'timer/hrtimer_start/filter', cmd + " && function == 0x%s" % addr)
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '1')
             else:
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
@@ -7024,10 +7044,13 @@ class SystemManager(object):
         # options for dependency tracing #
         # toDo: support sys_recv systemcall for x86, x64 #
         if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_enter"] is True:
-            cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" \
-                % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
-                ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
-                ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
+            cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
+                (ConfigManager.sysList.index("sys_write"), \
+                ConfigManager.sysList.index("sys_poll"), \
+                ConfigManager.sysList.index("sys_epoll_wait"), \
+                ConfigManager.sysList.index("sys_select"), \
+                ConfigManager.sysList.index("sys_recv"), \
+                ConfigManager.sysList.index("sys_futex"))
 
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
@@ -7042,10 +7065,13 @@ class SystemManager(object):
 
         # options for dependency tracing #
         if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_exit"] is True:
-            cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" \
-                % (ConfigManager.sysList.index("sys_write"), ConfigManager.sysList.index("sys_poll"), \
-                ConfigManager.sysList.index("sys_epoll_wait"), ConfigManager.sysList.index("sys_select"), \
-                ConfigManager.sysList.index("sys_recv"), ConfigManager.sysList.index("sys_futex"))
+            cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" % \
+                (ConfigManager.sysList.index("sys_write"), \
+                ConfigManager.sysList.index("sys_poll"), \
+                ConfigManager.sysList.index("sys_epoll_wait"), \
+                ConfigManager.sysList.index("sys_select"), \
+                ConfigManager.sysList.index("sys_recv"), \
+                ConfigManager.sysList.index("sys_futex"))
 
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
@@ -7321,7 +7347,8 @@ class SystemManager(object):
         try:
             title = 'Cmdline'
             splitLen = SystemManager.lineLength - 21
-            cmdlineList = [self.cmdlineData[i:i+splitLen] for i in xrange(0, len(self.cmdlineData), splitLen)]
+            cmdlineList = \
+                [self.cmdlineData[i:i+splitLen] for i in xrange(0, len(self.cmdlineData), splitLen)]
             for string in cmdlineList:
                 SystemManager.infoBufferPrint("{0:20} {1:<100}".format(title, string))
                 title = ''
@@ -7646,7 +7673,7 @@ class EventAnalyzer(object):
                     string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % \
                         (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
                 SystemManager.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % \
-                        (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
+                    (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']), string))
 
 
 
@@ -7684,8 +7711,9 @@ class ThreadAnalyzer(object):
         }
     }
 
-    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', 'startIdx': int(0), \
-        'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), 'memDiff': int(0), 'blk': int(0)}
+    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
+        'startIdx': int(0), 'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), \
+        'memDiff': int(0), 'blk': int(0)}
 
     init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
 
@@ -7834,7 +7862,8 @@ class ThreadAnalyzer(object):
                 SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
             except:
                 SystemManager.printWarning(\
-                    "Fail to get maxFd because of no resource package, use %d as default value" % SystemManager.maxFd)
+                    "Fail to get maxFd because of no resource package, use %d as default value" % \
+                    SystemManager.maxFd)
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -7942,7 +7971,8 @@ class ThreadAnalyzer(object):
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
-            self.threadData[val]['usage'] += (float(self.finishTime) - float(self.threadData[val]['start']))
+            self.threadData[val]['usage'] += \
+                (float(self.finishTime) - float(self.threadData[val]['start']))
             # toDo: add blocking time to read blocks from disk #
 
         if len(self.threadData) == 0:
@@ -8996,7 +9026,8 @@ class ThreadAnalyzer(object):
         if SystemManager.intervalEnable <= 0:
             return
 
-        SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
+        SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % \
+            SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
         # graph list #
@@ -9201,22 +9232,26 @@ class ThreadAnalyzer(object):
                         timeLine += '%3d ' % 0
                         continue
 
+                    nowVal = self.intervalData[icount][key]
+                    prevVal = self.intervalData[icount - 1][key]
+
                     if icount > 0:
                         try:
-                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
-                                newFlag = self.intervalData[icount][key]['new']
+                            if nowVal['new'] != prevVal['new']:
+                                newFlag = nowVal['new']
                         except:
-                            newFlag = self.intervalData[icount][key]['new']
+                            newFlag = nowVal['new']
                         try:
-                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
-                                dieFlag = self.intervalData[icount][key]['die']
+                            if nowVal['die'] != prevVal['die']:
+                                dieFlag = nowVal['die']
                         except:
-                            dieFlag = self.intervalData[icount][key]['die']
+                            dieFlag = nowVal['die']
                     else:
                         newFlag = self.intervalData[icount][key]['new']
                         dieFlag = self.intervalData[icount][key]['die']
 
-                    timeLine += '%4s' % (newFlag + str(int(self.intervalData[icount][key]['cpuPer'])) + dieFlag)
+                    timeLine += '%4s' % \
+                        (newFlag + str(int(self.intervalData[icount][key]['cpuPer'])) + dieFlag)
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -9304,28 +9339,33 @@ class ThreadAnalyzer(object):
                         timeLine += '%3d ' % 0
                         continue
 
+                    nowVal = self.intervalData[icount][key]
+                    prevVal = self.intervalData[icount - 1][key]
+
                     if icount > 0:
                         try:
-                            if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                            if nowVal['new'] != prevVal['new']:
                                 newFlag = self.intervalData[icount][key]['new']
                         except:
-                            newFlag = self.intervalData[icount][key]['new']
+                            newFlag = nowVal['new']
                         try:
-                            if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
-                                dieFlag = self.intervalData[icount][key]['die']
+                            if nowVal['die'] != prevVal['die']:
+                                dieFlag = nowVal['die']
                         except:
-                            dieFlag = self.intervalData[icount][key]['die']
+                            dieFlag = nowVal['die']
                     else:
-                        newFlag = self.intervalData[icount][key]['new']
-                        dieFlag = self.intervalData[icount][key]['die']
+                        newFlag = nowVal['new']
+                        dieFlag = nowVal['die']
 
                     timeLine += '%4s' % (newFlag + \
-                        str(int(self.intervalData[icount][key]['preempted'] / \
+                        str(int(nowVal['preempted'] / \
                         float(SystemManager.intervalEnable) * 100)) + dieFlag)
 
-                SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+                SystemManager.addPrint("%16s(%5s/%5s): " % \
+                    (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                if value['cpuWait'] / float(self.totalTime) * 100 < 1 and SystemManager.showAll is False:
+                if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
+                    SystemManager.showAll is False:
                     break
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
@@ -9357,25 +9397,29 @@ class ThreadAnalyzer(object):
                             timeLine += '%3d ' % 0
                             continue
 
+                        nowVal = self.intervalData[icount][key]
+                        prevVal = self.intervalData[icount - 1][key]
+
                         if icount > 0:
                             try:
-                                if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                if nowVal['new'] != prevVal['new']:
                                     newFlag = self.intervalData[icount][key]['new']
                             except:
-                                newFlag = self.intervalData[icount][key]['new']
+                                newFlag = nowVal['new']
                             try:
-                                if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
-                                    dieFlag = self.intervalData[icount][key]['die']
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
                             except:
-                                dieFlag = self.intervalData[icount][key]['die']
+                                dieFlag = nowVal['die']
                         else:
-                            newFlag = self.intervalData[icount][key]['new']
-                            dieFlag = self.intervalData[icount][key]['die']
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
 
                         memUsage = self.intervalData[icount][key]['memUsage'] >> 8
                         kmemUsage = self.intervalData[icount][key]['kmemUsage'] >> 20
                         timeLine += '%4s' % (newFlag + str(memUsage + kmemUsage) + dieFlag)
-                    SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                     if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
                         SystemManager.showAll == False:
@@ -9410,26 +9454,30 @@ class ThreadAnalyzer(object):
                             timeLine += '%3d ' % 0
                             continue
 
+                        nowVal = self.intervalData[icount][key]
+                        prevVal = self.intervalData[icount - 1][key]
+
                         if icount > 0:
                             try:
-                                if self.intervalData[icount][key]['new'] != self.intervalData[icount - 1][key]['new']:
+                                if nowVal['new'] != prevVal['new']:
                                     newFlag = self.intervalData[icount][key]['new']
                             except:
-                                newFlag = self.intervalData[icount][key]['new']
+                                newFlag = nowVal['new']
                             try:
-                                if self.intervalData[icount][key]['die'] != self.intervalData[icount - 1][key]['die']:
-                                    dieFlag = self.intervalData[icount][key]['die']
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
                             except:
-                                dieFlag = self.intervalData[icount][key]['die']
+                                dieFlag = nowVal['die']
                         else:
-                            newFlag = self.intervalData[icount][key]['new']
-                            dieFlag = self.intervalData[icount][key]['die']
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
 
                         timeLine += '%4s' % (newFlag + \
                             str(int((self.intervalData[icount][key]['ioUsage'] * \
                             SystemManager.blockSize) >> 20)) + dieFlag)
 
-                    SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                     if value['readBlock'] < 1 and SystemManager.showAll == False:
                         break
@@ -9475,13 +9523,15 @@ class ThreadAnalyzer(object):
             if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
                 return
 
-            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)', tokenList[1])
+            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' + \
+                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)', tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
                 ThreadAnalyzer.procTotalData['total']['cpu'] += int(d['cpu'])
 
-                ThreadAnalyzer.procIntervalData[index]['total'] = dict(ThreadAnalyzer.init_procIntervalData)
+                ThreadAnalyzer.procIntervalData[index]['total'] = \
+                    dict(ThreadAnalyzer.init_procIntervalData)
                 try:
                     ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = int(d['cpu'])
                 except:
@@ -9565,7 +9615,8 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procTotalData[pid]['lastMem'] = int(d['rss'])
 
             if pid not in ThreadAnalyzer.procIntervalData[index]:
-                ThreadAnalyzer.procIntervalData[index][pid] = dict(ThreadAnalyzer.init_procIntervalData)
+                ThreadAnalyzer.procIntervalData[index][pid] = \
+                    dict(ThreadAnalyzer.init_procIntervalData)
                 ThreadAnalyzer.procIntervalData[index][pid]['cpu'] = int(d['cpu'])
                 ThreadAnalyzer.procIntervalData[index][pid]['blk'] = int(d['blk'])
                 ThreadAnalyzer.procIntervalData[index][pid]['mem'] = int(d['rss'])
@@ -10033,7 +10084,8 @@ class ThreadAnalyzer(object):
                     if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
                         SystemManager.intervalNow += SystemManager.intervalEnable
 
-                        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
+                        for key, value in sorted(self.threadData.items(), \
+                            key=lambda e: e[1]['usage'], reverse=True):
                             index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
                             nextIndex = int(SystemManager.intervalNow / SystemManager.intervalEnable)
 
@@ -10132,10 +10184,11 @@ class ThreadAnalyzer(object):
                                     if self.thisInterval != SystemManager.intervalEnable:
                                         self.thisInterval = float(time) - float(self.startTime)
 
-                                # recalculate previous intervals if there was no context switching since profile start #
+                                # recalculate previous intervals if no context switching since profile start #
                                 remainTime = intervalThread['cpuUsage']
                                 if intervalThread['cpuUsage'] > self.thisInterval:
-                                    for idx in xrange(int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
+                                    for idx in xrange(\
+                                        int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
                                         try:
                                             self.intervalData[idx][key]
                                         except:
@@ -10153,11 +10206,13 @@ class ThreadAnalyzer(object):
                                             try:
                                                 self.intervalData[idx][longRunCoreId]
                                             except:
-                                                self.intervalData[idx][longRunCoreId] = dict(self.init_intervalData)
+                                                self.intervalData[idx][longRunCoreId] = \
+                                                    dict(self.init_intervalData)
 
                                         if remainTime >= SystemManager.intervalEnable:
                                             remainTime = \
-                                                int(remainTime / SystemManager.intervalEnable) * SystemManager.intervalEnable
+                                                int(remainTime / SystemManager.intervalEnable) * \
+                                                SystemManager.intervalEnable
                                             prevIntervalData['cpuUsage'] = SystemManager.intervalEnable
                                             prevIntervalData['cpuPer'] = 100
                                         else:
@@ -10165,7 +10220,8 @@ class ThreadAnalyzer(object):
                                                 remainTime = prevIntervalData['cpuUsage']
                                             else:
                                                 prevIntervalData['cpuUsage'] = remainTime
-                                            prevIntervalData['cpuPer'] = remainTime / SystemManager.intervalEnable * 100
+                                            prevIntervalData['cpuPer'] = \
+                                                remainTime / SystemManager.intervalEnable * 100
 
                                         remainTime -= SystemManager.intervalEnable
 
@@ -10194,7 +10250,7 @@ class ThreadAnalyzer(object):
 
                             # fix preempted time exceed this interval #
                             if intervalThread['preempted'] > SystemManager.intervalEnable:
-                                # recalculate previous intervals if there was no context switching since profile start #
+                                # recalculate previous intervals if no context switching since profile start #
                                 remainTime = intervalThread['preempted']
                                 if intervalThread['preempted'] > self.thisInterval:
                                     for idx in xrange(index + 1, -1, -1):
@@ -10208,7 +10264,8 @@ class ThreadAnalyzer(object):
                                             self.intervalData[idx - 1][key] = dict(self.init_intervalData)
 
                                         if remainTime >= SystemManager.intervalEnable:
-                                            self.intervalData[idx - 1][key]['preempted'] = SystemManager.intervalEnable
+                                            self.intervalData[idx - 1][key]['preempted'] = \
+                                                SystemManager.intervalEnable
                                         else:
                                             self.intervalData[idx - 1][key]['preempted'] += remainTime
 
@@ -10227,8 +10284,10 @@ class ThreadAnalyzer(object):
                             if key[0:2] == '0[':
                                 continue
 
-                            self.intervalData[index]['toTal']['totalMem'] += self.intervalData[index][key]['memUsage']
-                            self.intervalData[index]['toTal']['totalKmem'] += self.intervalData[index][key]['kmemUsage']
+                            self.intervalData[index]['toTal']['totalMem'] += \
+                                self.intervalData[index][key]['memUsage']
+                            self.intervalData[index]['toTal']['totalKmem'] += \
+                                self.intervalData[index][key]['kmemUsage']
 
             if func == "sched_switch":
                 m = re.match(r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' + \
@@ -10405,9 +10464,11 @@ class ThreadAnalyzer(object):
 
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['max_period'] or self.irqData[irqId]['max_period'] <= 0:
+                        if diff > self.irqData[irqId]['max_period'] or \
+                            self.irqData[irqId]['max_period'] <= 0:
                             self.irqData[irqId]['max_period'] = diff
-                        if diff < self.irqData[irqId]['min_period'] or self.irqData[irqId]['min_period'] <= 0:
+                        if diff < self.irqData[irqId]['min_period'] or \
+                            self.irqData[irqId]['min_period'] <= 0:
                             self.irqData[irqId]['min_period'] = diff
 
                     self.irqData[irqId]['start'] = float(time)
@@ -10459,9 +10520,11 @@ class ThreadAnalyzer(object):
 
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['max_period'] or self.irqData[irqId]['max_period'] <= 0:
+                        if diff > self.irqData[irqId]['max_period'] or \
+                            self.irqData[irqId]['max_period'] <= 0:
                             self.irqData[irqId]['max_period'] = diff
-                        if diff < self.irqData[irqId]['min_period'] or self.irqData[irqId]['min_period'] <= 0:
+                        if diff < self.irqData[irqId]['min_period'] or \
+                            self.irqData[irqId]['min_period'] <= 0:
                             self.irqData[irqId]['min_period'] = diff
 
                     self.irqData[irqId]['start'] = float(time)
@@ -10838,19 +10901,21 @@ class ThreadAnalyzer(object):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
                                 self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
+                                ttime = float(time) - float(self.startTime)
+                                itime = float(time) - float(self.startTime) - float(self.wakeupData['time'])
                                 self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(float(time) - float(self.startTime), 7), \
-                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                    " ", " ", self.threadData[thread]['comm'], thread, "wakeup"))
+                                    (round(ttime, 7), round(itime, 7), " ", " ", \
+                                    self.threadData[thread]['comm'], thread, "wakeup"))
 
                                 self.wakeupData['time'] = float(time) - float(self.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                         elif nr == str(ConfigManager.sysList.index("sys_recv")):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
+                                ttime = float(time) - float(self.startTime)
+                                itime = float(time) - float(self.startTime) - float(self.wakeupData['time'])
                                 self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(float(time) - float(self.startTime), 7), \
-                                    round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
-                                    " ", " ", self.threadData[thread]['comm'], thread, "recv"))
+                                    (round(ttime, 7), round(itime, 7), " ", " ", \
+                                    self.threadData[thread]['comm'], thread, "recv"))
 
                                 self.wakeupData['time'] = float(time) - float(self.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
@@ -10937,9 +11002,10 @@ class ThreadAnalyzer(object):
                     sig = d['sig']
                     flags = d['flags']
 
+                    ttime = float(time) - float(self.startTime)
+                    itime = float(time) - float(self.startTime) - float(self.wakeupData['time'])
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
-                        (round(float(time) - float(self.startTime), 7), \
-                        round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), "", "", \
+                        (round(ttime, 7), round(itime, 7), "", "", \
                         self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
                     self.sigData.append(('RECV', float(time) - float(self.startTime), \
@@ -10999,7 +11065,8 @@ class ThreadAnalyzer(object):
                     bio = d['major'] + '/' + d['minor'] + '/' + d['operation'][0] + '/' + d['address']
 
                     try:
-                        self.threadData[self.ioData[bio]['thread']] = self.threadData[self.ioData[bio]['thread']]
+                        self.threadData[self.ioData[bio]['thread']] = \
+                            self.threadData[self.ioData[bio]['thread']]
                         bioStart = int(address)
                         bioEnd = int(address) + int(size)
                     except:
@@ -12376,7 +12443,8 @@ class ThreadAnalyzer(object):
                 lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 try:
-                    vmswp = long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
+                    vmswp = \
+                        long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
                 except:
                     vmswp = '-'
                 try:
@@ -12670,12 +12738,13 @@ class ThreadAnalyzer(object):
 
                 for pid, data in sortedProcData:
                     if data['ttime'] > 0:
-                        self.reportData['event']['CPU_INTENSIVE'][rank] = {}
-                        self.reportData['event']['CPU_INTENSIVE'][rank]['pid'] = pid
-                        self.reportData['event']['CPU_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['event']['CPU_INTENSIVE'][rank]['ttime'] = data['ttime']
-                        self.reportData['event']['CPU_INTENSIVE'][rank]['utime'] = data['utime']
-                        self.reportData['event']['CPU_INTENSIVE'][rank]['stime'] = data['stime']
+                        evtdata = self.reportData['event']['CPU_INTENSIVE']
+                        evtdata[rank] = {}
+                        evtdata[rank]['pid'] = pid
+                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        evtdata[rank]['ttime'] = data['ttime']
+                        evtdata[rank]['utime'] = data['utime']
+                        evtdata[rank]['stime'] = data['stime']
 
                         rank += 1
                     else:
@@ -12697,11 +12766,12 @@ class ThreadAnalyzer(object):
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) >> 20
 
-                        self.reportData['event']['MEM_PRESSURE'][rank] = {}
-                        self.reportData['event']['MEM_PRESSURE'][rank]['pid'] = pid
-                        self.reportData['event']['MEM_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['event']['MEM_PRESSURE'][rank]['rss'] = rss
-                        self.reportData['event']['MEM_PRESSURE'][rank]['text'] = text
+                        evtdata = self.reportData['event']['MEM_PRESSURE']
+                        evtdata[rank] = {}
+                        evtdata[rank]['pid'] = pid
+                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        evtdata[rank]['rss'] = rss
+                        evtdata[rank]['text'] = text
 
                         try:
                             self.reportData['event']['MEM_PRESSURE'][rank]['swap'] = \
@@ -12738,11 +12808,12 @@ class ThreadAnalyzer(object):
                         text = (long(data['stat'][self.ecodeIdx]) - \
                             long(data['stat'][self.scodeIdx])) >> 20
 
-                        self.reportData['event']['SWAP_PRESSURE'][rank] = {}
-                        self.reportData['event']['SWAP_PRESSURE'][rank]['pid'] = pid
-                        self.reportData['event']['SWAP_PRESSURE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['event']['SWAP_PRESSURE'][rank]['rss'] = rss
-                        self.reportData['event']['SWAP_PRESSURE'][rank]['text'] = text
+                        evtdata = self.reportData['event']['SWAP_PRESSURE']
+                        evtdata[rank] = {}
+                        evtdata[rank]['pid'] = pid
+                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        evtdata[rank]['rss'] = rss
+                        evtdata[rank]['text'] = text
 
                         try:
                             self.reportData['event']['SWAP_PRESSURE'][rank]['swap'] = \
@@ -12771,10 +12842,11 @@ class ThreadAnalyzer(object):
 
                 for pid, data in sortedProcData:
                     if data['btime'] > 0:
-                        self.reportData['event']['IO_INTENSIVE'][rank] = {}
-                        self.reportData['event']['IO_INTENSIVE'][rank]['pid'] = pid
-                        self.reportData['event']['IO_INTENSIVE'][rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        self.reportData['event']['IO_INTENSIVE'][rank]['btime'] = data['btime']
+                        evtdata = self.reportData['event']['IO_INTENSIVE']
+                        evtdata[rank] = {}
+                        evtdata[rank]['pid'] = pid
+                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                        evtdata[rank]['btime'] = data['btime']
 
                         rank += 1
                     else:
@@ -12873,7 +12945,8 @@ class ThreadAnalyzer(object):
             for addr, cli in SystemManager.addrListForPrint.items():
                 if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printWarning(\
-                        "Stop to send data for print to %s:%d because of no response" % (cli.ip, cli.port))
+                        "Stop to send data for print to %s:%d because of no response" % \
+                        (cli.ip, cli.port))
                     del SystemManager.addrListForPrint[addr]
                 else:
                     ret = cli.send(SystemManager.bufferString)
@@ -12987,7 +13060,8 @@ if __name__ == '__main__':
             if SystemManager.printFile is not None:
                 SystemManager.outputFile = SystemManager.printFile + '/guider.out'
             elif SystemManager.outputFile is not None:
-                SystemManager.printFile = SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]
+                SystemManager.printFile = \
+                    SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]
 
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
