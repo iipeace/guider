@@ -1653,6 +1653,9 @@ class FunctionAnalyzer(object):
 
                 if targetEvent == 'CPU_TICK':
                     self.posData[pos]['posCnt'] += 1
+            # Skip pos because it is usercall or no symbol #
+            elif path is None:
+                return
 
             self.posData[pos]['symbol'] = path
 
@@ -6195,7 +6198,7 @@ class SystemManager(object):
                     SystemManager.printError("Input value for filtering with -g option")
                     sys.exit(0)
 
-                SystemManager.printInfo("only specific threads [%s] are shown" % \
+                SystemManager.printInfo("only specific threads [%s] are recorded" % \
                     ', '.join(SystemManager.showGroup))
 
             elif option == 's':
