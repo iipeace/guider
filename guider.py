@@ -4714,8 +4714,8 @@ class SystemManager(object):
             print('\t\t-T  [set_fontPath]')
             print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-C  [set_commandScriptPath:file]')
-            print('\t\t-x  [set_addressForLocalServer:[ip]:port]')
-            print('\t\t-X  [set_requestToRemoteServer:req@ip:port]')
+            print('\t\t-x  [set_addressForLocalServer:{ip:}port]')
+            print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t[analysis options]')
@@ -6067,11 +6067,11 @@ class SystemManager(object):
                         "wrong option with -X, use also -x option to request service")
                     sys.exit(0)
 
-                # wait mode #
+                # receive mode #
                 if len(value) == 0:
                     SystemManager.addrOfServer = 'NONE'
                     continue
-                # receive mode #
+                # request mode #
                 else:
                     ret = SystemManager.parseAddr(value)
 
