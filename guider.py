@@ -5425,11 +5425,11 @@ class SystemManager(object):
         if len(SystemManager.showGroup) > 0:
             if SystemManager.groupProcEnable is False:
                 SystemManager.printInfo("only specific threads [%s] are shown" % \
-                    ','.join(SystemManager.showGroup))
+                    ', '.join(SystemManager.showGroup))
             else:
                 SystemManager.printInfo(\
                     "only specific threads that involved in [%s] process groups are shown" % \
-                    ','.join(SystemManager.showGroup))
+                    ', '.join(SystemManager.showGroup))
 
         # apply dependency option #
         launchPosStart = SystemManager.launchBuffer.find(' -D')
@@ -5715,7 +5715,7 @@ class SystemManager(object):
                     SystemManager.fileForPrint.writelines(line)
             except:
                 SystemManager.printError("Fail to print to file\n")
-                SystemManager.pipeForPrint = None
+                sys.exit(0)
         else:
             print(line)
 
