@@ -11889,13 +11889,13 @@ class ThreadAnalyzer(object):
             try:
                 self.prevProcData[tid]['ioFd'].seek(0)
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
-                ioBuf = self.procData[tid]['ioFd'].readlines()[0]
+                ioBuf = self.procData[tid]['ioFd'].readlines()
                 self.prevProcData[tid]['alive'] = True
             except:
                 try:
                     ioPath = "%s/%s" % (path, 'io')
                     self.procData[tid]['ioFd'] = open(ioPath, 'r')
-                    ioBuf = self.procData[tid]['ioFd'].readlines()[0]
+                    ioBuf = self.procData[tid]['ioFd'].readlines()
 
                     if tid in self.prevProcData:
                         self.prevProcData[tid]['alive'] = True
