@@ -5822,7 +5822,9 @@ class SystemManager(object):
                     SystemManager.savedOptionList[seq].replace(" ", "")
 
         for item in SystemManager.savedOptionList:
-            if item[0] == option:
+            if item == '':
+                pass
+            elif item[0] == option:
                 return True
 
         return False
@@ -5842,6 +5844,9 @@ class SystemManager(object):
             SystemManager.warningEnable = True
 
         for item in SystemManager.optionList:
+            if item == '':
+                continue
+
             option = item[0]
             value = item[1:]
 
@@ -8240,7 +8245,7 @@ class ThreadAnalyzer(object):
 
             ylabel('CPU+I/O(%)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
-            grid(which='both')
+            grid(which='both', linestyle=':', linewidth='0.2')
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
             xticks(fontsize = 4)
@@ -8327,7 +8332,7 @@ class ThreadAnalyzer(object):
 
             ylabel('MEMORY(MB)', fontsize=7)
             legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
-            grid(which='both')
+            grid(which='both', linestyle=':', linewidth='0.2')
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
             yticks(fontsize = 5)
@@ -9214,7 +9219,7 @@ class ThreadAnalyzer(object):
             # draw io graph #
             ylabel('Memory(MB)', fontsize=8)
             legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
-            grid(which='both')
+            grid(which='both', linestyle=':', linewidth='0.2')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
             ticklabel_format(useOffset=False)
@@ -9246,7 +9251,11 @@ class ThreadAnalyzer(object):
                         continue
 
                     nowVal = self.intervalData[icount][key]
-                    prevVal = self.intervalData[icount - 1][key]
+
+                    try:
+                        prevVal = self.intervalData[icount - 1][key]
+                    except:
+                        prevVal = nowVal
 
                     if icount > 0:
                         try:
@@ -9316,7 +9325,7 @@ class ThreadAnalyzer(object):
             ylabel('CPU(%)', fontsize=8)
             legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
                 fontsize=3.5, loc='upper right')
-            grid(which='both')
+            grid(which='both', linestyle=':', linewidth='0.2')
             yticks(fontsize = 7)
             xticks(fontsize = 5)
             ticklabel_format(useOffset=False)
@@ -9353,7 +9362,11 @@ class ThreadAnalyzer(object):
                         continue
 
                     nowVal = self.intervalData[icount][key]
-                    prevVal = self.intervalData[icount - 1][key]
+
+                    try:
+                        prevVal = self.intervalData[icount - 1][key]
+                    except:
+                        prevVal = nowVal
 
                     if icount > 0:
                         try:
@@ -9411,7 +9424,11 @@ class ThreadAnalyzer(object):
                             continue
 
                         nowVal = self.intervalData[icount][key]
-                        prevVal = self.intervalData[icount - 1][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
 
                         if icount > 0:
                             try:
@@ -9468,7 +9485,11 @@ class ThreadAnalyzer(object):
                             continue
 
                         nowVal = self.intervalData[icount][key]
-                        prevVal = self.intervalData[icount - 1][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
 
                         if icount > 0:
                             try:
@@ -10070,16 +10091,14 @@ class ThreadAnalyzer(object):
                 if SystemManager.tgidEnable is True:
                     self.threadData[thread]['tgid'] = d['tgid']
 
-            # calculate usage of threads had been running longer than interval #
+            # calculate usage of threads had been running longer than periodic interval #
             if SystemManager.intervalEnable > 0:
                 for key, value in sorted(self.lastTidPerCore.items()):
                     try:
-                        if float(time) - float(self.threadData[self.lastTidPerCore[key]]['start']) > \
-                            SystemManager.intervalEnable / 1000:
-                            self.threadData[self.lastTidPerCore[key]]['usage'] += \
-                                float(time) - float(self.threadData[self.lastTidPerCore[key]]['start'])
-
-                            self.threadData[self.lastTidPerCore[key]]['start'] = float(time)
+                        tid = self.lastTidPerCore[key]
+                        usage = float(time) - float(self.threadData[tid]['start'])
+                        self.threadData[tid]['usage'] += usage
+                        self.threadData[tid]['start'] = float(time)
                     except:
                         continue
 
@@ -10392,8 +10411,9 @@ class ThreadAnalyzer(object):
                     if diff > int(SystemManager.intervalEnable):
                         self.threadData[prev_id]['longRunCore'] = core
 
-                    # update core sched count #
+                    # update core info #
                     self.threadData['0[' + core + ']']['coreSchedCnt'] += 1
+                    self.lastTidPerCore[core] = next_id
 
                     # calculate preempted time of threads blocked #
                     if SystemManager.preemptGroup != None:
@@ -10442,7 +10462,6 @@ class ThreadAnalyzer(object):
                         self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
 
                     # calculate preempted time of next_process #
-                    self.lastTidPerCore[core] = next_id
                     if self.threadData[next_id]['stop'] <= 0:
                         # no stop time of next_id #
                         self.threadData[next_id]['stop'] = 0
