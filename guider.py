@@ -6107,9 +6107,13 @@ class SystemManager(object):
                     elif SystemManager.sort == 'm':
                         SystemManager.printInfo("sorted by MEMORY")
                     elif SystemManager.sort == 'b':
-                        SystemManager.printInfo("sorted by BLOCK_READ")
+                        SystemManager.printInfo("sorted by BLOCK")
                     elif SystemManager.sort == 'w':
-                        SystemManager.printInfo("sorted by WaitForChild")
+                        SystemManager.printInfo("sorted by CHILD")
+                    elif SystemManager.sort == 'p':
+                        SystemManager.printInfo("sorted by PID")
+                    elif SystemManager.sort == 'n':
+                        SystemManager.printInfo("sorted by NEW")
                     else:
                         SystemManager.printError("wrong option value with -S option")
                         sys.exit(0)
@@ -12311,6 +12315,12 @@ class ThreadAnalyzer(object):
         elif SystemManager.sort == 'w':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['cttime'], reverse=True)
+        elif SystemManager.sort == 'p':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: int(e[0]))
+        elif SystemManager.sort == 'n':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['new'], reverse=True)
         else:
             # set cpu usage as default #
             sortedProcData = sorted(self.procData.items(), \
@@ -12343,6 +12353,10 @@ class ThreadAnalyzer(object):
                 targetValue = value['btime']
             elif SystemManager.sort == 'w':
                 targetValue = value['cttime']
+            elif SystemManager.sort == 'p':
+                targetValue = idx
+            elif SystemManager.sort == 'n':
+                targetValue = value['new']
 
             # check limit #
             if SystemManager.showGroup == [] and\
