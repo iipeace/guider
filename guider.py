@@ -4704,7 +4704,7 @@ class SystemManager(object):
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
             print('\t\t-s  [save_traceData:dir/file]')
-            print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)]')
+            print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]')
             print('\t\t-u  [run_inBackground]')
             print('\t\t-W  [wait_forSignal]')
             print('\t\t-R  [record_repeatedly:interval,count]')
@@ -6114,6 +6114,8 @@ class SystemManager(object):
                         SystemManager.printInfo("sorted by PID")
                     elif SystemManager.sort == 'n':
                         SystemManager.printInfo("sorted by NEW")
+                    elif SystemManager.sort == 'r':
+                        SystemManager.printInfo("sorted by RUNTIME")
                     else:
                         SystemManager.printError("wrong option value with -S option")
                         sys.exit(0)
@@ -7812,7 +7814,7 @@ class ThreadAnalyzer(object):
             'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
             'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
-            'mainID': int(0), 'btime': float(0), 'read': long(0), 'write': long(0), \
+            'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), \
             'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'preempted': long(0), \
             'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
 
@@ -11726,7 +11728,7 @@ class ThreadAnalyzer(object):
             if SystemManager.processEnable is True:
                 # make process object with constant value #
                 self.procData[pid] = dict(self.init_procData)
-                self.procData[pid]['mainID'] = int(pid)
+                self.procData[pid]['mainID'] = pid
                 self.procData[pid]['taskPath'] = procPath
 
                 # save stat of process #
@@ -11756,7 +11758,7 @@ class ThreadAnalyzer(object):
 
                 # make process object with constant value #
                 self.procData[tid] = dict(self.init_procData)
-                self.procData[tid]['mainID'] = int(pid)
+                self.procData[tid]['mainID'] = pid
                 self.procData[tid]['taskPath'] = threadPath
 
                 # main thread #
@@ -12010,8 +12012,8 @@ class ThreadAnalyzer(object):
 
 
             # etc #
-            mlockMem = self.vmData['nr_mlock'] >> 8
-            mappedMem = self.vmData['nr_mapped'] >> 8
+            nrMlock = self.vmData['nr_mlock']
+            #mappedMem = self.vmData['nr_mapped'] >> 8
 
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
 
@@ -12047,7 +12049,7 @@ class ThreadAnalyzer(object):
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "Mlock") + \
+            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk") + \
             oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
@@ -12082,7 +12084,7 @@ class ThreadAnalyzer(object):
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
-            nrMajFault, nrBlocked, nrSoftIrq, mlockMem)
+            nrMajFault, nrBlocked, nrSoftIrq, nrMlock)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -12321,6 +12323,9 @@ class ThreadAnalyzer(object):
         elif SystemManager.sort == 'n':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['new'], reverse=True)
+        elif SystemManager.sort == 'r':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['runtime'], reverse=True)
         else:
             # set cpu usage as default #
             sortedProcData = sorted(self.procData.items(), \
@@ -12357,6 +12362,8 @@ class ThreadAnalyzer(object):
                 targetValue = idx
             elif SystemManager.sort == 'n':
                 targetValue = value['new']
+            elif SystemManager.sort == 'r':
+                targetValue = value['runtime']
 
             # check limit #
             if SystemManager.showGroup == [] and\
