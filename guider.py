@@ -4957,7 +4957,7 @@ class SystemManager(object):
 
         elif SystemManager.isTopMode() is True:
             SystemManager.printInfo("TOP MODE")
-            enableStat += 'CPU MEMORY '
+            enableStat += 'CPU '
 
             if SystemManager.diskEnable is True:
                 enableStat += 'DISK '
@@ -4968,6 +4968,11 @@ class SystemManager(object):
                 enableStat += 'THREAD '
             else:
                 disableStat += 'THREAD '
+
+            if SystemManager.memEnable is True:
+                enableStat += 'MEMORY '
+            else:
+                disableStat += 'MEMORY '
 
             if SystemManager.graphEnable is True:
                 enableStat += 'GRAPH '
@@ -5943,6 +5948,8 @@ class SystemManager(object):
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
                     SystemManager.reportFileEnable = True
+                if options.rfind('m') > -1:
+                    SystemManager.memEnable = True
                 if options.rfind('r') > -1:
                     try:
                         import json
@@ -7819,7 +7826,7 @@ class ThreadAnalyzer(object):
             'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
             'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
             'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
-            'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), \
+            'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), 'maps': None, \
             'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'preempted': long(0), \
             'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
 
@@ -11798,6 +11805,57 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveProcSmapsData(self, path, tid):
+        buf = ''
+        mtype = ''
+        ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}}
+        fpath = path + '/smaps'
+
+        try:
+            with open(fpath, 'r') as fd:
+                buf = fd.readlines()
+        except:
+            try:
+                fd.close()
+            except:
+                pass
+
+            SystemManager.printWarning('Fail to open %s' % fpath)
+            return
+
+        for line in buf:
+            m = re.match((r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.+) ' \
+                r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>[0-9]+)\s+(?P<type>.*)'), line)
+
+            if m is not None:
+                d = m.groupdict()
+
+                ptype = d['type']
+                if ptype == '':
+                    mtype = 'HEAP'
+                elif ptype[0] == '/':
+                    mtype = 'FILE'
+                elif ptype.startswith('[stack') is True:
+                    mtype = 'STACK'
+                elif ptype == '[heap]':
+                    mtype = 'HEAP'
+                else:
+                    mtype = 'ETC'
+            else:
+                tmplist = line.split(':')
+                prop = tmplist[0]
+                val = tmplist[1]
+
+                if prop != 'VmFlags':
+                    try:
+                        ptable[mtype][prop] += int(val.split()[0])
+                    except:
+                        ptable[mtype][prop] = int(val.split()[0])
+
+        del buf, ptable
+
+
+
     def saveProcStatusData(self, path, tid):
         # save status info #
         try:
@@ -12423,6 +12481,10 @@ class ThreadAnalyzer(object):
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
+
+            # save memory map info to get memory details #
+            if SystemManager.memEnable is True:
+                self.saveProcSmapsData(value['taskPath'], idx)
 
             try:
                 vmswp =\
