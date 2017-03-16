@@ -5098,7 +5098,7 @@ class SystemManager(object):
             if SystemManager.imageEnable is True:
                 SystemManager.makeLogImage()
 
-            sys.exit(0)
+            os._exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.runRecordStopCmd()
@@ -7910,8 +7910,6 @@ class ThreadAnalyzer(object):
             self.requestService()
 
             while 1:
-                prevTime = time.time()
-
                 if SystemManager.addrOfServer is not None:
                     # receive response from server #
                     ret = SystemManager.addrAsServer.recv()
@@ -7923,6 +7921,8 @@ class ThreadAnalyzer(object):
 
                 # collect system stats as soon as possible #
                 self.saveSystemStat()
+
+                prevTime = time.time()
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
@@ -7944,10 +7944,12 @@ class ThreadAnalyzer(object):
                 # get delayed time #
                 delayTime = time.time() - prevTime
                 if delayTime > SystemManager.intervalEnable:
-                    delayTime = SystemManager.intervalEnable
+                    waitTime = 0
+                else:
+                    waitTime = SystemManager.intervalEnable - delayTime
 
                 # wait for next interval #
-                time.sleep(SystemManager.intervalEnable - delayTime)
+                time.sleep(waitTime)
 
                 # check request from client #
                 self.checkServer()
@@ -11811,6 +11813,10 @@ class ThreadAnalyzer(object):
         fpath = path + '/smaps'
         ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
+        checkCnt = 0
+        checklist = ['Size', 'Rss', 'Pss', 'Shared_Dirty', \
+            'Private_Dirty', 'AnonHugePages', 'Swap', 'Locked']
+
         try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
@@ -11823,13 +11829,44 @@ class ThreadAnalyzer(object):
             return
 
         for line in buf:
-            m = re.match((r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.+) ' \
-                r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>[0-9]+)\s+(?P<type>.*)'), line)
+            d = {}
 
-            if m is not None:
-                d = m.groupdict()
+            if line.find('-') >= 0:
+                tmplist = line.split()
+
+                d['range'] = tmplist[0]
+                d['perm'] = tmplist[1]
+                d['offset'] = tmplist[2]
+                d['devid'] = tmplist[3]
+                d['inode'] = tmplist[4]
+
+                if len(tmplist) > 5:
+                    d['type'] = tmplist[5]
+                else:
+                    d['type'] = ''
+
+            # memory detail info #
+            if d == {}:
+                tmplist = line.split()
+                prop = tmplist[0][:-1]
+                val = tmplist[1]
+
+                try:
+                    if checklist[checkCnt] == prop:
+                        checkCnt += 1
+
+                        try:
+                            ptable[mtype][prop] += int(val)
+                        except:
+                            ptable[mtype][prop] = int(val)
+                except:
+                    pass
+            # memory map info #
+            else:
+                checkCnt = 0
 
                 ptype = d['type']
+
                 if d['perm'][3] == 's':
                     mtype = 'SHM'
                 elif ptype == '':
@@ -11842,18 +11879,14 @@ class ThreadAnalyzer(object):
                     mtype = 'HEAP'
                 else:
                     mtype = 'ETC'
-            else:
-                tmplist = line.split(':')
-                prop = tmplist[0]
-                val = tmplist[1]
 
-                if prop != 'VmFlags':
-                    try:
-                        ptable[mtype][prop] += int(val.split()[0])
-                    except:
-                        ptable[mtype][prop] = int(val.split()[0])
+                try:
+                    ptable[mtype]['count'] += 1
+                except:
+                    ptable[mtype]['count'] = int(1)
 
         self.procData[tid]['maps'] = ptable
+
         del buf, ptable
 
 
@@ -12553,28 +12586,28 @@ class ThreadAnalyzer(object):
 
                     prop = 'Size'
                     if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
                     prop = 'Rss'
                     if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
                     prop = 'Pss'
                     if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
                     prop = 'Swap'
                     if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
-                    prop = 'Locked'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop, item[prop])
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
                     prop = 'AnonHugePages'
                     if prop in item:
-                        tmpstr = "%s(%s:%7s KB) " % (tmpstr, 'Huge', item[prop])
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, 'HUGE', item[prop] >> 10)
+                    prop = 'Locked'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop.upper(), item[prop])
                     prop = 'Dirty'
                     if 'Shared_Dirty' in item and 'Private_Dirty' in item:
                         tmpstr = "%s(%s:%7s KB) " % \
-                            (tmpstr, prop, item['Shared_Dirty'] + item['Private_Dirty'])
+                            (tmpstr, prop.upper(), item['Shared_Dirty'] + item['Private_Dirty'])
 
-                    mtype = '[%s]' % key
+                    mtype = '(%s)[%s]' % (item['count'], key)
                     SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
 
                     # cut by rows of terminal #
@@ -12582,7 +12615,7 @@ class ThreadAnalyzer(object):
                             SystemManager.printFile is None:
                         return
 
-            SystemManager.addPrint(oneLine + '\n')
+                SystemManager.addPrint(oneLine + '\n')
 
             procCnt += 1
 
