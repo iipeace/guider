@@ -11808,19 +11808,18 @@ class ThreadAnalyzer(object):
     def saveProcSmapsData(self, path, tid):
         buf = ''
         mtype = ''
-        ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}}
         fpath = path + '/smaps'
+        ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
         except:
-            try:
-                fd.close()
-            except:
-                pass
-
             SystemManager.printWarning('Fail to open %s' % fpath)
+            return
+
+        # check kernel thread #
+        if len(buf) == 0:
             return
 
         for line in buf:
@@ -11831,7 +11830,9 @@ class ThreadAnalyzer(object):
                 d = m.groupdict()
 
                 ptype = d['type']
-                if ptype == '':
+                if d['perm'][3] == 's':
+                    mtype = 'SHM'
+                elif ptype == '':
                     mtype = 'HEAP'
                 elif ptype[0] == '/':
                     mtype = 'FILE'
@@ -11852,6 +11853,7 @@ class ThreadAnalyzer(object):
                     except:
                         ptable[mtype][prop] = int(val.split()[0])
 
+        self.procData[tid]['maps'] = ptable
         del buf, ptable
 
 
@@ -12408,7 +12410,7 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['ttime'], reverse=True)
 
-        # print process usage sorted by cpu usage #
+        # print process usage #
         procCnt = 0
         for idx, value in sortedProcData:
             # filter #
@@ -12541,11 +12543,54 @@ class ThreadAnalyzer(object):
                 long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime))
+
+            if value['maps'] is not None:
+                for key, item in sorted(value['maps'].items(), reverse=True):
+                    tmpstr = ''
+
+                    if len(item) == 0:
+                        continue
+
+                    prop = 'Size'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                    prop = 'Rss'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                    prop = 'Pss'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                    prop = 'Swap'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop, item[prop] >> 10)
+                    prop = 'Locked'
+                    if prop in item:
+                        tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop, item[prop])
+                    prop = 'AnonHugePages'
+                    if prop in item:
+                        tmpstr = "%s(%s:%7s KB) " % (tmpstr, 'Huge', item[prop])
+                    prop = 'Dirty'
+                    if 'Shared_Dirty' in item and 'Private_Dirty' in item:
+                        tmpstr = "%s(%s:%7s KB) " % \
+                            (tmpstr, prop, item['Shared_Dirty'] + item['Private_Dirty'])
+
+                    mtype = '[%s]' % key
+                    SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
+
+                    # cut by rows of terminal #
+                    if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
+                            SystemManager.printFile is None:
+                        return
+
+            SystemManager.addPrint(oneLine + '\n')
+
             procCnt += 1
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n".format('None'))
-        SystemManager.addPrint(oneLine + '\n')
+
+        if SystemManager.memEnable is False:
+            SystemManager.addPrint(oneLine + '\n')
 
         # close fd that thread who already termiated created because of limited resource #
         dieCnt = 0
