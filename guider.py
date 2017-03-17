@@ -549,7 +549,7 @@ class PageAnalyzer(object):
             "- File: [ {4} ]\n"
             "- Count: [ {5} ]\n"
             "- Flags: [ {6} ] [{7} ]\n").\
-            format(pid, vaddr, hex(pfn), isPresent, isFile,\
+            format(pid, vaddr, hex(pfn).rstrip('L'), isPresent, isFile,\
             PageAnalyzer.get_pagecount(pfn), bflags, sflags))
 
 
