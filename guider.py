@@ -4847,6 +4847,7 @@ class SystemManager(object):
             print('\t\trecord -y  [system]')
             print('\t\trecord -f  [function]')
             print('\t\trecord -F  [file]')
+            print('\t\tview       [page]')
             print('\t[control mode]')
             print('\t\tlist')
             print('\t\tstart|stop|send [pid]')
