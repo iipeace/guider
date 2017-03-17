@@ -488,6 +488,34 @@ class NetworkManager(object):
 class PageAnalyzer(object):
     """ Analyzer for kernel page """
 
+    flagList = ['KPF_LOCKED',
+            'KPF_ERROR',
+            'KPF_REFERENCED',
+            'KPF_UPTODATE',
+            'KPF_DIRTY',
+            'KPF_LRU',
+            'KPF_ACTIVE',
+            'KPF_SLAB',
+            'KPF_WRITEBACK',
+            'KPF_RECLAIM',
+            'KPF_BUDDY',
+            'KPF_MMAP',
+            'KPF_ANON',
+            'KPF_SWAPCACHE',
+            'KPF_SWAPBACKED',
+            'KPF_COMPOUND_HEAD',
+            'KPF_COMPOUND_TAIL',
+            'KPF_HUGE',
+            'KPF_UNEVICTABLE',
+            'KPF_HWPOISON',
+            'KPF_NOPAGE',
+            'KPF_KSM',
+            'KPF_THP',
+            'KPF_BALLOON',
+            'KPF_ZERO_PAGE',
+            'KPF_IDLE'
+            ]
+
     @staticmethod
     def getPageInfo(pid, vaddr):
         try:
@@ -506,15 +534,35 @@ class PageAnalyzer(object):
 
         pfn = PageAnalyzer.get_pfn(entry)
 
+        isPresent = PageAnalyzer.is_present(entry)
+
+        isFile = PageAnalyzer.is_file_page(entry)
+
+        bflags = hex(PageAnalyzer.get_page_flags(pfn)).rstrip('L')
+
+        sflags = PageAnalyzer.getFlagTypes(bflags)
+
         print(("\n" "- PID: [{0}]\n"\
-            "- ADDR: [{1}]\n"\
-            "- PFN: [{2}]\n"
-            "- Present: [{3}]\n"
-            "- File: [{4}]\n"
-            "- Count: [{5}]\n"
-            "- Flags: [{6}]\n").\
-            format(pid, vaddr, hex(pfn), PageAnalyzer.is_present(entry), PageAnalyzer.is_file_page(entry),\
-            PageAnalyzer.get_pagecount(pfn), hex(PageAnalyzer.get_page_flags(pfn))))
+            "- ADDR: [ {1} ]\n"\
+            "- PFN: [ {2} ]\n"
+            "- Present: [ {3} ]\n"
+            "- File: [ {4} ]\n"
+            "- Count: [ {5} ]\n"
+            "- Flags: [ {6} ] [{7} ]\n").\
+            format(pid, vaddr, hex(pfn), isPresent, isFile,\
+            PageAnalyzer.get_pagecount(pfn), bflags, sflags))
+
+
+
+    @staticmethod
+    def getFlagTypes(flags):
+        sflags = ''
+
+        for idx, val in enumerate(PageAnalyzer.flagList):
+            if ((int(flags, 16) & (1 << int(idx))) != 0):
+                sflags = "%s %s" % (sflags, val[4:])
+
+        return sflags
 
 
 
