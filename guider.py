@@ -24,6 +24,7 @@ try:
     import gc
     import imp
     import atexit
+    import struct
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import default packages: " + err.args[0])
@@ -479,6 +480,100 @@ class NetworkManager(object):
 
     def __del__(self):
         pass
+
+
+
+
+
+class PageAnalyzer(object):
+    """ Analyzer for kernel page """
+
+    @staticmethod
+    def getPageInfo(pid, vaddr):
+        try:
+            if vaddr.startswith("0x"):
+                addrType = 'hex'
+                addr = long(vaddr, base=16)
+            else:
+                addrType = 'dec'
+                addr = long(vaddr)
+        except:
+            SystemManager.printError(\
+                "Fail to recognize %s as address, input address such as 0xabcd or 78901234" % vaddr)
+            os._exit(0)
+
+        entry = PageAnalyzer.get_pagemap_entry(pid, addr)
+
+        pfn = PageAnalyzer.get_pfn(entry)
+
+        print(("\n" "- PID: [{0}]\n"\
+            "- ADDR: [{1}]\n"\
+            "- PFN: [{2}]\n"
+            "- Present: [{3}]\n"
+            "- File: [{4}]\n"
+            "- Count: [{5}]\n"
+            "- Flags: [{6}]\n").\
+            format(pid, vaddr, hex(pfn), PageAnalyzer.is_present(entry), PageAnalyzer.is_file_page(entry),\
+            PageAnalyzer.get_pagecount(pfn), hex(PageAnalyzer.get_page_flags(pfn))))
+
+
+
+    @staticmethod
+    def read_entry(path, offset, size=8):
+        with open(path, 'r') as f:
+            f.seek(offset, 0)
+            return struct.unpack('Q', f.read(size))[0]
+
+
+
+    @staticmethod
+    def get_pagemap_entry(pid, addr):
+        maps_path = "/proc/{0}/pagemap".format(pid)
+        if not os.path.isfile(maps_path):
+            SystemManager.printError("Fail to find %s process" % pid)
+            os._exit(0)
+
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        pagemap_entry_size = 8
+        offset  = (addr / page_size) * pagemap_entry_size
+
+        return PageAnalyzer.read_entry(maps_path, offset)
+
+
+
+    @staticmethod
+    def get_pfn(entry):
+        return entry & 0x7FFFFFFFFFFFFF
+
+
+
+    @staticmethod
+    def is_present(entry):
+        return ((entry & (1 << 63)) != 0)
+
+
+
+    @staticmethod
+    def is_file_page(entry):
+        return ((entry & (1 << 61)) != 0)
+
+
+
+    @staticmethod
+    def get_pagecount(pfn):
+        file_path = "/proc/kpagecount"
+        offset = pfn * 8
+        return PageAnalyzer.read_entry(file_path, offset)
+
+
+
+    @staticmethod
+    def get_page_flags(pfn):
+        file_path = "/proc/kpageflags"
+        offset = pfn * 8
+        return PageAnalyzer.read_entry(file_path, offset)
+
+
 
 
 
@@ -4736,7 +4831,7 @@ class SystemManager(object):
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [set_addr2linePath:file]')
             print('\t\t-r  [set_targetRootPath:dir]')
-            print('\t\t-I  [set_inputPath:file]')
+            print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
             print('\t\t-L  [convert_textToImage]')
             print('\t[common options]')
@@ -5849,6 +5944,27 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getOption(option):
+        if len(sys.argv) <= 2:
+            return False
+
+        if SystemManager.savedOptionList is None:
+            SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
+            for seq in xrange(0, len(SystemManager.savedOptionList)):
+                SystemManager.savedOptionList[seq] = \
+                    SystemManager.savedOptionList[seq].replace(" ", "")
+
+        for item in SystemManager.savedOptionList:
+            if item == '':
+                pass
+            elif item[0] == option and len(item[1:]) > 0:
+                return item[1:]
+
+        return None
+
+
+
+    @staticmethod
     def parseAnalOption():
         if len(sys.argv) <= 2:
             return
@@ -6419,6 +6535,15 @@ class SystemManager(object):
     @staticmethod
     def isTopMode():
         if sys.argv[1] == 'top':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isViewMode():
+        if sys.argv[1] == 'view':
             return True
         else:
             return False
@@ -13244,6 +13369,20 @@ if __name__ == '__main__':
     # send event signal to background process #
     if SystemManager.isSendMode() is True:
         SystemManager.sendSignalProcs(signal.SIGQUIT, argList)
+        sys.exit(0)
+
+    # view system resource status #
+    if SystemManager.isViewMode() is True:
+        pid = SystemManager.getOption('g')
+        addr = SystemManager.getOption('I')
+
+        if pid is None:
+            SystemManager.printError("Fail to recognize pid, use also -g option")
+        elif addr is None:
+            SystemManager.printError("Fail to recognize address, use also -I option")
+        else:
+            PageAnalyzer.getPageInfo(pid, addr)
+
         sys.exit(0)
 
     # parse recording option #
