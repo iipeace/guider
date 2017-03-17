@@ -1654,7 +1654,7 @@ class FunctionAnalyzer(object):
                 if targetEvent == 'CPU_TICK':
                     self.posData[pos]['posCnt'] += 1
             # Skip pos because it is usercall or no symbol #
-            elif path is None:
+            elif SystemManager.showAll is False and path is None:
                 return
 
             self.posData[pos]['symbol'] = path
@@ -2658,6 +2658,8 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
@@ -2851,6 +2853,8 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
@@ -3007,6 +3011,8 @@ class FunctionAnalyzer(object):
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
+                                symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3182,6 +3188,8 @@ class FunctionAnalyzer(object):
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
+                                symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3444,6 +3452,8 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                                symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
@@ -3605,6 +3615,8 @@ class FunctionAnalyzer(object):
                     try:
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
+                                symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -5897,7 +5909,7 @@ class SystemManager(object):
             elif option == 'D' and SystemManager.isTopMode() is False:
                 SystemManager.depEnable = True
 
-            elif option == 'P' and SystemManager.isTopMode() is False:
+            elif option == 'P':
                 if SystemManager.findOption('g') is False:
                     SystemManager.printError(\
                         "wrong option with -P, use also -g option to group threads as process")
@@ -12453,6 +12465,13 @@ class ThreadAnalyzer(object):
                     if value['stat'][self.commIdx].rfind(val) > -1 or idx == val:
                         found = True
                         break
+                    elif SystemManager.processEnable is False and \
+                        SystemManager.groupProcEnable is True and \
+                        value['isMain'] is False and \
+                        (self.procData[value['mainID']]['stat'][self.commIdx].rfind(val) > -1 or \
+                        value['mainID'] == val):
+                        found = True
+                        break
                 if found is False:
                     continue
 
@@ -12478,8 +12497,8 @@ class ThreadAnalyzer(object):
                 targetValue = value['runtime']
 
             # check limit #
-            if SystemManager.showGroup == [] and\
-                SystemManager.showAll is False and\
+            if SystemManager.showGroup == [] and \
+                SystemManager.showAll is False and \
                 targetValue == 0:
                 break
 
