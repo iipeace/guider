@@ -488,32 +488,34 @@ class NetworkManager(object):
 class PageAnalyzer(object):
     """ Analyzer for kernel page """
 
-    flagList = ['KPF_LOCKED',
-            'KPF_ERROR',
-            'KPF_REFERENCED',
-            'KPF_UPTODATE',
-            'KPF_DIRTY',
-            'KPF_LRU',
-            'KPF_ACTIVE',
-            'KPF_SLAB',
-            'KPF_WRITEBACK',
-            'KPF_RECLAIM',
-            'KPF_BUDDY',
-            'KPF_MMAP',
-            'KPF_ANON',
-            'KPF_SWAPCACHE',
-            'KPF_SWAPBACKED',
-            'KPF_COMPOUND_HEAD',
-            'KPF_COMPOUND_TAIL',
-            'KPF_HUGE',
-            'KPF_UNEVICTABLE',
-            'KPF_HWPOISON',
-            'KPF_NOPAGE',
-            'KPF_KSM',
-            'KPF_THP',
-            'KPF_BALLOON',
-            'KPF_ZERO_PAGE',
-            'KPF_IDLE'
+    # page flags from kernel/include/uapi/linux/kernel-page-flags.h #
+    flagList = [
+            'KPF_LOCKED', #0#
+            'KPF_ERROR', #1#
+            'KPF_REFERENCED', #2#
+            'KPF_UPTODATE', #3#
+            'KPF_DIRTY', #4#
+            'KPF_LRU', #5#
+            'KPF_ACTIVE', #6#
+            'KPF_SLAB', #7#
+            'KPF_WRITEBACK', #8#
+            'KPF_RECLAIM', #9#
+            'KPF_BUDDY', #10#
+            'KPF_MMAP', #11#
+            'KPF_ANON', #12#
+            'KPF_SWAPCACHE', #13#
+            'KPF_SWAPBACKED', #14#
+            'KPF_COMPOUND_HEAD', #15#
+            'KPF_COMPOUND_TAIL', #16#
+            'KPF_HUGE', #17#
+            'KPF_UNEVICTABLE', #18#
+            'KPF_HWPOISON', #19#
+            'KPF_NOPAGE', #20#
+            'KPF_KSM', #21#
+            'KPF_THP', #22#
+            'KPF_BALLOON', #23#
+            'KPF_ZERO_PAGE', #24#
+            'KPF_IDLE' #25#
             ]
 
 
@@ -552,6 +554,10 @@ class PageAnalyzer(object):
                         addrType = 'dec'
                         addre = long(vrange[1])
 
+                    offset = 0
+                else:
+                    offset = pageSize
+
                 if addrs > addre:
                     SystemManager.printError(\
                         "Fail to recognize address, input bigger second address than first address")
@@ -561,13 +567,14 @@ class PageAnalyzer(object):
                     "Fail to recognize address, input address such as 0x1234-0x4444")
                 os._exit(0)
 
-        print("\n[ PID: %s ] [ AREA: %s ]\n%s" % (pid, vaddr, twoLine))
+        print("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n%s" % \
+            (pid, vaddr, "kernel/Documentation/vm/pagemap.txt", twoLine))
 
-        print("{0:^18}|{1:^17}|{2:^9}|{3:^9}|{4:^7}|{5:^5}| {6}({7})\n{8}".format(\
-            "VADDR", "PFN", "PRESENT", "SWAPPED", "FILE",\
-            "REF", "FLAG", "FLAGS", oneLine))
+        print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".format(\
+            "VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
+            "SDIRTY", "EXMAP", "FLAG", "FLAGS", oneLine))
 
-        for addr in xrange(addrs, addre + pageSize, pageSize):
+        for addr in xrange(addrs, addre + offset, pageSize):
             entry = PageAnalyzer.get_pagemap_entry(pid, addr)
 
             pfn = PageAnalyzer.get_pfn(entry)
@@ -576,15 +583,19 @@ class PageAnalyzer(object):
 
             isSwapped = PageAnalyzer.is_swapped(entry)
 
+            isSoftdirty = PageAnalyzer.is_softdirty(entry)
+
+            isExmapped = PageAnalyzer.is_exmapped(entry)
+
             isFile = PageAnalyzer.is_file_page(entry)
 
             bflags = hex(PageAnalyzer.get_page_flags(pfn)).rstrip('L')
 
             sflags = PageAnalyzer.getFlagTypes(bflags)
 
-            print("{0:^18}|{1:^17}|{2:^9}|{3:^9}|{4:^7}|{5:^5}| {6}({7} )".format(\
+            print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9} )".format(\
                 hex(addr), hex(pfn).rstrip('L'), isPresent, isSwapped, isFile,\
-                PageAnalyzer.get_pagecount(pfn), bflags, sflags)
+                PageAnalyzer.get_pagecount(pfn), isSoftdirty, isExmapped, bflags, sflags)
             )
         print("%s\n" % oneLine)
 
@@ -592,13 +603,13 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getFlagTypes(flags):
-        sflags = ''
+        sflags = ' '
 
         for idx, val in enumerate(PageAnalyzer.flagList):
             if ((int(flags, 16) & (1 << int(idx))) != 0):
-                sflags = "%s %s" % (sflags, val[4:])
+                sflags = "%s%s|" % (sflags, val[4:])
 
-        return sflags
+        return sflags[:-1]
 
 
 
@@ -634,6 +645,18 @@ class PageAnalyzer(object):
     @staticmethod
     def is_present(entry):
         return ((entry & (1 << 63)) != 0)
+
+
+
+    @staticmethod
+    def is_softdirty(entry):
+        return ((entry & (1 << 55)) != 0)
+
+
+
+    @staticmethod
+    def is_exmapped(entry):
+        return ((entry & (1 << 56)) != 0)
 
 
 
