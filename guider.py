@@ -570,6 +570,9 @@ class PageAnalyzer(object):
         print("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n%s" % \
             (pid, vaddr, "kernel/Documentation/vm/pagemap.txt", twoLine))
 
+        PageAnalyzer.printMemoryArea(pid, addrs, addre)
+        print(twoLine)
+
         print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".format(\
             "VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDIRTY", "EXMAP", "FLAG", "FLAGS", oneLine))
@@ -598,6 +601,44 @@ class PageAnalyzer(object):
                 PageAnalyzer.get_pagecount(pfn), isSoftdirty, isExmapped, bflags, sflags)
             )
         print("%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def printMemoryArea(pid, start, end):
+        switch = 0
+        fpath = '/proc/%s/maps' % pid
+
+        try:
+            with open(fpath, 'r') as fd:
+                buf = fd.readlines()
+        except:
+            SystemManager.printError('Fail to open %s' % fpath)
+            os._exit(0)
+
+        start = hex(start).rstrip('L')
+        end = hex(end).rstrip('L')
+
+        for line in buf:
+            if line.find('-') >= 0:
+                tmplist = line.split()
+
+                soffset, eoffset = tmplist[0].split('-')
+
+                soffset = hex(long(soffset, base=16)).rstrip('L')
+                eoffset = hex(long(eoffset, base=16)).rstrip('L')
+
+                if (start >= soffset and start < eoffset):
+                    switch = 1
+                elif switch == 0:
+                    continue
+                elif end < eoffset:
+                    break
+
+                print(line[:-1])
+
+                if switch == 1 and end <= eoffset:
+                    break
 
 
 
