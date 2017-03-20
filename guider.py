@@ -516,41 +516,77 @@ class PageAnalyzer(object):
             'KPF_IDLE'
             ]
 
+
+
     @staticmethod
     def getPageInfo(pid, vaddr):
-        try:
-            if vaddr.startswith("0x"):
-                addrType = 'hex'
-                addr = long(vaddr, base=16)
-            else:
-                addrType = 'dec'
-                addr = long(vaddr)
-        except:
+        vrange = vaddr.split('-')
+        rangeCnt = len(vrange)
+        pageSize = os.sysconf("SC_PAGE_SIZE")
+
+        if rangeCnt > 2:
             SystemManager.printError(\
-                "Fail to recognize %s as address, input address such as 0xabcd or 78901234" % vaddr)
+                "Fail to recognize address, input address such as 0x1234 or 0x1234-0x4444")
             os._exit(0)
+        else:
+            try:
+                if vrange[0].startswith("0x"):
+                    addrType = 'hex'
+                    addrs = long(vrange[0], base=16)
+                    addre = addrs
+                else:
+                    addrType = 'dec'
+                    addrs = long(vrange[0])
+                    addre = addrs
+            except:
+                SystemManager.printError(\
+                    "Fail to recognize address, input address such as 0xabcd or 78901234")
+                os._exit(0)
 
-        entry = PageAnalyzer.get_pagemap_entry(pid, addr)
+            try:
+                if rangeCnt == 2:
+                    if vrange[1].startswith("0x"):
+                        addrType = 'hex'
+                        addre = long(vrange[1], base=16)
+                    else:
+                        addrType = 'dec'
+                        addre = long(vrange[1])
 
-        pfn = PageAnalyzer.get_pfn(entry)
+                if addrs > addre:
+                    SystemManager.printError(\
+                        "Fail to recognize address, input bigger second address than first address")
+                    os._exit(0)
+            except:
+                SystemManager.printError(\
+                    "Fail to recognize address, input address such as 0x1234-0x4444")
+                os._exit(0)
 
-        isPresent = PageAnalyzer.is_present(entry)
+        print("\n[ PID: %s ] [ AREA: %s ]\n%s" % (pid, vaddr, twoLine))
 
-        isFile = PageAnalyzer.is_file_page(entry)
+        print("{0:^18}|{1:^17}|{2:^9}|{3:^9}|{4:^7}|{5:^5}| {6}({7})\n{8}".format(\
+            "VADDR", "PFN", "PRESENT", "SWAPPED", "FILE",\
+            "REF", "FLAG", "FLAGS", oneLine))
 
-        bflags = hex(PageAnalyzer.get_page_flags(pfn)).rstrip('L')
+        for addr in xrange(addrs, addre + pageSize, pageSize):
+            entry = PageAnalyzer.get_pagemap_entry(pid, addr)
 
-        sflags = PageAnalyzer.getFlagTypes(bflags)
+            pfn = PageAnalyzer.get_pfn(entry)
 
-        print(("\n" "- PID: [{0}]\n"\
-            "- ADDR: [ {1} ]\n"\
-            "- PFN: [ {2} ]\n"
-            "- Present: [ {3} ]\n"
-            "- File: [ {4} ]\n"
-            "- Count: [ {5} ]\n"
-            "- Flags: [ {6} ] [{7} ]\n").\
-            format(pid, vaddr, hex(pfn).rstrip('L'), isPresent, isFile,\
-            PageAnalyzer.get_pagecount(pfn), bflags, sflags))
+            isPresent = PageAnalyzer.is_present(entry)
+
+            isSwapped = PageAnalyzer.is_swapped(entry)
+
+            isFile = PageAnalyzer.is_file_page(entry)
+
+            bflags = hex(PageAnalyzer.get_page_flags(pfn)).rstrip('L')
+
+            sflags = PageAnalyzer.getFlagTypes(bflags)
+
+            print("{0:^18}|{1:^17}|{2:^9}|{3:^9}|{4:^7}|{5:^5}| {6}({7} )".format(\
+                hex(addr), hex(pfn).rstrip('L'), isPresent, isSwapped, isFile,\
+                PageAnalyzer.get_pagecount(pfn), bflags, sflags)
+            )
+        print("%s\n" % oneLine)
 
 
 
@@ -598,6 +634,12 @@ class PageAnalyzer(object):
     @staticmethod
     def is_present(entry):
         return ((entry & (1 << 63)) != 0)
+
+
+
+    @staticmethod
+    def is_swapped(entry):
+        return ((entry & (1 << 62)) != 0)
 
 
 
