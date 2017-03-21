@@ -551,7 +551,7 @@ class PageAnalyzer(object):
                         addrType = 'hex'
                         addre = long(vrange[1], base=16)
                     else:
-                        5ddrType = 'dec'
+                        addrType = 'dec'
                         addre = long(vrange[1])
 
                     offset = 0
