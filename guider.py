@@ -38,7 +38,7 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define color #
-    if sys.platform.startswith('linux') is True:
+    if sys.platform.startswith('linux'):
         WARNING = '\033[95m'
         OKBLUE = '\033[94m'
         OKGREEN = '\033[92m'
@@ -335,7 +335,7 @@ class ConfigManager(object):
     @staticmethod
     def openConfFile(path):
         path += '.tc'
-        if os.path.isfile(path) is True:
+        if os.path.isfile(path):
             SystemManager.printWarning(\
                 "%s already exists so that make new one" % path)
 
@@ -551,7 +551,7 @@ class PageAnalyzer(object):
                         addrType = 'hex'
                         addre = long(vrange[1], base=16)
                     else:
-                        addrType = 'dec'
+                        5ddrType = 'dec'
                         addre = long(vrange[1])
 
                     offset = 0
@@ -1883,7 +1883,7 @@ class FunctionAnalyzer(object):
 
                 # Set offset #
                 if offset is not None:
-                    if SystemManager.isRelocatableFile(path) is True:
+                    if SystemManager.isRelocatableFile(path):
                         self.posData[pos]['offset'] = offset
 
             # Save pos #
@@ -2659,7 +2659,7 @@ class FunctionAnalyzer(object):
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
-                if SystemManager.isRelocatableFile(data['binName']) is True:
+                if SystemManager.isRelocatableFile(data['binName']):
                         # Return full path and offset about address in mapping table
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16) - int(data['startAddr'], 16))
@@ -4665,7 +4665,7 @@ class SystemManager(object):
     depth = '0'
 
     HZ = 250 # 4ms tick #
-    if sys.platform.startswith('linux') is True:
+    if sys.platform.startswith('linux'):
         TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
     else:
         TICK = int((1 / float(HZ)) * 1000)
@@ -4825,7 +4825,7 @@ class SystemManager(object):
 
     @staticmethod
     def setComm():
-        if sys.platform.startswith('linux') is True:
+        if sys.platform.startswith('linux'):
             try:
                 import ctypes
                 from ctypes import cdll, POINTER
@@ -4854,7 +4854,7 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
-        if os.path.exists(SystemManager.reportPath) is True:
+        if os.path.exists(SystemManager.reportPath):
             os.remove(SystemManager.reportPath)
 
         try:
@@ -5485,7 +5485,7 @@ class SystemManager(object):
         if SystemManager.outputFile != None:
             try:
                 # backup data file alread exist #
-                if os.path.isfile(SystemManager.outputFile) is True:
+                if os.path.isfile(SystemManager.outputFile):
                     shutil.move(SystemManager.outputFile, \
                             os.path.join(SystemManager.outputFile + '.old'))
 
@@ -5576,9 +5576,9 @@ class SystemManager(object):
     @staticmethod
     def printTitle():
         if SystemManager.printFile is None:
-            if sys.platform.startswith('linux') is True:
+            if sys.platform.startswith('linux'):
                 os.system('clear')
-            elif sys.platform.startswith('win') is True:
+            elif sys.platform.startswith('win'):
                 os.system('cls')
 
         SystemManager.pipePrint("[ g.u.i.d.e.r \tver.%s ]\n" % __version__)
@@ -5932,7 +5932,7 @@ class SystemManager(object):
     def pipePrint(line):
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
             SystemManager.printFile == None and SystemManager.isTopMode() is False and \
-            sys.platform.startswith('linux') is True:
+            sys.platform.startswith('linux'):
             try:
                 SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
@@ -5948,7 +5948,7 @@ class SystemManager(object):
                 SystemManager.pipeForPrint = None
 
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
-            if sys.platform.startswith('linux') is True:
+            if sys.platform.startswith('linux'):
                 token = '/'
             else:
                 token = '\\'
@@ -5966,7 +5966,7 @@ class SystemManager(object):
 
             try:
                 # backup output file #
-                if os.path.isfile(SystemManager.inputFile) is True:
+                if os.path.isfile(SystemManager.inputFile):
                     shutil.move(SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
             except:
                 SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
@@ -6135,7 +6135,7 @@ class SystemManager(object):
         for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
-        if SystemManager.findOption('v') is True:
+        if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
 
         for item in SystemManager.optionList:
@@ -6196,7 +6196,7 @@ class SystemManager(object):
                 SystemManager.groupProcEnable = True
 
             elif option == 'p' and SystemManager.isTopMode() is False:
-                if SystemManager.findOption('i') is True:
+                if SystemManager.findOption('i'):
                     SystemManager.printError("wrong option with -p, -i option is already enabled")
                     sys.exit(0)
                 else:
@@ -6443,7 +6443,7 @@ class SystemManager(object):
         for seq in xrange(0, len(SystemManager.optionList)):
             SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
 
-        if SystemManager.findOption('v') is True:
+        if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
 
         for item in SystemManager.optionList:
@@ -6519,9 +6519,9 @@ class SystemManager(object):
 
                 SystemManager.outputFile = str(value)
 
-                if os.path.isdir(SystemManager.outputFile) is True:
+                if os.path.isdir(SystemManager.outputFile):
                     SystemManager.outputFile = SystemManager.outputFile + '/guider.dat'
-                elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]) is True:
+                elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]):
                     continue
                 else:
                     SystemManager.printError("wrong option value with -s option")
@@ -12234,7 +12234,7 @@ class ThreadAnalyzer(object):
                     mtype = 'HEAP'
                 elif ptype[0] == '/':
                     mtype = 'FILE'
-                elif ptype.startswith('[stack') is True:
+                elif ptype.startswith('[stack'):
                     mtype = 'STACK'
                 elif ptype == '[heap]':
                     mtype = 'HEAP'
@@ -13815,7 +13815,7 @@ if __name__ == '__main__':
         SystemManager.printRecordOption()
 
         # set handler for exit #
-        if sys.platform.startswith('linux') is True:
+        if sys.platform.startswith('linux'):
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
