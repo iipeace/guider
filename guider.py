@@ -8271,6 +8271,9 @@ class ThreadAnalyzer(object):
             self.requestService()
 
             while 1:
+                # save timestamp #
+                prevTime = time.time()
+
                 if SystemManager.addrOfServer is not None:
                     # receive response from server #
                     ret = SystemManager.addrAsServer.recv()
@@ -8282,8 +8285,6 @@ class ThreadAnalyzer(object):
 
                 # collect system stats as soon as possible #
                 self.saveSystemStat()
-
-                prevTime = time.time()
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
