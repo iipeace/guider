@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.7.1"
+__version__ = "3.7.5"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4662,6 +4662,7 @@ class SystemManager(object):
     maxFd = 1024
     lineLength = 154
     pid = 0
+    depth = '0'
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux') is True:
@@ -4959,7 +4960,7 @@ class SystemManager(object):
             print('\t\tstart|stop|send [pid]')
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
-            print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)}')
+            print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
             print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)|f(ile)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
@@ -4973,6 +4974,7 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
+            print('\t\t-H  [set_depth]')
             print('\t\t-T  [set_fontPath]')
             print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-C  [set_commandScriptPath:file]')
@@ -5088,7 +5090,7 @@ class SystemManager(object):
                 enableStat += 'WARNING '
 
         # function mode #
-        if SystemManager.isFunctionMode() is True:
+        if SystemManager.isFunctionMode():
             if SystemManager.heapEnable is False:
                 disableStat += 'HEAP '
             else:
@@ -5182,42 +5184,47 @@ class SystemManager(object):
             enableStat += 'PIPE '
 
         # check current mode #
-        if SystemManager.isFunctionMode() is True:
+        if SystemManager.isFunctionMode():
             SystemManager.printInfo("FUNCTION MODE")
 
-            if SystemManager.cpuEnable is False:
-                disableStat += 'CPU '
+            if SystemManager.graphEnable is True:
+                enableStat += 'GRAPH '
             else:
-                enableStat += 'CPU '
+                disableStat += 'GRAPH '
 
-            if SystemManager.memEnable is False:
-                disableStat += 'MEMORY '
-            else:
-                enableStat += 'MEMORY '
+                if SystemManager.cpuEnable is False:
+                    disableStat += 'CPU '
+                else:
+                    enableStat += 'CPU '
 
-            if SystemManager.heapEnable is False:
-                disableStat += 'HEAP '
-            else:
-                enableStat += 'HEAP '
+                if SystemManager.memEnable is False:
+                    disableStat += 'MEMORY '
+                else:
+                    enableStat += 'MEMORY '
 
-            if SystemManager.blockEnable is False:
-                disableStat += 'BLOCK '
-            else:
-                enableStat += 'BLOCK '
+                if SystemManager.heapEnable is False:
+                    disableStat += 'HEAP '
+                else:
+                    enableStat += 'HEAP '
 
-            if SystemManager.userEnable is False:
-                disableStat += 'USER '
-            else:
-                enableStat += 'USER '
+                if SystemManager.blockEnable is False:
+                    disableStat += 'BLOCK '
+                else:
+                    enableStat += 'BLOCK '
 
-        elif SystemManager.isFileMode() is True:
+                if SystemManager.userEnable is False:
+                    disableStat += 'USER '
+                else:
+                    enableStat += 'USER '
+
+        elif SystemManager.isFileMode():
             SystemManager.printInfo("FILE MODE")
 
-        elif SystemManager.isSystemMode() is True:
+        elif SystemManager.isSystemMode():
             SystemManager.printInfo("SYSTEM MODE")
             SystemManager.waitEnable = True
 
-        elif SystemManager.isTopMode() is True:
+        elif SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
             enableStat += 'CPU '
 
@@ -5346,9 +5353,9 @@ class SystemManager(object):
 
     @staticmethod
     def stopHandler(signum, frame):
-        if SystemManager.isFileMode() is True:
+        if SystemManager.isFileMode():
             SystemManager.condExit = True
-        elif SystemManager.isTopMode() is True:
+        elif SystemManager.isTopMode():
             if SystemManager.printFile is not None:
                 SystemManager.printTitle()
                 ThreadAnalyzer.printIntervalUsage()
@@ -5378,9 +5385,9 @@ class SystemManager(object):
     def newHandler(signum, frame):
         SystemManager.condExit = False
 
-        if SystemManager.isFileMode() is True:
+        if SystemManager.isFileMode():
             SystemManager.printStatus("saved file usage successfully")
-        elif SystemManager.isTopMode() is True:
+        elif SystemManager.isTopMode():
             if SystemManager.printFile is None:
                 return
 
@@ -5409,7 +5416,7 @@ class SystemManager(object):
     @staticmethod
     def exitHandler(signum, frame):
         SystemManager.printError('Terminated by user\n')
-        sys.exit(0)
+        os._exit(0)
 
 
 
@@ -5680,7 +5687,7 @@ class SystemManager(object):
         # apply group filter option #
         filterList = None
         launchPosStart = SystemManager.launchBuffer.find(' -g')
-        if SystemManager.isThreadMode() is True and launchPosStart > -1:
+        if SystemManager.isThreadMode() and launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
@@ -5811,7 +5818,7 @@ class SystemManager(object):
             return
 
         # trim from process info in top mode #
-        if SystemManager.isTopMode() is True:
+        if SystemManager.isTopMode():
             textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
 
         # make image path #
@@ -5991,37 +5998,37 @@ class SystemManager(object):
     @staticmethod
     def printWarning(line):
         if SystemManager.warningEnable is True:
-            print('\n' + ConfigManager.WARNING + '[Warning] ' + line + ConfigManager.ENDC)
+            print('\n%s%s%s%s' % (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printError(line):
-        print('\n' + ConfigManager.FAIL + '[Error] ' + line + ConfigManager.ENDC)
+        print('\n%s%s%s%s\n' % (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printInfo(line):
-        print('\n' + ConfigManager.BOLD + '[Info] ' + line + ConfigManager.ENDC)
+        print('\n%s%s%s%s' % (ConfigManager.BOLD, '[Info] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printGood(line):
-        print('\n' + ConfigManager.OKGREEN + '[Info] ' + line + ConfigManager.ENDC)
+        print('\n%s%s%s%s' % (ConfigManager.OKGREEN, '[Info] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printUnderline(line):
-        print('\n' + ConfigManager.UNDERLINE + line + ConfigManager.ENDC)
+        print('\n%s%s%s' % (ConfigManager.UNDERLINE, line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printStatus(line):
-        print('\n' + ConfigManager.SPECIAL + '[Step] ' + line + ConfigManager.ENDC)
+        print('\n%s%s%s%s' % (ConfigManager.SPECIAL, '[Step] ', line, ConfigManager.ENDC))
 
 
 
@@ -6164,7 +6171,7 @@ class SystemManager(object):
                         "wrong option value with -o option, use existing directory path")
                     sys.exit(0)
 
-            elif option == 'I' and SystemManager.isTopMode() is True:
+            elif option == 'I' and SystemManager.isTopMode():
                 SystemManager.sourceFile = value
 
             elif option == 'L' and SystemManager.isTopMode() is False:
@@ -6245,7 +6252,7 @@ class SystemManager(object):
 
             elif option == 'f':
                 # Handle error about record option #
-                if SystemManager.isFunctionMode() is True and SystemManager.outputFile is None:
+                if SystemManager.isFunctionMode() and SystemManager.outputFile is None:
                     SystemManager.printError("wrong option with -f, use also -s option to save data")
                     sys.exit(0)
                 else:
@@ -6266,7 +6273,7 @@ class SystemManager(object):
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
 
-                        if SystemManager.isTopMode() is True:
+                        if SystemManager.isTopMode():
                             SystemManager.printInfo("set buffer size to %sKB" % (bsize * 10))
                     else:
                         SystemManager.printError(\
@@ -6279,7 +6286,7 @@ class SystemManager(object):
                             "wrong option value with -b option, input number in integer format")
                     sys.exit(0)
 
-            elif option == 'n' and SystemManager.isTopMode() is True:
+            elif option == 'n' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -6300,7 +6307,7 @@ class SystemManager(object):
 
                 SystemManager.printInfo("use %s:%d as remote output address" % (ip, port))
 
-            elif option == 'N' and SystemManager.isTopMode() is True:
+            elif option == 'N' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -6329,13 +6336,13 @@ class SystemManager(object):
 
                 SystemManager.printInfo("use %s:%d as remote report address" % (ip, port))
 
-            elif option == 'j' and SystemManager.isTopMode() is True:
+            elif option == 'j' and SystemManager.isTopMode():
                 SystemManager.reportPath = value
                 SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
                 SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
                 SystemManager.printInfo("use %s as local report file" % SystemManager.reportPath)
 
-            elif option == 'x' and SystemManager.isTopMode() is True:
+            elif option == 'x' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
                 service = ret[0]
@@ -6356,7 +6363,7 @@ class SystemManager(object):
                 SystemManager.printInfo("use %s:%d as server address" % \
                     (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
-            elif option == 'X' and SystemManager.isTopMode() is True:
+            elif option == 'X' and SystemManager.isTopMode():
                 if SystemManager.findOption('x') is False:
                     SystemManager.printError(\
                         "wrong option with -X, use also -x option to request service")
@@ -6418,8 +6425,9 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
-            elif option == 'W' or option == 'y' or option == 's' or option == 'R' or \
-                option == 't' or option == 'h' or option == 'C' or option == 'v':
+            elif option == 'W' or option == 'y' or option == 's' or \
+                option == 'R' or option == 't' or option == 'h' or \
+                option == 'C' or option == 'v' or option == 'H':
                 continue
 
             else:
@@ -6448,7 +6456,7 @@ class SystemManager(object):
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
 
-                        if SystemManager.isTopMode() is True:
+                        if SystemManager.isTopMode():
                             bsize *= 10
 
                         SystemManager.printInfo("set buffer size to %sKB" % bsize)
@@ -6491,6 +6499,8 @@ class SystemManager(object):
                     SystemManager.futexEnable = True
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
+                if options.rfind('g') > -1:
+                    SystemManager.graphEnable = True
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -6521,6 +6531,14 @@ class SystemManager(object):
 
             elif option == 'D':
                 SystemManager.depEnable = True
+
+            elif option == 'H':
+                try:
+                    SystemManager.depth = str(int(value))
+                except:
+                    SystemManager.printError(\
+                        "wrong option value with -H option, input an integer value")
+                    sys.exit(0)
 
             elif option == 'W':
                 SystemManager.waitEnable = True
@@ -6804,13 +6822,13 @@ class SystemManager(object):
                     except:
                         continue
 
-                    if SystemManager.isStartMode() is True and waitStatus is True:
+                    if SystemManager.isStartMode() and waitStatus is True:
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo("started %s process to profile" % pid)
                         except:
                             SystemManager.printError("Fail to send signal to %s because of permission" % pid)
-                    elif SystemManager.isStopMode() is True:
+                    elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo("terminated %s process" % pid)
@@ -6865,9 +6883,8 @@ class SystemManager(object):
 
 
     def saveSystemInfo(self):
-        uptimeFile = '/proc/uptime'
-
         try:
+            uptimeFile = '/proc/uptime'
             f = open(uptimeFile, 'r')
             self.uptimeData = f.readline()
             f.close()
@@ -6877,18 +6894,16 @@ class SystemManager(object):
         self.uptimeData = self.uptimeData.split()
         # uptimeData[0] = running time in sec, [1]= idle time in sec * cores #
 
-        cmdlineFile = '/proc/cmdline'
-
         try:
+            cmdlineFile = '/proc/cmdline'
             f = open(cmdlineFile, 'r')
             self.cmdlineData = f.readline()[0:-1]
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % cmdlineFile)
 
-        loadFile = '/proc/loadavg'
-
         try:
+            loadFile = '/proc/loadavg'
             f = open(loadFile, 'r')
             self.loadData = f.readline()
             f.close()
@@ -6904,36 +6919,32 @@ class SystemManager(object):
         [4] = lastPid
         '''
 
-        kernelVersionFile = '/proc/sys/kernel/osrelease'
-
         try:
+            kernelVersionFile = '/proc/sys/kernel/osrelease'
             f = open(kernelVersionFile, 'r')
-            self.SystemManager['kernelVer'] = f.readline()[0:-1]
+            self.SystemManager['kernelVer'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % kernelVersionFile)
 
-        osVersionFile = '/proc/sys/kernel/version'
-
         try:
+            osVersionFile = '/proc/sys/kernel/version'
             f = open(osVersionFile, 'r')
-            self.SystemManager['osVer'] = f.readline()[0:-1]
+            self.SystemManager['osVer'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % osVersionFile)
 
-        osTypeFile = '/proc/sys/kernel/ostype'
-
         try:
+            osTypeFile = '/proc/sys/kernel/ostype'
             f = open(osTypeFile, 'r')
-            self.SystemManager['osType'] = f.readline()[0:-1]
+            self.SystemManager['osType'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % osTypeFile)
 
-        timeFile = '/proc/driver/rtc'
-
         try:
+            timeFile = '/proc/driver/rtc'
             f = open(timeFile, 'r')
             timeInfo = f.readlines()
 
@@ -6947,7 +6958,7 @@ class SystemManager(object):
 
             f.close()
         except:
-            SystemManager.printWarning("Fail to open %s" % osTypeFile)
+            SystemManager.printWarning("Fail to open %s" % timeFile)
 
 
 
@@ -7202,12 +7213,62 @@ class SystemManager(object):
         self.initCmdList()
 
         # set log format #
-        SystemManager.writeCmd('../trace_options', 'noirq-info')
-        SystemManager.writeCmd('../trace_options', 'noannotate')
-        SystemManager.writeCmd('../trace_options', 'print-tgid')
+        if SystemManager.graphEnable is False:
+            SystemManager.writeCmd('../trace_options', 'noirq-info')
+            SystemManager.writeCmd('../trace_options', 'noannotate')
+            SystemManager.writeCmd('../trace_options', 'print-tgid')
+            SystemManager.writeCmd('../current_tracer', 'nop')
+            SystemManager.writeCmd('../tracing_on', '1')
+        else:
+            SystemManager.writeCmd('../tracing_on', '0')
 
-        if SystemManager.isFunctionMode() is True:
+        if SystemManager.isFunctionMode():
             cmd = ""
+
+            # check conditions for kernel function_graph #
+            if SystemManager.graphEnable is True:
+                if SystemManager.showGroup == []:
+                    SystemManager.printError("Fail to get tid, use also -g option")
+                    sys.exit(0)
+                elif os.path.isfile(SystemManager.mountPath + '../set_ftrace_pid') is False:
+                    SystemManager.printError("enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
+                    sys.exit(0)
+                else:
+                    try:
+                        int(SystemManager.showGroup[0])
+                    except:
+                        SystemManager.printError(\
+                            "wrong tid %s, input an integer value" % SystemManager.showGroup[0])
+                        sys.exit(0)
+
+                    # set target tid #
+                    SystemManager.writeCmd('../set_ftrace_pid', SystemManager.showGroup[0])
+
+                    # set function_graph tracer #
+                    if SystemManager.writeCmd('../current_tracer', 'function_graph') < 0:
+                        SystemManager.printError("enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
+                        sys.exit(0)
+
+                    SystemManager.writeCmd('../trace_options', 'nofuncgraph-proc')
+                    SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
+                    SystemManager.writeCmd('../trace_options', 'funcgraph-overhead')
+                    SystemManager.writeCmd('../trace_options', 'funcgraph-duration')
+                    SystemManager.writeCmd('../max_graph_depth', SystemManager.depth)
+
+                    if SystemManager.customCmd is None:
+                        SystemManager.writeCmd('../set_ftrace_filter', '')
+                    else:
+                        params = ' '.join(SystemManager.customCmd)
+                        SystemManager.printStatus("wait for setting function filter [ %s ]" % params)
+                        if SystemManager.writeCmd('../set_ftrace_filter', params) < 0:
+                            SystemManager.printError("Fail to set function filter")
+                            sys.exit(0)
+                        else:
+                            SystemManager.printStatus("finished function filter [ %s ]" % params)
+
+                    SystemManager.writeCmd('../tracing_on', '1')
+
+                    return
 
             # make filter command for function profiler #
             for cond in SystemManager.showGroup:
@@ -7336,11 +7397,18 @@ class SystemManager(object):
 
                     for comm in SystemManager.showGroup:
                         cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
-                        cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
+                        try:
+                            int(comm)
+                            cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
+                        except:
+                            pass
 
                     cmd = cmd[0:cmd.rfind("||")]
-                    SystemManager.writeCmd('sched/sched_switch/filter', cmd)
-                else: SystemManager.writeCmd('sched/sched_switch/filter', '0')
+                    if SystemManager.writeCmd('sched/sched_switch/filter', cmd) < 0:
+                        SystemManager.printError("Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                        sys.exit(0)
+                else:
+                    SystemManager.writeCmd('sched/sched_switch/filter', '0')
 
                 if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
                     SystemManager.printError("sched event of ftrace is not enabled in kernel")
@@ -7515,8 +7583,8 @@ class SystemManager(object):
 
     @staticmethod
     def runRecordStopCmd():
-        if SystemManager.isRecordMode() is True and \
-            (SystemManager.isThreadMode() is True or SystemManager.isFunctionMode() is True):
+        if SystemManager.isRecordMode() and \
+            (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
 
             # write signal command #
             if SystemManager.cmdEnable is not False and SystemManager.cmdFd is not None:
@@ -7539,15 +7607,16 @@ class SystemManager(object):
                     SystemManager.writeCmd(str(idx) + '/enable', '0')
                     SystemManager.writeCmd(str(idx) + '/filter', '0')
 
-            if SystemManager.customCmd is not None:
+            if SystemManager.graphEnable is False and SystemManager.customCmd is not None:
                 for cmd in SystemManager.customCmd:
                     event = cmd.split(':')[0]
                     SystemManager.writeCmd(event + '/enable', '0')
                     SystemManager.writeCmd(event + '/filter', '0')
 
-            if SystemManager.isFunctionMode() is True:
+            if SystemManager.isFunctionMode():
                 SystemManager.writeCmd('../options/stacktrace', '0')
                 SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
+                SystemManager.writeCmd('../tracing_on', '0')
 
             # write save command #
             if SystemManager.saveCmd is not None:
@@ -13506,7 +13575,7 @@ if __name__ == '__main__':
     SystemManager.pid = os.getpid()
 
     # print backgroud process list #
-    if SystemManager.isListMode() is True:
+    if SystemManager.isListMode():
         SystemManager.printBackgroundProcs()
         sys.exit(0)
 
@@ -13517,17 +13586,17 @@ if __name__ == '__main__':
         argList = None
 
     # send start / stop signal to background process #
-    if SystemManager.isStartMode() is True or SystemManager.isStopMode() is True:
+    if SystemManager.isStartMode() or SystemManager.isStopMode():
         SystemManager.sendSignalProcs(signal.SIGINT, argList)
         sys.exit(0)
 
     # send event signal to background process #
-    if SystemManager.isSendMode() is True:
+    if SystemManager.isSendMode():
         SystemManager.sendSignalProcs(signal.SIGQUIT, argList)
         sys.exit(0)
 
     # view system resource status #
-    if SystemManager.isViewMode() is True:
+    if SystemManager.isViewMode():
         pid = SystemManager.getOption('g')
         addr = SystemManager.getOption('I')
 
@@ -13541,7 +13610,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     # parse recording option #
-    if SystemManager.isRecordMode() is True:
+    if SystemManager.isRecordMode():
         if sys.platform.startswith('linux') is False:
             print('[Error] Fail to record because this platform is not linux')
             sys.exit(0)
@@ -13577,7 +13646,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
-        if SystemManager.isSystemMode() is True:
+        if SystemManager.isSystemMode():
             # save system info and write it to buffer #
             si.saveAllInfo()
             si.printAllInfoToBuf()
@@ -13606,7 +13675,7 @@ if __name__ == '__main__':
 
         # set signal #
         if SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0 and \
-            SystemManager.isThreadMode() is True:
+            SystemManager.isThreadMode():
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.alarm(SystemManager.repeatInterval)
@@ -13621,7 +13690,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
         # create FileAnalyzer #
-        if SystemManager.isFileMode() is True:
+        if SystemManager.isFileMode():
             # check permission #
             if os.geteuid() != 0:
                 SystemManager.printError("Fail to get root permission")
@@ -13671,7 +13740,8 @@ if __name__ == '__main__':
             sys.exit(0)
 
         # get init time from buffer for verification #
-        initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
+        if SystemManager.graphEnable is False:
+            initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
         # enter loop to record and save data periodically #
         while SystemManager.repeatInterval > 0:
@@ -13699,16 +13769,23 @@ if __name__ == '__main__':
             if SystemManager.condExit is True:
                 break
 
-        if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-            SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
-                SystemManager.getBufferSize())
-            sys.exit(0)
+        if SystemManager.graphEnable is False:
+            if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
+                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
+                    SystemManager.getBufferSize())
+                sys.exit(0)
 
-        # save system information #
-        si.saveAllInfo()
+            # save system information #
+            si.saveAllInfo()
 
     # parse analysis option #
     SystemManager.parseAnalOption()
+
+    # save kernel function_graph and termiate #
+    if SystemManager.isRecordMode() and \
+        SystemManager.isFunctionMode() and \
+        SystemManager.graphEnable:
+        ThreadAnalyzer(SystemManager.inputFile)
 
     # get tty setting #
     SystemManager.getTty()
@@ -13726,15 +13803,15 @@ if __name__ == '__main__':
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import package: " + err.args[0])
-            SystemManager.graphEnable = False
             sys.exit(0)
 
+    # convert txt to image #
     if SystemManager.customImageEnable is True:
         SystemManager.printStatus("start converting...")
         SystemManager.makeLogImage()
         sys.exit(0)
 
-    if SystemManager.isTopMode() is True:
+    if SystemManager.isTopMode():
         SystemManager.printRecordOption()
 
         # set handler for exit #
@@ -13767,7 +13844,7 @@ if __name__ == '__main__':
     # check log file is recoginizable #
     ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
-    if SystemManager.isRecordMode() is True:
+    if SystemManager.isRecordMode():
         # write system info to buffer #
         si.printAllInfoToBuf()
     else:
