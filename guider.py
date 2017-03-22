@@ -614,6 +614,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def printMemoryArea(pid, start, end):
+        count = 0
         switch = 0
         fpath = '/proc/%s/maps' % pid
 
@@ -644,9 +645,13 @@ class PageAnalyzer(object):
                     break
 
                 print(line[:-1])
+                count += 1
 
                 if switch == 1 and end <= eoffset:
                     break
+
+        if count == 0:
+            print('No involved memory area')
 
 
 
