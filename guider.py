@@ -522,6 +522,14 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
+        if os.geteuid() != 0:
+            SystemManager.printError("Fail to get root permission")
+            sys.exit(0)
+        elif pid is False or vaddr is False:
+            SystemManager.printError(\
+                "Fail to recognize input, input pid with -g option and address with -I option")
+            sys.exit(0)
+
         vrange = vaddr.split('-')
         rangeCnt = len(vrange)
         pageSize = os.sysconf("SC_PAGE_SIZE")
@@ -5068,6 +5076,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -F -i' % cmd)
 
                 print('\n\t\t[etc]')
+                print('\t\t\t- view page property of specific pages')
+                print('\t\t\t\t# %s view -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
                 print('\t\t\t- convert text to image')
                 print('\t\t\t\t# %s guider.out -L' % cmd)
                 print('\t\t\t- wait for signal')
