@@ -4930,7 +4930,11 @@ class SystemManager(object):
 
     @staticmethod
     def printOptions():
-        if len(sys.argv) <= 1 or sys.argv[1] == '-h' or sys.argv[1] == '--help':
+        if len(sys.argv) <= 1 or \
+            sys.argv[1] == '-h' or \
+            sys.argv[1] == '--help' or \
+            SystemManager.findOption('h'):
+
             cmd = sys.argv[0]
 
             if cmd.find('.pyc') >= 0:
@@ -4998,6 +5002,82 @@ class SystemManager(object):
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-v  [verbose]')
+            if SystemManager.findOption('a'):
+                print('\t[examples]')
+
+                print('\t\t[thread mode]')
+                print('\t\t\t- record cpu usage of threads')
+                print('\t\t\t\t# %s record -s .' % cmd)
+                print('\t\t\t- record all resource usage of threads in background')
+                print('\t\t\t\t# %s record -s . -e mbi -u' % cmd)
+                print('\t\t\t- record all resource usage excluding cpu of threads in background')
+                print('\t\t\t\t# %s record -s . -e mbi -d c -u' % cmd)
+                print('\t\t\t- record specific systemcalls of specific threads')
+                print('\t\t\t\t# %s record -s . -t sys_read,sys_write -g 1234' % cmd)
+                print('\t\t\t- analize record data by expressing all possible information')
+                print('\t\t\t\t# %s guider.dat -o . -a -i' % cmd)
+                print('\t\t\t- analize record data including preemption info of specific threads')
+                print('\t\t\t\t# %s guider.dat -o . -p 1234,4567' % cmd)
+                print('\t\t\t- analize specific threads that are involved in the specific processes')
+                print('\t\t\t\t# %s guider.dat -o . -P -g 1234,4567' % cmd)
+
+                print('\n\t\t[function mode]')
+                print('\t\t\t- record cpu usage of functions in all threads')
+                print('\t\t\t\t# %s record -f -s .' % cmd)
+                print('\t\t\t- record specific events of only kernel functions in all threads')
+                print('\t\t\t\t# %s record -f -s . -d u -c sched/sched_switch' % cmd)
+                print('\t\t\t- record all usage of functions in specific threads')
+                print('\t\t\t\t# %s record -f -s . -e mbh -g 1234' % cmd)
+                print('\t\t\t- analize record data by expressing all possible information')
+                print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+                print('\t\t\t- record specific kernel functions in a specific thread')
+                print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
+
+                print('\n\t\t[top mode]')
+                print('\t\t\t- show real-time resource usage of processes')
+                print('\t\t\t\t# %s top' % cmd)
+                print('\t\t\t- show real-time resource usage including disk of threads per 2 sec interval')
+                print('\t\t\t\t# %s top -e td -i 2 -a' % cmd)
+                print('\t\t\t- show real-time resource usage of specific processes/threads involved in specific process group')
+                print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
+                print('\t\t\t- record resource usage of processes to the specific file in background')
+                print('\t\t\t\t# %s top -o . -u' % cmd)
+                print('\t\t\t- record and report system status to the specific file in background')
+                print('\t\t\t\t# %s top -o . -e r -j . -u' % cmd)
+                print('\t\t\t- record and save system status to the specific file if some events occur')
+                print('\t\t\t\t# %s top -o . -e r -e f' % cmd)
+                print('\t\t\t- record and report system status to the specific image')
+                print('\t\t\t\t# %s top -o . -e r -e f' % cmd)
+                print('\t\t\t- convert a analysis text to a graph image')
+                print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
+                print('\t\t\t- report system status to the specific server')
+                print('\t\t\t\t# %s top -n 192.168.0.5:5555' % cmd)
+                print('\t\t\t- report system status to the specific server if some events occur')
+                print('\t\t\t\t# %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
+                print('\t\t\t- record and send analysis output to specific clients that asked dyanmic request')
+                print('\t\t\t\t# %s top -x 5555' % cmd)
+                print('\t\t\t- receive and print analysis output from client')
+                print('\t\t\t\t# %s top -x 5555 -X' % cmd)
+                print('\t\t\t- set event configuration file')
+                print('\t\t\t\t# %s top -I guider.json' % cmd)
+
+                print('\n\t\t[file mode]')
+                print('\t\t\t- record memory usage of mapped files to the specific file')
+                print('\t\t\t\t# %s record -F -o .' % cmd)
+                print('\t\t\t- record memory usage of mapped files and compare each intervals')
+                print('\t\t\t\t# %s record -F -i' % cmd)
+
+                print('\n\t\t[etc]')
+                print('\t\t\t- convert text to image')
+                print('\t\t\t\t# %s guider.out -L' % cmd)
+                print('\t\t\t- wait for signal')
+                print('\t\t\t\t# %s record|top -W' % cmd)
+                print('\t\t\t- show running guider processes')
+                print('\t\t\t\t# %s list' % cmd)
+                print('\t\t\t- send event signal to guider processes')
+                print('\t\t\t\t# %s send 1234, 4567' % cmd)
+                print('\t\t\t- send stop signal to guider processes')
+                print('\t\t\t\t# %s send 1234, 4567' % cmd)
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
             print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
@@ -5235,8 +5315,10 @@ class SystemManager(object):
 
             if SystemManager.processEnable is False:
                 enableStat += 'THREAD '
+                disableStat += 'PROCESS '
             else:
                 disableStat += 'THREAD '
+                enableStat += 'PROCESS '
 
             if SystemManager.memEnable is True:
                 enableStat += 'MEMORY '
@@ -5257,6 +5339,11 @@ class SystemManager(object):
                 enableStat += 'FILE '
             else:
                 disableStat += 'FILE '
+
+            if SystemManager.groupProcEnable is True:
+                enableStat += 'GROUP '
+            else:
+                disableStat += 'GROUP '
 
             if SystemManager.reportEnable is True:
                 enableStat += 'REPORT '
@@ -6228,8 +6315,8 @@ class SystemManager(object):
                     SystemManager.graphEnable = True
                 if options.rfind('d') > -1:
                     if os.geteuid() != 0:
-                        SystemManager.printWarning("Fail to get root permission, disable disk profile")
-                        SystemManager.diskEnable = False
+                        SystemManager.printError("Fail to get root permission for disk analysis")
+                        sys.exit(0)
                     else:
                         SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
@@ -6426,8 +6513,8 @@ class SystemManager(object):
                 SystemManager.backgroundEnable = True
 
             elif option == 'W' or option == 'y' or option == 's' or \
-                option == 'R' or option == 't' or option == 'h' or \
-                option == 'C' or option == 'v' or option == 'H':
+                option == 'R' or option == 't' or option == 'C' or \
+                option == 'v' or option == 'H':
                 continue
 
             else:
@@ -6613,7 +6700,7 @@ class SystemManager(object):
             # Ignore options #
             elif option == 'i' or option == 'a' or option == 'v' or \
                 option == 'g' or option == 'p' or option == 'S' or \
-                option == 'h' or option == 'P' or option == 'T':
+                option == 'P' or option == 'T':
                 continue
 
             else:
@@ -8260,6 +8347,30 @@ class ThreadAnalyzer(object):
                 for idx, val in enumerate(SystemManager.showGroup):
                     if len(val) == 0:
                         SystemManager.showGroup.pop(idx)
+                    elif SystemManager.groupProcEnable is True:
+                        try:
+                            int(val)
+                        except:
+                            SystemManager.printError(\
+                                "wrong id %s, input only integer values for grouping" % val)
+                            sys.exit(0)
+
+                taskList = ', '.join(SystemManager.showGroup)
+
+                if SystemManager.groupProcEnable is False:
+                    if SystemManager.processEnable is False:
+                        SystemManager.printInfo("only specific threads [ %s ] are shown" % taskList)
+                    else:
+                        SystemManager.printInfo("only specific processes [ %s ] are shown" % taskList)
+                else:
+                    if SystemManager.processEnable is False:
+                        SystemManager.printInfo(\
+                            "only specific threads that are involved in a process groups [ %s ] are shown" \
+                            % taskList)
+                    else:
+                        SystemManager.printInfo(\
+                            "only specific processes that are involved in a process groups [ %s ] are shown" \
+                            % taskList)
 
             # set configuration from file #
             self.getConf()
@@ -8380,7 +8491,7 @@ class ThreadAnalyzer(object):
                     else:
                         try:
                             if SystemManager.groupProcEnable is True and \
-                                self.threadData[val]['tgid'] == value['tgid']:
+                                (val == value['tgid'] or self.threadData[val]['tgid'] == value['tgid']):
                                 checkResult = True
                         except:
                             pass
@@ -12810,20 +12921,23 @@ class ThreadAnalyzer(object):
         for idx, value in sortedProcData:
             # filter #
             if SystemManager.showGroup != []:
-                found = False
-                for val in SystemManager.showGroup:
-                    if value['stat'][self.commIdx].rfind(val) > -1 or idx == val:
-                        found = True
-                        break
-                    elif SystemManager.processEnable is False and \
-                        SystemManager.groupProcEnable is True and \
-                        value['isMain'] is False and \
-                        (self.procData[value['mainID']]['stat'][self.commIdx].rfind(val) > -1 or \
-                        value['mainID'] == val):
-                        found = True
-                        break
-                if found is False:
-                    continue
+                if SystemManager.groupProcEnable is True:
+                    if SystemManager.processEnable is True:
+                        if value['stat'][self.ppidIdx] in SystemManager.showGroup:
+                            pass
+                        elif idx in SystemManager.showGroup:
+                            pass
+                        else:
+                            continue
+                    elif value['mainID'] not in SystemManager.showGroup:
+                        continue
+                else:
+                    if idx in SystemManager.showGroup:
+                        pass
+                    elif True in [value['stat'][self.commIdx].rfind(val) >= 0 for val in SystemManager.showGroup]:
+                        pass
+                    else:
+                        continue
 
             # cut by rows of terminal #
             if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
