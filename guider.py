@@ -5049,6 +5049,8 @@ class SystemManager(object):
                 print('\n\t\t[top mode]')
                 print('\t\t\t- show real-time resource usage of processes')
                 print('\t\t\t\t# %s top' % cmd)
+                print('\t\t\t- show real-time resource usage of processes by sorting memory')
+                print('\t\t\t\t# %s top -S m' % cmd)
                 print('\t\t\t- show real-time resource usage including disk of threads per 2 sec interval')
                 print('\t\t\t\t# %s top -e td -i 2 -a' % cmd)
                 print('\t\t\t- show real-time resource usage of specific processes/threads involved in specific process group')
@@ -12298,6 +12300,7 @@ class ThreadAnalyzer(object):
     def saveProcSmapsData(self, path, tid):
         buf = ''
         mtype = ''
+        ftable = {}
         fpath = path + '/smaps'
         ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
@@ -12361,6 +12364,10 @@ class ThreadAnalyzer(object):
                     mtype = 'HEAP'
                 elif ptype[0] == '/':
                     mtype = 'FILE'
+                    try:
+                        ftable[ptype]
+                    except:
+                        ftable[ptype] = 0
                 elif ptype.startswith('[stack'):
                     mtype = 'STACK'
                 elif ptype == '[heap]':
@@ -12372,6 +12379,9 @@ class ThreadAnalyzer(object):
                     ptable[mtype]['count'] += 1
                 except:
                     ptable[mtype]['count'] = int(1)
+
+        # save file number mapped #
+        ptable['FILE']['count'] = len(ftable)
 
         self.procData[tid]['maps'] = ptable
 
