@@ -13085,43 +13085,44 @@ class ThreadAnalyzer(object):
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime))
 
-            if value['maps'] is not None:
-                for key, item in sorted(value['maps'].items(), reverse=True):
-                    tmpstr = ''
+            if SystemManager.memEnable is True:
+                if value['maps'] is not None:
+                    for key, item in sorted(value['maps'].items(), reverse=True):
+                        tmpstr = ''
 
-                    if len(item) == 0:
-                        continue
+                        if len(item) == 0:
+                            continue
 
-                    prop = 'Size'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
-                    prop = 'Rss'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
-                    prop = 'Pss'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
-                    prop = 'Swap'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
-                    prop = 'AnonHugePages'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s MB) " % (tmpstr, 'HUGE', item[prop] >> 10)
-                    prop = 'Locked'
-                    if prop in item:
-                        tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop.upper(), item[prop])
-                    prop = 'Dirty'
-                    if 'Shared_Dirty' in item and 'Private_Dirty' in item:
-                        tmpstr = "%s(%s:%7s KB) " % \
-                            (tmpstr, prop.upper(), item['Shared_Dirty'] + item['Private_Dirty'])
+                        prop = 'Size'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                        prop = 'Rss'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                        prop = 'Pss'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                        prop = 'Swap'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                        prop = 'AnonHugePages'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, 'HUGE', item[prop] >> 10)
+                        prop = 'Locked'
+                        if prop in item:
+                            tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop.upper(), item[prop])
+                        prop = 'Dirty'
+                        if 'Shared_Dirty' in item and 'Private_Dirty' in item:
+                            tmpstr = "%s(%s:%7s KB) " % \
+                                (tmpstr, prop.upper(), item['Shared_Dirty'] + item['Private_Dirty'])
 
-                    mtype = '(%s)[%s]' % (item['count'], key)
-                    SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
+                        mtype = '(%s)[%s]' % (item['count'], key)
+                        SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
 
-                    # cut by rows of terminal #
-                    if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
-                            SystemManager.printFile is None:
-                        return
+                        # cut by rows of terminal #
+                        if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
+                                SystemManager.printFile is None:
+                            return
 
                 SystemManager.addPrint(oneLine + '\n')
 
