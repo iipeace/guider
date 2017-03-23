@@ -4800,7 +4800,6 @@ class SystemManager(object):
         self.memInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
-        self.SystemManager = {}
 
         self.cpuData = None
         self.memBeforeData = None
@@ -4820,7 +4819,7 @@ class SystemManager(object):
         self.memInfo['after'] = dict()
         self.diskInfo['before'] = dict()
         self.diskInfo['after'] = dict()
-        self.SystemManager = dict()
+        self.systemInfo = dict()
 
         SystemManager.eventLogFile = \
             str(self.getMountPath()) + '/tracing/trace_marker'
@@ -5323,7 +5322,11 @@ class SystemManager(object):
 
         elif SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
-            enableStat += 'CPU '
+
+            if SystemManager.cpuEnable is True:
+                enableStat += 'CPU '
+            else:
+                disableStat += 'CPU '
 
             if SystemManager.diskEnable is True:
                 enableStat += 'DISK '
@@ -7026,7 +7029,7 @@ class SystemManager(object):
         try:
             kernelVersionFile = '/proc/sys/kernel/osrelease'
             f = open(kernelVersionFile, 'r')
-            self.SystemManager['kernelVer'] = f.readline().strip('\n')
+            self.systemInfo['kernelVer'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % kernelVersionFile)
@@ -7034,7 +7037,7 @@ class SystemManager(object):
         try:
             osVersionFile = '/proc/sys/kernel/version'
             f = open(osVersionFile, 'r')
-            self.SystemManager['osVer'] = f.readline().strip('\n')
+            self.systemInfo['osVer'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % osVersionFile)
@@ -7042,7 +7045,7 @@ class SystemManager(object):
         try:
             osTypeFile = '/proc/sys/kernel/ostype'
             f = open(osTypeFile, 'r')
-            self.SystemManager['osType'] = f.readline().strip('\n')
+            self.systemInfo['osType'] = f.readline().strip('\n')
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % osTypeFile)
@@ -7056,9 +7059,9 @@ class SystemManager(object):
                 timeEntity = val.split()
 
                 if timeEntity[0] == 'rtc_time':
-                    self.SystemManager['time'] = timeEntity[2]
+                    self.systemInfo['time'] = timeEntity[2]
                 elif timeEntity[0] == 'rtc_date':
-                    self.SystemManager['date'] = timeEntity[2]
+                    self.systemInfo['date'] = timeEntity[2]
 
             f.close()
         except:
@@ -7797,16 +7800,16 @@ class SystemManager(object):
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Time', self.SystemManager['date'] + ' ' + self.SystemManager['time']))
+                format('Time', self.systemInfo['date'] + ' ' + self.systemInfo['time']))
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('OS', self.SystemManager['osVer']))
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
         except:
             pass
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Kernel', self.SystemManager['osType'] + ' ' + self.SystemManager['kernelVer']))
+                format('Kernel', self.systemInfo['osType'] + ' ' + self.systemInfo['kernelVer']))
         except:
             pass
         try:
@@ -8210,121 +8213,110 @@ class ThreadAnalyzer(object):
 
 
     def __init__(self, file):
-        self.threadData = {}
-        self.irqData = {}
-        self.ioData = {}
-        self.reclaimData = {}
-        self.pageTable = {}
-        self.kmemTable = {}
-        self.blockTable = [{}, {}]
-        self.moduleData = []
-        self.intervalData = []
-        self.depData = []
-        self.sigData = []
-        self.syscallData = []
-        self.lastJob = {}
-        self.preemptData = []
-        self.suspendData = []
-        self.markData = []
-        self.consoleData = []
 
-        self.procData = {}
-        self.prevProcData = {}
-        self.cpuData = {}
-        self.prevCpuData = {}
-        self.memData = {}
-        self.prevMemData = {}
-        self.vmData = {}
-        self.prevVmData = {}
-        self.systemData = {}
+        # thread mode #
+        if file is not None:
+            self.threadData = {}
+            self.irqData = {}
+            self.ioData = {}
+            self.reclaimData = {}
+            self.pageTable = {}
+            self.kmemTable = {}
+            self.blockTable = [{}, {}]
+            self.moduleData = []
+            self.intervalData = []
+            self.depData = []
+            self.sigData = []
+            self.syscallData = []
+            self.lastJob = {}
+            self.preemptData = []
+            self.suspendData = []
+            self.markData = []
+            self.consoleData = []
 
-        self.stopFlag = False
-        self.totalTime = 0
-        self.totalTimeOld = 0
-        self.cxtSwitch = 0
-        self.nrNewTask = 0
-        self.thisInterval = 0
-        self.nrThread = 0
-        self.nrProcess = 0
+            self.stopFlag = False
+            self.totalTime = 0
+            self.totalTimeOld = 0
+            self.cxtSwitch = 0
+            self.nrNewTask = 0
+            self.thisInterval = 0
+            self.nrThread = 0
+            self.nrProcess = 0
 
-        self.threadDataOld = {}
-        self.irqDataOld = {}
-        self.ioDataOld = {}
-        self.reclaimDataOld = {}
+            self.threadDataOld = {}
+            self.irqDataOld = {}
+            self.ioDataOld = {}
+            self.reclaimDataOld = {}
 
-        self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
-            'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
-            'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
-            'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
-            'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
-            'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
-            'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
-            'futexCnt': int(0), 'futexEnter': float(0), 'futexTotal': float(0), 'futexMax': float(0), \
-            'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
-            'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
-            'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), 'writeBlock': int(0), \
-            'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
-            'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
-            'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
-            'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
+            self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
+                'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
+                'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
+                'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
+                'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
+                'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
+                'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
+                'futexCnt': int(0), 'futexEnter': float(0), 'futexTotal': float(0), 'futexMax': float(0), \
+                'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), \
+                'nrPages': int(0), 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
+                'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), 'writeBlock': int(0), \
+                'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
+                'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
+                'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
+                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
 
-        self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), \
-            'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
+            self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), \
+                'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
 
-        self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
-            'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
-            'ioUsage': int(0), 'totalIoUsage': int(0), 'irqUsage': float(0), 'memUsage': int(0), \
-            'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
-            'totalCoreSchedCnt': int(0), 'preempted': float(0), \
-            'totalPreempted': float(0), 'new': ' ', 'die': ' '}
+            self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
+                'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
+                'ioUsage': int(0), 'totalIoUsage': int(0), 'irqUsage': float(0), 'memUsage': int(0), \
+                'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
+                'totalCoreSchedCnt': int(0), 'preempted': float(0), \
+                'totalPreempted': float(0), 'new': ' ', 'die': ' '}
 
-        self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), \
-            'time': '0', 'waste': int(0), 'core': int(0)}
+            self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), \
+                'time': '0', 'waste': int(0), 'core': int(0)}
 
-        self.wakeupData = {'tid': '0', 'nr': '0', 'ret': '0', 'time': '0', 'args': '0', \
-            'valid': int(0), 'from': '0', 'to': '0', 'corrupt': '0'}
+            self.wakeupData = {'tid': '0', 'nr': '0', 'ret': '0', 'time': '0', 'args': '0', \
+                'valid': int(0), 'from': '0', 'to': '0', 'corrupt': '0'}
 
-        self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), \
-            'max': float(0), 'min': float(0)}
+            self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), \
+                'max': float(0), 'min': float(0)}
 
-        self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
-            'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
-            'new': bool(False), 'minflt': long(0), 'majflt': long(0), 'ttime': float(0), \
-            'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, \
-            'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), 'maps': None, \
-            'cutime': float(0), 'cstime': float(0), 'cttime': float(0), 'preempted': long(0), \
-            'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
+            self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+            self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
+            self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
 
-        self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
-            'wait': long(0), 'irq': long(0), 'softirq': long(0)}
-
-        self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
-        self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
-        self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
-
-        self.startTime = '0'
-        self.finishTime = '0'
-        self.lastTidPerCore = {}
-        self.lastCore = '0'
-        self.lastEvent = '0'
-
-        SystemManager.cpuEnable = False
+            self.startTime = '0'
+            self.finishTime = '0'
+            self.lastTidPerCore = {}
+            self.lastCore = '0'
+            self.lastEvent = '0'
 
         # top mode #
-        if file is None:
-            if SystemManager.graphEnable is True:
-                # convert statistics in file to graph #
-                if SystemManager.sourceFile is not None:
-                    self.convertGraph(SystemManager.sourceFile)
-                    sys.exit(0)
-                # no path of statistics file #
-                else:
-                    SystemManager.printError(\
-                        "wrong option with -eg, use also -I option to load statistics data")
-                    sys.exit(0)
+        else:
+            self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
+                'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
+                'new': bool(False), 'majflt': long(0), 'ttime': float(0), 'cttime': float(0), \
+                'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, 'preempted': long(0), \
+                'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), 'maps': None, \
+                'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
+
+            self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
+                'wait': long(0), 'irq': long(0), 'softirq': long(0)}
+
+            self.nrThread = 0
+            self.nrProcess = 0
+            self.procData = {}
+            self.prevProcData = {}
+            self.cpuData = {}
+            self.prevCpuData = {}
+            self.memData = {}
+            self.vmData = {}
+            self.prevVmData = {}
+            self.prevSwaps = None
 
             # set index of attributes #
-            self.minfltIdx = ConfigManager.statList.index("MINFLT")
             self.majfltIdx = ConfigManager.statList.index("MAJFLT")
             self.utimeIdx = ConfigManager.statList.index("UTIME")
             self.stimeIdx = ConfigManager.statList.index("STIME")
@@ -8338,14 +8330,22 @@ class ThreadAnalyzer(object):
             self.policyIdx = ConfigManager.statList.index("POLICY")
             self.vsizeIdx = ConfigManager.statList.index("VSIZE")
             self.rssIdx = ConfigManager.statList.index("RSS")
-            self.sstackIdx = ConfigManager.statList.index("STARTSTACK")
-            self.estackIdx = ConfigManager.statList.index("SP")
             self.scodeIdx = ConfigManager.statList.index("STARTCODE")
             self.ecodeIdx = ConfigManager.statList.index("ENDCODE")
             self.statIdx = ConfigManager.statList.index("STATE")
-            self.coreIdx = ConfigManager.statList.index("PROCESSOR")
             self.starttimeIdx = ConfigManager.statList.index("STARTTIME")
             self.shrIdx = ConfigManager.statmList.index("SHR")
+
+            if SystemManager.graphEnable is True:
+                # convert statistics in file to graph #
+                if SystemManager.sourceFile is not None:
+                    self.convertGraph(SystemManager.sourceFile)
+                    sys.exit(0)
+                # no path of statistics file #
+                else:
+                    SystemManager.printError(\
+                        "wrong option with -eg, use also -I option to load statistics data")
+                    sys.exit(0)
 
             try:
                 import resource
@@ -8445,6 +8445,9 @@ class ThreadAnalyzer(object):
                 self.checkServer()
 
             sys.exit(0)
+
+        # change default cpu property #
+        SystemManager.cpuEnable = False
 
         # initialize preempt thread list #
         if SystemManager.preemptGroup != None:
@@ -12149,7 +12152,6 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % memPath)
 
         if memBuf is not None:
-            self.prevMemData = self.memData
             self.memData = {}
 
             for line in memBuf:
@@ -12193,7 +12195,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % swapPath)
 
-        if swapBuf is not None:
+        if self.prevSwaps != swapBuf and swapBuf is not None:
             swapTotal = 0
             swapUsed = 0
 
@@ -12208,6 +12210,15 @@ class ThreadAnalyzer(object):
 
             self.vmData['swapTotal'] = swapTotal
             self.vmData['swapUsed'] = swapUsed
+
+            self.prevSwaps = swapBuf
+        else:
+            try:
+                self.vmData['swapTotal'] = self.prevVmData['swapTotal']
+                self.vmData['swapUsed'] = self.prevVmData['swapUsed']
+            except:
+                self.vmData['swapTotal'] = 0
+                self.vmData['swapUsed'] = 0
 
         # save uptime #
         try:
@@ -12414,8 +12425,12 @@ class ThreadAnalyzer(object):
             self.procData[tid]['status'] = {}
 
         for line in statusBuf:
-            statusList = line.split(':')
-            self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
+            if line.startswith('VmSwap') or \
+                line.startswith('FDSize') or \
+                line.startswith('voluntary_ctxt_switches') or \
+                line.startswith('nonvoluntary_ctxt_switches'):
+                statusList = line.split(':')
+                self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
 
         # save statm info #
         try:
@@ -12492,7 +12507,6 @@ class ThreadAnalyzer(object):
 
             # convert type of values #
             self.procData[tid]['stat'] = statList
-            statList[self.minfltIdx] = long(statList[self.minfltIdx])
             statList[self.majfltIdx] = long(statList[self.majfltIdx])
             statList[self.utimeIdx] = long(statList[self.utimeIdx])
             statList[self.stimeIdx] = long(statList[self.stimeIdx])
@@ -12857,11 +12871,9 @@ class ThreadAnalyzer(object):
 
                 # no changed value #
                 if value['changed'] is False:
-                    value['utime'] = value['stime'] = value['ttime'] = value['btime'] = 0
-                    value['cutime'] = value['cstime'] = value['cttime'] = 0
+                    value['utime'] = value['stime'] = value['ttime'] = value['btime'] = value['cttime'] = 0
                     continue
 
-                value['minflt'] = nowData[self.minfltIdx] - prevData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
                 value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
                 if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
@@ -12872,16 +12884,15 @@ class ThreadAnalyzer(object):
                 value['ttime'] = value['utime'] + value['stime']
                 if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
-                value['cutime'] = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
-                value['cstime'] = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
-                value['cttime'] = value['cutime'] + value['cstime']
+                cutime = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
+                cstime = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
+                value['cttime'] = cutime + cstime
                 value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
                 if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
             except:
                 value['new'] = True
                 value['runtime'] = int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
-                value['minflt'] = nowData[self.minfltIdx]
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
                 if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
@@ -12892,9 +12903,9 @@ class ThreadAnalyzer(object):
                 value['ttime'] = value['utime'] + value['stime']
                 if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
-                value['cutime'] = int(nowData[self.cutimeIdx] / interval)
-                value['cstime'] = int(nowData[self.cstimeIdx] / interval)
-                value['cttime'] = value['cutime'] + value['cstime']
+                cutime = int(nowData[self.cutimeIdx] / interval)
+                cstime = int(nowData[self.cstimeIdx] / interval)
+                value['cttime'] = cutime + cstime
                 value['btime'] = int(nowData[self.btimeIdx] / interval)
                 if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
@@ -12998,10 +13009,6 @@ class ThreadAnalyzer(object):
 
             if SystemManager.processEnable is True:
                 pid = value['stat'][self.ppidIdx]
-                '''
-                stackSize = (long(value['stat'][self.sstackIdx]) - \
-                    long(value['stat'][self.estackIdx])) >> 20
-                '''
             else:
                 pid = value['mainID']
                 stackSize = '-'
@@ -13030,8 +13037,7 @@ class ThreadAnalyzer(object):
                 self.saveProcSmapsData(value['taskPath'], idx)
 
             try:
-                vmswp =\
-                    long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
+                vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
             except:
                 vmswp = '-'
             try:
@@ -13142,10 +13148,6 @@ class ThreadAnalyzer(object):
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
-                    '''
-                    stackSize = (long(value['stat'][self.sstackIdx]) - \
-                        long(value['stat'][self.estackIdx])) >> 20
-                    '''
                 else:
                     pid = value['mainID']
                     stackSize = '-'
@@ -13167,8 +13169,7 @@ class ThreadAnalyzer(object):
                 lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
 
                 try:
-                    vmswp = \
-                        long(value['status']['VmSwap'][:value['status']['VmSwap'].find(' kb') - 1]) >> 10
+                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
                 except:
                     vmswp = '-'
                 try:
@@ -13499,7 +13500,7 @@ class ThreadAnalyzer(object):
 
                         try:
                             self.reportData['event']['MEM_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) >> 10
+                                long(data['status']['VmSwap'].split()[0]) >> 10
                         except:
                             pass
 
@@ -13541,7 +13542,7 @@ class ThreadAnalyzer(object):
 
                         try:
                             self.reportData['event']['SWAP_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'][:data['status']['VmSwap'].find(' kb') - 1]) >> 10
+                                long(data['status']['VmSwap'].split()[0]) >> 10
                         except:
                             pass
 
