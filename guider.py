@@ -4730,6 +4730,7 @@ class SystemManager(object):
     customImageEnable = False
     graphEnable = False
     procBuffer = []
+    procInstance = None
     procBufferSize = 0
     bufferString = ''
     bufferRows = 0
@@ -8295,10 +8296,10 @@ class ThreadAnalyzer(object):
 
         # top mode #
         else:
-            self.init_procData = {'comm': '', 'isMain': bool(False), 'tids': None, 'stat': None, \
+            self.init_procData = {'isMain': bool(False), 'tids': None, 'stat': None, 'taskPath': None, \
                 'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
                 'new': bool(False), 'majflt': long(0), 'ttime': float(0), 'cttime': float(0), \
-                'utime': float(0), 'stime': float(0), 'ioFd': None, 'taskPath': None, 'preempted': long(0), \
+                'utime': float(0), 'stime': float(0), 'ioFd': None, 'preempted': long(0), \
                 'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), 'maps': None, \
                 'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
 
@@ -8643,7 +8644,7 @@ class ThreadAnalyzer(object):
                 break
 
         # parse block wait of processes #
-        compareString = '[Top Info]'
+        compareString = '[Top Memory Details]'
         compareLen = len(compareString)
         pname = None
         pid = 0
@@ -10452,9 +10453,149 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printCpuInterval()
         ThreadAnalyzer.printMemInterval()
         ThreadAnalyzer.printBlkInterval()
+        ThreadAnalyzer.printMemAnalysis()
 
         ThreadAnalyzer.procTotalData = {}
         ThreadAnalyzer.procIntervalData = []
+
+
+
+    @staticmethod
+    def printMemAnalysis():
+        if SystemManager.procInstance is None:
+            return
+
+        # Print title #
+        SystemManager.pipePrint('\n[Top Memory Details] [Unit: MB]\n')
+        SystemManager.pipePrint(twoLine + '\n')
+
+        # Print menu #
+        SystemManager.pipePrint(("{0:^16} ({1:^5}/{2:^5}) | {3:^8} | {4:^5} | "
+            "{5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
+            "{11:^12} | {12:^12} |\n{13}\n").\
+            format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
+            'VMEM', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCKED(KB)', \
+            'PDIRTY(KB)', 'SDIRTY(KB)', twoLine))
+
+        cnt = 1
+        commIdx = ConfigManager.statList.index("COMM")
+        ppidIdx = ConfigManager.statList.index("PPID")
+
+        for key, value in sorted(SystemManager.procInstance.items(), \
+            key=lambda e: long(e[1]['stat'][ConfigManager.statList.index("RSS")]), reverse=True):
+            # check filter #
+            if SystemManager.showGroup != []:
+                skip = True
+                for item in SystemManager.showGroup:
+                    if key == item or value['stat'][commIdx].find(item) >= 0:
+                        skip = False
+                        break
+                if skip is True:
+                    continue
+
+            # only print memory details of top 4 processes #
+            if cnt > 4:
+                break
+
+            if value['maps'] is None:
+                # get memory details #
+                ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
+
+            if value['maps'] is not None:
+                cnt += 1
+
+                totalCnt = 0
+                totalVmem = 0
+                totalRss = 0
+                totalPss = 0
+                totalSwap = 0
+                totalHuge = 0
+                totalLock = 0
+                totalPdirty = 0
+                totalSdirty = 0
+
+                procInfo = ' '
+                procDetails = ''
+
+                for idx, item in sorted(value['maps'].items(), reverse=True):
+                    if len(item) == 0:
+                        continue
+
+                    totalCnt += item['count']
+
+                    try:
+                        vmem = item['Size'] >> 10
+                        totalVmem += vmem
+                    except:
+                        vmem = 0
+
+                    try:
+                        rss = item['Rss'] >> 10
+                        totalRss += rss
+                    except:
+                        rss = 0
+
+                    try:
+                        pss = item['Pss'] >> 10
+                        totalPss += pss
+                    except:
+                        pss = 0
+
+                    try:
+                        swap = item['Swap'] >> 10
+                        totalSwap += swap
+                    except:
+                        swap = 0
+
+                    try:
+                        huge = item['AnonHugePages'] >> 10
+                        totalHuge += huge
+                    except:
+                        huge = 0
+
+                    try:
+                        lock = item['Locked']
+                        totalLock += lock
+                    except:
+                        lock = 0
+
+                    try:
+                        pdirty = item['Private_Dirty']
+                        totalPdirty += pdirty
+                    except:
+                        pdirty = 0
+
+                    try:
+                        sdirty = item['Shared_Dirty']
+                        totalSdirty += sdirty
+                    except:
+                        sdirty = 0
+
+                    procDetails = "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
+                        "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
+                        "{9:>12} | {10:>12} |\n").\
+                        format(procInfo, idx, item['count'], \
+                        vmem, rss, pss, swap, huge, lock, pdirty, sdirty))
+
+                if SystemManager.processEnable is True:
+                    ppid = value['stat'][ppidIdx]
+                else:
+                    ppid = value['mainID']
+
+                procInfo = "{0:^16} ({1:>5}/{2:>5})".\
+                        format(value['stat'][commIdx][1:-1], key, ppid)
+
+                SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
+                    "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
+                    "{9:>12} | {10:>12} |\n{11}").\
+                    format(procInfo, '[TOTAL]', totalCnt, \
+                    totalVmem, totalRss, totalPss, totalSwap, totalHuge, totalLock, \
+                    totalPdirty, totalSdirty, procDetails))
+
+                SystemManager.pipePrint('%s\n' % oneLine)
+
+        if cnt == 1:
+            SystemManager.pipePrint("\tNone\n%s\n" % oneLine)
 
 
 
@@ -12241,6 +12382,9 @@ class ThreadAnalyzer(object):
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
             sys.exit(0)
 
+        # save proc instance #
+        SystemManager.procInstance = self.procData
+
         # get thread list in /proc directory #
         for pid in pids:
             try:
@@ -12308,7 +12452,8 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcSmapsData(self, path, tid):
+    @staticmethod
+    def saveProcSmapsData(path, tid):
         buf = ''
         mtype = ''
         ftable = {}
@@ -12320,9 +12465,16 @@ class ThreadAnalyzer(object):
             'Private_Dirty', 'AnonHugePages', 'Swap', 'Locked']
 
         try:
+            SystemManager.procInstance[tid]['maps'] = ptable
+        except:
+            SystemManager.printWarning('Fail to find %s process' % tid)
+            return
+
+        try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
         except:
+            SystemManager.procInstance[tid]['maps'] = None
             SystemManager.printWarning('Fail to open %s' % fpath)
             return
 
@@ -12393,8 +12545,6 @@ class ThreadAnalyzer(object):
 
         # save file number mapped #
         ptable['FILE']['count'] = len(ftable)
-
-        self.procData[tid]['maps'] = ptable
 
         del buf, ptable
 
@@ -12970,7 +13120,7 @@ class ThreadAnalyzer(object):
                 else:
                     if idx in SystemManager.showGroup:
                         pass
-                    elif True in [value['stat'][self.commIdx].rfind(val) >= 0 for val in SystemManager.showGroup]:
+                    elif True in [value['stat'][self.commIdx].find(val) >= 0 for val in SystemManager.showGroup]:
                         pass
                     else:
                         continue
@@ -13034,7 +13184,7 @@ class ThreadAnalyzer(object):
 
             # save memory map info to get memory details #
             if SystemManager.memEnable is True:
-                self.saveProcSmapsData(value['taskPath'], idx)
+                ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             try:
                 vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
