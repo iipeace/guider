@@ -13263,26 +13263,34 @@ class ThreadAnalyzer(object):
 
                         prop = 'Size'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         prop = 'Rss'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         prop = 'Pss'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         prop = 'Swap'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         prop = 'AnonHugePages'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s MB) " % (tmpstr, 'HUGE', item[prop] >> 10)
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
                         prop = 'Locked'
                         if prop in item:
-                            tmpstr = "%s(%s:%4s KB) " % (tmpstr, prop.upper(), item[prop])
-                        prop = 'Dirty'
-                        if 'Shared_Dirty' in item and 'Private_Dirty' in item:
-                            tmpstr = "%s(%s:%7s KB) " % \
-                                (tmpstr, prop.upper(), item['Shared_Dirty'] + item['Private_Dirty'])
+                            tmpstr = "%s%s:%4sK / " % (tmpstr, prop.upper(), item[prop])
+                        if 'Shared_Dirty' in item:
+                            if item['Shared_Dirty'] > 9999:
+                                item['Shared_Dirty'] = item['Shared_Dirty'] >> 10
+                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
+                            else:
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
+                        if 'Private_Dirty' in item:
+                            if item['Private_Dirty'] > 9999:
+                                item['Private_Dirty'] = item['Private_Dirty'] >> 10
+                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                            else:
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
