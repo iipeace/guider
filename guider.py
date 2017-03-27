@@ -5465,10 +5465,12 @@ class SystemManager(object):
             SystemManager.condExit = True
         elif SystemManager.isTopMode():
             if SystemManager.printFile is not None:
-                SystemManager.printTitle()
+                # submit summarized report #
                 ThreadAnalyzer.printIntervalUsage()
-                SystemManager.pipePrint(SystemManager.procBuffer)
+
+                # close log file to sync #
                 SystemManager.fileForPrint.close()
+
                 SystemManager.printInfo("saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
@@ -5499,9 +5501,8 @@ class SystemManager(object):
             if SystemManager.printFile is None:
                 return
 
-            SystemManager.printTitle()
+            # submit summarized report #
             ThreadAnalyzer.printIntervalUsage()
-            SystemManager.pipePrint(SystemManager.procBuffer)
 
             try:
                 SystemManager.fileForPrint.close()
@@ -10447,6 +10448,9 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printIntervalUsage():
+        SystemManager.printTitle()
+
+        # print summarized interval table #
         ThreadAnalyzer.summarizeIntervalUsage()
 
         ThreadAnalyzer.printTimeline()
@@ -10455,6 +10459,14 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printBlkInterval()
         ThreadAnalyzer.printMemAnalysis()
 
+        msg = ' Detailed Statistics '
+        stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
+        SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+
+        # print detailed statistics #
+        SystemManager.pipePrint(SystemManager.procBuffer)
+
+        # initialize parse buffer #
         ThreadAnalyzer.procTotalData = {}
         ThreadAnalyzer.procIntervalData = []
 
@@ -13743,10 +13755,8 @@ class ThreadAnalyzer(object):
             SystemManager.printFile is not None and \
             nrReason > 0:
 
-            # print output into file #
-            SystemManager.printTitle()
+            # submit summarized report #
             ThreadAnalyzer.printIntervalUsage()
-            SystemManager.pipePrint(SystemManager.procBuffer)
 
             # sync and close output file #
             if SystemManager.fileForPrint is not None:
