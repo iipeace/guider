@@ -13338,11 +13338,11 @@ class ThreadAnalyzer(object):
                             prop = 'Private_Dirty'
                             if item['Private_Dirty'] > 9999:
                                 item['Private_Dirty'] = item['Private_Dirty'] >> 10
-                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                                tmpstr = "%s%s:%4sM" % (tmpstr, 'PDIRTY', item['Private_Dirty'])
                             else:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', item['Private_Dirty'])
                         except:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDIRTY', 0)
+                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
