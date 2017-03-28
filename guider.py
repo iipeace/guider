@@ -10233,6 +10233,9 @@ class ThreadAnalyzer(object):
             else:
                 before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
 
+            if 'total' not in val:
+                continue
+
             SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:>6} | {4:>8} | {5:^9} | " +\
                 "{6:>10} | {7:>8} | {8:^12} | {9:>5} | {10:>6} | {11:>6} | {12:>6} | {13:>8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
