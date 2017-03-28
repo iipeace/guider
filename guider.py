@@ -8679,6 +8679,33 @@ class ThreadAnalyzer(object):
                 blkProcUsage[pname]['total'] = total
                 blkProcUsage[pname]['usage'] = intervalList
 
+        # parse memory details of processes #
+        compareString = '[Top Info]'
+        compareLen = len(compareString)
+        pname = None
+        prop = {}
+        pid = 0
+
+        for line in logBuf[finalLine:]:
+            if line[:compareLen] == compareString:
+                break
+
+            finalLine += 1
+
+            sline = line.split('|')
+            slen = len(sline)
+
+            if slen == 12:
+                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
+                if m is not None:
+                    d = m.groupdict()
+                    pid = d['pid']
+                    pname = d['comm'].strip() + '(' + pid + ')'
+                    prop[pid] = {}
+                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
+                elif pid > 0:
+                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
+
         # get total size of RAM and swap #
         line = logBuf[finalLine]
         strPos = line.find('[RAM')
@@ -8889,33 +8916,6 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to draw graph while saving graph")
             return
-
-        # parse memory details of processes #
-        compareString = '[Top Info]'
-        compareLen = len(compareString)
-        pname = None
-        prop = {}
-        pid = 0
-
-        for line in logBuf[finalLine:]:
-            if line[:compareLen] == compareString:
-                break
-
-            finalLine += 1
-
-            sline = line.split('|')
-            slen = len(sline)
-
-            if slen == 12:
-                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
-                if m is not None:
-                    d = m.groupdict()
-                    pid = d['pid']
-                    pname = d['comm'].strip() + '(' + pid + ')'
-                    prop[pid] = {}
-                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
-                elif pid > 0:
-                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
 
 
 
@@ -10302,7 +10302,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['cpu'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10389,7 +10389,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['memDiff'] == 0:
                 continue
 
-            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:4} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:4} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['memDiff'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10446,7 +10446,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['blk'] == 0:
                 continue
 
-            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['blk'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10520,6 +10520,7 @@ class ThreadAnalyzer(object):
             'PDIRTY(KB)', 'SDIRTY(KB)', twoLine))
 
         cnt = 1
+        limitProcCnt = 4
         commIdx = ConfigManager.statList.index("COMM")
         ppidIdx = ConfigManager.statList.index("PPID")
 
@@ -10536,7 +10537,7 @@ class ThreadAnalyzer(object):
                     continue
 
             # only print memory details of top 4 processes #
-            if cnt > 4:
+            if cnt > limitProcCnt:
                 break
 
             if value['maps'] is None:
@@ -10624,7 +10625,7 @@ class ThreadAnalyzer(object):
                 else:
                     ppid = value['mainID']
 
-                procInfo = "{0:^16} ({1:>5}/{2:>5})".\
+                procInfo = "{0:>16} ({1:>5}/{2:>5})".\
                         format(value['stat'][commIdx][1:-1], key, ppid)
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
