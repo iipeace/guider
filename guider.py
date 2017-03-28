@@ -8636,7 +8636,7 @@ class ThreadAnalyzer(object):
                 cpuProcUsage[pname]['average'] = average
                 cpuProcUsage[pname]['usage'] = intervalList
 
-        # trim log from Block Info #
+        # parse memory usage of processes #
         compareString = '[Top Block Info]'
         compareLen = len(compareString)
         for line in logBuf[finalLine:]:
@@ -8679,7 +8679,7 @@ class ThreadAnalyzer(object):
                 blkProcUsage[pname]['total'] = total
                 blkProcUsage[pname]['usage'] = intervalList
 
-        # get total size of RAM and Swap #
+        # get total size of RAM and swap #
         line = logBuf[finalLine]
         strPos = line.find('[RAM')
         sline = line[strPos:].split()
@@ -8889,6 +8889,33 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to draw graph while saving graph")
             return
+
+        # parse memory details of processes #
+        compareString = '[Top Info]'
+        compareLen = len(compareString)
+        pname = None
+        prop = {}
+        pid = 0
+
+        for line in logBuf[finalLine:]:
+            if line[:compareLen] == compareString:
+                break
+
+            finalLine += 1
+
+            sline = line.split('|')
+            slen = len(sline)
+
+            if slen == 12:
+                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
+                if m is not None:
+                    d = m.groupdict()
+                    pid = d['pid']
+                    pname = d['comm'].strip() + '(' + pid + ')'
+                    prop[pid] = {}
+                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
+                elif pid > 0:
+                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
 
 
 
@@ -10594,7 +10621,7 @@ class ThreadAnalyzer(object):
                 else:
                     ppid = value['mainID']
 
-                procInfo = "{0:^16} ({1:>5}/{2:>5})".\
+                procInfo = "{0:^16} ({1:^5}/{2:^5})".\
                         format(value['stat'][commIdx][1:-1], key, ppid)
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
@@ -13261,36 +13288,61 @@ class ThreadAnalyzer(object):
                         if len(item) == 0:
                             continue
 
-                        prop = 'Size'
-                        if prop in item:
+                        try:
+                            prop = 'Size'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        prop = 'Rss'
-                        if prop in item:
+                        except:
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+
+                        try:
+                            prop = 'Rss'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        prop = 'Pss'
-                        if prop in item:
+                        except:
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+
+                        try:
+                            prop = 'Pss'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        prop = 'Swap'
-                        if prop in item:
+                        except:
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+
+                        try:
+                            prop = 'Swap'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        prop = 'AnonHugePages'
-                        if prop in item:
+                        except:
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+
+                        try:
+                            prop = 'AnonHugePages'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
-                        prop = 'Locked'
-                        if prop in item:
+                        except:
+                            tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', 0)
+
+                        try:
+                            prop = 'Locked'
                             tmpstr = "%s%s:%4sK / " % (tmpstr, prop.upper(), item[prop])
-                        if 'Shared_Dirty' in item:
+                        except:
+                            tmpstr = "%s%s:%4sK / " % (tmpstr, prop.upper(), 0)
+
+                        try:
+                            prop = 'Shared_Dirty'
                             if item['Shared_Dirty'] > 9999:
                                 item['Shared_Dirty'] = item['Shared_Dirty'] >> 10
                                 tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
                             else:
                                 tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
-                        if 'Private_Dirty' in item:
+                        except:
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', 0)
+
+                        try:
+                            prop = 'Private_Dirty'
                             if item['Private_Dirty'] > 9999:
                                 item['Private_Dirty'] = item['Private_Dirty'] >> 10
                                 tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
                             else:
                                 tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                        except:
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDIRTY', 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
