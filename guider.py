@@ -10159,8 +10159,8 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
             pid = d['pid']
 
-            # ignore already terminated process #
-            if d['comm'][0] == '#':
+            # ignore created / terminated process #
+            if d['comm'][0] == '+' or d['comm'][0] == '-':
                 return
 
             if pid not in ThreadAnalyzer.procTotalData:
@@ -13204,7 +13204,6 @@ class ThreadAnalyzer(object):
                 pid = value['stat'][self.ppidIdx]
             else:
                 pid = value['mainID']
-                stackSize = '-'
 
             codeSize = (long(value['stat'][self.ecodeIdx]) - \
                 long(value['stat'][self.scodeIdx])) >> 20
@@ -13366,17 +13365,83 @@ class ThreadAnalyzer(object):
         if SystemManager.memEnable is False:
             SystemManager.addPrint(oneLine + '\n')
 
-        # close fd that thread who already termiated created because of limited resource #
-        dieCnt = 0
-        for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
-            if value['alive'] is False:
-                comm = '#' + value['stat'][self.commIdx][1:-1]
+        # print new processes #
+        newCnt = 0
+        for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
+            if value['new'] is True:
+                comm = '+' + value['stat'][self.commIdx][1:-1]
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
                 else:
                     pid = value['mainID']
-                    stackSize = '-'
+
+                codeSize = (long(value['stat'][self.ecodeIdx]) - \
+                    long(value['stat'][self.scodeIdx])) >> 20
+
+                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                else:
+                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+
+                runtimeSec = value['runtime'] + SystemManager.uptimeDiff
+                runtimeMin = runtimeSec / 60
+                runtimeHour = runtimeMin / 60
+                if runtimeHour > 0:
+                    runtimeMin %= 60
+                runtimeSec %= 60
+                lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
+
+                try:
+                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
+                except:
+                    vmswp = '-'
+                try:
+                    shr = long(value['statm'][self.shrIdx]) >> 8
+                except:
+                    shr = '-'
+
+                if SystemManager.diskEnable is True:
+                    readSize = value['read'] >> 20
+                    writeSize = value['write'] >> 20
+                else:
+                    readSize = '-'
+                    writeSize = '-'
+
+                # print terminated thread information #
+                SystemManager.addPrint(\
+                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
+                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    int(value['ttime']), int(value['utime']), int(value['stime']), int(value['cttime']), \
+                    long(value['stat'][self.vsizeIdx]) >> 20, \
+                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    int(value['btime']), readSize, writeSize, value['majflt'],\
+                    '-', '-', '-', lifeTime))
+                newCnt += 1
+
+            else:
+                if newCnt > 0:
+                    SystemManager.addPrint(oneLine + '\n')
+                break
+
+            # cut by rows of terminal #
+            if SystemManager.printFile is None and \
+                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5:
+                return
+
+        # print die processes #
+        dieCnt = 0
+        for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
+            if value['alive'] is False:
+                comm = '-' + value['stat'][self.commIdx][1:-1]
+
+                if SystemManager.processEnable is True:
+                    pid = value['stat'][self.ppidIdx]
+                else:
+                    pid = value['mainID']
 
                 codeSize = (long(value['stat'][self.ecodeIdx]) - \
                     long(value['stat'][self.scodeIdx])) >> 20
@@ -13424,6 +13489,7 @@ class ThreadAnalyzer(object):
                     '-', '-', '-', lifeTime))
                 dieCnt += 1
 
+                # close fd that thread who already termiated created because of limited resource #
                 try:
                     if value['statFd'] is not None:
                         value['statFd'].close()
