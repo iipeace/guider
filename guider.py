@@ -13352,7 +13352,7 @@ class ThreadAnalyzer(object):
 
                         # cut by rows of terminal #
                         if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
-                                SystemManager.printFile is None:
+                            SystemManager.printFile is None:
                             return
 
                 SystemManager.addPrint(oneLine + '\n')
@@ -13361,8 +13361,8 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n".format('None'))
-
-        if SystemManager.memEnable is False:
+            SystemManager.addPrint(oneLine + '\n')
+        elif SystemManager.memEnable is False:
             SystemManager.addPrint(oneLine + '\n')
 
         # print new processes #
@@ -14213,7 +14213,7 @@ if __name__ == '__main__':
     # parse analysis option #
     SystemManager.parseAnalOption()
 
-    # save kernel function_graph and termiate #
+    # save kernel function_graph and terminate #
     if SystemManager.isRecordMode() and \
         SystemManager.isFunctionMode() and \
         SystemManager.graphEnable:
