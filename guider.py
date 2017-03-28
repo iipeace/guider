@@ -5679,6 +5679,7 @@ class SystemManager(object):
     def clearPrint():
         del SystemManager.bufferString
         SystemManager.bufferString = ''
+        SystemManager.bufferRows = 0
 
 
 
@@ -9222,7 +9223,7 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + \
                 '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
-                '[Usage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
+                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
@@ -13365,7 +13366,12 @@ class ThreadAnalyzer(object):
         elif SystemManager.memEnable is False:
             SystemManager.addPrint(oneLine + '\n')
 
-        # print new processes #
+        self.printNewProcess()
+        self.printDieProcess()
+
+
+
+    def printNewProcess(self):
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
             if value['new'] is True:
@@ -13432,7 +13438,9 @@ class ThreadAnalyzer(object):
                 int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5:
                 return
 
-        # print die processes #
+
+
+    def printDieProcess(self):
         dieCnt = 0
         for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
             if value['alive'] is False:
@@ -13626,13 +13634,11 @@ class ThreadAnalyzer(object):
             if SystemManager.printFile is None:
                 SystemManager.pipePrint(data)
                 SystemManager.clearPrint()
-                SystemManager.bufferRows = 0
             # buffered mode #
             else:
                 SystemManager.procBuffer.insert(0, data)
                 SystemManager.procBufferSize += len(data)
                 SystemManager.clearPrint()
-                SystemManager.bufferRows = 0
 
                 while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
                     SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -13974,13 +13980,11 @@ class ThreadAnalyzer(object):
         if SystemManager.printFile is None:
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
-            SystemManager.bufferRows = 0
         # buffered mode #
         else:
             SystemManager.procBuffer[:0] = [SystemManager.bufferString]
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
-            SystemManager.bufferRows = 0
 
             while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
