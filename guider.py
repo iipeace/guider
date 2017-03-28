@@ -10299,7 +10299,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['cpu'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10386,7 +10386,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['memDiff'] == 0:
                 continue
 
-            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:4} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['memDiff'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10443,7 +10443,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['blk'] == 0:
                 continue
 
-            procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], value['pri'], value['blk'])
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
@@ -10621,7 +10621,7 @@ class ThreadAnalyzer(object):
                 else:
                     ppid = value['mainID']
 
-                procInfo = "{0:^16} ({1:^5}/{2:^5})".\
+                procInfo = "{0:^16} ({1:>5}/{2:>5})".\
                         format(value['stat'][commIdx][1:-1], key, ppid)
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
