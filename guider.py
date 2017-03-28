@@ -8401,9 +8401,6 @@ class ThreadAnalyzer(object):
             self.requestService()
 
             while 1:
-                # save timestamp #
-                prevTime = time.time()
-
                 if SystemManager.addrOfServer is not None:
                     # receive response from server #
                     ret = SystemManager.addrAsServer.recv()
@@ -8415,6 +8412,9 @@ class ThreadAnalyzer(object):
 
                 # collect system stats as soon as possible #
                 self.saveSystemStat()
+
+                # save timestamp #
+                prevTime = time.time()
 
                 if self.prevProcData != {}:
                     if SystemManager.printFile is None:
@@ -13335,7 +13335,7 @@ class ThreadAnalyzer(object):
                             else:
                                 tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
                         except:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', 0)
+                            tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', 0)
 
                         try:
                             prop = 'Private_Dirty'
@@ -13345,7 +13345,7 @@ class ThreadAnalyzer(object):
                             else:
                                 tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', item['Private_Dirty'])
                         except:
-                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', 0)
+                            tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
@@ -14340,4 +14340,3 @@ if __name__ == '__main__':
     if SystemManager.selectMenu != None:
         # make file related to taskchain #
         ti.makeTaskChainList()
-
