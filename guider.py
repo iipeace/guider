@@ -8999,6 +8999,19 @@ class ThreadAnalyzer(object):
 
 
 
+    @staticmethod
+    def getCoreId(string):
+        try:
+            offset = string.rfind('/')
+            if offset >= 0:
+                return int(string[offset+1:])
+            else:
+                return -1
+        except:
+            return -1
+
+
+
     def printUsage(self):
         # print title #
         SystemManager.printTitle()
@@ -9044,10 +9057,11 @@ class ThreadAnalyzer(object):
             if value['writeBlock'] > 0:
                 value['writeBlock'] = (value['writeBlock'] * SystemManager.pageSize) >> 20
 
-       # print total information after sorting by time of cpu usage #
+        # print total information after sorting by time of cpu usage #
         count = 0
         SystemManager.clearPrint()
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
+        for key, value in sorted(self.threadData.items(), \
+            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
             if key[0:2] == '0[':
                 # change the name of swapper thread to CORE #
                 value['comm'] = value['comm'].replace("swapper", "CORE")
@@ -9573,7 +9587,8 @@ class ThreadAnalyzer(object):
 
 
     def printIntervalInfo(self):
-        if SystemManager.intervalEnable <= 0:
+        if SystemManager.intervalEnable <= 0 or \
+            not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
             return
 
         SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % \
@@ -9631,7 +9646,8 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
 
         # total CPU usage on timeline #
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm'], reverse=False):
+        for key, value in sorted(self.threadData.items(), \
+            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
             if key[0:2] == '0[':
                 icount = 0
                 timeLine = ''
