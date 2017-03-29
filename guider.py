@@ -628,28 +628,21 @@ class PageAnalyzer(object):
         start = hex(start).rstrip('L')
         end = hex(end).rstrip('L')
 
+        # print menu #
         menuStr = ''
+        menuList = ['AREA', 'PERM', 'INODE', 'DEV', 'OFFSET']
         menuBuf = str(buf[0]).split()
         for idx, value in enumerate(menuBuf):
-            if idx == 0:
-                text = 'AREA'
-            elif idx == 1:
-                text = 'PERM'
-            elif idx == 2:
-                text = 'INODE'
-            elif idx == 3:
-                text = 'DEV'
-            elif idx == 4:
-                text = 'OFFSET'
+            if idx < 5:
+                text = menuList[idx]
             else:
                 break
 
             value = ' ' * (len(value) - len(text) + 1)
             menuStr = '%s%s' % (menuStr, text + value)
-
         print('%s\t%s\n%s' % (menuStr, 'PROPERTY', oneLine))
 
-
+        # print maps info #
         for line in buf:
             if line.find('-') >= 0:
                 tmplist = line.split()
