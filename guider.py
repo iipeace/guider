@@ -8717,10 +8717,10 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     pid = d['pid']
                     pname = d['comm'].strip() + '(' + pid + ')'
-                    prop[pid] = {}
-                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
+                    prop[pname] = {}
+                    prop[pname][sline[1].strip()] = map(int, sline[2:-1])
                 elif pid > 0:
-                    prop[pid][sline[1].strip()] = map(int, sline[2:-1])
+                    prop[pname][sline[1].strip()] = map(int, sline[2:-1])
 
         # get total size of RAM and swap #
         line = logBuf[finalLine]
@@ -8735,12 +8735,119 @@ class ThreadAnalyzer(object):
         except:
             totalSwap = None
 
+        # draw graph and save it #
+        self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
+            blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap)
+        self.saveImage(logFile, 'graph')
+
+        # draw chart and save it #
+        self.drawChart(prop)
+        self.saveImage(logFile, 'chart')
+
+
+
+    def drawChart(self, data):
+        '''
+        try:
+        '''
+        seq = 0
+        height = len(data) / 2
+        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
+        title('guider top chart (%s)' % __version__, fontsize=5)
+
+        def make_autopct(values):
+            def autopct(pct):
+                total = sum(values)
+                val = int(round(pct*total/100.0))
+                usage = '* {v:d}MB ({p:.0f}%)'.format(p=pct,v=val)
+                line = '-' * len(usage) * 2
+                string = '{s:1}\n{l:1}{d:1}'.\
+                    format(s=usage,d=self.details[self.tmpCnt],l=line)
+                self.tmpCnt += 1
+                return string
+            return autopct
+
+        for idx, item in data.items():
+            labels = []
+            sizes = []
+            explode = []
+            self.details = []
+            self.tmpCnt = 0
+            colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
+
+            for prop, value in item.items():
+                if value[propList.index('rss')] > 0 and prop != '[TOTAL]':
+                    labels.append(prop)
+                    sizes.append(value[propList.index('rss')] + value[propList.index('swap')])
+
+                    # set private dirty unit #
+                    pdrt = value[propList.index('pdirty')]
+                    if pdrt > 1 << 10:
+                        pdrt = '%dMB' % (pdrt >> 10)
+                    else:
+                        pdrt = '%dKB' % (pdrt)
+
+                    # set shared dirty unit #
+                    sdrt = value[propList.index('sdirty')]
+                    if sdrt > 1 << 10:
+                        sdrt = '%dMB' % (sdrt >> 10)
+                    else:
+                        sdrt = '%dKB' % (sdrt)
+
+                    self.details.append(\
+                        '\n\n[RSS: %sMB]\n[SWAP: %sMB]\n[LOCK: %sKB]\n[PDRT: %s]\n[SDRT: %s]' %\
+                        (value[propList.index('rss')], value[propList.index('swap')],\
+                        value[propList.index('locked')], pdrt, sdrt))
+
+            # convert labels to tuple #
+            labels = tuple(labels)
+
+            # find index of max value and mark it #
+            explode = [0] * len(sizes)
+            explode[sizes.index(max(sizes))] = 0.03
+
+            # set size and position of this chart #
+            ypos = seq >> 1
+            xpos = seq - (ypos << 1)
+            ax = subplot2grid((height,2), (ypos,xpos), rowspan=1, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            # get total size #
+            rss = item['[TOTAL]'][propList.index('rss')]
+            swap = item['[TOTAL]'][propList.index('swap')]
+            totalList = ['[ %s ]\n- TOTAL: %sMB\n- RSS: %sMB\n- SWAP: %sMB' % (idx, rss+swap, rss, swap)]
+
+            # draw chart #
+            patches, texts, autotexts = \
+                pie(sizes, explode=explode, labels=labels, colors=colors,
+                autopct=make_autopct(sizes), shadow=True, startangle=90, pctdistance=0.7)
+            for val in texts:
+                val.set_fontsize(7)
+            for val in autotexts:
+                val.set_fontsize(4.5)
+            legend(patches, totalList, loc="best", fontsize=5, handlelength=0)
+            axis('equal')
+
+            seq += 1
+
+        # draw image #
+        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+        '''
+        except:
+            SystemManager.printError("Fail to draw chart while setting property")
+            return
+        '''
+
+
+
+    def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
+        blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap):
         try:
             # CPU total usage #
             ymax = 0
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider top report')
+            title('guider top graph (%s)' % __version__, fontsize=8)
 
             for idx, item in enumerate(blkWait):
                 blkWait[idx] += cpuUsage[idx]
@@ -8888,11 +8995,13 @@ class ThreadAnalyzer(object):
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
             labelList = []
-
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
 
+
+
+    def saveImage(self, logFile, itype):
         try:
             # build output file name #
             outputFile = logFile
@@ -8901,18 +9010,18 @@ class ThreadAnalyzer(object):
             if dirPos < 0:
                 expandPos = logFile.rfind('.')
                 if expandPos < 0:
-                    outputFile = "guider.png"
+                    outputFile = 'guider.png'
                 else:
-                    outputFile = outputFile[:expandPos] + ".png"
+                    outputFile = '%s_%s.png' % (outputFile[:expandPos], itype)
             else:
                 dirPath = outputFile[:dirPos + 1]
                 fileName = outputFile[dirPos + 1:]
 
                 expandPos = fileName.rfind('.')
                 if expandPos < 0:
-                    outputFile = dirPath + "guider.png"
+                    outputFile = '%sguider_%s.png' % (dirPath, itype)
                 else:
-                    outputFile = dirPath + fileName[:expandPos] + ".png"
+                    outputFile = '%s%s_%s.png' % (dirPath, fileName[:expandPos], itype)
 
             if SystemManager.printFile is not None:
                 dirPath = os.path.dirname(SystemManager.printFile)
@@ -8921,7 +9030,7 @@ class ThreadAnalyzer(object):
                 else:
                     outputFile = dirPath + '/' + os.path.basename(outputFile)
         except:
-            SystemManager.printError("Fail to draw graph while building file name")
+            SystemManager.printError("Fail to draw image caused by wrong file path %s" % outputFile)
             return
 
         try:
@@ -8930,7 +9039,7 @@ class ThreadAnalyzer(object):
             clf()
             SystemManager.printStatus("write resource graph to %s" % outputFile)
         except:
-            SystemManager.printError("Fail to draw graph while saving graph")
+            SystemManager.printError("Fail to draw image caused by save error")
             return
 
 
@@ -14263,7 +14372,7 @@ if __name__ == '__main__':
             import matplotlib
             matplotlib.use('Agg')
             from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, text,\
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, pie, axis,\
                 subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
                 grid, yticks, xticks, locator_params, subplot2grid, ylim, tick_params
             from matplotlib.ticker import MaxNLocator
