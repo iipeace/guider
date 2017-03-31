@@ -8736,24 +8736,29 @@ class ThreadAnalyzer(object):
             totalSwap = None
 
         # draw graph and save it #
-        self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
-            blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap)
+        try:
+            self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
+                blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap)
+        except:
+            SystemManager.printError("Fail to draw graph while setting property")
+            return
         self.saveImage(logFile, 'graph')
 
         # draw chart and save it #
-        self.drawChart(prop)
+        try:
+            self.drawChart(prop)
+        except:
+            SystemManager.printError("Fail to draw chart while setting property")
+            return
         self.saveImage(logFile, 'chart')
 
 
 
     def drawChart(self, data):
-        '''
-        try:
-        '''
         seq = 0
         height = len(data) / 2
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
-        title('guider top chart (%s)' % __version__, fontsize=5)
+        suptitle('guider top memory chart (%s)' % __version__, fontsize=8)
 
         def make_autopct(values):
             def autopct(pct):
@@ -8767,7 +8772,9 @@ class ThreadAnalyzer(object):
                 return string
             return autopct
 
-        for idx, item in data.items():
+        for idx, item in sorted(data.items(),\
+            key=lambda e: e[1]['[TOTAL]'][propList.index('rss')] +\
+            e[1]['[TOTAL]'][propList.index('swap')], reverse=True):
             labels = []
             sizes = []
             explode = []
@@ -8776,26 +8783,27 @@ class ThreadAnalyzer(object):
             colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
 
             for prop, value in item.items():
-                if value[propList.index('rss')] > 0 and prop != '[TOTAL]':
+                if prop != '[TOTAL]' and \
+                    (value[propList.index('rss')] > 0 or value[propList.index('swap')] > 0):
                     labels.append(prop)
                     sizes.append(value[propList.index('rss')] + value[propList.index('swap')])
 
                     # set private dirty unit #
                     pdrt = value[propList.index('pdirty')]
                     if pdrt > 1 << 10:
-                        pdrt = '%dMB' % (pdrt >> 10)
+                        pdrt = '%d MB' % (pdrt >> 10)
                     else:
-                        pdrt = '%dKB' % (pdrt)
+                        pdrt = '%d KB' % (pdrt)
 
                     # set shared dirty unit #
                     sdrt = value[propList.index('sdirty')]
                     if sdrt > 1 << 10:
-                        sdrt = '%dMB' % (sdrt >> 10)
+                        sdrt = '%d MB' % (sdrt >> 10)
                     else:
-                        sdrt = '%dKB' % (sdrt)
+                        sdrt = '%d KB' % (sdrt)
 
                     self.details.append(\
-                        '\n\n[RSS: %sMB]\n[SWAP: %sMB]\n[LOCK: %sKB]\n[PDRT: %s]\n[SDRT: %s]' %\
+                        '\n- RSS: %s MB\n- SWAP: %s MB\n- LOCK: %s KB\n- PDRT: %s\n- SDRT: %s' %\
                         (value[propList.index('rss')], value[propList.index('swap')],\
                         value[propList.index('locked')], pdrt, sdrt))
 
@@ -8813,191 +8821,196 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             # get total size #
+            line = '_' * len(idx) * 1
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            totalList = ['[ %s ]\n- TOTAL: %sMB\n- RSS: %sMB\n- SWAP: %sMB' % (idx, rss+swap, rss, swap)]
+            lock = item['[TOTAL]'][propList.index('locked')]
+            dirty = item['[TOTAL]'][propList.index('pdirty')] + item['[TOTAL]'][propList.index('sdirty')]
+            if dirty > 1 << 10:
+                dirty = '%d MB' % (dirty >> 10)
+            else:
+                dirty = '%d KB' % (dirty)
+            totalList =\
+                ['%s\n%s\n\n- TOTAL: %s MB\n- RSS: %s MB\n- SWAP: %s MB\n- LOCK: %s KB\n- DIRTY: %s' %\
+                (idx, line, rss+swap, rss, swap, lock, dirty)]
 
             # draw chart #
             patches, texts, autotexts = \
                 pie(sizes, explode=explode, labels=labels, colors=colors,
                 autopct=make_autopct(sizes), shadow=True, startangle=90, pctdistance=0.7)
-            for val in texts:
+
+            # set font size #
+            for idx, val in enumerate(texts):
                 val.set_fontsize(7)
-            for val in autotexts:
-                val.set_fontsize(4.5)
-            legend(patches, totalList, loc="best", fontsize=5, handlelength=0)
+                autotexts[idx].set_fontsize(3.5)
             axis('equal')
+
+            # print total size in legend #
+            legend(patches, totalList, loc="lower right",\
+                fontsize=4.5, handlelength=0, bbox_to_anchor=(1.1, 0.01))
 
             seq += 1
 
         # draw image #
-        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
-        '''
-        except:
-            SystemManager.printError("Fail to draw chart while setting property")
-            return
-        '''
+        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k').\
+            subplots_adjust(left=0.01, top=0.9, bottom=0.01, hspace=0.1, wspace=0.1)
 
 
 
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
         blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap):
-        try:
-            # CPU total usage #
-            ymax = 0
-            ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider top graph (%s)' % __version__, fontsize=8)
+        # CPU total usage #
+        ymax = 0
+        ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        suptitle('guider top graph (%s)' % __version__, fontsize=8)
 
-            for idx, item in enumerate(blkWait):
-                blkWait[idx] += cpuUsage[idx]
-                if ymax < blkWait[idx]:
-                    ymax = blkWait[idx]
+        for idx, item in enumerate(blkWait):
+            blkWait[idx] += cpuUsage[idx]
+            if ymax < blkWait[idx]:
+                ymax = blkWait[idx]
 
-            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-            labelList.append('[ CPU + I/O ]')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-            labelList.append('[ CPU Only ]')
+        plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+        labelList.append('[ CPU + I/O ]')
+        plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+        labelList.append('[ CPU Only ]')
 
-            # CPU usage of processes #
-            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
-                usage = item['usage'].split()
-                usage = map(int, usage)
-                cpuUsage = list(usage)
+        # CPU usage of processes #
+        for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+            usage = item['usage'].split()
+            usage = map(int, usage)
+            cpuUsage = list(usage)
 
-                # merge cpu usage and wait time of processes #
-                try:
-                    blkUsage = blkProcUsage[idx]['usage'].split()
-                    blkUsage = map(int, blkUsage)
-                    for interval, value in enumerate(blkUsage):
-                        usage[interval] += value
-                except:
-                    pass
-
-                maxusage = max(usage)
-                if ymax < maxusage:
-                    ymax = maxusage
-
-                maxIdx = usage.index(maxusage)
-                color = plot(timeline, usage, '-')[0].get_color()
-
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / len(ytick)
-                else:
-                    margin = 0
-
-                maxCpuPer = str(cpuUsage[maxIdx])
-                if idx in blkProcUsage:
-                    maxBlkPer = str(blkUsage[maxIdx])
-                else:
-                    maxBlkPer = '0'
-                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
-                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
-                        fontsize=3, color=color, fontweight='bold')
-                labelList.append(idx)
-
-            ylabel('CPU+I/O(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
-            tick_params(axis='x', direction='in')
-            tick_params(axis='y', direction='in')
-            xticks(fontsize = 4)
-            ylim([0, ymax])
-            inc = ymax / 10
-            if inc == 0:
-                inc = 1
-            yticks(xrange(0, ymax + inc, inc), fontsize = 5)
-            ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
-            labelList = []
-
-            # MEMORY usage #
-            ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-
-            usage = map(int, memFree)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
+            # merge cpu usage and wait time of processes #
+            try:
+                blkUsage = blkProcUsage[idx]['usage'].split()
+                blkUsage = map(int, blkUsage)
+                for interval, value in enumerate(blkUsage):
+                    usage[interval] += value
+            except:
                 pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='blue', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '-', c='blue', linewidth=1)
-                if totalRAM is not None:
-                    labelList.append('RAM Free (<' + totalRAM + ')')
-                else:
-                    labelList.append('RAM Free')
 
-            usage = map(int, swapUsage)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
-                if totalSwap is not None:
-                    labelList.append('Swap Usage (<' + totalSwap + ')')
-                else:
-                    labelList.append('Swap Usage')
+            maxusage = max(usage)
+            if ymax < maxusage:
+                ymax = maxusage
 
-            usage = map(int, blkRead)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='red', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='red', fontweight='bold')
-                plot(timeline, blkRead, '-', c='red', linewidth=1)
-                labelList.append('Block Read')
+            maxIdx = usage.index(maxusage)
+            color = plot(timeline, usage, '-')[0].get_color()
 
-            usage = map(int, blkWrite)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+            ytick = yticks()[0]
+            if len(ytick) > 1:
+                margin = (ytick[1] - ytick[0]) / len(ytick)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='green', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='green', fontweight='bold')
-                plot(timeline, blkWrite, '-', c='green', linewidth=1)
-                labelList.append('Block Write')
+                margin = 0
 
-            ylabel('MEMORY(MB)', fontsize=7)
-            legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
-            tick_params(axis='x', direction='in')
-            tick_params(axis='y', direction='in')
-            yticks(fontsize = 5)
-            xticks(fontsize = 4)
-            ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
-            labelList = []
-        except:
-            SystemManager.printError("Fail to draw graph while setting property")
-            return
+            maxCpuPer = str(cpuUsage[maxIdx])
+            if idx in blkProcUsage:
+                maxBlkPer = str(blkUsage[maxIdx])
+            else:
+                maxBlkPer = '0'
+            maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
+            text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
+                    fontsize=3, color=color, fontweight='bold')
+            labelList.append(idx)
+
+        ylabel('CPU+I/O(%)', fontsize=8)
+        legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+        grid(which='both', linestyle=':', linewidth='0.2')
+        tick_params(axis='x', direction='in')
+        tick_params(axis='y', direction='in')
+        xticks(fontsize = 4)
+        ylim([0, ymax])
+        inc = ymax / 10
+        if inc == 0:
+            inc = 1
+        yticks(xrange(0, ymax + inc, inc), fontsize = 5)
+        ticklabel_format(useOffset=False)
+        locator_params(axis = 'x', nbins=30)
+        figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+            subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+        labelList = []
+
+        # MEMORY usage #
+        ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        usage = map(int, memFree)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='blue', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='blue', fontweight='bold')
+            plot(timeline, usage, '-', c='blue', linewidth=1)
+            if totalRAM is not None:
+                labelList.append('RAM Free (<' + totalRAM + ')')
+            else:
+                labelList.append('RAM Free')
+
+        usage = map(int, swapUsage)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='orange', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='orange', fontweight='bold')
+            plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+            if totalSwap is not None:
+                labelList.append('Swap Usage (<' + totalSwap + ')')
+            else:
+                labelList.append('Swap Usage')
+
+        usage = map(int, blkRead)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            plot(timeline, blkRead, '-', c='red', linewidth=1)
+            labelList.append('Block Read')
+
+        usage = map(int, blkWrite)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            plot(timeline, blkWrite, '-', c='green', linewidth=1)
+            labelList.append('Block Write')
+
+        ylabel('MEMORY(MB)', fontsize=7)
+        legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
+        grid(which='both', linestyle=':', linewidth='0.2')
+        tick_params(axis='x', direction='in')
+        tick_params(axis='y', direction='in')
+        yticks(fontsize = 5)
+        xticks(fontsize = 4)
+        ticklabel_format(useOffset=False)
+        locator_params(axis = 'x', nbins=30)
+        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+        labelList = []
 
 
 
@@ -10661,7 +10674,7 @@ class ThreadAnalyzer(object):
             'PDIRTY(KB)', 'SDIRTY(KB)', twoLine))
 
         cnt = 1
-        limitProcCnt = 4
+        limitProcCnt = 6
         commIdx = ConfigManager.statList.index("COMM")
         ppidIdx = ConfigManager.statList.index("PPID")
 
@@ -14373,7 +14386,7 @@ if __name__ == '__main__':
             matplotlib.use('Agg')
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text, pie, axis,\
-                subplots_adjust, legend, figure, savefig, clf, ticklabel_format,\
+                subplots_adjust, legend, figure, savefig, clf, ticklabel_format, suptitle,\
                 grid, yticks, xticks, locator_params, subplot2grid, ylim, tick_params
             from matplotlib.ticker import MaxNLocator
         except ImportError:
