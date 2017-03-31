@@ -9085,7 +9085,7 @@ class ThreadAnalyzer(object):
             # save graph #
             savefig(outputFile, dpi=(300))
             clf()
-            SystemManager.printStatus("write resource image to %s" % outputFile)
+            SystemManager.printStatus("write resource %s to %s" % (itype, outputFile))
         except:
             SystemManager.printError("Fail to draw image caused by save error")
             return
