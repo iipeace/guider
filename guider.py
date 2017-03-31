@@ -8758,7 +8758,7 @@ class ThreadAnalyzer(object):
         seq = 0
         height = len(data) / 2
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
-        suptitle('guider top memory chart (%s)' % __version__, fontsize=8)
+        suptitle('guider top memory chart (ver %s)' % __version__, fontsize=8)
 
         def make_autopct(values):
             def autopct(pct):
@@ -8863,7 +8863,7 @@ class ThreadAnalyzer(object):
         ymax = 0
         ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        suptitle('guider top graph (%s)' % __version__, fontsize=8)
+        suptitle('guider top graph (ver %s)' % __version__, fontsize=8)
 
         for idx, item in enumerate(blkWait):
             blkWait[idx] += cpuUsage[idx]
