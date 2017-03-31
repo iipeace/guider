@@ -8853,7 +8853,7 @@ class ThreadAnalyzer(object):
 
         # draw image #
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k').\
-            subplots_adjust(left=0.01, top=0.9, bottom=0.01, hspace=0.1, wspace=0.1)
+            subplots_adjust(left=0, top=0.9, bottom=0.01, hspace=0.1, wspace=0.1)
 
 
 
@@ -8875,6 +8875,9 @@ class ThreadAnalyzer(object):
         plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
         labelList.append('[ CPU Only ]')
 
+        # initialize list that count the number of process using resource more than 1% #
+        effectProcList = [0] * len(timeline)
+
         # CPU usage of processes #
         for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
             usage = item['usage'].split()
@@ -8890,6 +8893,12 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
+            # increase effectProcList count #
+            for seq, cnt in enumerate(usage):
+                if cnt > 0:
+                    effectProcList[seq] += 1
+
+            # get max usage #
             maxusage = max(usage)
             if ymax < maxusage:
                 ymax = maxusage
@@ -8930,6 +8939,15 @@ class ThreadAnalyzer(object):
             subplots_adjust(left=0.06, top=0.95, bottom=0.04)
         labelList = []
 
+        xtickLabel = ax.get_xticks().tolist()
+        for seq, cnt in enumerate(xtickLabel):
+            try:
+                xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+            except:
+                xtickLabel[seq] = ' '
+        xtickLabel[-1] = 'PROC(NR)'
+        ax.set_xticklabels(xtickLabel)
+
         # MEMORY usage #
         ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -8945,6 +8963,9 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='blue', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='blue', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
                         fontsize=5, color='blue', fontweight='bold')
             plot(timeline, usage, '-', c='blue', linewidth=1)
             if totalRAM is not None:
@@ -8964,6 +8985,9 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='orange', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='orange', fontweight='bold')
             plot(timeline, swapUsage, '-', c='orange', linewidth=1)
             if totalSwap is not None:
                 labelList.append('Swap Usage (<' + totalSwap + ')')
@@ -8982,6 +9006,9 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='red', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='red', fontweight='bold')
             plot(timeline, blkRead, '-', c='red', linewidth=1)
             labelList.append('Block Read')
 
@@ -8997,6 +9024,9 @@ class ThreadAnalyzer(object):
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                         fontsize=5, color='green', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='green', fontweight='bold')
             plot(timeline, blkWrite, '-', c='green', linewidth=1)
             labelList.append('Block Write')
 
@@ -9011,6 +9041,11 @@ class ThreadAnalyzer(object):
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
         labelList = []
+
+        xtickLabel = ax.get_xticks().tolist()
+        xtickLabel = map(int, xtickLabel)
+        xtickLabel[-1] = 'TIME(Sec)'
+        ax.set_xticklabels(xtickLabel)
 
 
 
