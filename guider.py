@@ -8965,7 +8965,7 @@ class ThreadAnalyzer(object):
                     xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
                 except:
                     xtickLabel[seq] = ' '
-            xtickLabel[-1] = '   PROC(NR)'
+            xtickLabel[-1] = '   TASK(NR)'
             ax.set_xticklabels(xtickLabel)
         except:
             pass
