@@ -5644,7 +5644,8 @@ class SystemManager(object):
                     SystemManager.cmdEnable = False
             if SystemManager.cmdFd is not None:
                 try:
-                    cmd = 'echo ' + str(val) + ' > ' + SystemManager.mountPath + path + ' 2>/dev/null\n'
+                    cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
+                        (str(val), SystemManager.mountPath, path)
                     SystemManager.cmdFd.write(cmd)
                 except:
                     SystemManager.printError("Fail to write command")
@@ -5653,7 +5654,8 @@ class SystemManager(object):
             fd = open(SystemManager.mountPath + path, 'w')
         except:
             SystemManager.printWarning(\
-                "Fail to use %s event, please confirm kernel configuration" % path[0:path.rfind('/')])
+                "Fail to use %s event, please confirm kernel configuration" %\
+                path[0:path.rfind('/')])
             return -1
 
         try:
@@ -7451,7 +7453,8 @@ class SystemManager(object):
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
                     SystemManager.writeCmd(\
-                        'timer/hrtimer_start/filter', cmd + " && function == 0x%s" % addr)
+                        'timer/hrtimer_start/filter',\
+                        '%s && function == 0x%s' % (cmd, addr))
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '1')
             else:
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
