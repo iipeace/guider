@@ -13589,7 +13589,7 @@ class ThreadAnalyzer(object):
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
             if value['new'] is True:
-                comm = '[+]' + value['stat'][self.commIdx][1:-1]
+                comm = ('%s%s' % ('[+]', value['stat'][self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
@@ -13658,7 +13658,7 @@ class ThreadAnalyzer(object):
         dieCnt = 0
         for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
             if value['alive'] is False:
-                comm = '[-]' + value['stat'][self.commIdx][1:-1]
+                comm = ('%s%s' % ('[-]', value['stat'][self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
