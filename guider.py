@@ -8853,7 +8853,7 @@ class ThreadAnalyzer(object):
 
         # draw image #
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k').\
-            subplots_adjust(left=0, top=0.9, bottom=0.01, hspace=0.1, wspace=0.1)
+            subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
 
 
@@ -8908,7 +8908,7 @@ class ThreadAnalyzer(object):
 
             ytick = yticks()[0]
             if len(ytick) > 1:
-                margin = (ytick[1] - ytick[0]) / len(ytick)
+                margin = (ytick[1] - ytick[0]) / 10
             else:
                 margin = 0
 
@@ -8927,26 +8927,31 @@ class ThreadAnalyzer(object):
         grid(which='both', linestyle=':', linewidth='0.2')
         tick_params(axis='x', direction='in')
         tick_params(axis='y', direction='in')
-        xticks(fontsize = 4)
+        xticks(fontsize=4)
         ylim([0, ymax])
+        xlim([timeline[0], timeline[-1]])
         inc = ymax / 10
         if inc == 0:
             inc = 1
-        yticks(xrange(0, ymax + inc, inc), fontsize = 5)
+        yticks(xrange(0, ymax + inc, inc), fontsize=5)
         ticklabel_format(useOffset=False)
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
             subplots_adjust(left=0.06, top=0.95, bottom=0.04)
         labelList = []
 
-        xtickLabel = ax.get_xticks().tolist()
-        for seq, cnt in enumerate(xtickLabel):
-            try:
-                xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
-            except:
-                xtickLabel[seq] = ' '
-        xtickLabel[-1] = 'PROC(NR)'
-        ax.set_xticklabels(xtickLabel)
+        try:
+            xtickLabel = ax.get_xticks().tolist()
+            xlim([xtickLabel[0], xtickLabel[-1]])
+            for seq, cnt in enumerate(xtickLabel):
+                try:
+                    xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                except:
+                    xtickLabel[seq] = ' '
+            xtickLabel[-1] = '   PROC(NR)'
+            ax.set_xticklabels(xtickLabel)
+        except:
+            pass
 
         # MEMORY usage #
         ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
@@ -9037,15 +9042,19 @@ class ThreadAnalyzer(object):
         tick_params(axis='y', direction='in')
         yticks(fontsize = 5)
         xticks(fontsize = 4)
+        xlim([timeline[0], timeline[-1]])
         ticklabel_format(useOffset=False)
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
-        labelList = []
 
-        xtickLabel = ax.get_xticks().tolist()
-        xtickLabel = map(int, xtickLabel)
-        xtickLabel[-1] = 'TIME(Sec)'
-        ax.set_xticklabels(xtickLabel)
+        try:
+            xtickLabel = ax.get_xticks().tolist()
+            xtickLabel = map(int, xtickLabel)
+            xlim([xtickLabel[0], xtickLabel[-1]])
+            xtickLabel[-1] = '   TIME(Sec)'
+            ax.set_xticklabels(xtickLabel)
+        except:
+            pass
 
 
 
@@ -14422,7 +14431,7 @@ if __name__ == '__main__':
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text, pie, axis,\
                 subplots_adjust, legend, figure, savefig, clf, ticklabel_format, suptitle,\
-                grid, yticks, xticks, locator_params, subplot2grid, ylim, tick_params
+                grid, yticks, xticks, locator_params, subplot2grid, ylim, xlim, tick_params
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
