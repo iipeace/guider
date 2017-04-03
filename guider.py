@@ -8785,7 +8785,7 @@ class ThreadAnalyzer(object):
             for prop, value in item.items():
                 if prop != '[TOTAL]' and \
                     (value[propList.index('rss')] > 0 or value[propList.index('swap')] > 0):
-                    labels.append(prop)
+                    labels.append('%s(%s)' % (prop, value[propList.index('count')]))
                     sizes.append(value[propList.index('rss')] + value[propList.index('swap')])
 
                     # set private dirty unit #
@@ -8824,6 +8824,8 @@ class ThreadAnalyzer(object):
             line = '_' * len(idx) * 1
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
+            vmem = item['[TOTAL]'][propList.index('vmem')]
+            pss = item['[TOTAL]'][propList.index('pss')]
             lock = item['[TOTAL]'][propList.index('locked')]
             dirty = item['[TOTAL]'][propList.index('pdirty')] + item['[TOTAL]'][propList.index('sdirty')]
             if dirty > 1 << 10:
@@ -8831,8 +8833,9 @@ class ThreadAnalyzer(object):
             else:
                 dirty = '%d KB' % (dirty)
             totalList =\
-                ['%s\n%s\n\n- TOTAL: %s MB\n- RSS: %s MB\n- SWAP: %s MB\n- LOCK: %s KB\n- DIRTY: %s' %\
-                (idx, line, rss+swap, rss, swap, lock, dirty)]
+                [('\n%s\n%s\n\n- TOTAL: %s MB\n- RSS: %s MB\n- SWAP: %s MB\n%s\n\n'
+                '- VIRT: %s MB\n- PSS: %s MB\n- LOCK: %s KB\n- DIRTY: %s') %\
+                ('[%s] %s' % (str(seq+1), idx), line, rss+swap, rss, swap, line, vmem, pss, lock, dirty)]
 
             # draw chart #
             patches, texts, autotexts = \
