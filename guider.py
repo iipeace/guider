@@ -10734,7 +10734,7 @@ class ThreadAnalyzer(object):
             "{5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} |\n{13}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
-            'VMEM', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCKED(KB)', \
+            'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCKED(KB)', \
             'PDIRTY(KB)', 'SDIRTY(KB)', twoLine))
 
         cnt = 1
