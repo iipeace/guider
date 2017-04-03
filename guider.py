@@ -5796,7 +5796,8 @@ class SystemManager(object):
             return
 
         # get launch option recorded #
-        SystemManager.launchBuffer = SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
+        SystemManager.launchBuffer = \
+            SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -6210,15 +6211,32 @@ class SystemManager(object):
 
 
     @staticmethod
+    def parseOption():
+        if SystemManager.savedOptionList is not None:
+            return
+
+        usedOpt = {}
+        SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
+        for seq in xrange(0, len(SystemManager.savedOptionList)):
+            SystemManager.savedOptionList[seq] = \
+                SystemManager.savedOptionList[seq].replace(" ", "")
+            try:
+                usedOpt[SystemManager.savedOptionList[seq][0]]
+                SystemManager.printError(\
+                    "wrong -%s option because it is used more than once" %\
+                        SystemManager.savedOptionList[seq][0])
+                os._exit(0)
+            except:
+                usedOpt[SystemManager.savedOptionList[seq][0]] = True
+
+
+
+    @staticmethod
     def findOption(option):
         if len(sys.argv) <= 2:
             return False
 
-        if SystemManager.savedOptionList is None:
-            SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-            for seq in xrange(0, len(SystemManager.savedOptionList)):
-                SystemManager.savedOptionList[seq] = \
-                    SystemManager.savedOptionList[seq].replace(" ", "")
+        SystemManager.parseOption()
 
         for item in SystemManager.savedOptionList:
             if item == '':
@@ -6235,11 +6253,7 @@ class SystemManager(object):
         if len(sys.argv) <= 2:
             return False
 
-        if SystemManager.savedOptionList is None:
-            SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-            for seq in xrange(0, len(SystemManager.savedOptionList)):
-                SystemManager.savedOptionList[seq] = \
-                    SystemManager.savedOptionList[seq].replace(" ", "")
+        SystemManager.parseOption()
 
         for item in SystemManager.savedOptionList:
             if item == '':
