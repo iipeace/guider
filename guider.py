@@ -10375,7 +10375,7 @@ class ThreadAnalyzer(object):
             pid = d['pid']
 
             # ignore created / terminated process #
-            if d['comm'][0] == '+' or d['comm'][0] == '-':
+            if d['comm'][0:3] == '[+]' or d['comm'][0:3] == '[-]':
                 return
 
             if pid not in ThreadAnalyzer.procTotalData:
@@ -13589,7 +13589,7 @@ class ThreadAnalyzer(object):
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
             if value['new'] is True:
-                comm = '+' + value['stat'][self.commIdx][1:-1]
+                comm = '[+]' + value['stat'][self.commIdx][1:-1]
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
@@ -13658,7 +13658,7 @@ class ThreadAnalyzer(object):
         dieCnt = 0
         for idx, value in sorted(self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
             if value['alive'] is False:
-                comm = '-' + value['stat'][self.commIdx][1:-1]
+                comm = '[-]' + value['stat'][self.commIdx][1:-1]
 
                 if SystemManager.processEnable is True:
                     pid = value['stat'][self.ppidIdx]
