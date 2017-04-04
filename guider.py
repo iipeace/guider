@@ -4775,6 +4775,7 @@ class SystemManager(object):
     memEnable = False
     heapEnable = False
     diskEnable = False
+    wfcEnable = False
     blockEnable = False
     userEnable = True
     futexEnable = False
@@ -4993,7 +4994,7 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|I(mage)|f(ile)|g(raph)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|I(mage)|f(ile)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
@@ -5348,6 +5349,11 @@ class SystemManager(object):
                 enableStat += 'DISK '
             else:
                 disableStat += 'DISK '
+
+            if SystemManager.wfcEnable is True:
+                enableStat += 'WFC '
+            else:
+                disableStat += 'WFC '
 
             if SystemManager.processEnable is False:
                 enableStat += 'THREAD '
@@ -6375,6 +6381,8 @@ class SystemManager(object):
                         SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+                if options.rfind('w') > -1:
+                    SystemManager.wfcEnable = True
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
@@ -6552,6 +6560,7 @@ class SystemManager(object):
                     elif SystemManager.sort == 'b':
                         SystemManager.printInfo("sorted by BLOCK")
                     elif SystemManager.sort == 'w':
+                        SystemManager.wfcEnable = True
                         SystemManager.printInfo("sorted by CHILD")
                     elif SystemManager.sort == 'p':
                         SystemManager.printInfo("sorted by PID")
@@ -8330,12 +8339,12 @@ class ThreadAnalyzer(object):
 
         # top mode #
         else:
-            self.init_procData = {'isMain': bool(False), 'tids': None, 'stat': None, 'taskPath': None, \
-                'io': None, 'alive': False, 'statFd': None, 'runtime': float(0), 'changed': True, \
+            self.init_procData = {'isMain': bool(False), 'tids': None, 'stat': None, \
+                'io': None, 'alive': False, 'runtime': float(0), 'changed': True, \
                 'new': bool(False), 'majflt': long(0), 'ttime': float(0), 'cttime': float(0), \
-                'utime': float(0), 'stime': float(0), 'ioFd': None, 'preempted': long(0), \
-                'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), 'maps': None, \
-                'statusFd': None, 'status': None, 'statmFd': None, 'statm': None, 'yield': long(0)}
+                'utime': float(0), 'stime': float(0), 'preempted': long(0), 'taskPath': None, \
+                'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), \
+                'maps': None, 'status': None, 'statm': None, 'yield': long(0)}
 
             self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), 'idle': long(0), \
                 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -12811,6 +12820,36 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveProcSchedData(self, path, tid):
+        # save sched info #
+        try:
+            self.prevProcData[tid]['schedFd'].seek(0)
+            self.procData[tid]['schedFd'] = self.prevProcData[tid]['schedFd']
+            schedBuf = self.procData[tid]['schedFd'].readlines()
+        except:
+            try:
+                schedPath = "%s/%s" % (path, 'schedstat')
+                self.procData[tid]['schedFd'] = open(schedPath, 'r')
+                schedBuf = self.procData[tid]['schedFd'].readlines()
+
+                # fd resource is about to run out #
+                if SystemManager.maxFd - 16 < self.procData[tid]['schedFd'].fileno():
+                    self.procData[tid]['schedFd'].close()
+                    self.procData[tid]['schedFd'] = None
+            except:
+                SystemManager.printWarning('Fail to open %s' % schedPath)
+                return
+
+        try:
+            schedList = schedBuf[0].split()
+            self.procData[tid]['execTime'] = float(schedList[0])
+            self.procData[tid]['waitTime'] = float(schedList[1])
+        except:
+            self.procData[tid]['execTime'] = 0
+            self.procData[tid]['waitTime'] = 0
+
+
+
     def saveProcStatusData(self, path, tid):
         # save status info #
         try:
@@ -12829,7 +12868,6 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['statusFd'] = None
             except:
                 SystemManager.printWarning('Fail to open %s' % statusPath)
-                del self.procData[tid]
                 return
 
         if self.procData[tid]['status'] is None:
@@ -12861,7 +12899,6 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['statmFd'] = None
             except:
                 SystemManager.printWarning('Fail to open %s' % statmPath)
-                del self.procData[tid]
                 return
 
         if statmBuf is not None:
@@ -13331,11 +13368,16 @@ class ThreadAnalyzer(object):
         else:
             mode = 'Thread'
 
+        if SystemManager.wfcEnable is False:
+            dprop = "Dly"
+        else:
+            dprop = "WFC"
+
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|\n").\
-            format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", "WFC", \
+            format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             "Yld", "Prmt", "FD", "LifeTime") + oneLine + '\n', newline = 3)
 
@@ -13442,6 +13484,10 @@ class ThreadAnalyzer(object):
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
 
+            # save sched info to get delayed time  #
+            if SystemManager.wfcEnable is False:
+                self.saveProcSchedData(value['taskPath'], idx)
+
             # save memory map info to get memory details #
             if SystemManager.memEnable is True:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
@@ -13482,6 +13528,15 @@ class ThreadAnalyzer(object):
             except:
                 prtd = '-'
 
+            try:
+                execTime = value['execTime'] - self.prevProcData[idx]['execTime']
+                waitTime = value['waitTime'] - self.prevProcData[idx]['waitTime']
+                execPer = (execTime / (execTime + waitTime)) * 100
+                totalTime = value['ttime'] * (100 / execPer)
+                dtime = int(totalTime - value['ttime'])
+            except:
+                dtime = '-'
+
             if SystemManager.diskEnable is True:
                 readSize = value['read'] >> 20
                 writeSize = value['write'] >> 20
@@ -13489,13 +13544,16 @@ class ThreadAnalyzer(object):
                 readSize = '-'
                 writeSize = '-'
 
+            if SystemManager.wfcEnable is True:
+                dtime = int(value['cttime'])
+
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                value['ttime'], value['utime'], value['stime'], int(value['cttime']), \
+                value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
@@ -13631,14 +13689,14 @@ class ThreadAnalyzer(object):
                     readSize = '-'
                     writeSize = '-'
 
-                # print terminated thread information #
+                # print new thread information #
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    int(value['ttime']), int(value['utime']), int(value['stime']), int(value['cttime']), \
+                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
@@ -13707,7 +13765,7 @@ class ThreadAnalyzer(object):
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    int(value['ttime']), int(value['utime']), int(value['stime']), int(value['cttime']), \
+                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
