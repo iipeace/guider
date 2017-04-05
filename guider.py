@@ -831,6 +831,7 @@ class FunctionAnalyzer(object):
         self.userSymData = {}
         self.kernelSymData = {}
         self.threadData = {}
+        self.customCallData = []
         self.userCallData = []
         self.kernelCallData = []
         '''
@@ -1706,10 +1707,16 @@ class FunctionAnalyzer(object):
 
 
     def saveFullStack(self, kernelPos, kernelStack, userPos, userStack, targetEvent, targetCnt, targetArg):
-
+        # Save userstack #
         self.userCallData.append([userPos, userStack, targetEvent, targetCnt, targetArg])
 
+        # Save kernelstack #
         self.kernelCallData.append([kernelPos, kernelStack, targetEvent, targetCnt, targetArg])
+
+        # Save custom event stacks #
+        if SystemManager.showAll and targetEvent == 'CUSTOM':
+            self.customCallData.append(\
+                [targetArg[0], targetArg[1], self.userCallData[-1], self.kernelCallData[-1]])
 
 
 
@@ -2151,9 +2158,14 @@ class FunctionAnalyzer(object):
 
 
     def parseEventInfo(self, tid, func, args):
+        if func[:-1] in self.customEventTable:
+            isFixedEvent = False
+        else:
+            isFixedEvent = True
+
         # cpu tick event #
         # toDo: find shorter periodic event for sampling #
-        if func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
+        if isFixedEvent and func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
             self.cpuEnabled = True
 
             self.saveEventParam('CPU_TICK', 1, 0)
@@ -2161,7 +2173,7 @@ class FunctionAnalyzer(object):
             return False
 
         # memory allocation event #
-        elif func == "mm_page_alloc:":
+        elif isFixedEvent and func == "mm_page_alloc:":
             m = re.match(r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
                 r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', args)
             if m is not None:
@@ -2233,7 +2245,7 @@ class FunctionAnalyzer(object):
             return False
 
         # memory free event #
-        elif func == "mm_page_free:":
+        elif isFixedEvent and func == "mm_page_free:":
             m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
                 r'order=(?P<order>[0-9]+)', args)
             if m is not None:
@@ -2281,7 +2293,7 @@ class FunctionAnalyzer(object):
             return False
 
         # heap increase start event #
-        elif func == "sys_enter:":
+        elif isFixedEvent and func == "sys_enter:":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', args)
             if m is not None:
                 b = m.groupdict()
@@ -2335,7 +2347,7 @@ class FunctionAnalyzer(object):
             return False
 
         # heap increase return event #
-        elif func == "sys_exit:":
+        elif isFixedEvent and func == "sys_exit:":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', args)
             if m is not None:
                 b = m.groupdict()
@@ -2366,7 +2378,7 @@ class FunctionAnalyzer(object):
             return False
 
         # block read request event #
-        elif func == "block_bio_remap:":
+        elif isFixedEvent and func == "block_bio_remap:":
             m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', args)
             if m is not None:
@@ -2390,7 +2402,7 @@ class FunctionAnalyzer(object):
             return False
 
         # block write request event #
-        elif func == "writeback_dirty_page:":
+        elif isFixedEvent and func == "writeback_dirty_page:":
             m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', args)
             if m is not None:
@@ -2408,7 +2420,7 @@ class FunctionAnalyzer(object):
             return False
 
         # block write request event #
-        elif func == "wbc_writepage:":
+        elif isFixedEvent and func == "wbc_writepage:":
             m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', args)
             if m is not None:
@@ -2428,7 +2440,7 @@ class FunctionAnalyzer(object):
             return False
 
         # segmentation fault generation event #
-        elif func == "signal_generate:":
+        elif isFixedEvent and func == "signal_generate:":
             m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
                 r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', args)
             if m is not None:
@@ -2448,7 +2460,7 @@ class FunctionAnalyzer(object):
 
             return False
 
-        elif func == "signal_deliver:":
+        elif isFixedEvent and func == "signal_deliver:":
             m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
                 r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)', args)
             if m is not None:
@@ -2488,7 +2500,7 @@ class FunctionAnalyzer(object):
             return True
 
         # custom event #
-        elif self.customEventTable != {}:
+        elif isFixedEvent is False:
             try:
                 cond = self.customEventTable[func[:-1]]
 
@@ -2497,7 +2509,7 @@ class FunctionAnalyzer(object):
                 if customCnt > 0:
                     self.threadData[tid]['customTotal'] += customCnt
 
-                self.saveEventParam('CUSTOM', customCnt, func[:-1])
+                self.saveEventParam('CUSTOM', customCnt, [func[:-1], args])
             except:
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -2952,7 +2964,54 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
-            SystemManager.pipePrint(oneLine)
+            SystemManager.pipePrint(oneLine + '\n')
+
+        # Print custom call history #
+        if SystemManager.showAll and len(self.customCallData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function %s History] [Cnt: %d] [Total: %d]' % \
+                (customList, self.customTotal, self.customCnt))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^32}|{1:_^121}".format("Event", "Info"))
+            SystemManager.pipePrint(twoLine)
+
+            for call in self.customCallData:
+                event = call[0]
+                info = call[1]
+                userstack = call[2]
+                kernelstack = call[3]
+
+                SystemManager.pipePrint("{0:^32}|{1:<121}".format(event, info))
+
+                try:
+                    last = call[2][0]
+                    stack = call[2][1]
+                    userCall = ' %s[%s]' % (self.posData[last]['symbol'], self.posData[last]['binary'])
+                    for subcall in stack:
+                        try:
+                            userCall = '%s <- %s[%s]' % \
+                                (userCall, self.posData[subcall]['symbol'], self.posData[subcall]['binary'])
+                        except:
+                            pass
+                except:
+                    pass
+
+                try:
+                    last = call[3][0]
+                    stack = call[3][1]
+                    kernelCall = ' %s' % (self.posData[last]['symbol'])
+                    for subcall in stack:
+                        try:
+                            kernelCall = '%s <- %s' % (kernelCall, self.posData[subcall]['symbol'])
+                        except:
+                            pass
+                except:
+                    pass
+
+                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
+                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
 
