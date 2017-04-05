@@ -905,7 +905,7 @@ class FunctionAnalyzer(object):
             self.target = SystemManager.showGroup
 
         # Check root path #
-        if SystemManager.rootPath is None and SystemManager.userEnable is True:
+        if SystemManager.rootPath is None and SystemManager.userEnable:
             SystemManager.printError(\
                 "Fail to recognize sysroot path of target for user mode, use also -r option")
             sys.exit(0)
@@ -926,7 +926,7 @@ class FunctionAnalyzer(object):
             len(self.target) > 0:
             SystemManager.printError("No collected data related to %s" % self.target)
             sys.exit(0)
-        elif SystemManager.userEnable is True and \
+        elif SystemManager.userEnable and \
             len(self.userCallData) == 1 and \
             self.userCallData[0][0] == '0':
             SystemManager.printError("No user stack data related to %s, " % self.target + \
@@ -1649,7 +1649,7 @@ class FunctionAnalyzer(object):
                             savedSymbol == addr or savedSymbol[0] == '$':
                             self.posData[addr]['symbol'] = symbol
 
-                            if SystemManager.showAll is True:
+                            if SystemManager.showAll:
                                 self.posData[addr]['src'] = src
                             else:
                                 fileIdx = src.rfind('/')
@@ -1670,7 +1670,7 @@ class FunctionAnalyzer(object):
                                         savedSymbol == addr or savedSymbol[0] == '$':
                                         self.posData[idx]['symbol'] = symbol
 
-                                        if SystemManager.showAll is True:
+                                        if SystemManager.showAll:
                                             self.posData[idx]['src'] = src
                                         else:
                                             fileIdx = src.rfind('/')
@@ -1678,7 +1678,7 @@ class FunctionAnalyzer(object):
                                                 self.posData[idx]['src'] = src[fileIdx + 1:]
 
                                         break
-                            elif inBinArea is True:
+                            elif inBinArea:
                                 break
 
 
@@ -2035,7 +2035,7 @@ class FunctionAnalyzer(object):
                 continue
 
             # Save pos into target stack #
-            elif self.nowCtx['recStat'] is True:
+            elif self.nowCtx['recStat']:
                 # decode return value #
                 (pos, path, offset) = ret
 
@@ -2047,7 +2047,7 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[idx]
 
             # Recover previous mode #
-            if SystemManager.userEnable is True:
+            if SystemManager.userEnable:
                 self.nowCtx['prevMode'] = 'user'
             self.nowCtx['curMode'] = 'kernel'
 
@@ -2525,7 +2525,7 @@ class FunctionAnalyzer(object):
 
     def parseEventLog(self, string, desc):
         # Filter for event #
-        if SystemManager.tgidEnable is True:
+        if SystemManager.tgidEnable:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
                 r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
         else:
@@ -2624,7 +2624,7 @@ class FunctionAnalyzer(object):
                     self.threadData[pid]['new'] = True
 
             # Save tgid(pid) #
-            if SystemManager.tgidEnable is True and self.threadData[thread]['tgid'] == '-----':
+            if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
 
             # tid filter #
@@ -2634,7 +2634,7 @@ class FunctionAnalyzer(object):
                     self.threadData[thread]['target'] = True
                     found = True
                     break
-                elif SystemManager.groupProcEnable is True:
+                elif SystemManager.groupProcEnable:
                     try:
                         if self.threadData[thread]['tgid'] == SystemManager.savedProcTree[val]:
                             self.threadData[thread]['target'] = True
@@ -2757,7 +2757,7 @@ class FunctionAnalyzer(object):
                 continue
 
             # check target thread #
-            if value['target'] is True:
+            if value['target']:
                 targetCnt += 1
                 if targetCnt == 2:
                     SystemManager.printWarning("Multiple target threads are selected")
@@ -2780,10 +2780,10 @@ class FunctionAnalyzer(object):
             if breakCond < 1 and SystemManager.showAll is False:
                 pass
 
-            if value['die'] is True:
+            if value['die']:
                 dieMark = 'v'
 
-            if value['new'] is True:
+            if value['new']:
                 newMark = 'v'
 
             SystemManager.pipePrint(\
@@ -2823,7 +2823,7 @@ class FunctionAnalyzer(object):
         # Make custom event list #
         customList = ', '.join(self.customEventTable.keys())
 
-        if SystemManager.userEnable is True:
+        if SystemManager.userEnable:
             # Print custom usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
@@ -2947,7 +2947,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3028,7 +3028,7 @@ class FunctionAnalyzer(object):
         # average tick interval #
         self.periodicEventInterval /= self.periodicContEventCnt
 
-        if SystemManager.userEnable is True:
+        if SystemManager.userEnable:
             # Print cpu usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
@@ -3189,7 +3189,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3348,7 +3348,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3380,7 +3380,7 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-        if SystemManager.userEnable is True:
+        if SystemManager.userEnable:
             # Print mem usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
@@ -3525,7 +3525,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3655,7 +3655,7 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
 
-        if SystemManager.userEnable is True:
+        if SystemManager.userEnable:
             # Print block write usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (USER)' % \
@@ -3788,7 +3788,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -3819,7 +3819,7 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
 
-        if SystemManager.userEnable is True:
+        if SystemManager.userEnable:
             # Print block read usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
@@ -3952,7 +3952,7 @@ class FunctionAnalyzer(object):
                         for pos in subStack:
                             if self.posData[pos]['symbol'] == '':
                                 symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll is True:
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
                                 symbolSet = ' <- ' + hex(int(pos, 16))
                             else:
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
@@ -4310,7 +4310,7 @@ class FileAnalyzer(object):
             # check whether this file was profiled or not #
             isRep = False
             for fileData in reversed(self.intervalFileData):
-                if fileName in fileData and fileData[fileName]['isRep'] is True:
+                if fileName in fileData and fileData[fileName]['isRep']:
                     printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
                     isRep = True
                     break
@@ -4461,7 +4461,7 @@ class FileAnalyzer(object):
         self.profPageCnt = 0
 
         for fileName, val in self.fileData.items():
-            if val['fileMap'] is not None and val['isRep'] is True:
+            if val['fileMap'] is not None and val['isRep']:
                 val['pageCnt'] = val['fileMap'].count(1)
                 self.profPageCnt += val['pageCnt']
 
@@ -4580,7 +4580,7 @@ class FileAnalyzer(object):
                 procMap[fileName]['offset'] = newOffset
                 procMap[fileName]['size'] = newSize
         else:
-            if SystemManager.showAll is True:
+            if SystemManager.showAll:
                 SystemManager.printWarning("Fail to recognize '%s' line in maps" % string)
 
 
@@ -4639,10 +4639,10 @@ class FileAnalyzer(object):
                                 # merge process list related to this file #
                                 procList = dict(procList.items() + self.fileData[fileIdx]['pids'].items())
 
-                                if self.fileData[fileIdx]['isRep'] is True:
+                                if self.fileData[fileIdx]['isRep']:
                                     repFile = fileIdx
 
-                        if found is True:
+                        if found:
                             self.inodeData[inode][fileName] = devid
                             self.fileData[fileName]['isRep'] = False
                             hardLinkCnt = len(fileList)
@@ -4682,14 +4682,14 @@ class FileAnalyzer(object):
                     val['fd'] = fd
                 except:
                     self.profFailedCnt += 1
-                    if SystemManager.warningEnable is True:
+                    if SystemManager.warningEnable:
                         SystemManager.printWarning('Fail to open %s' % fileName)
                     continue
 
             # check file size whether it is readable or not #
             if val['totalSize'] <= 0:
                 self.profFailedCnt += 1
-                if SystemManager.warningEnable is True:
+                if SystemManager.warningEnable:
                     SystemManager.printWarning('Fail to mmap %s' % fileName)
                 continue
 
@@ -4834,6 +4834,7 @@ class SystemManager(object):
     memEnable = False
     heapEnable = False
     diskEnable = False
+    wchanEnable = False
     wfcEnable = False
     blockEnable = False
     userEnable = True
@@ -5053,8 +5054,8 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|I(mage)|f(ile)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|W(chan)|I(mage)|f(ile)|g(raph)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -5258,7 +5259,7 @@ class SystemManager(object):
         if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
             # common options #
             enableStat += SystemManager.arch.upper() + ' '
-            if SystemManager.warningEnable is True:
+            if SystemManager.warningEnable:
                 enableStat += 'WARNING '
 
         # function mode #
@@ -5283,22 +5284,22 @@ class SystemManager(object):
             else:
                 disableStat += 'INTERVAL '
 
-            if SystemManager.depEnable is True:
+            if SystemManager.depEnable:
                 enableStat += 'DEPENDENCY '
             else:
                 disableStat += 'DEPENDENCY '
 
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 enableStat += 'GRAPH '
             else:
                 disableStat += 'GRAPH '
 
-            if SystemManager.irqEnable is True:
+            if SystemManager.irqEnable:
                 enableStat += 'IRQ '
             else:
                 disableStat += 'IRQ '
 
-            if SystemManager.sysEnable is True:
+            if SystemManager.sysEnable:
                 enableStat += 'SYSCALL '
             else:
                 disableStat += 'SYSCALL '
@@ -5309,12 +5310,12 @@ class SystemManager(object):
                 disableStat += 'PREEMPT '
 
         # common options #
-        if SystemManager.showAll is True:
+        if SystemManager.showAll:
             enableStat += 'ALL '
         else:
             disableStat += 'ALL '
 
-        if SystemManager.groupProcEnable is True:
+        if SystemManager.groupProcEnable:
             enableStat += 'PROCESS '
         else:
             disableStat += 'PROCESS '
@@ -5350,16 +5351,16 @@ class SystemManager(object):
 
         # common options #
         enableStat += SystemManager.arch.upper() + ' '
-        if SystemManager.warningEnable is True:
+        if SystemManager.warningEnable:
             enableStat += 'WARNING '
-        if SystemManager.pipeEnable is True:
+        if SystemManager.pipeEnable:
             enableStat += 'PIPE '
 
         # check current mode #
         if SystemManager.isFunctionMode():
             SystemManager.printInfo("FUNCTION MODE")
 
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 enableStat += 'GRAPH '
             else:
                 disableStat += 'GRAPH '
@@ -5399,17 +5400,22 @@ class SystemManager(object):
         elif SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
 
-            if SystemManager.cpuEnable is True:
+            if SystemManager.cpuEnable:
                 enableStat += 'CPU '
             else:
                 disableStat += 'CPU '
 
-            if SystemManager.diskEnable is True:
+            if SystemManager.diskEnable:
                 enableStat += 'DISK '
             else:
                 disableStat += 'DISK '
 
-            if SystemManager.wfcEnable is True:
+            if SystemManager.wchanEnable:
+                enableStat += 'WCHAN '
+            else:
+                disableStat += 'WCHAN '
+
+            if SystemManager.wfcEnable:
                 enableStat += 'WFC '
             else:
                 disableStat += 'WFC '
@@ -5421,32 +5427,32 @@ class SystemManager(object):
                 disableStat += 'THREAD '
                 enableStat += 'PROCESS '
 
-            if SystemManager.memEnable is True:
+            if SystemManager.memEnable:
                 enableStat += 'MEMORY '
             else:
                 disableStat += 'MEMORY '
 
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 enableStat += 'GRAPH '
             else:
                 disableStat += 'GRAPH '
 
-            if SystemManager.imageEnable is True:
+            if SystemManager.imageEnable:
                 enableStat += 'IMAGE '
             else:
                 disableStat += 'IMAGE '
 
-            if SystemManager.reportFileEnable is True:
+            if SystemManager.reportFileEnable:
                 enableStat += 'FILE '
             else:
                 disableStat += 'FILE '
 
-            if SystemManager.groupProcEnable is True:
+            if SystemManager.groupProcEnable:
                 enableStat += 'GROUP '
             else:
                 disableStat += 'GROUP '
 
-            if SystemManager.reportEnable is True:
+            if SystemManager.reportEnable:
                 enableStat += 'REPORT '
             else:
                 disableStat += 'REPORT '
@@ -5460,17 +5466,17 @@ class SystemManager(object):
             else:
                 enableStat += 'CPU '
 
-            if SystemManager.memEnable is True:
+            if SystemManager.memEnable:
                 enableStat += 'MEMORY '
             else:
                 disableStat += 'MEMORY '
 
-            if SystemManager.blockEnable is True:
+            if SystemManager.blockEnable:
                 enableStat += 'BLOCK '
             else:
                 disableStat += 'BLOCK '
 
-            if SystemManager.irqEnable is True:
+            if SystemManager.irqEnable:
                 enableStat += 'IRQ '
             else:
                 disableStat += 'IRQ '
@@ -5480,22 +5486,22 @@ class SystemManager(object):
             else:
                 disableStat += 'REPEAT '
 
-            if SystemManager.depEnable is True:
+            if SystemManager.depEnable:
                 enableStat += 'DEPENDENCY '
             else:
                 disableStat += 'DEPENDENCY '
 
-            if SystemManager.sysEnable is True:
+            if SystemManager.sysEnable:
                 enableStat += 'SYSCALL '
             else:
                 disableStat += 'SYSCALL '
 
-            if SystemManager.futexEnable is True:
+            if SystemManager.futexEnable:
                 enableStat += 'FUTEX '
             else:
                 disableStat += 'FUTEX '
 
-            if SystemManager.resetEnable is True:
+            if SystemManager.resetEnable:
                 enableStat += 'RESET '
             else:
                 disableStat += 'RESET '
@@ -5554,7 +5560,7 @@ class SystemManager(object):
                 SystemManager.printInfo("saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
-            if SystemManager.imageEnable is True:
+            if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
 
             os._exit(0)
@@ -5593,9 +5599,9 @@ class SystemManager(object):
             SystemManager.printStatus("saved top usage into %s successfully" % \
                 SystemManager.inputFile)
 
-            if SystemManager.imageEnable is True:
+            if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
-        elif SystemManager.resetEnable is True:
+        elif SystemManager.resetEnable:
             SystemManager.writeEvent("EVENT_START")
         else:
             SystemManager.writeEvent("EVENT_MARK")
@@ -5641,7 +5647,7 @@ class SystemManager(object):
 
     @staticmethod
     def alarmHandler(signum, frame):
-        if SystemManager.pipeEnable is True:
+        if SystemManager.pipeEnable:
             if SystemManager.repeatCount > 0:
                 SystemManager.runRecordStopCmd()
                 SystemManager.repeatInterval = 5
@@ -5976,7 +5982,7 @@ class SystemManager(object):
         if SystemManager.eventLogFD != None:
             try:
                 SystemManager.eventLogFD.write(message)
-                if SystemManager.resetEnable is True:
+                if SystemManager.resetEnable:
                     SystemManager.printInfo('marked RESET event')
                 else:
                     SystemManager.printInfo('marked user-defined event')
@@ -6190,7 +6196,7 @@ class SystemManager(object):
 
     @staticmethod
     def printWarning(line):
-        if SystemManager.warningEnable is True:
+        if SystemManager.warningEnable:
             print('\n%s%s%s%s' % (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
 
 
@@ -6440,6 +6446,8 @@ class SystemManager(object):
                         SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+                if options.rfind('W') > -1:
+                    SystemManager.wchanEnable = True
                 if options.rfind('w') > -1:
                     SystemManager.wfcEnable = True
                 if options.rfind('I') > -1:
@@ -7031,7 +7039,7 @@ class SystemManager(object):
                     except:
                         continue
 
-                    if SystemManager.isStartMode() and waitStatus is True:
+                    if SystemManager.isStartMode() and waitStatus:
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo("started %s process to profile" % pid)
@@ -7435,7 +7443,7 @@ class SystemManager(object):
             cmd = ""
 
             # check conditions for kernel function_graph #
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 if SystemManager.showGroup == []:
                     SystemManager.printError("Fail to get tid, use also -g option")
                     sys.exit(0)
@@ -7502,7 +7510,7 @@ class SystemManager(object):
             else:
                 cmd = "(" + cmd[:cmd.rfind('||')] + ")"
 
-            if SystemManager.userEnable is True:
+            if SystemManager.userEnable:
                 SystemManager.writeCmd('../trace_options', 'userstacktrace')
                 SystemManager.writeCmd('../trace_options', 'sym-userobj')
             else:
@@ -7515,7 +7523,7 @@ class SystemManager(object):
             # enable custom events #
             SystemManager.writeCustomCmd()
 
-            if SystemManager.cpuEnable is True:
+            if SystemManager.cpuEnable:
                 self.cmdList["timer/hrtimer_start"] = True
 
                 addr = SystemManager.getKerAddr('tick_sched_timer')
@@ -7528,7 +7536,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
                 self.cmdList["timer/hrtimer_start"] = False
 
-            if SystemManager.memEnable is True:
+            if SystemManager.memEnable:
                 self.cmdList["kmem/mm_page_alloc"] = True
                 self.cmdList["kmem/mm_page_free"] = True
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
@@ -7541,7 +7549,7 @@ class SystemManager(object):
                 self.cmdList["kmem/mm_page_alloc"] = False
                 self.cmdList["kmem/mm_page_free"] = False
 
-            if SystemManager.heapEnable is True:
+            if SystemManager.heapEnable:
                 mmapId = ConfigManager.getMmapId()
 
                 self.cmdList["raw_syscalls/sys_enter"] = True
@@ -7563,7 +7571,7 @@ class SystemManager(object):
                 self.cmdList["raw_syscalls/sys_enter"] = False
                 self.cmdList["raw_syscalls/sys_exit"] = False
 
-            if SystemManager.blockEnable is True:
+            if SystemManager.blockEnable:
                 self.cmdList["block/block_bio_remap"] = True
                 blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM)"
                 SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
@@ -7600,8 +7608,8 @@ class SystemManager(object):
         # enable custom events #
         SystemManager.writeCustomCmd()
 
-        if SystemManager.cpuEnable is True:
-            if self.cmdList["sched/sched_switch"] is True:
+        if SystemManager.cpuEnable:
+            if self.cmdList["sched/sched_switch"]:
                 if len(SystemManager.showGroup) > 0:
                     cmd = "prev_pid == 0 || next_pid == 0 || "
 
@@ -7624,21 +7632,21 @@ class SystemManager(object):
                     SystemManager.printError("sched event of ftrace is not enabled in kernel")
                     sys.exit(0)
 
-            if self.cmdList["sched/sched_wakeup"] is True:
+            if self.cmdList["sched/sched_wakeup"]:
                 SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
-            if self.cmdList["sched/sched_migrate_task"] is True:
+            if self.cmdList["sched/sched_migrate_task"]:
                 SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
-            if self.cmdList["sched/sched_process_exit"] is True:
+            if self.cmdList["sched/sched_process_exit"]:
                 SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
-            if self.cmdList["sched/sched_process_wait"] is True:
+            if self.cmdList["sched/sched_process_wait"]:
                 SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
-        if self.cmdList["irq"] is True:
+        if self.cmdList["irq"]:
             SystemManager.writeCmd('irq/enable', '1')
 
         # options for dependency tracing #
         # toDo: support sys_recv systemcall for x86, x64 #
-        if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_enter"] is True:
+        if SystemManager.depEnable and self.cmdList["raw_syscalls/sys_enter"]:
             cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
                 (ConfigManager.sysList.index("sys_write"), \
                 ConfigManager.sysList.index("sys_poll"), \
@@ -7649,7 +7657,7 @@ class SystemManager(object):
 
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-        elif SystemManager.futexEnable is True:
+        elif SystemManager.futexEnable:
             cmd = "(id == %s)" % (ConfigManager.sysList.index("sys_futex"))
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
@@ -7659,7 +7667,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
         # options for dependency tracing #
-        if SystemManager.depEnable is True and self.cmdList["raw_syscalls/sys_exit"] is True:
+        if SystemManager.depEnable and self.cmdList["raw_syscalls/sys_exit"]:
             cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" % \
                 (ConfigManager.sysList.index("sys_write"), \
                 ConfigManager.sysList.index("sys_poll"), \
@@ -7670,7 +7678,7 @@ class SystemManager(object):
 
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
-        elif SystemManager.futexEnable is True:
+        elif SystemManager.futexEnable:
             cmd = "(id == %s  && ret == 0)" % (ConfigManager.sysList.index("sys_futex"))
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
@@ -7681,7 +7689,7 @@ class SystemManager(object):
 
 
         # options for systemcall tracing #
-        if self.cmdList["raw_syscalls"] is True:
+        if self.cmdList["raw_syscalls"]:
             cmd = ''
 
             # tid filter #
@@ -7704,7 +7712,7 @@ class SystemManager(object):
                 cmd = cmd[:cmd.rfind(" &&")]
                 SystemManager.writeCmd('raw_syscalls/filter', cmd)
 
-            if SystemManager.sysEnable is True and \
+            if SystemManager.sysEnable and \
                 len(SystemManager.showGroup) == 0 and len(SystemManager.syscallList) == 0:
                 SystemManager.writeCmd('raw_syscalls/filter', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
@@ -7713,78 +7721,78 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/enable', '1')
 
         # options for signal tracing #
-        if self.cmdList["signal"] is True:
-            if SystemManager.depEnable is True:
+        if self.cmdList["signal"]:
+            if SystemManager.depEnable:
                 SystemManager.writeCmd('signal/enable', '1')
 
         # options for hibernation tracing #
-        if self.cmdList["power/suspend_resume"] is True:
+        if self.cmdList["power/suspend_resume"]:
             SystemManager.writeCmd('power/suspend_resume/enable', '1')
 
         # options for memory tracing #
-        if self.cmdList["kmem/mm_page_alloc"] is True:
+        if self.cmdList["kmem/mm_page_alloc"]:
             SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
-        if self.cmdList["kmem/mm_page_free"] is True:
+        if self.cmdList["kmem/mm_page_free"]:
             SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
-        if self.cmdList["kmem/kmalloc"] is True:
+        if self.cmdList["kmem/kmalloc"]:
             SystemManager.writeCmd('kmem/kmalloc/enable', '1')
-        if self.cmdList["kmem/kfree"] is True:
+        if self.cmdList["kmem/kfree"]:
             SystemManager.writeCmd('kmem/kfree/enable', '1')
-        if self.cmdList["filemap/mm_filemap_add_to_page_cache"] is True:
+        if self.cmdList["filemap/mm_filemap_add_to_page_cache"]:
             SystemManager.writeCmd('filemap/mm_filemap_add_to_page_cache/enable', '1')
-        if self.cmdList["filemap/mm_filemap_delete_from_page_cache"] is True:
+        if self.cmdList["filemap/mm_filemap_delete_from_page_cache"]:
             SystemManager.writeCmd('filemap/mm_filemap_delete_from_page_cache/enable', '1')
 
         # options for block tracing #
-        if self.cmdList["block/block_bio_remap"] is True:
+        if self.cmdList["block/block_bio_remap"]:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM"
             SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
             SystemManager.writeCmd('block/block_bio_remap/enable', '1')
-        if self.cmdList["block/block_rq_complete"] is True:
+        if self.cmdList["block/block_rq_complete"]:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM"
             SystemManager.writeCmd('block/block_rq_complete/filter', cmd)
             SystemManager.writeCmd('block/block_rq_complete/enable', '1')
 
         # options for write event tracing #
-        if self.cmdList["writeback/writeback_dirty_page"] is True:
+        if self.cmdList["writeback/writeback_dirty_page"]:
             SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
-        if self.cmdList["writeback/wbc_writepage"] is True:
+        if self.cmdList["writeback/wbc_writepage"]:
             SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
 
         # options for module event tracing #
-        if self.cmdList["module/module_load"] is True:
+        if self.cmdList["module/module_load"]:
             SystemManager.writeCmd('module/module_load/enable', '1')
-        if self.cmdList["module/module_free"] is True:
+        if self.cmdList["module/module_free"]:
             SystemManager.writeCmd('module/module_free/enable', '1')
-        if self.cmdList["module/module_put"] is True:
+        if self.cmdList["module/module_put"]:
             SystemManager.writeCmd('module/module_put/enable', '1')
 
         # options for power event tracing #
-        if SystemManager.cpuEnable is True:
-            if self.cmdList["power/cpu_idle"] is True:
+        if SystemManager.cpuEnable:
+            if self.cmdList["power/cpu_idle"]:
                 SystemManager.writeCmd('power/cpu_idle/enable', '1')
-            if self.cmdList["power/cpu_frequency"] is True:
+            if self.cmdList["power/cpu_frequency"]:
                 SystemManager.writeCmd('power/cpu_frequency/enable', '1')
 
         # options for reclaim event tracing #
-        if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] is True:
+        if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_wakeup_kswapd/enable', '1')
-        if self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] is True:
+        if self.cmdList["vmscan/mm_vmscan_kswapd_sleep"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_kswapd_sleep/enable', '1')
 
-        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] is True:
+        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_begin/enable', '1')
-        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] is True:
+        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_end/enable', '1')
 
         # options for task event tracing #
-        if self.cmdList["task"] is True:
+        if self.cmdList["task"]:
             SystemManager.writeCmd('task/enable', '1')
-        if self.cmdList["signal"] is True:
+        if self.cmdList["signal"]:
             SystemManager.writeCmd('signal/enable', '1')
 
         # options for printk event tracing #
-        if self.cmdList["printk"] is True:
+        if self.cmdList["printk"]:
             SystemManager.writeCmd('printk/enable', '1')
 
         return
@@ -7813,7 +7821,7 @@ class SystemManager(object):
 
             # disable all ftrace options registered #
             for idx, val in SystemManager.cmdList.items():
-                if val is True or val is not False:
+                if val is True:
                     SystemManager.writeCmd(str(idx) + '/enable', '0')
                     SystemManager.writeCmd(str(idx) + '/filter', '0')
 
@@ -8439,7 +8447,7 @@ class ThreadAnalyzer(object):
             self.starttimeIdx = ConfigManager.statList.index("STARTTIME")
             self.shrIdx = ConfigManager.statmList.index("SHR")
 
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 # convert statistics in file to graph #
                 if SystemManager.sourceFile is not None:
                     self.convertGraph(SystemManager.sourceFile)
@@ -8467,7 +8475,7 @@ class ThreadAnalyzer(object):
                 for idx, val in enumerate(SystemManager.showGroup):
                     if len(val) == 0:
                         SystemManager.showGroup.pop(idx)
-                    elif SystemManager.groupProcEnable is True:
+                    elif SystemManager.groupProcEnable:
                         try:
                             int(val)
                         except:
@@ -8589,7 +8597,7 @@ class ThreadAnalyzer(object):
             self.lastJob[self.lastCore]['job'] = self.lastEvent
             self.lastJob[self.lastCore]['time'] = self.finishTime
 
-            if self.stopFlag is True:
+            if self.stopFlag:
                 break
 
         # add comsumed time of jobs not finished yet to each threads #
@@ -8613,7 +8621,7 @@ class ThreadAnalyzer(object):
                         checkResult = True
                     else:
                         try:
-                            if SystemManager.groupProcEnable is True and \
+                            if SystemManager.groupProcEnable and \
                                 (val == value['tgid'] or self.threadData[val]['tgid'] == value['tgid']):
                                 checkResult = True
                         except:
@@ -8625,7 +8633,7 @@ class ThreadAnalyzer(object):
                         del self.threadData[key]
                     except:
                         continue
-        elif SystemManager.sysEnable is True or len(SystemManager.syscallList) > 0:
+        elif SystemManager.sysEnable or len(SystemManager.syscallList) > 0:
             SystemManager.printWarning("-g option is not enabled, -t option is disabled")
             SystemManager.sysEnable = False
             SystemManager.syscallList = []
@@ -9455,7 +9463,7 @@ class ThreadAnalyzer(object):
             if value['new'] == ' ' or SystemManager.selectMenu != None:
                 break
             count += 1
-            if SystemManager.showAll is True:
+            if SystemManager.showAll:
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
@@ -9482,7 +9490,7 @@ class ThreadAnalyzer(object):
                 break
             count += 1
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
-            if SystemManager.showAll is True:
+            if SystemManager.showAll:
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d|%3d|%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
@@ -9502,7 +9510,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # print thread tree by creation #
-        if SystemManager.showAll is True and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
+        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + \
                 '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
@@ -9516,7 +9524,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # print signal traffic #
-        if SystemManager.showAll is True and len(SystemManager.showGroup) == 0 and len(self.sigData) > 0:
+        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and len(self.sigData) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread Signal Info]')
             SystemManager.pipePrint(twoLine)
@@ -9566,7 +9574,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # prepare to draw graph #
-        if SystemManager.graphEnable is True:
+        if SystemManager.graphEnable:
             if SystemManager.intervalEnable > 0:
                 os.environ['DISPLAY'] = 'localhost:0'
                 rc('legend', fontsize=5)
@@ -9745,7 +9753,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
             SystemManager.clearPrint()
-            if SystemManager.showAll is True:
+            if SystemManager.showAll:
                 SystemManager.pipePrint('\n' + '[Thread Syscall History Info]')
                 SystemManager.pipePrint(twoLine)
                 SystemManager.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
@@ -9792,7 +9800,7 @@ class ThreadAnalyzer(object):
 
 
     def printConsoleInfo(self):
-        if len(self.consoleData) > 0 and SystemManager.showAll is True:
+        if len(self.consoleData) > 0 and SystemManager.showAll:
             SystemManager.pipePrint('\n' + '[Thread Message Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -9939,7 +9947,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
-                if SystemManager.graphEnable is True and SystemManager.cpuEnable is True:
+                if SystemManager.graphEnable and SystemManager.cpuEnable:
                     timeLine = timeLine.replace('N', '')
                     timeLine = timeLine.replace('D', '')
                     timeLine = timeLine.replace('F', '')
@@ -9964,9 +9972,9 @@ class ThreadAnalyzer(object):
             except:
                 timeLine += '%3d ' % (0)
 
-        if SystemManager.memEnable is True:
+        if SystemManager.memEnable:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('RAM Usage')
@@ -9988,9 +9996,9 @@ class ThreadAnalyzer(object):
             except:
                 timeLine += '%3d ' % (0)
 
-        if SystemManager.blockEnable is True:
+        if SystemManager.blockEnable:
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
-            if SystemManager.graphEnable is True:
+            if SystemManager.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('Block Read')
@@ -10000,7 +10008,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
 
-        if SystemManager.graphEnable is True and len(ioUsageList) > 0:
+        if SystemManager.graphEnable and len(ioUsageList) > 0:
             timelen = len(ioUsageList[0])
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -10094,7 +10102,7 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                if SystemManager.graphEnable is True and SystemManager.cpuEnable is True:
+                if SystemManager.graphEnable and SystemManager.cpuEnable:
                     timeLine = timeLine.replace('N', '')
                     timeLine = timeLine.replace('D', '')
                     timeLine = timeLine.replace('F', '')
@@ -10106,7 +10114,7 @@ class ThreadAnalyzer(object):
                     value['usage'] / float(self.totalTime) * 100 < 1:
                     break
 
-        if SystemManager.graphEnable is True and len(cpuUsageList) > 0:
+        if SystemManager.graphEnable and len(cpuUsageList) > 0:
             timelen = len(cpuUsageList[0])
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -10217,7 +10225,7 @@ class ThreadAnalyzer(object):
 
         # memory usage on timeline #
         SystemManager.clearPrint()
-        if SystemManager.memEnable is True:
+        if SystemManager.memEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['nrPages'], reverse=True):
                 if key[0:2] != '0[':
                     icount = 0
@@ -10278,7 +10286,7 @@ class ThreadAnalyzer(object):
 
         # block usage on timeline #
         SystemManager.clearPrint()
-        if SystemManager.blockEnable is True:
+        if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
                 if key[0:2] != '0[':
                     icount = 0
@@ -10338,7 +10346,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # save graph #
-        if SystemManager.graphEnable is True and\
+        if SystemManager.graphEnable and\
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
             dirPos = SystemManager.inputFile.rfind('/')
             if dirPos >= 0:
@@ -10819,7 +10827,7 @@ class ThreadAnalyzer(object):
                     if key == item or value['stat'][commIdx].find(item) >= 0:
                         skip = False
                         break
-                if skip is True:
+                if skip:
                     continue
 
             # only print memory details of top 4 processes #
@@ -10906,7 +10914,7 @@ class ThreadAnalyzer(object):
                         format(procInfo, idx, item['count'], \
                         vmem, rss, pss, swap, huge, lock, pdirty, sdirty))
 
-                if SystemManager.processEnable is True:
+                if SystemManager.processEnable:
                     ppid = value['stat'][ppidIdx]
                 else:
                     ppid = value['mainID']
@@ -11013,7 +11021,7 @@ class ThreadAnalyzer(object):
     def parse(self, string):
         SystemManager.curLine += 1
 
-        if SystemManager.tgidEnable is True:
+        if SystemManager.tgidEnable:
             m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
                 r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
         else:
@@ -11060,7 +11068,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
             except:
-                if SystemManager.tgidEnable is True:
+                if SystemManager.tgidEnable:
                     self.threadData[thread]['tgid'] = d['tgid']
 
             # calculate usage of threads had been running longer than periodic interval #
@@ -11391,7 +11399,7 @@ class ThreadAnalyzer(object):
                     if SystemManager.preemptGroup != None:
                         for value in SystemManager.preemptGroup:
                             index = SystemManager.preemptGroup.index(value)
-                            if self.preemptData[index][0] is True and self.preemptData[index][3] == core:
+                            if self.preemptData[index][0] and self.preemptData[index][3] == core:
                                 try:
                                     self.preemptData[index][1][prev_id]
                                 except:
@@ -12476,7 +12484,7 @@ class ThreadAnalyzer(object):
 
         else:
             # handle modified type of event #
-            if SystemManager.tgidEnable is True:
+            if SystemManager.tgidEnable:
                 m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
                     r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)', string)
             else:
@@ -12727,7 +12735,7 @@ class ThreadAnalyzer(object):
             taskPath = "%s/%s" % (procPath, 'task')
 
             # save info per process #
-            if SystemManager.processEnable is True:
+            if SystemManager.processEnable:
                 # make process object with constant value #
                 self.procData[pid] = dict(self.init_procData)
                 self.procData[pid]['mainID'] = pid
@@ -12879,6 +12887,36 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveProcWchanData(self, path, tid):
+        # save wait channel info #
+        try:
+            self.prevProcData[tid]['wchanFd'].seek(0)
+            self.procData[tid]['wchanFd'] = self.prevProcData[tid]['wchanFd']
+            wchanBuf = self.procData[tid]['wchanFd'].readlines()
+        except:
+            try:
+                wchanPath = "%s/%s" % (path, 'wchan')
+                self.procData[tid]['wchanFd'] = open(wchanPath, 'r')
+                wchanBuf = self.procData[tid]['wchanFd'].readlines()
+
+                # fd resource is about to run out #
+                if SystemManager.maxFd - 16 < self.procData[tid]['wchanFd'].fileno():
+                    self.procData[tid]['wchanFd'].close()
+                    self.procData[tid]['wchanFd'] = None
+            except:
+                SystemManager.printWarning('Fail to open %s' % wchanPath)
+                return
+
+        try:
+            if wchanBuf[0] == '0':
+                self.procData[tid]['wchan'] = 'RUNNING'
+            else:
+                self.procData[tid]['wchan'] = wchanBuf[0]
+        except:
+            self.procData[tid]['wchan'] = ''
+
+
+
     def saveProcSchedData(self, path, tid):
         # save sched info #
         try:
@@ -13022,7 +13060,7 @@ class ThreadAnalyzer(object):
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # save io info #
-        if SystemManager.diskEnable is True:
+        if SystemManager.diskEnable:
             try:
                 self.prevProcData[tid]['ioFd'].seek(0)
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
@@ -13175,12 +13213,17 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to get all system stat")
             return
 
+        if SystemManager.showAll:
+            fprop = 'Frequency'
+        else:
+            fprop = ''
+
         # print system status menu #
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}| {20:1}\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk") + \
+            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", fprop) + \
             oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
@@ -13220,7 +13263,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(totalCoreStat)
 
         # save report data #
-        if SystemManager.reportEnable is True:
+        if SystemManager.reportEnable:
             self.reportData = {}
 
             self.reportData['system'] = {}
@@ -13272,7 +13315,7 @@ class ThreadAnalyzer(object):
             self.reportData['task']['nrCtx'] = ctxSwc
 
         # print each cpu usage #
-        if SystemManager.showAll is True:
+        if SystemManager.showAll:
             SystemManager.addPrint(oneLine + '\n')
 
             freqPath = '/sys/devices/system/cpu/cpu'
@@ -13422,23 +13465,28 @@ class ThreadAnalyzer(object):
                     value['write'] = value['io']['write_bytes']
 
         # get profile mode #
-        if SystemManager.processEnable is True:
+        if SystemManager.processEnable:
             mode = 'Process'
         else:
             mode = 'Thread'
 
         if SystemManager.wfcEnable is False:
-            dprop = "Dly"
+            dprop = 'Dly'
         else:
-            dprop = "WFC"
+            dprop = 'WFC'
+
+        if SystemManager.wchanEnable:
+            wprop = 'WaitChannel'
+        else:
+            wprop = ''
 
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|\n").\
+            "{18:^5}|{19:^6}|{20:^4}|{21:>9}| {22:1}\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            "Yld", "Prmt", "FD", "LifeTime") + oneLine + '\n', newline = 3)
+            "Yld", "Prmt", "FD", "LifeTime", wprop) + oneLine + '\n', newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
@@ -13469,8 +13517,8 @@ class ThreadAnalyzer(object):
         for idx, value in sortedProcData:
             # filter #
             if SystemManager.showGroup != []:
-                if SystemManager.groupProcEnable is True:
-                    if SystemManager.processEnable is True:
+                if SystemManager.groupProcEnable:
+                    if SystemManager.processEnable:
                         if value['stat'][self.ppidIdx] in SystemManager.showGroup:
                             pass
                         elif idx in SystemManager.showGroup:
@@ -13514,12 +13562,12 @@ class ThreadAnalyzer(object):
                 targetValue == 0:
                 break
 
-            if value['new'] is True:
+            if value['new']:
                 comm = '*' + value['stat'][self.commIdx][1:-1]
             else:
                 comm = value['stat'][self.commIdx][1:-1]
 
-            if SystemManager.processEnable is True:
+            if SystemManager.processEnable:
                 pid = value['stat'][self.ppidIdx]
             else:
                 pid = value['mainID']
@@ -13547,8 +13595,12 @@ class ThreadAnalyzer(object):
             if SystemManager.wfcEnable is False:
                 self.saveProcSchedData(value['taskPath'], idx)
 
+            # save wait channel info  #
+            if SystemManager.wchanEnable:
+                self.saveProcWchanData(value['taskPath'], idx)
+
             # save memory map info to get memory details #
-            if SystemManager.memEnable is True:
+            if SystemManager.memEnable:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             try:
@@ -13596,29 +13648,34 @@ class ThreadAnalyzer(object):
             except:
                 dtime = '-'
 
-            if SystemManager.diskEnable is True:
+            if SystemManager.diskEnable:
                 readSize = value['read'] >> 20
                 writeSize = value['write'] >> 20
             else:
                 readSize = '-'
                 writeSize = '-'
 
-            if SystemManager.wfcEnable is True:
+            if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
+
+            if SystemManager.wchanEnable:
+                wchan = value['wchan']
+            else:
+                wchan = ''
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}| {22:1}\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
-                yld, prtd, value['fdsize'], lifeTime))
+                yld, prtd, value['fdsize'], lifeTime, wchan))
 
-            if SystemManager.memEnable is True:
+            if SystemManager.memEnable:
                 if value['maps'] is not None:
                     for key, item in sorted(value['maps'].items(), reverse=True):
                         tmpstr = ''
@@ -13708,10 +13765,10 @@ class ThreadAnalyzer(object):
     def printNewProcess(self):
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
-            if value['new'] is True:
+            if value['new']:
                 comm = ('%s%s' % ('[+]', value['stat'][self.commIdx][1:-1]))[:16]
 
-                if SystemManager.processEnable is True:
+                if SystemManager.processEnable:
                     pid = value['stat'][self.ppidIdx]
                 else:
                     pid = value['mainID']
@@ -13741,7 +13798,7 @@ class ThreadAnalyzer(object):
                 except:
                     shr = '-'
 
-                if SystemManager.diskEnable is True:
+                if SystemManager.diskEnable:
                     readSize = value['read'] >> 20
                     writeSize = value['write'] >> 20
                 else:
@@ -13780,7 +13837,7 @@ class ThreadAnalyzer(object):
             if value['alive'] is False:
                 comm = ('%s%s' % ('[-]', value['stat'][self.commIdx][1:-1]))[:16]
 
-                if SystemManager.processEnable is True:
+                if SystemManager.processEnable:
                     pid = value['stat'][self.ppidIdx]
                 else:
                     pid = value['mainID']
@@ -13810,7 +13867,7 @@ class ThreadAnalyzer(object):
                 except:
                     shr = '-'
 
-                if SystemManager.diskEnable is True:
+                if SystemManager.diskEnable:
                     readSize = value['read'] >> 20
                     writeSize = value['write'] >> 20
                 else:
@@ -14221,7 +14278,7 @@ class ThreadAnalyzer(object):
         nrReason = len(self.reportData['event'])
 
         # print system status to file #
-        if SystemManager.reportFileEnable is True and \
+        if SystemManager.reportFileEnable and \
             SystemManager.printFile is not None and \
             nrReason > 0:
 
@@ -14400,7 +14457,7 @@ if __name__ == '__main__':
         SystemManager.printRecordOption()
 
         # run in background #
-        if SystemManager.backgroundEnable is True:
+        if SystemManager.backgroundEnable:
             pid = os.fork()
 
             if pid > 0:
@@ -14410,7 +14467,7 @@ if __name__ == '__main__':
                 SystemManager.printStatus("background running as process %s" % SystemManager.pid)
 
         # wait for signal #
-        if SystemManager.waitEnable is True:
+        if SystemManager.waitEnable:
             SystemManager.printStatus("wait for starting profile... [ START(ctrl + c) ]")
             signal.signal(signal.SIGINT, SystemManager.defaultHandler)
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
@@ -14499,7 +14556,7 @@ if __name__ == '__main__':
         SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
         si.runRecordStartCmd()
 
-        if SystemManager.pipeEnable is True:
+        if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
                 SystemManager.setIdlePriority()
                 SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
@@ -14536,7 +14593,7 @@ if __name__ == '__main__':
         while 1:
             SystemManager.condExit = True
             signal.pause()
-            if SystemManager.condExit is True:
+            if SystemManager.condExit:
                 break
 
         if SystemManager.graphEnable is False:
@@ -14561,7 +14618,7 @@ if __name__ == '__main__':
     SystemManager.getTty()
 
     # import packages to draw graph #
-    if SystemManager.graphEnable is True:
+    if SystemManager.graphEnable:
         try:
             import matplotlib
             matplotlib.use('Agg')
@@ -14576,7 +14633,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
     # convert txt to image #
-    if SystemManager.customImageEnable is True:
+    if SystemManager.customImageEnable:
         SystemManager.printStatus("start converting...")
         SystemManager.makeLogImage()
         sys.exit(0)
@@ -14590,7 +14647,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
         # run in background #
-        if SystemManager.backgroundEnable is True:
+        if SystemManager.backgroundEnable:
             pid = os.fork()
 
             if pid > 0:
