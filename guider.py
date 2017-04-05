@@ -4590,6 +4590,10 @@ class FileAnalyzer(object):
         self.profFailedCnt = 0
 
         for fileName, val in self.fileData.items():
+            if fileName.startswith('/dev'):
+                SystemManager.printWarning("Skip to analize %s because it is device node" % fileName)
+                continue
+
             if len(self.intervalFileData) > 0:
                 # use file descriptor already saved as possible #
                 try:
@@ -6644,7 +6648,7 @@ class SystemManager(object):
 
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'R' or option == 't' or option == 'C' or \
-                option == 'v' or option == 'H':
+                option == 'v' or option == 'H' or option == 'F':
                 continue
 
             else:
