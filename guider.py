@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.7.5"
+__version__ = "3.7.6"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2714,7 +2714,6 @@ class FunctionAnalyzer(object):
         targetCnt = 0
         self.totalTime = float(self.finishTime) - float(self.startTime)
 
-        # Print title #
         SystemManager.printTitle()
 
         # print system information #
@@ -4092,7 +4091,6 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        # Print title #
         SystemManager.printTitle()
 
         # print system information #
@@ -4226,10 +4224,9 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        # Print title #
         SystemManager.printTitle()
 
-        # print system information #
+        # Print system information #
         SystemManager.printInfoBuffer()
 
         # Print proccess list #
@@ -5022,6 +5019,16 @@ class SystemManager(object):
 
 
     @staticmethod
+    def submitSystemInfo():
+        si = SystemManager()
+        si.saveAllInfo()
+        si.printAllInfoToBuf()
+        SystemManager.pipePrint(SystemManager.systemInfoBuffer)
+        SystemManager.clearInfoBuffer()
+
+
+
+    @staticmethod
     def printOptions():
         if len(sys.argv) <= 1 or \
             sys.argv[1] == '-h' or \
@@ -5555,6 +5562,11 @@ class SystemManager(object):
             SystemManager.condExit = True
         elif SystemManager.isTopMode():
             if SystemManager.printFile is not None:
+                SystemManager.printTitle()
+
+                # submit system info #
+                SystemManager.submitSystemInfo()
+
                 # submit summarized report #
                 ThreadAnalyzer.printIntervalUsage()
 
@@ -5590,6 +5602,11 @@ class SystemManager(object):
         elif SystemManager.isTopMode():
             if SystemManager.printFile is None:
                 return
+
+            SystemManager.printTitle()
+
+            # submit system info #
+            SystemManager.submitSystemInfo()
 
             # submit summarized report #
             ThreadAnalyzer.printIntervalUsage()
@@ -5783,7 +5800,11 @@ class SystemManager(object):
             elif sys.platform.startswith('win'):
                 os.system('cls')
 
-        SystemManager.pipePrint("[ g.u.i.d.e.r \tver.%s ]\n" % __version__)
+        title = "/ g.u.i.d.e.r \tver.%s /" % __version__
+        underline = '_' * (len(title))
+        overline = '-' * (len(title))
+
+        SystemManager.pipePrint(' %s\n%s\n%s' % (underline, title, overline))
 
 
 
@@ -5995,13 +6016,14 @@ class SystemManager(object):
             except:
                 SystemManager.printError("Fail to write %s event\n" % (message))
         else:
-            SystemManager.printError("Fail to write %s event because there is no file descriptor\n" % message)
+            SystemManager.printError(\
+                "Fail to write %s event because there is no file descriptor\n" % message)
 
 
 
     @staticmethod
     def infoBufferPrint(line):
-        SystemManager.systemInfoBuffer += line + '\n'
+        SystemManager.systemInfoBuffer = '%s%s\n' % (SystemManager.systemInfoBuffer, line)
 
 
 
@@ -7184,7 +7206,8 @@ class SystemManager(object):
 
 
     def saveAllInfo(self):
-        self.saveProcInfo()
+        if SystemManager.isTopMode() is False:
+            self.saveProcInfo()
         self.saveCpuInfo()
         self.saveMemInfo()
         self.saveDiskInfo()
@@ -7903,7 +7926,7 @@ class SystemManager(object):
 
 
     def printSystemInfo(self):
-        SystemManager.infoBufferPrint('\n[System General Info]')
+        SystemManager.infoBufferPrint('\n\n[System General Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
         SystemManager.infoBufferPrint(oneLine)
@@ -9294,7 +9317,6 @@ class ThreadAnalyzer(object):
 
 
     def printUsage(self):
-        # print title #
         SystemManager.printTitle()
 
         # print system information #
@@ -10521,7 +10543,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
             "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
-            format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BLKRW(MB)', 'BLKWAIT(%)',\
+            format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
             'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
         SystemManager.pipePrint(oneLine + '\n')
 
@@ -10539,6 +10561,9 @@ class ThreadAnalyzer(object):
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], val['total']['rclm'], \
                 val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
+
+        if len(ThreadAnalyzer.procIntervalData) == 0:
+            SystemManager.pipePrint('\tNone\n')
 
         SystemManager.pipePrint(oneLine + '\n')
 
@@ -10776,8 +10801,6 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printIntervalUsage():
-        SystemManager.printTitle()
-
         # print summarized interval table #
         ThreadAnalyzer.summarizeIntervalUsage()
 
@@ -13540,7 +13563,7 @@ class ThreadAnalyzer(object):
                         continue
 
             # cut by rows of terminal #
-            if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
+            if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6 and \
                     SystemManager.printFile is None:
                 return
 
@@ -13747,7 +13770,7 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
 
                         # cut by rows of terminal #
-                        if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5 and \
+                        if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6 and \
                             SystemManager.printFile is None:
                             return
 
@@ -13830,7 +13853,7 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5:
+                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6:
                 return
 
 
@@ -13920,7 +13943,7 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 5:
+                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6:
                 return
 
 
@@ -14494,8 +14517,9 @@ if __name__ == '__main__':
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
-            # print system information #
             SystemManager.printTitle()
+
+            # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
             # close pipe for less util #
@@ -14601,6 +14625,7 @@ if __name__ == '__main__':
                 break
 
         if SystemManager.graphEnable is False:
+            # compare init time with now time for buffer verification #
             if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
                 SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
                     SystemManager.getBufferSize())
