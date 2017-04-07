@@ -4735,6 +4735,41 @@ class FileAnalyzer(object):
 
 
 
+class LogManager(object):
+    """ Manager for error log """
+    def __init__(self):
+        self.terminal = sys.stderr
+        self.error = False
+
+
+
+    def write(self, message):
+        self.terminal.write(message)
+
+        if self.error:
+            return
+
+        try:
+            with open(SystemManager.errorFile, 'a') as fd:
+                fd.write(message)
+        except:
+            self.error = True
+            SystemManager.printError('Fail to open %s for logging error' % SystemManager.errorFile)
+
+
+
+    def flush(self):
+        pass
+
+
+
+    def __getattr__(self, attr):
+        return getattr(self.terminal, attr)
+
+
+
+
+
 class SystemManager(object):
     """ Manager for system setting """
 
@@ -4770,6 +4805,7 @@ class SystemManager(object):
     fileForPrint = None
     inputFile = None
     outputFile = None
+    errorFile = '/tmp/guider.err'
     sourceFile = None
     printFile = None
     optionList = None
@@ -4910,6 +4946,12 @@ class SystemManager(object):
 
     def __del__(self):
         pass
+
+
+
+    @staticmethod
+    def setErrorLogger():
+        sys.stderr = LogManager()
 
 
 
@@ -5101,6 +5143,7 @@ class SystemManager(object):
             print('\t\t-g  [filter_specificGroup:comms|tids]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
+            print('\t\t-E  [set_errorLogPath:file]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -6460,6 +6503,10 @@ class SystemManager(object):
             elif option == 'A':
                 SystemManager.setArch(value)
 
+            elif option == 'E':
+                SystemManager.errorFile = value
+                SystemManager.printInfo("error log is wrote to %s" % SystemManager.errorFile)
+
             elif option == 'e':
                 options = value
                 if options.rfind('g') > -1:
@@ -6725,6 +6772,10 @@ class SystemManager(object):
 
             elif option == 'A':
                 SystemManager.setArch(value)
+
+            elif option == 'E':
+                SystemManager.errorFile = value
+                SystemManager.printInfo("error log is wrote to %s" % SystemManager.errorFile)
 
             elif option == 'e':
                 options = value
@@ -14431,6 +14482,9 @@ if __name__ == '__main__':
 
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
+
+    # set error logger #
+    SystemManager.setErrorLogger()
 
     # set comm #
     SystemManager.setComm()
