@@ -13695,9 +13695,9 @@ class ThreadAnalyzer(object):
             if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
 
-            if SystemManager.wchanEnable:
+            try:
                 wchan = value['wchan']
-            else:
+            except:
                 wchan = ''
 
             SystemManager.addPrint(\
