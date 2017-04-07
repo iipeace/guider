@@ -8843,7 +8843,12 @@ class ThreadAnalyzer(object):
                     prop[pname][sline[1].strip()] = map(int, sline[2:-1])
 
         # get total size of RAM and swap #
-        line = logBuf[finalLine]
+        try:
+            line = logBuf[finalLine]
+        except:
+            SystemManager.printError("Fail to find Detailed Statistics in %s" % logFile)
+            sys.exit(0)
+
         strPos = line.find('[RAM')
         sline = line[strPos:].split()
         try:
@@ -8969,8 +8974,8 @@ class ThreadAnalyzer(object):
             axis('equal')
 
             # print total size in legend #
-            legend(patches, totalList, loc="lower right",\
-                fontsize=4.5, handlelength=0, bbox_to_anchor=(1.1, 0.01))
+            legend(patches, totalList, loc="lower right", shadow=True,\
+                fontsize=4.5, handlelength=0, bbox_to_anchor=(1.2, 0.01))
 
             seq += 1
 
@@ -10845,8 +10850,15 @@ class ThreadAnalyzer(object):
         commIdx = ConfigManager.statList.index("COMM")
         ppidIdx = ConfigManager.statList.index("PPID")
 
-        for key, value in sorted(SystemManager.procInstance.items(), \
-            key=lambda e: long(e[1]['stat'][ConfigManager.statList.index("RSS")]), reverse=True):
+        try:
+            sortedList = sorted(SystemManager.procInstance.items(), \
+                key=lambda e: long(e[1]['stat'][ConfigManager.statList.index("RSS")]), reverse=True)
+        except:
+            SystemManager.printWarning("Fail to get memory details because of sort error")
+            SystemManager.pipePrint("\tNone\n%s\n" % oneLine)
+            return
+
+        for key, value in sortedList:
             # check filter #
             if SystemManager.showGroup != []:
                 skip = True
@@ -10888,49 +10900,49 @@ class ThreadAnalyzer(object):
                     totalCnt += item['count']
 
                     try:
-                        vmem = item['Size'] >> 10
+                        vmem = item['Size:'] >> 10
                         totalVmem += vmem
                     except:
                         vmem = 0
 
                     try:
-                        rss = item['Rss'] >> 10
+                        rss = item['Rss:'] >> 10
                         totalRss += rss
                     except:
                         rss = 0
 
                     try:
-                        pss = item['Pss'] >> 10
+                        pss = item['Pss:'] >> 10
                         totalPss += pss
                     except:
                         pss = 0
 
                     try:
-                        swap = item['Swap'] >> 10
+                        swap = item['Swap:'] >> 10
                         totalSwap += swap
                     except:
                         swap = 0
 
                     try:
-                        huge = item['AnonHugePages'] >> 10
+                        huge = item['AnonHugePages:'] >> 10
                         totalHuge += huge
                     except:
                         huge = 0
 
                     try:
-                        lock = item['Locked']
+                        lock = item['Locked:']
                         totalLock += lock
                     except:
                         lock = 0
 
                     try:
-                        pdirty = item['Private_Dirty']
+                        pdirty = item['Private_Dirty:']
                         totalPdirty += pdirty
                     except:
                         pdirty = 0
 
                     try:
-                        sdirty = item['Shared_Dirty']
+                        sdirty = item['Shared_Dirty:']
                         totalSdirty += sdirty
                     except:
                         sdirty = 0
@@ -12825,8 +12837,8 @@ class ThreadAnalyzer(object):
         ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         checkCnt = 0
-        checklist = ['Size', 'Rss', 'Pss', 'Shared_Dirty', \
-            'Private_Dirty', 'AnonHugePages', 'Swap', 'Locked']
+        checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Dirty:', \
+            'Private_Dirty:', 'AnonHugePages:', 'Swap:', 'Locked:']
 
         try:
             SystemManager.procInstance[tid]['maps'] = ptable
@@ -12848,9 +12860,11 @@ class ThreadAnalyzer(object):
 
         for line in buf:
             d = {}
+            tmplist = line.split()
 
-            if line.find('-') >= 0:
-                tmplist = line.split()
+            # memory map info #
+            if not line[0].isupper():
+                checkCnt = 0
 
                 d['range'] = tmplist[0]
                 d['perm'] = tmplist[1]
@@ -12859,44 +12873,24 @@ class ThreadAnalyzer(object):
                 d['inode'] = tmplist[4]
 
                 if len(tmplist) > 5:
-                    d['type'] = tmplist[5]
+                    ptype = tmplist[5]
                 else:
-                    d['type'] = ''
+                    ptype = ''
 
-            # memory detail info #
-            if d == {}:
-                tmplist = line.split()
-                prop = tmplist[0][:-1]
-                val = tmplist[1]
-
-                try:
-                    if checklist[checkCnt] == prop:
-                        checkCnt += 1
-
-                        try:
-                            ptable[mtype][prop] += int(val)
-                        except:
-                            ptable[mtype][prop] = int(val)
-                except:
-                    pass
-            # memory map info #
-            else:
-                checkCnt = 0
-
-                ptype = d['type']
-
+                # shared memory #
                 if d['perm'][3] == 's':
                     mtype = 'SHM'
+                # file-mapped memory #
+                elif ptype.startswith('/'):
+                    mtype = 'FILE'
+                    ftable[ptype] = 0
+                # anonymous memory #
                 elif ptype == '':
                     mtype = 'HEAP'
-                elif ptype[0] == '/':
-                    mtype = 'FILE'
-                    try:
-                        ftable[ptype]
-                    except:
-                        ftable[ptype] = 0
+                # stack memory #
                 elif ptype.startswith('[stack'):
                     mtype = 'STACK'
+                # anonymous memory #
                 elif ptype == '[heap]':
                     mtype = 'HEAP'
                 else:
@@ -12906,6 +12900,22 @@ class ThreadAnalyzer(object):
                     ptable[mtype]['count'] += 1
                 except:
                     ptable[mtype]['count'] = int(1)
+            # memory detail info #
+            else:
+                prop = tmplist[0]
+                val = tmplist[1]
+
+                try:
+                    if checklist[checkCnt] == prop:
+                        checkCnt += 1
+
+                        val = int(val)
+                        try:
+                            ptable[mtype][prop] += val
+                        except:
+                            ptable[mtype][prop] = val
+                except:
+                    pass
 
         # save file number mapped #
         ptable['FILE']['count'] = len(ftable)
