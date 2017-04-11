@@ -13574,7 +13574,7 @@ class ThreadAnalyzer(object):
         if SystemManager.wchanEnable:
             etc = 'WaitChannel'
         else:
-            etc = 'SignalCatchBit'
+            etc = 'WaitSignal'
 
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
