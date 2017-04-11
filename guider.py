@@ -13201,9 +13201,13 @@ class ThreadAnalyzer(object):
             inactFileMem = self.vmData['nr_inactive_file'] >> 8
             totalFileMem = self.vmData['nr_file_pages'] >> 8
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
+            nrDirty = self.vmData['nr_dirty']
+
+            # dirty ratio #
+            '''
             dirtyRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_threshold'])) * 100)
             dirtyBgRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
-            dirtyStat = '%d/%d' % (dirtyBgRatio, dirtyRatio)
+            '''
 
             # slab memory #
             slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
@@ -13309,7 +13313,7 @@ class ThreadAnalyzer(object):
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", 'DrtRat') + \
+            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", 'NrDrt') + \
             oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
@@ -13344,7 +13348,7 @@ class ThreadAnalyzer(object):
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
-            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, dirtyStat)
+            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty)
 
         SystemManager.addPrint(totalCoreStat)
 
