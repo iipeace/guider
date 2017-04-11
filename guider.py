@@ -13061,6 +13061,7 @@ class ThreadAnalyzer(object):
         for line in statusBuf:
             if line.startswith('VmSwap') or \
                 line.startswith('FDSize') or \
+                line.startswith('SigCgt') or \
                 line.startswith('voluntary_ctxt_switches') or \
                 line.startswith('nonvoluntary_ctxt_switches'):
                 statusList = line.split(':')
@@ -13571,17 +13572,17 @@ class ThreadAnalyzer(object):
             dprop = 'WFC'
 
         if SystemManager.wchanEnable:
-            wprop = 'WaitChannel'
+            etc = 'WaitChannel'
         else:
-            wprop = ''
+            etc = 'SignalCatchBit'
 
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}| {22:1}\n{23:1}\n").\
+            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            "Yld", "Prmt", "FD", "LifeTime", wprop, oneLine), newline = 3)
+            "Yld", "Prmt", "FD", "LifeTime", etc, oneLine), newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
@@ -13753,22 +13754,28 @@ class ThreadAnalyzer(object):
             if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
 
-            try:
-                wchan = value['wchan']
-            except:
-                wchan = ''
+            if SystemManager.wchanEnable:
+                try:
+                    etc = value['wchan']
+                except:
+                    etc = ''
+            else:
+                try:
+                    etc = value['status']['SigCgt'].lstrip('0')
+                except:
+                    etc = '-'
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}| {22:1}\n").\
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
-                yld, prtd, value['fdsize'], lifeTime, wchan))
+                yld, prtd, value['fdsize'], lifeTime, etc))
 
             if SystemManager.memEnable:
                 if value['maps'] is not None:
@@ -13904,14 +13911,14 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime))
+                    '-', '-', '-', lifeTime, '-'))
                 newCnt += 1
 
             else:
@@ -13973,14 +13980,14 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|\n").\
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime))
+                    '-', '-', '-', lifeTime, '-'))
                 dieCnt += 1
 
                 # close fd that thread who already termiated created because of limited resource #
