@@ -10600,7 +10600,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
             "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
-            'SWAP(MB)', 'RclmBgDr(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
+            'SWAP(MB)', 'Reclaim(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
         SystemManager.pipePrint(oneLine + '\n')
 
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -13201,6 +13201,9 @@ class ThreadAnalyzer(object):
             inactFileMem = self.vmData['nr_inactive_file'] >> 8
             totalFileMem = self.vmData['nr_file_pages'] >> 8
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
+            dirtyRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_threshold'])) * 100)
+            dirtyBgRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
+            dirtyStat = '%d/%d' % (dirtyBgRatio, dirtyRatio)
 
             # slab memory #
             slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
@@ -13301,17 +13304,12 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to get all system stat")
             return
 
-        if SystemManager.showAll:
-            fprop = 'Frequency'
-        else:
-            fprop = ''
-
         # print system status menu #
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}| {20:1}\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^10}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "RclmBgDr", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", fprop) + \
+            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", 'DrtRat') + \
             oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
@@ -13340,13 +13338,13 @@ class ThreadAnalyzer(object):
         totalUsage = int(userUsage + kerUsage + irqUsage)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^10}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
-            nrMajFault, nrBlocked, nrSoftIrq, nrMlock)
+            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, dirtyStat)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -13415,8 +13413,7 @@ class ThreadAnalyzer(object):
                     if not int(idx) in self.prevCpuData:
                         coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                             format("Core/" + str(idx), '- %', '-', '-', '-', '-')
-                        coreGraph = ' ' * int(len(totalCoreStat) - len(coreStat) - 2)
-                        SystemManager.addPrint(coreStat + coreGraph + '|\n')
+                        SystemManager.addPrint('%s\n' % coreStat)
                         continue
 
                     prevData = self.prevCpuData[int(idx)]
@@ -13441,13 +13438,6 @@ class ThreadAnalyzer(object):
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage)
-
-                    # print graph of per-core usage #
-                    if totalUsage > 0:
-                        coreGraph = '#' * ((len(totalCoreStat) - len(coreStat) - 2) * totalUsage / 100)
-                        coreGraph += (' ' * (len(totalCoreStat) - len(coreStat) - len(coreGraph) - 2))
-                    else:
-                        coreGraph = ' ' * int(len(totalCoreStat) - len(coreStat) - 2)
 
                     # get current cpu frequency #
                     curPath = freqPath + str(idx) + '/cpufreq/cpuinfo_cur_freq'
@@ -13485,7 +13475,20 @@ class ThreadAnalyzer(object):
                     if minFreq is not None and maxFreq is not None:
                         coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
 
-                    SystemManager.addPrint('%s| %s\n' % (coreStat + coreGraph, coreFreq))
+                    # get length of string #
+                    lenTotal = len(totalCoreStat)
+                    lenCore = len(coreStat)
+                    lenFreq = len(coreFreq)
+                    lenLine = len(oneLine) - lenCore - lenFreq - 2
+
+                    # print graph of per-core usage #
+                    if totalUsage > 0:
+                        coreGraph = '#' * (lenLine * totalUsage / 100)
+                        coreGraph += (' ' * (lenLine - len(coreGraph)))
+                    else:
+                        coreGraph = ' ' * lenLine
+
+                    SystemManager.addPrint('%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
                 except:
                     continue
 
