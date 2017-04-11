@@ -13307,7 +13307,7 @@ class ThreadAnalyzer(object):
         # print system status menu #
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^10}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
             "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", 'DrtRat') + \
             oneLine + '\n', newline = 3)
@@ -13338,7 +13338,7 @@ class ThreadAnalyzer(object):
         totalUsage = int(userUsage + kerUsage + irqUsage)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^10}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
@@ -13574,10 +13574,10 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}| {22:1}\n").\
+            "{18:^5}|{19:^6}|{20:^4}|{21:>9}| {22:1}\n{23:1}\n").\
             format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            "Yld", "Prmt", "FD", "LifeTime", wprop) + oneLine + '\n', newline = 3)
+            "Yld", "Prmt", "FD", "LifeTime", wprop, oneLine), newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
