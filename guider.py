@@ -10581,7 +10581,7 @@ class ThreadAnalyzer(object):
                 return
 
             try:
-                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = tokenList[4]
+                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = tokenList[4].strip()
             except:
                 ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = '-'
 
@@ -10589,6 +10589,11 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = int(tokenList[6])
             except:
                 ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = '-'
+
+            try:
+                ThreadAnalyzer.procIntervalData[index]['total']['netIO'] = tokenList[11].strip()
+            except:
+                ThreadAnalyzer.procIntervalData[index]['total']['netIO'] = '-'
 
             return
 
@@ -10663,9 +10668,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine + '\n')
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
-            "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
+            "{6:^8} | {7:^8} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^10} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
-            'SWAP(MB)', 'Reclaim(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrProc', 'NrThread'))
+            'SWAP(MB)', 'Rclm(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrTask', 'NetIO'))
         SystemManager.pipePrint(oneLine + '\n')
 
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -10677,11 +10682,12 @@ class ThreadAnalyzer(object):
             if 'total' not in val:
                 continue
 
+            task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint(("{0:>5} | {1:>12} - {2:>12} | {3:>6} | {4:>8} | {5:^9} | " +\
-                "{6:>10} | {7:>8} | {8:^12} | {9:>5} | {10:>6} | {11:>6} | {12:>6} | {13:>8} |\n").\
+                "{6:>10} | {7:>8} | {8:^8} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^10} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'], val['total']['mem'],\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], val['total']['rclm'], \
-                val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], val['nrProc'], val['nrThread']))
+                val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], task, val['total']['netIO']))
 
         if len(ThreadAnalyzer.procIntervalData) == 0:
             SystemManager.pipePrint('\tNone\n')
