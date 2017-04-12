@@ -4833,6 +4833,9 @@ class SystemManager(object):
     uptime = 0
     prevUptime = 0
     uptimeDiff = 0
+    netstat = ''
+    prevNetstat = ''
+    netInIndex = -1
 
     reportEnable = False
     reportPath = None
@@ -4864,6 +4867,7 @@ class SystemManager(object):
     vmstatFd = None
     swapFd = None
     uptimeFd = None
+    netstatFd = None
     cmdFd = None
 
     irqEnable = False
@@ -8174,14 +8178,25 @@ class SystemManager(object):
             except:
                 continue
 
-            SystemManager.infoBufferPrint(\
+            diskInfo = \
                 "{0:<16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:<20}". \
                 format(key, afterInfo['major'], afterInfo['minor'], \
                 (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                 (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
                 (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
                 (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
-                val['fs'], val['path'] + ' <' + val['option'] + '>'))
+                val['fs'], val['path'] + ' <' + val['option'] + '>')
+
+            if len(diskInfo) > SystemManager.lineLength:
+                try:
+                    diskInfo = '%s\n%s%s' %\
+                        (diskInfo[:SystemManager.lineLength],\
+                        ' ' * (SystemManager.lineLength - len(diskInfo[SystemManager.lineLength + 1:])),\
+                        diskInfo[SystemManager.lineLength + 1:])
+                except:
+                    pass
+
+            SystemManager.infoBufferPrint(diskInfo)
 
         if outputCnt == 0:
             SystemManager.infoBufferPrint('N/A')
@@ -10441,6 +10456,56 @@ class ThreadAnalyzer(object):
 
 
 
+    def getNetworkUsage(self, prev, now):
+        if prev == now:
+            return ('-', '-')
+
+        nowIn = nowOut = prevIn = prevOut = 0
+
+        try:
+            idx = -1
+
+            for line in now:
+                idx += 1
+                if not line.startswith('IpExt'):
+                    continue
+
+                if SystemManager.netInIndex < 0:
+                    SystemManager.netInIndex = line.split().index('InOctets')
+
+                try:
+                    nowStat = line.split()
+                    nowIn = long(nowStat[SystemManager.netInIndex])
+                    nowOut = long(nowStat[SystemManager.netInIndex + 1])
+
+                    prevStat = prev[idx].split()
+                    prevIn = long(prevStat[SystemManager.netInIndex])
+                    prevOut = long(prevStat[SystemManager.netInIndex + 1])
+
+                    inDiff = nowIn - prevIn
+                    recv = inDiff >> 20
+                    if recv > 0:
+                        recv = '%sM' % recv
+                    else:
+                        recv = '%sK' % (inDiff >> 10)
+
+                    outDiff = nowOut - prevOut
+                    send = outDiff >> 20
+                    if send > 0:
+                        send = '%sM' % send
+                    else:
+                        send = '%sK' % (outDiff >> 10)
+
+                    return (recv, send)
+                except:
+                    pass
+        except:
+            pass
+
+        return ('-', '-')
+
+
+
     @staticmethod
     def parseProcLine(index, procLine):
         # Get time info #
@@ -10600,7 +10665,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
             "{6:^8} | {7:^12} | {8:^5} | {9:^6} | {10:^6} | {11:^6} | {12:^8} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
-            'SWAP(MB)', 'Reclaim(MB)', 'NrFlt', 'Ctxt', 'IRQ', 'NrProc', 'NrThread'))
+            'SWAP(MB)', 'Reclaim(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrProc', 'NrThread'))
         SystemManager.pipePrint(oneLine + '\n')
 
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -12763,6 +12828,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % swapPath)
 
+        # get swap usage if it changed #
         if self.prevSwaps != swapBuf and swapBuf is not None:
             swapTotal = 0
             swapUsed = 0
@@ -12788,6 +12854,19 @@ class ThreadAnalyzer(object):
                 self.vmData['swapTotal'] = 0
                 self.vmData['swapUsed'] = 0
 
+        # save netstat #
+        try:
+            SystemManager.netstatFd.seek(0)
+            SystemManager.prevNetstat = SystemManager.netstat
+            SystemManager.netstat = SystemManager.netstatFd.readlines()
+        except:
+            try:
+                netstatPath = "%s/%s" % (SystemManager.procPath, 'net/netstat')
+                SystemManager.netstatFd = open(netstatPath, 'r')
+                SystemManager.netstat = SystemManager.netstatFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % netstatPath)
+
         # save uptime #
         try:
             SystemManager.uptimeFd.seek(0)
@@ -12802,7 +12881,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
-        # get process list in /proc directory #
+        # get process list #
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
@@ -12812,7 +12891,7 @@ class ThreadAnalyzer(object):
         # save proc instance #
         SystemManager.procInstance = self.procData
 
-        # get thread list in /proc directory #
+        # get thread list #
         for pid in pids:
             try:
                 int(pid)
@@ -13311,18 +13390,18 @@ class ThreadAnalyzer(object):
 
         # print system status menu #
         SystemManager.addPrint(twoLine + '\n' + \
-            ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|\n").\
-            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab", \
-            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", 'NrDrt') + \
-            oneLine + '\n', newline = 3)
+            ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|"\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab",\
+            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", "NrDrt",\
+            "NetIO") + oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
         ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
         nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
         nrSoftIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
 
-        # print total cpu usage #
+        # get total cpu usage #
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
@@ -13342,14 +13421,17 @@ class ThreadAnalyzer(object):
 
         totalUsage = int(userUsage + kerUsage + irqUsage)
 
+        # get network usage #
+        netIO = '%s/%s' % self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
+
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|\n").\
+            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", \
             str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
             swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
             str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
-            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty)
+            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
 
         SystemManager.addPrint(totalCoreStat)
 
