@@ -13393,7 +13393,7 @@ class ThreadAnalyzer(object):
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|"\
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab",\
-            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "SoftIrq", "NrMlk", "NrDrt",\
+            "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt",\
             "NetIO") + oneLine + '\n', newline = 3)
 
         interval = SystemManager.uptimeDiff
