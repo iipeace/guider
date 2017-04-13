@@ -13024,8 +13024,9 @@ class ThreadAnalyzer(object):
     def saveProcSmapsData(path, tid):
         buf = ''
         mtype = ''
+        stable = {}
         ftable = {}
-        fpath = path + '/smaps'
+        fpath = '%s/%s' % (path, 'smaps')
         ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         checkCnt = 0
@@ -13072,6 +13073,7 @@ class ThreadAnalyzer(object):
                 # shared memory #
                 if d['perm'][3] == 's':
                     mtype = 'SHM'
+                    stable[ptype] = 0
                 # file-mapped memory #
                 elif ptype.startswith('/'):
                     mtype = 'FILE'
@@ -13109,10 +13111,11 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        # save file number mapped #
+        # save the number of mapping #
         ptable['FILE']['count'] = len(ftable)
+        ptable['SHM']['count'] = len(stable)
 
-        del buf, ptable
+        del buf, ptable, ftable, stable
 
 
 
@@ -13453,12 +13456,12 @@ class ThreadAnalyzer(object):
             return
 
         # print system status menu #
-        SystemManager.addPrint(twoLine + '\n' + \
+        SystemManager.addPrint(('%s\n' % twoLine) + \
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|"\
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab",\
             "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt",\
-            "NetIO") + oneLine + '\n', newline = 3)
+            "NetIO") + ('%s\n' % oneLine), newline = 3)
 
         interval = SystemManager.uptimeDiff
         ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
@@ -13491,10 +13494,10 @@ class ThreadAnalyzer(object):
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", \
-            str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage, \
+            '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
-            swapUsage, swapUsageDiff, str(swapInMem) + '/' + str(swapOutMem), \
-            str(bgReclaim) + '/' + str(drReclaim), str(pgInMemDiff) + '/' + str(pgOutMemDiff), \
+            swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
+            '%s/%s' % (bgReclaim, drReclaim), '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
 
         SystemManager.addPrint(totalCoreStat)
@@ -13554,7 +13557,7 @@ class ThreadAnalyzer(object):
 
         # print each cpu usage #
         if SystemManager.showAll:
-            SystemManager.addPrint(oneLine + '\n')
+            SystemManager.addPrint('%s\n' % oneLine)
 
             freqPath = '/sys/devices/system/cpu/cpu'
 
@@ -13589,10 +13592,11 @@ class ThreadAnalyzer(object):
                         kerUsage = 100
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
-                        format("Core/" + str(idx), str(totalUsage) + ' %', userUsage, kerUsage, ioUsage, irqUsage)
+                        format("Core/%s" % idx, '%s %%' % totalUsage,\
+                        userUsage, kerUsage, ioUsage, irqUsage)
 
                     # get current cpu frequency #
-                    curPath = freqPath + str(idx) + '/cpufreq/cpuinfo_cur_freq'
+                    curPath = '%s%s/cpufreq/cpuinfo_cur_freq' % (freqPath, idx)
                     try:
                         with open(curPath, 'r') as fd:
                             curFreq = fd.readline()[:-1]
@@ -13601,7 +13605,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     # get min cpu frequency #
-                    minPath = freqPath + str(idx) + '/cpufreq/cpuinfo_min_freq'
+                    minPath = '%s%s/cpufreq/cpuinfo_min_freq' % (freqPath, idx)
                     try:
                         with open(minPath, 'r') as fd:
                             minFreq = fd.readline()[:-1]
@@ -13610,7 +13614,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     # get max cpu frequency #
-                    maxPath = freqPath + str(idx) + '/cpufreq/cpuinfo_max_freq'
+                    maxPath = '%s%s/cpufreq/cpuinfo_max_freq' % (freqPath, idx)
                     try:
                         with open(maxPath, 'r') as fd:
                             maxFreq = fd.readline()[:-1]
