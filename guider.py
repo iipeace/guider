@@ -8749,6 +8749,8 @@ class ThreadAnalyzer(object):
         blkWait = []
         blkRead = []
         blkWrite = []
+        netRead = []
+        netWrite = []
         cpuProcUsage = {}
         blkProcUsage = {}
 
@@ -8802,6 +8804,22 @@ class ThreadAnalyzer(object):
                 except:
                     blkRead.append(0)
                     blkWrite.append(0)
+                try:
+                    netstat = summaryList[12].strip().split('/')
+                    if netstat[0] == '-':
+                        raise
+
+                    if netstat[0][-1] == 'M':
+                        netRead.append(int(netstat[0][:-1]))
+                    else:
+                        netRead.append(0)
+                    if netstat[1][-1] == 'M':
+                        netWrite.append(int(netstat[1][:-1]))
+                    else:
+                        netWrite.append(0)
+                except:
+                    netRead.append(0)
+                    netWrite.append(0)
             if line[:compareLen] == compareString:
                 break
 
@@ -8929,7 +8947,8 @@ class ThreadAnalyzer(object):
         # draw graph and save it #
         try:
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
-                blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap)
+                blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                memFree, totalRAM, swapUsage, totalSwap)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
@@ -9051,8 +9070,9 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
-        blkProcUsage, blkRead, blkWrite, memFree, totalRAM, swapUsage, totalSwap):
+    def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+        blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+        memFree, totalRAM, swapUsage, totalSwap):
         # CPU total usage #
         ymax = 0
         ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
@@ -9228,6 +9248,42 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='green', fontweight='bold')
             plot(timeline, blkWrite, '-', c='green', linewidth=1)
             labelList.append('Block Write')
+
+        usage = map(int, netRead)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='purple', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='purple', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='purple', fontweight='bold')
+            plot(timeline, netRead, '-', c='purple', linewidth=1)
+            labelList.append('Network Recv')
+
+        usage = map(int, netWrite)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
+            labelList.append('Network Send')
 
         ylabel('MEMORY(MB)', fontsize=7)
         legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
