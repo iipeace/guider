@@ -13345,10 +13345,12 @@ class ThreadAnalyzer(object):
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
             nrDirty = self.vmData['nr_dirty']
 
-            # dirty ratio #
+            # dirty memory #
+            dirtyMem = self.vmData['nr_dirty']
             '''
             dirtyRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_threshold'])) * 100)
-            dirtyBgRatio = int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
+            dirtyBgRatio = \
+                int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
             '''
 
             # slab memory #
@@ -13521,6 +13523,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
+            self.reportData['mem']['dirty'] = dirtyMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
