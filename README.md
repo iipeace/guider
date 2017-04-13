@@ -4,13 +4,13 @@
 guider
 =======
 Do you struggle to improve system performance or to find root cause that makes system abnormal?   
-Guider is made to measure system resource usage and to give user hints to improve system performance.   
-You can trace and analyze resource usage of thread, process, function with this tool.   
+Guider is made to measure amount of system resource usage by process, thread, function and to give information on performance improvement hints.   
+You can analize your performance issues effectively with this tool.   
 
-Guider pursues three characteristics.
->1. easy to use: just run without install or setting
->2. measure correct: measure time in ms and size in MB/KB
->3. integrate functions: show cpu / memory / disk usage per thread / process / function (user/kernel)
+Guider pursues three characteristics as bellow.
+>1. easy to use: just run without installation or setting
+>2. measure correctly: time in ms, size in MB
+>3. integrate functionality: show all information as possible
 
 
 How to use
@@ -20,7 +20,7 @@ How to use
 Input command as bellow to start accurate profiling (thread mode)
 # guider.py record 
 
-Input "Ctrl + c" key to finish accurate profiling (thread mode)
+Input "Ctrl + c" key to finish profiling
 
 Input command as bellow to start realtime profiling (top mode)
 $ guider.py top 
@@ -33,8 +33,7 @@ Requirement
 ```
 - linux kernel (>= 3.0)
 - python (>= 2.7)
-- root permission (except for top mode)
-- kernel configuration (except for top mode)
+- kernel configuration
 ```
 
 
@@ -42,11 +41,11 @@ Build
 =======
 
 ```
-Input command as bellow to make guider lighter
+Input command as bellow to make guider lighter and faster
 $ make
 
-Then bytecode object and library are created
-bytecode object (guider.pyc) is able to be launched by guider script
+Then bytecode object (guider.pyc) and library (libguider.so) are created
+those are able to be used by launcher (guider)
 ```
 
 
@@ -54,6 +53,8 @@ Kernel Configuration
 =======
 
 ```
+Enable kernel options as bellow for thread / function mode
+
 [ Default ]
 CONFIG_RING_BUFFER
 CONFIG_FTRACE
@@ -79,7 +80,7 @@ CONFIG_USER_STACKTRACE_SUPPORT
 Options
 =======
 
-* Use comma(,) as delimiter for multiple values
+* Use comma(,) as delimiter for multiple option values
 
 ```
 [record mode]
