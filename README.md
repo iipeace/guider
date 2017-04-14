@@ -3,9 +3,9 @@
 
 guider
 =======
-Do you struggle to improve system performance or to find root cause that makes system abnormal?
-Guider is made to measure amount of system resource usage and to trace system behavior.
-You can analize your performance issues effectively with this tool.
+Do you struggle to improve system performance or to find root cause that makes system abnormal?   
+Guider is made to measure amount of system resource usage and to trace system behavior.   
+You can analize your performance issues effectively with this tool.   
 
 Guider pursues three characteristics as bellow.
 >1. easy to use: just run without installation or setting
