@@ -3,14 +3,14 @@
 
 guider
 =======
-Do you struggle to improve system performance or to find root cause that makes system abnormal?   
-Guider is made to measure amount of system resource usage by process, thread, function and to offer performance statistics.   
-You can analize your performance issues effectively with this tool.   
+Do you struggle to improve system performance or to find root cause that makes system abnormal?
+Guider is made to measure amount of system resource usage and to trace system behavior.
+You can analize your performance issues effectively with this tool.
 
 Guider pursues three characteristics as bellow.
 >1. easy to use: just run without installation or setting
 >2. measure correctly: time in ms, size in MB
->3. integrate functionality: show as much information as possible
+>3. integrate features: show as much information as possible
 
 
 How to use
@@ -44,8 +44,8 @@ Build
 Input command as bellow to make guider lighter and faster
 $ make
 
-Then bytecode object (guider.pyc) and library (libguider.so) are created
-those are able to be used by launcher (guider)
+Then bytecode(guider.pyc) and library(libguider.so) are created,
+Those objects are able to be used by launcher script(guider)
 ```
 
 
