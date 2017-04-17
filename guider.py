@@ -4845,6 +4845,7 @@ class SystemManager(object):
     graphEnable = False
     procBuffer = []
     procInstance = None
+    sysInstance = None
     procBufferSize = 0
     bufferString = ''
     bufferRows = 0
@@ -4875,6 +4876,7 @@ class SystemManager(object):
     memEnable = False
     heapEnable = False
     diskEnable = False
+    netEnable = False
     wchanEnable = False
     wfcEnable = False
     blockEnable = False
@@ -4915,6 +4917,8 @@ class SystemManager(object):
 
 
     def __init__(self):
+        SystemManager.sysInstance = self
+
         self.memInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
@@ -5111,8 +5115,8 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|W(chan)|I(mage)|f(ile)|g(raph)}')
+            print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -5357,6 +5361,11 @@ class SystemManager(object):
             else:
                 disableStat += 'IRQ '
 
+            if SystemManager.netEnable:
+                enableStat += 'NET '
+            else:
+                disableStat += 'NET '
+
             if SystemManager.sysEnable:
                 enableStat += 'SYSCALL '
             else:
@@ -5538,6 +5547,11 @@ class SystemManager(object):
                 enableStat += 'IRQ '
             else:
                 disableStat += 'IRQ '
+
+            if SystemManager.netEnable:
+                enableStat += 'NET '
+            else:
+                disableStat += 'NET '
 
             if SystemManager.repeatCount > 0:
                 enableStat += 'REPEAT '
@@ -5790,11 +5804,12 @@ class SystemManager(object):
                     SystemManager.printError("Fail to write command")
 
         try:
-            fd = open(SystemManager.mountPath + path, 'w')
+            fd = open('%s%s' % (SystemManager.mountPath, path), 'w')
         except:
+            epath = path[0:path.rfind('/')]
+            SystemManager.sysInstance.cmdList[epath] = False
             SystemManager.printWarning(\
-                "Fail to use %s event, please confirm kernel configuration" %\
-                path[0:path.rfind('/')])
+                "Fail to use %s event, please confirm kernel configuration" % epath)
             return -1
 
         try:
@@ -6009,6 +6024,8 @@ class SystemManager(object):
                 SystemManager.heapEnable = True
             if filterList.find('i') > -1:
                 SystemManager.irqEnable = True
+            if filterList.find('n') > -1:
+                SystemManager.netEnable = True
 
         # apply custom option #
         launchPosStart = SystemManager.launchBuffer.find(' -c')
@@ -6787,6 +6804,8 @@ class SystemManager(object):
                     SystemManager.irqEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
+                if options.rfind('n') > -1:
+                    SystemManager.netEnable = True
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = True
                 if options.rfind('b') > -1:
@@ -7447,6 +7466,8 @@ class SystemManager(object):
         self.cmdList["block/block_rq_complete"] = SystemManager.blockEnable
         self.cmdList["writeback/writeback_dirty_page"] = SystemManager.blockEnable
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
+        self.cmdList["net/net_dev_xmit"] = SystemManager.netEnable
+        self.cmdList["net/netif_receive_skb"] = SystemManager.netEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["task"] = True
@@ -7840,6 +7861,12 @@ class SystemManager(object):
             SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
         if self.cmdList["writeback/wbc_writepage"]:
             SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
+
+        # options for net event tracing #
+        if self.cmdList["net/net_dev_xmit"]:
+            SystemManager.writeCmd('net/net_dev_xmit/enable', '1')
+        if self.cmdList["net/netif_receive_skb"]:
+            SystemManager.writeCmd('net/netif_receive_skb/enable', '1')
 
         # options for module event tracing #
         if self.cmdList["module/module_load"]:
@@ -12528,6 +12555,12 @@ class ThreadAnalyzer(object):
 
                 if state is not None:
                     self.suspendData.append([time, state])
+
+            elif func == "net_dev_xmit":
+                pass
+
+            elif func == "netif_receive_skb":
+                pass
 
             elif func == "module_load":
                 m = re.match(r'^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
