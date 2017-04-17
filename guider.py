@@ -4944,7 +4944,7 @@ class SystemManager(object):
         self.systemInfo = dict()
 
         SystemManager.eventLogFile = \
-            str(self.getMountPath()) + '/tracing/trace_marker'
+            '%s%s' % (self.getMountPath(), '/tracing/trace_marker')
 
         # Save storage info first #
         self.saveMemInfo()
@@ -5807,7 +5807,11 @@ class SystemManager(object):
             fd = open('%s%s' % (SystemManager.mountPath, path), 'w')
         except:
             epath = path[0:path.rfind('/')]
-            SystemManager.sysInstance.cmdList[epath] = False
+            try:
+                SystemManager.sysInstance.cmdList[epath] = False
+            except:
+                pass
+
             SystemManager.printWarning(\
                 "Fail to use %s event, please confirm kernel configuration" % epath)
             return -1
@@ -6061,7 +6065,8 @@ class SystemManager(object):
     def writeEvent(message):
         if SystemManager.eventLogFD == None:
             if SystemManager.eventLogFile is None:
-                SystemManager.eventLogFile = str(SystemManager.getMountPath()) + '/tracing/trace_marker'
+                SystemManager.eventLogFile = \
+                    '%s%s' % (SystemManager.getMountPath(), '/tracing/trace_marker')
 
             try:
                 SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
@@ -7377,10 +7382,10 @@ class SystemManager(object):
 
     @staticmethod
     def getBufferSize():
-        bufFile = "../buffer_size_kb"
+        bufFile = "%s../buffer_size_kb" % SystemManager.mountPath
 
         try:
-            f = open(SystemManager.mountPath + bufFile, 'r')
+            f = open(bufFile, 'r')
             size = f.readlines()
             f.close()
         except:
@@ -7434,7 +7439,6 @@ class SystemManager(object):
                     f.close()
                     return d['dir']
         f.close()
-
 
 
 
@@ -7502,13 +7506,13 @@ class SystemManager(object):
         if SystemManager.mountPath is None:
             SystemManager.mountPath = "/sys/kernel/debug"
             SystemManager.mountCmd =\
-                "mount -t debugfs nodev " + SystemManager.mountPath
+                "mount -t debugfs nodev %s" % SystemManager.mountPath
             os.system(SystemManager.mountCmd)
         else:
             SystemManager.mountCmd =\
-                "mount -t debugfs nodev " + SystemManager.mountPath
+                "mount -t debugfs nodev %s" % SystemManager.mountPath
 
-        SystemManager.mountPath += "/tracing/events/"
+        SystemManager.mountPath = "%s/tracing/events/" % SystemManager.mountPath
 
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
