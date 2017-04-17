@@ -271,7 +271,7 @@ class ConfigManager(object):
         'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', 'SIGCHLD', 'SIGCONT', #18#
         'SIGSTOP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', 'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', #27#
         'SIGWINCH', 'SIGIO', 'SIGPWR', 'SIGSYS' #31#
-        ]
+        ] + [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
 
     # stat list from http://linux.die.net/man/5/proc #
     statList = [
