@@ -6555,6 +6555,10 @@ class SystemManager(object):
                     if os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission for sampling stack")
                         sys.exit(0)
+                    elif SystemManager.findOption('g') is False:
+                        SystemManager.printError(\
+                            "wrong option with -e + s, use also -g option to show stacks")
+                        sys.exit(0)
                     else:
                         SystemManager.stackEnable = True
                 if options.rfind('W') > -1:
@@ -8592,7 +8596,7 @@ class ThreadAnalyzer(object):
                 # no path of statistics file #
                 else:
                     SystemManager.printError(\
-                        "wrong option with -eg, use also -I option to load statistics data")
+                        "wrong option with -e + g, use also -I option to load statistics data")
                     sys.exit(0)
 
             try:
@@ -14101,12 +14105,12 @@ class ThreadAnalyzer(object):
                 indent = 45
 
                 try:
-                    for stack, value in sorted(self.stackTable[idx]['stack'].items(), \
+                    for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
                         key=lambda e: e[1], reverse=True):
 
                         line = ''
                         fullstack = ''
-                        per = int((value / float(self.stackTable[idx]['total'])) * 100)
+                        per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
                         self.stackTable[idx]['stack'][stack] = 0
 
                         if per == 0:
@@ -14140,7 +14144,7 @@ class ThreadAnalyzer(object):
 
                 try:
                     self.stackTable[idx]['total'] = 0
-                    if fullstack != '':
+                    if fullstack != '' and value['new'] is False:
                         SystemManager.addPrint(oneLine + '\n')
                 except:
                     pass
@@ -14964,7 +14968,7 @@ if __name__ == '__main__':
                 SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
                 SystemManager.printInfo("wrote data to %s successfully" % (SystemManager.outputFile))
             else:
-                SystemManager.printError("wrong option with -ep, use also -s option to save data")
+                SystemManager.printError("wrong option with -e + p, use also -s option to save data")
 
             sys.exit(0)
 
