@@ -308,7 +308,7 @@ class ConfigManager(object):
 
     @staticmethod
     def readProcData(tid, path, num):
-        path = '/proc/'+ tid + '/' + path
+        path = '/proc/%s/%s' % (tid, path)
 
         try:
             f = open(path, 'r')
@@ -4877,6 +4877,7 @@ class SystemManager(object):
     heapEnable = False
     diskEnable = False
     netEnable = False
+    stackEnable = False
     wchanEnable = False
     wfcEnable = False
     blockEnable = False
@@ -5115,8 +5116,8 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|W(chan)|I(mage)|f(ile)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|I(mage)|f(ile)|g(raph)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -5476,6 +5477,11 @@ class SystemManager(object):
                 enableStat += 'DISK '
             else:
                 disableStat += 'DISK '
+
+            if SystemManager.stackEnable:
+                enableStat += 'STACK '
+            else:
+                disableStat += 'STACK '
 
             if SystemManager.wchanEnable:
                 enableStat += 'WCHAN '
@@ -6545,6 +6551,12 @@ class SystemManager(object):
                         SystemManager.diskEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+                if options.rfind('s') > -1:
+                    if os.geteuid() != 0:
+                        SystemManager.printError("Fail to get root permission for sampling stack")
+                        sys.exit(0)
+                    else:
+                        SystemManager.stackEnable = True
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
                 if options.rfind('w') > -1:
@@ -8549,6 +8561,7 @@ class ThreadAnalyzer(object):
             self.memData = {}
             self.vmData = {}
             self.prevVmData = {}
+            self.stackTable = {}
             self.prevSwaps = None
 
             # set index of attributes #
@@ -8673,8 +8686,11 @@ class ThreadAnalyzer(object):
                 else:
                     waitTime = SystemManager.intervalEnable - delayTime
 
-                # wait for next interval #
-                time.sleep(waitTime)
+                if SystemManager.stackEnable and self.stackTable != {}:
+                    self.sampleStack(waitTime)
+                else:
+                    # wait for next interval #
+                    time.sleep(waitTime)
 
                 # check request from client #
                 self.checkServer()
@@ -9379,6 +9395,31 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to draw image caused by save error")
             return
+
+
+
+    def sampleStack(self, period):
+        start = time.time()
+
+        while 1:
+            for idx, item in self.stackTable.items():
+                try:
+                    item['fd'].seek(0)
+                    stack = item['fd'].read()
+                except:
+                    del self.stackTable[idx]
+
+                try:
+                    item['total'] += 1
+                    item['stack'][stack] += 1
+                except:
+                    item['stack'][stack] = 1
+
+            # set 1ms as sample rate #
+            time.sleep(0.001)
+
+            if time.time() - start >= period:
+                return
 
 
 
@@ -13819,6 +13860,23 @@ class ThreadAnalyzer(object):
                     else:
                         continue
 
+                # add task into stack trace list #
+                if SystemManager.stackEnable:
+                    try:
+                        self.stackTable[idx]
+                    except:
+                        self.stackTable[idx] = dict()
+
+                    if not 'fd' in self.stackTable[idx]:
+                        spath = '/proc/%s/stack' % idx
+                        try:
+                            self.stackTable[idx]['fd'] = open(spath, 'r')
+                            self.stackTable[idx]['stack'] = {}
+                            self.stackTable[idx]['total'] = 0
+                        except:
+                            SystemManager.printWarning("Fail to open %s" % spath)
+                            del self.stackTable[idx]
+
             # cut by rows of terminal #
             if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6 and \
                     SystemManager.printFile is None:
@@ -14039,12 +14097,62 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint(oneLine + '\n')
 
+            if SystemManager.stackEnable:
+                indent = 45
+
+                try:
+                    for stack, value in sorted(self.stackTable[idx]['stack'].items(), \
+                        key=lambda e: e[1], reverse=True):
+
+                        line = ''
+                        fullstack = ''
+                        per = int((value / float(self.stackTable[idx]['total'])) * 100)
+                        self.stackTable[idx]['stack'][stack] = 0
+
+                        if per == 0:
+                            continue
+
+                        for call in stack.split('\n'):
+                            try:
+                                astack = call.split()[1]
+
+                                if astack.startswith('0xffffffff'):
+                                    if fullstack == line == '':
+                                        line = 'None'
+                                    else:
+                                        line = line[:line.rfind('<-')]
+                                    break
+
+                                if len(line) + len(astack) + indent >= SystemManager.lineLength:
+                                    indent = 0
+                                    fullstack = '%s%s\n' % (fullstack, line)
+                                    line = ' ' * 42
+
+                                line = '%s%s <- ' % (line, astack)
+                            except:
+                                pass
+
+                        fullstack = '%s%s' % (fullstack, line)
+
+                        SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack))
+                except:
+                    pass
+
+                try:
+                    self.stackTable[idx]['total'] = 0
+                    if fullstack != '':
+                        SystemManager.addPrint(oneLine + '\n')
+                except:
+                    pass
+
             procCnt += 1
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n".format('None'))
             SystemManager.addPrint(oneLine + '\n')
-        elif SystemManager.memEnable is False:
+        elif SystemManager.memEnable or SystemManager.stackEnable:
+            pass
+        else:
             SystemManager.addPrint(oneLine + '\n')
 
         self.printNewProcess()
