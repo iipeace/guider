@@ -14102,7 +14102,9 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(oneLine + '\n')
 
             if SystemManager.stackEnable:
-                indent = 45
+                # set indent size including arrow #
+                initIndent = 42
+                indent = initIndent + 3
 
                 try:
                     for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
@@ -14130,7 +14132,7 @@ class ThreadAnalyzer(object):
                                 if len(line) + len(astack) + indent >= SystemManager.lineLength:
                                     indent = 0
                                     fullstack = '%s%s\n' % (fullstack, line)
-                                    line = ' ' * 42
+                                    line = ' ' * initIndent
 
                                 line = '%s%s <- ' % (line, astack)
                             except:
@@ -14143,17 +14145,18 @@ class ThreadAnalyzer(object):
                     pass
 
                 try:
-                    self.stackTable[idx]['total'] = 0
-                    if fullstack != '' and value['new'] is False:
-                        SystemManager.addPrint(oneLine + '\n')
+                    if self.stackTable[idx]['total'] == 0:
+                        SystemManager.addPrint("{0:>39} | {1:1}\n".format('', 'None'))
+                    else:
+                        self.stackTable[idx]['total'] = 0
+                    SystemManager.addPrint(oneLine + '\n')
                 except:
                     pass
 
             procCnt += 1
 
         if procCnt == 0:
-            SystemManager.addPrint("{0:^16}\n".format('None'))
-            SystemManager.addPrint(oneLine + '\n')
+            SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
         elif SystemManager.memEnable or SystemManager.stackEnable:
             pass
         else:
