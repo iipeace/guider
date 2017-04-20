@@ -6641,6 +6641,9 @@ class SystemManager(object):
             elif option == 'N' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
+                # enable report option #
+                SystemManager.reportEnable = True
+
                 service = ret[0]
                 ip = ret[1]
                 port = ret[2]
@@ -14396,6 +14399,11 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printError("Fail to recognize address from server")
 
+        # wrong request from client #
+        if SystemManager.addrOfServer == 'NONE' and data in ThreadAnalyzer.requestType:
+            SystemManager.printError("Fail to handle %s request from client" % data)
+            return
+
         # reply ACK to server #
         try:
             self.replyService(ip, port)
@@ -14419,7 +14427,7 @@ class ThreadAnalyzer(object):
             self.printReportStat(reportStat)
         # REFUSE response #
         elif data == 'REFUSE':
-            SystemManager.printError("Fail to request service because no supported service")
+            SystemManager.printError("Fail to request service because of no support from server")
             sys.exit(0)
         # PRINT service #
         else:
