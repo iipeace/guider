@@ -4777,6 +4777,7 @@ class SystemManager(object):
     blockSize = 512
     bufferSize = '40960'
     ttyRows = '50'
+    ttyRowsMargin = 6
     ttyCols = '156'
     magicString = '@@@@@'
     procPath = '/proc'
@@ -13888,8 +13889,9 @@ class ThreadAnalyzer(object):
                             del self.stackTable[idx]
 
             # cut by rows of terminal #
-            if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6 and \
-                    SystemManager.printFile is None:
+            if int(SystemManager.bufferRows) >= \
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+                SystemManager.printFile is None:
                 return
 
             # set sort value #
@@ -14101,7 +14103,8 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
 
                         # cut by rows of terminal #
-                        if int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6 and \
+                        if int(SystemManager.bufferRows) >= \
+                            int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
                             SystemManager.printFile is None:
                             return
 
@@ -14237,7 +14240,8 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6:
+                int(SystemManager.bufferRows) >= \
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin - 2:
                 return
 
 
@@ -14327,7 +14331,8 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= int(SystemManager.ttyRows) - 6:
+                int(SystemManager.bufferRows) >= \
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin - 2:
                 return
 
 
