@@ -4800,6 +4800,7 @@ class SystemManager(object):
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
     addr2linePath = None
+    objdumpPath = None
     rootPath = None
     fontPath = None
     pipeForPrint = None
@@ -4877,6 +4878,7 @@ class SystemManager(object):
     memEnable = False
     heapEnable = False
     diskEnable = False
+    fileTopEnable = False
     netEnable = False
     stackEnable = False
     wchanEnable = False
@@ -5118,7 +5120,8 @@ class SystemManager(object):
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
             print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
-            print('\t\t\t  [top]      {t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|I(mage)|f(ile)|g(raph)}')
+            print('\t\t\t  [top]      '\
+                '{t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -5143,6 +5146,7 @@ class SystemManager(object):
             print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [set_addr2linePath:file]')
+            print('\t\t-m  [set_objdumpPath:file]')
             print('\t\t-r  [set_targetRootPath:dir]')
             print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
@@ -5426,7 +5430,77 @@ class SystemManager(object):
             enableStat += 'PIPE '
 
         # check current mode #
-        if SystemManager.isFunctionMode():
+        if SystemManager.isTopMode():
+            SystemManager.printInfo("TOP MODE")
+
+            if SystemManager.fileTopEnable:
+                enableStat += 'FILE '
+            else:
+                disableStat += 'FILE '
+
+                if SystemManager.cpuEnable:
+                    enableStat += 'CPU '
+                else:
+                    disableStat += 'CPU '
+
+                if SystemManager.diskEnable:
+                    enableStat += 'DISK '
+                else:
+                    disableStat += 'DISK '
+
+                if SystemManager.stackEnable:
+                    enableStat += 'STACK '
+                else:
+                    disableStat += 'STACK '
+
+                if SystemManager.wchanEnable:
+                    enableStat += 'WCHAN '
+                else:
+                    disableStat += 'WCHAN '
+
+                if SystemManager.wfcEnable:
+                    enableStat += 'WFC '
+                else:
+                    disableStat += 'WFC '
+
+                if SystemManager.processEnable is False:
+                    enableStat += 'THREAD '
+                    disableStat += 'PROCESS '
+                else:
+                    disableStat += 'THREAD '
+                    enableStat += 'PROCESS '
+
+                if SystemManager.memEnable:
+                    enableStat += 'MEMORY '
+                else:
+                    disableStat += 'MEMORY '
+
+                if SystemManager.graphEnable:
+                    enableStat += 'GRAPH '
+                else:
+                    disableStat += 'GRAPH '
+
+                if SystemManager.imageEnable:
+                    enableStat += 'IMAGE '
+                else:
+                    disableStat += 'IMAGE '
+
+                if SystemManager.reportFileEnable:
+                    enableStat += 'REPFILE '
+                else:
+                    disableStat += 'REPFILE '
+
+                if SystemManager.groupProcEnable:
+                    enableStat += 'GROUP '
+                else:
+                    disableStat += 'GROUP '
+
+                if SystemManager.reportEnable:
+                    enableStat += 'REPORT '
+                else:
+                    disableStat += 'REPORT '
+
+        elif SystemManager.isFunctionMode():
             SystemManager.printInfo("FUNCTION MODE")
 
             if SystemManager.graphEnable:
@@ -5465,71 +5539,6 @@ class SystemManager(object):
         elif SystemManager.isSystemMode():
             SystemManager.printInfo("SYSTEM MODE")
             SystemManager.waitEnable = True
-
-        elif SystemManager.isTopMode():
-            SystemManager.printInfo("TOP MODE")
-
-            if SystemManager.cpuEnable:
-                enableStat += 'CPU '
-            else:
-                disableStat += 'CPU '
-
-            if SystemManager.diskEnable:
-                enableStat += 'DISK '
-            else:
-                disableStat += 'DISK '
-
-            if SystemManager.stackEnable:
-                enableStat += 'STACK '
-            else:
-                disableStat += 'STACK '
-
-            if SystemManager.wchanEnable:
-                enableStat += 'WCHAN '
-            else:
-                disableStat += 'WCHAN '
-
-            if SystemManager.wfcEnable:
-                enableStat += 'WFC '
-            else:
-                disableStat += 'WFC '
-
-            if SystemManager.processEnable is False:
-                enableStat += 'THREAD '
-                disableStat += 'PROCESS '
-            else:
-                disableStat += 'THREAD '
-                enableStat += 'PROCESS '
-
-            if SystemManager.memEnable:
-                enableStat += 'MEMORY '
-            else:
-                disableStat += 'MEMORY '
-
-            if SystemManager.graphEnable:
-                enableStat += 'GRAPH '
-            else:
-                disableStat += 'GRAPH '
-
-            if SystemManager.imageEnable:
-                enableStat += 'IMAGE '
-            else:
-                disableStat += 'IMAGE '
-
-            if SystemManager.reportFileEnable:
-                enableStat += 'FILE '
-            else:
-                disableStat += 'FILE '
-
-            if SystemManager.groupProcEnable:
-                enableStat += 'GROUP '
-            else:
-                disableStat += 'GROUP '
-
-            if SystemManager.reportEnable:
-                enableStat += 'REPORT '
-            else:
-                disableStat += 'REPORT '
 
         else:
             SystemManager.printInfo("THREAD MODE")
@@ -6402,7 +6411,11 @@ class SystemManager(object):
                         SystemManager.savedOptionList[seq][0])
                 os._exit(0)
             except:
-                usedOpt[SystemManager.savedOptionList[seq][0]] = True
+                try:
+                    usedOpt[SystemManager.savedOptionList[seq][0]] = True
+                except:
+                    SystemManager.printError("wrong option used")
+                    os._exit(0)
 
 
 
@@ -6569,6 +6582,8 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
+                    SystemManager.fileTopEnable = True
+                if options.rfind('R') > -1:
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
@@ -6582,9 +6597,9 @@ class SystemManager(object):
                         SystemManager.printError("Fail to import package: " + err.args[0])
                         sys.exit(0)
 
-            elif option == 'f':
+            elif option == 'f' and SystemManager.isFunctionMode():
                 # Handle error about record option #
-                if SystemManager.isFunctionMode() and SystemManager.outputFile is None:
+                if SystemManager.outputFile is None:
                     SystemManager.printError("wrong option with -f, use also -s option to save data")
                     sys.exit(0)
                 else:
@@ -6592,6 +6607,9 @@ class SystemManager(object):
 
             elif option == 'l' and SystemManager.isTopMode() is False:
                 SystemManager.addr2linePath = value.split(',')
+
+            elif option == 'm' and SystemManager.isTopMode() is False:
+                SystemManager.objdumpPath = value.split(',')
 
             elif option == 'r' and SystemManager.isTopMode() is False:
                 SystemManager.rootPath = value
@@ -8497,6 +8515,7 @@ class ThreadAnalyzer(object):
             self.thisInterval = 0
             self.nrThread = 0
             self.nrProcess = 0
+            self.nrFd = 0
 
             self.threadDataOld = {}
             self.irqDataOld = {}
@@ -8651,57 +8670,15 @@ class ThreadAnalyzer(object):
             if SystemManager.printFile is not None:
                 SystemManager.printStatus(r"start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
 
+            # file top mode #
+            if SystemManager.fileTopEnable:
+                self.runFileTop()
+
             # request service to remote server #
             self.requestService()
 
-            while 1:
-                if SystemManager.addrOfServer is not None:
-                    # receive response from server #
-                    ret = SystemManager.addrAsServer.recv()
-
-                    # handle response from server #
-                    self.handleServerResponse(ret)
-
-                    continue
-
-                # collect system stats as soon as possible #
-                self.saveSystemStat()
-
-                # save timestamp #
-                prevTime = time.time()
-
-                if self.prevProcData != {}:
-                    if SystemManager.printFile is None:
-                        SystemManager.printTitle()
-
-                    # print system status #
-                    self.printSystemStat()
-
-                    # report system status #
-                    self.reportSystemStat()
-
-                # reset system status #
-                del self.prevProcData
-                self.prevProcData = self.procData
-                self.procData = {}
-                self.nrThread = 0
-                self.nrProcess = 0
-
-                # get delayed time #
-                delayTime = time.time() - prevTime
-                if delayTime > SystemManager.intervalEnable:
-                    waitTime = 0
-                else:
-                    waitTime = SystemManager.intervalEnable - delayTime
-
-                if SystemManager.stackEnable and self.stackTable != {}:
-                    self.sampleStack(waitTime)
-                else:
-                    # wait for next interval #
-                    time.sleep(waitTime)
-
-                # check request from client #
-                self.checkServer()
+            # process top mode #
+            self.runProcTop()
 
             sys.exit(0)
 
@@ -8790,6 +8767,97 @@ class ThreadAnalyzer(object):
 
     def __del__(self):
         pass
+
+
+
+    def runFileTop(self):
+        if os.geteuid() != 0:
+            SystemManager.printError("Fail to get root permission")
+            sys.exit(0)
+
+        while 1:
+            # collect file stats as soon as possible #
+            self.saveFileStat()
+
+            # save timestamp #
+            prevTime = time.time()
+
+            if self.prevProcData != {}:
+                if SystemManager.printFile is None:
+                    SystemManager.printTitle()
+
+                # print system status #
+                self.printFileStat()
+
+            # reset system status #
+            del self.prevProcData
+            self.prevProcData = self.procData
+            self.procData = {}
+            self.nrThread = 0
+            self.nrProcess = 0
+            self.nrFd = 0
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SystemManager.intervalEnable:
+                waitTime = 0
+            else:
+                waitTime = SystemManager.intervalEnable - delayTime
+
+            # wait for next interval #
+            time.sleep(waitTime)
+
+
+
+    def runProcTop(self):
+        while 1:
+            if SystemManager.addrOfServer is not None:
+                # receive response from server #
+                ret = SystemManager.addrAsServer.recv()
+
+                # handle response from server #
+                self.handleServerResponse(ret)
+
+                continue
+
+            # collect system stats as soon as possible #
+            self.saveSystemStat()
+
+            # save timestamp #
+            prevTime = time.time()
+
+            if self.prevProcData != {}:
+                if SystemManager.printFile is None:
+                    SystemManager.printTitle()
+
+                # print system status #
+                self.printSystemStat()
+
+                # report system status #
+                self.reportSystemStat()
+
+            # reset system status #
+            del self.prevProcData
+            self.prevProcData = self.procData
+            self.procData = {}
+            self.nrThread = 0
+            self.nrProcess = 0
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SystemManager.intervalEnable:
+                waitTime = 0
+            else:
+                waitTime = SystemManager.intervalEnable - delayTime
+
+            if SystemManager.stackEnable and self.stackTable != {}:
+                self.sampleStack(waitTime)
+            else:
+                # wait for next interval #
+                time.sleep(waitTime)
+
+            # check request from client #
+            self.checkServer()
 
 
 
@@ -12874,6 +12942,176 @@ class ThreadAnalyzer(object):
 
 
 
+    def printFileStat(self):
+        # save uptime #
+        try:
+            SystemManager.uptimeFd.seek(0)
+            SystemManager.prevUptime = SystemManager.uptime
+            SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
+            SystemManager.uptimeDiff = SystemManager.uptime - SystemManager.prevUptime
+        except:
+            try:
+                uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
+                SystemManager.uptimeFd = open(uptimePath, 'r')
+                SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
+            except:
+                SystemManager.printWarning('Fail to open %s' % uptimePath)
+
+        SystemManager.addPrint(\
+            ("\n[Top File Info] [Time: %7.3f] [Interval: %.1f] " \
+            "[Unit: %%/MB]\n") % \
+            (SystemManager.uptime, SystemManager.uptimeDiff))
+
+        SystemManager.addPrint(twoLine + '\n' + \
+            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
+            format("PROC", "ID", "Pid", "Nr", "Pri", "FD", "PATH", oneLine), newline = 3)
+
+        # set sort value #
+        if SystemManager.sort == 'p':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: int(e[0]))
+        elif SystemManager.sort == 'f':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['new'], reverse=True)
+        else:
+            # set cpu usage as default #
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: len(e[1]['fdList']), reverse=True)
+
+        # print process usage #
+        procCnt = 0
+        for idx, value in sortedProcData:
+            # filter #
+            if SystemManager.showGroup != []:
+                if SystemManager.groupProcEnable:
+                    if SystemManager.processEnable:
+                        if value['stat'][self.ppidIdx] in SystemManager.showGroup:
+                            pass
+                        elif idx in SystemManager.showGroup:
+                            pass
+                        else:
+                            continue
+                    elif value['mainID'] not in SystemManager.showGroup:
+                        continue
+                else:
+                    if idx in SystemManager.showGroup:
+                        pass
+                    elif True in [value['stat'][self.commIdx].find(val) >= 0 for val in SystemManager.showGroup]:
+                        pass
+                    else:
+                        continue
+
+            comm = value['stat'][self.commIdx][1:-1]
+
+            pid = value['stat'][self.ppidIdx]
+
+            if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+            else:
+                schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+
+            procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
+                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue))
+
+            procInfoLen = len(procInfo)
+
+            procInfo = "%s|%s\n" % (procInfo, '{0:>4}|{1:>107}|'.format(len(value['fdList']), ' '))
+
+            SystemManager.addPrint(procInfo)
+
+
+            # cut by rows of terminal #
+            if int(SystemManager.bufferRows) >= \
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin  - 2 and \
+                SystemManager.printFile is None:
+                break
+
+            for fd, path in sorted(value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
+                SystemManager.addPrint(\
+                    ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
+
+                # cut by rows of terminal #
+                if int(SystemManager.bufferRows) >= \
+                    int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin  - 2 and \
+                    SystemManager.printFile is None:
+                    break
+
+            SystemManager.addPrint(oneLine + '\n')
+
+        # realtime mode #
+        if SystemManager.printFile is None:
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.clearPrint()
+        # buffered mode #
+        else:
+            SystemManager.procBuffer[:0] = [SystemManager.bufferString]
+            SystemManager.procBufferSize += len(SystemManager.bufferString)
+            SystemManager.clearPrint()
+
+            while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
+                SystemManager.procBuffer.pop(-1)
+
+
+
+    def saveFileStat(self):
+        # get process list #
+        try:
+            pids = os.listdir(SystemManager.procPath)
+        except:
+            SystemManager.printError('Fail to open %s' % SystemManager.procPath)
+            sys.exit(0)
+
+        # save proc instance #
+        SystemManager.procInstance = self.procData
+
+        # get thread list #
+        for pid in pids:
+            try:
+                int(pid)
+                self.nrProcess += 1
+            except:
+                continue
+
+            # make path of tid #
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            fdlistPath = "%s/%s" % (procPath, 'fd')
+
+            # make process object with constant value #
+            self.procData[pid] = dict(self.init_procData)
+            self.procData[pid]['mainID'] = pid
+            self.procData[pid]['taskPath'] = procPath
+            self.procData[pid]['fdList'] = {}
+
+            # save stat of process #
+            self.saveProcData(procPath, pid)
+
+            # save file info per process #
+            try:
+                fdlist = os.listdir(fdlistPath)
+            except:
+                SystemManager.printWarning('Fail to open %s' % fdlistPath)
+                continue
+
+            # save fd info of process #
+            for fd in fdlist:
+                try:
+                    int(fd)
+                    self.nrFd += 1
+                except:
+                    continue
+
+                try:
+                    # add file info into fdList #
+                    fdPath = "%s/%s" % (fdlistPath, fd)
+                    self.procData[pid]['fdList'][fd] = os.readlink(fdPath)
+                except:
+                    self.nrFd -= 1
+                    SystemManager.printWarning('Fail to open %s' % fdPath)
+
+
+
     def saveSystemStat(self):
         # save cpu info #
         try:
@@ -13037,7 +13275,6 @@ class ThreadAnalyzer(object):
             pids = os.listdir(SystemManager.procPath)
         except:
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
-            sys.exit(0)
 
         # save proc instance #
         SystemManager.procInstance = self.procData
@@ -14773,7 +15010,7 @@ class ThreadAnalyzer(object):
         # print process info #
         self.printProcUsage()
 
-        # send remote server #
+        # send packet to remote server #
         if len(SystemManager.addrListForPrint) > 0:
             for addr, cli in SystemManager.addrListForPrint.items():
                 if cli.status == 'SENT' and cli.ignore > 1:
