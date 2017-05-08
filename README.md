@@ -44,11 +44,10 @@ Build & Installation
 If you can use PIP in your system then just input command as bellow
 # pip install guider
 
-Otherwise download source code from https://github.com/iipeace/guider
-
-If you want to make guider lighter and faster then Input command as bellow
+Otherwise download source file from https://github.com/iipeace/guider
+And if you want to make guider lighter and faster then input command as bellow
 # make && make install
-Then you can use launcher "guider"
+Then you can use "guider" as launcher
 ```
 
 
