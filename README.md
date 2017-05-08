@@ -42,7 +42,7 @@ Build & Installation
 
 ```
 If you can use PIP in your system then just input command as bellow
-# pip install guider
+# pip install --pre guider
 
 Otherwise download source file from https://github.com/iipeace/guider
 And if you want to make guider lighter and faster then input command as bellow
