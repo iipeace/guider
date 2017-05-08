@@ -37,15 +37,18 @@ Requirement
 ```
 
 
-Build
+Build & Installation
 =======
 
 ```
-Input command as bellow to make guider lighter and faster
-$ make
+If you can use PIP in your system then just input command as bellow
+# pip install guider
 
-Then bytecode(guider.pyc) and library(libguider.so) are created,
-Those objects are able to be used by launcher script(guider)
+Otherwise download source code from https://github.com/iipeace/guider
+
+If you want to make guider lighter and faster then Input command as bellow
+# make && make install
+Then you can use launcher "guider"
 ```
 
 
