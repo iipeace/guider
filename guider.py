@@ -8797,7 +8797,6 @@ class ThreadAnalyzer(object):
             self.prevProcData = self.procData
             self.procData = {}
             self.fileData = {}
-            self.nrThread = 0
             self.nrProcess = 0
             self.nrFd = 0
 
@@ -10878,12 +10877,33 @@ class ThreadAnalyzer(object):
         if SystemManager.fileInstance is None:
             return
 
-        SystemManager.pipePrint('\n[Top File Table]\n')
+        nrEvent = nrSocket = nrDevice = nrPipe = nrProc = nrFile = 0
+        for filename in SystemManager.fileInstance.keys():
+            # increase type count per process #
+            if filename.startswith('anon'):
+                nrEvent  += 1
+            elif filename.startswith('socket'):
+                nrSocket += 1
+            elif filename.startswith('/dev'):
+                nrDevice += 1
+            elif filename.startswith('pipe'):
+                nrPipe += 1
+            elif filename.startswith('/proc'):
+                nrProc += 1
+            else:
+                nrFile += 1
+
+        SystemManager.pipePrint(\
+            ('\n[Top File Table] [TOTAL: %d] [FILE: %d] [EVENT: %d] '\
+            '[SOCKET: %d] [DEV: %d] [PIPE: %d] [PROC: %d]\n') %\
+            (len(SystemManager.fileInstance), nrFile, nrEvent,\
+            nrSocket, nrDevice, nrPipe, nrProc))
         SystemManager.pipePrint(twoLine + '\n')
         SystemManager.pipePrint("{0:^5} | {1:^144} |\n".format('REF', 'FILE'))
         SystemManager.pipePrint(oneLine + '\n')
 
-        for filename, value in sorted(SystemManager.fileInstance.items(), key=lambda e: int(e[1]), reverse=True):
+        for filename, value in sorted(SystemManager.fileInstance.items(),\
+            key=lambda e: int(e[1]), reverse=True):
             SystemManager.pipePrint("{0:>5} | {1:<144} |\n".format(value, filename))
 
         if len(SystemManager.fileInstance) == 0:
@@ -12986,8 +13006,8 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
         SystemManager.addPrint(\
-            "\n[Top File Info] [Time: %7.3f] [FD: %d] [File: %d] [Unit: %%/MB]\n" % \
-            (SystemManager.uptime, self.nrFd, len(self.fileData)))
+            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] [Unit: %%/MB]\n" % \
+            (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
@@ -13063,8 +13083,6 @@ class ThreadAnalyzer(object):
                 details = ' '
             procInfo = "%s|%s\n" % (procInfo, '{0:>4}|\t{1:<105}|'.format(len(value['fdList']), details))
 
-            procCnt += 1
-
             fdCnt = 0
             for fd, path in sorted(value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
                 # cut by rows of terminal #
@@ -13091,6 +13109,9 @@ class ThreadAnalyzer(object):
 
                 fdCnt += 1
 
+            if fdCnt > 0:
+                procCnt += 1
+
             # cut by rows of terminal #
             if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
                 int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin  - 2 and \
@@ -13114,12 +13135,18 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
 
             while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                if len(SystemManager.procBuffer) == 1:
+                    break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
                 SystemManager.procBuffer.pop(-1)
 
 
 
     def saveFileStat(self):
+        # save proc and file instance #
+        SystemManager.procInstance = self.procData
+        SystemManager.fileInstance = self.fileData
+
         # get process list #
         try:
            pids = os.listdir(SystemManager.procPath)
@@ -13127,9 +13154,11 @@ class ThreadAnalyzer(object):
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
             sys.exit(0)
 
-        # save proc and file instance #
-        SystemManager.procInstance = self.procData
-        SystemManager.fileInstance = self.fileData
+        # remove self info #
+        try:
+            del pids[pids.index(str(SystemManager.pid))]
+        except:
+            pass
 
         # get thread list #
         for pid in pids:
@@ -14788,6 +14817,8 @@ class ThreadAnalyzer(object):
                 SystemManager.clearPrint()
 
                 while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                    if len(SystemManager.procBuffer) == 1:
+                        break
                     SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
                     SystemManager.procBuffer.pop(-1)
 
@@ -15134,6 +15165,8 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
 
             while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                if len(SystemManager.procBuffer) == 1:
+                    break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
                 SystemManager.procBuffer.pop(-1)
 
