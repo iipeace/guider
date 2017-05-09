@@ -13011,7 +13011,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(twoLine + '\n' + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
-            format("PROC", "ID", "Pid", "Nr", "Pri", "FD", "PROPERTY & PATH", oneLine), newline = 3)
+            format("PROC", "ID", "Pid", "Nr", "Pri", "FD", "PATH", oneLine), newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'p':
