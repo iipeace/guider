@@ -4027,8 +4027,13 @@ class FileAnalyzer(object):
             # load the library #
             self.libguider = cdll.LoadLibrary(self.libguiderPath)
         except:
-            SystemManager.printError('Fail to open %s, use LD_LIBRARY_PATH variable' % self.libguiderPath)
-            sys.exit(0)
+            try:
+                self.libguider = cdll.LoadLibrary('./%s' % self.libguiderPath)
+            except:
+                SystemManager.printError(\
+                    'Fail to open %s, set LD_LIBRARY_PATH to use %s' % \
+                    (self.libguiderPath, self.libguiderPath))
+                sys.exit(0)
 
         # set the argument type #
         self.libguider.get_filePageMap.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
@@ -4795,6 +4800,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
 
     arch = 'arm'
+    archOption = None
     mountPath = None
     mountCmd = None
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
@@ -5255,22 +5261,43 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getArch():
+        try:
+            arch = os.uname()[4]
+
+            if arch.startswith('arm'):
+                return 'arm'
+            elif arch.startswith('x86_64') or arch.startswith('ia64'):
+                return 'x64'
+            elif arch.startswith('i386') or arch.startswith('i686'):
+                return 'x86'
+            else:
+                return arch
+        except:
+            return None
+
+
+
+    @staticmethod
     def setArch(arch):
         if len(arch) == 0:
             return
 
-        SystemManager.arch = arch
-        SystemManager.removeEmptyValue(SystemManager.arch)
+        SystemManager.removeEmptyValue(arch)
 
+        # set systemcall table #
         if arch == 'arm':
+            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_arm
         elif arch == 'x86':
+            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_x86
         elif arch == 'x64':
+            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_x64
         else:
-            SystemManager.printError('Fail to set archtecture to %s, only support arm / x86 / x64' % arch)
-            SystemManager.arch = 'arm'
+            SystemManager.printError(\
+                'Fail to set archtecture to %s, only arm / x86 / x64 supported' % arch)
 
 
 
@@ -5982,6 +6009,16 @@ class SystemManager(object):
         SystemManager.launchBuffer = \
             SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
 
+        # apply arch type #
+        if SystemManager.archOption is None:
+            try:
+                archPosStart = SystemManager.systemInfoBuffer.find('Arch')
+                archPosEnd = SystemManager.systemInfoBuffer.find('\n', archPosStart)
+                arch = SystemManager.systemInfoBuffer[archPosStart:archPosEnd].split()[1]
+                SystemManager.setArch(arch)
+            except:
+                pass
+
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
         if launchPosStart > -1:
@@ -6550,6 +6587,7 @@ class SystemManager(object):
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
 
             elif option == 'A':
+                SystemManager.archOption = value
                 SystemManager.setArch(value)
 
             elif option == 'E':
@@ -6838,6 +6876,7 @@ class SystemManager(object):
                 SystemManager.systemEnable = True
 
             elif option == 'A':
+                SystemManager.archOption = value
                 SystemManager.setArch(value)
 
             elif option == 'E':
@@ -8061,6 +8100,11 @@ class SystemManager(object):
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Launch', '# ' + ' '.join(sys.argv)))
+        except:
+            pass
+        try:
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
+                format('Arch', SystemManager.arch))
         except:
             pass
         try:
@@ -15241,6 +15285,9 @@ if __name__ == '__main__':
         # set this process to RT priority #
         SystemManager.setRtPriority('90')
 
+        # set arch #
+        SystemManager.setArch(SystemManager.getArch())
+
         # save system information #
         si = SystemManager()
 
@@ -15433,6 +15480,10 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if SystemManager.isTopMode():
+        # set arch #
+        SystemManager.setArch(SystemManager.getArch())
+
+        # print record option #
         SystemManager.printRecordOption()
 
         # set handler for exit #
