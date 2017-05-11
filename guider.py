@@ -4819,6 +4819,7 @@ class SystemManager(object):
     optionList = None
     savedOptionList = None
     customCmd = None
+    userCmd = None
     libcObj = None
 
     addrAsServer = None
@@ -4886,6 +4887,7 @@ class SystemManager(object):
     heapEnable = False
     diskEnable = False
     fileTopEnable = False
+    eventEnable = False
     netEnable = False
     stackEnable = False
     wchanEnable = False
@@ -5126,7 +5128,8 @@ class SystemManager(object):
             print('\t[record options]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('\t\t\t  [thread]   {m(em)|b(lock)|i(rq)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+            print('\t\t\t  [thread]   '\
+                '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
                 '{t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
@@ -5143,6 +5146,7 @@ class SystemManager(object):
             print('\t\t-H  [set_depth]')
             print('\t\t-T  [set_fontPath]')
             print('\t\t-j  [set_reportPath:dir]')
+            print('\t\t-U  [set_userEvent:name:func|addr:file]')
             print('\t\t-C  [set_commandScriptPath:file]')
             print('\t\t-x  [set_addressForLocalServer:{ip:}port]')
             print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
@@ -5152,8 +5156,7 @@ class SystemManager(object):
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
-            print('\t\t-l  [set_addr2linePath:file]')
-            print('\t\t-m  [set_objdumpPath:file]')
+            print('\t\t-l  [set_addr2linePath:files]')
             print('\t\t-r  [set_targetRootPath:dir]')
             print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
@@ -5165,6 +5168,7 @@ class SystemManager(object):
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
+            print('\t\t-m  [set_objdumpPath:file]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -5178,6 +5182,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -s . -e mbi -d c -u' % cmd)
                 print('\t\t\t- record specific systemcalls of specific threads')
                 print('\t\t\t\t# %s record -s . -t sys_read,sys_write -g 1234' % cmd)
+                print('\t\t\t- record specific user function events')
+                print('\t\t\t\t# %s record -s . -U evt1:func1:/tmp/a.out,evt2:func2:/tmp/b.out -m $(which objdump)' % cmd)
                 print('\t\t\t- analize record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -a -i' % cmd)
                 print('\t\t\t- analize record data including preemption info of specific threads')
@@ -5302,6 +5308,127 @@ class SystemManager(object):
 
 
     @staticmethod
+    def writeUserCmd():
+        objdumpFound = False
+        effectiveCmd = []
+
+        if SystemManager.eventEnable is False:
+            return
+        elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
+            SystemManager.printError("enable CONFIG_UPROBES and CONFIG_UTRACE option in kernel")
+            sys.exit(0)
+
+        for cmd in SystemManager.userCmd:
+            addr = None
+            cmdFormat = cmd.split(':')
+
+            if len(cmdFormat) == 3:
+                if os.path.isfile(cmdFormat[2]) is False:
+                    SystemManager.printError("Fail to find %s" % cmdFormat[2])
+                    sys.exit(0)
+
+                # symbol input #
+                if cmdFormat[1].startswith('0x') is False:
+                    # symbol input with no objdump #
+                    if SystemManager.objdumpPath is None:
+                        SystemManager.printError(\
+                            "Fail to find objdump, use also -m option with objdump path")
+                        sys.exit(0)
+                    # symbol input with objdump #
+                    elif objdumpFound is False and os.path.isfile(SystemManager.objdumpPath) is False:
+                        SystemManager.printError("Fail to find %s to use objdump" % \
+                            SystemManager.objdumpPath)
+                        sys.exit(0)
+                    else:
+                        # get address of symbol in binary #
+                        addr = SystemManager.getSymOffset(\
+                            cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
+                        if addr is None:
+                            SystemManager.printError("Fail to find %s in %s" % \
+                                (cmdFormat[1], cmdFormat[2]))
+                            sys.exit(0)
+                else:
+                    addr = cmdFormat[1]
+                    try:
+                        hex(long(addr, base=16)).rstrip('L')
+                    except:
+                        SystemManager.printError("Fail to recognize address %s" % addr)
+                        sys.exit(0)
+
+                effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
+            else:
+                SystemManager.printError("wrong format used, NAME:FUNC|ADDR:FILE")
+                sys.exit(0)
+
+        # clear uprobe event filter #
+        SystemManager.writeCmd("../uprobe_events", '')
+
+        # apply uprobe events #
+        for cmd in effectiveCmd:
+            # apply entry events #
+            pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
+            if SystemManager.writeCmd('../uprobe_events', pCmd, append=True) < 0:
+                SystemManager.printError("wrong command '%s'" % pCmd)
+                sys.exit(0)
+            # apply return events #
+            rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
+            if SystemManager.writeCmd('../uprobe_events', rCmd, append=True) < 0:
+                SystemManager.printError("wrong command '%s'" % rCmd)
+                sys.exit(0)
+
+        # enable uprobe events #
+        if SystemManager.writeCmd("uprobes/enable", '1') < 0:
+            SystemManager.printError("Fail to apply uprobe events")
+            sys.exit(0)
+
+
+
+    @staticmethod
+    def getSymOffset(symbol, binPath, objdumpPath):
+        try:
+            import subprocess
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError("Fail to import package: " + err.args[0])
+            sys.exit(0)
+
+        disline = []
+        timeout = 5
+        args = [objdumpPath, "-C", "-F", "-d", binPath]
+
+        proc = subprocess.Popen(args,stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        try:
+            # Set alarm to handle hanged addr2line #
+            signal.alarm(timeout)
+
+            # Wait for addr2line to finish its job #
+            proc.wait()
+
+            # Cancel alarm after addr2line respond #
+            signal.alarm(0)
+        except:
+            SystemManager.printWarning('No response of objdump for %s' % binPath)
+            return None
+
+        while 1:
+            lines = proc.stdout.readlines()
+            if not lines:
+                err = proc.stderr.read()
+                if len(err) > 0:
+                    SystemManager.printError(err[err.find(':') + 2:])
+                    sys.exit(0)
+                break
+            disline += lines
+
+        key = '<%s>' % symbol
+        for item in disline:
+            if item.find(key) > -1:
+                return item[item.rfind('0x'):item.rfind(')')]
+
+
+
+    @staticmethod
     def writeCustomCmd():
         effectiveCmd = []
 
@@ -5331,7 +5458,8 @@ class SystemManager(object):
             # check and enable effective filter #
             if len(cmdFormat) > 1 and \
                 SystemManager.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
-                SystemManager.printError("wrong filter '%s' for '%s' event" % (origFilter, cmdFormat[0]))
+                SystemManager.printError("wrong filter '%s' for '%s' event" % \
+                    (origFilter, cmdFormat[0]))
                 sys.exit(0)
 
             # check and enable effective event #
@@ -5386,6 +5514,11 @@ class SystemManager(object):
                 enableStat += 'DEPENDENCY '
             else:
                 disableStat += 'DEPENDENCY '
+
+            if SystemManager.eventEnable:
+                enableStat += 'EVENT '
+            else:
+                disableStat += 'EVENT '
 
             if SystemManager.graphEnable:
                 enableStat += 'GRAPH '
@@ -5593,6 +5726,11 @@ class SystemManager(object):
                 enableStat += 'IRQ '
             else:
                 disableStat += 'IRQ '
+
+            if SystemManager.eventEnable:
+                enableStat += 'EVENT '
+            else:
+                disableStat += 'EVENT '
 
             if SystemManager.netEnable:
                 enableStat += 'NET '
@@ -5830,7 +5968,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeCmd(path, val):
+    def writeCmd(path, val, append = False):
         if SystemManager.cmdEnable is not False:
             if SystemManager.cmdFd is None:
                 try:
@@ -5849,8 +5987,13 @@ class SystemManager(object):
                 except:
                     SystemManager.printError("Fail to write command")
 
+        if append:
+            perm = 'a'
+        else:
+            perm = 'w'
+
         try:
-            fd = open('%s%s' % (SystemManager.mountPath, path), 'w')
+            fd = open('%s%s' % (SystemManager.mountPath, path), perm)
         except:
             epath = path[0:path.rfind('/')]
             try:
@@ -6101,7 +6244,18 @@ class SystemManager(object):
                     filterList[idx] = tempItem[1]
                 else:
                     filterList.pop(idx)
-            SystemManager.printInfo("profiled custom events [ %s ]" % ', '.join(filterList))
+            if len(filterList) > 0:
+                SystemManager.printInfo("profiled custom events [ %s ]" % \
+                    ', '.join(filterList))
+
+        # apply user event option #
+        launchPosStart = SystemManager.launchBuffer.find(' -U')
+        if launchPosStart > -1:
+            SystemManager.eventEnable = True
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            SystemManager.userCmd = str(filterList).split(',')
+            SystemManager.removeEmptyValue(SystemManager.userCmd)
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -6649,9 +6803,6 @@ class SystemManager(object):
             elif option == 'l' and SystemManager.isTopMode() is False:
                 SystemManager.addr2linePath = value.split(',')
 
-            elif option == 'm' and SystemManager.isTopMode() is False:
-                SystemManager.objdumpPath = value.split(',')
-
             elif option == 'r' and SystemManager.isTopMode() is False:
                 SystemManager.rootPath = value
 
@@ -6822,7 +6973,8 @@ class SystemManager(object):
 
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'R' or option == 't' or option == 'C' or \
-                option == 'v' or option == 'H' or option == 'F':
+                option == 'v' or option == 'H' or option == 'F' or \
+                option == 'U' or option == 'm':
                 continue
 
             else:
@@ -6944,6 +7096,14 @@ class SystemManager(object):
 
             elif option == 'W':
                 SystemManager.waitEnable = True
+
+            elif option == 'U':
+                SystemManager.eventEnable = True
+                SystemManager.userCmd = str(value).split(',')
+                SystemManager.removeEmptyValue(SystemManager.userCmd)
+
+            elif option == 'm':
+                SystemManager.objdumpPath = value
 
             elif option == 'F':
                 SystemManager.fileEnable = True
@@ -7565,6 +7725,7 @@ class SystemManager(object):
         self.cmdList["power/cpu_frequency"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
+        self.cmdList["uprobes"] = SystemManager.eventEnable
 
 
 
@@ -7626,6 +7787,7 @@ class SystemManager(object):
         else:
             SystemManager.writeCmd('../tracing_on', '0')
 
+        # FUNCTION MODE #
         if SystemManager.isFunctionMode():
             cmd = ""
 
@@ -7795,6 +7957,10 @@ class SystemManager(object):
         # enable custom events #
         SystemManager.writeCustomCmd()
 
+        # enable user events #
+        SystemManager.writeUserCmd()
+
+        # THREAD MODE #
         if SystemManager.cpuEnable:
             if self.cmdList["sched/sched_switch"]:
                 if len(SystemManager.showGroup) > 0:
