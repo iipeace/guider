@@ -5315,7 +5315,7 @@ class SystemManager(object):
         if SystemManager.eventEnable is False:
             return
         elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
-            SystemManager.printError("enable CONFIG_UPROBES and CONFIG_UTRACE option in kernel")
+            SystemManager.printError("enable CONFIG_UPROBE_EVENT option in kernel")
             sys.exit(0)
 
         for cmd in SystemManager.userCmd:
@@ -10045,8 +10045,8 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread Signal Info]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("%4s\t %8s\t %16s(%5s) \t%9s\t %16s(%5s)" % \
-                ('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
+            SystemManager.pipePrint("{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemManager.pipePrint(twoLine)
 
             for val in self.sigData:
@@ -10056,12 +10056,13 @@ class ThreadAnalyzer(object):
                     continue
 
                 if val[0] == 'SEND':
-                    SystemManager.pipePrint("%4s\t %3.6f\t %16s(%5s) \t%9s\t %16s(%5s)" % \
-                        (val[0], val[1], val[2], val[3], \
+                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                        format(val[0], val[1], val[2], val[3], \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
-                    SystemManager.pipePrint("%4s\t %3.6f\t %16s %5s  \t%9s\t %16s(%5s)" % \
-                        (val[0], val[1], '', '', ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
+                        format(val[0], val[1], ' ', ' ', \
+                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
@@ -11566,55 +11567,52 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def getInitTime(file):
-        readLineCnt = 0
         systemInfoBuffer = ''
 
-        try:
-            f = open(file, 'r')
+        while 1:
+            start = end = -1
+            buf = None
 
-            while 1:
-                # Make delay because some filtered logs are not written soon #
-                time.sleep(0.01)
+            # make delay because some filtered logs are not written soon #
+            time.sleep(0.1)
 
-                # Find recognizable log in file #
-                if readLineCnt > 500 and SystemManager.recordStatus is not True:
-                    SystemManager.printError(\
-                        "Fail to recognize format: corrupted log / no log collected")
-                    sys.exit(0)
+            try:
+                with open(file, 'r') as fd:
+                    buf = fd.readlines()
+            except IOError:
+                SystemManager.printError("Fail to open %s" % file)
+                sys.exit(0)
 
-                l = f.readline()
-
-                # Find system info data in file and save it #
-                if l[0:-1] == SystemManager.magicString:
-                    while 1:
-                        l = f.readline()
-
-                        if l[0:-1] == SystemManager.magicString:
-                            SystemManager.systemInfoBuffer = systemInfoBuffer
-                            break
-                        else:
-                            systemInfoBuffer += l
-
-                readLineCnt += 1
+            # verify log buffer #
+            for idx, line in enumerate(buf):
+                # check system info #
+                if SystemManager.recordStatus is False:
+                    if line[0:-1] == SystemManager.magicString:
+                        if start == -1:
+                            start = idx
+                        elif end == -1:
+                            end = idx
+                            SystemManager.systemInfoBuffer = ''.join(buf[start+1:end])
+                        continue
 
                 m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)' + \
-                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', line)
                 if m is not None:
                     d = m.groupdict()
-                    f.close()
                     return d['time']
 
                 m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' + \
-                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', l)
+                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', line)
                 if m is not None:
                     d = m.groupdict()
-                    f.close()
                     SystemManager.tgidEnable = False
                     return d['time']
 
-        except IOError:
-            SystemManager.printError("Fail to open %s" % file)
-            sys.exit(0)
+            # check record status #
+            if SystemManager.recordStatus is False:
+                SystemManager.printError(\
+                    "Fail to recognize format: corrupted log / no log collected")
+                sys.exit(0)
 
 
 
@@ -15522,6 +15520,8 @@ if __name__ == '__main__':
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
+        SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
+
         # create FileAnalyzer #
         if SystemManager.isFileMode():
             # check permission #
@@ -15559,7 +15559,6 @@ if __name__ == '__main__':
         atexit.register(SystemManager.runRecordStopCmd)
 
         # start recording for thread profile #
-        SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
         si.runRecordStartCmd()
 
         if SystemManager.pipeEnable:
@@ -15597,9 +15596,12 @@ if __name__ == '__main__':
 
         # wait for user input #
         while 1:
-            SystemManager.condExit = True
-            signal.pause()
-            if SystemManager.condExit:
+            if SystemManager.recordStatus:
+                SystemManager.condExit = True
+                signal.pause()
+                if SystemManager.condExit:
+                    break
+            else:
                 break
 
         if SystemManager.graphEnable is False:
