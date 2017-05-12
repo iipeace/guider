@@ -8737,7 +8737,7 @@ class ThreadAnalyzer(object):
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
                 'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
                 'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
-                'ptid': '0', 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
+                'ptid': '-'*5, 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
                 'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
                 'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
