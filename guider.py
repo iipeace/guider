@@ -4820,6 +4820,7 @@ class SystemManager(object):
     savedOptionList = None
     customCmd = None
     userCmd = None
+    userEventList = []
     libcObj = None
 
     addrAsServer = None
@@ -5355,10 +5356,19 @@ class SystemManager(object):
                         SystemManager.printError("Fail to recognize address %s" % addr)
                         sys.exit(0)
 
+                for item in effectiveCmd:
+                    if cmdFormat[0] == item[0]:
+                        SystemManager.printError("redundant user event name %s" % item[0])
+                        sys.exit(0)
+
                 effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
             else:
                 SystemManager.printError("wrong format used, NAME:FUNC|ADDR:FILE")
                 sys.exit(0)
+
+        # print uprobe event list #
+        SystemManager.printInfo("enabled user events [ %s ]" % \
+            ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
 
         # clear uprobe event filter #
         SystemManager.writeCmd("../uprobe_events", '')
@@ -6256,6 +6266,10 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.userCmd = str(filterList).split(',')
             SystemManager.removeEmptyValue(SystemManager.userCmd)
+            SystemManager.printInfo("profiled user events [ %s ]" % \
+                ', '.join([ cmd for cmd in SystemManager.userCmd]))
+            SystemManager.userEventList = \
+                [ cmd.split(':')[0] for cmd in SystemManager.userCmd]
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -8713,6 +8727,7 @@ class ThreadAnalyzer(object):
             self.intervalData = []
             self.depData = []
             self.sigData = []
+            self.userEventData = []
             self.syscallData = []
             self.lastJob = {}
             self.preemptData = []
@@ -10041,7 +10056,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # print signal traffic #
-        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and len(self.sigData) > 0:
+        if SystemManager.showAll and len(self.sigData) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread Signal Info]')
             SystemManager.pipePrint(twoLine)
@@ -10063,6 +10078,20 @@ class ThreadAnalyzer(object):
                     SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
                         format(val[0], val[1], ' ', ' ', \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
+            SystemManager.pipePrint(oneLine)
+
+        # print user event #
+        if SystemManager.showAll and len(self.userEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread Event Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^16} {1:^6} {2:^10} {3:>10}({4:>5}) {5:^10}".\
+                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER'))
+            SystemManager.pipePrint(twoLine)
+
+            for val in self.userEventData:
+                SystemManager.pipePrint("{0:^16} {1:^6} {2:>10.6f} {3:>10}({4:>5}) {5:>10}".\
+                    format(val[1], val[0], val[4], val[2], val[3], val[5]))
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
@@ -12067,7 +12096,7 @@ class ThreadAnalyzer(object):
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
 
-                    # calculate preempted time of next_process #
+                    # calculate preempted time of next_thread #
                     if self.threadData[next_id]['stop'] <= 0:
                         # no stop time of next_id #
                         self.threadData[next_id]['stop'] = 0
@@ -13113,6 +13142,15 @@ class ThreadAnalyzer(object):
                     ei.addEvent(time, event)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
+            else:
+                for name in SystemManager.userEventList:
+                    if func == '%s_enter' % name:
+                        time = float(time) - float(self.startTime)
+                        self.userEventData.append(['ENTER', name, comm, thread, time, ''])
+                    elif func == '%s_exit' % name:
+                        time = float(time) - float(self.startTime)
+                        self.userEventData.append(\
+                            ['EXIT', name, comm, thread, time, etc[etc.find('(')+1:etc.rfind('<-')]])
 
         else:
             # handle modified type of event #
