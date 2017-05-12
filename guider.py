@@ -14650,62 +14650,62 @@ class ThreadAnalyzer(object):
                     for key, item in sorted(value['maps'].items(), reverse=True):
                         tmpstr = ''
 
-                        if len(item) == 0:
+                        if len(item) == 0 or item['count'] == 0:
                             continue
 
                         try:
-                            prop = 'Size'
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            prop = 'Size:'
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         except:
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                         try:
-                            prop = 'Rss'
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            prop = 'Rss:'
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         except:
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                         try:
-                            prop = 'Pss'
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            prop = 'Pss:'
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         except:
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                         try:
-                            prop = 'Swap'
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            prop = 'Swap:'
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
                         except:
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                         try:
-                            prop = 'AnonHugePages'
+                            prop = 'AnonHugePages:'
                             tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
                         except:
                             tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', 0)
 
                         try:
-                            prop = 'Locked'
-                            tmpstr = "%s%s:%4sK / " % (tmpstr, prop.upper(), item[prop])
+                            prop = 'Locked:'
+                            tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), item[prop])
                         except:
-                            tmpstr = "%s%s:%4sK / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                         try:
-                            prop = 'Shared_Dirty'
-                            if item['Shared_Dirty'] > 9999:
-                                item['Shared_Dirty'] = item['Shared_Dirty'] >> 10
-                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
+                            prop = 'Shared_Dirty:'
+                            if item[prop] > 9999:
+                                item[prop] = item[prop] >> 10
+                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDIRTY', item[prop])
                             else:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item['Shared_Dirty'])
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item[prop])
                         except:
                             tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', 0)
 
                         try:
-                            prop = 'Private_Dirty'
-                            if item['Private_Dirty'] > 9999:
-                                item['Private_Dirty'] = item['Private_Dirty'] >> 10
-                                tmpstr = "%s%s:%4sM" % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                            prop = 'Private_Dirty:'
+                            if item[prop] > 9999:
+                                item[prop] = item[prop] >> 10
+                                tmpstr = "%s%s:%4sM" % (tmpstr, 'PDIRTY', item[prop])
                             else:
-                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', item['Private_Dirty'])
+                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', item[prop])
                         except:
                             tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', 0)
 
