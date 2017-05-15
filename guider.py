@@ -4820,7 +4820,9 @@ class SystemManager(object):
     savedOptionList = None
     customCmd = None
     userCmd = None
+    kernelCmd = None
     userEventList = []
+    kernelEventList = []
     libcObj = None
 
     addrAsServer = None
@@ -4888,7 +4890,8 @@ class SystemManager(object):
     heapEnable = False
     diskEnable = False
     fileTopEnable = False
-    eventEnable = False
+    ueventEnable = False
+    keventEnable = False
     netEnable = False
     stackEnable = False
     wchanEnable = False
@@ -5148,6 +5151,7 @@ class SystemManager(object):
             print('\t\t-T  [set_fontPath]')
             print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-U  [set_userEvent:name:func|addr:file]')
+            print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
             print('\t\t-C  [set_commandScriptPath:file]')
             print('\t\t-x  [set_addressForLocalServer:{ip:}port]')
             print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
@@ -5184,7 +5188,13 @@ class SystemManager(object):
                 print('\t\t\t- record specific systemcalls of specific threads')
                 print('\t\t\t\t# %s record -s . -t sys_read,sys_write -g 1234' % cmd)
                 print('\t\t\t- record specific user function events')
-                print('\t\t\t\t# %s record -s . -U evt1:func1:/tmp/a.out,evt2:func2:/tmp/b.out -m $(which objdump)' % cmd)
+                print('\t\t\t\t# %s record -s . -U evt1:func1:/tmp/a.out,evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
+                print('\t\t\t- record specific kernel function events')
+                print('\t\t\t\t# %s record -s . -K evt1:func1,evt2:0x1234' % cmd)
+                print('\t\t\t- record specific kernel function events with register values')
+                print('\t\t\t\t# %s record -s . -K evt1:func1:%%bp/u32.%%sp/s64,evt2:0x1234:$stack:NONE' % cmd)
+                print('\t\t\t- record specific kernel function events with return value')
+                print('\t\t\t\t# %s record -s . -K evt1:func1::*string,evt2:0x1234:NONE:**string' % cmd)
                 print('\t\t\t- analize record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -a -i' % cmd)
                 print('\t\t\t- analize record data including preemption info of specific threads')
@@ -5309,11 +5319,151 @@ class SystemManager(object):
 
 
     @staticmethod
+    def writeKernelCmd():
+        effectiveCmd = []
+
+        if SystemManager.keventEnable is False:
+            return
+        elif os.path.isfile(SystemManager.mountPath + '../kprobe_events') is False:
+            SystemManager.printError("enable CONFIG_KPROBE_EVENTS option in kernel")
+            sys.exit(0)
+
+        for cmd in SystemManager.kernelCmd:
+            cmdFormat = cmd.split(':')
+
+            # check command format #
+            cmdCnt = len(cmdFormat)
+            if 4 < cmdCnt or cmdCnt < 2:
+                SystemManager.printError("wrong format used, NAME:FUNC|ADDR{:ARGS:RET}")
+                sys.exit(0)
+
+            for item in effectiveCmd:
+                if cmdFormat[0] == item[0]:
+                    SystemManager.printError("redundant kernel event name %s" % item[0])
+                    sys.exit(0)
+
+            effectiveCmd.append(cmdFormat)
+
+        # print kprobe event list #
+        SystemManager.printInfo("enabled kernel events [ %s ]" % \
+            ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
+
+        # clear kprobe event filter #
+        SystemManager.writeCmd("../kprobe_events", '')
+
+        # apply kprobe events #
+        for cmd in effectiveCmd:
+            # make entry commands #
+            pCmd = 'p:%s_enter %s' % (cmd[0], cmd[1])
+            sCmd = ''
+            try:
+                # parse argument option #
+                for rCmd in cmd[2].split('.'):
+                    # check absolute argument #
+                    if rCmd[0] == '#':
+                        sCmd = '%s %s' % (sCmd, rCmd[1:])
+                        continue
+                    elif len(rCmd.split('/')) == 1:
+                        sCmd = '%s %s' % (sCmd, rCmd)
+                        continue
+
+                    rVal = rCmd.split('/')
+                    if len(rVal) > 2:
+                        SystemManager.printError("wrong command '%s'" % rCmd)
+                        os._exit(0)
+                    tVal = rVal[1]
+
+                    # count the number of prefix * #
+                    wCnt = 0
+                    for idx, ch in enumerate(tVal):
+                        if ch != '*':
+                            wCnt = idx
+                            break
+
+                    # make entry command #
+                    tVal = '%s%s%s:%s' % ('+0(' * wCnt, rVal[0], ')' * wCnt, tVal[wCnt:])
+
+                    # add argument command to entry command #
+                    sCmd = '%s %s' % (sCmd, tVal)
+            except:
+                pass
+
+            # apply entry command #
+            if sCmd != ' NONE':
+                pCmd = '%s %s' % (pCmd, sCmd)
+                if SystemManager.writeCmd('../kprobe_events', pCmd, append=True) < 0:
+                    SystemManager.printError("wrong command '%s'" % pCmd)
+                    os._exit(0)
+
+
+            # make return commands #
+            rCmd = 'r:%s_exit %s' % (cmd[0], cmd[1])
+            sCmd = ''
+
+            try:
+                tCmd = cmd[3]
+
+                # check absolute argument #
+                if tCmd[0] == '#':
+                    sCmd = '%s' % (tCmd[1:])
+                else:
+                    rVal = tCmd.split('/')
+                    if len(rVal) > 2:
+                        SystemManager.printError("wrong command '%s'" % tCmd)
+                        os._exit(0)
+                    tVal = rVal[0]
+
+                    # count the number of prefix * #
+                    wCnt = 0
+                    for idx, ch in enumerate(tVal):
+                        if ch != '*':
+                            wCnt = idx
+                            break
+
+                    if tCmd != 'NONE':
+                        # make return command #
+                        sCmd = '%s%s%s:%s' % ('+0(' * wCnt, '$retval', ')' * wCnt, tVal[wCnt:])
+                    else:
+                        sCmd = 'NONE'
+            except:
+                pass
+
+            if sCmd != 'NONE':
+                rCmd = '%s %s' % (rCmd, sCmd)
+                if SystemManager.writeCmd('../kprobe_events', rCmd, append=True) < 0:
+                    SystemManager.printError("wrong command '%s'" % rCmd)
+                    sys.exit(0)
+
+        # apply filter #
+        if len(SystemManager.showGroup) > 0:
+            cmd = "("
+            for pid in SystemManager.showGroup:
+                try:
+                    int(pid)
+                except:
+                    SystemManager.printWarning(\
+                            "wrong option value %s, input number in integer format" % pid)
+                    continue
+                cmd += "common_pid == \"%s\" || " % pid
+            cmd = cmd[:cmd.rfind(" ||")] + ")"
+
+            if SystemManager.writeCmd("kprobes/filter", cmd) < 0:
+                SystemManager.printError("Fail to apply kprobe filter %s" % cmd)
+                sys.exit(0)
+
+        # enable kprobe events #
+        if SystemManager.writeCmd("kprobes/enable", '1') < 0:
+            SystemManager.printError("Fail to apply kprobe events")
+            sys.exit(0)
+
+
+
+    @staticmethod
     def writeUserCmd():
         objdumpFound = False
         effectiveCmd = []
 
-        if SystemManager.eventEnable is False:
+        if SystemManager.ueventEnable is False:
             return
         elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
             SystemManager.printError("enable CONFIG_UPROBE_EVENT option in kernel")
@@ -5542,10 +5692,15 @@ class SystemManager(object):
             else:
                 disableStat += 'DEPENDENCY '
 
-            if SystemManager.eventEnable:
-                enableStat += 'EVENT '
+            if SystemManager.ueventEnable:
+                enableStat += 'UEVENT '
             else:
-                disableStat += 'EVENT '
+                disableStat += 'UEVENT '
+
+            if SystemManager.keventEnable:
+                enableStat += 'KEVENT '
+            else:
+                disableStat += 'KEVENT '
 
             if SystemManager.graphEnable:
                 enableStat += 'GRAPH '
@@ -5754,10 +5909,15 @@ class SystemManager(object):
             else:
                 disableStat += 'IRQ '
 
-            if SystemManager.eventEnable:
-                enableStat += 'EVENT '
+            if SystemManager.ueventEnable:
+                enableStat += 'UEVENT '
             else:
-                disableStat += 'EVENT '
+                disableStat += 'UEVENT '
+
+            if SystemManager.keventEnable:
+                enableStat += 'KEVENT '
+            else:
+                disableStat += 'KEVENT '
 
             if SystemManager.netEnable:
                 enableStat += 'NET '
@@ -6278,7 +6438,7 @@ class SystemManager(object):
         # apply user event option #
         launchPosStart = SystemManager.launchBuffer.find(' -U')
         if launchPosStart > -1:
-            SystemManager.eventEnable = True
+            SystemManager.ueventEnable = True
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.userCmd = str(filterList).split(',')
@@ -6287,6 +6447,19 @@ class SystemManager(object):
                 ', '.join([ cmd for cmd in SystemManager.userCmd]))
             SystemManager.userEventList = \
                 [ cmd.split(':')[0] for cmd in SystemManager.userCmd]
+
+        # apply kernel event option #
+        launchPosStart = SystemManager.launchBuffer.find(' -K')
+        if launchPosStart > -1:
+            SystemManager.keventEnable = True
+            filterList = SystemManager.launchBuffer[launchPosStart + 3:]
+            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            SystemManager.kernelCmd = str(filterList).split(',')
+            SystemManager.removeEmptyValue(SystemManager.kernelCmd)
+            SystemManager.printInfo("profiled kernel events [ %s ]" % \
+                ', '.join([ cmd for cmd in SystemManager.kernelCmd]))
+            SystemManager.kernelEventList = \
+                [ cmd.split(':')[0] for cmd in SystemManager.kernelCmd]
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -7005,7 +7178,7 @@ class SystemManager(object):
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'R' or option == 't' or option == 'C' or \
                 option == 'v' or option == 'H' or option == 'F' or \
-                option == 'U' or option == 'm':
+                option == 'U' or option == 'm' or option == 'K':
                 continue
 
             else:
@@ -7129,9 +7302,14 @@ class SystemManager(object):
                 SystemManager.waitEnable = True
 
             elif option == 'U':
-                SystemManager.eventEnable = True
+                SystemManager.ueventEnable = True
                 SystemManager.userCmd = str(value).split(',')
                 SystemManager.removeEmptyValue(SystemManager.userCmd)
+
+            elif option == 'K':
+                SystemManager.keventEnable = True
+                SystemManager.kernelCmd = str(value).split(',')
+                SystemManager.removeEmptyValue(SystemManager.kernelCmd)
 
             elif option == 'm':
                 SystemManager.objdumpPath = value
@@ -7756,7 +7934,8 @@ class SystemManager(object):
         self.cmdList["power/cpu_frequency"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
-        self.cmdList["uprobes"] = SystemManager.eventEnable
+        self.cmdList["uprobes"] = SystemManager.ueventEnable
+        self.cmdList["kprobes"] = SystemManager.keventEnable
 
 
 
@@ -7987,6 +8166,9 @@ class SystemManager(object):
 
         # enable custom events #
         SystemManager.writeCustomCmd()
+
+        # enable kernel events #
+        SystemManager.writeKernelCmd()
 
         # enable user events #
         SystemManager.writeUserCmd()
@@ -10378,14 +10560,18 @@ class ThreadAnalyzer(object):
                 "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
             SystemManager.pipePrint(twoLine)
 
+            cnt = 0
             for msg in self.consoleData:
                 try:
                     SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
                         (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
                         round(float(msg[2]) - float(self.startTime), 7), msg[3]))
+                    cnt += 1
                 except:
                     continue
 
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(twoLine)
 
 
