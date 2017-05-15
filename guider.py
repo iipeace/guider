@@ -5386,6 +5386,23 @@ class SystemManager(object):
                 SystemManager.printError("wrong command '%s'" % rCmd)
                 sys.exit(0)
 
+        # apply filter #
+        if len(SystemManager.showGroup) > 0:
+            cmd = "("
+            for pid in SystemManager.showGroup:
+                try:
+                    int(pid)
+                except:
+                    SystemManager.printWarning(\
+                            "wrong option value %s, input number in integer format" % pid)
+                    continue
+                cmd += "common_pid == \"%s\" || " % pid
+            cmd = cmd[:cmd.rfind(" ||")] + ")"
+
+            if SystemManager.writeCmd("uprobes/filter", cmd) < 0:
+                SystemManager.printError("Fail to apply uprobe filter %s" % cmd)
+                sys.exit(0)
+
         # enable uprobe events #
         if SystemManager.writeCmd("uprobes/enable", '1') < 0:
             SystemManager.printError("Fail to apply uprobe events")
@@ -8279,7 +8296,7 @@ class SystemManager(object):
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Launch', '# ' + ' '.join(sys.argv)))
+                format('Launch', '# ' + '%s%s' % (' '.join(sys.argv), ' -')))
         except:
             pass
         try:
@@ -8750,7 +8767,7 @@ class ThreadAnalyzer(object):
             self.reclaimDataOld = {}
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
-                'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
+                'cpuWait': float(0), 'pri': '120', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
                 'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
                 'ptid': '-'*5, 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
                 'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
@@ -10089,9 +10106,16 @@ class ThreadAnalyzer(object):
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER'))
             SystemManager.pipePrint(twoLine)
 
+            cnt = 0
             for val in self.userEventData:
+                # apply filter #
+                if not val[3] in SystemManager.showGroup:
+                    continue
                 SystemManager.pipePrint("{0:^16} {1:^6} {2:>10.6f} {3:>10}({4:>5}) {5:>10}".\
                     format(val[1], val[0], val[4], val[2], val[3], val[5]))
+                cnt += 1
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
