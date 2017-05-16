@@ -5325,7 +5325,8 @@ class SystemManager(object):
         if SystemManager.keventEnable is False:
             return
         elif os.path.isfile(SystemManager.mountPath + '../kprobe_events') is False:
-            SystemManager.printError("enable CONFIG_KPROBE_EVENTS option in kernel")
+            SystemManager.printError(\
+                "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS option in kernel")
             sys.exit(0)
 
         for cmd in SystemManager.kernelCmd:
@@ -5448,7 +5449,7 @@ class SystemManager(object):
             cmd = cmd[:cmd.rfind(" ||")] + ")"
 
             if SystemManager.writeCmd("kprobes/filter", cmd) < 0:
-                SystemManager.printError("Fail to apply kprobe filter %s" % cmd)
+                SystemManager.printError("Fail to apply kprobe filter '%s'" % cmd)
                 sys.exit(0)
 
         # enable kprobe events #
@@ -5466,7 +5467,8 @@ class SystemManager(object):
         if SystemManager.ueventEnable is False:
             return
         elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
-            SystemManager.printError("enable CONFIG_UPROBE_EVENT option in kernel")
+            SystemManager.printError(\
+                "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT option in kernel")
             sys.exit(0)
 
         for cmd in SystemManager.userCmd:
@@ -5550,7 +5552,7 @@ class SystemManager(object):
             cmd = cmd[:cmd.rfind(" ||")] + ")"
 
             if SystemManager.writeCmd("uprobes/filter", cmd) < 0:
-                SystemManager.printError("Fail to apply uprobe filter %s" % cmd)
+                SystemManager.printError("Fail to apply uprobe filter '%s'" % cmd)
                 sys.exit(0)
 
         # enable uprobe events #
@@ -5576,13 +5578,13 @@ class SystemManager(object):
         proc = subprocess.Popen(args,stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         try:
-            # Set alarm to handle hanged addr2line #
+            # Set alarm to handle hanged objdump #
             signal.alarm(timeout)
 
-            # Wait for addr2line to finish its job #
+            # Wait for objdump to finish its job #
             proc.wait()
 
-            # Cancel alarm after addr2line respond #
+            # Cancel alarm after objdump respond #
             signal.alarm(0)
         except:
             SystemManager.printWarning('No response of objdump for %s' % binPath)
@@ -6175,12 +6177,13 @@ class SystemManager(object):
                     SystemManager.printError("Fail to write command")
 
         if append:
-            perm = 'a'
+            perm = 'a+'
         else:
             perm = 'w'
 
         try:
-            fd = open('%s%s' % (SystemManager.mountPath, path), perm)
+            target = '%s%s' % (SystemManager.mountPath, path)
+            fd = open(target, perm)
         except:
             epath = path[0:path.rfind('/')]
             try:
@@ -6196,7 +6199,7 @@ class SystemManager(object):
             fd.write(val)
             fd.close()
         except:
-            SystemManager.printWarning("Fail to apply command %s to %s" % (val, path))
+            SystemManager.printWarning("Fail to apply command '%s' to %s" % (val, path))
             return -2
 
         return 0
@@ -13433,7 +13436,14 @@ class ThreadAnalyzer(object):
                             self.kernelEventData.append(\
                                 ['ENTER', d['name'], d['addr'], comm, thread, time, '', d['args']])
                         else:
-                            SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
+                            m = re.match(\
+                                r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
+                            if m is not None:
+                                d = m.groupdict()
+                                self.kernelEventData.append(\
+                                    ['ENTER', d['name'], '', comm, thread, time, '', d['args']])
+                            else:
+                                SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
                     elif func == '%s_exit' % name:
                         time = float(time) - float(self.startTime)
                         m = re.match(\
@@ -13445,7 +13455,15 @@ class ThreadAnalyzer(object):
                                 ['EXIT', d['name'], d['addr'], comm, thread, time, d['caller'], \
                                 d['args'], d['caddr']])
                         else:
-                            SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
+                            m = re.match(\
+                                r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- (?P<name>.+)\)(?P<args>.*)', etc)
+                            if m is not None:
+                                d = m.groupdict()
+                                self.kernelEventData.append(\
+                                    ['EXIT', d['name'], '', comm, thread, time, d['caller'], \
+                                    d['args'], ''])
+                            else:
+                                SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
 
         else:
             # handle modified type of event #
