@@ -5444,7 +5444,7 @@ class SystemManager(object):
                     SystemManager.printWarning(\
                             "wrong option value %s, input number in integer format" % pid)
                     continue
-                cmd += "common_pid == \"%s\" || " % pid
+                cmd += "common_pid == %s || " % pid
             cmd = cmd[:cmd.rfind(" ||")] + ")"
 
             if SystemManager.writeCmd("kprobes/filter", cmd) < 0:
@@ -5546,7 +5546,7 @@ class SystemManager(object):
                     SystemManager.printWarning(\
                             "wrong option value %s, input number in integer format" % pid)
                     continue
-                cmd += "common_pid == \"%s\" || " % pid
+                cmd += "common_pid == %s || " % pid
             cmd = cmd[:cmd.rfind(" ||")] + ")"
 
             if SystemManager.writeCmd("uprobes/filter", cmd) < 0:
@@ -8927,6 +8927,7 @@ class ThreadAnalyzer(object):
             self.depData = []
             self.sigData = []
             self.userEventData = []
+            self.kernelEventData = []
             self.syscallData = []
             self.lastJob = {}
             self.preemptData = []
@@ -10021,6 +10022,146 @@ class ThreadAnalyzer(object):
 
 
 
+    def printComInfo(self):
+        # print thread tree by creation #
+        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + \
+                '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
+                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
+            SystemManager.pipePrint(twoLine)
+
+            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
+                # print tree from root threads #
+                if value['childList'] is not None and value['new'] is ' ':
+                    self.printCreationTree(key, 0)
+            SystemManager.pipePrint(oneLine)
+
+        # print signal traffic #
+        if SystemManager.showAll and len(self.sigData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread Signal Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
+            SystemManager.pipePrint(twoLine)
+
+            for val in self.sigData:
+                try:
+                    ConfigManager.sigList[int(val[6])]
+                except:
+                    continue
+
+                if val[0] == 'SEND':
+                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                        format(val[0], val[1], val[2], val[3], \
+                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                elif val[0] == 'RECV':
+                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
+                        format(val[0], val[1], ' ', ' ', \
+                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
+            SystemManager.pipePrint(oneLine)
+
+        # print interrupt information #
+        if len(self.irqData) > 0:
+            totalCnt = int(0)
+            totalUsage = float(0)
+
+            SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("%16s(%16s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
+                ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
+            SystemManager.pipePrint(twoLine)
+
+            SystemManager.clearPrint()
+            for key in sorted(self.irqData.keys()):
+                totalCnt += self.irqData[key]['count']
+                totalUsage += self.irqData[key]['usage']
+                SystemManager.addPrint("%16s(%16s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
+                    (key, self.irqData[key]['name'], self.irqData[key]['count'], \
+                    self.irqData[key]['usage'], self.irqData[key]['max'], \
+                    self.irqData[key]['min'], self.irqData[key]['max_period'], \
+                    self.irqData[key]['min_period']))
+
+            SystemManager.pipePrint("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
+                ('', len(self.irqData), totalUsage, totalCnt))
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.pipePrint(oneLine)
+
+
+
+    def printEventInfo(self):
+        # print user event #
+        if SystemManager.showAll and len(self.userEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread USER Event Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
+                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
+            SystemManager.pipePrint(twoLine)
+
+            cnt = 0
+            callTable = {}
+            for val in self.userEventData:
+                elapsed = '-'
+                # apply filter #
+                if SystemManager.showGroup != [] and not val[3] in SystemManager.showGroup:
+                    continue
+                elif val[0] == 'ENTER':
+                    cid = '%s%s' % (val[1], val[3])
+                    callTable[cid] = val[4]
+                elif val[0] == 'EXIT':
+                    cid = '%s%s' % (val[1], val[3])
+                    try:
+                        elapsed = '%.6f' % (val[4] - callTable[cid])
+                    except:
+                        pass
+
+                SystemManager.pipePrint("{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
+                    format(val[1], val[0], val[4], val[2], val[3], val[5], elapsed))
+                cnt += 1
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
+
+        # print kernel event #
+        if SystemManager.showAll and len(self.kernelEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread KERNEL Event Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10} {7:<1}".\
+                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED', 'ARG'))
+            SystemManager.pipePrint(twoLine)
+
+            cnt = 0
+            callTable = {}
+            for val in self.kernelEventData:
+                elapsed = '-'
+                # apply filter #
+                if SystemManager.showGroup != [] and not val[4] in SystemManager.showGroup:
+                    continue
+                elif val[0] == 'ENTER':
+                    cid = '%s%s' % (val[1], val[4])
+                    callTable[cid] = val[5]
+                elif val[0] == 'EXIT':
+                    cid = '%s%s' % (val[1], val[4])
+                    try:
+                        elapsed = '%.6f' % (val[5] - callTable[cid])
+                    except:
+                        pass
+
+                args = (' '.join(val[7].split(' arg'))).replace('=','>')
+                SystemManager.pipePrint(\
+                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10} {7:<1}".\
+                    format(val[1], val[0], val[5], val[3], val[4], val[6], elapsed, args))
+                cnt += 1
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
+
+
+
     def printUsage(self):
         SystemManager.printTitle()
 
@@ -10240,91 +10381,9 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        # print thread tree by creation #
-        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
-            SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + \
-                '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
-                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
-            SystemManager.pipePrint(twoLine)
+        self.printComInfo()
 
-            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
-                # print tree from root threads #
-                if value['childList'] is not None and value['new'] is ' ':
-                    self.printCreationTree(key, 0)
-            SystemManager.pipePrint(oneLine)
-
-        # print signal traffic #
-        if SystemManager.showAll and len(self.sigData) > 0:
-            SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread Signal Info]')
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
-            SystemManager.pipePrint(twoLine)
-
-            for val in self.sigData:
-                try:
-                    ConfigManager.sigList[int(val[6])]
-                except:
-                    continue
-
-                if val[0] == 'SEND':
-                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                        format(val[0], val[1], val[2], val[3], \
-                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
-                elif val[0] == 'RECV':
-                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
-                        format(val[0], val[1], ' ', ' ', \
-                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
-            SystemManager.pipePrint(oneLine)
-
-        # print user event #
-        if SystemManager.showAll and len(self.userEventData) > 0:
-            SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread Event Info]')
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^16} {1:^6} {2:^10} {3:>10}({4:>5}) {5:^10}".\
-                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER'))
-            SystemManager.pipePrint(twoLine)
-
-            cnt = 0
-            for val in self.userEventData:
-                # apply filter #
-                if not val[3] in SystemManager.showGroup:
-                    continue
-                SystemManager.pipePrint("{0:^16} {1:^6} {2:>10.6f} {3:>10}({4:>5}) {5:>10}".\
-                    format(val[1], val[0], val[4], val[2], val[3], val[5]))
-                cnt += 1
-            if cnt == 0:
-                SystemManager.pipePrint("\tNone")
-            SystemManager.pipePrint(oneLine)
-
-        # print interrupt information #
-        if len(self.irqData) > 0:
-            totalCnt = int(0)
-            totalUsage = float(0)
-
-            SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("%16s(%16s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
-                ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
-            SystemManager.pipePrint(twoLine)
-
-            SystemManager.clearPrint()
-            for key in sorted(self.irqData.keys()):
-                totalCnt += self.irqData[key]['count']
-                totalUsage += self.irqData[key]['usage']
-                SystemManager.addPrint("%16s(%16s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
-                    (key, self.irqData[key]['name'], self.irqData[key]['count'], \
-                    self.irqData[key]['usage'], self.irqData[key]['max'], \
-                    self.irqData[key]['min'], self.irqData[key]['max_period'], \
-                    self.irqData[key]['min_period']))
-
-            SystemManager.pipePrint("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
-                ('', len(self.irqData), totalUsage, totalCnt))
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.pipePrint(oneLine)
+        self.printEventInfo()
 
         # prepare to draw graph #
         if SystemManager.graphEnable:
@@ -13353,6 +13412,7 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
             else:
+                # user event #
                 for name in SystemManager.userEventList:
                     if func == '%s_enter' % name:
                         time = float(time) - float(self.startTime)
@@ -13361,6 +13421,31 @@ class ThreadAnalyzer(object):
                         time = float(time) - float(self.startTime)
                         self.userEventData.append(\
                             ['EXIT', name, comm, thread, time, etc[etc.find('(')+1:etc.rfind('<-')]])
+
+                # kernel event #
+                for name in SystemManager.kernelEventList:
+                    if func == '%s_enter' % name:
+                        time = float(time) - float(self.startTime)
+                        m = re.match(\
+                            r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
+                        if m is not None:
+                            d = m.groupdict()
+                            self.kernelEventData.append(\
+                                ['ENTER', d['name'], d['addr'], comm, thread, time, '', d['args']])
+                        else:
+                            SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
+                    elif func == '%s_exit' % name:
+                        time = float(time) - float(self.startTime)
+                        m = re.match(\
+                            (r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
+                            r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
+                        if m is not None:
+                            d = m.groupdict()
+                            self.kernelEventData.append(\
+                                ['EXIT', d['name'], d['addr'], comm, thread, time, d['caller'], \
+                                d['args'], d['caddr']])
+                        else:
+                            SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
 
         else:
             # handle modified type of event #
