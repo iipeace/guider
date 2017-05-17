@@ -9159,6 +9159,8 @@ class ThreadAnalyzer(object):
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
+            if self.threadData[val]['lastStatus'] == 'S':
+                continue
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
             # toDo: add blocking time to read blocks from disk #
@@ -12003,6 +12005,8 @@ class ThreadAnalyzer(object):
                 for key, value in sorted(self.lastTidPerCore.items()):
                     try:
                         tid = self.lastTidPerCore[key]
+                        if self.threadData[tid]['lastStatus'] == 'S':
+                            continue
                         usage = float(time) - float(self.threadData[tid]['start'])
                         self.threadData[tid]['usage'] += usage
                         self.threadData[tid]['start'] = float(time)
@@ -12065,6 +12069,8 @@ class ThreadAnalyzer(object):
 
                             # add time not calculated yet in this interval to related threads #
                             for idx, val in self.lastTidPerCore.items():
+                                if self.threadData[val]['lastStatus'] == 'S':
+                                    continue
                                 intervalThread['totalUsage'] += \
                                     (float(time) - float(self.threadData[val]['start']))
 
@@ -13361,6 +13367,15 @@ class ThreadAnalyzer(object):
 
                     ei.addEvent(time, event)
                 else:
+                    # process CPU shutdown event #
+                    m = re.match(r'^\s*\[\s*(?P<time>\S+)\s*\]\s+CPU(?P<core>[0-9]+)\: shutdown', etc)
+                    if m is not None:
+                        ed = m.groupdict()
+                        lastTid = self.lastTidPerCore[ed['core']]
+                        self.threadData[lastTid]['stop'] = float(ed['time'])
+                        self.threadData[lastTid]['lastStatus'] = 'S'
+
+                    # save consol log #
                     self.consoleData.append([d['thread'], core, time, etc])
 
             elif func == "tracing_mark_write":
