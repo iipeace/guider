@@ -27,7 +27,6 @@ Input "Ctrl + c" key to finish profiling
 
 Input command as bellow to see more examples
 $ guider.py -h -a
-
 ```
 
 
