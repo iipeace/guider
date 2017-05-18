@@ -6363,7 +6363,7 @@ class SystemManager(object):
             SystemManager.threadEnable = True
             SystemManager.printInfo("THREAD MODE")
 
-        # apply group filter option #
+        # apply filter option #
         filterList = None
         launchPosStart = SystemManager.launchBuffer.find(' -g')
         if SystemManager.isThreadMode() and launchPosStart > -1:
@@ -8953,7 +8953,7 @@ class ThreadAnalyzer(object):
             self.reclaimDataOld = {}
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
-                'cpuWait': float(0), 'pri': '120', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
+                'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
                 'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
                 'ptid': '-'*5, 'new': ' ', 'die': ' ', 'preempted': int(0), 'preemption': int(0), \
                 'start': float(0), 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
@@ -9160,6 +9160,11 @@ class ThreadAnalyzer(object):
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             if self.threadData[val]['lastStatus'] == 'S':
+                # apply core off time #
+                coreId = '0[%s]' % idx
+                if self.threadData[coreId]['lastOff'] > 0:
+                    self.threadData[coreId]['usage'] += \
+                        float(self.finishTime) - self.threadData[coreId]['start']
                 continue
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
@@ -9171,7 +9176,7 @@ class ThreadAnalyzer(object):
 
         self.totalTime = round(float(self.finishTime) - float(self.startTime), 7)
 
-        # group filter #
+        # apply filter #
         if len(SystemManager.showGroup) > 0:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
@@ -10195,11 +10200,12 @@ class ThreadAnalyzer(object):
         # initialize swapper thread per core #
         for n in xrange(0, SystemManager.maxCore + 1):
             try:
-                self.threadData['0[' + str(n) + ']']
+                coreId = '0[%s]' % n
+                self.threadData[coreId]
             except:
-                self.threadData['0[' + str(n) + ']'] = dict(self.init_threadData)
-                self.threadData['0[' + str(n) + ']']['comm'] = 'swapper/' + str(n)
-                self.threadData['0[' + str(n) + ']']['usage'] = 0
+                self.threadData[coreId] = dict(self.init_threadData)
+                self.threadData[coreId]['comm'] = 'swapper/' + str(n)
+                self.threadData[coreId]['usage'] = 0
 
         # sort by size of io usage and convert read blocks to MB size #
         count = 0
@@ -11972,7 +11978,8 @@ class ThreadAnalyzer(object):
             if SystemManager.maxCore < int(core):
                 SystemManager.maxCore = int(core)
 
-            coreId = '0' + '['  + core + ']'
+            # make core id #
+            coreId = '0[%s]' % core
             if int(d['thread']) == 0:
                 thread = coreId
                 comm = comm.replace("<idle>", "swapper/" + core)
@@ -12004,9 +12011,16 @@ class ThreadAnalyzer(object):
             if SystemManager.intervalEnable > 0:
                 for key, value in sorted(self.lastTidPerCore.items()):
                     try:
+                        coreId = '0[%s]' % key
                         tid = self.lastTidPerCore[key]
-                        if self.threadData[tid]['lastStatus'] == 'S':
+
+                        # check cpu idle status #
+                        if self.threadData[coreId]['lastStatus'] == 'R':
+                            self.threadData[coreId]['usage'] += \
+                                float(time) - self.threadData[coreId]['start']
+                            self.threadData[coreId]['start'] = float(time)
                             continue
+
                         usage = float(time) - float(self.threadData[tid]['start'])
                         self.threadData[tid]['usage'] += usage
                         self.threadData[tid]['start'] = float(time)
@@ -12070,6 +12084,13 @@ class ThreadAnalyzer(object):
                             # add time not calculated yet in this interval to related threads #
                             for idx, val in self.lastTidPerCore.items():
                                 if self.threadData[val]['lastStatus'] == 'S':
+                                    # apply core off time #
+                                    coreId = '0[%s]' % idx
+                                    if self.threadData[coreId]['lastOff'] > 0:
+                                        diff = float(time) - self.threadData[coreId]['start']
+                                        self.threadData[coreId]['usage'] += diff
+                                        self.intervalData[index][coreId]['totalUsage'] += diff
+                                        self.threadData[coreId]['start'] = float(time)
                                     continue
                                 intervalThread['totalUsage'] += \
                                     (float(time) - float(self.threadData[val]['start']))
@@ -12250,8 +12271,10 @@ class ThreadAnalyzer(object):
                     prev_pid = d['prev_pid']
                     prev_id = prev_pid
 
+                    coreId = '0[%s]' % core
+
                     if int(d['prev_pid']) == 0:
-                        prev_id = d['prev_pid'] + '[' + str(int(core)) + ']'
+                        prev_id = coreId
                     else:
                         prev_id = prev_pid
 
@@ -12259,9 +12282,15 @@ class ThreadAnalyzer(object):
                     next_pid = d['next_pid']
 
                     if int(d['next_pid']) == 0:
-                        next_id = d['next_pid'] + '[' + str(int(core)) + ']'
+                        next_id = coreId
                     else:
                         next_id = next_pid
+
+                    # check cpu wakeup #
+                    if self.threadData[coreId]['lastOff'] > 0:
+                        diff = float(time) - self.threadData[coreId]['lastOff']
+                        self.threadData[coreId]['offTime'] += diff
+                        self.threadData[coreId]['lastOff'] = 0
 
                     # make list #
                     try:
@@ -12275,10 +12304,10 @@ class ThreadAnalyzer(object):
                         self.threadData[next_id] = dict(self.init_threadData)
                         self.threadData[next_id]['comm'] = next_comm
                     try:
-                        self.threadData['0[' + core + ']']
+                        self.threadData[coreId]
                     except:
-                        self.threadData['0[' + core + ']'] = dict(self.init_threadData)
-                        self.threadData['0[' + core + ']']['comm'] = 'swapper/' + core
+                        self.threadData[coreId] = dict(self.init_threadData)
+                        self.threadData[coreId]['comm'] = 'swapper/' + core
 
                     if self.wakeupData['valid'] > 0 and self.wakeupData['tid'] == prev_id:
                         self.wakeupData['valid'] -= 1
@@ -12306,9 +12335,9 @@ class ThreadAnalyzer(object):
 
                     # calculate running time of previous thread #
                     diff = 0
-                    if self.threadData[prev_id]['start'] <= 0:
+                    if self.threadData[prev_id]['start'] == 0:
                         # calculate running time of previous thread started before starting to profile #
-                        if self.threadData['0[' + core + ']']['coreSchedCnt'] == 0:
+                        if self.threadData[coreId]['coreSchedCnt'] == 0:
                             diff = float(time) - float(self.startTime)
                             self.threadData[prev_id]['usage'] = diff
                         # it is possible that log was loss #
@@ -12316,16 +12345,21 @@ class ThreadAnalyzer(object):
                             pass
                     else:
                         diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
-                        self.threadData[prev_id]['usage'] += diff
+                        if diff >= 0:
+                            self.threadData[prev_id]['usage'] += diff
 
-                        if self.threadData[prev_id]['maxRuntime'] < diff:
-                            self.threadData[prev_id]['maxRuntime'] = diff
+                            if self.threadData[prev_id]['maxRuntime'] < diff:
+                                self.threadData[prev_id]['maxRuntime'] = diff
+                        else:
+                            SystemManager.printWarning(\
+                                "usage time of %s(%s) is negative at line %d" % \
+                                (prev_comm, prev_id, SystemManager.curLine))
 
                     if diff > int(SystemManager.intervalEnable):
                         self.threadData[prev_id]['longRunCore'] = core
 
                     # update core info #
-                    self.threadData['0[' + core + ']']['coreSchedCnt'] += 1
+                    self.threadData[coreId]['coreSchedCnt'] += 1
                     self.lastTidPerCore[core] = next_id
 
                     # calculate preempted time of threads blocked #
@@ -12380,7 +12414,12 @@ class ThreadAnalyzer(object):
                     elif self.threadData[next_id]['lastStatus'] == 'P':
                         preemptedTime = \
                             self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
-                        self.threadData[next_id]['cpuWait'] += preemptedTime
+                        if preemptedTime >=0:
+                            self.threadData[next_id]['cpuWait'] += preemptedTime
+                        else:
+                            SystemManager.printWarning(\
+                                "preempted time of %s(%d) is negative at line %d" % \
+                                (next_comm, next_id, SystemManager.curLine))
 
                         if preemptedTime > self.threadData[next_id]['maxPreempted']:
                             self.threadData[next_id]['maxPreempted'] = preemptedTime
@@ -13308,10 +13347,9 @@ class ThreadAnalyzer(object):
                         self.threadData[tid]['offCnt'] += 1
                         self.threadData[tid]['lastOff'] = float(time)
                     # Start to sleep #
-                    else:
-                        if self.threadData[tid]['lastOff'] > 0:
-                            self.threadData[tid]['offTime'] += (float(time) - self.threadData[tid]['lastOff'])
-                            self.threadData[tid]['lastOff'] = float(0)
+                    elif self.threadData[tid]['lastOff'] > 0:
+                        self.threadData[tid]['offTime'] += (float(time) - self.threadData[tid]['lastOff'])
+                        self.threadData[tid]['lastOff'] = float(0)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -13373,9 +13411,18 @@ class ThreadAnalyzer(object):
                     m = re.match(r'^\s*\[\s*(?P<time>\S+)\s*\]\s+CPU(?P<core>[0-9]+)\: shutdown', etc)
                     if m is not None:
                         ed = m.groupdict()
+
+                        # set status of thread #
                         lastTid = self.lastTidPerCore[ed['core']]
                         self.threadData[lastTid]['stop'] = float(ed['time'])
                         self.threadData[lastTid]['lastStatus'] = 'S'
+
+                        # set status of core #
+                        scoreId = '0[%s]' % ed['core']
+                        self.threadData[scoreId]['offCnt'] += 1
+                        self.threadData[scoreId]['lastOff'] = float(ed['time'])
+                        self.threadData[scoreId]['start'] = float(ed['time'])
+                        self.threadData[scoreId]['lastStatus'] = 'R'
 
                     # save consol log #
                     self.consoleData.append([d['thread'], core, time, etc])
