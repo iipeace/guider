@@ -12304,10 +12304,10 @@ class ThreadAnalyzer(object):
                         int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
-                    # calculate running time of prev_process #
+                    # calculate running time of previous thread #
                     diff = 0
                     if self.threadData[prev_id]['start'] <= 0:
-                        # calculate running time of prev_process started before starting to profile #
+                        # calculate running time of previous thread started before starting to profile #
                         if self.threadData['0[' + core + ']']['coreSchedCnt'] == 0:
                             diff = float(time) - float(self.startTime)
                             self.threadData[prev_id]['usage'] = diff
@@ -12343,6 +12343,7 @@ class ThreadAnalyzer(object):
                                 self.preemptData[index][4] += \
                                     self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
 
+                    # set sched status #
                     if d['prev_state'][0] == 'R':
                         self.threadData[prev_id]['preempted'] += 1
                         self.threadData[next_id]['preemption'] += 1
@@ -12364,35 +12365,36 @@ class ThreadAnalyzer(object):
 
                                 self.preemptData[index][2] = float(time)
                                 self.preemptData[index][3] = core
-
                     elif d['prev_state'][0] == 'S':
                         self.threadData[prev_id]['yield'] += 1
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = 'S'
-
                     else:
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
 
-                    # calculate preempted time of next_thread #
-                    if self.threadData[next_id]['stop'] <= 0:
-                        # no stop time of next_id #
+                    # calculate preempted time of next thread #
+                    if self.threadData[next_id]['stop'] == 0:
+                        # no stop time of next thread because of some reasons #
                         self.threadData[next_id]['stop'] = 0
-                    else:
-                        if self.threadData[next_id]['lastStatus'] == 'P':
-                            preemptedTime = \
-                                self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
-                            self.threadData[next_id]['cpuWait'] += preemptedTime
+                    elif self.threadData[next_id]['lastStatus'] == 'P':
+                        preemptedTime = \
+                            self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
+                        self.threadData[next_id]['cpuWait'] += preemptedTime
 
-                            if preemptedTime > self.threadData[next_id]['maxPreempted']:
-                                self.threadData[next_id]['maxPreempted'] = preemptedTime
+                        if preemptedTime > self.threadData[next_id]['maxPreempted']:
+                            self.threadData[next_id]['maxPreempted'] = preemptedTime
 
-                            try:
-                                self.preemptData[SystemManager.preemptGroup.index(next_id)][0] = False
-                            except:
-                                return
+                        try:
+                            self.preemptData[SystemManager.preemptGroup.index(next_id)][0] = False
+                        except:
+                            pass
+
+                    # set sched status of next thread #
+                    self.threadData[next_id]['lastStatus'] = 'R'
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event at line %d" % (func, SystemManager.curLine))
 
             elif func == "irq_handler_entry":
                 m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
@@ -15953,7 +15955,7 @@ if __name__ == '__main__':
             signal.pause()
 
             # compare init time with now time for buffer verification #
-            if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
+            if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
                 SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
@@ -15972,7 +15974,7 @@ if __name__ == '__main__':
 
         if SystemManager.graphEnable is False:
             # compare init time with now time for buffer verification #
-            if initTime != ThreadAnalyzer.getInitTime(SystemManager.inputFile):
+            if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
                 SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
