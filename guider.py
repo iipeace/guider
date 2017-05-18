@@ -10759,11 +10759,9 @@ class ThreadAnalyzer(object):
                 for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
                     try:
                         self.intervalData[icount][key]
+                        timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
                     except:
                         timeLine += '%3s ' % '0'
-                        continue
-
-                    timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
 
                     if timeLineLen + 4 >= maxLineLen:
                         timeLine += ('\n' + (' ' * (titleLineLen + 1)))
