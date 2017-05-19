@@ -6568,10 +6568,8 @@ class SystemManager(object):
         if SystemManager.eventLogFD != None:
             try:
                 SystemManager.eventLogFD.write(message)
-                if SystemManager.resetEnable:
-                    SystemManager.printInfo('marked RESET event')
-                else:
-                    SystemManager.printInfo('marked user-defined event')
+                event = message[message.find('_')+1:]
+                SystemManager.printInfo('marked %s event' % event)
                 SystemManager.eventLogFD.close()
                 SystemManager.eventLogFD = None
             except:
@@ -9058,10 +9056,10 @@ class ThreadAnalyzer(object):
 
             self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
                 'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
-                'ioUsage': int(0), 'totalIoUsage': int(0), 'irqUsage': float(0), 'memUsage': int(0), \
+                'brUsage': int(0), 'totalBrUsage': int(0), 'irqUsage': float(0), 'memUsage': int(0), \
                 'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
-                'totalCoreSchedCnt': int(0), 'preempted': float(0), \
-                'totalPreempted': float(0), 'new': ' ', 'die': ' '}
+                'totalCoreSchedCnt': int(0), 'preempted': float(0), 'totalBwUsage': int(0), \
+                'totalPreempted': float(0), 'new': ' ', 'die': ' ', 'bwUsage': int(0)}
 
             self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), \
                 'time': '0', 'waste': int(0), 'core': int(0)}
@@ -9254,6 +9252,9 @@ class ThreadAnalyzer(object):
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
             # toDo: add blocking time to read blocks from disk #
+
+        # calculate usage of threads in last interval #
+        self.processIntervalData(self.finishTime)
 
         if len(self.threadData) == 0:
             SystemManager.printError("No recognized data in %s" % SystemManager.inputFile)
@@ -10889,7 +10890,7 @@ class ThreadAnalyzer(object):
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('RAM Usage')
 
-        # total block(read) usage on timeline #
+        # total block read usage on timeline #
         icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
@@ -10901,7 +10902,7 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             try:
-                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalIo'] * \
+                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBr'] * \
                     SystemManager.blockSize) >> 20)
             except:
                 timeLine += '%3d ' % (0)
@@ -10912,6 +10913,30 @@ class ThreadAnalyzer(object):
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('Block Read')
+
+        # total block write usage on timeline #
+        icount = 0
+        timeLine = ''
+        timeLineLen = titleLineLen
+        for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+            if timeLineLen + 4 > maxLineLen:
+                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                timeLineLen = titleLineLen + 4
+            else:
+                timeLineLen += 4
+
+            try:
+                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
+                    SystemManager.pageSize) >> 20)
+            except:
+                timeLine += '%3d ' % (0)
+
+        if SystemManager.blockEnable:
+            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
+            if SystemManager.graphEnable:
+                timeLineData = [int(n) for n in timeLine.split()]
+                ioUsageList.append(timeLineData)
+                ioLabelList.append('Block Write')
 
         SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB)'))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -10927,10 +10952,13 @@ class ThreadAnalyzer(object):
             for idx, item in enumerate(ioUsageList):
                 minIdx = item.index(min(item))
                 maxIdx = item.index(max(item))
-                if int(idx) % 2 > 0:
+                nrColor = int(idx) % 3
+                if nrColor == 0:
                     color = 'blue'
-                else:
+                elif nrColor == 1:
                     color = 'red'
+                else:
+                    color = 'green'
 
                 plot(range(SystemManager.intervalEnable,\
                     (timelen+1)*SystemManager.intervalEnable,\
@@ -11199,7 +11227,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
-        # block usage on timeline #
+        # block read usage on timeline #
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
@@ -11247,7 +11275,7 @@ class ThreadAnalyzer(object):
                             dieFlag = nowVal['die']
 
                         timeLine += '%4s' % (newFlag + \
-                            str(int((self.intervalData[icount][key]['ioUsage'] * \
+                            str(int((self.intervalData[icount][key]['brUsage'] * \
                             SystemManager.blockSize) >> 20)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -11257,6 +11285,67 @@ class ThreadAnalyzer(object):
                         break
 
             SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.pipePrint(oneLine)
+
+        # block write usage on timeline #
+        SystemManager.clearPrint()
+        if SystemManager.blockEnable:
+            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['writeBlock'], reverse=True):
+                if key[0:2] != '0[':
+                    icount = 0
+                    timeLine = ''
+                    timeLineLen = titleLineLen
+
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
+
+                        try:
+                            self.intervalData[icount][key]
+                        except:
+                            timeLine += '%3d ' % 0
+                            continue
+
+                        nowVal = self.intervalData[icount][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
+
+                        if icount > 0:
+                            try:
+                                if nowVal['new'] != prevVal['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                newFlag = nowVal['new']
+                            try:
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
+                            except:
+                                dieFlag = nowVal['die']
+                        else:
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
+
+                        timeLine += '%4s' % (newFlag + \
+                            str(int((self.intervalData[icount][key]['bwUsage'] * \
+                            SystemManager.pageSize) >> 20)) + dieFlag)
+
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (value['comm'], key, value['tgid']) + timeLine + '\n')
+
+                    if value['writeBlockCnt'] < 1 and SystemManager.showAll == False:
+                        break
+
+            SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_WR(MB)'))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
@@ -12041,6 +12130,238 @@ class ThreadAnalyzer(object):
 
 
 
+    def processIntervalData(self, time):
+        if SystemManager.intervalEnable == 0:
+            return
+
+        intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
+
+        if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
+            SystemManager.intervalNow += SystemManager.intervalEnable
+
+            for key, value in sorted(self.threadData.items(), \
+                key=lambda e: e[1]['usage'], reverse=True):
+                index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
+                nextIndex = int(SystemManager.intervalNow / SystemManager.intervalEnable)
+
+                try:
+                    self.intervalData[index]
+                except:
+                    self.intervalData.append({})
+                try:
+                    self.intervalData[index][key]
+                except:
+                    self.intervalData[index][key] = dict(self.init_intervalData)
+                try:
+                    self.intervalData[index]['toTal']
+                except:
+                    self.intervalData[index]['toTal'] = \
+                        {'totalBr': int(0), 'totalBw': int(0), \
+                        'totalMem': int(0), 'totalKmem': int(0)}
+                intervalThread = self.intervalData[index][key]
+
+                # save start time in this interval #
+                intervalThread['firstLogTime'] = float(time)
+
+                try:
+                    self.intervalData[nextIndex]
+                except:
+                    self.intervalData.append({})
+                try:
+                    self.intervalData[nextIndex][key]
+                except:
+                    self.intervalData[nextIndex][key] = dict(self.init_intervalData)
+
+                # save total usage in this interval #
+                intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
+                intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
+                intervalThread['totalCoreSchedCnt'] = int(self.threadData[key]['coreSchedCnt'])
+                intervalThread['totalBrUsage'] = int(self.threadData[key]['reqBlock'])
+                intervalThread['totalBwUsage'] = int(self.threadData[key]['writeBlock'])
+                intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
+                intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
+
+                # add time not calculated yet in this interval to related threads #
+                for idx, val in self.lastTidPerCore.items():
+                    if self.threadData[val]['lastStatus'] == 'S':
+                        # apply core off time #
+                        coreId = '0[%s]' % idx
+                        if self.threadData[coreId]['lastOff'] > 0:
+                            diff = float(time) - self.threadData[coreId]['start']
+                            self.threadData[coreId]['usage'] += diff
+                            self.intervalData[index][coreId]['totalUsage'] += diff
+                            self.threadData[coreId]['start'] = float(time)
+                        continue
+                    intervalThread['totalUsage'] += \
+                        (float(time) - float(self.threadData[val]['start']))
+
+                # mark life flag #
+                if self.threadData[key]['new'] != ' ':
+                    intervalThread['new'] = self.threadData[key]['new']
+                if self.threadData[key]['die'] != ' ':
+                    intervalThread['die'] = self.threadData[key]['die']
+
+                # first interval #
+                if SystemManager.intervalNow - SystemManager.intervalEnable == 0:
+                    intervalThread['cpuUsage'] += float(self.threadData[key]['usage'])
+                    intervalThread['preempted'] += float(self.threadData[key]['cpuWait'])
+                    intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
+                    intervalThread['brUsage'] = int(self.threadData[key]['reqBlock'])
+                    intervalThread['bwUsage'] = int(self.threadData[key]['writeBlock'])
+                    intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
+                    intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
+                # later intervals #
+                else:
+                    try:
+                        self.intervalData[index - 1][key]
+                    except:
+                        self.intervalData[index - 1][key] = dict(self.init_intervalData)
+                    prevIntervalThread = self.intervalData[index - 1][key]
+
+                    intervalThread['cpuUsage'] += \
+                        intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
+                    intervalThread['preempted'] += \
+                        intervalThread['totalPreempted'] - prevIntervalThread['totalPreempted']
+                    intervalThread['coreSchedCnt'] = \
+                        intervalThread['totalCoreSchedCnt'] - prevIntervalThread['totalCoreSchedCnt']
+                    intervalThread['brUsage'] = \
+                        intervalThread['totalBrUsage'] - prevIntervalThread['totalBrUsage']
+                    intervalThread['bwUsage'] = \
+                        intervalThread['totalBwUsage'] - prevIntervalThread['totalBwUsage']
+                    intervalThread['memUsage'] = \
+                        intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
+                    intervalThread['kmemUsage'] = \
+                        intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
+
+                # fix cpu usage exceed this interval #
+                self.thisInterval = SystemManager.intervalEnable
+                if intervalThread['cpuUsage'] > SystemManager.intervalEnable or self.finishTime != '0':
+                    # first interval #
+                    if index == 0:
+                        self.thisInterval = float(time) - float(self.startTime)
+                    # normal intervals #
+                    elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
+                        self.thisInterval = \
+                            float(time) - float(self.intervalData[index - 1][key]['firstLogTime'])
+                    # long time running intervals #
+                    else:
+                        for idx in xrange(index - 1, -1, -1):
+                            if float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
+                                self.thisInterval = \
+                                    float(time) - float(self.intervalData[idx][key]['firstLogTime'])
+                                break
+                        if self.thisInterval != SystemManager.intervalEnable:
+                            self.thisInterval = float(time) - float(self.startTime)
+
+                    # recalculate previous intervals if no context switching since profile start #
+                    remainTime = intervalThread['cpuUsage']
+                    if intervalThread['cpuUsage'] > self.thisInterval:
+                        for idx in xrange(\
+                            int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
+                            try:
+                                self.intervalData[idx][key]
+                            except:
+                                self.intervalData[idx][key] = dict(self.init_intervalData)
+                            try:
+                                self.intervalData[idx - 1][key]
+                            except:
+                                self.intervalData[idx - 1][key] = dict(self.init_intervalData)
+                            prevIntervalData = self.intervalData[idx - 1][key]
+
+                            # make previous intervals of core there was no context switching #
+                            longRunCore = self.threadData[key]['longRunCore']
+                            if longRunCore >= 0:
+                                longRunCoreId = '0[%s]' % longRunCore
+                                try:
+                                    self.intervalData[idx][longRunCoreId]
+                                except:
+                                    self.intervalData[idx][longRunCoreId] = \
+                                        dict(self.init_intervalData)
+
+                            if remainTime >= SystemManager.intervalEnable:
+                                remainTime = \
+                                    int(remainTime / SystemManager.intervalEnable) * \
+                                    SystemManager.intervalEnable
+                                prevIntervalData['cpuUsage'] = SystemManager.intervalEnable
+                                prevIntervalData['cpuPer'] = 100
+                            else:
+                                if prevIntervalData['cpuUsage'] > remainTime:
+                                    remainTime = prevIntervalData['cpuUsage']
+                                else:
+                                    prevIntervalData['cpuUsage'] = remainTime
+                                prevIntervalData['cpuPer'] = \
+                                    remainTime / SystemManager.intervalEnable * 100
+
+                            remainTime -= SystemManager.intervalEnable
+
+                # add remainter of cpu usage exceed interval in this interval to previous interval #
+                if SystemManager.intervalNow - SystemManager.intervalEnable > 0 and \
+                    self.thisInterval > SystemManager.intervalEnable:
+                    diff = self.thisInterval - SystemManager.intervalEnable
+                    if prevIntervalThread['cpuUsage'] + diff > SystemManager.intervalEnable:
+                        diff = SystemManager.intervalEnable - prevIntervalThread['cpuUsage']
+
+                    prevIntervalThread['cpuUsage'] += diff
+                    prevIntervalThread['cpuPer'] = \
+                        prevIntervalThread['cpuUsage'] / SystemManager.intervalEnable * 100
+
+                # calculate percentage of cpu usage of this thread in this interval #
+                if self.thisInterval > 0:
+                    intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
+                else:
+                    intervalThread['cpuPer'] = 0
+
+                # revise thread interval usage in DVFS system #
+                if intervalThread['cpuPer'] > 100:
+                    intervalThread['cpuPer'] = 100
+                elif intervalThread['cpuPer'] < 0:
+                    intervalThread['cpuPer'] = 0
+
+                # fix preempted time exceed this interval #
+                if intervalThread['preempted'] > SystemManager.intervalEnable:
+                    # recalculate previous intervals if no context switching since profile start #
+                    remainTime = intervalThread['preempted']
+                    if intervalThread['preempted'] > self.thisInterval:
+                        for idx in xrange(index + 1, -1, -1):
+                            try:
+                                self.intervalData[idx][key]
+                            except:
+                                self.intervalData[idx][key] = dict(self.init_intervalData)
+                            try:
+                                self.intervalData[idx - 1][key]
+                            except:
+                                self.intervalData[idx - 1][key] = dict(self.init_intervalData)
+
+                            if remainTime >= SystemManager.intervalEnable:
+                                self.intervalData[idx - 1][key]['preempted'] = \
+                                    SystemManager.intervalEnable
+                            else:
+                                self.intervalData[idx - 1][key]['preempted'] += remainTime
+
+                            remainTime -= SystemManager.intervalEnable
+                            if remainTime <= 0:
+                                break
+
+                # calculate block usage of this thread in this interval #
+                self.intervalData[index]['toTal']['totalBr'] += \
+                    self.intervalData[index][key]['brUsage']
+                self.intervalData[index]['toTal']['totalBw'] += \
+                    self.intervalData[index][key]['bwUsage'] >> 1
+
+                """
+                calculate memory usage of this thread in this interval \
+                except for core threads because its already calculated
+                """
+                if key[0:2] == '0[':
+                    continue
+
+                self.intervalData[index]['toTal']['totalMem'] += \
+                    self.intervalData[index][key]['memUsage']
+                self.intervalData[index]['toTal']['totalKmem'] += \
+                    self.intervalData[index][key]['kmemUsage']
+
+
+
     def parse(self, string):
         SystemManager.curLine += 1
 
@@ -12123,225 +12444,7 @@ class ThreadAnalyzer(object):
                     self.finishTime = time
 
                 # calculate usage of threads in interval #
-                if SystemManager.intervalEnable > 0:
-                    intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
-
-                    if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
-                        SystemManager.intervalNow += SystemManager.intervalEnable
-
-                        for key, value in sorted(self.threadData.items(), \
-                            key=lambda e: e[1]['usage'], reverse=True):
-                            index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
-                            nextIndex = int(SystemManager.intervalNow / SystemManager.intervalEnable)
-
-                            try:
-                                self.intervalData[index]
-                            except:
-                                self.intervalData.append({})
-                            try:
-                                self.intervalData[index][key]
-                            except:
-                                self.intervalData[index][key] = dict(self.init_intervalData)
-                            try:
-                                self.intervalData[index]['toTal']
-                            except:
-                                self.intervalData[index]['toTal'] = \
-                                    {'totalIo': int(0), 'totalMem': int(0), 'totalKmem': int(0)}
-                            intervalThread = self.intervalData[index][key]
-
-                            # save start time in this interval #
-                            intervalThread['firstLogTime'] = float(time)
-
-                            try:
-                                self.intervalData[nextIndex]
-                            except:
-                                self.intervalData.append({})
-                            try:
-                                self.intervalData[nextIndex][key]
-                            except:
-                                self.intervalData[nextIndex][key] = dict(self.init_intervalData)
-
-                            # save total usage in this interval #
-                            intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
-                            intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
-                            intervalThread['totalCoreSchedCnt'] = int(self.threadData[key]['coreSchedCnt'])
-                            intervalThread['totalIoUsage'] = int(self.threadData[key]['reqBlock'])
-                            intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
-                            intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
-
-                            # add time not calculated yet in this interval to related threads #
-                            for idx, val in self.lastTidPerCore.items():
-                                if self.threadData[val]['lastStatus'] == 'S':
-                                    # apply core off time #
-                                    coreId = '0[%s]' % idx
-                                    if self.threadData[coreId]['lastOff'] > 0:
-                                        diff = float(time) - self.threadData[coreId]['start']
-                                        self.threadData[coreId]['usage'] += diff
-                                        self.intervalData[index][coreId]['totalUsage'] += diff
-                                        self.threadData[coreId]['start'] = float(time)
-                                    continue
-                                intervalThread['totalUsage'] += \
-                                    (float(time) - float(self.threadData[val]['start']))
-
-                            # mark life flag #
-                            if self.threadData[key]['new'] != ' ':
-                                intervalThread['new'] = self.threadData[key]['new']
-                            if self.threadData[key]['die'] != ' ':
-                                intervalThread['die'] = self.threadData[key]['die']
-
-                            # first interval #
-                            if SystemManager.intervalNow - SystemManager.intervalEnable == 0:
-                                intervalThread['cpuUsage'] += float(self.threadData[key]['usage'])
-                                intervalThread['preempted'] += float(self.threadData[key]['cpuWait'])
-                                intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                                intervalThread['ioUsage'] = int(self.threadData[key]['reqBlock'])
-                                intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
-                                intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
-                            # later intervals #
-                            else:
-                                try:
-                                    self.intervalData[index - 1][key]
-                                except:
-                                    self.intervalData[index - 1][key] = dict(self.init_intervalData)
-                                prevIntervalThread = self.intervalData[index - 1][key]
-
-                                intervalThread['cpuUsage'] += \
-                                    intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
-                                intervalThread['preempted'] += \
-                                    intervalThread['totalPreempted'] - prevIntervalThread['totalPreempted']
-                                intervalThread['coreSchedCnt'] = \
-                                    intervalThread['totalCoreSchedCnt'] - prevIntervalThread['totalCoreSchedCnt']
-                                intervalThread['ioUsage'] = \
-                                    intervalThread['totalIoUsage'] - prevIntervalThread['totalIoUsage']
-                                intervalThread['memUsage'] = \
-                                    intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
-                                intervalThread['kmemUsage'] = \
-                                    intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
-
-                            # fix cpu usage exceed this interval #
-                            self.thisInterval = SystemManager.intervalEnable
-                            if intervalThread['cpuUsage'] > SystemManager.intervalEnable or self.finishTime != '0':
-                                # first interval #
-                                if index == 0:
-                                    self.thisInterval = float(time) - float(self.startTime)
-                                # normal intervals #
-                                elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
-                                    self.thisInterval = \
-                                        float(time) - float(self.intervalData[index - 1][key]['firstLogTime'])
-                                # long time running intervals #
-                                else:
-                                    for idx in xrange(index - 1, -1, -1):
-                                        if float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
-                                            self.thisInterval = \
-                                                float(time) - float(self.intervalData[idx][key]['firstLogTime'])
-                                            break
-                                    if self.thisInterval != SystemManager.intervalEnable:
-                                        self.thisInterval = float(time) - float(self.startTime)
-
-                                # recalculate previous intervals if no context switching since profile start #
-                                remainTime = intervalThread['cpuUsage']
-                                if intervalThread['cpuUsage'] > self.thisInterval:
-                                    for idx in xrange(\
-                                        int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
-                                        try:
-                                            self.intervalData[idx][key]
-                                        except:
-                                            self.intervalData[idx][key] = dict(self.init_intervalData)
-                                        try:
-                                            self.intervalData[idx - 1][key]
-                                        except:
-                                            self.intervalData[idx - 1][key] = dict(self.init_intervalData)
-                                        prevIntervalData = self.intervalData[idx - 1][key]
-
-                                        # make previous intervals of core there was no context switching #
-                                        longRunCore = self.threadData[key]['longRunCore']
-                                        if longRunCore >= 0:
-                                            longRunCoreId = '0[' + longRunCore + ']'
-                                            try:
-                                                self.intervalData[idx][longRunCoreId]
-                                            except:
-                                                self.intervalData[idx][longRunCoreId] = \
-                                                    dict(self.init_intervalData)
-
-                                        if remainTime >= SystemManager.intervalEnable:
-                                            remainTime = \
-                                                int(remainTime / SystemManager.intervalEnable) * \
-                                                SystemManager.intervalEnable
-                                            prevIntervalData['cpuUsage'] = SystemManager.intervalEnable
-                                            prevIntervalData['cpuPer'] = 100
-                                        else:
-                                            if prevIntervalData['cpuUsage'] > remainTime:
-                                                remainTime = prevIntervalData['cpuUsage']
-                                            else:
-                                                prevIntervalData['cpuUsage'] = remainTime
-                                            prevIntervalData['cpuPer'] = \
-                                                remainTime / SystemManager.intervalEnable * 100
-
-                                        remainTime -= SystemManager.intervalEnable
-
-                            # add remainter of cpu usage exceed interval in this interval to previous interval #
-                            if SystemManager.intervalNow - SystemManager.intervalEnable > 0 and \
-                                self.thisInterval > SystemManager.intervalEnable:
-                                diff = self.thisInterval - SystemManager.intervalEnable
-                                if prevIntervalThread['cpuUsage'] + diff > SystemManager.intervalEnable:
-                                    diff = SystemManager.intervalEnable - prevIntervalThread['cpuUsage']
-
-                                prevIntervalThread['cpuUsage'] += diff
-                                prevIntervalThread['cpuPer'] = \
-                                    prevIntervalThread['cpuUsage'] / SystemManager.intervalEnable * 100
-
-                            # calculate percentage of cpu usage of this thread in this interval #
-                            if self.thisInterval > 0:
-                                intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
-                            else:
-                                intervalThread['cpuPer'] = 0
-
-                            # revise thread interval usage in DVFS system #
-                            if intervalThread['cpuPer'] > 100:
-                                intervalThread['cpuPer'] = 100
-                            elif intervalThread['cpuPer'] < 0:
-                                intervalThread['cpuPer'] = 0
-
-                            # fix preempted time exceed this interval #
-                            if intervalThread['preempted'] > SystemManager.intervalEnable:
-                                # recalculate previous intervals if no context switching since profile start #
-                                remainTime = intervalThread['preempted']
-                                if intervalThread['preempted'] > self.thisInterval:
-                                    for idx in xrange(index + 1, -1, -1):
-                                        try:
-                                            self.intervalData[idx][key]
-                                        except:
-                                            self.intervalData[idx][key] = dict(self.init_intervalData)
-                                        try:
-                                            self.intervalData[idx - 1][key]
-                                        except:
-                                            self.intervalData[idx - 1][key] = dict(self.init_intervalData)
-
-                                        if remainTime >= SystemManager.intervalEnable:
-                                            self.intervalData[idx - 1][key]['preempted'] = \
-                                                SystemManager.intervalEnable
-                                        else:
-                                            self.intervalData[idx - 1][key]['preempted'] += remainTime
-
-                                        remainTime -= SystemManager.intervalEnable
-                                        if remainTime <= 0:
-                                            break
-
-                            # calculate block usage of this thread in this interval #
-                            self.intervalData[index]['toTal']['totalIo'] += \
-                                self.intervalData[index][key]['ioUsage']
-
-                            """
-                            calculate memory usage of this thread in this interval \
-                            except for core threads because its already calculated
-                            """
-                            if key[0:2] == '0[':
-                                continue
-
-                            self.intervalData[index]['toTal']['totalMem'] += \
-                                self.intervalData[index][key]['memUsage']
-                            self.intervalData[index]['toTal']['totalKmem'] += \
-                                self.intervalData[index][key]['kmemUsage']
+                self.processIntervalData(time)
 
             if func == "sched_switch":
                 m = re.match(r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' + \
