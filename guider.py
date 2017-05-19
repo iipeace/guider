@@ -4961,8 +4961,7 @@ class SystemManager(object):
         self.diskInfo['after'] = dict()
         self.systemInfo = dict()
 
-        SystemManager.eventLogFile = \
-            '%s%s' % (self.getMountPath(), '/tracing/trace_marker')
+        SystemManager.eventLogFile = None
 
         # Save storage info first #
         self.saveMemInfo()
@@ -6558,7 +6557,7 @@ class SystemManager(object):
         if SystemManager.eventLogFD == None:
             if SystemManager.eventLogFile is None:
                 SystemManager.eventLogFile = \
-                    '%s%s' % (SystemManager.getMountPath(), '/tracing/trace_marker')
+                    '%s%s' % (SystemManager.mountPath, '../trace_marker')
 
             try:
                 SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
@@ -7957,6 +7956,9 @@ class SystemManager(object):
 
     @staticmethod
     def getMountPath():
+        if SystemManager.mountPath is not None:
+            return SystemManager.mountPath
+
         f = open('/proc/mounts', 'r')
         lines = f.readlines()
 
@@ -7966,6 +7968,7 @@ class SystemManager(object):
                 d = m.groupdict()
                 if d['fs'] == 'debugfs':
                     f.close()
+                    SystemManager.mountPath = d['dir']
                     return d['dir']
         f.close()
 
