@@ -4925,6 +4925,7 @@ class SystemManager(object):
     }
 
     cmdList = {}
+    rcmdList = {}
     savedProcTree = {}
     savedMountTree = {}
     preemptGroup = []
@@ -5153,6 +5154,7 @@ class SystemManager(object):
             print('\t\t-U  [set_userEvent:name:func|addr:file]')
             print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
             print('\t\t-C  [set_commandScriptPath:file]')
+            print('\t\t-w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]')
             print('\t\t-x  [set_addressForLocalServer:{ip:}port]')
             print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
@@ -5446,7 +5448,12 @@ class SystemManager(object):
                             "wrong option value %s, input number in integer format" % pid)
                     continue
                 cmd += "common_pid == %s || " % pid
-            cmd = cmd[:cmd.rfind(" ||")] + ")"
+
+            lastPos = cmd.rfind(" ||")
+            if lastPos >= 0:
+                cmd = cmd[:lastPos] + ")"
+            else:
+                cmd = ''
 
             if SystemManager.writeCmd("kprobes/filter", cmd) < 0:
                 SystemManager.printError("Fail to apply kprobe filter '%s'" % cmd)
@@ -5549,7 +5556,12 @@ class SystemManager(object):
                             "wrong option value %s, input number in integer format" % pid)
                     continue
                 cmd += "common_pid == %s || " % pid
-            cmd = cmd[:cmd.rfind(" ||")] + ")"
+
+            lastPos = cmd.rfind(" ||")
+            if lastPos >= 0:
+                cmd = cmd[:lastPos] + ")"
+            else:
+                cmd = ''
 
             if SystemManager.writeCmd("uprobes/filter", cmd) < 0:
                 SystemManager.printError("Fail to apply uprobe filter '%s'" % cmd)
@@ -5761,6 +5773,20 @@ class SystemManager(object):
 
         if disableStat != '':
             SystemManager.printInfo("disabled analysis options [ %s]" % disableStat)
+
+
+
+    @staticmethod
+    def printRecordCmd():
+        for idx, val in SystemManager.rcmdList.items():
+            if len(val) == 0:
+                continue
+
+            cmds = []
+            for item in val:
+                cmds.append(':'.join(item))
+            SystemManager.printInfo(\
+                "user recording options on %s [ %s ]" % (idx, ', '.join(cmds)))
 
 
 
@@ -6151,18 +6177,44 @@ class SystemManager(object):
 
                 SystemManager.printInfo('trace data is saved to %s' % SystemManager.outputFile)
             except IOError:
-                SystemManager.printError("Fail to write data to %s" % SystemManager.outputFile)
+                SystemManager.printError("Fail to write trace data to %s" % SystemManager.outputFile)
 
             sys.exit(0)
 
 
 
     @staticmethod
+    def writeRecordCmd(time):
+        if SystemManager.rcmdList == {}:
+            return
+
+        for cmd in SystemManager.rcmdList[time]:
+            path = cmd[0]
+            val = cmd[1]
+
+            try:
+                with open(path, 'w') as fd:
+                    fd.write(val)
+                    SystemManager.printInfo(\
+                        "applied command '%s' to %s successfully" % (val, path))
+            except:
+                SystemManager.printWarning("Fail to apply command '%s' to %s" % (val, path))
+
+
+
+    @staticmethod
     def writeCmd(path, val, append = False):
+        # set file open permission #
+        if append:
+            perm = 'a+'
+        else:
+            perm = 'w'
+
+        # record command to file #
         if SystemManager.cmdEnable is not False:
             if SystemManager.cmdFd is None:
                 try:
-                    SystemManager.cmdFd = open(SystemManager.cmdEnable, 'w')
+                    SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
                     SystemManager.cmdFd.write(SystemManager.mountCmd + ' 2>/dev/null\n')
                     SystemManager.cmdFd.write('echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
@@ -6177,11 +6229,7 @@ class SystemManager(object):
                 except:
                     SystemManager.printError("Fail to write command")
 
-        if append:
-            perm = 'a+'
-        else:
-            perm = 'w'
-
+        # open for applying command #
         try:
             target = '%s%s' % (SystemManager.mountPath, path)
             fd = open(target, perm)
@@ -6196,6 +6244,7 @@ class SystemManager(object):
                 "Fail to use %s event, please confirm kernel configuration" % epath)
             return -1
 
+        # apply command #
         try:
             fd.write(val)
             fd.close()
@@ -6257,6 +6306,31 @@ class SystemManager(object):
     @staticmethod
     def printInfoBuffer():
         SystemManager.pipePrint(SystemManager.systemInfoBuffer)
+
+
+
+    @staticmethod
+    def parseCustomRecordCmd(cmdList):
+        tempList = {'BEFORE': [], 'AFTER': [], 'STOP': []}
+
+        if cmdList == None:
+            return {}
+
+        cmdList = cmdList.split(',')
+
+        for item in cmdList:
+            sitem = item.split(':')
+            time = sitem[0]
+
+            if len(sitem) != 3 or \
+                (time != 'BEFORE' and time != 'AFTER' and time != 'STOP'):
+                SystemManager.printError(\
+                    "wrong format used, BEFORE|AFTER|STOP:file:value")
+                sys.exit(0)
+
+            tempList[time].append([sitem[1], sitem[2]])
+
+        return tempList
 
 
 
@@ -7182,7 +7256,8 @@ class SystemManager(object):
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'R' or option == 't' or option == 'C' or \
                 option == 'v' or option == 'H' or option == 'F' or \
-                option == 'U' or option == 'm' or option == 'K':
+                option == 'U' or option == 'm' or option == 'K' or \
+                option == 'w':
                 continue
 
             else:
@@ -7304,6 +7379,9 @@ class SystemManager(object):
 
             elif option == 'W':
                 SystemManager.waitEnable = True
+
+            elif option == 'w':
+                SystemManager.rcmdList = SystemManager.parseCustomRecordCmd(value)
 
             elif option == 'U':
                 SystemManager.ueventEnable = True
@@ -7957,6 +8035,9 @@ class SystemManager(object):
 
 
     def runRecordStartCmd(self):
+        # run user command before recording #
+        SystemManager.writeRecordCmd('BEFORE')
+
         SystemManager.mountPath = self.getMountPath()
         if SystemManager.mountPath is None:
             SystemManager.mountPath = "/sys/kernel/debug"
@@ -8420,6 +8501,9 @@ class SystemManager(object):
                         % SystemManager.outputFile)
                 except:
                     SystemManager.printError("Fail to write save command")
+
+            # run user command after finishing recording #
+            SystemManager.writeRecordCmd('STOP')
 
 
 
@@ -15878,6 +15962,8 @@ if __name__ == '__main__':
 
         SystemManager.printRecordOption()
 
+        SystemManager.printRecordCmd()
+
         # run in background #
         if SystemManager.backgroundEnable:
             pid = os.fork()
@@ -15977,8 +16063,11 @@ if __name__ == '__main__':
         # register exit handler #
         atexit.register(SystemManager.runRecordStopCmd)
 
-        # start recording for thread profile #
+        # start recording #
         si.runRecordStartCmd()
+
+        # run user command after starting recording #
+        SystemManager.writeRecordCmd('AFTER')
 
         if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
