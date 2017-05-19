@@ -1325,9 +1325,9 @@ class FunctionAnalyzer(object):
                     # No symbol data #
                     if tempSym == '':
                         if self.posData[addr]['origBin'] == '??':
-                            tempSym = '%x' % int(self.posData[addr]['pos'], 16)
+                            tempSym = '%x' % long(self.posData[addr]['pos'], 16)
                         else:
-                            tempSym = '%x' % int(self.posData[addr]['offset'], 16)
+                            tempSym = '%x' % long(self.posData[addr]['offset'], 16)
 
                     try:
                         self.userSymData[tempSym]
@@ -6016,6 +6016,7 @@ class SystemManager(object):
             os._exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
+            SystemManager.writeEvent("EVENT_STOP")
             SystemManager.runRecordStopCmd()
 
         # update record status #
@@ -10922,10 +10923,15 @@ class ThreadAnalyzer(object):
                         newFlag = self.intervalData[icount][key]['new']
                         dieFlag = self.intervalData[icount][key]['die']
 
-                    timeLine += '%4s' % \
-                        (newFlag + str(int(self.intervalData[icount][key]['cpuPer'])) + dieFlag)
+                    # Do not use 100% becuase of output format #
+                    cpuPer = str(int(self.intervalData[icount][key]['cpuPer']))
+                    if cpuPer == '100':
+                        cpuPer = '99'
 
-                SystemManager.addPrint("%16s(%5s/%5s): " % (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
+
+                SystemManager.addPrint("%16s(%5s/%5s): " % \
+                    (value['comm'], key, value['tgid']) + timeLine + '\n')
 
                 if SystemManager.graphEnable and SystemManager.cpuEnable:
                     timeLine = timeLine.replace('N', '')
