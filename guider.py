@@ -6563,7 +6563,7 @@ class SystemManager(object):
             try:
                 SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
             except:
-                SystemManager.printError("Fail to open %s to write event\n" % SystemManager.eventLogFD)
+                SystemManager.printError("Fail to open %s to write event\n" % SystemManager.eventLogFile)
 
         if SystemManager.eventLogFD != None:
             try:
