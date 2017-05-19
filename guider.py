@@ -9286,10 +9286,6 @@ class ThreadAnalyzer(object):
                         del self.threadData[key]
                     except:
                         continue
-        elif SystemManager.sysEnable or len(SystemManager.syscallList) > 0:
-            SystemManager.printWarning("-g option is not enabled, -t option is disabled")
-            SystemManager.sysEnable = False
-            SystemManager.syscallList = []
 
 
 
@@ -10660,7 +10656,7 @@ class ThreadAnalyzer(object):
                     SystemManager.pipePrint(syscallInfo)
 
             if outputCnt == 0:
-                SystemManager.pipePrint('None')
+                SystemManager.pipePrint('\tNone')
 
             SystemManager.pipePrint(oneLine)
 
@@ -10672,6 +10668,7 @@ class ThreadAnalyzer(object):
                     ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
                 SystemManager.pipePrint(twoLine)
 
+                cnt = 0
                 for icount in xrange(0, len(self.syscallData)):
                     try:
                         if self.syscallData[icount][0] == 'enter':
@@ -10705,8 +10702,11 @@ class ThreadAnalyzer(object):
                             self.syscallData[icount][2], eventTime, diffTime, eventType, \
                             ConfigManager.sysList[int(self.syscallData[icount][4])], \
                             self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
+                        cnt += 1
                     except:
                         continue
+                if cnt == 0:
+                    SystemManager.pipePrint("\tNone")
                 SystemManager.pipePrint(oneLine)
 
 
