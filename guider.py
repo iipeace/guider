@@ -5692,7 +5692,7 @@ class SystemManager(object):
 
             if SystemManager.customCmd is not None:
                 SystemManager.printInfo(\
-                    "enabled custom events [ %s ]" % ', '.join(SystemManager.customCmd))
+                    "selected custom events [ %s ]" % ', '.join(SystemManager.customCmd))
         # thread mode #
         else:
             if SystemManager.intervalEnable > 0:
@@ -6425,6 +6425,14 @@ class SystemManager(object):
                 SystemManager.setArch(arch)
             except:
                 pass
+
+        # add anlaysis option #
+        archPosStart = SystemManager.systemInfoBuffer.find('Arch')
+        archPosEnd = SystemManager.systemInfoBuffer.find('\n', archPosStart)
+        analOption = "{0:20} {1:<100}".format('Analysis', '# %s' % (' '.join(sys.argv)))
+        SystemManager.systemInfoBuffer = '%s\n%s\n%s' % \
+            (SystemManager.systemInfoBuffer[:archPosEnd], analOption, \
+            SystemManager.systemInfoBuffer[archPosEnd+1:])
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -9052,9 +9060,9 @@ class ThreadAnalyzer(object):
                 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
                 'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
                 'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
-                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5}
+                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, 'irqList': None}
 
-            self.init_irqData = {'name': '', 'usage': float(0), 'start': float(0), 'max': float(0), \
+            self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), 'max': float(0), \
                 'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
 
             self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
@@ -10164,7 +10172,7 @@ class ThreadAnalyzer(object):
 
             SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("%16s(%16s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
+            SystemManager.pipePrint("%16s(%62s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
                 ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
             SystemManager.pipePrint(twoLine)
 
@@ -10172,8 +10180,8 @@ class ThreadAnalyzer(object):
             for key in sorted(self.irqData.keys()):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
-                SystemManager.addPrint("%16s(%16s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
-                    (key, self.irqData[key]['name'], self.irqData[key]['count'], \
+                SystemManager.addPrint("%16s(%62s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
+                    (key, ' | '.join(self.irqData[key]['name'].keys()), self.irqData[key]['count'], \
                     self.irqData[key]['usage'], self.irqData[key]['max'], \
                     self.irqData[key]['min'], self.irqData[key]['max_period'], \
                     self.irqData[key]['min_period']))
@@ -12634,14 +12642,42 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    irqId = 'irq/' + d['irq']
+                    irqId = 'irq/%s' % (d['irq'])
 
-                    # make list #
+                    # make irq list #
                     try:
                         self.irqData[irqId]
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
+                        self.irqData[irqId]['name'] = {}
+                        self.irqData[irqId]['name'][d['name']] = 0
+                    try:
+                        self.irqData[irqId]['name'][d['name']]
+                    except:
+                        self.irqData[irqId]['name'][d['name']] = 0
 
+                    # make per-thread irq list #
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'] = {}
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
+                        self.threadData[thread]['irqList'][irqId]['name'] = d['name']
+
+                    # save irq period per thread #
+                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
+                        if diff > self.threadData[thread]['irqList'][irqId]['max_period'] or \
+                            self.threadData[thread]['irqList'][irqId]['max_period'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['max_period'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['min_period'] or \
+                            self.threadData[thread]['irqList'][irqId]['min_period'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['min_period'] = diff
+
+                    # save irq period #
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
                         if diff > self.irqData[irqId]['max_period'] or \
@@ -12652,17 +12688,16 @@ class ThreadAnalyzer(object):
                             self.irqData[irqId]['min_period'] = diff
 
                     self.irqData[irqId]['start'] = float(time)
-                    self.irqData[irqId]['name'] = d['name']
                     self.irqData[irqId]['count'] += 1
-                else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    self.threadData[thread]['irqList'][irqId]['start'] = float(time)
+                    self.threadData[thread]['irqList'][irqId]['count'] += 1
 
             elif func == "irq_handler_exit":
                 m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
-                    irqId = 'irq/' + d['irq']
+                    irqId = 'irq/%s' % (d['irq'])
 
                     # make list #
                     try:
@@ -12670,13 +12705,35 @@ class ThreadAnalyzer(object):
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
 
+                    # make per-thread irq list #
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'] = {}
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
+                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+
+                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                        # save softirq usage #
+                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
+                        self.threadData[thread]['irqList'][irqId]['usage'] += diff
+                        self.threadData[thread]['irq'] += diff
+                        self.irqData[irqId]['usage'] += diff
+
+                        # save softirq period per thread #
+                        if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
+                            self.threadData[thread]['irqList'][irqId]['max'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['max'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
+                            self.threadData[thread]['irqList'][irqId]['min'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['min'] = diff
+
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        self.irqData[irqId]['usage'] += diff
-                        self.threadData[thread]['irq'] += diff
-                        if thread is not coreId:
-                            self.threadData[coreId]['irq'] += diff
-
+                        # save softirq period #
                         if diff > self.irqData[irqId]['max'] or self.irqData[irqId]['max'] <= 0:
                             self.irqData[irqId]['max'] = diff
                         if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
@@ -12689,15 +12746,42 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    irqId = 'softirq/' + d['vector']
+                    irqId = 'softirq/%s' % (d['vector'])
 
-                    # make list #
+                    # make irq list #
                     try:
                         self.irqData[irqId]
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
-                        self.irqData[irqId]['name'] = d['action']
+                        self.irqData[irqId]['name'] = {}
+                        self.irqData[irqId]['name'][d['action']] = 0
+                    try:
+                        self.irqData[irqId]['name'][d['action']]
+                    except:
+                        self.irqData[irqId]['name'][d['action']] = 0
 
+                    # make per-thread irq list #
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'] = {}
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
+                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+
+                    # save softirq period per thread #
+                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
+                        if diff > self.threadData[thread]['irqList'][irqId]['max_period'] or \
+                            self.threadData[thread]['irqList'][irqId]['max_period'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['max_period'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['min_period'] or \
+                            self.threadData[thread]['irqList'][irqId]['min_period'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['min_period'] = diff
+
+                    # save softirq period #
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
                         if diff > self.irqData[irqId]['max_period'] or \
@@ -12709,6 +12793,8 @@ class ThreadAnalyzer(object):
 
                     self.irqData[irqId]['start'] = float(time)
                     self.irqData[irqId]['count'] += 1
+                    self.threadData[thread]['irqList'][irqId]['start'] = float(time)
+                    self.threadData[thread]['irqList'][irqId]['count'] += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -12717,20 +12803,49 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    irqId = 'softirq/' + d['vector']
+                    irqId = 'softirq/%s' % (d['vector'])
 
                     # make list #
                     try:
                         self.irqData[irqId]
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
-                        self.irqData[irqId]['name'] = d['action']
+                        self.irqData[irqId]['name'] = {}
+                        self.irqData[irqId]['name'][d['action']] = 0
+                    try:
+                        self.irqData[irqId]['name'][d['action']]
+                    except:
+                        self.irqData[irqId]['name'][d['action']] = 0
+
+                    # make per-thread irq list #
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'] = {}
+                    try:
+                        self.threadData[thread]['irqList'][irqId]
+                    except:
+                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
+                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+
+                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                        # save softirq usage #
+                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
+                        self.threadData[thread]['irqList'][irqId]['usage'] += diff
+                        self.threadData[thread]['irq'] += diff
+                        self.irqData[irqId]['usage'] += diff
+
+                        # save softirq period per thread #
+                        if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
+                            self.threadData[thread]['irqList'][irqId]['max'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['max'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
+                            self.threadData[thread]['irqList'][irqId]['min'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['min'] = diff
 
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        self.irqData[irqId]['usage'] += diff
-                        self.threadData[thread]['irq'] += diff
-
+                        # save softirq period #
                         if diff > self.irqData[irqId]['max'] or self.irqData[irqId]['max'] <= 0:
                             self.irqData[irqId]['max'] = diff
                         if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
