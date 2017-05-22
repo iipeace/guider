@@ -12272,10 +12272,14 @@ class ThreadAnalyzer(object):
                             try:
                                 self.intervalData[idx][key]
                             except:
+                                if not idx in self.intervalData:
+                                    continue
                                 self.intervalData[idx][key] = dict(self.init_intervalData)
                             try:
                                 self.intervalData[idx - 1][key]
                             except:
+                                if not idx - 1 in self.intervalData:
+                                    continue
                                 self.intervalData[idx - 1][key] = dict(self.init_intervalData)
                             prevIntervalData = self.intervalData[idx - 1][key]
 
