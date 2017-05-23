@@ -4821,6 +4821,7 @@ class SystemManager(object):
     customCmd = None
     userCmd = None
     kernelCmd = None
+    customEventList = []
     userEventList = []
     kernelEventList = []
     libcObj = None
@@ -5325,6 +5326,9 @@ class SystemManager(object):
 
         if SystemManager.keventEnable is False:
             return
+        elif len(SystemManager.kernelCmd) == 0:
+            SystemManager.printError("wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
+            sys.exit(0)
         elif os.path.isfile(SystemManager.mountPath + '../kprobe_events') is False:
             SystemManager.printError(\
                 "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS option in kernel")
@@ -5336,7 +5340,7 @@ class SystemManager(object):
             # check command format #
             cmdCnt = len(cmdFormat)
             if 4 < cmdCnt or cmdCnt < 2:
-                SystemManager.printError("wrong format used, NAME:FUNC|ADDR{:ARGS:RET}")
+                SystemManager.printError("wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
                 sys.exit(0)
 
             for item in effectiveCmd:
@@ -5371,7 +5375,7 @@ class SystemManager(object):
 
                     rVal = rCmd.split('/')
                     if len(rVal) > 2:
-                        SystemManager.printError("wrong command '%s'" % rCmd)
+                        SystemManager.printError("wrong command '%s' with -K option" % rCmd)
                         os._exit(0)
                     tVal = rVal[1]
 
@@ -5394,7 +5398,7 @@ class SystemManager(object):
             if sCmd != ' NONE':
                 pCmd = '%s %s' % (pCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', pCmd, append=True) < 0:
-                    SystemManager.printError("wrong command '%s'" % pCmd)
+                    SystemManager.printError("wrong command '%s' with -K option" % pCmd)
                     os._exit(0)
 
 
@@ -5411,7 +5415,7 @@ class SystemManager(object):
                 else:
                     rVal = tCmd.split('/')
                     if len(rVal) > 2:
-                        SystemManager.printError("wrong command '%s'" % tCmd)
+                        SystemManager.printError("wrong command '%s' with -K option" % tCmd)
                         os._exit(0)
                     tVal = rVal[0]
 
@@ -5433,7 +5437,7 @@ class SystemManager(object):
             if sCmd != 'NONE':
                 rCmd = '%s %s' % (rCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', rCmd, append=True) < 0:
-                    SystemManager.printError("wrong command '%s'" % rCmd)
+                    SystemManager.printError("wrong command '%s' with -K option" % rCmd)
                     sys.exit(0)
 
         # apply filter #
@@ -5472,6 +5476,9 @@ class SystemManager(object):
 
         if SystemManager.ueventEnable is False:
             return
+        elif len(SystemManager.userCmd) == 0:
+            SystemManager.printError("wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+            sys.exit(0)
         elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
             SystemManager.printError(\
                 "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT option in kernel")
@@ -5521,7 +5528,7 @@ class SystemManager(object):
 
                 effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
             else:
-                SystemManager.printError("wrong format used, NAME:FUNC|ADDR:FILE")
+                SystemManager.printError("wrong format used with -U option, NAME:FUNC|ADDR:FILE")
                 sys.exit(0)
 
         # print uprobe event list #
@@ -5536,12 +5543,12 @@ class SystemManager(object):
             # apply entry events #
             pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SystemManager.writeCmd('../uprobe_events', pCmd, append=True) < 0:
-                SystemManager.printError("wrong command '%s'" % pCmd)
+                SystemManager.printError("wrong command '%s' with -U option" % pCmd)
                 sys.exit(0)
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SystemManager.writeCmd('../uprobe_events', rCmd, append=True) < 0:
-                SystemManager.printError("wrong command '%s'" % rCmd)
+                SystemManager.printError("wrong command '%s' with -U option" % rCmd)
                 sys.exit(0)
 
         # apply filter #
@@ -5739,6 +5746,10 @@ class SystemManager(object):
                 enableStat += 'PREEMPT '
             else:
                 disableStat += 'PREEMPT '
+
+            if SystemManager.customCmd is not None:
+                SystemManager.printInfo(\
+                    "selected custom events [ %s ]" % ', '.join(SystemManager.customCmd))
 
         # common options #
         if SystemManager.showAll:
@@ -6429,10 +6440,11 @@ class SystemManager(object):
         # add anlaysis option #
         archPosStart = SystemManager.systemInfoBuffer.find('Arch')
         archPosEnd = SystemManager.systemInfoBuffer.find('\n', archPosStart)
-        analOption = "{0:20} {1:<100}".format('Analysis', '# %s' % (' '.join(sys.argv)))
-        SystemManager.systemInfoBuffer = '%s\n%s\n%s' % \
-            (SystemManager.systemInfoBuffer[:archPosEnd], analOption, \
-            SystemManager.systemInfoBuffer[archPosEnd+1:])
+        if archPosStart >= 0 and archPosEnd >= 0:
+            analOption = "{0:20} {1:<100}".format('Analysis', '# %s' % (' '.join(sys.argv)))
+            SystemManager.systemInfoBuffer = '%s\n%s\n%s' % \
+                (SystemManager.systemInfoBuffer[:archPosEnd], analOption, \
+                SystemManager.systemInfoBuffer[archPosEnd+1:])
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -6514,11 +6526,18 @@ class SystemManager(object):
                 tempItem = filterList[idx].split('/')
                 if len(tempItem) == 2:
                     filterList[idx] = tempItem[1]
+                    SystemManager.customEventList.append(tempItem[1])
                 else:
                     filterList.pop(idx)
             if len(filterList) > 0:
-                SystemManager.printInfo("profiled custom events [ %s ]" % \
-                    ', '.join(filterList))
+                if SystemManager.isFunctionMode():
+                    SystemManager.printInfo(\
+                        "profiled custom events [ %s ], select them with -c option" % \
+                        ', '.join(filterList))
+                else:
+                    SystemManager.printInfo(\
+                        "profiled custom events [ %s ]" % ', '.join(filterList))
+                    SystemManager.customCmd = filterList
 
         # apply user event option #
         launchPosStart = SystemManager.launchBuffer.find(' -U')
@@ -9045,6 +9064,9 @@ class ThreadAnalyzer(object):
             self.irqDataOld = {}
             self.ioDataOld = {}
             self.reclaimDataOld = {}
+            self.customEventInfo = {}
+            self.userEventInfo = {}
+            self.kernelEventInfo = {}
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
                 'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
@@ -9060,10 +9082,11 @@ class ThreadAnalyzer(object):
                 'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
                 'maxPreempted': float(0), 'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), \
                 'createdTime': float(0), 'waitStartAsParent': float(0), 'waitChild': float(0), \
-                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, 'irqList': None}
+                'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, 'irqList': None, \
+                'customEvent': None, 'userEvent': None, 'kernelEvent': None}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), 'max': float(0), \
-                'min': float(0), 'max_period': float(0), 'min_period': float(0), 'count': int(0)}
+                'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0), 'count': int(0)}
 
             self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), 'cpuUsage': float(0), \
                 'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
@@ -10134,7 +10157,8 @@ class ThreadAnalyzer(object):
                 '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
             SystemManager.pipePrint(twoLine)
 
-            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
+            for key, value in sorted(\
+                self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
                 # print tree from root threads #
                 if value['childList'] is not None and value['new'] is ' ':
                     self.printCreationTree(key, 0)
@@ -10156,11 +10180,13 @@ class ThreadAnalyzer(object):
                     continue
 
                 if val[0] == 'SEND':
-                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                    SystemManager.pipePrint(\
+                        "{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
                         format(val[0], val[1], val[2], val[3], \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
-                    SystemManager.pipePrint("{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
+                    SystemManager.pipePrint(\
+                        "{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
                         format(val[0], val[1], ' ', ' ', \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
             SystemManager.pipePrint(oneLine)
@@ -10172,19 +10198,23 @@ class ThreadAnalyzer(object):
 
             SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("%16s(%62s): \t%6s\t\t%8s\t%8s\t%8s\t%8s\t%8s" % \
-                ("IRQ", "Name", "Count", "Usage", "ProcMax", "ProcMin", "InterMax", "InterMin"))
+            SystemManager.pipePrint(\
+                "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} {5:^10} {6:^10} {7:^10}".\
+                format("IRQ", "Name", "Count", "Usage", "ProcMax", \
+                "ProcMin", "InterMax", "InterMin"))
             SystemManager.pipePrint(twoLine)
 
             SystemManager.clearPrint()
             for key in sorted(self.irqData.keys()):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
-                SystemManager.addPrint("%16s(%62s): \t%6d\t\t%.6f\t%0.6f\t%0.6f\t%0.6f\t%0.6f\n" % \
-                    (key, ' | '.join(self.irqData[key]['name'].keys()), self.irqData[key]['count'], \
-                    self.irqData[key]['usage'], self.irqData[key]['max'], \
-                    self.irqData[key]['min'], self.irqData[key]['max_period'], \
-                    self.irqData[key]['min_period']))
+                SystemManager.addPrint(\
+                    ("{0:>16}({1:^62}): {2:^12} {3:^10.6f} {4:^10.6f} "
+                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
+                    format(key, ' | '.join(self.irqData[key]['name'].keys()), \
+                    self.irqData[key]['count'], self.irqData[key]['usage'], \
+                    self.irqData[key]['max'], self.irqData[key]['min'], \
+                    self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
 
             SystemManager.pipePrint("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
                 ('', len(self.irqData), totalUsage, totalCnt))
@@ -10194,10 +10224,77 @@ class ThreadAnalyzer(object):
 
 
     def printEventInfo(self):
-        # print user event #
-        if SystemManager.showAll and len(self.userEventData) > 0:
+        customInfo = {}
+        kernelInfo = {}
+        userInfo = {}
+
+        # pick up event info from thread info #
+        for key, value in sorted(self.threadData.items()):
+            if value['customEvent'] is not None:
+                customInfo[key] = value['customEvent']
+            if value['userEvent'] is not None:
+                userInfo[key] = value['userEvent']
+            if value['kernelEvent'] is not None:
+                kernelInfo[key] = value['kernelEvent']
+
+        # print custom event info #
+        if len(self.customEventInfo) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread CUSTOM Event Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
+                format('Event', 'Comm', 'Tid', 'Count', 'MaxPeriod', 'MinPeriod'))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, val in self.customEventInfo.items():
+                SystemManager.pipePrint("{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                    format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], val['minPeriod']))
+                for key, value in sorted(customInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    try:
+                        SystemManager.pipePrint(\
+                            "{0:^16} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                            format(' ', self.threadData[key]['comm'], key, value[idx]['count'], \
+                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                    except:
+                        pass
+            SystemManager.pipePrint(oneLine)
+
+        # print user event info #
+        if len(self.userEventInfo) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread USER Event Info]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+                format('Event', 'Comm', 'Tid', 'Usage', 'Count', \
+                'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, val in self.userEventInfo.items():
+                SystemManager.pipePrint(\
+                    ("{0:^16} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                    format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
+                    val['maxPeriod'], val['minPeriod']))
+                for key, value in sorted(userInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+                    try:
+                        SystemManager.pipePrint(\
+                            ("{0:^16} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                            "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                            format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
+                            value[idx]['count'], value[idx]['max'], value[idx]['min'], \
+                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                    except:
+                        pass
+            SystemManager.pipePrint(oneLine)
+
+        # print user event history #
+        if SystemManager.showAll and len(self.userEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread USER Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
@@ -10220,20 +10317,51 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-                SystemManager.pipePrint("{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
+                SystemManager.pipePrint(\
+                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
                     format(val[1], val[0], val[4], val[2], val[3], val[5], elapsed))
                 cnt += 1
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
 
-        # print kernel event #
-        if SystemManager.showAll and len(self.kernelEventData) > 0:
+        # print kernel event info #
+        if len(self.kernelEventInfo) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread KERNEL Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10} {7:<1}".\
+                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+                format('Event', 'Comm', 'Tid', 'Usage', 'Count', 'ProcMax', \
+                'ProcMin', 'InterMax', 'InterMin'))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, val in self.kernelEventInfo.items():
+                SystemManager.pipePrint(\
+                    ("{0:^16} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                    format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
+                    val['maxPeriod'], val['minPeriod']))
+                for key, value in sorted(kernelInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+                    try:
+                        SystemManager.pipePrint(\
+                            ("{0:^16} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                            "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                            format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
+                            value[idx]['count'], value[idx]['max'], value[idx]['min'], \
+                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                    except:
+                        pass
+            SystemManager.pipePrint(oneLine)
+
+        # print kernel event history #
+        if SystemManager.showAll and len(self.kernelEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread KERNEL Event History]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED', 'ARG'))
             SystemManager.pipePrint(twoLine)
 
@@ -10256,7 +10384,7 @@ class ThreadAnalyzer(object):
 
                 args = (' '.join(val[7].split(' arg'))).replace('=','>')
                 SystemManager.pipePrint(\
-                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10} {7:<1}".\
+                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
                     format(val[1], val[0], val[5], val[3], val[4], val[6], elapsed, args))
                 cnt += 1
             if cnt == 0:
@@ -10335,8 +10463,9 @@ class ThreadAnalyzer(object):
                         self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
                         round(float(value['offTime']), 7), 0, 0, value['irq'], \
                         value['offCnt'], '-', '-', '-', \
-                        value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                        value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
+                        value['ioWait'], value['readBlock'], value['readBlockCnt'], \
+                        value['writeBlockCnt'], value['writeBlock'], \
+                        (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                         value['userPages'] >> 8, value['cachePages'] >> 8, \
                         value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
                         (value['reclaimedPages'] >> 8), value['wasteKmem'] >> 20, \
@@ -10670,7 +10799,7 @@ class ThreadAnalyzer(object):
 
             SystemManager.clearPrint()
             if SystemManager.showAll:
-                SystemManager.pipePrint('\n' + '[Thread Syscall History Info]')
+                SystemManager.pipePrint('\n' + '[Thread Syscall History]')
                 SystemManager.pipePrint(twoLine)
                 SystemManager.pipePrint("%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
                     ("Name", "Tid", "Time", "Diff", "Type", "Syscall", "SysId", "Core", "Return", "Parameter"))
@@ -10850,7 +10979,6 @@ class ThreadAnalyzer(object):
         for key, value in sorted(self.threadData.items(), \
             key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
             if key[0:2] == '0[':
-                icount = 0
                 timeLine = ''
                 timeLineLen = titleLineLen
                 for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -10869,6 +10997,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
+                # make cpu usage list for graph #
                 if SystemManager.graphEnable and SystemManager.cpuEnable:
                     timeLine = timeLine.replace('N', '')
                     timeLine = timeLine.replace('D', '')
@@ -10878,7 +11007,6 @@ class ThreadAnalyzer(object):
                     cpuLabelList.append('[' + value['comm'] + ']')
 
         # total memory usage on timeline #
-        icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
         for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -10902,7 +11030,6 @@ class ThreadAnalyzer(object):
                 ioLabelList.append('RAM Usage')
 
         # total block read usage on timeline #
-        icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
         for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -10926,7 +11053,6 @@ class ThreadAnalyzer(object):
                 ioLabelList.append('Block Read')
 
         # total block write usage on timeline #
-        icount = 0
         timeLine = ''
         timeLineLen = titleLineLen
         for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
@@ -10954,12 +11080,12 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
 
+        # draw io graph #
         if SystemManager.graphEnable and len(ioUsageList) > 0:
             timelen = len(ioUsageList[0])
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-            # total usage #
             for idx, item in enumerate(ioUsageList):
                 minIdx = item.index(min(item))
                 maxIdx = item.index(max(item))
@@ -10990,7 +11116,6 @@ class ThreadAnalyzer(object):
                     text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=5,\
                         color=color, fontweight='bold')
 
-            # draw io graph #
             ylabel('Memory(MB)', fontsize=8)
             legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
             grid(which='both', linestyle=':', linewidth='0.2')
@@ -11004,7 +11129,6 @@ class ThreadAnalyzer(object):
         # CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
             if key[0:2] != '0[':
-                icount = 0
                 timeLine = ''
                 timeLineLen = titleLineLen
 
@@ -11068,6 +11192,7 @@ class ThreadAnalyzer(object):
                     value['usage'] / float(self.totalTime) * 100 < 1:
                     break
 
+        # draw cpu graph #
         if SystemManager.graphEnable and len(cpuUsageList) > 0:
             timelen = len(cpuUsageList[0])
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
@@ -12169,11 +12294,26 @@ class ThreadAnalyzer(object):
                     self.intervalData[index]['toTal'] = \
                         {'totalBr': int(0), 'totalBw': int(0), \
                         'totalMem': int(0), 'totalKmem': int(0)}
+
+                # make custom event list #
+                if SystemManager.customCmd is not None:
+                    pass
+
+                # make user event list #
+                if SystemManager.ueventEnable:
+                    pass
+
+                # make kernel event list #
+                if SystemManager.keventEnable:
+                    pass
+
+                # define thread alias in this interval #
                 intervalThread = self.intervalData[index][key]
 
                 # save start time in this interval #
                 intervalThread['firstLogTime'] = float(time)
 
+                # make interval list #
                 try:
                     self.intervalData[nextIndex]
                 except:
@@ -12674,22 +12814,22 @@ class ThreadAnalyzer(object):
                     # save irq period per thread #
                     if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                         diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        if diff > self.threadData[thread]['irqList'][irqId]['max_period'] or \
-                            self.threadData[thread]['irqList'][irqId]['max_period'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['max_period'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['min_period'] or \
-                            self.threadData[thread]['irqList'][irqId]['min_period'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['min_period'] = diff
+                        if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
+                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
+                            self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
 
                     # save irq period #
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['max_period'] or \
-                            self.irqData[irqId]['max_period'] <= 0:
-                            self.irqData[irqId]['max_period'] = diff
-                        if diff < self.irqData[irqId]['min_period'] or \
-                            self.irqData[irqId]['min_period'] <= 0:
-                            self.irqData[irqId]['min_period'] = diff
+                        if diff > self.irqData[irqId]['maxPeriod'] or \
+                            self.irqData[irqId]['maxPeriod'] <= 0:
+                            self.irqData[irqId]['maxPeriod'] = diff
+                        if diff < self.irqData[irqId]['minPeriod'] or \
+                            self.irqData[irqId]['minPeriod'] <= 0:
+                            self.irqData[irqId]['minPeriod'] = diff
 
                     self.irqData[irqId]['start'] = float(time)
                     self.irqData[irqId]['count'] += 1
@@ -12778,22 +12918,22 @@ class ThreadAnalyzer(object):
                     # save softirq period per thread #
                     if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                         diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        if diff > self.threadData[thread]['irqList'][irqId]['max_period'] or \
-                            self.threadData[thread]['irqList'][irqId]['max_period'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['max_period'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['min_period'] or \
-                            self.threadData[thread]['irqList'][irqId]['min_period'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['min_period'] = diff
+                        if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
+                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
+                        if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
+                            self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
+                            self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
 
                     # save softirq period #
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['max_period'] or \
-                            self.irqData[irqId]['max_period'] <= 0:
-                            self.irqData[irqId]['max_period'] = diff
-                        if diff < self.irqData[irqId]['min_period'] or \
-                            self.irqData[irqId]['min_period'] <= 0:
-                            self.irqData[irqId]['min_period'] = diff
+                        if diff > self.irqData[irqId]['maxPeriod'] or \
+                            self.irqData[irqId]['maxPeriod'] <= 0:
+                            self.irqData[irqId]['maxPeriod'] = diff
+                        if diff < self.irqData[irqId]['minPeriod'] or \
+                            self.irqData[irqId]['minPeriod'] <= 0:
+                            self.irqData[irqId]['minPeriod'] = diff
 
                     self.irqData[irqId]['start'] = float(time)
                     self.irqData[irqId]['count'] += 1
@@ -13792,20 +13932,159 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
             else:
+                # custom event #
+                if func in SystemManager.customEventList:
+                    if self.threadData[thread]['customEvent'] is None:
+                        self.threadData[thread]['customEvent'] = {}
+
+                    try:
+                        self.threadData[thread]['customEvent'][func]
+                    except:
+                        self.threadData[thread]['customEvent'][func] = \
+                            {'count': int(0), 'start': float(0), \
+                            'minPeriod': float(0), 'maxPeriod': float(0)}
+                    try:
+                        self.customEventInfo[func]
+                    except:
+                        self.customEventInfo[func] = \
+                            {'count': int(0), 'start': float(0), \
+                            'minPeriod': float(0), 'maxPeriod': float(0)}
+
+                    self.threadData[thread]['customEvent'][func]['count'] += 1
+                    self.customEventInfo[func]['count'] += 1
+
+                    # get interval #
+                    interDiff = 0
+                    if self.threadData[thread]['customEvent'][func]['start'] > 0:
+                        interDiff = float(time) - self.threadData[thread]['customEvent'][func]['start']
+
+                    # update period of thread #
+                    if interDiff > self.threadData[thread]['customEvent'][func]['maxPeriod'] or \
+                        self.threadData[thread]['customEvent'][func]['maxPeriod'] == 0:
+                        self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
+                    if interDiff < self.threadData[thread]['customEvent'][func]['minPeriod'] or \
+                        self.threadData[thread]['customEvent'][func]['minPeriod'] == 0:
+                        self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
+
+                    # update period of system #
+                    if interDiff > self.customEventInfo[func]['maxPeriod'] or \
+                        self.customEventInfo[func]['maxPeriod'] == 0:
+                        self.customEventInfo[func]['maxPeriod'] = interDiff
+                    if interDiff < self.customEventInfo[func]['minPeriod'] or \
+                        self.customEventInfo[func]['minPeriod'] == 0:
+                        self.customEventInfo[func]['minPeriod'] = interDiff
+
+                    self.threadData[thread]['customEvent'][func]['start'] = float(time)
+
                 # user event #
                 for name in SystemManager.userEventList:
+                    if func.startswith(name) is False:
+                        continue
+
+                    if self.threadData[thread]['userEvent'] is None:
+                        self.threadData[thread]['userEvent'] = {}
+
+                    try:
+                        self.threadData[thread]['userEvent'][name]
+                    except:
+                        self.threadData[thread]['userEvent'][name] = \
+                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
+                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+
+                    try:
+                        self.userEventInfo[name]
+                    except:
+                        self.userEventInfo[name] = \
+                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
+                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+
                     if func == '%s_enter' % name:
+                        # add data into list #
                         time = float(time) - float(self.startTime)
                         self.userEventData.append(['ENTER', name, comm, thread, time, ''])
+
+                        # get interval #
+                        interDiff = 0
+                        if self.threadData[thread]['userEvent'][name]['start'] > 0:
+                            interDiff = float(time) - self.threadData[thread]['userEvent'][name]['start']
+
+                        self.threadData[thread]['userEvent'][name]['count'] += 1
+                        self.threadData[thread]['userEvent'][name]['start'] = float(time)
+
+                        # update period of thread #
+                        if interDiff > self.threadData[thread]['userEvent'][name]['maxPeriod'] or \
+                            self.threadData[thread]['userEvent'][name]['maxPeriod'] == 0:
+                            self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
+                        if interDiff < self.threadData[thread]['userEvent'][name]['minPeriod'] or \
+                            self.threadData[thread]['userEvent'][name]['minPeriod'] == 0:
+                            self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
+
+                        self.userEventInfo[name]['count'] += 1
+
+                        # update period of system #
+                        if interDiff > self.userEventInfo[name]['maxPeriod'] or \
+                            self.userEventInfo[name]['maxPeriod'] == 0:
+                            self.userEventInfo[name]['maxPeriod'] = interDiff
+                        if interDiff < self.userEventInfo[name]['minPeriod'] or \
+                            self.userEventInfo[name]['minPeriod'] == 0:
+                            self.userEventInfo[name]['minPeriod'] = interDiff
+
                     elif func == '%s_exit' % name:
+                        # add data into list #
                         time = float(time) - float(self.startTime)
                         self.userEventData.append(\
                             ['EXIT', name, comm, thread, time, etc[etc.find('(')+1:etc.rfind('<-')]])
 
+                        # get usage #
+                        usage = 0
+                        if self.threadData[thread]['userEvent'][name]['start'] > 0:
+                            usage = float(time) - self.threadData[thread]['userEvent'][name]['start']
+                            self.threadData[thread]['userEvent'][name]['usage'] += usage
+                            self.userEventInfo[name]['usage'] += usage
+
+                            # update usage of thread #
+                            if usage > self.threadData[thread]['userEvent'][name]['max'] or \
+                                self.threadData[thread]['userEvent'][name]['max'] == 0:
+                                self.threadData[thread]['userEvent'][name]['max'] = usage
+                            if usage < self.threadData[thread]['userEvent'][name]['min'] or \
+                                self.threadData[thread]['userEvent'][name]['min'] == 0:
+                                self.threadData[thread]['userEvent'][name]['min'] = usage
+
+                            # update usage of system #
+                            if usage > self.userEventInfo[name]['max'] or \
+                                self.userEventInfo[name]['max'] == 0:
+                                self.userEventInfo[name]['max'] = usage
+                            if usage < self.userEventInfo[name]['min'] or \
+                                self.userEventInfo[name]['min'] == 0:
+                                self.userEventInfo[name]['min'] = usage
+
                 # kernel event #
                 for name in SystemManager.kernelEventList:
+                    if func.startswith(name) is False:
+                        continue
+
+                    if self.threadData[thread]['kernelEvent'] is None:
+                        self.threadData[thread]['kernelEvent'] = {}
+
+                    try:
+                        self.threadData[thread]['kernelEvent'][name]
+                    except:
+                        self.threadData[thread]['kernelEvent'][name] = \
+                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
+                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+
+                    try:
+                        self.kernelEventInfo[name]
+                    except:
+                        self.kernelEventInfo[name] = \
+                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
+                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+
                     if func == '%s_enter' % name:
+                        # add data into list #
                         time = float(time) - float(self.startTime)
+
+                        isSaved = True
                         m = re.match(\
                             r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
                         if m is not None:
@@ -13820,9 +14099,42 @@ class ThreadAnalyzer(object):
                                 self.kernelEventData.append(\
                                     ['ENTER', d['name'], '', comm, thread, time, '', d['args']])
                             else:
+                                isSaved = False
                                 SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
+
+                        if isSaved:
+                            # get interval #
+                            interDiff = 0
+                            if self.threadData[thread]['kernelEvent'][name]['start'] > 0:
+                                interDiff = float(time) - \
+                                    self.threadData[thread]['kernelEvent'][name]['start']
+
+                            self.threadData[thread]['kernelEvent'][name]['count'] += 1
+                            self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
+
+                            # update period of thread #
+                            if interDiff > self.threadData[thread]['kernelEvent'][name]['maxPeriod'] or \
+                                self.threadData[thread]['kernelEvent'][name]['maxPeriod'] == 0:
+                                self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
+                            if interDiff < self.threadData[thread]['kernelEvent'][name]['minPeriod'] or \
+                                self.threadData[thread]['kernelEvent'][name]['minPeriod'] == 0:
+                                self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
+
+                            self.kernelEventInfo[name]['count'] += 1
+
+                            # update period of system #
+                            if interDiff > self.kernelEventInfo[name]['maxPeriod'] or \
+                                self.kernelEventInfo[name]['maxPeriod'] == 0:
+                                self.kernelEventInfo[name]['maxPeriod'] = interDiff
+                            if interDiff < self.kernelEventInfo[name]['minPeriod'] or \
+                                self.kernelEventInfo[name]['minPeriod'] == 0:
+                                self.kernelEventInfo[name]['minPeriod'] = interDiff
+
                     elif func == '%s_exit' % name:
+                        # add data into list #
                         time = float(time) - float(self.startTime)
+
+                        isSaved = True
                         m = re.match(\
                             (r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
                             r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
@@ -13840,8 +14152,32 @@ class ThreadAnalyzer(object):
                                     ['EXIT', d['name'], '', comm, thread, time, d['caller'], \
                                     d['args'], ''])
                             else:
+                                isSaved = False
                                 SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
 
+                        if isSaved:
+                            # get usage #
+                            usage = 0
+                            if self.threadData[thread]['kernelEvent'][name]['start'] > 0:
+                                usage = float(time) - self.threadData[thread]['kernelEvent'][name]['start']
+                                self.threadData[thread]['kernelEvent'][name]['usage'] += usage
+                                self.kernelEventInfo[name]['usage'] += usage
+
+                                # update usage of thread #
+                                if usage > self.threadData[thread]['kernelEvent'][name]['max'] or \
+                                    self.threadData[thread]['kernelEvent'][name]['max'] == 0:
+                                    self.threadData[thread]['kernelEvent'][name]['max'] = usage
+                                if usage < self.threadData[thread]['kernelEvent'][name]['min'] or \
+                                    self.threadData[thread]['kernelEvent'][name]['min'] == 0:
+                                    self.threadData[thread]['kernelEvent'][name]['min'] = usage
+
+                                # update usage of system #
+                                if usage > self.kernelEventInfo[name]['max'] or \
+                                    self.kernelEventInfo[name]['max'] == 0:
+                                    self.kernelEventInfo[name]['max'] = usage
+                                if usage < self.kernelEventInfo[name]['min'] or \
+                                    self.kernelEventInfo[name]['min'] == 0:
+                                    self.kernelEventInfo[name]['min'] = usage
         else:
             # handle modified type of event #
             if SystemManager.tgidEnable:
