@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.7.7"
+__version__ = "3.8.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5345,7 +5345,7 @@ class SystemManager(object):
 
             for item in effectiveCmd:
                 if cmdFormat[0] == item[0]:
-                    SystemManager.printError("redundant kernel event name %s" % item[0])
+                    SystemManager.printError("redundant kernel event name '%s'" % item[0])
                     sys.exit(0)
 
             effectiveCmd.append(cmdFormat)
@@ -5523,7 +5523,7 @@ class SystemManager(object):
 
                 for item in effectiveCmd:
                     if cmdFormat[0] == item[0]:
-                        SystemManager.printError("redundant user event name %s" % item[0])
+                        SystemManager.printError("redundant user event name '%s'" % item[0])
                         sys.exit(0)
 
                 effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
@@ -5646,6 +5646,11 @@ class SystemManager(object):
             else:
                 origFilter = cmdFormat[1]
                 cmdFormat[1] = "common_pid != 0 && " + cmdFormat[1]
+
+            if SystemManager.isThreadMode() and cmdFormat[0] in SystemManager.cmdList:
+                SystemManager.printError(\
+                    "Fail to use default event '%s' as custom event" % cmdFormat[0])
+                sys.exit(0)
 
             # check effective event #
             if SystemManager.writeCmd(cmdFormat[0] + '/enable', '0') < 0:
@@ -9068,6 +9073,10 @@ class ThreadAnalyzer(object):
             self.userEventInfo = {}
             self.kernelEventInfo = {}
 
+            self.customInfo = {}
+            self.userInfo = {}
+            self.kernelInfo = {}
+
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), 'yield': int(0), \
                 'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), 'reqBlock': int(0), 'readBlock': int(0), \
                 'ioRank': int(0), 'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
@@ -9094,6 +9103,9 @@ class ThreadAnalyzer(object):
                 'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
                 'totalCoreSchedCnt': int(0), 'preempted': float(0), 'totalBwUsage': int(0), \
                 'totalPreempted': float(0), 'new': ' ', 'die': ' ', 'bwUsage': int(0)}
+
+            self.init_eventData = {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
+                'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
 
             self.init_kmallocData = {'tid': '0', 'caller': '0', 'ptr': '0', 'req': int(0), 'alloc': int(0), \
                 'time': '0', 'waste': int(0), 'core': int(0)}
@@ -10224,18 +10236,14 @@ class ThreadAnalyzer(object):
 
 
     def printEventInfo(self):
-        customInfo = {}
-        kernelInfo = {}
-        userInfo = {}
-
         # pick up event info from thread info #
         for key, value in sorted(self.threadData.items()):
             if value['customEvent'] is not None:
-                customInfo[key] = value['customEvent']
+                self.customInfo[key] = value['customEvent']
             if value['userEvent'] is not None:
-                userInfo[key] = value['userEvent']
+                self.userInfo[key] = value['userEvent']
             if value['kernelEvent'] is not None:
-                kernelInfo[key] = value['kernelEvent']
+                self.kernelInfo[key] = value['kernelEvent']
 
         # print custom event info #
         if len(self.customEventInfo) > 0:
@@ -10243,18 +10251,24 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread CUSTOM Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
+                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
                 format('Event', 'Comm', 'Tid', 'Count', 'MaxPeriod', 'MinPeriod'))
             SystemManager.pipePrint(twoLine)
 
-            for idx, val in self.customEventInfo.items():
-                SystemManager.pipePrint("{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+            newLine = False
+            for idx, val in sorted(self.customEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                if newLine:
+                    SystemManager.pipePrint("")
+                else:
+                    newLine = True
+
+                SystemManager.pipePrint("{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], val['minPeriod']))
-                for key, value in sorted(customInfo.items(), \
+                for key, value in sorted(self.customInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
                     try:
                         SystemManager.pipePrint(\
-                            "{0:^16} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                            "{0:^32} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                             format(' ', self.threadData[key]['comm'], key, value[idx]['count'], \
                             value[idx]['maxPeriod'], value[idx]['minPeriod']))
                     except:
@@ -10267,22 +10281,27 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread USER Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count', \
                 'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
             SystemManager.pipePrint(twoLine)
 
-            for idx, val in self.userEventInfo.items():
+            newLine = False
+            for idx, val in sorted(self.userEventInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
+                if newLine:
+                    SystemManager.pipePrint("")
+                else:
+                    newLine = True
                 SystemManager.pipePrint(\
-                    ("{0:^16} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
                     val['maxPeriod'], val['minPeriod']))
-                for key, value in sorted(userInfo.items(), \
+                for key, value in sorted(self.userInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
                     try:
                         SystemManager.pipePrint(\
-                            ("{0:^16} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                             "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                             format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
                             value[idx]['count'], value[idx]['max'], value[idx]['min'], \
@@ -10296,7 +10315,7 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n' + '[Thread USER Event History]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
+            SystemManager.pipePrint("{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
             SystemManager.pipePrint(twoLine)
 
@@ -10318,7 +10337,7 @@ class ThreadAnalyzer(object):
                         pass
 
                 SystemManager.pipePrint(\
-                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
                     format(val[1], val[0], val[4], val[2], val[3], val[5], elapsed))
                 cnt += 1
             if cnt == 0:
@@ -10331,22 +10350,27 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread KERNEL Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^16} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count', 'ProcMax', \
                 'ProcMin', 'InterMax', 'InterMin'))
             SystemManager.pipePrint(twoLine)
 
-            for idx, val in self.kernelEventInfo.items():
+            newLine = False
+            for idx, val in sorted(self.kernelEventInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
+                if newLine:
+                    SystemManager.pipePrint("")
+                else:
+                    newLine = True
                 SystemManager.pipePrint(\
-                    ("{0:^16} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
                     val['maxPeriod'], val['minPeriod']))
-                for key, value in sorted(kernelInfo.items(), \
+                for key, value in sorted(self.kernelInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
                     try:
                         SystemManager.pipePrint(\
-                            ("{0:^16} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                             "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                             format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
                             value[idx]['count'], value[idx]['max'], value[idx]['min'], \
@@ -10361,7 +10385,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread KERNEL Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^16} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
+                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED', 'ARG'))
             SystemManager.pipePrint(twoLine)
 
@@ -10384,7 +10408,7 @@ class ThreadAnalyzer(object):
 
                 args = (' '.join(val[7].split(' arg'))).replace('=','>')
                 SystemManager.pipePrint(\
-                    "{0:^16} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
                     format(val[1], val[0], val[5], val[3], val[4], val[6], elapsed, args))
                 cnt += 1
             if cnt == 0:
@@ -10916,6 +10940,78 @@ class ThreadAnalyzer(object):
 
 
 
+    def printEventIntervalInfo(self):
+        # timeline #
+        timeLine = ''
+        titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
+        maxLineLen = SystemManager.lineLength
+        timeLineLen = titleLineLen = len(titleLine)
+
+        # custom event usage on timeline #
+        SystemManager.clearPrint()
+        if len(SystemManager.customEventList) > 0:
+            for idx, val in sorted(self.customEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                for key, value in sorted(self.customInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    timeLine = ''
+                    timeLineLen = titleLineLen
+
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
+
+                        try:
+                            self.intervalData[icount][key]['customEvent']
+                        except:
+                            timeLine += '%3d ' % 0
+                            continue
+
+                        nowVal = self.intervalData[icount][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
+
+                        if icount > 0:
+                            try:
+                                if nowVal['new'] != prevVal['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                newFlag = nowVal['new']
+                            try:
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
+                            except:
+                                dieFlag = nowVal['die']
+                        else:
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
+
+                        cnt = str(self.intervalData[icount][key]['customEvent'][idx]['count'])
+
+                        timeLine += '%4s' % (newFlag + cnt + dieFlag)
+
+                    if (idx not in value or value[idx]['count'] == 0) and \
+                        SystemManager.showAll == False:
+                        break
+
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (self.threadData[key]['comm'], key, self.threadData[key]['tgid']) + timeLine + '\n')
+
+                SystemManager.pipePrint("%s# %s\n" % ('', '%s(Cnt)' % idx))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
+                SystemManager.clearPrint()
+
+
+
     def printIntervalInfo(self):
         if SystemManager.intervalEnable <= 0 or \
             not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
@@ -11029,53 +11125,77 @@ class ThreadAnalyzer(object):
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('RAM Usage')
 
-        # total block read usage on timeline #
-        timeLine = ''
-        timeLineLen = titleLineLen
-        for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
-            if timeLineLen + 4 > maxLineLen:
-                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                timeLineLen = titleLineLen + 4
-            else:
-                timeLineLen += 4
-
-            try:
-                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBr'] * \
-                    SystemManager.blockSize) >> 20)
-            except:
-                timeLine += '%3d ' % (0)
-
         if SystemManager.blockEnable:
+            # total block read usage on timeline #
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBr'] * \
+                        SystemManager.blockSize) >> 20)
+                except:
+                    timeLine += '%3d ' % (0)
+
             SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
             if SystemManager.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('Block Read')
 
-        # total block write usage on timeline #
-        timeLine = ''
-        timeLineLen = titleLineLen
-        for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
-            if timeLineLen + 4 > maxLineLen:
-                timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                timeLineLen = titleLineLen + 4
-            else:
-                timeLineLen += 4
+            # total block write usage on timeline #
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
 
-            try:
-                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
-                    SystemManager.pageSize) >> 20)
-            except:
-                timeLine += '%3d ' % (0)
+                try:
+                    timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
+                        SystemManager.pageSize) >> 20)
+                except:
+                    timeLine += '%3d ' % (0)
 
-        if SystemManager.blockEnable:
-            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
+            SystemManager.addPrint("%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
             if SystemManager.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('Block Write')
 
-        SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB)'))
+        # total custom event usage on timeline #
+        newLine = True
+        for evt, value in sorted(self.customEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    timeLine += '%3d ' % \
+                        self.intervalData[icount]['toTal']['customEvent'][evt]['count']
+                except:
+                    timeLine += '%3d ' % (0)
+
+            if newLine:
+                SystemManager.addPrint("\n")
+                newLine = False
+
+            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+
+        # print buffered info #
+        SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
@@ -11245,7 +11365,6 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
             if key[0:2] != '0[':
-                icount = 0
                 timeLine = ''
                 timeLineLen = titleLineLen
 
@@ -11287,9 +11406,12 @@ class ThreadAnalyzer(object):
                         newFlag = nowVal['new']
                         dieFlag = nowVal['die']
 
-                    timeLine += '%4s' % (newFlag + \
-                        str(int(nowVal['preempted'] / \
-                        float(SystemManager.intervalEnable) * 100)) + dieFlag)
+                    # Do not use 100% becuase of output format #
+                    prtPer = str(int(nowVal['preempted'] / float(SystemManager.intervalEnable) * 100))
+                    if prtPer == '100':
+                        prtPer = '99'
+
+                    timeLine += '%4s' % (newFlag + prtPer + dieFlag)
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
@@ -11307,7 +11429,6 @@ class ThreadAnalyzer(object):
         if SystemManager.memEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['nrPages'], reverse=True):
                 if key[0:2] != '0[':
-                    icount = 0
                     timeLine = ''
                     timeLineLen = titleLineLen
 
@@ -11368,7 +11489,6 @@ class ThreadAnalyzer(object):
         if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
                 if key[0:2] != '0[':
-                    icount = 0
                     timeLine = ''
                     timeLineLen = titleLineLen
 
@@ -11429,7 +11549,6 @@ class ThreadAnalyzer(object):
         if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['writeBlock'], reverse=True):
                 if key[0:2] != '0[':
-                    icount = 0
                     timeLine = ''
                     timeLineLen = titleLineLen
 
@@ -11484,6 +11603,9 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_WR(MB)'))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
+
+        # event usage on timeline #
+        self.printEventIntervalInfo()
 
         # save graph #
         if SystemManager.graphEnable and\
@@ -12275,6 +12397,7 @@ class ThreadAnalyzer(object):
         if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
             SystemManager.intervalNow += SystemManager.intervalEnable
 
+            # check change of all threads #
             for key, value in sorted(self.threadData.items(), \
                 key=lambda e: e[1]['usage'], reverse=True):
                 index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
@@ -12288,6 +12411,7 @@ class ThreadAnalyzer(object):
                     self.intervalData[index][key]
                 except:
                     self.intervalData[index][key] = dict(self.init_intervalData)
+
                 try:
                     self.intervalData[index]['toTal']
                 except:
@@ -12295,17 +12419,20 @@ class ThreadAnalyzer(object):
                         {'totalBr': int(0), 'totalBw': int(0), \
                         'totalMem': int(0), 'totalKmem': int(0)}
 
-                # make custom event list #
-                if SystemManager.customCmd is not None:
-                    pass
+                    # make total custom event list #
+                    if len(SystemManager.customEventList) > 0:
+                        self.intervalData[index]['toTal']['customEvent'] = {}
+                        for evt in SystemManager.customEventList:
+                            self.intervalData[index]['toTal']['customEvent'][evt] = \
+                                dict(self.init_eventData)
 
-                # make user event list #
-                if SystemManager.ueventEnable:
-                    pass
+                    # make user event list #
+                    if SystemManager.ueventEnable:
+                        pass
 
-                # make kernel event list #
-                if SystemManager.keventEnable:
-                    pass
+                    # make kernel event list #
+                    if SystemManager.keventEnable:
+                        pass
 
                 # define thread alias in this interval #
                 intervalThread = self.intervalData[index][key]
@@ -12352,21 +12479,43 @@ class ThreadAnalyzer(object):
                 if self.threadData[key]['die'] != ' ':
                     intervalThread['die'] = self.threadData[key]['die']
 
+                # make thread custom event list #
+                if len(SystemManager.customEventList) > 0:
+                    intervalThread['customEvent'] = {}
+                    intervalThread['totalCustomEvent'] = {}
+                    for evt in SystemManager.customEventList:
+                        intervalThread['customEvent'][evt] = dict(self.init_eventData)
+                        intervalThread['totalCustomEvent'][evt] = dict(self.init_eventData)
+                        try:
+                            intervalThread['totalCustomEvent'][evt]['count'] = \
+                                self.threadData[key]['customEvent'][evt]['count']
+                        except:
+                            intervalThread['totalCustomEvent'][evt]['count'] = 0
+
                 # first interval #
-                if SystemManager.intervalNow - SystemManager.intervalEnable == 0:
-                    intervalThread['cpuUsage'] += float(self.threadData[key]['usage'])
-                    intervalThread['preempted'] += float(self.threadData[key]['cpuWait'])
+                if SystemManager.intervalNow == SystemManager.intervalEnable:
+                    intervalThread['cpuUsage'] = float(self.threadData[key]['usage'])
+                    intervalThread['preempted'] = float(self.threadData[key]['cpuWait'])
                     intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
                     intervalThread['brUsage'] = int(self.threadData[key]['reqBlock'])
                     intervalThread['bwUsage'] = int(self.threadData[key]['writeBlock'])
                     intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
                     intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
+
+                    for evt in intervalThread['totalCustomEvent'].keys():
+                        intervalThread['customEvent'][evt]['count'] += \
+                            intervalThread['totalCustomEvent'][evt]['count']
+
+                        self.intervalData[index]['toTal']['customEvent'][evt]['count'] += \
+                            intervalThread['totalCustomEvent'][evt]['count']
                 # later intervals #
                 else:
                     try:
                         self.intervalData[index - 1][key]
                     except:
                         self.intervalData[index - 1][key] = dict(self.init_intervalData)
+
+                    # define thread alias in previous interval #
                     prevIntervalThread = self.intervalData[index - 1][key]
 
                     intervalThread['cpuUsage'] += \
@@ -12383,6 +12532,19 @@ class ThreadAnalyzer(object):
                         intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
                     intervalThread['kmemUsage'] = \
                         intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
+
+                    for evt in intervalThread['totalCustomEvent'].keys():
+                        try:
+                            intervalThread['customEvent'][evt]['count'] = \
+                                intervalThread['totalCustomEvent'][evt]['count'] - \
+                                    prevIntervalThread['totalCustomEvent'][evt]['count']
+                        except:
+                            intervalThread['customEvent'][evt]['count'] = \
+                                intervalThread['totalCustomEvent'][evt]['count']
+
+                        # calculate total custom event usage in this interval #
+                        self.intervalData[index]['toTal']['customEvent'][evt]['count'] += \
+                            intervalThread['customEvent'][evt]['count']
 
                 # fix cpu usage exceed this interval #
                 self.thisInterval = SystemManager.intervalEnable
@@ -12497,15 +12659,15 @@ class ThreadAnalyzer(object):
                             if remainTime <= 0:
                                 break
 
-                # calculate block usage of this thread in this interval #
+                # calculate total block usage in this interval #
                 self.intervalData[index]['toTal']['totalBr'] += \
                     self.intervalData[index][key]['brUsage']
                 self.intervalData[index]['toTal']['totalBw'] += \
                     self.intervalData[index][key]['bwUsage'] >> 1
 
                 """
-                calculate memory usage of this thread in this interval \
-                except for core threads because its already calculated
+                calculate total memory usage in this interval \
+                except for core(swapper) threads because its already calculated
                 """
                 if key[0:2] == '0[':
                     continue
@@ -13931,51 +14093,48 @@ class ThreadAnalyzer(object):
                     ei.addEvent(time, event)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
+
+            # custom event #
+            elif func in SystemManager.customEventList:
+                if self.threadData[thread]['customEvent'] is None:
+                    self.threadData[thread]['customEvent'] = {}
+
+                try:
+                    self.threadData[thread]['customEvent'][func]
+                except:
+                    self.threadData[thread]['customEvent'][func] = dict(self.init_eventData)
+                try:
+                    self.customEventInfo[func]
+                except:
+                    self.customEventInfo[func] = dict(self.init_eventData)
+
+                self.threadData[thread]['customEvent'][func]['count'] += 1
+                self.customEventInfo[func]['count'] += 1
+
+                # get interval #
+                interDiff = 0
+                if self.threadData[thread]['customEvent'][func]['start'] > 0:
+                    interDiff = float(time) - self.threadData[thread]['customEvent'][func]['start']
+
+                # update period of thread #
+                if interDiff > self.threadData[thread]['customEvent'][func]['maxPeriod'] or \
+                    self.threadData[thread]['customEvent'][func]['maxPeriod'] == 0:
+                    self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
+                if interDiff < self.threadData[thread]['customEvent'][func]['minPeriod'] or \
+                    self.threadData[thread]['customEvent'][func]['minPeriod'] == 0:
+                    self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
+
+                # update period of system #
+                if interDiff > self.customEventInfo[func]['maxPeriod'] or \
+                    self.customEventInfo[func]['maxPeriod'] == 0:
+                    self.customEventInfo[func]['maxPeriod'] = interDiff
+                if interDiff < self.customEventInfo[func]['minPeriod'] or \
+                    self.customEventInfo[func]['minPeriod'] == 0:
+                    self.customEventInfo[func]['minPeriod'] = interDiff
+
+                self.threadData[thread]['customEvent'][func]['start'] = float(time)
+
             else:
-                # custom event #
-                if func in SystemManager.customEventList:
-                    if self.threadData[thread]['customEvent'] is None:
-                        self.threadData[thread]['customEvent'] = {}
-
-                    try:
-                        self.threadData[thread]['customEvent'][func]
-                    except:
-                        self.threadData[thread]['customEvent'][func] = \
-                            {'count': int(0), 'start': float(0), \
-                            'minPeriod': float(0), 'maxPeriod': float(0)}
-                    try:
-                        self.customEventInfo[func]
-                    except:
-                        self.customEventInfo[func] = \
-                            {'count': int(0), 'start': float(0), \
-                            'minPeriod': float(0), 'maxPeriod': float(0)}
-
-                    self.threadData[thread]['customEvent'][func]['count'] += 1
-                    self.customEventInfo[func]['count'] += 1
-
-                    # get interval #
-                    interDiff = 0
-                    if self.threadData[thread]['customEvent'][func]['start'] > 0:
-                        interDiff = float(time) - self.threadData[thread]['customEvent'][func]['start']
-
-                    # update period of thread #
-                    if interDiff > self.threadData[thread]['customEvent'][func]['maxPeriod'] or \
-                        self.threadData[thread]['customEvent'][func]['maxPeriod'] == 0:
-                        self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
-                    if interDiff < self.threadData[thread]['customEvent'][func]['minPeriod'] or \
-                        self.threadData[thread]['customEvent'][func]['minPeriod'] == 0:
-                        self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
-
-                    # update period of system #
-                    if interDiff > self.customEventInfo[func]['maxPeriod'] or \
-                        self.customEventInfo[func]['maxPeriod'] == 0:
-                        self.customEventInfo[func]['maxPeriod'] = interDiff
-                    if interDiff < self.customEventInfo[func]['minPeriod'] or \
-                        self.customEventInfo[func]['minPeriod'] == 0:
-                        self.customEventInfo[func]['minPeriod'] = interDiff
-
-                    self.threadData[thread]['customEvent'][func]['start'] = float(time)
-
                 # user event #
                 for name in SystemManager.userEventList:
                     if func.startswith(name) is False:
@@ -13987,16 +14146,12 @@ class ThreadAnalyzer(object):
                     try:
                         self.threadData[thread]['userEvent'][name]
                     except:
-                        self.threadData[thread]['userEvent'][name] = \
-                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
-                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+                        self.threadData[thread]['userEvent'][name] = dict(self.init_eventData)
 
                     try:
                         self.userEventInfo[name]
                     except:
-                        self.userEventInfo[name] = \
-                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
-                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+                        self.userEventInfo[name] = dict(self.init_eventData)
 
                     if func == '%s_enter' % name:
                         # add data into list #
@@ -14069,16 +14224,12 @@ class ThreadAnalyzer(object):
                     try:
                         self.threadData[thread]['kernelEvent'][name]
                     except:
-                        self.threadData[thread]['kernelEvent'][name] = \
-                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
-                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+                        self.threadData[thread]['kernelEvent'][name] = dict(self.init_eventData)
 
                     try:
                         self.kernelEventInfo[name]
                     except:
-                        self.kernelEventInfo[name] = \
-                            {'count': int(0), 'start': float(0), 'usage': float(0), 'max': float(0), \
-                            'min': float(0), 'maxPeriod': float(0), 'minPeriod': float(0)}
+                        self.kernelEventInfo[name] = dict(self.init_eventData)
 
                     if func == '%s_enter' % name:
                         # add data into list #
