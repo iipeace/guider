@@ -5589,39 +5589,45 @@ class SystemManager(object):
             SystemManager.printError("Fail to import package: " + err.args[0])
             sys.exit(0)
 
+        syms = []
         disline = []
-        timeout = 5
         args = [objdumpPath, "-C", "-F", "-d", binPath]
 
-        proc = subprocess.Popen(args,stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        try:
-            # Set alarm to handle hanged objdump #
-            signal.alarm(timeout)
-
-            # Wait for objdump to finish its job #
-            proc.wait()
-
-            # Cancel alarm after objdump respond #
-            signal.alarm(0)
-        except:
-            SystemManager.printWarning('No response of objdump for %s' % binPath)
-            return None
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         while 1:
-            lines = proc.stdout.readlines()
+            try:
+                lines = proc.stdout.readlines()
+            except (OSError, IOError) as e:
+                if e.errno == errno.EINTR:
+                    continue
+
             if not lines:
                 err = proc.stderr.read()
                 if len(err) > 0:
                     SystemManager.printError(err[err.find(':') + 2:])
                     sys.exit(0)
                 break
+
             disline += lines
 
-        key = '<%s>' % symbol
         for item in disline:
-            if item.find(key) > -1:
-                return item[item.rfind('0x'):item.rfind(')')]
+            m = re.match(\
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>\S*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', item)
+            if m is not None:
+                d = m.groupdict()
+                if d['symbol'] == symbol:
+                    return d['offset']
+                elif d['symbol'].find(symbol) >= 0:
+                    syms.append(d['symbol'])
+
+        if len(syms) == 0:
+            return None
+        else:
+            SystemManager.printError(\
+                "Fail to find %s in %s, \n\tbut similar symbols [ %s ] are exist" % \
+                (symbol, binPath, ', '.join(syms)))
+            sys.exit(0)
 
 
 
@@ -11010,6 +11016,141 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint(oneLine)
                 SystemManager.clearPrint()
 
+        # user event usage on timeline #
+        SystemManager.clearPrint()
+        if len(SystemManager.userEventList) > 0:
+            for idx, val in sorted(self.userEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                for key, value in sorted(self.userInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    timeLine = ''
+                    timeLineLen = titleLineLen
+
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
+
+                        try:
+                            self.intervalData[icount][key]['userEvent']
+                        except:
+                            timeLine += '%3d ' % 0
+                            continue
+
+                        nowVal = self.intervalData[icount][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
+
+                        if icount > 0:
+                            try:
+                                if nowVal['new'] != prevVal['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                newFlag = nowVal['new']
+                            try:
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
+                            except:
+                                dieFlag = nowVal['die']
+                        else:
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
+
+                        res = str(self.intervalData[icount][key]['userEvent'][idx]['count'])
+
+                        '''
+                        res = str(self.intervalData[icount][key]['userEvent'][idx]['usage']) / \
+                            SystemManager.intervalEnable * 100
+                        '''
+
+                        timeLine += '%4s' % (newFlag + res + dieFlag)
+
+                    if (idx not in value or value[idx]['count'] == 0) and \
+                        SystemManager.showAll == False:
+                        break
+
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (self.threadData[key]['comm'], key, self.threadData[key]['tgid']) + timeLine + '\n')
+
+                SystemManager.pipePrint("%s# %s\n" % ('', '%s(Cnt)' % idx))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
+                SystemManager.clearPrint()
+
+        # kernel event usage on timeline #
+        SystemManager.clearPrint()
+        if len(SystemManager.kernelEventList) > 0:
+            for idx, val in sorted(self.kernelEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                for key, value in sorted(self.kernelInfo.items(), \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    timeLine = ''
+                    timeLineLen = titleLineLen
+
+                    for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                        newFlag = ' '
+                        dieFlag = ' '
+
+                        if timeLineLen + 4 > maxLineLen:
+                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                            timeLineLen = titleLineLen + 4
+                        else:
+                            timeLineLen += 4
+
+                        try:
+                            self.intervalData[icount][key]['kernelEvent']
+                        except:
+                            timeLine += '%3d ' % 0
+                            continue
+
+                        nowVal = self.intervalData[icount][key]
+
+                        try:
+                            prevVal = self.intervalData[icount - 1][key]
+                        except:
+                            prevVal = nowVal
+
+                        if icount > 0:
+                            try:
+                                if nowVal['new'] != prevVal['new']:
+                                    newFlag = self.intervalData[icount][key]['new']
+                            except:
+                                newFlag = nowVal['new']
+                            try:
+                                if nowVal['die'] != prevVal['die']:
+                                    dieFlag = nowVal['die']
+                            except:
+                                dieFlag = nowVal['die']
+                        else:
+                            newFlag = nowVal['new']
+                            dieFlag = nowVal['die']
+
+                        res = str(self.intervalData[icount][key]['kernelEvent'][idx]['count'])
+
+                        '''
+                        res = str(self.intervalData[icount][key]['kernelEvent'][idx]['usage']) / \
+                            SystemManager.intervalEnable * 100
+                        '''
+
+                        timeLine += '%4s' % (newFlag + res + dieFlag)
+
+                    if (idx not in value or value[idx]['count'] == 0) and \
+                        SystemManager.showAll == False:
+                        break
+
+                    SystemManager.addPrint("%16s(%5s/%5s): " % \
+                        (self.threadData[key]['comm'], key, self.threadData[key]['tgid']) + timeLine + '\n')
+
+                SystemManager.pipePrint("%s# %s\n" % ('', '%s(Cnt)' % idx))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
+                SystemManager.clearPrint()
 
 
     def printIntervalInfo(self):
@@ -11185,6 +11326,66 @@ class ThreadAnalyzer(object):
                 try:
                     timeLine += '%3d ' % \
                         self.intervalData[icount]['toTal']['customEvent'][evt]['count']
+                except:
+                    timeLine += '%3d ' % (0)
+
+            if newLine:
+                SystemManager.addPrint("\n")
+                newLine = False
+
+            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+
+        # total user event usage on timeline #
+        newLine = True
+        for evt, value in sorted(self.userEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    timeLine += '%3d ' % \
+                        self.intervalData[icount]['toTal']['userEvent'][evt]['count']
+
+                    '''
+                    timeLine += '%3d ' % \
+                        (self.intervalData[icount]['toTal']['userEvent'][evt]['usage'] / \
+                        SystemManager.intervalEnable * 100)
+                    '''
+                except:
+                    timeLine += '%3d ' % (0)
+
+            if newLine:
+                SystemManager.addPrint("\n")
+                newLine = False
+
+            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+
+        # total kernel event usage on timeline #
+        newLine = True
+        for evt, value in sorted(self.kernelEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount in xrange(0, int(float(self.totalTime) / SystemManager.intervalEnable) + 1):
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    timeLine += '%3d ' % \
+                        self.intervalData[icount]['toTal']['kernelEvent'][evt]['count']
+
+                    '''
+                    timeLine += '%3d ' % \
+                        (self.intervalData[icount]['toTal']['kernelEvent'][evt]['usage'] / \
+                        SystemManager.intervalEnable * 100)
+                    '''
                 except:
                     timeLine += '%3d ' % (0)
 
@@ -12427,12 +12628,18 @@ class ThreadAnalyzer(object):
                                 dict(self.init_eventData)
 
                     # make user event list #
-                    if SystemManager.ueventEnable:
-                        pass
+                    if len(SystemManager.userEventList) > 0:
+                        self.intervalData[index]['toTal']['userEvent'] = {}
+                        for evt in SystemManager.userEventList:
+                            self.intervalData[index]['toTal']['userEvent'][evt] = \
+                                dict(self.init_eventData)
 
                     # make kernel event list #
-                    if SystemManager.keventEnable:
-                        pass
+                    if len(SystemManager.kernelEventList) > 0:
+                        self.intervalData[index]['toTal']['kernelEvent'] = {}
+                        for evt in SystemManager.kernelEventList:
+                            self.intervalData[index]['toTal']['kernelEvent'][evt] = \
+                                dict(self.init_eventData)
 
                 # define thread alias in this interval #
                 intervalThread = self.intervalData[index][key]
@@ -12470,6 +12677,7 @@ class ThreadAnalyzer(object):
                             self.intervalData[index][coreId]['totalUsage'] += diff
                             self.threadData[coreId]['start'] = float(time)
                         continue
+
                     intervalThread['totalUsage'] += \
                         (float(time) - float(self.threadData[val]['start']))
 
@@ -12479,7 +12687,7 @@ class ThreadAnalyzer(object):
                 if self.threadData[key]['die'] != ' ':
                     intervalThread['die'] = self.threadData[key]['die']
 
-                # make thread custom event list #
+                # initialize custom event list #
                 if len(SystemManager.customEventList) > 0:
                     intervalThread['customEvent'] = {}
                     intervalThread['totalCustomEvent'] = {}
@@ -12490,7 +12698,39 @@ class ThreadAnalyzer(object):
                             intervalThread['totalCustomEvent'][evt]['count'] = \
                                 self.threadData[key]['customEvent'][evt]['count']
                         except:
-                            intervalThread['totalCustomEvent'][evt]['count'] = 0
+                            pass
+
+                # initialize user event list #
+                if len(SystemManager.userEventList) > 0:
+                    intervalThread['userEvent'] = {}
+                    intervalThread['totalUserEvent'] = {}
+                    for evt in SystemManager.userEventList:
+                        intervalThread['userEvent'][evt] = dict(self.init_eventData)
+                        intervalThread['totalUserEvent'][evt] = dict(self.init_eventData)
+                        try:
+                            intervalThread['totalUserEvent'][evt]['count'] = \
+                                self.threadData[key]['userEvent'][evt]['count']
+
+                            intervalThread['totalUserEvent'][evt]['usage'] = \
+                                self.threadData[key]['userEvent'][evt]['usage']
+                        except:
+                            pass
+
+                # initialize kernel event list #
+                if len(SystemManager.kernelEventList) > 0:
+                    intervalThread['kernelEvent'] = {}
+                    intervalThread['totalKernelEvent'] = {}
+                    for evt in SystemManager.kernelEventList:
+                        intervalThread['kernelEvent'][evt] = dict(self.init_eventData)
+                        intervalThread['totalKernelEvent'][evt] = dict(self.init_eventData)
+                        try:
+                            intervalThread['totalKernelEvent'][evt]['count'] = \
+                                self.threadData[key]['kernelEvent'][evt]['count']
+
+                            intervalThread['totalKernelEvent'][evt]['usage'] = \
+                                self.threadData[key]['kernelEvent'][evt]['usage']
+                        except:
+                            pass
 
                 # first interval #
                 if SystemManager.intervalNow == SystemManager.intervalEnable:
@@ -12502,12 +12742,6 @@ class ThreadAnalyzer(object):
                     intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
                     intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
 
-                    for evt in intervalThread['totalCustomEvent'].keys():
-                        intervalThread['customEvent'][evt]['count'] += \
-                            intervalThread['totalCustomEvent'][evt]['count']
-
-                        self.intervalData[index]['toTal']['customEvent'][evt]['count'] += \
-                            intervalThread['totalCustomEvent'][evt]['count']
                 # later intervals #
                 else:
                     try:
@@ -12518,6 +12752,7 @@ class ThreadAnalyzer(object):
                     # define thread alias in previous interval #
                     prevIntervalThread = self.intervalData[index - 1][key]
 
+                    # calculate resource usage in this interval #
                     intervalThread['cpuUsage'] += \
                         intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
                     intervalThread['preempted'] += \
@@ -12533,6 +12768,8 @@ class ThreadAnalyzer(object):
                     intervalThread['kmemUsage'] = \
                         intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
 
+                # calculate custom event usage in this interval #
+                if 'totalCustomEvent' in intervalThread:
                     for evt in intervalThread['totalCustomEvent'].keys():
                         try:
                             intervalThread['customEvent'][evt]['count'] = \
@@ -12542,9 +12779,56 @@ class ThreadAnalyzer(object):
                             intervalThread['customEvent'][evt]['count'] = \
                                 intervalThread['totalCustomEvent'][evt]['count']
 
-                        # calculate total custom event usage in this interval #
                         self.intervalData[index]['toTal']['customEvent'][evt]['count'] += \
                             intervalThread['customEvent'][evt]['count']
+
+                # calculate user event usage in this interval #
+                if 'totalUserEvent' in intervalThread:
+                    for evt in intervalThread['totalUserEvent'].keys():
+                        try:
+                            intervalThread['userEvent'][evt]['count'] = \
+                                intervalThread['totalUserEvent'][evt]['count'] - \
+                                    prevIntervalThread['totalUserEvent'][evt]['count']
+
+                            intervalThread['userEvent'][evt]['usage'] = \
+                                intervalThread['totalUserEvent'][evt]['usage'] - \
+                                    prevIntervalThread['totalUserEvent'][evt]['usage']
+                        except:
+                            intervalThread['userEvent'][evt]['count'] = \
+                                intervalThread['totalUserEvent'][evt]['count']
+
+                            intervalThread['userEvent'][evt]['usage'] = \
+                                intervalThread['totalUserEvent'][evt]['usage']
+
+                        self.intervalData[index]['toTal']['userEvent'][evt]['count'] += \
+                            intervalThread['userEvent'][evt]['count']
+
+                        self.intervalData[index]['toTal']['userEvent'][evt]['usage'] += \
+                            intervalThread['userEvent'][evt]['usage']
+
+                # calculate kernel event usage in this interval #
+                if 'totalKernelEvent' in intervalThread:
+                    for evt in intervalThread['totalKernelEvent'].keys():
+                        try:
+                            intervalThread['kernelEvent'][evt]['count'] = \
+                                intervalThread['totalKernelEvent'][evt]['count'] - \
+                                    prevIntervalThread['totalKernelEvent'][evt]['count']
+
+                            intervalThread['kernelEvent'][evt]['usage'] = \
+                                intervalThread['totalKernelEvent'][evt]['usage'] - \
+                                    prevIntervalThread['totalKernelEvent'][evt]['usage']
+                        except:
+                            intervalThread['kernelEvent'][evt]['count'] = \
+                                intervalThread['totalKernelEvent'][evt]['count']
+
+                            intervalThread['kernelEvent'][evt]['usage'] = \
+                                intervalThread['totalKernelEvent'][evt]['usage']
+
+                        self.intervalData[index]['toTal']['kernelEvent'][evt]['count'] += \
+                            intervalThread['kernelEvent'][evt]['count']
+
+                        self.intervalData[index]['toTal']['kernelEvent'][evt]['usage'] += \
+                            intervalThread['kernelEvent'][evt]['usage']
 
                 # fix cpu usage exceed this interval #
                 self.thisInterval = SystemManager.intervalEnable
