@@ -5359,6 +5359,13 @@ class SystemManager(object):
 
         # apply kprobe events #
         for cmd in effectiveCmd:
+            # check redundant event name #
+            if SystemManager.userCmd is not None and \
+                cmd[0] in [ucmd.split(':')[0] for ucmd in SystemManager.userCmd]:
+                SystemManager.printError(\
+                    "redundant event name '%s' as user event and kernel event" % cmd[0])
+                sys.exit(0)
+
             # make entry commands #
             pCmd = 'p:%s_enter %s' % (cmd[0], cmd[1])
             sCmd = ''
@@ -5401,7 +5408,6 @@ class SystemManager(object):
                     SystemManager.printError("wrong command '%s' with -K option" % pCmd)
                     os._exit(0)
 
-
             # make return commands #
             rCmd = 'r:%s_exit %s' % (cmd[0], cmd[1])
             sCmd = ''
@@ -5434,6 +5440,7 @@ class SystemManager(object):
             except:
                 pass
 
+            # apply return command #
             if sCmd != 'NONE':
                 rCmd = '%s %s' % (rCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', rCmd, append=True) < 0:
@@ -5489,6 +5496,14 @@ class SystemManager(object):
             cmdFormat = cmd.split(':')
 
             if len(cmdFormat) == 3:
+                # check redundant event name #
+                if SystemManager.kernelCmd is not None and \
+                    cmd[0] in [kcmd.split(':')[0] for kcmd in SystemManager.kernelCmd]:
+                    SystemManager.printError(\
+                        "redundant event name '%s' as user event and kernel event" % cmd[0])
+                    sys.exit(0)
+
+                # check binary file #
                 if os.path.isfile(cmdFormat[2]) is False:
                     SystemManager.printError("Fail to find %s" % cmdFormat[2])
                     sys.exit(0)
@@ -10227,7 +10242,7 @@ class ThreadAnalyzer(object):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SystemManager.addPrint(\
-                    ("{0:>16}({1:^62}): {2:^12} {3:^10.6f} {4:^10.6f} "
+                    ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
                     format(key, ' | '.join(self.irqData[key]['name'].keys()), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
@@ -14439,8 +14454,8 @@ class ThreadAnalyzer(object):
 
                     if func == '%s_enter' % name:
                         # add data into list #
-                        time = float(time) - float(self.startTime)
-                        self.userEventData.append(['ENTER', name, comm, thread, time, ''])
+                        ntime = float(time) - float(self.startTime)
+                        self.userEventData.append(['ENTER', name, comm, thread, ntime, ''])
 
                         # get interval #
                         interDiff = 0
@@ -14470,9 +14485,9 @@ class ThreadAnalyzer(object):
 
                     elif func == '%s_exit' % name:
                         # add data into list #
-                        time = float(time) - float(self.startTime)
+                        ntime = float(time) - float(self.startTime)
                         self.userEventData.append(\
-                            ['EXIT', name, comm, thread, time, etc[etc.find('(')+1:etc.rfind('<-')]])
+                            ['EXIT', name, comm, thread, ntime, etc[etc.find('(')+1:etc.rfind('<-')]])
 
                         # get usage #
                         usage = 0
@@ -14517,7 +14532,7 @@ class ThreadAnalyzer(object):
 
                     if func == '%s_enter' % name:
                         # add data into list #
-                        time = float(time) - float(self.startTime)
+                        ntime = float(time) - float(self.startTime)
 
                         isSaved = True
                         m = re.match(\
@@ -14525,14 +14540,14 @@ class ThreadAnalyzer(object):
                         if m is not None:
                             d = m.groupdict()
                             self.kernelEventData.append(\
-                                ['ENTER', d['name'], d['addr'], comm, thread, time, '', d['args']])
+                                ['ENTER', name, d['addr'], comm, thread, ntime, '', d['args']])
                         else:
                             m = re.match(\
                                 r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
                             if m is not None:
                                 d = m.groupdict()
                                 self.kernelEventData.append(\
-                                    ['ENTER', d['name'], '', comm, thread, time, '', d['args']])
+                                    ['ENTER', name, '', comm, thread, ntime, '', d['args']])
                             else:
                                 isSaved = False
                                 SystemManager.printWarning("Fail to recognize '%s' kernel event" % etc)
@@ -14567,7 +14582,7 @@ class ThreadAnalyzer(object):
 
                     elif func == '%s_exit' % name:
                         # add data into list #
-                        time = float(time) - float(self.startTime)
+                        ntime = float(time) - float(self.startTime)
 
                         isSaved = True
                         m = re.match(\
@@ -14576,7 +14591,7 @@ class ThreadAnalyzer(object):
                         if m is not None:
                             d = m.groupdict()
                             self.kernelEventData.append(\
-                                ['EXIT', d['name'], d['addr'], comm, thread, time, d['caller'], \
+                                ['EXIT', d['name'], d['addr'], comm, thread, ntime, d['caller'], \
                                 d['args'], d['caddr']])
                         else:
                             m = re.match(\
@@ -14584,7 +14599,7 @@ class ThreadAnalyzer(object):
                             if m is not None:
                                 d = m.groupdict()
                                 self.kernelEventData.append(\
-                                    ['EXIT', d['name'], '', comm, thread, time, d['caller'], \
+                                    ['EXIT', d['name'], '', comm, thread, ntime, d['caller'], \
                                     d['args'], ''])
                             else:
                                 isSaved = False
