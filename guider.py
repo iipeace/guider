@@ -9068,6 +9068,7 @@ class ThreadAnalyzer(object):
             self.intervalData = []
             self.depData = []
             self.sigData = []
+            self.customEventData = []
             self.userEventData = []
             self.kernelEventData = []
             self.syscallData = []
@@ -10294,6 +10295,30 @@ class ThreadAnalyzer(object):
                             value[idx]['maxPeriod'], value[idx]['minPeriod']))
                     except:
                         pass
+            SystemManager.pipePrint(oneLine)
+
+        # print custom event history #
+        if SystemManager.showAll and len(self.customEventData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('\n' + '[Thread CUSTOM Event History]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^32} {1:^10} {2:>16}({3:>5}) {4:<1}".\
+                format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
+            SystemManager.pipePrint(twoLine)
+
+            cnt = 0
+            callTable = {}
+            for val in self.customEventData:
+                # apply filter #
+                if SystemManager.showGroup != [] and not val[2] in SystemManager.showGroup:
+                    continue
+
+                SystemManager.pipePrint(\
+                    "{0:^32} {1:>10.6f} {2:>16}({3:>5}) {4:<1}".\
+                    format(val[0], val[3], val[1], val[2], val[4]))
+                cnt += 1
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
 
         # print user event info #
@@ -14395,6 +14420,11 @@ class ThreadAnalyzer(object):
 
             # custom event #
             elif func in SystemManager.customEventList:
+                # add data into list #
+                ntime = float(time) - float(self.startTime)
+                self.customEventData.append([func, comm, thread, ntime, etc.strip()])
+
+                # make event list #
                 if self.threadData[thread]['customEvent'] is None:
                     self.threadData[thread]['customEvent'] = {}
 
