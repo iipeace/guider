@@ -12554,6 +12554,11 @@ class ThreadAnalyzer(object):
     def getInitTime(file):
         systemInfoBuffer = ''
 
+        if SystemManager.isRecordMode():
+            nrLine = SystemManager.pageSize
+        else:
+            nrLine = 0
+
         while 1:
             start = end = -1
             buf = None
@@ -12563,7 +12568,7 @@ class ThreadAnalyzer(object):
 
             try:
                 with open(file, 'r') as fd:
-                    buf = fd.readlines()
+                    buf = fd.readlines(nrLine)
             except IOError:
                 SystemManager.printError("Fail to open %s" % file)
                 sys.exit(0)
