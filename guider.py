@@ -8422,52 +8422,57 @@ class SystemManager(object):
             if self.cmdList["sched/sched_process_wait"]:
                 SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
+        # enable all irq events #
         if self.cmdList["irq"]:
             SystemManager.writeCmd('irq/enable', '1')
 
         # options for dependency tracing #
-        # toDo: support sys_recv systemcall for x86, x64 #
-        if SystemManager.depEnable and self.cmdList["raw_syscalls/sys_enter"]:
-            cmd = "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
-                (ConfigManager.sysList.index("sys_write"), \
-                ConfigManager.sysList.index("sys_poll"), \
-                ConfigManager.sysList.index("sys_epoll_wait"), \
-                ConfigManager.sysList.index("sys_select"), \
-                ConfigManager.sysList.index("sys_recv"), \
-                ConfigManager.sysList.index("sys_futex"))
-
-            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
-            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-        elif SystemManager.futexEnable:
-            cmd = "(id == %s)" % (ConfigManager.sysList.index("sys_futex"))
-            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', cmd)
-            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-            self.cmdList["raw_syscalls/sys_enter"] = True
-        else:
+        if SystemManager.depEnable is False and SystemManager.futexEnable is False:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
+        elif SystemManager.depEnable:
+            # toDo: support sys_recv systemcall for x86, x64 #
+            if SystemManager.arch == 'arm':
+                ecmd = \
+                    "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
+                    (ConfigManager.sysList.index("sys_write"), \
+                    ConfigManager.sysList.index("sys_poll"), \
+                    ConfigManager.sysList.index("sys_epoll_wait"), \
+                    ConfigManager.sysList.index("sys_select"), \
+                    ConfigManager.sysList.index("sys_recv"), \
+                    ConfigManager.sysList.index("sys_futex"))
+                rcmd = \
+                    "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" % \
+                    (ConfigManager.sysList.index("sys_write"), \
+                    ConfigManager.sysList.index("sys_poll"), \
+                    ConfigManager.sysList.index("sys_epoll_wait"), \
+                    ConfigManager.sysList.index("sys_select"), \
+                    ConfigManager.sysList.index("sys_recv"), \
+                    ConfigManager.sysList.index("sys_futex"))
 
-        # options for dependency tracing #
-        if SystemManager.depEnable and self.cmdList["raw_syscalls/sys_exit"]:
-            cmd = "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" % \
-                (ConfigManager.sysList.index("sys_write"), \
-                ConfigManager.sysList.index("sys_poll"), \
-                ConfigManager.sysList.index("sys_epoll_wait"), \
-                ConfigManager.sysList.index("sys_select"), \
-                ConfigManager.sysList.index("sys_recv"), \
-                ConfigManager.sysList.index("sys_futex"))
+                if self.cmdList["sched/sched_switch"]:
+                    SystemManager.writeCmd('sched/sched_switch/enable', '1')
+                if self.cmdList["sched/sched_wakeup"]:
+                    SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
 
-            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
-            SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
+                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
+                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
+                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
+                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
+            else:
+                SystemManager.printError(\
+                    "tracing thread dependecy is not supported yet except for ARM")
+                sys.exit(0)
         elif SystemManager.futexEnable:
-            cmd = "(id == %s  && ret == 0)" % (ConfigManager.sysList.index("sys_futex"))
-            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', cmd)
+            ecmd = "(id == %s)" % (ConfigManager.sysList.index("sys_futex"))
+            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
+            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
+            self.cmdList["raw_syscalls/sys_enter"] = True
+
+            rcmd = "(id == %s  && ret == 0)" % (ConfigManager.sysList.index("sys_futex"))
+            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             self.cmdList["raw_syscalls/sys_exit"] = True
-        else:
-            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', '0')
-            SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
-
 
         # options for systemcall tracing #
         if self.cmdList["raw_syscalls"]:
@@ -14507,17 +14512,20 @@ class ThreadAnalyzer(object):
                     if m is not None:
                         ed = m.groupdict()
 
-                        # set status of thread #
-                        lastTid = self.lastTidPerCore[ed['core']]
-                        self.threadData[lastTid]['stop'] = float(ed['time'])
-                        self.threadData[lastTid]['lastStatus'] = 'S'
+                        try:
+                            # set status of thread #
+                            lastTid = self.lastTidPerCore[ed['core']]
+                            self.threadData[lastTid]['stop'] = float(ed['time'])
+                            self.threadData[lastTid]['lastStatus'] = 'S'
 
-                        # set status of core #
-                        scoreId = '0[%s]' % ed['core']
-                        self.threadData[scoreId]['offCnt'] += 1
-                        self.threadData[scoreId]['lastOff'] = float(ed['time'])
-                        self.threadData[scoreId]['start'] = float(ed['time'])
-                        self.threadData[scoreId]['lastStatus'] = 'R'
+                            # set status of core #
+                            scoreId = '0[%s]' % ed['core']
+                            self.threadData[scoreId]['offCnt'] += 1
+                            self.threadData[scoreId]['lastOff'] = float(ed['time'])
+                            self.threadData[scoreId]['start'] = float(ed['time'])
+                            self.threadData[scoreId]['lastStatus'] = 'R'
+                        except:
+                            pass
 
                     # save consol log #
                     self.consoleData.append([d['thread'], core, time, etc])
