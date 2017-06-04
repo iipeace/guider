@@ -267,7 +267,7 @@ class ConfigManager(object):
 
     # Define signal #
     sigList = [
-        'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGIOT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
+        'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
         'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', 'SIGCHLD', 'SIGCONT', #18#
         'SIGSTOP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', 'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', #27#
         'SIGWINCH', 'SIGIO', 'SIGPWR', 'SIGSYS' #31#
@@ -5328,9 +5328,11 @@ class SystemManager(object):
                 print('\t\t\t- show running guider processes')
                 print('\t\t\t\t# %s list' % cmd)
                 print('\t\t\t- send event signal to guider processes')
-                print('\t\t\t\t# %s send 1234, 4567' % cmd)
+                print('\t\t\t\t# %s send' % cmd)
                 print('\t\t\t- send stop signal to guider processes')
-                print('\t\t\t\t# %s send 1234, 4567' % cmd)
+                print('\t\t\t\t# %s stop' % cmd)
+                print('\t\t\t- send some signal to specific processes')
+                print('\t\t\t\t# %s send -9 1234, 4567' % cmd)
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
             print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
@@ -7750,12 +7752,17 @@ class SystemManager(object):
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
 
-        if type(pidList) is list:
+        if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
                 try:
                     os.kill(int(pid), nrSig)
+                    SystemManager.printInfo(\
+                        "sent signal %s to %s process" % \
+                        (ConfigManager.sigList[nrSig-1], pid))
                 except:
-                    SystemManager.printError("Fail to send signal to pid %s" % pid)
+                    SystemManager.printError(\
+                        "Fail to send signal %s to %s because of permission" % \
+                        (ConfigManager.sigList[nrSig-1], pid))
             return
 
         commLocation = sys.argv[0].rfind('/')
@@ -7802,21 +7809,25 @@ class SystemManager(object):
                             SystemManager.printInfo("started %s process to profile" % pid)
                         except:
                             SystemManager.printError(\
-                                "Fail to send signal to %s because of permission" % pid)
+                                "Fail to send signal %s to %s because of permission" % \
+                                (ConfigManager.sigList[nrSig-1], pid))
                     elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo("terminated %s process" % pid)
                         except:
                             SystemManager.printError(\
-                                "Fail to send signal to %s because of permission" % pid)
-                elif nrSig == signal.SIGQUIT:
+                                "Fail to send signal %s to %s because of permission" % \
+                                (ConfigManager.sigList[nrSig-1], pid))
+                else:
                     try:
                         os.kill(int(pid), nrSig)
-                        SystemManager.printInfo("sent signal to %s process" % pid)
+                        SystemManager.printInfo(\
+                            "sent signal %s to %s process" % (ConfigManager.sigList[nrSig-1], pid))
                     except:
                         SystemManager.printError(\
-                            "Fail to send signal to %s because of permission" % pid)
+                            "Fail to send signal %s to %s because of permission" % \
+                            (ConfigManager.sigList[nrSig-1], pid))
 
                 nrProc += 1
 
@@ -17135,7 +17146,18 @@ if __name__ == '__main__':
 
     # send event signal to background process #
     if SystemManager.isSendMode():
-        SystemManager.sendSignalProcs(signal.SIGQUIT, argList)
+        sig = signal.SIGQUIT
+        if argList is not None:
+            sigList = [item for item in argList if item.startswith('-')]
+            if len(sigList) > 0:
+                for val in sigList:
+                    try:
+                        sig = abs(int(val))
+                        del argList[argList.index(val)]
+                        break
+                    except:
+                        pass
+        SystemManager.sendSignalProcs(sig, argList)
         sys.exit(0)
 
     # view system resource status #
