@@ -10627,7 +10627,12 @@ class ThreadAnalyzer(object):
                     value['usage'] = self.totalTime
 
                 # calculate total core usage percentage #
-                usagePercent = 100 - (round(float(value['usage']) / float(self.totalTime), 7) * 100)
+                try:
+                    usagePercent = \
+                        100 - (round(float(value['usage']) / float(self.totalTime), 7) * 100)
+                except:
+                    usagePercent = 0
+
                 if value['lastOff'] > 0:
                     value['offTime'] += float(self.finishTime) - value['lastOff']
 
@@ -10677,7 +10682,11 @@ class ThreadAnalyzer(object):
             if key[0:2] == '0[':
                 continue
 
-            usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
+            try:
+                usagePercent = \
+                    round(float(value['usage']) / float(self.totalTime), 7) * 100
+            except:
+                usagePercent = 0
 
             # set break condition #
             if SystemManager.sort == 'm':
