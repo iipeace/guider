@@ -5559,7 +5559,9 @@ class SystemManager(object):
 
         for cmd in SystemManager.userCmd:
             addr = None
-            cmdFormat = cmd.split(':')
+            cvtCmd = cmd.replace("::", "#")
+            cmdFormat = cvtCmd.split(':')
+            cmdFormat = [ cmd.replace("#", "::") for cmd in cmdFormat ]
 
             if len(cmdFormat) == 3:
                 # check redundant event name #
@@ -5571,7 +5573,7 @@ class SystemManager(object):
 
                 # check binary file #
                 if os.path.isfile(cmdFormat[2]) is False:
-                    SystemManager.printError("Fail to find %s" % cmdFormat[2])
+                    SystemManager.printError("Fail to find '%s' binary" % cmdFormat[2])
                     sys.exit(0)
 
                 # symbol input #
@@ -5591,7 +5593,7 @@ class SystemManager(object):
                         addr = SystemManager.getSymOffset(\
                             cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
                         if addr is None:
-                            SystemManager.printError("Fail to find %s in %s" % \
+                            SystemManager.printError("Fail to find '%s' in %s" % \
                                 (cmdFormat[1], cmdFormat[2]))
                             sys.exit(0)
                 else:
@@ -5674,30 +5676,37 @@ class SystemManager(object):
         disline = []
         args = [objdumpPath, "-C", "-F", "-d", binPath]
 
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        SystemManager.printStatus(\
+            "start finding %s... [ STOP(ctrl + c) ]" % (symbol))
+
+        # start objdump process #
+        proc = subprocess.Popen(\
+            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
 
         while 1:
             try:
-                lines = proc.stdout.readlines()
+                # read a line from objdump process #
+                line = proc.stdout.readline()
             except (OSError, IOError) as e:
                 if e.errno == errno.EINTR:
                     continue
 
-            if not lines:
+            # handle error #
+            if not line:
                 err = proc.stderr.read()
                 if len(err) > 0:
+                    proc.terminate()
                     SystemManager.printError(err[err.find(':') + 2:])
                     sys.exit(0)
                 break
 
-            disline += lines
-
-        for item in disline:
+            # parse line to find offset of symbol #
             m = re.match(\
-                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>\S*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', item)
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>\S*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', line)
             if m is not None:
                 d = m.groupdict()
                 if d['symbol'] == symbol:
+                    proc.terminate()
                     return d['offset']
                 elif d['symbol'].find(symbol) >= 0:
                     syms.append(d['symbol'])
