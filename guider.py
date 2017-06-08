@@ -9220,7 +9220,8 @@ class ThreadAnalyzer(object):
                 'userPages': int(0), 'maxPreempted': float(0), 'anonReclaimedPages': int(0), \
                 'lastIdleStatus': int(0), 'createdTime': float(0), 'waitStartAsParent': float(0), \
                 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, \
-                'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None}
+                'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
+                'blkCore': int(0)}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), \
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
@@ -9427,7 +9428,18 @@ class ThreadAnalyzer(object):
                 continue
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
-            # toDo: add blocking time to read blocks from disk #
+
+        # add blocking time to read blocks from disk #
+        if SystemManager.blockEnable:
+            for idx, item in sorted(\
+                self.threadData.items(), key=lambda e: e[1]['readStart'], reverse=True):
+                if item['readStart'] > 0:
+                    waitTime = float(self.finishTime) - item['readStart']
+                    item['ioWait'] += waitTime
+                    self.threadData[item['blkCore']]['ioWait'] += waitTime
+                    item['readStart'] = 0
+                else:
+                    break
 
         # calculate usage of threads in last interval #
         self.processIntervalData(self.finishTime)
@@ -12880,7 +12892,7 @@ class ThreadAnalyzer(object):
                 intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
                 intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
 
-                # add time not calculated yet in this interval to related threads #
+                # add core time not calculated yet in this interval #
                 for idx, val in self.lastTidPerCore.items():
                     if self.threadData[val]['lastStatus'] == 'S':
                         # apply core off time #
@@ -14133,7 +14145,8 @@ class ThreadAnalyzer(object):
 
                         SystemManager.blockEnable = True
 
-                        bio = d['major'] + '/' + d['minor'] + '/' + d['operation'][0] + '/' + d['address']
+                        bio = '%s/%s/%s/%s' % \
+                            (d['major'], d['minor'], d['operation'][0], d['address'])
 
                         self.ioData[bio] = {'thread': thread, 'time': float(time), \
                             'major': d['major'], 'minor': d['minor'], \
@@ -14142,6 +14155,7 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['reqBlock'] += int(d['size'])
                         self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
+                        self.threadData[thread]['blkCore'] = coreId
                         self.threadData[coreId]['readBlockCnt'] += 1
 
                         try:
@@ -14170,11 +14184,11 @@ class ThreadAnalyzer(object):
                     address = d['address']
                     size = d['size']
 
-                    bio = d['major'] + '/' + d['minor'] + '/' + d['operation'][0] + '/' + d['address']
+                    bio = '%s/%s/%s/%s' % \
+                        (d['major'], d['minor'], d['operation'][0], d['address'])
 
                     try:
-                        self.threadData[self.ioData[bio]['thread']] = \
-                            self.threadData[self.ioData[bio]['thread']]
+                        self.threadData[self.ioData[bio]['thread']]
                         bioStart = int(address)
                         bioEnd = int(address) + int(size)
                     except:
