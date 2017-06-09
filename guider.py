@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.0"
+__version__ = "3.8.2"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6153,7 +6153,7 @@ class SystemManager(object):
             os._exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
-            SystemManager.writeEvent("EVENT_STOP")
+            SystemManager.writeEvent("EVENT_STOP", False)
             SystemManager.runRecordStopCmd()
 
         # update record status #
@@ -6682,7 +6682,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeEvent(message):
+    def writeEvent(message, show=True):
         if SystemManager.eventLogFD == None:
             if SystemManager.eventLogFile is None:
                 SystemManager.eventLogFile = \
@@ -6697,7 +6697,8 @@ class SystemManager(object):
             try:
                 SystemManager.eventLogFD.write(message)
                 event = message[message.find('_')+1:]
-                SystemManager.printInfo('marked %s event' % event)
+                if show:
+                    SystemManager.printInfo('wrote %s event' % event)
                 SystemManager.eventLogFD.close()
                 SystemManager.eventLogFD = None
             except:
@@ -9080,7 +9081,7 @@ class EventAnalyzer(object):
             [ID, time, sum(t[0] == ID for t in self.eventData[name]['list']) + 1])
 
         if sum(id[0] == ID for id in self.eventData[name]['summary']) == 0:
-            self.eventData[name]['summary'].append([ID, 1, 0, 0, 0, time, 0])
+            self.eventData[name]['summary'].append([ID, 1, -1, -1, -1, time, time])
         else:
             for n in self.eventData[name]['summary']:
                 if n[0] == ID:
@@ -9092,8 +9093,9 @@ class EventAnalyzer(object):
 
     def printEventInfo(self):
         if len(self.eventData) > 0:
-            SystemManager.pipePrint('\n\n\n' + twoLine)
-            SystemManager.pipePrint("%s# %s: %d\n" % ('', 'EVT', len(self.eventData)))
+            SystemManager.pipePrint("\n\n\n[%s] [ Total: %d ]" % \
+                ('Event Info', len(self.eventData)))
+            SystemManager.pipePrint(twoLine)
             self.printEvent(ti.startTime)
             SystemManager.pipePrint(twoLine)
 
@@ -9101,17 +9103,22 @@ class EventAnalyzer(object):
 
     def printEvent(self, startTime):
         for key, value in sorted(self.eventData.items(), key=lambda e: e[1], reverse=True):
-            if self.eventData[key]['summary'][0][0] == None:
-                SystemManager.pipePrint("%10s: [total: %s]" % \
-                    (key, len(self.eventData[key]['list'])))
-            else:
-                string = ''
-                for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
-                    string += '[%s: %d/%d/%d/%d/%.3f/%.3f] ' % \
-                        (n[0], n[1], n[2], n[3], n[4], float(n[5]) - float(startTime), 0)
-                SystemManager.pipePrint("%10s: [total: %s] [subEvent: %s] %s" % \
-                    (key, len(self.eventData[key]['list']), \
-                    len(self.eventData[key]['summary']), string))
+            string = ''
+            head = '%10s: [total: %s] [subEvent: %s] ' % \
+                (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']))
+            for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
+                if n[0] == None:
+                    msg = head
+                else:
+                    msg = ' ' * len(head)
+
+                string = \
+                    '%s[%8s > cnt: %d, avr: %d, min: %d, max: %d, first: %.3f, last: %.3f]' % \
+                    (msg, n[0], n[1], n[2], n[3], n[4], \
+                    float(n[5]) - float(startTime), float(n[6]) - float(startTime))
+
+                SystemManager.pipePrint("%s" % string)
+
 
 
 
