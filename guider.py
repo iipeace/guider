@@ -2020,6 +2020,16 @@ class FunctionAnalyzer(object):
                     self.customEventTable[cmd[0]] = cmd[1]
                 else:
                     self.customEventTable[cmd[0]] = None
+        if SystemManager.kernelCmd is not None:
+            for cmd in SystemManager.kernelCmd:
+                cmd = cmd.split(':')
+                self.customEventTable[cmd[0]+'_enter'] = None
+                self.customEventTable[cmd[0]+'_exit'] = None
+        if SystemManager.userCmd is not None:
+            for cmd in SystemManager.userCmd:
+                cmd = cmd.split(':')
+                self.customEventTable[cmd[0]+'_enter'] = None
+                self.customEventTable[cmd[0]+'_exit'] = None
 
         # start to parse logs #
         for liter in lines:
@@ -5279,6 +5289,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
                 print('\t\t\t- record specific kernel functions in a specific thread')
                 print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
+                print('\t\t\t- record segmentation fault event in all threads')
+                print('\t\t\t\t# %s record -f -s . -K segflt:unhandled_signal -ep' % cmd)
 
                 print('\n\t\t[top mode]')
                 print('\t\t\t- show real-time resource usage of processes')
@@ -8088,16 +8100,37 @@ class SystemManager(object):
             SystemManager.printError("Fail to open %s" % filePath)
             sys.exit(0)
 
+        # save system information #
+        si.saveAllInfo()
+
         while 1:
             try:
-                if SystemManager.recordStatus is False:
+                if SystemManager.recordStatus:
+                    fd.write(pd.read(SystemManager.pageSize))
+                else:
                     raise
-
-                data = pd.read(SystemManager.pageSize)
-                fd.write(data)
             except:
+                # close files to sync disk buffer #
                 pd.close()
                 fd.close()
+
+                # print system information to buffer #
+                si.printAllInfoToBuf()
+
+                rbuf = ''
+                with open(SystemManager.outputFile, 'r') as fd:
+                    rbuf = fd.read()
+
+                with open(SystemManager.outputFile, 'w') as fd:
+                    if SystemManager.systemInfoBuffer is not '':
+                        fd.writelines(SystemManager.magicString + '\n')
+                        fd.writelines(SystemManager.systemInfoBuffer)
+                        fd.writelines(SystemManager.magicString + '\n')
+                        fd.writelines(rbuf)
+
+                SystemManager.printInfo(\
+                    "wrote data to %s successfully" % SystemManager.outputFile)
+
                 return
 
 
@@ -8314,9 +8347,6 @@ class SystemManager(object):
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
 
-            # enable custom events #
-            SystemManager.writeCustomCmd()
-
             if SystemManager.cpuEnable:
                 self.cmdList["timer/hrtimer_start"] = True
 
@@ -8397,8 +8427,6 @@ class SystemManager(object):
             SystemManager.writeCmd('signal/filter', sigCmd)
             SystemManager.writeCmd('signal/enable', '1')
 
-            return
-
         # enable custom events #
         SystemManager.writeCustomCmd()
 
@@ -8407,6 +8435,10 @@ class SystemManager(object):
 
         # enable user events #
         SystemManager.writeUserCmd()
+
+        # FUNCTION MODE #
+        if SystemManager.isFunctionMode():
+            return
 
         # THREAD MODE #
         if SystemManager.cpuEnable:
@@ -14835,7 +14867,7 @@ class ThreadAnalyzer(object):
                         if m is not None:
                             d = m.groupdict()
                             self.kernelEventData.append(\
-                                ['EXIT', d['name'], d['addr'], comm, thread, ntime, d['caller'], \
+                                ['EXIT', name, d['addr'], comm, thread, ntime, d['caller'], \
                                 d['args'], d['caddr']])
                         else:
                             m = re.match(\
@@ -14843,7 +14875,7 @@ class ThreadAnalyzer(object):
                             if m is not None:
                                 d = m.groupdict()
                                 self.kernelEventData.append(\
-                                    ['EXIT', d['name'], '', comm, thread, ntime, d['caller'], \
+                                    ['EXIT', name, '', comm, thread, ntime, d['caller'], \
                                     d['args'], ''])
                             else:
                                 isSaved = False
@@ -17345,9 +17377,8 @@ if __name__ == '__main__':
 
         if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
-                SystemManager.setIdlePriority()
-                SystemManager.copyPipeToFile(SystemManager.inputFile + '_pipe', SystemManager.outputFile)
-                SystemManager.printInfo("wrote data to %s successfully" % (SystemManager.outputFile))
+                SystemManager.copyPipeToFile(\
+                    '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
             else:
                 SystemManager.printError("wrong option with -e + p, use also -s option to save data")
 
