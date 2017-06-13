@@ -1521,7 +1521,7 @@ class FunctionAnalyzer(object):
             if value['binary'] == '':
                 # user pos without offset #
                 if value['symbol'] == '' or value['symbol'] == '??':
-                    # toDo: find binary and symbol of pos #
+                    # toDo: find binary path and symbol of pos #
                     value['binary'] = '??'
                     value['origBin'] = '??'
                     value['symbol'] = idx
@@ -2648,6 +2648,14 @@ class FunctionAnalyzer(object):
 
                     self.threadData[pid]['new'] = True
 
+            # Save user event #
+            elif d['func'].startswith("tracing_mark_write"):
+                m = re.match(r'^\s*\S*: EVENT_(?P<event>\S+)', d['etc'])
+                if m is not None:
+                    gd = m.groupdict()
+
+                    ei.addEvent(d['time'], gd['event'])
+
             # Save tgid(pid) #
             if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
@@ -2746,8 +2754,9 @@ class FunctionAnalyzer(object):
 
         # Print profiled thread list #
         SystemManager.pipePrint(\
-            "[%s] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('Function Thread Info', 'Elapsed time', round(self.totalTime, 7), \
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ]" % \
+            ('Function Thread Info', 'Elapsed', round(self.totalTime, 7), \
+            'Start', round(float(self.startTime), 7), \
              len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
@@ -3013,27 +3022,45 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^32}|{1:<121}".format(event, info))
 
+                indentLen = 32
+                nowLen = indentLen
                 try:
                     last = call[2][0]
                     stack = call[2][1]
-                    userCall = ' %s[%s]' % (self.posData[last]['symbol'], self.posData[last]['binary'])
+                    userCall = ' %s[%s]' % \
+                        (self.posData[last]['symbol'], self.posData[last]['binary'])
+                    nowLen += len(userCall)
                     for subcall in stack:
                         try:
-                            userCall = '%s <- %s[%s]' % \
-                                (userCall, self.posData[subcall]['symbol'], \
-                                self.posData[subcall]['binary'])
+                            nextCall = ' <- %s[%s]' % \
+                                (self.posData[subcall]['symbol'], self.posData[subcall]['binary'])
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                userCall = '%s%s' % (userCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                userCall = '%s\n%s %s' % (userCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
                         except:
                             pass
                 except:
                     pass
 
+                indentLen = 32
+                nowLen = indentLen
                 try:
                     last = call[3][0]
                     stack = call[3][1]
                     kernelCall = ' %s' % (self.posData[last]['symbol'])
+                    nowLen += len(kernelCall)
                     for subcall in stack:
                         try:
-                            kernelCall = '%s <- %s' % (kernelCall, self.posData[subcall]['symbol'])
+                            nextCall = ' <- %s' % (self.posData[subcall]['symbol'])
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                kernelCall = '%s%s' % (kernelCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                kernelCall = '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
                         except:
                             pass
                 except:
@@ -5290,7 +5317,7 @@ class SystemManager(object):
                 print('\t\t\t- record specific kernel functions in a specific thread')
                 print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
                 print('\t\t\t- record segmentation fault event in all threads')
-                print('\t\t\t\t# %s record -f -s . -K segflt:unhandled_signal -ep' % cmd)
+                print('\t\t\t\t# %s record -f -s . -K segflt:bad_area -ep' % cmd)
 
                 print('\n\t\t[top mode]')
                 print('\t\t\t- show real-time resource usage of processes')
@@ -9123,12 +9150,12 @@ class EventAnalyzer(object):
 
 
 
-    def printEventInfo(self):
+    def printEventInfo(self, start):
         if len(self.eventData) > 0:
             SystemManager.pipePrint("\n\n\n[%s] [ Total: %d ]" % \
                 ('Event Info', len(self.eventData)))
             SystemManager.pipePrint(twoLine)
-            self.printEvent(ti.startTime)
+            self.printEvent(start)
             SystemManager.pipePrint(twoLine)
 
 
@@ -10634,9 +10661,10 @@ class ThreadAnalyzer(object):
         SystemManager.printInfoBuffer()
 
         # print menu #
-        SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ Running: %d ] [ CtxSwc: %d ] " + \
-            "[ LogSize: %d KB ] [ Keys: Foward/Back/Save/Quit ] [ Unit: Sec/MB ]") % \
-            ('Thread Info', 'Elapsed time', round(float(self.totalTime), 7), \
+        SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
+            "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB ]") % \
+            ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
+            'Start', round(float(self.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
 
@@ -17513,20 +17541,16 @@ if __name__ == '__main__':
     # create Event Info #
     ei = EventAnalyzer()
 
-    # create FunctionAnalyzer using ftrace log #
     if SystemManager.functionEnable is not False:
+        # create FunctionAnalyzer #
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
         # print Function Info #
         fi.printUsage()
 
-        # close pipe for less util #
-        if SystemManager.pipeForPrint is not None:
-            SystemManager.pipeForPrint.close()
-
-        sys.exit(0)
+        start = fi.startTime
     else:
-        # create ThreadAnalyzer using ftrace log #
+        # create ThreadAnalyzer #
         ti = ThreadAnalyzer(SystemManager.inputFile)
 
         # print thread usage #
@@ -17550,8 +17574,10 @@ if __name__ == '__main__':
         # print system call usage #
         ti.printSyscallInfo()
 
+        start = ti.startTime
+
     # print event info #
-    ei.printEventInfo()
+    ei.printEventInfo(start)
 
     # close pipe for less util #
     if SystemManager.pipeForPrint is not None:
