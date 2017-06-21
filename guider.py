@@ -9924,10 +9924,13 @@ class ThreadAnalyzer(object):
             explode[sizes.index(max(sizes))] = 0.03
 
             # set size and position of this chart #
-            ypos = seq >> 1
-            xpos = seq - (ypos << 1)
-            ax = subplot2grid((height,2), (ypos,xpos), rowspan=1, colspan=1)
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            try:
+                ypos = seq >> 1
+                xpos = seq - (ypos << 1)
+                ax = subplot2grid((height,2), (ypos,xpos), rowspan=1, colspan=1)
+                ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            except:
+                continue
 
             # get total size #
             line = '_' * len(idx) * 1
