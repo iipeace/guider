@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.2"
+__version__ = "3.8.3"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -1037,7 +1037,6 @@ class FunctionAnalyzer(object):
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
                 allocKernelSym = self.pageTable[pfnv]['kernelSym']
                 allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
-
 
                 self.pageUsageCnt -= 1
                 self.userSymData[allocSym]['pageCnt'] -= 1
@@ -2913,7 +2912,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -2991,7 +2990,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3149,7 +3148,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3256,7 +3255,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3337,7 +3336,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3425,7 +3424,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3516,7 +3515,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3610,7 +3609,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3701,7 +3700,7 @@ class FunctionAnalyzer(object):
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3794,7 +3793,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -3881,7 +3880,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -3964,7 +3963,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
 
                                 lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if lpos > SystemManager.lineLength:
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
                                     stackIdx = len(symbolStack)
                                     symbolStack += '\n' + ' ' * indentLen
                                     appliedIndentLen = 0
@@ -4051,7 +4050,7 @@ class FunctionAnalyzer(object):
                                 symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
 
                             lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if lpos > SystemManager.lineLength:
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
                                 stackIdx = len(symbolStack)
                                 symbolStack += '\n' + ' ' * indentLen
                                 appliedIndentLen = 0
@@ -15162,7 +15161,7 @@ class ThreadAnalyzer(object):
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
 
-            while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+            while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -16850,7 +16849,7 @@ class ThreadAnalyzer(object):
                 SystemManager.procBufferSize += len(data)
                 SystemManager.clearPrint()
 
-                while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+                while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
                     if len(SystemManager.procBuffer) == 1:
                         break
                     SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -17198,7 +17197,7 @@ class ThreadAnalyzer(object):
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
 
-            while SystemManager.procBufferSize > int(SystemManager.bufferSize) * 10:
+            while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
