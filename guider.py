@@ -9862,7 +9862,7 @@ class ThreadAnalyzer(object):
 
     def drawChart(self, data):
         seq = 0
-        height = len(data) / 2
+        height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
         suptitle('guider top memory chart (ver %s)' % __version__, fontsize=8)
