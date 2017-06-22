@@ -302,6 +302,27 @@ class ConfigManager(object):
         'DIRTY',    # 6 #
         ]
 
+    # Define rlimit of process #
+    rlimitList = [
+        'RLIMIT_CPU',
+        'RLIMIT_FSIZE',
+        'RLIMIT_DATA',
+        'RLIMIT_STACK',
+        'RLIMIT_CORE',
+        'RLIMIT_RSS',
+        'RLIMIT_NPROC',
+        'RLIMIT_NOFILE',
+        'RLIMIT_MEMLOCK',
+        'RLIMIT_AS',
+        'RLIMIT_LOCKS',
+        'RLIMIT_SIGPENDING',
+        'RLIMIT_MSGQUEUE',
+        'RLIMIT_NICE',
+        'RLIMIT_RTPRIO',
+        'RLIMIT_RTTIME',
+        'RLIMIT_NLIMITS'
+        ]
+
     taskChainEnable = None
 
 
@@ -4134,13 +4155,8 @@ class FileAnalyzer(object):
         # set the return type #
         self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
 
-        try:
-            import resource
-            SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
-        except:
-            SystemManager.printWarning(\
-                "Fail to get maxFd because of no resource package, use %d as default value" % \
-                SystemManager.maxFd)
+        # set maxFd #
+        SystemManager.setMaxFd()
 
         self.startTime = time.time()
 
@@ -4888,7 +4904,7 @@ class SystemManager(object):
     procPath = '/proc'
     imagePath = None
     launchBuffer = None
-    maxFd = 1024
+    maxFd = 512
     lineLength = 154
     pid = 0
     depth = '0'
@@ -5078,6 +5094,45 @@ class SystemManager(object):
     @staticmethod
     def setErrorLogger():
         sys.stderr = LogManager()
+
+
+
+    @staticmethod
+    def setMaxFd():
+        if sys.platform.startswith('linux'):
+            try:
+                import ctypes
+                from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
+
+                class rlimit(Structure):
+                    _fields_ = (
+                        ("rlim_cur", c_uint),
+                        ("rlim_max", c_uint),
+                    )
+            except ImportError:
+                err = sys.exc_info()[1]
+                print("[Warning] Fail to import package: " + err.args[0])
+                return
+
+            try:
+                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+
+                SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
+                SystemManager.libcObj.getrlimit.restype = c_int
+
+                rlim = rlimit()
+                ret = SystemManager.libcObj.getrlimit(\
+                    ConfigManager.rlimitList.index('RLIMIT_NOFILE'), byref(rlim))
+
+                SystemManager.maxFd = rlim.rlim_cur
+            except:
+                print(\
+                    "[Warning] Fail to get maxFd because of getrlimit, use %d as default value" % \
+                    SystemManager.maxFd)
+        else:
+            print(\
+                "[Warning] Fail to set maxFd because this platform is not linux, use %d as default value" % \
+                SystemManager.maxFd)
 
 
 
@@ -9379,13 +9434,8 @@ class ThreadAnalyzer(object):
                         "wrong option with -e + g, use also -I option to load statistics data")
                     sys.exit(0)
 
-            try:
-                import resource
-                SystemManager.maxFd = resource.getrlimit(getattr(resource, 'RLIMIT_NOFILE'))[0]
-            except:
-                SystemManager.printWarning(\
-                    "Fail to get maxFd because of no resource package, use %d as default value" % \
-                    SystemManager.maxFd)
+            # set maxFd #
+            SystemManager.setMaxFd()
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -15432,6 +15482,7 @@ class ThreadAnalyzer(object):
             pids = os.listdir(SystemManager.procPath)
         except:
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
+            sys.exit(0)
 
         # save proc instance #
         SystemManager.procInstance = self.procData
