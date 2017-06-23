@@ -9795,6 +9795,7 @@ class ThreadAnalyzer(object):
                         for idx in SystemManager.showGroup:
                             if comm.find(idx) < 0 and d['pid'] != idx:
                                 found = True
+                                intervalList = None
                                 break
                         if found:
                             continue
