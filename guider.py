@@ -9788,8 +9788,19 @@ class ThreadAnalyzer(object):
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                 if m is not None:
                     d = m.groupdict()
-                    pname = d['comm'].strip() + '(' + d['pid'] + ')'
+                    comm = d['comm'].strip()
+
+                    if SystemManager.showGroup != []:
+                        found = False
+                        for idx in SystemManager.showGroup:
+                            if comm.find(idx) < 0 and d['pid'] != idx:
+                                found = True
+                                break
+                        if found:
+                            continue
+
                     pid = d['pid']
+                    pname = '%s(%s)' % (comm, pid)
                     average = int(sline[1])
                     intervalList = sline[2]
             elif slen == 2:
