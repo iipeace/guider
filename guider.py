@@ -11150,7 +11150,8 @@ class ThreadAnalyzer(object):
                 for icount in xrange(0, len(self.syscallData)):
                     try:
                         if self.syscallData[icount][0] == 'enter':
-                            if self.syscallData[icount + 1][0] == 'exit' and \
+                            if len(self.syscallData) > icount + 1 and \
+                                self.syscallData[icount + 1][0] == 'exit' and \
                                 self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
                                 eventType = 'both'
                                 eventTime = float(self.syscallData[icount][1]) - float(self.startTime)
