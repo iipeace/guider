@@ -2201,7 +2201,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def parseEventInfo(self, tid, func, args):
+    def parseEventInfo(self, tid, func, args, time, core):
         if func[:-1] in self.customEventTable:
             isFixedEvent = False
         else:
@@ -2554,7 +2554,7 @@ class FunctionAnalyzer(object):
                 if customCnt > 0:
                     self.threadData[tid]['customTotal'] += customCnt
 
-                self.saveEventParam('CUSTOM', customCnt, [func[:-1], args])
+                self.saveEventParam('CUSTOM', customCnt, [func[:-1], [args, time, core, tid]])
             except:
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -2699,7 +2699,7 @@ class FunctionAnalyzer(object):
             if found is False:
                 return False
 
-            return self.parseEventInfo(thread, d['func'], d['etc'])
+            return self.parseEventInfo(thread, d['func'], d['etc'], d['time'], d['core'])
 
         # Parse call stack #
         else:
@@ -3034,13 +3034,18 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint("{0:_^32}|{1:_^121}".format("Event", "Info"))
             SystemManager.pipePrint(twoLine)
 
-            for call in self.customCallData:
+            # sort by time #
+            for call in sorted(self.customCallData, key=lambda e: e[1][1]):
                 event = call[0]
-                info = call[1]
+                info = call[1][0]
+                time = call[1][1]
+                core = call[1][2]
+                tid = call[1][3]
                 userstack = call[2]
                 kernelstack = call[3]
 
-                SystemManager.pipePrint("{0:^32}|{1:<121}".format(event, info))
+                SystemManager.pipePrint("{0:^32}|{1:<1} by {2:<1}({3:<1})[{4:<1}]".\
+                    format(event, info, self.threadData[tid]['comm'], tid, core))
 
                 indentLen = 32
                 nowLen = indentLen
@@ -9927,7 +9932,7 @@ class ThreadAnalyzer(object):
         height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
-        suptitle('guider top memory chart (ver %s)' % __version__, fontsize=8)
+        suptitle('guider top memory chart', fontsize=8)
 
         def make_autopct(values):
             def autopct(pct):
@@ -10043,7 +10048,7 @@ class ThreadAnalyzer(object):
         ymax = 0
         ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        suptitle('guider top graph (ver %s)' % __version__, fontsize=8)
+        suptitle('guider top graph', fontsize=8)
 
         for idx, item in enumerate(blkWait):
             blkWait[idx] += cpuUsage[idx]
