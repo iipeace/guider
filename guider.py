@@ -5463,7 +5463,7 @@ class SystemManager(object):
 
     @staticmethod
     def setArch(arch):
-        if len(arch) == 0:
+        if arch is None or len(arch) == 0:
             return
 
         SystemManager.removeEmptyValue(arch)
@@ -6422,6 +6422,9 @@ class SystemManager(object):
 
         # record command to file #
         if SystemManager.cmdEnable is not False:
+            if SystemManager.cmdEnable == '':
+                SystemManager.printError("Fail to recognize path to write command")
+                os._exit(0)
             if SystemManager.cmdFd is None:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
@@ -6430,7 +6433,7 @@ class SystemManager(object):
                 except:
                     SystemManager.printError("Fail to open %s to write command" %\
                             SystemManager.cmdEnable)
-                    SystemManager.cmdEnable = False
+                    os._exit(0)
             if SystemManager.cmdFd is not None:
                 try:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
@@ -7680,6 +7683,9 @@ class SystemManager(object):
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
                 SystemManager.removeEmptyValue(SystemManager.customCmd)
+                if SystemManager.customCmd == []:
+                    SystemManager.printError("Fail to recognize custom events")
+                    sys.exit(0)
 
             elif option == 'd':
                 options = value
@@ -8353,6 +8359,11 @@ class SystemManager(object):
         # FUNCTION MODE #
         if SystemManager.isFunctionMode():
             cmd = ""
+
+            # check syscall tracing #
+            if SystemManager.sysEnable:
+                SystemManager.printError("Fail to trace syscall in function mode")
+                sys.exit(0)
 
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
