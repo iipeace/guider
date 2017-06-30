@@ -2420,6 +2420,7 @@ class FunctionAnalyzer(object):
 
                     try:
                         pid = SystemManager.savedProcTree[tid]
+                        self.threadData[pid]
                     except:
                         pid = tid
 
@@ -9688,9 +9689,6 @@ class ThreadAnalyzer(object):
             prevTime = time.time()
 
             if self.prevProcData != {}:
-                if SystemManager.printFile is None:
-                    SystemManager.printTitle()
-
                 # print system status #
                 self.printSystemStat()
 
@@ -17291,6 +17289,10 @@ class ThreadAnalyzer(object):
                         del SystemManager.addrListForPrint[addr]
                     else:
                         cli.ignore += 1
+
+        # print title #
+        if SystemManager.printFile is None:
+            SystemManager.printTitle()
 
         # realtime mode #
         if SystemManager.printFile is None:
