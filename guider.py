@@ -2430,6 +2430,8 @@ class FunctionAnalyzer(object):
                         if addr > self.threadData[pid]['lastBrk']:
                             size = addr - self.threadData[pid]['lastBrk']
 
+                            self.threadData[pid]['heapSize'] += size
+
                             self.saveEventParam('HEAP_EXPAND', size, addr)
 
                             return False
