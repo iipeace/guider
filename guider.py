@@ -5821,14 +5821,14 @@ class SystemManager(object):
 
             # parse line to find offset of symbol #
             m = re.match(\
-                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>\S*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', line)
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', line)
             if m is not None:
                 d = m.groupdict()
                 if d['symbol'] == symbol:
                     proc.terminate()
                     return d['offset']
                 elif d['symbol'].find(symbol) >= 0:
-                    syms.append(d['symbol'])
+                    syms.append('%s {%s}' % (d['symbol'], d['offset']))
 
         if len(syms) == 0:
             return None
