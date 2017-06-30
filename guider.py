@@ -2343,8 +2343,7 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
-                if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                    int(b['nr']) == ConfigManager.getMmapId():
+                if int(b['nr']) == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
                     try:
@@ -2397,8 +2396,7 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
-                if int(b['nr']) == ConfigManager.sysList.index('sys_brk') or \
-                    int(b['nr']) == ConfigManager.getMmapId():
+                if int(b['nr']) == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
                     addr = int(b['ret'])
@@ -2414,6 +2412,28 @@ class FunctionAnalyzer(object):
                         return False
                     except:
                         pass
+
+                elif int(b['nr']) == ConfigManager.sysList.index('sys_brk'):
+                    self.heapEnabled = True
+
+                    addr = int(b['ret'])
+
+                    try:
+                        pid = SystemManager.savedProcTree[tid]
+                    except:
+                        pid = tid
+
+                    try:
+                        self.threadData[pid]['lastBrk']
+
+                        if addr > self.threadData[pid]['lastBrk']:
+                            size = addr - self.threadData[pid]['lastBrk']
+
+                            self.saveEventParam('HEAP_EXPAND', size, addr)
+
+                            return False
+                    except:
+                        self.threadData[pid]['lastBrk'] = addr
 
             SystemManager.printWarning("Fail to recognize event %s at %d" % \
                     (func[:-1], SystemManager.dbgEventLine))
@@ -8474,9 +8494,8 @@ class SystemManager(object):
                 mmapId = ConfigManager.getMmapId()
 
                 self.cmdList["raw_syscalls/sys_enter"] = True
-                sysEnterCmd = "(id == %s || id == %s || id == %s)" % \
-                    (ConfigManager.sysList.index('sys_brk'), mmapId, \
-                    ConfigManager.sysList.index('sys_munmap'))
+                sysEnterCmd = "(id == %s || id == %s)" % \
+                    (mmapId, ConfigManager.sysList.index('sys_munmap'))
                 SystemManager.writeCmd('raw_syscalls/sys_enter/filter', sysEnterCmd)
                 SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
 
@@ -9222,7 +9241,10 @@ class EventAnalyzer(object):
 
     def printEventInfo(self, start):
         if len(self.eventData) > 0:
-            SystemManager.pipePrint("\n\n\n[%s] [ Total: %d ]" % \
+            if SystemManager.isFunctionMode() is False:
+                SystemManager.pipePrint("\n\n\n")
+
+            SystemManager.pipePrint("[%s] [ Total: %d ]" % \
                 ('Event Info', len(self.eventData)))
             SystemManager.pipePrint(twoLine)
             self.printEvent(start)
