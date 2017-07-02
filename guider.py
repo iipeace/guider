@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.3"
+__version__ = "3.8.4"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -604,7 +604,7 @@ class PageAnalyzer(object):
 
         print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".format(\
             "VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
-            "SDIRTY", "EXMAP", "FLAG", "FLAGS", oneLine))
+            "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
         for addr in xrange(addrs, addre + offset, pageSize):
             entry = PageAnalyzer.get_pagemap_entry(pid, addr)
@@ -9911,7 +9911,7 @@ class ThreadAnalyzer(object):
             sline = line.split('|')
             slen = len(sline)
 
-            if slen == 12:
+            if slen == 13:
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
                 if m is not None:
                     d = m.groupdict()
@@ -12766,10 +12766,10 @@ class ThreadAnalyzer(object):
         # Print menu #
         SystemManager.pipePrint(("{0:^16} ({1:^5}/{2:^5}) | {3:^8} | {4:^5} | "
             "{5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
-            "{11:^12} | {12:^12} |\n{13}\n").\
+            "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
-            'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCKED(KB)', \
-            'PDIRTY(KB)', 'SDIRTY(KB)', twoLine))
+            'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCK(KB)', \
+            'PDRT(KB)', 'SDRT(KB)', 'NONE(KB)', twoLine))
 
         cnt = 1
         limitProcCnt = 6
@@ -12815,6 +12815,7 @@ class ThreadAnalyzer(object):
                 totalLock = 0
                 totalPdirty = 0
                 totalSdirty = 0
+                totalNone = 0
 
                 procInfo = ' '
                 procDetails = ''
@@ -12873,11 +12874,17 @@ class ThreadAnalyzer(object):
                     except:
                         sdirty = 0
 
+                    try:
+                        none = item['NONE']
+                        totalNone += none
+                    except:
+                        none = 0
+
                     procDetails = "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
                         "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                        "{9:>12} | {10:>12} |\n").\
+                        "{9:>12} | {10:>12} | {11:>12} |\n").\
                         format(procInfo, idx, item['count'], \
-                        vmem, rss, pss, swap, huge, lock, pdirty, sdirty))
+                        vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
 
                 if SystemManager.processEnable:
                     ppid = value['stat'][ppidIdx]
@@ -12889,10 +12896,10 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
                     "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                    "{9:>12} | {10:>12} |\n{11}").\
+                    "{9:>12} | {10:>12} | {11:>12} |\n{12}").\
                     format(procInfo, '[TOTAL]', totalCnt, \
                     totalVmem, totalRss, totalPss, totalSwap, totalHuge, totalLock, \
-                    totalPdirty, totalSdirty, procDetails))
+                    totalPdirty, totalSdirty, totalNone, procDetails))
 
                 SystemManager.pipePrint('%s\n' % oneLine)
 
@@ -15611,6 +15618,7 @@ class ThreadAnalyzer(object):
         mtype = ''
         stable = {}
         ftable = {}
+        isInaccessable = False
         fpath = '%s/%s' % (path, 'smaps')
         ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
@@ -15675,6 +15683,9 @@ class ThreadAnalyzer(object):
                 else:
                     mtype = 'ETC'
 
+                # check inaccessible area #
+                isInaccessable = d['perm'].startswith('---')
+
                 try:
                     ptable[mtype]['count'] += 1
                 except:
@@ -15693,6 +15704,12 @@ class ThreadAnalyzer(object):
                             ptable[mtype][prop] += val
                         except:
                             ptable[mtype][prop] = val
+
+                        if isInaccessable:
+                            try:
+                                ptable[mtype]['NONE'] += val
+                            except:
+                                ptable[mtype]['NONE'] = val
                 except:
                     pass
 
@@ -16575,29 +16592,39 @@ class ThreadAnalyzer(object):
 
                         try:
                             prop = 'Locked:'
-                            tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), item[prop])
+                            tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', item[prop])
                         except:
-                            tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
+                            tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
 
                         try:
                             prop = 'Shared_Dirty:'
                             if item[prop] > 9999:
                                 item[prop] = item[prop] >> 10
-                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDIRTY', item[prop])
+                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
                             else:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', item[prop])
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', item[prop])
                         except:
-                            tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDIRTY', 0)
+                            tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
 
                         try:
                             prop = 'Private_Dirty:'
                             if item[prop] > 9999:
                                 item[prop] = item[prop] >> 10
-                                tmpstr = "%s%s:%4sM" % (tmpstr, 'PDIRTY', item[prop])
+                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDRT', item[prop])
                             else:
-                                tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', item[prop])
+                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDRT', item[prop])
                         except:
-                            tmpstr = "%s%s:%4sK" % (tmpstr, 'PDIRTY', 0)
+                            tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
+
+                        try:
+                            prop = 'NONE'
+                            if item[prop] > 9999:
+                                item[prop] = item[prop] >> 10
+                                tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
+                            else:
+                                tmpstr = "%s%s:%4sK" % (tmpstr, prop, item[prop])
+                        except:
+                            tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
