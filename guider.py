@@ -15620,7 +15620,7 @@ class ThreadAnalyzer(object):
         ftable = {}
         isInaccessable = False
         fpath = '%s/%s' % (path, 'smaps')
-        ptable = {'HEAP': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
+        ptable = {'ANON': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         checkCnt = 0
         checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Dirty:', \
@@ -15673,13 +15673,13 @@ class ThreadAnalyzer(object):
                     ftable[ptype] = 0
                 # anonymous memory #
                 elif ptype == '':
-                    mtype = 'HEAP'
+                    mtype = 'ANON'
                 # stack memory #
                 elif ptype.startswith('[stack'):
                     mtype = 'STACK'
                 # anonymous memory #
                 elif ptype == '[heap]':
-                    mtype = 'HEAP'
+                    mtype = 'ANON'
                 else:
                     mtype = 'ETC'
 
