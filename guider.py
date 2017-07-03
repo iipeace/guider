@@ -3067,8 +3067,9 @@ class FunctionAnalyzer(object):
                 userstack = call[2]
                 kernelstack = call[3]
 
-                SystemManager.pipePrint("{0:^32}|{1:<1} by {2:<1}({3:<1})[{4:<1}]".\
-                    format(event, info, self.threadData[tid]['comm'], tid, core))
+                SystemManager.pipePrint(\
+                    "{0:^32}|{1:<1} by {2:<1}({3:<1})[{4:<1}] at {5:<1}".\
+                    format(event, info, self.threadData[tid]['comm'], tid, core, time))
 
                 indentLen = 32
                 nowLen = indentLen
