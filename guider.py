@@ -5301,7 +5301,8 @@ class SystemManager(object):
             print('Example:')
             print('\t# %s record -s /var/log -e mi -g comm, 1243' % cmd)
             print('\t$ %s guider.dat -o /var/log -a -i' % cmd)
-            print('\t$ %s top -i 2\n' % cmd)
+            print('\t$ %s top -i 2' % cmd)
+            print('\t$ %s -h -a\n' % cmd)
 
             print('Options:')
             print('\t[record mode]')
@@ -5401,6 +5402,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
                 print('\t\t\t- record segmentation fault event in all threads')
                 print('\t\t\t\t# %s record -f -s . -K segflt:bad_area -ep' % cmd)
+                print('\t\t\t- record blocking event without cpu usage in all threads')
+                print('\t\t\t\t# %s record -f -s . -dc -K block:schedule' % cmd)
 
                 print('\n\t\t[top mode]')
                 print('\t\t\t- show real-time resource usage of processes')
@@ -10765,7 +10768,7 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
-            "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB ]") % \
+            "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB/NR ]") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(self.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
@@ -15144,7 +15147,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
         SystemManager.addPrint(\
-            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] [Unit: %%/MB]\n" % \
+            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] [Unit: %%/MB/NR]\n" % \
             (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
         SystemManager.addPrint(twoLine + '\n' + \
@@ -17291,7 +17294,7 @@ class ThreadAnalyzer(object):
     def printSystemStat(self):
         SystemManager.addPrint(\
             ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Fork: %d] " \
-            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] [Unit: %%/MB]\n") % \
+            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] [Unit: %%/MB/NR]\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
