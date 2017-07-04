@@ -892,7 +892,7 @@ class FunctionAnalyzer(object):
             'type': '0', 'time': '0'}
 
         self.init_heapSegData = {'tid': '0', 'size': int(0), 'sym': '0', 'subStackAddr': int(0), \
-            'kernelSym': '0', 'kernelSubStackAddr': int(0)}
+            'kernelSym': '0', 'kernelSubStackAddr': int(0), 'time': float(0), 'core': '0'}
 
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
 
@@ -972,7 +972,12 @@ class FunctionAnalyzer(object):
 
 
 
-    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, size, addr):
+    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, size, arg):
+        addr = arg[0]
+        time = arg[1]
+        core = arg[2]
+        tid = arg[3]
+
         self.userSymData[sym]['heapSize'] += size
         self.kernelSymData[kernelSym]['heapSize'] += size
 
@@ -986,6 +991,9 @@ class FunctionAnalyzer(object):
         self.heapTable[addr]['kernelSym'] = kernelSym
         self.heapTable[addr]['subStackAddr'] = stackAddr
         self.heapTable[addr]['kernelSubStackAddr'] = kernelStackAddr
+        self.heapTable[addr]['time'] = time
+        self.heapTable[addr]['core'] = core
+        self.heapTable[addr]['tid'] = tid
 
         # Set user target stack #
         if self.sort is 'sym':
@@ -995,7 +1003,12 @@ class FunctionAnalyzer(object):
 
 
 
-    def handleHeapReduce(self, size, addr):
+    def handleHeapReduce(self, size, arg):
+        addr = arg[0]
+        time = arg[1]
+        core = arg[2]
+        tid = arg[3]
+
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
 
@@ -1035,7 +1048,6 @@ class FunctionAnalyzer(object):
                 break
 
         del self.heapTable[addr]
-        self.heapTable[addr] = {}
 
 
 
@@ -1462,15 +1474,11 @@ class FunctionAnalyzer(object):
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
-                addr = arg
-
-                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, addr)
+                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, arg)
 
             # heap expand event #
             elif event == 'HEAP_REDUCE':
-                addr = arg
-
-                self.handleHeapReduce(eventCnt, addr)
+                self.handleHeapReduce(eventCnt, arg)
 
             # block read event #
             elif event == 'BLK_READ':
@@ -2376,7 +2384,7 @@ class FunctionAnalyzer(object):
                         # remove heap segment #
                         self.freeHeapSeg(addr)
 
-                        self.saveEventParam('HEAP_REDUCE', size, addr)
+                        self.saveEventParam('HEAP_REDUCE', size, [addr, time, core, tid])
 
                         return False
                     except:
@@ -2407,7 +2415,7 @@ class FunctionAnalyzer(object):
                     try:
                         size = self.heapTable[addr]['size']
 
-                        self.saveEventParam('HEAP_EXPAND', size, addr)
+                        self.saveEventParam('HEAP_EXPAND', size, [addr, time, core, tid])
 
                         return False
                     except:
@@ -2432,7 +2440,7 @@ class FunctionAnalyzer(object):
 
                             self.threadData[pid]['heapSize'] += size
 
-                            self.saveEventParam('HEAP_EXPAND', size, addr)
+                            self.saveEventParam('HEAP_EXPAND', size, [addr, time, core, tid])
 
                             return False
                     except:
@@ -2863,7 +2871,7 @@ class FunctionAnalyzer(object):
                 newMark = 'v'
 
             SystemManager.pipePrint(\
-                ("{0:16}|{1:^7}|{2:^7}|{3:^10}|{4:6.1f}%|" + \
+                ("{0:16}|{1:>7}|{2:>7}|{3:^10}|{4:6.1f}%|" + \
                 "{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:7}k|" + \
                 "{11:7}k|{12:7}k|{13:8}|{14:^5}|{15:^5}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
@@ -3054,23 +3062,29 @@ class FunctionAnalyzer(object):
                 (customList, self.customTotal, self.customCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^32}|{1:_^121}".format("Event", "Info"))
+            SystemManager.pipePrint(\
+                "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
+                format("Event", "COMM", "TID", "CORE", "TIME"))
             SystemManager.pipePrint(twoLine)
 
             # sort by time #
             for call in sorted(self.customCallData, key=lambda e: e[1][1]):
                 event = call[0]
-                info = call[1][0]
+                args = call[1][0]
                 time = call[1][1]
                 core = call[1][2]
                 tid = call[1][3]
                 userstack = call[2]
                 kernelstack = call[3]
 
-                SystemManager.pipePrint(\
-                    "{0:^32}|{1:<1} by {2:<1}({3:<1})[{4:<1}] at {5:<1}".\
-                    format(event, info, self.threadData[tid]['comm'], tid, core, time))
+                title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
+                    format(event, self.threadData[tid]['comm'], tid, core, time)
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
 
+                # Make argument info #
+                argsInfo = ' %s' % args
+
+                # Make user call info #
                 indentLen = 32
                 nowLen = indentLen
                 try:
@@ -3094,6 +3108,7 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
+                # Make kernel call info #
                 indentLen = 32
                 nowLen = indentLen
                 try:
@@ -3115,6 +3130,7 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
+                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Args] ', argsInfo))
                 SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
                 SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
@@ -3324,7 +3340,7 @@ class FunctionAnalyzer(object):
 
     def printUnknownMemFree(self):
         # check memory event #
-        if self.memEnabled is False:
+        if self.memEnabled is False or self.pageUnknownFreeCnt == 0:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -3487,8 +3503,6 @@ class FunctionAnalyzer(object):
                     format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
-
-        SystemManager.pipePrint('\n\n')
 
 
 
@@ -3677,6 +3691,8 @@ class FunctionAnalyzer(object):
 
         self.printUnknownMemFree()
 
+        SystemManager.pipePrint('\n\n')
+
 
 
     def printHeapUsage(self):
@@ -3773,6 +3789,111 @@ class FunctionAnalyzer(object):
                     format(int(heapSize/ 1024), symbolStack))
 
             SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('')
+
+        # Print remaining heap history #
+        if SystemManager.showAll and len(self.heapTable) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function Heap History] [Cnt: %d]' % len(self.heapTable))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:_^32}|{1:_^12}|{2:_^12}|{3:_^12}|{4:_^17}({5:_^7})|{6:_^8}|{7:_^17}|".\
+                format("VAddr", "Size", "Size(KB)", "Size(MB)", "COMM", "TID", "CORE", "TIME"))
+            SystemManager.pipePrint(twoLine)
+
+            # sort by time #
+            for segment in sorted(self.heapTable.items(), key=lambda e: e[1]['time']):
+                addr = segment[0]
+
+                size = segment[1]['size']
+                time = segment[1]['time']
+                core = segment[1]['core']
+                tid = segment[1]['tid']
+
+                usersym = segment[1]['sym']
+                kernelsym = segment[1]['kernelSym']
+                userstack = segment[1]['subStackAddr']
+                kernelstack = segment[1]['kernelSubStackAddr']
+
+                title = \
+                    "{0:^32}| {1:>10} | {2:>10} | {3:>10} | {4:>16}({5:>7})| {6:>6} | {7:>15} |".\
+                    format(addr, size, size >> 10, size >> 20, \
+                    self.threadData[tid]['comm'], tid, int(core), time)
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+
+                # Make user call info #
+                indentLen = 32
+                nowLen = indentLen
+                try:
+                    userCall = ' %s[%s]' % (usersym, self.userSymData[usersym]['origBin'])
+                    nowLen += len(userCall)
+
+                    # Set user target stack #
+                    if self.sort is 'sym':
+                        targetStack = self.userSymData[usersym]['symStack']
+                    elif self.sort is 'pos':
+                        targetStack = self.userSymData[usersym]['stack']
+
+                    # Find user stack by addr #
+                    stack = []
+                    for val in targetStack:
+                        if id(val[subStackIndex]) == userstack:
+                            stack = val[subStackIndex]
+                            break
+
+                    for subcall in stack:
+                        try:
+                            nextCall = ' <- %s[%s]' % (subcall, self.userSymData[subcall]['origBin'])
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                userCall = '%s%s' % (userCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                userCall = '%s\n%s %s' % (userCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except:
+                    pass
+
+                # Make kernel call info #
+                indentLen = 32
+                nowLen = indentLen
+                try:
+                    kernelCall = ' %s' % (kernelsym)
+                    nowLen += len(kernelCall)
+
+                    # Set kernel target stack #
+                    if self.sort is 'sym':
+                        targetStack = self.kernelSymData[kernelsym]['symStack']
+                    elif self.sort is 'pos':
+                        targetStack = self.kernelSymData[kernelsym]['stack']
+
+                    # Find kernel stack by addr #
+                    stack = []
+                    for val in targetStack:
+                        if id(val[subStackIndex]) == kernelstack:
+                            stack = val[subStackIndex]
+                            break
+
+                    for subcall in stack:
+                        try:
+                            nextCall = ' <- %s' % (subcall)
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                kernelCall = '%s%s' % (kernelCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                kernelCall = '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except:
+                    pass
+
+                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
+                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
 
