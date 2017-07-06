@@ -5116,7 +5116,9 @@ class SystemManager(object):
     prevNetstat = ''
     netInIndex = -1
 
+    printAllEnable = False
     reportEnable = False
+    countEnable = False
     reportPath = None
     reportFileEnable = False
     imageEnable = False
@@ -5454,8 +5456,8 @@ class SystemManager(object):
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
-            print('\t\t-H  [set_depth]')
             print('\t\t-T  [set_fontPath]')
+            print('\t\t-H  [set_functionDepth]')
             print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-U  [set_userEvent:name:func|addr:file]')
             print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
@@ -5465,6 +5467,7 @@ class SystemManager(object):
             print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
+            print('\t\t-m  [set_objdumpPath:file]')
             print('\t[analysis options]')
             print('\t\t-o  [save_outputData:dir]')
             print('\t\t-P  [group_perProcessBasis]')
@@ -5476,12 +5479,12 @@ class SystemManager(object):
             print('\t\t-L  [convert_textToImage]')
             print('\t[common options]')
             print('\t\t-a  [show_allInfo]')
+            print('\t\t-Q  [print_allRows]')
             print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [set_filter:comms|tids{:file}]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
-            print('\t\t-m  [set_objdumpPath:file]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -6229,6 +6232,11 @@ class SystemManager(object):
                     enableStat += 'REPORT '
                 else:
                     disableStat += 'REPORT '
+
+                if SystemManager.countEnable:
+                    enableStat += 'COUNT '
+                else:
+                    disableStat += 'COUNT '
 
         elif SystemManager.isFunctionMode():
             SystemManager.printInfo("FUNCTION MODE")
@@ -7633,12 +7641,35 @@ class SystemManager(object):
             elif option == 'u':
                 SystemManager.backgroundEnable = True
 
+            elif option == 'Q':
+                SystemManager.printAllEnable = True
+
             elif option == 'W' or option == 'y' or option == 's' or \
-                option == 'R' or option == 't' or option == 'C' or \
+                option == 'w' or option == 't' or option == 'C' or \
                 option == 'v' or option == 'H' or option == 'F' or \
-                option == 'U' or option == 'm' or option == 'K' or \
-                option == 'w':
+                option == 'U' or option == 'K':
                 continue
+
+            elif option == 'R':
+                if SystemManager.isTopMode():
+                    SystemManager.countEnable = True
+
+                    repeatParams = value.split(',')
+                    if len(repeatParams) != 2:
+                        SystemManager.printError(\
+                            "wrong option value with -R, input INTERVAL,REPEAT in format")
+                        sys.exit(0)
+                    else:
+                        try:
+                            SystemManager.intervalEnable = int(repeatParams[0])
+                            SystemManager.repeatCount = int(repeatParams[1])
+                        except:
+                            SystemManager.printError("wrong option value with -R, input integer values")
+                            sys.exit(0)
+
+                    if SystemManager.intervalEnable < 1 or SystemManager.repeatCount < 1:
+                        SystemManager.printError("wrong option value with -R, input values bigger than 0")
+                        sys.exit(0)
 
             else:
                 SystemManager.printError("unrecognized option -%s for analysis" % option)
@@ -8125,8 +8156,11 @@ class SystemManager(object):
     @staticmethod
     def getTty():
         try:
-            SystemManager.ttyRows, SystemManager.ttyCols = \
-                os.popen('stty size', 'r').read().split()
+            if SystemManager.printAllEnable:
+                SystemManager.ttyRows = SystemManager.ttyCols = '4096'
+            else:
+                SystemManager.ttyRows, SystemManager.ttyCols = \
+                    os.popen('stty size', 'r').read().split()
         except:
             SystemManager.printWarning("Fail to use stty")
 
@@ -9821,6 +9855,12 @@ class ThreadAnalyzer(object):
 
                 # report system status #
                 self.reportSystemStat()
+
+            # check repeat count #
+            if SystemManager.countEnable:
+                if SystemManager.progressCnt >= SystemManager.repeatCount:
+                    SystemManager.stopHandler(0, None)
+                SystemManager.progressCnt += 1
 
             # reset system status #
             del self.prevProcData
