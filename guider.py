@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.4"
+__version__ = "3.8.5"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7647,7 +7647,7 @@ class SystemManager(object):
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'w' or option == 't' or option == 'C' or \
                 option == 'v' or option == 'H' or option == 'F' or \
-                option == 'U' or option == 'K':
+                option == 'U' or option == 'K' or option == 'm':
                 continue
 
             elif option == 'R':
@@ -7882,7 +7882,7 @@ class SystemManager(object):
             # Ignore options #
             elif option == 'i' or option == 'a' or option == 'v' or \
                 option == 'g' or option == 'p' or option == 'S' or \
-                option == 'P' or option == 'T':
+                option == 'P' or option == 'T' or option == 'Q':
                 continue
 
             else:
@@ -9806,11 +9806,14 @@ class ThreadAnalyzer(object):
             # save timestamp #
             prevTime = time.time()
 
-            if SystemManager.printFile is None:
-                SystemManager.printTitle()
-
             # print system status #
             self.printFileStat()
+
+            # check repeat count #
+            if SystemManager.countEnable:
+                SystemManager.progressCnt += 1
+                if SystemManager.progressCnt >= SystemManager.repeatCount:
+                    os.kill(SystemManager.pid, signal.SIGINT)
 
             # reset system status #
             del self.prevProcData
@@ -9859,7 +9862,7 @@ class ThreadAnalyzer(object):
             # check repeat count #
             if SystemManager.countEnable:
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    SystemManager.stopHandler(0, None)
+                    os.kill(SystemManager.pid, signal.SIGINT)
                 SystemManager.progressCnt += 1
 
             # reset system status #
@@ -15426,6 +15429,10 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
+
+        # print title #
+        if SystemManager.printFile is None:
+            SystemManager.printTitle()
 
         # realtime mode #
         if SystemManager.printFile is None:
