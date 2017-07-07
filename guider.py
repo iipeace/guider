@@ -953,7 +953,8 @@ class FunctionAnalyzer(object):
         elif SystemManager.userEnable and \
             len(self.userCallData) == 1 and \
             self.userCallData[0][0] == '0':
-            SystemManager.printError("No user stack data related to %s, " % self.target + \
+            SystemManager.printError(\
+                "No user stack data related to %s, " % self.target + \
                 "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
             sys.exit(0)
 
@@ -1516,6 +1517,14 @@ class FunctionAnalyzer(object):
 
         # Print summary about ignored events #
         self.printIgnoreEvents()
+
+        # Change no symbol name #
+        if '0' in self.userSymData:
+            self.userSymData['None'] = self.userSymData['0']
+            del self.userSymData['0']
+        if '0' in self.kernelSymData:
+            self.kernelSymData['None'] = self.kernelSymData['0']
+            del self.kernelSymData['0']
 
 
 
@@ -2952,7 +2961,7 @@ class FunctionAnalyzer(object):
                         # Make stack info by symbol for print #
                         symbolStack = ''
                         stackIdx = 0
-                        indentLen = len("\t" * 4 * 4)
+                        indentLen = len("\t" * 4 * 4) + 3
                         appliedIndentLen = indentLen
 
                         if self.sort is 'sym':
@@ -3029,7 +3038,7 @@ class FunctionAnalyzer(object):
                     # Make stack info by symbol for print #
                     symbolStack = ''
                     stackIdx = 0
-                    indentLen = len("\t" * 4 * 4)
+                    indentLen = len("\t" * 4 * 4) + 3
                     appliedIndentLen = indentLen
 
                     try:
@@ -3053,7 +3062,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint(oneLine)
 
         # Print custom call history #
         if SystemManager.showAll and len(self.customCallData) > 0:
@@ -3130,7 +3139,7 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
-                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Args] ', argsInfo))
+                SystemManager.pipePrint("{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
                 SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
                 SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
@@ -3141,14 +3150,15 @@ class FunctionAnalyzer(object):
 
     def printCpuUsage(self):
         # no cpu event #
-        if self.cpuEnabled is False or self.periodicContEventCnt == 0:
+        if self.cpuEnabled is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         cpuTickIndex = FunctionAnalyzer.symStackIdxTable.index('CPU_TICK')
 
         # average tick interval #
-        self.periodicEventInterval /= self.periodicContEventCnt
+        if self.periodicContEventCnt > 0:
+            self.periodicEventInterval /= self.periodicContEventCnt
 
         if SystemManager.userEnable:
             # Print cpu usage in user space #
@@ -3236,6 +3246,9 @@ class FunctionAnalyzer(object):
                     SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
+
+            if self.periodicEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
             SystemManager.pipePrint('')
 
@@ -3334,13 +3347,16 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
+            if self.periodicEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
         SystemManager.pipePrint('\n\n')
 
 
 
     def printUnknownMemFree(self):
         # check memory event #
-        if self.memEnabled is False or self.pageUnknownFreeCnt == 0:
+        if self.memEnabled is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -3604,6 +3620,9 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(oneLine)
 
+            if self.pageUsageCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
             SystemManager.pipePrint('')
 
         # Print mem usage in kernel space #
@@ -3686,6 +3705,9 @@ class FunctionAnalyzer(object):
                     userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
+
+        if self.pageUsageCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         SystemManager.pipePrint('')
 
@@ -3789,6 +3811,9 @@ class FunctionAnalyzer(object):
                     format(int(heapSize/ 1024), symbolStack))
 
             SystemManager.pipePrint(oneLine)
+
+        if len(self.heapTable) == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         SystemManager.pipePrint('')
 
@@ -3900,7 +3925,7 @@ class FunctionAnalyzer(object):
 
 
     def printBlockWrUsage(self):
-        # no block event #
+        # no block write event #
         if self.bwriteEnabled is False:
             return
 
@@ -3988,6 +4013,9 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(oneLine)
 
+            if self.blockWrUsageCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
             SystemManager.pipePrint('')
 
         # Print block write usage in kernel space #
@@ -4065,12 +4093,15 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
+        if self.blockWrUsageCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
         SystemManager.pipePrint('\n\n')
 
 
 
     def printBlockRdUsage(self):
-        # no block event #
+        # no block read event #
         if self.breadEnabled is False:
             return
 
