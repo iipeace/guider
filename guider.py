@@ -602,8 +602,8 @@ class PageAnalyzer(object):
         PageAnalyzer.printMemoryArea(pid, addrs, addre)
         print(twoLine)
 
-        print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".format(\
-            "VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
+        print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".\
+            format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
         for addr in xrange(addrs, addre + offset, pageSize):
@@ -11366,12 +11366,10 @@ class ThreadAnalyzer(object):
                 if syscallInfo != '':
                     outputCnt += 1
                     SystemManager.pipePrint(threadInfo)
-                    SystemManager.pipePrint(syscallInfo)
+                    SystemManager.pipePrint('%s\n%s' % (syscallInfo[:-1], oneLine))
 
             if outputCnt == 0:
-                SystemManager.pipePrint('\tNone')
-
-            SystemManager.pipePrint(oneLine)
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
             SystemManager.clearPrint()
             if SystemManager.showAll:
