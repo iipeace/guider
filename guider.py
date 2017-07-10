@@ -877,7 +877,8 @@ class FunctionAnalyzer(object):
             {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), \
             'pageCnt': int(0), 'unknownPageFreeCnt': int(0), 'stack': None, 'symStack': None, \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
-            'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0)}
+            'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0), \
+            'pagePair': None, 'pagePairCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
@@ -895,6 +896,8 @@ class FunctionAnalyzer(object):
             'kernelSym': '0', 'kernelSubStackAddr': int(0), 'time': float(0), 'core': '0'}
 
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+
+        self.init_glueData = {'count': int(0), 'size': int(0), 'timeList': None, 'valueList': None}
 
         self.init_subStackPageInfo = [0, 0, 0]
         # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
@@ -996,7 +999,7 @@ class FunctionAnalyzer(object):
         self.heapTable[addr]['core'] = core
         self.heapTable[addr]['tid'] = tid
 
-        # Set user target stack #
+        # Set user stack list #
         if self.sort is 'sym':
             targetStack = self.userSymData[sym]['symStack']
         elif self.sort is 'pos':
@@ -1025,23 +1028,23 @@ class FunctionAnalyzer(object):
             SystemManager.printWarning("Fail to find heap segment to be freed")
             return
 
-        # Set user target stack #
+        # Set user stack list #
         if self.sort is 'sym':
             targetStack = self.userSymData[sym]['symStack']
         elif self.sort is 'pos':
             targetStack = self.userSymData[sym]['stack']
 
-        # Find subStack of symbol allocated this segment #
+        # Find user stack of symbol allocated this segment #
         for val in targetStack:
             if id(val[subStackIndex]) == stackAddr:
                 # Increase heap count of subStack #
                 val[heapExpIndex] -= size
                 break
 
-        # Set kernel target stack #
+        # Set kernel stack list #
         kernelTargetStack = self.kernelSymData[kernelSym]['stack']
 
-        # Find subStack of symbol allocated this segment #
+        # Find kernel stack of symbol allocated this segment #
         for val in kernelTargetStack:
             if id(val[subStackIndex]) == kernelStackAddr:
                 # Increase heap count of subStack #
@@ -1089,27 +1092,134 @@ class FunctionAnalyzer(object):
                     self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                     subStackPageInfoIdx = 2
 
-                # Set user target stack #
+                # Set user stack list #
                 if self.sort is 'sym':
                     targetStack = self.userSymData[allocSym]['symStack']
                 elif self.sort is 'pos':
                     targetStack = self.userSymData[allocSym]['stack']
 
-                # Find subStack allocated this page #
+                # Find user stack allocated this page #
                 for val in targetStack:
                     if id(val[subStackIndex]) == allocStackAddr:
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
+
+                        if SystemManager.showAll is False:
+                            break
+
+                        # Set user stack list to free this page #
+                        if self.sort is 'sym':
+                            subTargetStack = self.userSymData[sym]['symStack']
+                        elif self.sort is 'pos':
+                            subTargetStack = self.userSymData[sym]['stack']
+
+                        # Find user stack to free this page #
+                        for sval in subTargetStack:
+                            if id(sval[subStackIndex]) == stackAddr:
+                                if self.userSymData[allocSym]['pagePair'] is None:
+                                    self.userSymData[allocSym]['pagePair'] = {}
+
+                                try:
+                                    allocCall = '%s [%s]' % \
+                                        (val[subStackIndex][0], \
+                                        self.userSymData[val[subStackIndex][0]]['origBin'])
+                                    for usym in val[subStackIndex][1:]:
+                                        allocCall = '%s <- %s [%s]' % \
+                                            (alocCall, usym, self.userSymData[sym]['origBin'])
+                                except:
+                                    pass
+
+                                try:
+                                    freeCall = '%s [%s]' % (sym, self.userSymData[sym]['origBin'])
+                                    for usym in sval[subStackIndex][1:]:
+                                        freeCall = '%s <- %s[%s]' % \
+                                            (freeCall, usym, self.userSymData[sym]['origBin'])
+                                except:
+                                    pass
+
+                                pairId = '%s#%s' % (allocCall, freeCall)
+
+                                try:
+                                    self.userSymData[allocSym]['pagePair'][pairId]
+                                except:
+                                    self.userSymData[allocSym]['pagePair'][pairId] = \
+                                        dict(self.init_glueData)
+
+                                self.userSymData[allocSym]['pagePairCnt'] += 1
+                                allocator = self.userSymData[allocSym]['pagePair'][pairId]
+                                allocator['count'] += 1
+                                allocator['size'] += 1
+
+                                if allocator['valueList'] is None:
+                                    allocator['valueList'] = {}
+                                try:
+                                    allocator['valueList'][pageType] += 1
+                                except:
+                                    allocator['valueList'][pageType] = 1
+
+                                break
                         break
 
-                # Set kernel target stack #
+                # Set kernel stack list #
                 kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
 
-                # Find subStack allocated this page #
+                # Find kernel stack allocated this page #
                 for val in kernelTargetStack:
                     if id(val[subStackIndex]) == allocKernelStackAddr:
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
+
+                        if SystemManager.showAll is False:
+                            break
+
+                        # Set kernel stack list to free this page #
+                        subTargetStack = self.kernelSymData[kernelSym]['stack']
+
+                        # Find kernel stack to free this page #
+                        for sval in subTargetStack:
+                            if id(sval[subStackIndex]) == kernelStackAddr:
+                                if self.kernelSymData[allocKernelSym]['pagePair'] is None:
+                                    self.kernelSymData[allocKernelSym]['pagePair'] = {}
+
+                                try:
+                                    allocCall = '%s' % \
+                                        self.posData[val[subStackIndex][0]]['symbol']
+                                    for addr in val[subStackIndex][1:]:
+                                        allocCall = '%s <- %s' % \
+                                            (allocCall, self.posData[addr]['symbol'])
+                                except:
+                                    pass
+
+                                try:
+                                    freeCall = '%s' % kernelSym
+                                    for addr in sval[subStackIndex]:
+                                        freeCall = '%s <- %s' % \
+                                            (freeCall, self.posData[addr]['symbol'])
+                                except:
+                                    pass
+
+                                pairId = '%s#%s' % (allocCall, freeCall)
+
+                                try:
+                                    self.kernelSymData[allocKernelSym]['pagePair'][pairId]
+                                except:
+                                    self.kernelSymData[allocKernelSym]['pagePair'][pairId] = \
+                                        dict(self.init_glueData)
+
+                                self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
+                                allocator = self.kernelSymData[allocKernelSym]['pagePair'][pairId]
+                                allocator['count'] += 1
+                                allocator['size'] += 1
+
+                                if allocator['valueList'] is None:
+                                    allocator['valueList'] = {}
+                                try:
+                                    allocator['valueList'][pageType] += 1
+                                except:
+                                    allocator['valueList'][pageType] = 1
+
+                                break
+
                         break
 
                 del self.pageTable[pfnv]
@@ -1121,7 +1231,7 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]['unknownPageFreeCnt'] += 1
                 self.kernelSymData[kernelSym]['unknownPageFreeCnt'] += 1
 
-                # Set user target stack #
+                # Set user stack list #
                 if self.sort is 'sym':
                     targetStack = self.userSymData[sym]['symStack']
                 elif self.sort is 'pos':
@@ -1133,7 +1243,7 @@ class FunctionAnalyzer(object):
                         val[pageFreeIndex] += 1
                         break
 
-                # Set kernel target stack #
+                # Set kernel stack list #
                 kernelTargetStack = self.kernelSymData[kernelSym]['stack']
 
                 # Find subStack allocated this page #
@@ -1172,23 +1282,23 @@ class FunctionAnalyzer(object):
             self.kernelSymData[kernelSym]['kernelPageCnt'] += pageAllocCnt
             subStackPageInfoIdx = 2
 
-        # Set user target stack #
+        # Set user stack list #
         if self.sort is 'sym':
             targetStack = self.userSymData[sym]['symStack']
         elif self.sort is 'pos':
             targetStack = self.userSymData[sym]['stack']
 
-        # Find subStack of symbol allocated this page #
+        # Find user stack of symbol allocated this page #
         for val in targetStack:
             if id(val[subStackIndex]) == stackAddr:
                 # Increase page count of subStack #
                 val[argIndex][subStackPageInfoIdx] += pageAllocCnt
                 break
 
-        # Set kernel target stack #
+        # Set kernel stack list #
         kernelTargetStack = self.kernelSymData[kernelSym]['stack']
 
-        # Find subStack of symbol allocated this page #
+        # Find kernel stack of symbol allocated this page #
         for val in kernelTargetStack:
             if id(val[subStackIndex]) == kernelStackAddr:
                 # Increase page count of subStack #
@@ -1227,13 +1337,13 @@ class FunctionAnalyzer(object):
                     self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                     subStackPageInfoIdx = 2
 
-                # Set user target stack #
+                # Set user stack list #
                 if self.sort is 'sym':
                     targetStack = self.userSymData[allocSym]['symStack']
                 elif self.sort is 'pos':
                     targetStack = self.userSymData[allocSym]['stack']
 
-                # Find user subStack of symbol allocated this page #
+                # Find user stack of symbol allocated this page #
                 for val in targetStack:
                     if id(val[subStackIndex]) == allocStackAddr:
                         # Decrease allocated page count of substack #
@@ -1241,10 +1351,10 @@ class FunctionAnalyzer(object):
                         val[argIndex][subStackPageInfoIdx] -= 1
                         break
 
-                # Set kernel target stack #
+                # Set kernel stack list #
                 kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
 
-                # Find user subStack of symbol allocated this page #
+                # Find kernel stack of symbol allocated this page #
                 for val in kernelTargetStack:
                     if id(val[subStackIndex]) == allocKernelStackAddr:
                         # Decrease allocated page count of substack #
@@ -3354,7 +3464,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def printUnknownMemFree(self):
+    def printUnknownMemFreeInfo(self):
         # check memory event #
         if self.memEnabled is False:
             return
@@ -3522,6 +3632,104 @@ class FunctionAnalyzer(object):
 
 
 
+    def printMemPairInfo(self):
+        # Print mem usage in user space #
+        if SystemManager.userEnable:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint(\
+                '[Function Memory Pair Info] [Total: %dKB] (USER)' % \
+                (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
+                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userSymData.items(), key=lambda e: e[1]['pagePairCnt'], reverse=True):
+
+                if value['pagePairCnt'] == 0:
+                    break
+
+                typeList = {'USER': int(0), 'KERNEL': int(0), 'CACHE': int(0)}
+
+                for pairId, item in value['pagePair'].items():
+                    for ptype, cnt in item['valueList'].items():
+                        typeList[ptype] += cnt
+
+                SystemManager.pipePrint(\
+                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
+                    format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
+                    typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+                for pairId, item in sorted(\
+                    value['pagePair'].items(), key=lambda e: e[1]['size'], reverse=True):
+                    try:
+                        userPages = item['valueList']['USER']
+                    except:
+                        userPages = 0
+                    try:
+                        cachePages = item['valueList']['CACHE']
+                    except:
+                        cachePages = 0
+                    try:
+                        kernelPages = item['valueList']['KERNEL']
+                    except:
+                        kernelPages = 0
+
+                    # get user alloc and free call #
+                    allocCall, freeCall = pairId.split('#')
+
+                    subTitle = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
+                        format(' ', item['size'] * 4, userPages * 4, \
+                        cachePages * 4, kernelPages * 4)
+                    SystemManager.pipePrint(subTitle)
+
+                    printBuf = "{0:5}{1:>30}|".format(' ', '[ALLOC]')
+                    indentLen = len(printBuf)
+                    appliedIndentLen = indentLen
+
+                    for call in allocCall.split(' <- '):
+                        if appliedIndentLen + len(call) > SystemManager.lineLength:
+                            printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
+                            appliedIndentLen = indentLen
+                        printBuf = "%s <- %s" % (printBuf, call)
+                        appliedIndentLen += (len(call) + 4)
+
+                    SystemManager.pipePrint(printBuf)
+
+                    printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
+                    indentLen = len(printBuf)
+                    appliedIndentLen = indentLen
+
+                    for index, call in enumerate(freeCall.split(' <- ')):
+                        clen = len(call) + 4
+
+                        if index == 0:
+                            clen -= 4
+
+                        if appliedIndentLen + clen > SystemManager.lineLength:
+                            printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
+                            appliedIndentLen = indentLen
+
+                        if index == 0:
+                            printBuf = "%s %s" % (printBuf, call)
+                        else:
+                            printBuf = "%s <- %s" % (printBuf, call)
+
+                        appliedIndentLen += clen
+
+                    SystemManager.pipePrint(printBuf)
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.pageUsageCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+            SystemManager.pipePrint('')
+
+
     def printMemUsage(self):
         # check memory event #
         if self.memEnabled is False:
@@ -3531,8 +3739,8 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
+        # Print mem usage in user space #
         if SystemManager.userEnable:
-            # Print mem usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
                 '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
@@ -3711,7 +3919,9 @@ class FunctionAnalyzer(object):
 
         SystemManager.pipePrint('')
 
-        self.printUnknownMemFree()
+        self.printMemPairInfo()
+
+        self.printUnknownMemFreeInfo()
 
         SystemManager.pipePrint('\n\n')
 
@@ -3855,7 +4065,7 @@ class FunctionAnalyzer(object):
                     userCall = ' %s[%s]' % (usersym, self.userSymData[usersym]['origBin'])
                     nowLen += len(userCall)
 
-                    # Set user target stack #
+                    # Set user stack list #
                     if self.sort is 'sym':
                         targetStack = self.userSymData[usersym]['symStack']
                     elif self.sort is 'pos':
@@ -3889,7 +4099,7 @@ class FunctionAnalyzer(object):
                     kernelCall = ' %s' % (kernelsym)
                     nowLen += len(kernelCall)
 
-                    # Set kernel target stack #
+                    # Set kernel stack list #
                     if self.sort is 'sym':
                         targetStack = self.kernelSymData[kernelsym]['symStack']
                     elif self.sort is 'pos':
