@@ -3570,6 +3570,9 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(oneLine)
 
+            if self.pageUnknownFreeCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
             SystemManager.pipePrint('')
 
         # Print unknown memory free info in kernel space #
@@ -3646,6 +3649,9 @@ class FunctionAnalyzer(object):
                     format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
+
+        if self.pageUnknownFreeCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
 
 
@@ -3739,7 +3745,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(oneLine)
 
-            if self.pageAllocCnt * 4 - self.pageUsageCnt * 4 == 0:
+            if self.pageAllocCnt - self.pageUsageCnt <= 0:
                 SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
             SystemManager.pipePrint('')
@@ -3844,7 +3850,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        if self.pageAllocCnt * 4 - self.pageUsageCnt * 4 == 0:
+        if self.pageAllocCnt - self.pageUsageCnt <= 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         SystemManager.pipePrint('')
