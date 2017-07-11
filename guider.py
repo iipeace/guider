@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.5"
+__version__ = "3.8.6"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -864,7 +864,8 @@ class FunctionAnalyzer(object):
             'die': False, 'new': False, 'nrPages': int(0), 'userPages': int(0), \
             'cachePages': int(0), 'kernelPages': int(0), 'heapSize': int(0), \
             'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
-            'customCnt': int(0), 'nrRdBlocks': int(0), 'customTotal': int(0)}
+            'nrKnownFreePages': int(0), 'customCnt': int(0), 'nrRdBlocks': int(0), \
+            'customTotal': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), \
@@ -1119,6 +1120,9 @@ class FunctionAnalyzer(object):
                                 if self.userSymData[allocSym]['pagePair'] is None:
                                     self.userSymData[allocSym]['pagePair'] = {}
 
+                                allocCall = ''
+                                freeCall = ''
+
                                 try:
                                     allocCall = '%s [%s]' % \
                                         (val[subStackIndex][0], \
@@ -1127,7 +1131,8 @@ class FunctionAnalyzer(object):
                                         allocCall = '%s <- %s [%s]' % \
                                             (alocCall, usym, self.userSymData[sym]['origBin'])
                                 except:
-                                    pass
+                                    if allocCall == '':
+                                        allocCall = 'None'
 
                                 try:
                                     freeCall = '%s [%s]' % (sym, self.userSymData[sym]['origBin'])
@@ -1135,7 +1140,8 @@ class FunctionAnalyzer(object):
                                         freeCall = '%s <- %s[%s]' % \
                                             (freeCall, usym, self.userSymData[sym]['origBin'])
                                 except:
-                                    pass
+                                    if freeCall == '':
+                                        freeCall = 'None'
 
                                 pairId = '%s#%s' % (allocCall, freeCall)
 
@@ -1147,7 +1153,6 @@ class FunctionAnalyzer(object):
 
                                 self.userSymData[allocSym]['pagePairCnt'] += 1
                                 allocator = self.userSymData[allocSym]['pagePair'][pairId]
-                                allocator['count'] += 1
                                 allocator['size'] += 1
 
                                 if allocator['valueList'] is None:
@@ -1181,6 +1186,9 @@ class FunctionAnalyzer(object):
                                 if self.kernelSymData[allocKernelSym]['pagePair'] is None:
                                     self.kernelSymData[allocKernelSym]['pagePair'] = {}
 
+                                allocCall = ''
+                                freeCall = ''
+
                                 try:
                                     allocCall = '%s' % \
                                         self.posData[val[subStackIndex][0]]['symbol']
@@ -1188,7 +1196,8 @@ class FunctionAnalyzer(object):
                                         allocCall = '%s <- %s' % \
                                             (allocCall, self.posData[addr]['symbol'])
                                 except:
-                                    pass
+                                    if allocCall == '':
+                                        allocCall = 'None'
 
                                 try:
                                     freeCall = '%s' % kernelSym
@@ -1196,7 +1205,8 @@ class FunctionAnalyzer(object):
                                         freeCall = '%s <- %s' % \
                                             (freeCall, self.posData[addr]['symbol'])
                                 except:
-                                    pass
+                                    if freeCall == '':
+                                        freeCall = 'None'
 
                                 pairId = '%s#%s' % (allocCall, freeCall)
 
@@ -1208,7 +1218,6 @@ class FunctionAnalyzer(object):
 
                                 self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
                                 allocator = self.kernelSymData[allocKernelSym]['pagePair'][pairId]
-                                allocator['count'] += 1
                                 allocator['size'] += 1
 
                                 if allocator['valueList'] is None:
@@ -2443,6 +2452,8 @@ class FunctionAnalyzer(object):
                         elif origPageType is 'KERNEL':
                             self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
 
+                        self.threadData[tid]['nrKnownFreePages'] += 1
+
                         del self.pageTable[pfnv]
                         self.pageTable[pfnv] = None
                     except:
@@ -2930,12 +2941,18 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^10}|{4:_^7}|" + \
-            "{5:_^7}({6:_^7}/{7:_^7}/{8:_^7})|{9:_^7}|{10:_^8}|" + \
-            "{11:_^8}|{12:_^8}|{13:_^8}|{14:_^5}|{15:_^5}|").\
-            format("Name", "Tid", "Pid", "Target", "CPU", \
-            "MEM", "USER", "BUF", "KERN", "UFREE", "HEAP", \
-            "BLK_RD", "BLK_WR", "CUSTOM", "DIE", "NEW"))
+            "{0:_^53}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^8}|".\
+            format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "CUSTOM"))
+        SystemManager.pipePrint(\
+            "{0:53}|{1:7}|{2:54}|{3:8}|{4:18}|{5:8}|".\
+            format(" ", " ", " ", " ", " ", " "))
+        SystemManager.pipePrint(\
+            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^8}|{4:_^5}|{5:_^5}|{6:_^7}|" + \
+            "{7:_^9}({8:_^8}/{9:_^8}/{10:_^8})|{11:_^8}|{12:_^7}|{13:_^8}|" + \
+            "{14:_^8}|{15:_^9}|{16:_^8}|").\
+            format("Name", "Tid", "Pid", "Target", "DIE", "NEW", \
+            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXP", \
+            "READ", "WRITE", "NR"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -2990,14 +3007,15 @@ class FunctionAnalyzer(object):
                 newMark = 'v'
 
             SystemManager.pipePrint(\
-                ("{0:16}|{1:>7}|{2:>7}|{3:^10}|{4:6.1f}%|" + \
-                "{5:6}k({6:6}k/{7:6}k/{8:6}k)|{9:6}k|{10:7}k|" + \
-                "{11:7}k|{12:7}k|{13:8}|{14:^5}|{15:^5}|").\
-                format(value['comm'], idx, value['tgid'], targetMark, cpuPer, \
-                value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
-                value['kernelPages'] * 4, value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
+                ("{0:>16}|{1:>7}|{2:>7}|{3:^8}|{4:^5}|{5:^5}|{6:6.1f}%|" + \
+                "{7:8}k({8:7}k/{9:7}k/{10:7}k)|{11:6}k|{12:7}k|" + \
+                "{13:7}k|{14:7}k|{15:8}k|{16:8}|").\
+                format(value['comm'], idx, value['tgid'], targetMark, dieMark, newMark, \
+                cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
+                value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
+                value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
-                value['customTotal'], dieMark, newMark))
+                value['customTotal']))
 
         SystemManager.pipePrint(oneLine + '\n\n\n')
 
@@ -3475,7 +3493,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print unknown memory free info in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Unknown Memory Free Info] [Size: %dKB] (USER)' % \
+            SystemManager.pipePrint('[Function Unknown Page Free Info] [Size: %dKB] (USER)' % \
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3556,7 +3574,7 @@ class FunctionAnalyzer(object):
 
         # Print unknown memory free info in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Unknown Memory Free Info] [Size: %dKB] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Unknown Page Free Info] [Size: %dKB] (KERNEL)' % \
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -3632,12 +3650,12 @@ class FunctionAnalyzer(object):
 
 
 
-    def printMemPairInfo(self):
-        # Print mem usage in user space #
+    def printKnownMemFreeInfo(self):
+        # Print known memory free info in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Memory Pair Info] [Total: %dKB] (USER)' % \
+                '[Function Known Page Free Info] [Total: %dKB] (USER)' % \
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3681,12 +3699,10 @@ class FunctionAnalyzer(object):
                     # get user alloc and free call #
                     allocCall, freeCall = pairId.split('#')
 
-                    subTitle = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
+                    printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
                         format(' ', item['size'] * 4, userPages * 4, \
                         cachePages * 4, kernelPages * 4)
-                    SystemManager.pipePrint(subTitle)
 
-                    printBuf = "{0:5}{1:>30}|".format(' ', '[ALLOC]')
                     indentLen = len(printBuf)
                     appliedIndentLen = indentLen
 
@@ -3694,7 +3710,7 @@ class FunctionAnalyzer(object):
                         if appliedIndentLen + len(call) > SystemManager.lineLength:
                             printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
                             appliedIndentLen = indentLen
-                        printBuf = "%s <- %s" % (printBuf, call)
+                        printBuf = "%s<- %s " % (printBuf, call)
                         appliedIndentLen += (len(call) + 4)
 
                     SystemManager.pipePrint(printBuf)
@@ -3729,6 +3745,112 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
+        # Print known memory free info in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Known Page Free Info] [Total: %dKB] (KERNEL)' % \
+            (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".\
+            format("Usage", "Usr", "Buf", "Ker", "Function"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print mem usage of stacks #
+        for idx, value in sorted(\
+            self.kernelSymData.items(), key=lambda e: e[1]['pagePairCnt'], reverse=True):
+
+            if value['pagePairCnt'] == 0:
+                break
+
+            typeList = {'USER': int(0), 'KERNEL': int(0), 'CACHE': int(0)}
+
+            for pairId, item in value['pagePair'].items():
+                for ptype, cnt in item['valueList'].items():
+                    typeList[ptype] += cnt
+
+            SystemManager.pipePrint(\
+                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
+                format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
+                typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
+                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+            for pairId, item in sorted(\
+                value['pagePair'].items(), key=lambda e: e[1]['size'], reverse=True):
+                try:
+                    userPages = item['valueList']['USER']
+                except:
+                    userPages = 0
+                try:
+                    cachePages = item['valueList']['CACHE']
+                except:
+                    cachePages = 0
+                try:
+                    kernelPages = item['valueList']['KERNEL']
+                except:
+                    kernelPages = 0
+
+                # get kernel alloc and free call #
+                allocCall, freeCall = pairId.split('#')
+
+                printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
+                    format(' ', item['size'] * 4, userPages * 4, \
+                    cachePages * 4, kernelPages * 4)
+
+                indentLen = len(printBuf)
+                appliedIndentLen = indentLen
+
+                for call in allocCall.split(' <- '):
+                    if appliedIndentLen + len(call) > SystemManager.lineLength:
+                        printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
+                        appliedIndentLen = indentLen
+                    printBuf = "%s<- %s " % (printBuf, call)
+                    appliedIndentLen += (len(call) + 4)
+
+                SystemManager.pipePrint(printBuf)
+
+                printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
+                indentLen = len(printBuf)
+                appliedIndentLen = indentLen
+
+                for index, call in enumerate(freeCall.split(' <- ')):
+                    clen = len(call) + 4
+
+                    if index == 0:
+                        clen -= 4
+
+                    if appliedIndentLen + clen > SystemManager.lineLength:
+                        printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
+                        appliedIndentLen = indentLen
+
+                    if index == 0:
+                        printBuf = "%s %s" % (printBuf, call)
+                    else:
+                        printBuf = "%s <- %s" % (printBuf, call)
+
+                    appliedIndentLen += clen
+
+                SystemManager.pipePrint(printBuf)
+
+            SystemManager.pipePrint(oneLine)
+
+        if self.pageUsageCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('')
+
+
 
     def printMemUsage(self):
         # check memory event #
@@ -3743,7 +3865,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                '[Function Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -3836,7 +3958,7 @@ class FunctionAnalyzer(object):
         # Print mem usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Memory Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            '[Function Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
             (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -3919,7 +4041,7 @@ class FunctionAnalyzer(object):
 
         SystemManager.pipePrint('')
 
-        self.printMemPairInfo()
+        self.printKnownMemFreeInfo()
 
         self.printUnknownMemFreeInfo()
 
