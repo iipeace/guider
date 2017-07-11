@@ -3578,8 +3578,7 @@ class FunctionAnalyzer(object):
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("FREE", "Function", "Binary", "Source"))
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("FREE", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -3600,8 +3599,8 @@ class FunctionAnalyzer(object):
             if value['unknownPageFreeCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['unknownPageFreeCnt'] * 4), idx, '', ''))
+            SystemManager.pipePrint("{0:7}K |{1:^47}".\
+                format(int(value['unknownPageFreeCnt'] * 4), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -3740,7 +3739,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(oneLine)
 
-            if self.pageUsageCnt == 0:
+            if self.pageAllocCnt * 4 - self.pageUsageCnt * 4 == 0:
                 SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
             SystemManager.pipePrint('')
@@ -3845,7 +3844,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
-        if self.pageUsageCnt == 0:
+        if self.pageAllocCnt * 4 - self.pageUsageCnt * 4 == 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         SystemManager.pipePrint('')
