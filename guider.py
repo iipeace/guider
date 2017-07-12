@@ -3781,11 +3781,8 @@ class FunctionAnalyzer(object):
                     except:
                         pass
 
-            SystemManager.pipePrint(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
-                format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
-                typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+            SystemManager.pipePrint("{0:7}K |{1:^47}".\
+                format(int(value['pagePairCnt'] * 4), idx))
 
             for pairId, item in sorted(\
                 value['pagePair'].items(), key=lambda e: e[1]['size'], reverse=True):
