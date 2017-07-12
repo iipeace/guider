@@ -1105,9 +1105,6 @@ class FunctionAnalyzer(object):
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
 
-                        if SystemManager.showAll is False:
-                            break
-
                         # Set user stack list to free this page #
                         if self.sort is 'sym':
                             subTargetStack = self.userSymData[sym]['symStack']
@@ -1173,9 +1170,6 @@ class FunctionAnalyzer(object):
                     if id(val[subStackIndex]) == allocKernelStackAddr:
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
-
-                        if SystemManager.showAll is False:
-                            break
 
                         # Set kernel stack list to free this page #
                         subTargetStack = self.kernelSymData[kernelSym]['stack']
@@ -1640,10 +1634,8 @@ class FunctionAnalyzer(object):
         # Change no symbol name #
         if '0' in self.userSymData:
             self.userSymData['None'] = self.userSymData['0']
-            del self.userSymData['0']
         if '0' in self.kernelSymData:
             self.kernelSymData['None'] = self.kernelSymData['0']
-            del self.kernelSymData['0']
 
 
 
@@ -3595,7 +3587,6 @@ class FunctionAnalyzer(object):
                     exceptList[pos] = dict()
         '''
 
-        # Print block write usage of stacks #
         for idx, value in sorted(\
             self.kernelSymData.items(), key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
 
@@ -3678,7 +3669,10 @@ class FunctionAnalyzer(object):
 
                 for pairId, item in value['pagePair'].items():
                     for ptype, cnt in item['valueList'].items():
-                        typeList[ptype] += cnt
+                        try:
+                            typeList[ptype] += cnt
+                        except:
+                            pass
 
                 SystemManager.pipePrint(\
                     "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
@@ -3783,7 +3777,10 @@ class FunctionAnalyzer(object):
 
             for pairId, item in value['pagePair'].items():
                 for ptype, cnt in item['valueList'].items():
-                    typeList[ptype] += cnt
+                    try:
+                        typeList[ptype] += cnt
+                    except:
+                        pass
 
             SystemManager.pipePrint(\
                 "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
