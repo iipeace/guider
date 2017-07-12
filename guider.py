@@ -1057,7 +1057,7 @@ class FunctionAnalyzer(object):
 
 
     def handlePageFree(\
-        self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn):
+        self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn, atime):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
@@ -1260,7 +1260,7 @@ class FunctionAnalyzer(object):
 
 
     def handlePageAlloc(\
-        self, sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn):
+        self, sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn, atime):
 
         subStackPageInfoIdx = 0
 
@@ -1372,6 +1372,7 @@ class FunctionAnalyzer(object):
             self.pageTable[pfnv]['type'] = pageType
             self.pageTable[pfnv]['subStackAddr'] = stackAddr
             self.pageTable[pfnv]['kernelSubStackAddr'] = kernelStackAddr
+            self.pageTable[pfnv]['time'] = atime
 
 
 
@@ -1574,17 +1575,21 @@ class FunctionAnalyzer(object):
             if event == 'PAGE_ALLOC':
                 pageType = arg[0]
                 pfn = arg[1]
+                atime = arg[2]
 
                 self.handlePageAlloc(\
-                    sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, pageType, pfn)
+                    sym, kernelSym, stackAddr, kernelStackAddr, \
+                    eventCnt, pageType, pfn, atime)
 
             # memory free event #
             elif event == 'PAGE_FREE':
                 pageType = arg[0]
                 pfn = arg[1]
+                atime = arg[2]
 
                 self.handlePageFree(\
-                    sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, pageType, pfn)
+                    sym, kernelSym, stackAddr, kernelStackAddr, \
+                    eventCnt, pageType, pfn, atime)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
@@ -1630,12 +1635,6 @@ class FunctionAnalyzer(object):
 
         # Print summary about ignored events #
         self.printIgnoreEvents()
-
-        # Change no symbol name #
-        if '0' in self.userSymData:
-            self.userSymData['None'] = self.userSymData['0']
-        if '0' in self.kernelSymData:
-            self.kernelSymData['None'] = self.kernelSymData['0']
 
 
 
@@ -1881,7 +1880,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def saveEventStack(self, targetEvent, targetCnt, targetArg):
+    def saveEventStack(self, targetEvent, targetCnt, targetArg, time):
         if targetEvent == 'CPU_TICK':
             self.periodicEventCnt += 1
 
@@ -1894,7 +1893,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
-            targetArg = [pageType, pfn]
+            targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'PAGE_FREE':
             self.pageFreeEventCnt += 1
@@ -1902,7 +1901,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
-            targetArg = [pageType, pfn]
+            targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'BLK_READ':
             self.blockRdEventCnt += 1
@@ -2027,7 +2026,7 @@ class FunctionAnalyzer(object):
                 targetArg = self.nowCtx['savedArg']
 
             # Save full stack of previous event #
-            self.saveEventStack(targetEvent, targetCnt, targetArg)
+            self.saveEventStack(targetEvent, targetCnt, targetArg, self.finishTime)
 
             # Recover previous kernel stack after handling nested event #
             if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
@@ -2408,7 +2407,7 @@ class FunctionAnalyzer(object):
 
                 self.memEnabled = True
 
-                self.saveEventParam('PAGE_ALLOC', pageCnt, [pageType, pfn])
+                self.saveEventParam('PAGE_ALLOC', pageCnt, [pageType, pfn, time])
             else:
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -2456,7 +2455,7 @@ class FunctionAnalyzer(object):
 
                 self.memEnabled = True
 
-                self.saveEventParam('PAGE_FREE', pageCnt, [origPageType, pfn])
+                self.saveEventParam('PAGE_FREE', pageCnt, [origPageType, pfn, time])
 
                 return False
 
