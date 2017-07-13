@@ -3022,8 +3022,8 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(\
                 ("{0:>16}|{1:>7}|{2:>7}|{3:^8}|{4:^5}|{5:^5}|{6:6.1f}%|" + \
-                "{7:8}k({8:7}k/{9:7}k/{10:7}k)|{11:6}k|{12:7}k|" + \
-                "{13:7}k|{14:7}k|{15:8}k|{16:8}|").\
+                "{7:8}K({8:7}K/{9:7}K/{10:7}K)|{11:6}K|{12:7}K|" + \
+                "{13:7}K|{14:7}K|{15:8}K|{16:8}|").\
                 format(value['comm'], idx, value['tgid'], targetMark, dieMark, newMark, \
                 cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
