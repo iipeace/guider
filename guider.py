@@ -879,7 +879,10 @@ class FunctionAnalyzer(object):
             'pageCnt': int(0), 'unknownPageFreeCnt': int(0), 'stack': None, 'symStack': None, \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
             'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0), \
-            'pagePair': None, 'pagePairCnt': int(0)}
+            'pagePair': None, 'pagePairCnt': int(0), 'pagePairTotal': float(0), \
+            'pagePairMin': float(0), 'pagePairMax': float(0), 'pagePairAvr': float(0), \
+            'pageRemainMin': float(0), 'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
+            'pageRemainTotal': float(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
@@ -1075,6 +1078,7 @@ class FunctionAnalyzer(object):
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
                 allocKernelSym = self.pageTable[pfnv]['kernelSym']
                 allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
+                allocTime = self.pageTable[pfnv]['time']
 
                 self.pageUsageCnt -= 1
                 self.userSymData[allocSym]['pageCnt'] -= 1
@@ -1092,6 +1096,25 @@ class FunctionAnalyzer(object):
                     self.userSymData[allocSym]['kernelPageCnt'] -= 1
                     self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                     subStackPageInfoIdx = 2
+
+                # get page lifetime #
+                lifeTime = float(atime) - float(allocTime)
+
+                # Set user page lifetime #
+                if lifeTime > self.userSymData[allocSym]['pagePairMax']:
+                    self.userSymData[allocSym]['pagePairMax'] = lifeTime
+                if self.userSymData[allocSym]['pagePairMin'] == 0 or \
+                    lifeTime < self.userSymData[allocSym]['pagePairMin']:
+                    self.userSymData[allocSym]['pagePairMin'] = lifeTime
+                self.userSymData[allocSym]['pagePairTotal'] += lifeTime
+
+                # Set kernel page lifetime #
+                if lifeTime > self.kernelSymData[allocKernelSym]['pagePairMax']:
+                    self.kernelSymData[allocKernelSym]['pagePairMax'] = lifeTime
+                if self.kernelSymData[allocKernelSym]['pagePairMin'] == 0 or \
+                    lifeTime < self.kernelSymData[allocKernelSym]['pagePairMin']:
+                    self.kernelSymData[allocKernelSym]['pagePairMin'] = lifeTime
+                self.kernelSymData[allocKernelSym]['pagePairTotal'] += lifeTime
 
                 # Set user stack list #
                 if self.sort is 'sym':
@@ -3042,7 +3065,7 @@ class FunctionAnalyzer(object):
                 (customList, self.customTotal, self.customCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -3053,7 +3076,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}  |{1:^47}|{2:48}|{3:37}".format(value['customCnt'], idx, \
+                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(value['customCnt'], idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
                 # Set target stack #
@@ -3288,7 +3311,7 @@ class FunctionAnalyzer(object):
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -3302,7 +3325,7 @@ class FunctionAnalyzer(object):
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
-                SystemManager.pipePrint("{0:7}% |{1:^47}|{2:48}|{3:37}".format(cpuPer, idx, \
+                SystemManager.pipePrint("{0:7}% |{1:^47}| {2:48}| {3:37}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
                 # Set target stack #
@@ -3492,7 +3515,7 @@ class FunctionAnalyzer(object):
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
                 format("Free", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -3501,7 +3524,7 @@ class FunctionAnalyzer(object):
                 if value['unknownPageFreeCnt'] == 0:
                     break
 
-                SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
                     format(int(value['unknownPageFreeCnt'] * 4), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -3598,7 +3621,7 @@ class FunctionAnalyzer(object):
             if value['unknownPageFreeCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}".\
+            SystemManager.pipePrint("{0:7}K |{1:^144}".\
                 format(int(value['unknownPageFreeCnt'] * 4), idx))
 
             # Sort stacks by usage #
@@ -3660,8 +3683,8 @@ class FunctionAnalyzer(object):
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
-                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
+            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
+                format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", "Binary"))
             SystemManager.pipePrint(twoLine)
 
             for idx, value in sorted(\
@@ -3679,11 +3702,19 @@ class FunctionAnalyzer(object):
                         except:
                             pass
 
+                try:
+                    avrTime = float(value['pagePairTotal'] / value['pagePairCnt'])
+                except:
+                    avrTime = 0
+
+                lifeTime = ' AVR: %.3f / MIN: %.3f / MAX: %.3f' % \
+                    (avrTime, value['pagePairMin'], value['pagePairMax'])
+
                 SystemManager.pipePrint(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
+                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
                     format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
                     typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    lifeTime, self.posData[value['pos']]['origBin']))
 
                 for pairId, item in sorted(\
                     value['pagePair'].items(), key=lambda e: e[1]['size'], reverse=True):
@@ -3756,8 +3787,8 @@ class FunctionAnalyzer(object):
             (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".\
-            format("Usage", "Usr", "Buf", "Ker", "Function"))
+        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+            format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -3787,8 +3818,18 @@ class FunctionAnalyzer(object):
                     except:
                         pass
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}".\
-                format(int(value['pagePairCnt'] * 4), idx))
+            try:
+                avrTime = float(value['pagePairTotal'] / value['pagePairCnt'])
+            except:
+                avrTime = 0
+
+            lifeTime = ' AVR: %.3f / MIN: %.3f / MAX: %.3f' % \
+                (avrTime, value['pagePairMin'], value['pagePairMax'])
+
+            SystemManager.pipePrint(\
+                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^75}".\
+                format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
+                typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, lifeTime))
 
             for pairId, item in sorted(\
                 value['pagePair'].items(), key=lambda e: e[1]['size'], reverse=True):
@@ -3865,6 +3906,29 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
+        # Calculate page lifetime #
+        for pfn, item in sorted(self.pageTable.items(), key=lambda e: e[1], reverse=True):
+            if item is None:
+                break
+
+            lifeTime = float(self.finishTime) - float(item['time'])
+
+            # Set user page lifetime #
+            self.userSymData[item['sym']]['pageRemainTotal'] += lifeTime
+            if self.userSymData[item['sym']]['pageRemainMin'] == 0 or \
+                self.userSymData[item['sym']]['pageRemainMin'] > lifeTime:
+                self.userSymData[item['sym']]['pageRemainMin'] = lifeTime
+            if self.userSymData[item['sym']]['pageRemainMax'] < lifeTime:
+                self.userSymData[item['sym']]['pageRemainMax'] = lifeTime
+
+            # Set kernel page lifetime #
+            self.kernelSymData[item['kernelSym']]['pageRemainTotal'] += lifeTime
+            if self.kernelSymData[item['kernelSym']]['pageRemainMin'] == 0 or \
+                self.kernelSymData[item['kernelSym']]['pageRemainMin'] > lifeTime:
+                self.kernelSymData[item['kernelSym']]['pageRemainMin'] = lifeTime
+            if self.kernelSymData[item['kernelSym']]['pageRemainMax'] < lifeTime:
+                self.kernelSymData[item['kernelSym']]['pageRemainMax'] = lifeTime
+
         # Print mem usage in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
@@ -3874,8 +3938,8 @@ class FunctionAnalyzer(object):
                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^48}|{6:_^27}".\
-                format("Usage", "Usr", "Buf", "Ker", "Function", "Binary", "Source"))
+            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
+                format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", "Binary"))
             SystemManager.pipePrint(twoLine)
 
             for idx, value in sorted(\
@@ -3884,11 +3948,19 @@ class FunctionAnalyzer(object):
                 if value['pageCnt'] == 0:
                     break
 
+                try:
+                    avrTime = float(value['pageRemainTotal'] / value['pageCnt'])
+                except:
+                    avrTime = 0
+
+                lifeTime = ' AVR: %.3f / MIN: %.3f / MAX: %.3f' % \
+                    (avrTime, value['pageRemainMin'], value['pageRemainMax'])
+
                 SystemManager.pipePrint(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:48}|{6:27}".\
+                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
                     format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
                     value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    lifeTime, self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
                 targetStack = []
@@ -3969,8 +4041,8 @@ class FunctionAnalyzer(object):
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^124}".\
-            format("Usage", "Usr", "Buf", "Ker", "Function"))
+        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+            format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -3991,9 +4063,18 @@ class FunctionAnalyzer(object):
             if value['pageCnt'] == 0:
                 break
 
+            try:
+                avrTime = float(value['pageRemainTotal'] / value['pageCnt'])
+            except:
+                avrTime = 0
+
+            lifeTime = ' AVR: %.3f / MIN: %.3f / MAX: %.3f' % \
+                (avrTime, value['pageRemainMin'], value['pageRemainMax'])
+
             SystemManager.pipePrint(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^32}".format(value['pageCnt'] * 4, \
-                value['userPageCnt'] * 4, value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx))
+                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^76}".\
+                format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
+                value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, lifeTime))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[pageAllocIndex], reverse=True)
@@ -4072,7 +4153,7 @@ class FunctionAnalyzer(object):
             self.heapRedSize >> 10, self.heapRedEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
             format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
@@ -4082,7 +4163,7 @@ class FunctionAnalyzer(object):
             if value['heapSize'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+            SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
                 format(int(value['heapSize'] >> 10), idx, \
                 self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -4256,8 +4337,10 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
-                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                if userCall != ' 0':
+                    SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
+                if kernelCall != ' 0':
+                    SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -4279,7 +4362,7 @@ class FunctionAnalyzer(object):
                 (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -4289,7 +4372,7 @@ class FunctionAnalyzer(object):
                 if value['blockWrCnt'] == 0:
                     break
 
-                SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
                     format(int(value['blockWrCnt'] * 4), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -4366,8 +4449,7 @@ class FunctionAnalyzer(object):
             (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -4388,8 +4470,8 @@ class FunctionAnalyzer(object):
             if value['blockWrCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockWrCnt'] * 4), idx, '', ''))
+            SystemManager.pipePrint("{0:7}K |{1:^134}".\
+                format(int(value['blockWrCnt'] * 4), idx))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[blkWrIndex], reverse=True)
@@ -4457,7 +4539,7 @@ class FunctionAnalyzer(object):
                 (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -4467,7 +4549,7 @@ class FunctionAnalyzer(object):
                 if value['blockRdCnt'] == 0:
                     break
 
-                SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
+                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
                     format(int(value['blockRdCnt'] * 0.5), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -4541,8 +4623,7 @@ class FunctionAnalyzer(object):
             (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^48}|{3:_^47}".\
-            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -4563,8 +4644,8 @@ class FunctionAnalyzer(object):
             if value['blockRdCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^47}|{2:48}|{3:37}".\
-                format(int(value['blockRdCnt'] * 0.5), idx, '', ''))
+            SystemManager.pipePrint("{0:7}K |{1:^144}".\
+                format(int(value['blockRdCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
