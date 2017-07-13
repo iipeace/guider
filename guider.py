@@ -1789,8 +1789,8 @@ class FunctionAnalyzer(object):
                     if len(err) > 0:
                         SystemManager.printWarning(err[err.find(':') + 2:])
 
+                    # End of return #
                     if not addr:
-                        # End of return #
                         break
                     elif symbol == '??':
                         symbol = addr
@@ -3085,8 +3085,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -3336,8 +3338,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -3530,8 +3534,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -3704,8 +3710,8 @@ class FunctionAnalyzer(object):
                     indentLen = len(printBuf)
                     appliedIndentLen = indentLen
 
-                    for call in allocCall.split(' <- '):
-                        if appliedIndentLen + len(call) > SystemManager.lineLength:
+                    for seq, call in enumerate(allocCall.split(' <- ')):
+                        if seq > 0 and appliedIndentLen + len(call) > SystemManager.lineLength:
                             printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
                             appliedIndentLen = indentLen
                         printBuf = "%s<- %s " % (printBuf, call)
@@ -3723,7 +3729,7 @@ class FunctionAnalyzer(object):
                         if index == 0:
                             clen -= 4
 
-                        if appliedIndentLen + clen > SystemManager.lineLength:
+                        if index > 0 and appliedIndentLen + clen > SystemManager.lineLength:
                             printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
                             appliedIndentLen = indentLen
 
@@ -3809,8 +3815,8 @@ class FunctionAnalyzer(object):
                 indentLen = len(printBuf)
                 appliedIndentLen = indentLen
 
-                for call in allocCall.split(' <- '):
-                    if appliedIndentLen + len(call) > SystemManager.lineLength:
+                for seq, call in enumerate(allocCall.split(' <- ')):
+                    if seq > 0 and appliedIndentLen + len(call) > SystemManager.lineLength:
                         printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
                         appliedIndentLen = indentLen
                     printBuf = "%s<- %s " % (printBuf, call)
@@ -3828,7 +3834,7 @@ class FunctionAnalyzer(object):
                     if index == 0:
                         clen -= 4
 
-                    if appliedIndentLen + clen > SystemManager.lineLength:
+                    if index > 0 and appliedIndentLen + clen > SystemManager.lineLength:
                         printBuf = "%s\n%s" % (printBuf, ' ' * indentLen)
                         appliedIndentLen = indentLen
 
@@ -3916,8 +3922,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -4111,8 +4119,10 @@ class FunctionAnalyzer(object):
 
                     if self.sort is 'sym':
                         for sym in subStack:
-                            if sym is None:
+                            if sym is None or sym == '0':
                                 symbolSet = ' <- None'
+                            elif self.userSymData[sym]['origBin'] == '??':
+                                symbolSet = ' <- ' + sym
                             else:
                                 symbolSet = ' <- ' + sym + \
                                     ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -4312,8 +4322,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
@@ -4488,8 +4500,10 @@ class FunctionAnalyzer(object):
 
                         if self.sort is 'sym':
                             for sym in subStack:
-                                if sym is None:
+                                if sym is None or sym == '0':
                                     symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
                                 else:
                                     symbolSet = ' <- ' + sym + \
                                         ' [' + self.userSymData[sym]['origBin'] + ']'
