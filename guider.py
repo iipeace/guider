@@ -3311,8 +3311,8 @@ class FunctionAnalyzer(object):
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
-                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^96}".\
+                format("Usage", "Function", "Binary"))
             SystemManager.pipePrint(twoLine)
 
             for idx, value in sorted(\
@@ -3325,8 +3325,8 @@ class FunctionAnalyzer(object):
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
-                SystemManager.pipePrint("{0:7}% |{1:^47}| {2:48}| {3:37}".format(cpuPer, idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                SystemManager.pipePrint("{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
+                    self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
                 targetStack = []
