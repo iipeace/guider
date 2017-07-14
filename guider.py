@@ -5502,7 +5502,7 @@ class SystemManager(object):
 
     pageSize = 4096
     blockSize = 512
-    bufferSize = '40960'
+    bufferSize = 0
     ttyRows = '50'
     ttyRowsMargin = 6
     ttyCols = '156'
@@ -7941,8 +7941,7 @@ class SystemManager(object):
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
 
-                        if SystemManager.isTopMode():
-                            SystemManager.printInfo("set buffer size to %sKB" % (bsize * 10))
+                        SystemManager.printInfo("set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, input number bigger than 0")
@@ -8152,9 +8151,6 @@ class SystemManager(object):
                     bsize = int(value)
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
-
-                        if SystemManager.isTopMode():
-                            bsize *= 10
 
                         SystemManager.printInfo("set buffer size to %sKB" % bsize)
                     else:
@@ -8975,6 +8971,12 @@ class SystemManager(object):
         self.clearTraceBuffer()
 
         # set size of trace buffer per core #
+        if SystemManager.bufferSize == 0:
+            # 40MB #
+            SystemManager.bufferSize = '40960'
+        else:
+            # Change from integer to string #
+            SystemManager.bufferSize = str(SystemManager.bufferSize)
         SystemManager.writeCmd("../buffer_size_kb", SystemManager.bufferSize)
         setBufferSize = SystemManager.getBufferSize()
         if int(SystemManager.bufferSize) != setBufferSize:
@@ -10129,6 +10131,14 @@ class ThreadAnalyzer(object):
 
             # set configuration from file #
             self.getConf()
+
+            # set log buffer size #
+            if SystemManager.bufferSize == 0:
+                # 512KB #
+                SystemManager.bufferSize = 512 << 10
+            else:
+                # Change from KiloByte to Byte #
+                SystemManager.bufferSize = int(SystemManager.bufferSize) << 10
 
             if SystemManager.printFile is not None:
                 SystemManager.printStatus(r"start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
@@ -15898,7 +15908,7 @@ class ThreadAnalyzer(object):
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
 
-            while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
+            while SystemManager.procBufferSize > SystemManager.bufferSize:
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -17607,7 +17617,7 @@ class ThreadAnalyzer(object):
                 SystemManager.procBufferSize += len(data)
                 SystemManager.clearPrint()
 
-                while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
+                while SystemManager.procBufferSize > SystemManager.bufferSize:
                     if len(SystemManager.procBuffer) == 1:
                         break
                     SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -17959,7 +17969,7 @@ class ThreadAnalyzer(object):
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
 
-            while (SystemManager.procBufferSize >> 10) > int(SystemManager.bufferSize) * 10:
+            while SystemManager.procBufferSize > SystemManager.bufferSize:
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
