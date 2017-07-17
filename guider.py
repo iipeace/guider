@@ -1496,8 +1496,10 @@ class FunctionAnalyzer(object):
                     # Ignore this function if there is no symbol #
                     if SystemManager.showAll is False and \
                         self.posData[addr]['origBin'] == '??' and \
-                        (tempSym == addr or tempSym == self.posData[addr]['offset']):
-                        continue
+                            (tempSym == addr or \
+                            tempSym == self.posData[addr]['offset'] or \
+                            addr == '00c0ffee'):
+                                continue
 
                     # No symbol data #
                     if tempSym == '':
