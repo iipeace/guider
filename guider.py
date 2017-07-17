@@ -6962,8 +6962,21 @@ class SystemManager(object):
             if SystemManager.outputFile != None:
                 output = SystemManager.outputFile + str(SystemManager.repeatCount)
                 try:
-                    shutil.copy(os.path.join(SystemManager.mountPath + '../trace'), output)
-                    SystemManager.printInfo('trace data is saved to %s' % output)
+                    # submit system info #
+                    si = SystemManager()
+                    si.saveAllInfo()
+                    si.printAllInfoToBuf()
+
+                    with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
+                        with open(output, 'w') as fw:
+                            contents = fr.read()
+                            fw.seek(0,0)
+                            fw.writelines(SystemManager.magicString + '\n')
+                            fw.writelines(SystemManager.systemInfoBuffer)
+                            fw.writelines(SystemManager.magicString + '\n')
+                            SystemManager.clearInfoBuffer()
+                            fw.write(contents)
+                            SystemManager.printInfo('trace data is saved to %s' % output)
                 except:
                     SystemManager.printWarning('Fail to save trace data to %s' % output)
 
