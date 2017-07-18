@@ -3210,6 +3210,8 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(oneLine)
 
+            SystemManager.pipePrint('')
+
         # Print custom call history #
         if SystemManager.showAll and len(self.customCallData) > 0:
             SystemManager.clearPrint()
