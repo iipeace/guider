@@ -20,12 +20,19 @@ RM = rm -f
 TARGET_BIN = guider
 TARGET_LIB = libguider.so
 
+ifneq ($(wildcard .config),)
+  include .config
+endif
+
+prefix ?= /usr
+
 PCC = $(shell which python)
 PFLAGS = -m py_compile
 TARGET_PY = guider.py
 TARGET_PYC = guider.pyc
-INSTALL_DIR = /usr/share/guider
-SBIN_DIR = /usr/sbin
+INSTALL_DIR = $(prefix)/share/guider
+SBIN_DIR = $(prefix)/sbin
+LIB_DIR = $(prefix)/lib
 
 SRCS = guiderLib.c
 OBJS = $(SRCS:.c=.o)
@@ -46,10 +53,11 @@ $(TARGET_LIB): $(OBJS)
 
 .PHONY: install
 install: all
-	@test -s ${INSTALL_DIR} || mkdir ${INSTALL_DIR}
-	@test -s ${INSTALL_DIR} || { echo "Fail to make ${INSTALL_DIR}"; false; }
+	@mkdir -p ${INSTALL_DIR} ${SBIN_DIR} ${LIB_DIR}
 	@cp ${TARGET_PYC} ${INSTALL_DIR}/ || { echo "Fail to install into ${INSTALL_DIR}"; false; }
 	@cp ${TARGET_BIN} ${SBIN_DIR}/ || { echo "Fail to install into ${SBIN_DIR}"; false; }
+	@cp ${TARGET_LIB} ${LIB_DIR}/ || { echo "Fail to install into ${LIB_DIR}"; false; }
+	@sed -i "s%PREFIX_DIR=%PREFIX_DIR=$(prefix)%g" ${SBIN_DIR}/${TARGET_BIN}
 
 .PHONY: kernel
 kernel: all
@@ -57,8 +65,9 @@ kernel: all
 
 .PHONY: clean
 clean:
-	@-${RM} ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
-	@-${RM} ${TARGET_PYC}
-	@-${RM} ${INSTALL_DIR}/*
-	@-${RM} ${SBIN_DIR}/${TARGET_BIN}
+	@-${RM} -f ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
+	@-${RM} -f ${TARGET_PYC}
+	@-${RM} -f ${INSTALL_DIR}/*
+	@-${RM} -f ${SBIN_DIR}/${TARGET_BIN}
+	@-${RM} -f ${LIB_DIR}/${TARGET_LIB}
 	@make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
