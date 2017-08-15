@@ -182,7 +182,6 @@ Examples
         # ./guider.py guider.dat -o . -p 1234,4567
     - analize specific threads that are involved in the specific processes
         # ./guider.py guider.dat -o . -P -g 1234,4567
-
 [function mode]
     - record cpu usage of functions in all threads
         # ./guider.py record -f -s .
@@ -198,7 +197,6 @@ Examples
         # ./guider.py record -f -s . -K segflt:bad_area -ep
     - record blocking event without cpu usage in all threads
         # ./guider.py record -f -s . -dc -K block:schedule
-
 [top mode]
     - show real-time resource usage of processes
         # ./guider.py top
@@ -234,13 +232,11 @@ Examples
         # ./guider.py top -x 5555 -X
     - set event configuration file
         # ./guider.py top -I guider.json
-
 [file mode]
     - record memory usage of mapped files to the specific file
         # ./guider.py record -F -o .
     - record memory usage of mapped files and compare each intervals
         # ./guider.py record -F -i
-
 [etc]
     - view page property of specific pages
         # ./guider.py view -g 1234 -I 0x7abc1234-0x7abc6789
