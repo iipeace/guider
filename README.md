@@ -107,11 +107,12 @@ Options
 [record options]
     -e  [enable_optionsPerMode:bellowCharacters]
           [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}
-          [thread]   {m(em)|b(lock)|i(rq)|p(ipe)|r(eset)|g(raph)|f(utex)}
-          [top]      {t(hread)|d(isk)|w(fc)|W(chan)|I(mage)|f(ile)|g(raph)}
+          [thread]   {m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}
+          [top]      {t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}
     -d  [disable_optionsPerMode:bellowCharacters]
           [thread]   {c(pu)}
           [function] {c(pu)|u(ser)}
+          [top]      {r(ss)|v(ss)}
     -s  [save_traceData:dir/file]
     -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]
     -u  [run_inBackground]
@@ -120,27 +121,32 @@ Options
     -b  [set_bufferSize:kb]
     -D  [trace_threadDependency]
     -t  [trace_syscall:syscalls]
-    -H  [set_depth]
     -T  [set_fontPath]
+    -H  [set_functionDepth]
     -j  [set_reportPath:dir]
+    -U  [set_userEvent:name:func|addr:file]
+    -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]
     -C  [set_commandScriptPath:file]
+    -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]
     -x  [set_addressForLocalServer:{ip:}port]
     -X  [set_requestToRemoteServer:{req@ip:port}]
     -N  [set_addressForReport:req@ip:port]
     -n  [set_addressForPrint:ip:port]
+    -m  [set_objdumpPath:file]
 [analysis options]
     -o  [save_outputData:dir]
     -P  [group_perProcessBasis]
     -p  [show_preemptInfo:tids]
-    -l  [set_addr2linePath:file]
+    -l  [set_addr2linePath:files]
     -r  [set_targetRootPath:dir]
     -I  [set_inputValue:file|addr]
     -q  [configure_taskList]
     -L  [convert_textToImage]
 [common options]
     -a  [show_allInfo]
+    -Q  [print_allRows]
     -i  [set_interval:sec]
-    -g  [filter_specificGroup:comms|tids]
+    -g  [set_filter:comms|tids{:file}]
     -A  [set_arch:arm|x86|x64]
     -c  [set_customEvent:event:filter]
     -E  [set_errorLogPath:file]
