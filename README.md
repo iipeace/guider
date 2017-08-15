@@ -27,6 +27,9 @@ Input "Ctrl + c" key to finish profiling
 
 Input command as bellow to see more examples
 $ guider.py -h -a
+
+Visit a bellow link to see output of guider
+- https://github.com/iipeace/guider/wiki
 ```
 
 
