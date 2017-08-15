@@ -152,3 +152,108 @@ Options
     -E  [set_errorLogPath:file]
     -v  [verbose]
 ```
+
+
+
+Examples
+=======
+
+```
+[thread mode]
+    - record cpu usage of threads
+        # ./guider.py record -s .
+    - record all resource usage of threads in background
+        # ./guider.py record -s . -e mbi -u
+    - record all resource usage excluding cpu of threads in background
+        # ./guider.py record -s . -e mbi -d c -u
+    - record specific systemcalls of specific threads
+        # ./guider.py record -s . -t sys_read,sys_write -g 1234
+    - record specific user function events
+        # ./guider.py record -s . -U evt1:func1:/tmp/a.out,evt2:0x1234:/tmp/b.out -m $(which objdump)
+    - record specific kernel function events
+        # ./guider.py record -s . -K evt1:func1,evt2:0x1234
+    - record specific kernel function events with register values
+        # ./guider.py record -s . -K evt1:func1:%bp/u32.%sp/s64,evt2:0x1234:$stack:NONE
+    - record specific kernel function events with return value
+        # ./guider.py record -s . -K evt1:func1::*string,evt2:0x1234:NONE:**string
+    - analize record data by expressing all possible information
+        # ./guider.py guider.dat -o . -a -i
+    - analize record data including preemption info of specific threads
+        # ./guider.py guider.dat -o . -p 1234,4567
+    - analize specific threads that are involved in the specific processes
+        # ./guider.py guider.dat -o . -P -g 1234,4567
+
+[function mode]
+    - record cpu usage of functions in all threads
+        # ./guider.py record -f -s .
+    - record specific events of only kernel functions in all threads
+        # ./guider.py record -f -s . -d u -c sched/sched_switch
+    - record all usage of functions in specific threads
+        # ./guider.py record -f -s . -e mbh -g 1234
+    - analize record data by expressing all possible information
+        # ./guider.py guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
+    - record specific kernel functions in a specific thread
+        # ./guider.py record -f -s . -e g -c SyS_read -g 1234
+    - record segmentation fault event in all threads
+        # ./guider.py record -f -s . -K segflt:bad_area -ep
+    - record blocking event without cpu usage in all threads
+        # ./guider.py record -f -s . -dc -K block:schedule
+
+[top mode]
+    - show real-time resource usage of processes
+        # ./guider.py top
+    - show real-time file usage of processes
+        # ./guider.py top -ef
+    - show real-time resource usage of processes by sorting memory
+        # ./guider.py top -S m
+    - show real-time resource usage including disk of threads per 2 sec interval
+        # ./guider.py top -e td -i 2 -a
+    - show real-time resource usage of specific processes/threads involved in specific process group
+        # ./guider.py top -g 1234,4567 -P
+    - record resource usage of processes to the specific file in background
+        # ./guider.py top -o . -u
+    - record and report system status to the specific file in background
+        # ./guider.py top -o . -e r -j . -u
+    - record and save system status to the specific file if some events occur
+        # ./guider.py top -o . -e r -e f
+    - record and report system status to the specific image
+        # ./guider.py top -o . -e r -e f
+    - convert a analysis text to a graph image
+        # ./guider.py top -I guider.out -e g
+    - convert a analysis text to a graph image for specific process group
+        # ./guider.py top -I guider.out -e g -g chrome
+    - convert a analysis text to a graph image for specific process group except for VSS
+        # ./guider.py top -I guider.out -e g -g chrome -d v
+    - report system status to the specific server
+        # ./guider.py top -n 192.168.0.5:5555
+    - report system status to the specific server if some events occur
+        # ./guider.py top -er -N REPORT_ALWAYS@192.168.0.5:5555
+    - record and send analysis output to specific clients that asked dyanmic request
+        # ./guider.py top -x 5555
+    - receive and print analysis output from client
+        # ./guider.py top -x 5555 -X
+    - set event configuration file
+        # ./guider.py top -I guider.json
+
+[file mode]
+    - record memory usage of mapped files to the specific file
+        # ./guider.py record -F -o .
+    - record memory usage of mapped files and compare each intervals
+        # ./guider.py record -F -i
+
+[etc]
+    - view page property of specific pages
+        # ./guider.py view -g 1234 -I 0x7abc1234-0x7abc6789
+    - convert text to image
+        # ./guider.py guider.out -L
+    - wait for signal
+        # ./guider.py record|top -W
+    - show running guider processes
+        # ./guider.py list
+    - send event signal to guider processes
+        # ./guider.py send
+    - send stop signal to guider processes
+        # ./guider.py stop
+    - send some signal to specific processes
+        # ./guider.py send -9 1234, 4567
+```
