@@ -11878,6 +11878,11 @@ class ThreadAnalyzer(object):
             time = val[2]
             module = val[3]
 
+            try:
+                comm = self.threadData[tid]['comm']
+            except:
+                comm = '??'
+
             if event is 'load':
                 try:
                     moduleTable[module]
@@ -11889,8 +11894,7 @@ class ThreadAnalyzer(object):
 
             elif event is 'free':
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
-                    format('FREE', float(time) - float(self.startTime), module, \
-                    self.threadData[tid]['comm'], tid, ''))
+                    format('FREE', float(time) - float(self.startTime), module, comm, tid, ''))
             elif event is 'put':
                 try:
                     moduleTable[module]
@@ -11903,7 +11907,7 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
                     format('LOAD', float(time) - float(self.startTime), module, \
-                    self.threadData[tid]['comm'], tid, moduleTable[module]['elapsed']))
+                    comm, tid, moduleTable[module]['elapsed']))
 
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
