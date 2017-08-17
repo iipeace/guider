@@ -11909,7 +11909,6 @@ class ThreadAnalyzer(object):
                     format('LOAD', float(time) - float(self.startTime), module, \
                     comm, tid, moduleTable[module]['elapsed']))
 
-        SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
 
