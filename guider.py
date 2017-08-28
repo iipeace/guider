@@ -8158,9 +8158,11 @@ class SystemManager(object):
             elif option == 'H':
                 try:
                     SystemManager.depth = int(value)
+                    if SystemManager.depth < 0:
+                        raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -H option, input an integer value")
+                        "wrong option value with -H option, input an unsigned integer value")
                     sys.exit(0)
 
             elif option == 'R':
@@ -8294,9 +8296,11 @@ class SystemManager(object):
             elif option == 'H':
                 try:
                     SystemManager.depth = int(value)
+                    if SystemManager.depth < 0:
+                        raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -H option, input an integer value")
+                        "wrong option value with -H option, input an unsigned integer value")
                     sys.exit(0)
 
             elif option == 'W':
