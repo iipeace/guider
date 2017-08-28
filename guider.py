@@ -1964,6 +1964,26 @@ class FunctionAnalyzer(object):
         else:
             pass
 
+        # cut stacks by depth #
+        if SystemManager.depth > 0:
+            ksize = len(self.nowCtx['kernelCallStack'])
+            if ksize >= SystemManager.depth:
+                self.nowCtx['kernelLastPos'] = \
+                    self.nowCtx['kernelCallStack'][-SystemManager.depth]
+                self.nowCtx['kernelCallStack'] = \
+                    self.nowCtx['kernelCallStack'][-SystemManager.depth + 1:]
+
+            usize = len(self.nowCtx['userCallStack'])
+            if usize >= SystemManager.depth:
+                self.nowCtx['userLastPos'] = \
+                    self.nowCtx['userCallStack'][-SystemManager.depth]
+                self.nowCtx['userCallStack'] = \
+                    self.nowCtx['userCallStack'][-SystemManager.depth + 1:]
+
+            if SystemManager.depth == 1:
+                self.nowCtx['kernelCallStack'] = []
+                self.nowCtx['userCallStack'] = []
+
         self.saveFullStack(self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
             self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
             targetEvent, targetCnt, targetArg)
@@ -5517,7 +5537,7 @@ class SystemManager(object):
     maxFd = 512
     lineLength = 154
     pid = 0
-    depth = '0'
+    depth = 0
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -5920,7 +5940,6 @@ class SystemManager(object):
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
             print('\t\t-T  [set_fontPath]')
-            print('\t\t-H  [set_functionDepth]')
             print('\t\t-j  [set_reportPath:dir]')
             print('\t\t-U  [set_userEvent:name:func|addr:file]')
             print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
@@ -5948,6 +5967,7 @@ class SystemManager(object):
             print('\t\t-A  [set_arch:arm|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
+            print('\t\t-H  [set_functionDepth]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -5985,6 +6005,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -f -s . -e mbh -g 1234' % cmd)
                 print('\t\t\t- analize record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+                print('\t\t\t- analize record data by limit 3 depth')
+                print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
                 print('\t\t\t- record specific kernel functions in a specific thread')
                 print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
                 print('\t\t\t- record segmentation fault event in all threads')
@@ -8129,9 +8151,17 @@ class SystemManager(object):
 
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'w' or option == 't' or option == 'C' or \
-                option == 'v' or option == 'H' or option == 'F' or \
-                option == 'U' or option == 'K' or option == 'm':
+                option == 'v' or option == 'm' or option == 'F' or \
+                option == 'U' or option == 'K':
                 continue
+
+            elif option == 'H':
+                try:
+                    SystemManager.depth = int(value)
+                except:
+                    SystemManager.printError(\
+                        "wrong option value with -H option, input an integer value")
+                    sys.exit(0)
 
             elif option == 'R':
                 if SystemManager.isTopMode():
@@ -8263,7 +8293,7 @@ class SystemManager(object):
 
             elif option == 'H':
                 try:
-                    SystemManager.depth = str(int(value))
+                    SystemManager.depth = int(value)
                 except:
                     SystemManager.printError(\
                         "wrong option value with -H option, input an integer value")
@@ -9062,7 +9092,7 @@ class SystemManager(object):
                     SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
                     SystemManager.writeCmd('../trace_options', 'funcgraph-overhead')
                     SystemManager.writeCmd('../trace_options', 'funcgraph-duration')
-                    SystemManager.writeCmd('../max_graph_depth', SystemManager.depth)
+                    SystemManager.writeCmd('../max_graph_depth', str(SystemManager.depth))
 
                     if SystemManager.customCmd is None:
                         SystemManager.writeCmd('../set_ftrace_filter', '')
