@@ -13328,6 +13328,7 @@ class ThreadAnalyzer(object):
             'SWAP(MB)', 'Rclm(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrTask', 'NetIO'))
         SystemManager.pipePrint(oneLine + '\n')
 
+        pCnt = 0
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
             if idx == 0:
                 before = 'START'
@@ -13344,8 +13345,9 @@ class ThreadAnalyzer(object):
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
                 val['total']['rclm'], val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], \
                 task, val['total']['netIO']))
+            pCnt += 1
 
-        if len(ThreadAnalyzer.procIntervalData) == 0:
+        if len(ThreadAnalyzer.procIntervalData) == 0 or pCnt == 0:
             SystemManager.pipePrint('\tNone\n')
 
         SystemManager.pipePrint(oneLine + '\n')
@@ -16893,29 +16895,44 @@ class ThreadAnalyzer(object):
             # free memory #
             freeMem = self.vmData['nr_free_pages'] >> 8
             freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) >> 8
+        except:
+            freeMem = freeMemDiff = 0
+            SystemManager.printWarning("Fail to get freeMem")
 
+        try:
             # anonymous memory #
             actAnonMem = self.vmData['nr_active_anon'] >> 8
             inactAnonMem = self.vmData['nr_inactive_anon'] >> 8
             totalAnonMem = self.vmData['nr_anon_pages'] >> 8
             anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) >> 8
+        except:
+            actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = 0
+            SystemManager.printWarning("Fail to get anonMem")
 
+        try:
             # file memory #
             actFileMem = self.vmData['nr_active_file'] >> 8
             inactFileMem = self.vmData['nr_inactive_file'] >> 8
             totalFileMem = self.vmData['nr_file_pages'] >> 8
             fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
-            nrDirty = self.vmData['nr_dirty']
+        except:
+            actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
+            SystemManager.printWarning("Fail to get fileMem")
 
+        try:
             # dirty memory #
-            dirtyMem = self.vmData['nr_dirty']
+            nrDirty = self.vmData['nr_dirty']
             '''
             dirtyRatio = \
                 int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_threshold'])) * 100)
             dirtyBgRatio = \
                 int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
             '''
+        except:
+            nrDirty = 0
+            SystemManager.printWarning("Fail to get dirtyMem")
 
+        try:
             # slab memory #
             slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
             slabUnReclm = self.vmData['nr_slab_unreclaimable'] >> 8
@@ -16926,23 +16943,39 @@ class ThreadAnalyzer(object):
             totalSlabMem = \
                 (self.vmData['nr_slab_reclaimable'] + self.vmData['nr_slab_unreclaimable']) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
+        except:
+            slabReclm = slabUnReclm = slabReclmDiff = slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
+            SystemManager.printWarning("Fail to get slabMem")
 
+        try:
             # fault #
             nrMajFault = self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']
             nrTotalFault = self.vmData['pgfault'] - self.prevVmData['pgfault']
             nrMinFault = nrTotalFault - nrMajFault
+        except:
+            nrMajFault = nrTotalFault = nrMinFault = 0
+            SystemManager.printWarning("Fail to get faultMem")
 
+        try:
             # paged in/out from/to disk #
             pgInMemDiff = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
             pgOutMemDiff = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
+        except:
+            pgInMemDiff = pgOutMemDiff = 0
+            SystemManager.printWarning("Fail to get pgMem")
 
+        try:
             # swap memory #
             swapTotal = self.vmData['swapTotal'] >> 10
             swapUsage = self.vmData['swapUsed'] >> 10
             swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) >> 10
             swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
             swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
+        except:
+            swapTotal = swapUsage = swapUsageDiff = swapInMem = swapOutMem = 0
+            SystemManager.printWarning("Fail to get swapMem")
 
+        try:
             # background reclaim #
             bgReclaim = 0
             if 'pgsteal_kswapd_normal' in self.vmData:
@@ -16962,7 +16995,11 @@ class ThreadAnalyzer(object):
                     self.vmData['pgsteal_kswapd_movable'] - self.prevVmData['pgsteal_kswapd_movable']
             bgReclaim = bgReclaim >> 8
             nrBgReclaim = self.vmData['pageoutrun'] - self.prevVmData['pageoutrun']
+        except:
+            bgReclaim = nrBgReclaim = 0
+            SystemManager.printWarning("Fail to get bgReclmMem")
 
+        try:
             # direct reclaim #
             drReclaim = 0
             if 'pgsteal_direct_normal' in self.vmData:
@@ -16982,17 +17019,34 @@ class ThreadAnalyzer(object):
                     self.vmData['pgsteal_direct_movable'] - self.prevVmData['pgsteal_direct_movable']
             drReclaim = drReclaim >> 8
             nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
+        except:
+            drReclaim = nrDrReclaim = 0
+            SystemManager.printWarning("Fail to get drReclmMem")
 
 
-            # etc #
+        try:
+            # mlock #
             nrMlock = self.vmData['nr_mlock']
             #mappedMem = self.vmData['nr_mapped'] >> 8
+        except:
+            nrMlock = 0
+            SystemManager.printWarning("Fail to get mlockMem")
 
+        try:
+            # pending #
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
+        except:
+            nrBlocked = 0
+            SystemManager.printWarning("Fail to get nrBlocked")
 
+        try:
             # total mem #
             totalMem = self.memData['MemTotal'] >> 10
+        except:
+            totalMem = 0
+            SystemManager.printWarning("Fail to get totalMem")
 
+        try:
             # cma mem #
             if 'CmaTotal' in self.memData:
                 cmaTotalMem = self.memData['CmaTotal']
@@ -17007,15 +17061,19 @@ class ThreadAnalyzer(object):
                     cmaDevMem = 0
             else:
                 cmaTotalMem = 0
+        except:
+            cmaTotalMem = cmaFreeMem = cmaDevMem = 0
+            SystemManager.printWarning("Fail to get cmaMem")
 
+        try:
+            pass
             '''
             shMem = self.vmData['nr_shmem'] >> 8
             pageTableMem = self.vmData['nr_page_table_pages'] >> 8
             kernelStackMem = self.vmData['nr_kernel_stack'] * 8 >> 10
             '''
         except:
-            SystemManager.printError("Fail to get all system stat")
-            return
+            SystemManager.printWarning("Fail to get etcMem")
 
         # print system status menu #
         SystemManager.addPrint(('%s\n' % twoLine) + \
@@ -17088,7 +17146,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
-            self.reportData['mem']['dirty'] = dirtyMem
+            self.reportData['mem']['dirty'] = nrDirty
             self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
