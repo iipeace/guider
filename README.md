@@ -17,13 +17,15 @@ How to use
 =======
 
 ```
-Input command as bellow to start accurate profiling in thread mode
+Input command as bellow to start accurate tracing in thread mode
 # guider.py record 
 
-Input command as bellow to start realtime profiling in top mode
+Input "Ctrl + c" key to finish tracing
+
+Input command as bellow to start realtime monitoring in top mode
 $ guider.py top 
 
-Input "Ctrl + c" key to finish profiling 
+Input "Ctrl + c" key to finish monitoring 
 
 Input command as bellow to see more examples
 $ guider.py -h -a
