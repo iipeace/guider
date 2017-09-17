@@ -13,7 +13,7 @@ Guider pursues three characteristics as bellow.
 >3. integrate features: show as much information as possible
 
 
-Outputs
+Output
 =======
            
     [Top Info] [Time: 2863246.420] [Interval: 1.0] [Ctxt: 1711] [Fork: 0] [IRQ: 898] [Core: 12] [Task: 337/814] [RAM: 64374] [Swap: 65477] [Unit: %/MB/NR]
