@@ -1421,7 +1421,7 @@ class FunctionAnalyzer(object):
         # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
-            SystemManager.printProgress(lineCnt, lastIdx)
+            SystemManager.printProgress(lineCnt, lastIdx - 1)
 
             pos = val[0]
             stack = val[1]
@@ -2354,7 +2354,7 @@ class FunctionAnalyzer(object):
         if self.nowCtx['nested'] > 2:
             #self.printDbgInfo()
             SystemManager.printError(\
-                "Fail to analyze because of corrupted data (over) at %s" % \
+                "Fail to analyze data because of corruption (over) at %s" % \
                 SystemManager.dbgEventLine)
             sys.exit(0)
 
@@ -2735,7 +2735,7 @@ class FunctionAnalyzer(object):
             if self.nowCtx['nested'] < 0:
                 #self.printDbgInfo()
                 SystemManager.printError(\
-                    "Fail to analyze data because of corrupted data (under) at %s" % \
+                    "Fail to analyze data because of corruption (under) at %s" % \
                     SystemManager.dbgEventLine)
                 sys.exit(0)
 
@@ -15659,6 +15659,7 @@ class ThreadAnalyzer(object):
                         return
                     # finish data processing #
                     elif event == 'STOP':
+                        SystemManager.totalLine = SystemManager.curLine
                         self.finishTime = time
                         self.stopFlag = True
                         return
@@ -15732,6 +15733,7 @@ class ThreadAnalyzer(object):
                         return
                     # finish data processing #
                     elif event == 'STOP':
+                        SystemManager.totalLine = SystemManager.curLine
                         self.finishTime = time
                         self.stopFlag = True
                         return
@@ -16041,6 +16043,7 @@ class ThreadAnalyzer(object):
                             return
                         # finish data processing #
                         elif event == 'STOP':
+                            SystemManager.totalLine = SystemManager.curLine
                             self.finishTime = time
                             self.stopFlag = True
                             return
