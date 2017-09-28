@@ -17253,6 +17253,7 @@ class ThreadAnalyzer(object):
                         coreFreq = '? Mhz'
                     if minFreq is not None and maxFreq is not None:
                         coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
+                    coreFreq = '%20s|' % coreFreq
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
