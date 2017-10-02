@@ -5749,7 +5749,8 @@ class SystemManager(object):
                 return
 
             try:
-                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                if SystemManager.libcObj is None:
+                    SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
 
                 SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
                 SystemManager.libcObj.getrlimit.restype = c_int
@@ -5781,7 +5782,8 @@ class SystemManager(object):
                 print("[Warning] Fail to import package: " + err.args[0])
 
             try:
-                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                if SystemManager.libcObj is None:
+                    SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
                 SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
             except:
                 print('[Warning] Fail to set comm because of prctl in libc')
@@ -8644,14 +8646,40 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setRtPriority(pri):
-        os.system('chrt -a -p %s %s 2> /dev/null &' % (pri, SystemManager.pid))
+    def setPriority(policy, pri):
+        try:
+            import ctypes
+            from ctypes import cdll, POINTER
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning("Fail to import package: " + err.args[0])
+            return
 
+        try:
+            imp.find_module('ctypes')
+        except:
+            SystemManager.printWarning('Fail to find ctypes package')
+            return
 
+        try:
+            # load the library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
 
-    @staticmethod
-    def setIdlePriority():
-        os.system('chrt -a -i -p %s %s 2> /dev/null &' % (0, SystemManager.pid))
+            argPolicy = ctypes.c_int(ConfigManager.schedList.index(policy.upper()))
+            if argPolicy == 'I':
+                argPriority = 0
+            else:
+                argPriority = ctypes.c_int(pri)
+
+            ret = SystemManager.libcObj.sched_setscheduler(\
+                os.getpid(), argPolicy, ctypes.byref(argPriority))
+            if ret != 0:
+                raise
+        except:
+            SystemManager.printWarning(\
+                'Fail to set priority because of sched_setscheduler in libc')
+            return
 
 
 
@@ -18438,7 +18466,7 @@ if __name__ == '__main__':
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # set this process to RT priority #
-        SystemManager.setRtPriority('90')
+        SystemManager.setPriority('F', 90)
 
         # set arch #
         SystemManager.setArch(SystemManager.getArch())
