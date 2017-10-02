@@ -8646,7 +8646,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setPriority(policy, pri):
+    def setPriority(pid, policy, pri):
         try:
             import ctypes
             from ctypes import cdll, POINTER
@@ -8673,7 +8673,7 @@ class SystemManager(object):
                 argPriority = ctypes.c_int(pri)
 
             ret = SystemManager.libcObj.sched_setscheduler(\
-                os.getpid(), argPolicy, ctypes.byref(argPriority))
+                pid, argPolicy, ctypes.byref(argPriority))
             if ret != 0:
                 raise
         except:
@@ -18466,7 +18466,7 @@ if __name__ == '__main__':
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # set this process to RT priority #
-        SystemManager.setPriority('F', 90)
+        SystemManager.setPriority(SystemManager.pid, 'F', 90)
 
         # set arch #
         SystemManager.setArch(SystemManager.getArch())
