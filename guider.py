@@ -8789,12 +8789,17 @@ class SystemManager(object):
 
 
     def saveAllInfo(self):
+        # process tree info #
         if SystemManager.isTopMode() is False:
             self.saveProcInfo()
+
+        # resource info #
         self.saveCpuInfo()
         self.saveMemInfo()
         self.saveDiskInfo()
         self.saveSystemInfo()
+
+        # os info #
         self.saveWebOSInfo()
 
 
@@ -8812,18 +8817,31 @@ class SystemManager(object):
     def saveWebOSInfo(self):
         OSFile = '/var/run/nyx/os_info.json'
         devFile = '/var/run/nyx/device_info.json'
+        osf = devf = None
 
         try:
-            f = open(OSFile, 'r')
-            self.osData = f.readlines()
-            f.close()
+            osf = open(OSFile, 'r')
+        except:
+            pass
+
+        try:
+            devf = open(devFile, 'r')
+        except:
+            pass
+
+        # check webOS #
+        if osf == None and devf == None:
+            return
+
+        try:
+            self.osData = osf.readlines()
+            osf.close()
         except:
             SystemManager.printWarning("Fail to open %s for webOS" % OSFile)
 
         try:
-            f = open(devFile, 'r')
-            self.devData = f.readlines()
-            f.close()
+            self.devData = devf.readlines()
+            devf.close()
         except:
             SystemManager.printWarning("Fail to open %s for webOS" % devFile)
 
