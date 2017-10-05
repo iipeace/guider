@@ -5537,6 +5537,7 @@ class SystemManager(object):
     maxFd = 512
     lineLength = 154
     pid = 0
+    prio = None
     depth = 0
 
     HZ = 250 # 4ms tick #
@@ -5970,6 +5971,7 @@ class SystemManager(object):
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
             print('\t\t-H  [set_functionDepth]')
+            print('\t\t-Y  [set_schedPriority:policy:prio:pid]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -6073,6 +6075,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s stop' % cmd)
                 print('\t\t\t- send some signal to specific processes')
                 print('\t\t\t\t# %s send -9 1234, 4567' % cmd)
+                print('\t\t\t- set priority of tasks')
+                print('\t\t\t\t# %s record -Y c:-19, 123:r:90')
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
             print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
@@ -7902,6 +7906,10 @@ class SystemManager(object):
                             "No specific thread targeted, input tid with -p option")
                         sys.exit(0)
 
+            elif option == 'Y':
+                if SystemManager.prio is None:
+                    SystemManager.parsePriorityOption(value)
+
             elif option == 'd':
                 options = value
                 if options.rfind('r') > -1:
@@ -8225,6 +8233,9 @@ class SystemManager(object):
                     SystemManager.printError(\
                         "wrong option value with -b option, input number in integer format")
                     sys.exit(0)
+
+            elif option == 'Y':
+                SystemManager.parsePriorityOption(value)
 
             elif option == 'f':
                 SystemManager.functionEnable = True
@@ -8646,6 +8657,27 @@ class SystemManager(object):
 
 
     @staticmethod
+    def parsePriorityOption(value):
+        schedGroup = value.split(',')
+        SystemManager.removeEmptyValue(schedGroup)
+        for item in schedGroup:
+            schedSet = item.split(':')
+            try:
+                if len(schedSet) == 2:
+                    SystemManager.prio = int(schedSet[1])
+                    SystemManager.setPriority(SystemManager.pid, schedSet[0], SystemManager.prio)
+                elif len(schedSet) == 3:
+                    SystemManager.setPriority(int(schedSet[0]), schedSet[1], int(schedSet[2]))
+                else:
+                    raise
+            except:
+                SystemManager.printError(\
+                    "wrong option value %s with -Y, input PID:POLICY:PRIORITY in format" % item)
+                sys.exit(0)
+
+
+
+    @staticmethod
     def setPriority(pid, policy, pri):
         try:
             import ctypes
@@ -8666,9 +8698,10 @@ class SystemManager(object):
             if SystemManager.libcObj is None:
                 SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
 
-            argPolicy = ctypes.c_int(ConfigManager.schedList.index(policy.upper()))
-            if argPolicy == 'I':
-                argPriority = 0
+            upolicy = policy.upper()
+            argPolicy = ctypes.c_int(ConfigManager.schedList.index(upolicy))
+            if upolicy == 'I' or upolicy == 'C' or upolicy == 'B':
+                argPriority = ctypes.c_int(0)
             else:
                 argPriority = ctypes.c_int(pri)
 
@@ -8676,10 +8709,13 @@ class SystemManager(object):
                 pid, argPolicy, ctypes.byref(argPriority))
             if ret != 0:
                 raise
+
+            if upolicy == 'C' or upolicy == 'B':
+                if SystemManager.libcObj.nice(pri) != pri:
+                    raise
         except:
             SystemManager.printWarning(\
-                'Fail to set priority because of sched_setscheduler in libc')
-            return
+                'Fail to set priority of %s as %s:%s' % (pid, policy, pri))
 
 
 
@@ -18484,7 +18520,8 @@ if __name__ == '__main__':
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # set this process to RT priority #
-        SystemManager.setPriority(SystemManager.pid, 'F', 90)
+        if SystemManager.prio is None:
+            SystemManager.setPriority(SystemManager.pid, 'F', 90)
 
         # set arch #
         SystemManager.setArch(SystemManager.getArch())
