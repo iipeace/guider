@@ -5971,7 +5971,7 @@ class SystemManager(object):
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
             print('\t\t-H  [set_functionDepth]')
-            print('\t\t-Y  [set_schedPriority:policy:prio:pid]')
+            print('\t\t-Y  [set_schedPriority:policy:prio{:pid}]')
             print('\t\t-v  [verbose]')
             if SystemManager.findOption('a'):
                 print('\t[examples]')
@@ -6076,7 +6076,7 @@ class SystemManager(object):
                 print('\t\t\t- send some signal to specific processes')
                 print('\t\t\t\t# %s send -9 1234, 4567' % cmd)
                 print('\t\t\t- set priority of tasks')
-                print('\t\t\t\t# %s record -Y c:-19, 123:r:90')
+                print('\t\t\t\t# %s record -Y c:-19, r:90:1217, i:0:1209')
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
             print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
@@ -8667,12 +8667,12 @@ class SystemManager(object):
                     SystemManager.prio = int(schedSet[1])
                     SystemManager.setPriority(SystemManager.pid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
-                    SystemManager.setPriority(int(schedSet[0]), schedSet[1], int(schedSet[2]))
+                    SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
                 else:
                     raise
             except:
                 SystemManager.printError(\
-                    "wrong option value %s with -Y, input PID:POLICY:PRIORITY in format" % item)
+                    "wrong option value %s with -Y, input POLICY:PRIORITY:PID in format" % item)
                 sys.exit(0)
 
 
