@@ -544,7 +544,7 @@ class PageAnalyzer(object):
     @staticmethod
     def getPageInfo(pid, vaddr):
         if os.geteuid() != 0:
-            SystemManager.printError("Fail to get root permission")
+            SystemManager.printError("Fail to get root permission analyze pages")
             sys.exit(0)
         elif pid is False or vaddr is False:
             SystemManager.printError(\
@@ -7939,7 +7939,7 @@ class SystemManager(object):
                     SystemManager.graphEnable = True
                 if options.rfind('d') > -1:
                     if os.geteuid() != 0:
-                        SystemManager.printError("Fail to get root permission for disk analysis")
+                        SystemManager.printError("Fail to get root permission to analize disk")
                         sys.exit(0)
                     else:
                         SystemManager.diskEnable = True
@@ -7947,7 +7947,7 @@ class SystemManager(object):
                     SystemManager.processEnable = False
                 if options.rfind('s') > -1:
                     if os.geteuid() != 0:
-                        SystemManager.printError("Fail to get root permission for sampling stack")
+                        SystemManager.printError("Fail to get root permission to sample stack")
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False:
                         SystemManager.printError(\
@@ -8667,6 +8667,10 @@ class SystemManager(object):
                     SystemManager.prio = int(schedSet[1])
                     SystemManager.setPriority(SystemManager.pid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
+                    if os.geteuid() != 0:
+                        SystemManager.printError(\
+                            "Fail to get root permission to set priority of other thread")
+                        os._exit(0)
                     SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
                 else:
                     raise
@@ -9107,7 +9111,7 @@ class SystemManager(object):
             if os.geteuid() == 0:
                 SystemManager.printError("Check whether ftrace options are enabled in kernel")
             else:
-                SystemManager.printError("Fail to get root permission")
+                SystemManager.printError("Fail to get root permission to trace system")
 
             sys.exit(0)
 
@@ -10407,7 +10411,7 @@ class ThreadAnalyzer(object):
 
     def runFileTop(self):
         if os.geteuid() != 0:
-            SystemManager.printError("Fail to get root permission")
+            SystemManager.printError("Fail to get root permission to analize open files")
             sys.exit(0)
 
         while 1:
@@ -18602,7 +18606,7 @@ if __name__ == '__main__':
         if SystemManager.isFileMode():
             # check permission #
             if os.geteuid() != 0:
-                SystemManager.printError("Fail to get root permission")
+                SystemManager.printError("Fail to get root permission to analize linked files")
                 sys.exit(0)
 
             # parse analysis option #
