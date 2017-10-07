@@ -8709,13 +8709,17 @@ class SystemManager(object):
             else:
                 argPriority = ctypes.c_int(pri)
 
+            # set scheduler policy #
             ret = SystemManager.libcObj.sched_setscheduler(\
                 pid, argPolicy, ctypes.byref(argPriority))
             if ret != 0:
                 raise
 
+            # set nice value #
             if upolicy == 'C' or upolicy == 'B':
-                if SystemManager.libcObj.nice(pri) != pri:
+                argPriority = ctypes.c_int(pri)
+                ret = SystemManager.libcObj.setpriority(0, pid, argPriority)
+                if ret != 0:
                     raise
         except:
             SystemManager.printWarning(\
