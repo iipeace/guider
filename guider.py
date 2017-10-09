@@ -5528,7 +5528,7 @@ class SystemManager(object):
     blockSize = 512
     bufferSize = 0
     ttyRows = '50'
-    ttyRowsMargin = 6
+    ttyRowsMargin = 8
     ttyCols = '156'
     magicString = '@@@@@'
     procPath = '/proc'
@@ -16273,7 +16273,7 @@ class ThreadAnalyzer(object):
             for fd, path in sorted(value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
                 # cut by rows of terminal #
                 if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
-                    int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin  - 2 and \
+                    int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
                     SystemManager.printFile is None:
                     break
 
@@ -16300,8 +16300,9 @@ class ThreadAnalyzer(object):
 
             # cut by rows of terminal #
             if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin  - 2 and \
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
                 SystemManager.printFile is None:
+                SystemManager.addPrint('---more---')
                 break
 
             if fdCnt > 0:
@@ -17518,6 +17519,7 @@ class ThreadAnalyzer(object):
             if int(SystemManager.bufferRows) >= \
                 int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
                 SystemManager.printFile is None:
+                SystemManager.addPrint('---more---')
                 return
 
             # set sort value #
@@ -17742,6 +17744,7 @@ class ThreadAnalyzer(object):
                         if int(SystemManager.bufferRows) >= \
                             int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
                             SystemManager.printFile is None:
+                            SystemManager.addPrint('---more---')
                             return
 
                 SystemManager.addPrint(oneLine + '\n')
@@ -17877,7 +17880,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
                 int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin - 2:
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin:
+                SystemManager.addPrint('---more---')
                 return
 
 
@@ -17970,7 +17974,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
                 int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin - 2:
+                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin:
+                SystemManager.addPrint('---more---')
                 return
 
 
