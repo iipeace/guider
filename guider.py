@@ -17269,6 +17269,9 @@ class ThreadAnalyzer(object):
             self.reportData['task']['nrThread'] = self.nrThread
             self.reportData['task']['nrCtx'] = ctxSwc
 
+            self.reportData['net'] = {}
+            self.reportData['net']['netInput'], self.reportData['net']['netOut'] = netIO.split('/')
+
         # print each cpu usage #
         if SystemManager.showAll:
             SystemManager.addPrint('%s\n' % oneLine)
