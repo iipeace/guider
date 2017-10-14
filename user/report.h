@@ -13,8 +13,33 @@
 #ifndef __GUIDER_REPLIB_H__
 #define __GUIDER_REPLIB_H__
 
+#define NAME_MAX 32
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <pthread.h>
 
 #endif
+
+// file interface
+int g_repFd;
+int openRepFile(const char *path);
+int readRepData(char (*list)[NAME_MAX], int listSize);
+int closeRepFile(void);
+
+// read interface
+enum guider_report_read_bits {
+    GRR_WAIT,
+    GRR_THREAD,
+    GRR_COND,
+    GRR_MAX,
+}
+
+int g_repType;
+int initRepFile(const char *path);
+int initRepSocket(const char *serverIP, int serverPort, int clientPort);
+int readRepItem(const char (*nameList)[NAME_MAX], char (*valueList)[NAME_MAX], int listSize, int flag);
+int addRepCond(void);
+int removeRepCond(void);
+int cleanRep(void);
+
