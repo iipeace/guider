@@ -8721,6 +8721,8 @@ class SystemManager(object):
                 ret = SystemManager.libcObj.setpriority(0, pid, argPriority)
                 if ret != 0:
                     raise
+
+            SystemManager.printInfo("Change priority of %d task to %d(%s)" % (pid, pri, policy))
         except:
             SystemManager.printWarning(\
                 'Fail to set priority of %s as %s:%s' % (pid, policy, pri))
