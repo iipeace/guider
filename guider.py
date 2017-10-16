@@ -8722,10 +8722,11 @@ class SystemManager(object):
                 if ret != 0:
                     raise
 
-            SystemManager.printInfo("Change priority of %d task to %d(%s)" % (pid, pri, policy))
+            SystemManager.printInfo('priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
         except:
-            SystemManager.printWarning(\
+            SystemManager.printError(\
                 'Fail to set priority of %s as %s:%s' % (pid, policy, pri))
+            os._exit(0)
 
 
 
@@ -17193,6 +17194,7 @@ class ThreadAnalyzer(object):
         kerUsage = int(((nowData['system'] - prevData['system']) / SystemManager.nrCore) / interval)
         irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
             / SystemManager.nrCore) / interval)
+        idleUsage = int(((nowData['idle'] - prevData['idle']) / SystemManager.nrCore) / interval)
 
         ioUsage = 0
         for idx, value in self.cpuData.items():
@@ -17202,7 +17204,11 @@ class ThreadAnalyzer(object):
                 pass
         ioUsage = int((ioUsage / SystemManager.nrCore) / interval)
 
-        totalUsage = int(userUsage + kerUsage + irqUsage)
+        #totalUsage = int(userUsage + kerUsage + irqUsage)
+        if idleUsage <= 100:
+            totalUsage = 100 - idleUsage
+        else:
+            totalUsage = 0
 
         # get network usage #
         netIO = '%s/%s' % self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
@@ -17298,16 +17304,25 @@ class ThreadAnalyzer(object):
                     ioUsage = int((nowData['iowait'] - prevData['iowait']) / interval)
                     irqUsage = int((nowData['irq'] - prevData['irq'] + \
                         nowData['softirq'] - prevData['softirq']) / interval)
+                    idleUsage = int((nowData['idle'] - prevData['idle']) / interval)
+
+                    if idleUsage <= 100:
+                        totalUsage = 100 - idleUsage
+                    else:
+                        totalUsage = 0
+
+                    '''
                     totalUsage = userUsage + kerUsage + irqUsage
 
-                    # limit total usage of each cpus #
+                    # limit total core usage #
                     if totalUsage > 100:
                         totalUsage = 100
+                    '''
 
-                    # limit total usage of each modes #
+                    # limit total core usage in each modes #
                     if userUsage > 100:
                         userUsage = 100
-                    elif kerUsage > 100:
+                    if kerUsage > 100:
                         kerUsage = 100
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
