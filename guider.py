@@ -18,6 +18,7 @@ try:
     import re
     import sys
     import signal
+    import select
     import time
     import os
     import shutil
@@ -5338,7 +5339,7 @@ class FileAnalyzer(object):
 
         for fileName, val in self.fileData.items():
             if fileName.startswith('/dev'):
-                SystemManager.printWarning("Skip to analize %s because it is device node" % fileName)
+                SystemManager.printWarning("Skip to analyze %s because it is device node" % fileName)
                 continue
 
             if len(self.intervalFileData) > 0:
@@ -5993,11 +5994,11 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -s . -K evt1:func1:%%bp/u32.%%sp/s64,evt2:0x1234:$stack:NONE' % cmd)
                 print('\t\t\t- record specific kernel function events with return value')
                 print('\t\t\t\t# %s record -s . -K evt1:func1::*string,evt2:0x1234:NONE:**string' % cmd)
-                print('\t\t\t- analize record data by expressing all possible information')
+                print('\t\t\t- analyze record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -a -i' % cmd)
-                print('\t\t\t- analize record data including preemption info of specific threads')
+                print('\t\t\t- analyze record data including preemption info of specific threads')
                 print('\t\t\t\t# %s guider.dat -o . -p 1234,4567' % cmd)
-                print('\t\t\t- analize specific threads that are involved in the specific processes')
+                print('\t\t\t- analyze specific threads that are involved in the specific processes')
                 print('\t\t\t\t# %s guider.dat -o . -P -g 1234,4567' % cmd)
 
                 print('\n\t\t[function mode]')
@@ -6007,9 +6008,9 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -f -s . -d u -c sched/sched_switch' % cmd)
                 print('\t\t\t- record all usage of functions in specific threads')
                 print('\t\t\t\t# %s record -f -s . -e mbh -g 1234' % cmd)
-                print('\t\t\t- analize record data by expressing all possible information')
+                print('\t\t\t- analyze record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-                print('\t\t\t- analize record data by limit 3 depth')
+                print('\t\t\t- analyze record data by limit 3 depth')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
                 print('\t\t\t- record specific kernel functions in a specific thread')
                 print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
@@ -7609,6 +7610,7 @@ class SystemManager(object):
 
     @staticmethod
     def pipePrint(line):
+        # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
             SystemManager.printFile == None and SystemManager.isTopMode() is False and \
             sys.platform.startswith('linux'):
@@ -7619,6 +7621,7 @@ class SystemManager(object):
                     "Fail to find less util, use -o option to save output into file\n")
                 sys.exit(0)
 
+        # pager output #
         if SystemManager.pipeForPrint != None:
             try:
                 SystemManager.pipeForPrint.write(line + '\n')
@@ -7627,12 +7630,14 @@ class SystemManager(object):
                 SystemManager.printError("Fail to print to pipe\n")
                 SystemManager.pipeForPrint = None
 
+        # file output #
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
             if sys.platform.startswith('linux'):
                 token = '/'
             else:
                 token = '\\'
 
+            # analysis mode #
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
                 fileNamePos = SystemManager.inputFile.rfind(token)
                 if  fileNamePos >= 0:
@@ -7645,7 +7650,7 @@ class SystemManager(object):
             SystemManager.inputFile = SystemManager.inputFile.replace(token * 2, token)
 
             try:
-                # backup output file #
+                # backup exist output file #
                 if os.path.isfile(SystemManager.inputFile):
                     shutil.move(\
                         SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
@@ -7662,6 +7667,7 @@ class SystemManager(object):
                 SystemManager.printError("Fail to open %s\n" % (SystemManager.inputFile))
                 sys.exit(0)
 
+        # file output #
         if SystemManager.fileForPrint != None:
             try:
                 if SystemManager.isTopMode() is False:
@@ -7939,7 +7945,7 @@ class SystemManager(object):
                     SystemManager.graphEnable = True
                 if options.rfind('d') > -1:
                     if os.geteuid() != 0:
-                        SystemManager.printError("Fail to get root permission to analize disk")
+                        SystemManager.printError("Fail to get root permission to analyze disk")
                         sys.exit(0)
                     else:
                         SystemManager.diskEnable = True
@@ -10418,7 +10424,7 @@ class ThreadAnalyzer(object):
 
     def runFileTop(self):
         if os.geteuid() != 0:
-            SystemManager.printError("Fail to get root permission to analize open files")
+            SystemManager.printError("Fail to get root permission to analyze open files")
             sys.exit(0)
 
         while 1:
@@ -10467,6 +10473,17 @@ class ThreadAnalyzer(object):
                 self.handleServerResponse(ret)
 
                 continue
+
+            # pause and resume by enter key #
+            if SystemManager.printFile is None and \
+                select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                SystemManager.pipePrint("[ Input ENTER to continue ]")
+                sys.stdin.read(1)
+                while True:
+                    time.sleep(1)
+                    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                        sys.stdin.read(1)
+                        break
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
@@ -16314,12 +16331,9 @@ class ThreadAnalyzer(object):
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
 
-        # print title #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
-
         # realtime mode #
         if SystemManager.printFile is None:
+            SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
@@ -18102,11 +18116,9 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         # PRINT service #
         else:
-            if SystemManager.printFile is None:
-                SystemManager.printTitle()
-
             # realtime mode #
             if SystemManager.printFile is None:
+                SystemManager.printTitle()
                 SystemManager.pipePrint(data)
                 SystemManager.clearPrint()
             # buffered mode #
@@ -18453,12 +18465,9 @@ class ThreadAnalyzer(object):
                     else:
                         cli.ignore += 1
 
-        # print title #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
-
         # realtime mode #
         if SystemManager.printFile is None:
+            SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
@@ -18635,7 +18644,7 @@ if __name__ == '__main__':
         if SystemManager.isFileMode():
             # check permission #
             if os.geteuid() != 0:
-                SystemManager.printError("Fail to get root permission to analize linked files")
+                SystemManager.printError("Fail to get root permission to analyze linked files")
                 sys.exit(0)
 
             # parse analysis option #
