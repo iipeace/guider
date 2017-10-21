@@ -18,7 +18,6 @@ try:
     import re
     import sys
     import signal
-    import select
     import time
     import os
     import shutil
@@ -5579,6 +5578,7 @@ class SystemManager(object):
     addrListForPrint = {}
     addrListForReport = {}
     jsonObject = None
+    selectObject = None
 
     tgidEnable = True
     binEnable = False
@@ -10464,6 +10464,16 @@ class ThreadAnalyzer(object):
 
 
     def runProcTop(self):
+        # import select package on foreground #
+        if SystemManager.printFile is None:
+            try:
+                import select
+                SystemManager.selectObject = select
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError("Fail to import package: " + err.args[0])
+
+        # run loop #
         while 1:
             if SystemManager.addrOfServer is not None:
                 # receive response from server #
@@ -10476,14 +10486,16 @@ class ThreadAnalyzer(object):
 
             # pause and resume by enter key #
             if SystemManager.printFile is None and \
-                select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                SystemManager.selectObject != None and \
+                SystemManager.selectObject.select([sys.stdin], [], [], 0) == \
+                ([sys.stdin], [], []):
                 SystemManager.pipePrint("[ Input ENTER to continue ]")
-                sys.stdin.read(1)
-                while True:
-                    time.sleep(1)
-                    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                        sys.stdin.read(1)
-                        break
+
+                # flush buffered enter key #
+                sys.stdin.readline()
+
+                # wait for enter key #
+                sys.stdin.readline()
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
