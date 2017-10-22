@@ -5578,7 +5578,6 @@ class SystemManager(object):
     addrListForPrint = {}
     addrListForReport = {}
     jsonObject = None
-    selectObject = None
 
     tgidEnable = True
     binEnable = False
@@ -10466,9 +10465,10 @@ class ThreadAnalyzer(object):
     def runProcTop(self):
         # import select package on foreground #
         if SystemManager.printFile is None:
+            selectObject = None
             try:
                 import select
-                SystemManager.selectObject = select
+                selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
                 SystemManager.printError("Fail to import package: " + err.args[0])
@@ -10485,10 +10485,8 @@ class ThreadAnalyzer(object):
                 continue
 
             # pause and resume by enter key #
-            if SystemManager.printFile is None and \
-                SystemManager.selectObject != None and \
-                SystemManager.selectObject.select([sys.stdin], [], [], 0) == \
-                ([sys.stdin], [], []):
+            if SystemManager.printFile is None and selectObject != None and \
+                selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 SystemManager.pipePrint("[ Input ENTER to continue ]")
 
                 # flush buffered enter key #
@@ -10531,6 +10529,7 @@ class ThreadAnalyzer(object):
                 waitTime = SystemManager.intervalEnable - delayTime
 
             if SystemManager.stackEnable and self.stackTable != {}:
+                # get stack of threads #
                 self.sampleStack(waitTime)
             else:
                 # wait for next interval #
