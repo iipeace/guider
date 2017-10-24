@@ -5964,7 +5964,7 @@ class SystemManager(object):
             print('\t\t-L  [convert_textToImage]')
             print('\t[common options]')
             print('\t\t-a  [show_allInfo]')
-            print('\t\t-Q  [print_allRows]')
+            print('\t\t-Q  [print_allRowsInaStream]')
             print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [set_filter:comms|tids{:file}]')
             print('\t\t-A  [set_arch:arm|x86|x64]')
@@ -6025,6 +6025,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -ef' % cmd)
                 print('\t\t\t- show real-time resource usage of processes by sorting memory')
                 print('\t\t\t\t# %s top -S m' % cmd)
+                print('\t\t\t- show real-time resource usage of processes only 5 times per 3 sec interval')
+                print('\t\t\t\t# %s top -R 3, 5' % cmd)
                 print('\t\t\t- show real-time resource usage including disk of threads per 2 sec interval')
                 print('\t\t\t\t# %s top -e td -i 2 -a' % cmd)
                 print('\t\t\t- show real-time resource usage of specific processes/threads involved in specific process group')
@@ -7166,7 +7168,7 @@ class SystemManager(object):
 
     @staticmethod
     def printTitle():
-        if SystemManager.printFile is None:
+        if SystemManager.printFile is None and SystemManager.printAllEnable is False:
             if sys.platform.startswith('linux'):
                 sys.stdout.write("\x1b[2J\x1b[H")
             elif sys.platform.startswith('win'):
@@ -8751,7 +8753,7 @@ class SystemManager(object):
     def getTty():
         try:
             if SystemManager.printAllEnable:
-                SystemManager.ttyRows = SystemManager.ttyCols = '4096'
+                SystemManager.ttyRows = SystemManager.ttyCols = '8192'
             else:
                 SystemManager.ttyRows, SystemManager.ttyCols = \
                     os.popen('stty size', 'r').read().split()
