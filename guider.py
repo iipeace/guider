@@ -1499,7 +1499,7 @@ class FunctionAnalyzer(object):
                             (tempSym == addr or \
                             tempSym == self.posData[addr]['offset'] or \
                             addr == '00c0ffee'):
-                                continue
+                        continue
 
                     # No symbol data #
                     if tempSym == '':
@@ -13194,26 +13194,34 @@ class ThreadAnalyzer(object):
                     prevOut = long(prevStat[SystemManager.netInIndex + 1])
 
                     inDiff = nowIn - prevIn
-                    recv = inDiff >> 20
-                    if recv > 0:
-                        recv = '%sM' % recv
-                    else:
-                        recv = '%sK' % (inDiff >> 10)
-
                     outDiff = nowOut - prevOut
-                    send = outDiff >> 20
-                    if send > 0:
-                        send = '%sM' % send
-                    else:
-                        send = '%sK' % (outDiff >> 10)
 
-                    return (recv, send)
+                    return (inDiff, outDiff)
                 except:
                     pass
         except:
-            pass
+            return (0, 0)
 
-        return ('-', '-')
+
+
+    def convertNetworkUsage(self, inDiff, outDiff):
+        try:
+            recv = inDiff >> 20
+            if recv > 0:
+                recv = '%sM' % recv
+            else:
+                recv = '%sK' % (inDiff >> 10)
+
+            send = outDiff >> 20
+            if send > 0:
+                send = '%sM' % send
+            else:
+                send = '%sK' % (outDiff >> 10)
+
+            return (recv, send)
+
+        except:
+            return ('-', '-')
 
 
 
@@ -16370,7 +16378,7 @@ class ThreadAnalyzer(object):
 
         # get process list #
         try:
-           pids = os.listdir(SystemManager.procPath)
+            pids = os.listdir(SystemManager.procPath)
         except:
             SystemManager.printError('Fail to open %s' % SystemManager.procPath)
             sys.exit(0)
@@ -17238,7 +17246,8 @@ class ThreadAnalyzer(object):
             totalUsage = 0
 
         # get network usage #
-        netIO = '%s/%s' % self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
+        (netIn, netOut) = self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
+        netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
@@ -17305,7 +17314,8 @@ class ThreadAnalyzer(object):
             self.reportData['task']['nrCtx'] = ctxSwc
 
             self.reportData['net'] = {}
-            self.reportData['net']['netInput'], self.reportData['net']['netOut'] = netIO.split('/')
+            self.reportData['net']['netInput'] = netIn
+            self.reportData['net']['netOutput'] = netOut
 
         # print each cpu usage #
         if SystemManager.showAll:
