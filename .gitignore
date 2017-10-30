@@ -2,4 +2,6 @@
 *.o
 *.so
 *.swp
-.config
+*.png
+*.out*
+*.report
