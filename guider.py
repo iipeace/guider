@@ -718,7 +718,7 @@ class PageAnalyzer(object):
             SystemManager.printError("Fail to find %s process" % pid)
             os._exit(0)
 
-        page_size = os.sysconf("SC_PAGE_SIZE")
+        page_size = os.sysconf("SC_Page PAGE_SIZE")
         pagemap_entry_size = 8
         offset  = (addr / page_size) * pagemap_entry_size
 
@@ -2353,9 +2353,9 @@ class FunctionAnalyzer(object):
 
         if self.nowCtx['nested'] > 2:
             #self.printDbgInfo()
-            SystemManager.printError(\
-                "Fail to analyze data because of corruption (over) at %s" % \
-                SystemManager.dbgEventLine)
+            SystemManager.printError((\
+                "Fail to analyze stack data because of corruption (overflowflow) at %s line,"\
+                " try to record again") % SystemManager.dbgEventLine)
             sys.exit(0)
 
 
@@ -2734,9 +2734,9 @@ class FunctionAnalyzer(object):
 
             if self.nowCtx['nested'] < 0:
                 #self.printDbgInfo()
-                SystemManager.printError(\
-                    "Fail to analyze data because of corruption (under) at %s" % \
-                    SystemManager.dbgEventLine)
+                SystemManager.printError((\
+                    "Fail to analyze stack data because of corruption (underflow) at %s line,"\
+                    " try to record again") % SystemManager.dbgEventLine)
                 sys.exit(0)
 
             return True
@@ -2980,8 +2980,11 @@ class FunctionAnalyzer(object):
             "{0:_^53}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^8}|".\
             format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "CUSTOM"))
         SystemManager.pipePrint(\
-            "{0:53}|{1:7}|{2:54}|{3:8}|{4:18}|{5:8}|".\
-            format(" ", " ", " ", " ", " ", " "))
+            ("{0:^16}|{1:^7}|{2:^7}|{3:^8}|{4:^5}|{5:^5}|{6:^7}|" + \
+            "{7:^9}{8:^8}{9:^8}{10:^12}|{11:^8}|{12:^7}|{13:^8}|" + \
+            "{14:^8}|{15:^9}|{16:^8}|").\
+            format(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", \
+            " ", " ", " ", " ", " ", " "))
         SystemManager.pipePrint(\
             ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^8}|{4:_^5}|{5:_^5}|{6:_^7}|" + \
             "{7:_^9}({8:_^8}/{9:_^8}/{10:_^8})|{11:_^8}|{12:_^7}|{13:_^8}|" + \
@@ -3331,7 +3334,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print cpu usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+            SystemManager.pipePrint('[Function CPU Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
@@ -3424,7 +3427,7 @@ class FunctionAnalyzer(object):
 
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function CPU Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+        SystemManager.pipePrint('[Function CPU Tick Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
             (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
@@ -3533,9 +3536,9 @@ class FunctionAnalyzer(object):
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
 
         if SystemManager.userEnable:
-            # Print unknown memory free info in user space #
+            # Print memory reduce by page free in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Unknown Page Free Info] [Size: %dKB] (USER)' % \
+            SystemManager.pipePrint('[Function Free Page Info] [Size: %dKB] (USER)' % \
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3619,9 +3622,9 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print unknown memory free info in kernel space #
+        # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Unknown Page Free Info] [Size: %dKB] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Free Page Info] [Size: %dKB] (KERNEL)' % \
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -3699,11 +3702,11 @@ class FunctionAnalyzer(object):
 
 
     def printKnownMemFreeInfo(self):
-        # Print known memory free info in user space #
+        # Print page alloc / free pair in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Known Page Free Info] [Total: %dKB] (USER)' % \
+                '[Function Alloc/Free Page Info] [Total: %dKB] (USER)' % \
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3804,10 +3807,10 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print known memory free info in kernel space #
+        # Print page alloc / free pair in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Known Page Free Info] [Total: %dKB] (KERNEL)' % \
+            '[Function Alloc/Free Page Info] [Total: %dKB] (KERNEL)' % \
             (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -3953,11 +3956,11 @@ class FunctionAnalyzer(object):
             if self.kernelSymData[item['kernelSym']]['pageRemainMax'] < lifeTime:
                 self.kernelSymData[item['kernelSym']]['pageRemainMax'] = lifeTime
 
-        # Print mem usage in user space #
+        # Print memory usage by page allocation in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                '[Function Alloc Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -4057,10 +4060,10 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print mem usage in kernel space #
+        # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            '[Function Alloc Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
             (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -4171,7 +4174,7 @@ class FunctionAnalyzer(object):
         # Print heap usage in user space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Heap Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+            '[Function Not Freed Heap Alloc Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
             ((self.heapExpSize - self.heapRedSize) >> 10, \
             self.heapExpSize >> 10, self.heapExpEventCnt, \
             self.heapRedSize >> 10, self.heapRedEventCnt))
@@ -4265,7 +4268,7 @@ class FunctionAnalyzer(object):
         # Print remaining heap history #
         if SystemManager.showAll and len(self.heapTable) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Heap History] [Cnt: %d]' % len(self.heapTable))
+            SystemManager.pipePrint('[Function Not Freed Heap Alloc History] [Cnt: %d]' % len(self.heapTable))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -4382,7 +4385,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print block write usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint('[Function Block Write Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -4469,7 +4472,7 @@ class FunctionAnalyzer(object):
 
         # Print block write usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_WR Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Block Write Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -4559,7 +4562,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print block read usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint('[Function Block Read Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -4643,7 +4646,7 @@ class FunctionAnalyzer(object):
 
         # Print block read usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function BLK_RD Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Block Read Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -10425,7 +10428,7 @@ class ThreadAnalyzer(object):
 
     def runFileTop(self):
         if os.geteuid() != 0:
-            SystemManager.printError("Fail to get root permission to analyze open files")
+            SystemManager.printError("Fail to get root permission to analyze opened files")
             sys.exit(0)
 
         while 1:
