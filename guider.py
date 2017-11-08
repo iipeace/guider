@@ -553,7 +553,6 @@ class PageAnalyzer(object):
 
         vrange = vaddr.split('-')
         rangeCnt = len(vrange)
-        pageSize = os.sysconf("SC_PAGE_SIZE")
 
         if rangeCnt > 2:
             SystemManager.printError(\
@@ -585,7 +584,7 @@ class PageAnalyzer(object):
 
                     offset = 0
                 else:
-                    offset = pageSize
+                    offset = SystemManager.pageSize
 
                 if addrs > addre:
                     SystemManager.printError(\
@@ -606,7 +605,7 @@ class PageAnalyzer(object):
             format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
-        for addr in xrange(addrs, addre + offset, pageSize):
+        for addr in xrange(addrs, addre + offset, SystemManager.pageSize):
             entry = PageAnalyzer.get_pagemap_entry(pid, addr)
 
             pfn = PageAnalyzer.get_pfn(entry)
@@ -5527,7 +5526,11 @@ class LogManager(object):
 class SystemManager(object):
     """ Manager for system setting """
 
-    pageSize = 4096
+    try:
+        pageSize = os.sysconf("SC_PAGE_SIZE")
+    except:
+        pageSize = 4096
+
     blockSize = 512
     bufferSize = 0
     ttyRows = '50'
@@ -5888,6 +5891,15 @@ class SystemManager(object):
         si.printAllInfoToBuf()
         SystemManager.pipePrint(SystemManager.systemInfoBuffer)
         SystemManager.clearInfoBuffer()
+
+
+
+    @staticmethod
+    def checkVersion():
+        if sys.version_info < (2, 6):
+            SystemManager.printWarning(\
+                'python version is %d.%d so that some features do not work' \
+                % (sys.version_info[0], sys.version_info[1]))
 
 
 
@@ -18517,10 +18529,14 @@ if __name__ == '__main__':
     oneLine = "-" * SystemManager.lineLength
     twoLine = "=" * SystemManager.lineLength
 
+    # print options #
     SystemManager.printOptions()
 
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
+
+    # check version #
+    SystemManager.checkVersion()
 
     # set error logger #
     SystemManager.setErrorLogger()
