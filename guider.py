@@ -4753,8 +4753,11 @@ class FileAnalyzer(object):
             'linkList': None}
 
         try:
-            import ctypes
-            from ctypes import cdll, POINTER
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import package: " + err.args[0])
@@ -4771,8 +4774,38 @@ class FileAnalyzer(object):
             sys.exit(0)
 
         try:
-            # load the library #
-            self.libguider = cdll.LoadLibrary(self.libguiderPath)
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+
+            # define mmap types #
+            SystemManager.libcObj.mmap.argtypes = \
+                [POINTER(None), c_size_t, c_int, c_int, c_int, c_long]
+            SystemManager.libcObj.mmap.restype = POINTER(None)
+
+            # define munmap types #
+            SystemManager.libcObj.munmap.argtypes = [POINTER(None), c_size_t]
+            SystemManager.libcObj.munmap.restype = c_int
+
+            # define mincore types #
+            SystemManager.libcObj.mincore.argtypes = \
+                [POINTER(None), c_size_t, POINTER(c_ubyte)]
+            SystemManager.libcObj.mincore.restype = c_int
+        except:
+            SystemManager.libcObj = None
+            SystemManager.printWarning('Fail to use libc to call systemcall')
+
+        try:
+            # load custom library of guider #
+            if SystemManager.libcObj is None:
+                self.libguider = cdll.LoadLibrary(self.libguiderPath)
+
+                # set the argument type #
+                self.libguider.get_filePageMap.argtypes = \
+                        [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+
+                # set the return type #
+                self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
         except:
             try:
                 self.libguider = cdll.LoadLibrary('./%s' % self.libguiderPath)
@@ -4781,11 +4814,6 @@ class FileAnalyzer(object):
                     'Fail to open %s, set LD_LIBRARY_PATH to use %s' % \
                     (self.libguiderPath, self.libguiderPath))
                 sys.exit(0)
-
-        # set the argument type #
-        self.libguider.get_filePageMap.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
-        # set the return type #
-        self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
 
         # set maxFd #
         SystemManager.setMaxFd()
@@ -5453,7 +5481,32 @@ class FileAnalyzer(object):
             size = val['size']
 
             # call mincore systemcall #
-            pagemap = self.libguider.get_filePageMap(fd, offset, size)
+            if SystemManager.libcObj is None:
+                # call mincore systemcall by custom library of guider #
+                pagemap = self.libguider.get_filePageMap(fd, offset, size)
+            else:
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
+                from  ctypes import POINTER, c_char, c_ubyte, cast
+
+                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+                mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
+
+                # get the size of the table to map file segment #
+                tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
+
+                # make a pagemap table #
+                pagemap = (tsize * ctypes.c_ubyte)()
+
+                # call mincore systemcall by standard libc library #
+                ret = SystemManager.libcObj.mincore(mm, size, cast(pagemap, POINTER(c_ubyte)))
+                if ret < 0:
+                    pagemap = None
+
+                # unmap #
+                SystemManager.libcObj.munmap(mm, size)
 
             # save the array of ctype into list #
             if pagemap is not None:
@@ -5577,7 +5630,9 @@ class SystemManager(object):
     customEventList = []
     userEventList = []
     kernelEventList = []
+    ctypesObj = None
     libcObj = None
+    libcPath = 'libc.so.6'
 
     addrAsServer = None
     addrOfServer = None
@@ -5742,7 +5797,10 @@ class SystemManager(object):
     def setMaxFd():
         if sys.platform.startswith('linux'):
             try:
-                import ctypes
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
                 from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
 
                 class rlimit(Structure):
@@ -5756,8 +5814,9 @@ class SystemManager(object):
                 return
 
             try:
+                # load standard libc library #
                 if SystemManager.libcObj is None:
-                    SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                    SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
 
                 SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
                 SystemManager.libcObj.getrlimit.restype = c_int
@@ -5782,20 +5841,26 @@ class SystemManager(object):
     def setComm():
         if sys.platform.startswith('linux'):
             try:
-                import ctypes
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
                 from ctypes import cdll, POINTER
             except ImportError:
                 err = sys.exc_info()[1]
                 print("[Warning] Fail to import package: " + err.args[0])
 
             try:
+                # load standard libc library #
                 if SystemManager.libcObj is None:
-                    SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                    SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
                 SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
             except:
                 print('[Warning] Fail to set comm because of prctl in libc')
+        elif sys.platform.startswith('darwin'):
+            print('[Warning] Fail to set comm because this platform(%s) is not supported' % sys.platform)
         else:
-            print('[Warning] Fail to set comm because this platform is not linux')
+            print('[Warning] Fail to set comm because this platform(%s) is not supported' % sys.platform)
 
 
 
@@ -7184,7 +7249,7 @@ class SystemManager(object):
     @staticmethod
     def printTitle():
         if SystemManager.printFile is None and SystemManager.printAllEnable is False:
-            if sys.platform.startswith('linux'):
+            if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
                 sys.stdout.write("\x1b[2J\x1b[H")
             elif sys.platform.startswith('win'):
                 os.system('cls')
@@ -7629,7 +7694,7 @@ class SystemManager(object):
         # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
             SystemManager.printFile == None and SystemManager.isTopMode() is False and \
-            sys.platform.startswith('linux'):
+            sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
             try:
                 SystemManager.pipeForPrint = os.popen('less', 'w')
             except:
@@ -7648,7 +7713,7 @@ class SystemManager(object):
 
         # file output #
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
-            if sys.platform.startswith('linux'):
+            if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
                 token = '/'
             else:
                 token = '\\'
@@ -8706,7 +8771,10 @@ class SystemManager(object):
     @staticmethod
     def setPriority(pid, policy, pri):
         try:
-            import ctypes
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
             from ctypes import cdll, POINTER
         except ImportError:
             err = sys.exc_info()[1]
@@ -8720,9 +8788,9 @@ class SystemManager(object):
             return
 
         try:
-            # load the library #
+            # load standard libc library #
             if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary('libc.so.6')
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
 
             upolicy = policy.upper()
             argPolicy = ctypes.c_int(ConfigManager.schedList.index(upolicy))
@@ -8746,8 +8814,11 @@ class SystemManager(object):
 
             SystemManager.printInfo('priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
         except:
+            err = ''
+            if os.geteuid() != 0:
+                err = ', it needs root permission to make priority higher'
             SystemManager.printError(\
-                'Fail to set priority of %s as %s:%s' % (pid, policy, pri))
+                'Fail to set priority of %s as %s(%s)%s' % (pid, pri, policy, err))
             os._exit(0)
 
 
@@ -11079,7 +11150,8 @@ class ThreadAnalyzer(object):
         tick_params(axis='y', direction='in')
         xticks(fontsize=4)
         ylim([0, ymax])
-        xlim([timeline[0], timeline[-1]])
+        if len(timeline) > 1:
+            xlim([timeline[0], timeline[-1]])
         inc = ymax / 10
         if inc == 0:
             inc = 1
@@ -11272,7 +11344,8 @@ class ThreadAnalyzer(object):
         tick_params(axis='y', direction='in')
         yticks(fontsize = 5)
         xticks(fontsize = 4)
-        xlim([timeline[0], timeline[-1]])
+        if len(timeline) > 1:
+            xlim([timeline[0], timeline[-1]])
         ticklabel_format(useOffset=False)
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
@@ -18595,8 +18668,9 @@ if __name__ == '__main__':
 
     # parse recording option #
     if SystemManager.isRecordMode():
-        if sys.platform.startswith('linux') is False:
-            print('[Error] Fail to record because this platform is not linux')
+        if sys.platform.startswith('linux') is False and \
+            sys.platform.startswith('darwin') is False:
+            print('[Error] Fail to record because this platform is not supported')
             sys.exit(0)
 
         # update record status #
