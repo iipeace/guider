@@ -6014,7 +6014,7 @@ class SystemManager(object):
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
             print('\t\t\t  [top]      {r(ss)|v(ss)}')
-            print('\t\t-s  [save_traceData:dir/file]')
+            print('\t\t-s  [save_traceData:path]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]')
             print('\t\t-u  [run_inBackground]')
             print('\t\t-W  [wait_forSignal]')
@@ -6023,7 +6023,7 @@ class SystemManager(object):
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
             print('\t\t-T  [set_fontPath]')
-            print('\t\t-j  [set_reportPath:dir]')
+            print('\t\t-j  [set_reportPath:path]')
             print('\t\t-U  [set_userEvent:name:func|addr:file]')
             print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
             print('\t\t-C  [set_commandScriptPath:file]')
@@ -6034,7 +6034,7 @@ class SystemManager(object):
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t\t-m  [set_objdumpPath:file]')
             print('\t[analysis options]')
-            print('\t\t-o  [save_outputData:dir]')
+            print('\t\t-o  [save_outputData:path]')
             print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
             print('\t\t-l  [set_addr2linePath:files]')
@@ -7118,8 +7118,10 @@ class SystemManager(object):
             try:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile):
-                    shutil.move(SystemManager.outputFile, \
-                            os.path.join(SystemManager.outputFile + '.old'))
+                    backupFile = os.path.join(SystemManager.outputFile + '.old')
+                    shutil.move(SystemManager.outputFile, backupFile)
+                    SystemManager.printInfo('%s is renamed to %s' % \
+                        (SystemManager.outputFile, backupFile))
 
                 f = open(SystemManager.outputFile, 'w')
 
@@ -7723,18 +7725,27 @@ class SystemManager(object):
                 fileNamePos = SystemManager.inputFile.rfind(token)
                 if  fileNamePos >= 0:
                     SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
-                SystemManager.inputFile = \
-                    SystemManager.printFile + token + SystemManager.inputFile.replace('dat', 'out')
+
+                if os.path.isdir(SystemManager.printFile):
+                    SystemManager.inputFile = \
+                        SystemManager.printFile + token + SystemManager.inputFile.replace('dat', 'out')
+                else:
+                    SystemManager.inputFile = SystemManager.printFile
             else:
-                SystemManager.inputFile = SystemManager.printFile + token + 'guider.out'
+                if os.path.isdir(SystemManager.printFile):
+                    SystemManager.inputFile = SystemManager.printFile + token + 'guider.out'
+                else:
+                    SystemManager.inputFile = SystemManager.printFile
 
             SystemManager.inputFile = SystemManager.inputFile.replace(token * 2, token)
 
             try:
                 # backup exist output file #
                 if os.path.isfile(SystemManager.inputFile):
-                    shutil.move(\
-                        SystemManager.inputFile, os.path.join(SystemManager.inputFile + '.old'))
+                    backupFile = os.path.join(SystemManager.inputFile + '.old')
+                    shutil.move(SystemManager.inputFile, backupFile)
+                    SystemManager.printInfo('%s is renamed to %s' % \
+                        (SystemManager.inputFile, backupFile))
             except:
                 SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
 
@@ -7951,10 +7962,15 @@ class SystemManager(object):
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
-                if os.path.isdir(SystemManager.printFile) == False:
-                    SystemManager.printError(\
-                        "wrong option value with -o option, use existing directory path")
+                if len(SystemManager.printFile) == 0:
+                    SystemManager.printError("no option value with -o option")
                     sys.exit(0)
+
+                if os.path.isdir(SystemManager.printFile) == False:
+                    upDirPos = SystemManager.printFile.rfind('/')
+                    if upDirPos > 0 and os.path.isdir(SystemManager.printFile[:upDirPos]) is False:
+                        SystemManager.printError("wrong path with -o option")
+                        sys.exit(0)
 
             elif option == 'I' and SystemManager.isTopMode():
                 SystemManager.sourceFile = value
@@ -8155,9 +8171,21 @@ class SystemManager(object):
 
             elif option == 'j' and SystemManager.isTopMode():
                 SystemManager.reportPath = value
-                SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
+                if len(SystemManager.reportPath) == 0:
+                    SystemManager.printError("no option value with -j option")
+                    sys.exit(0)
+
+                if os.path.isdir(SystemManager.reportPath) == False:
+                    upDirPos = SystemManager.reportPath.rfind('/')
+                    if upDirPos > 0 and os.path.isdir(SystemManager.reportPath[:upDirPos]) is False:
+                        SystemManager.printError("wrong path with -j option")
+                        sys.exit(0)
+
+                if os.path.isdir(SystemManager.reportPath):
+                    SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
+
                 SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
-                SystemManager.printInfo("use %s as local report file" % SystemManager.reportPath)
+                SystemManager.printInfo("start writing report to %s" % SystemManager.reportPath)
 
             elif option == 'x' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
@@ -8472,6 +8500,9 @@ class SystemManager(object):
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
+                if len(SystemManager.printFile) == 0:
+                    SystemManager.printError("no option value with -o option")
+                    sys.exit(0)
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
