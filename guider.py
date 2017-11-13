@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2017, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.8"
+__version__ = "3.8.9"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10038,7 +10038,6 @@ class SystemManager(object):
         outputCnt = 0
 
         for key, val in self.mountInfo.items():
-            print val
             try:
                 beforeInfo = self.diskInfo['before'][key]
                 afterInfo = self.diskInfo['after'][key]
