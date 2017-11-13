@@ -144,6 +144,68 @@ class ConfigManager(object):
         'sys_bpf', 'sys_execveat', 'sys_userfaultfd', 'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range' #391#
         ]
 
+    # Define syscall for AARCH64 #
+    sysList_aarch64 = [
+        'sys_io_setup', 'sys_io_destroy', 'sys_io_submit', 'sys_io_cancel', 'sys_io_getevents', #4#
+        'sys_setxattr', 'sys_lsetxattr', 'sys_fsetxattr', 'sys_getxattr', 'sys_lgetxattr', #9#
+        'sys_fgetxattr', 'sys_listxattr', 'sys_llistxattr', 'sys_flistxattr', 'sys_removexattr', #14#
+        'sys_lremovexattr', 'sys_fremovexattr', 'sys_getcwd', 'sys_lookup_dcookie', 'sys_eventfd2', #19#
+        'sys_epoll_create1', 'sys_epoll_ctl', 'sys_epoll_pwait', 'sys_dup', 'sys_dup3', #24#
+        'sys_fcntl', 'sys_inotify_init1', 'sys_inotify_add_watch', 'sys_inotify_rm_watch', 'sys_ioctl', #29#
+        'sys_ioprio_set', 'sys_ioprio_get', 'sys_flock', 'sys_mknodat', 'sys_mkdirat', #34#
+        'sys_unlinkat', 'sys_symlinkat', 'sys_linkat', 'sys_renameat', 'sys_umount2', #39#
+        'sys_mount', 'sys_pivot_root', 'sys_nfsservctl', 'sys_statfs', 'sys_fstatfs', #44#
+        'sys_truncate', 'sys_ftruncate', 'sys_fallocate', 'sys_faccessat', 'sys_chdir', #49#
+        'sys_fchdir', 'sys_chroot', 'sys_fchmod', 'sys_fchmodat', 'sys_fchownat', #54#
+        'sys_fchown', 'sys_openat', 'sys_close', 'sys_vhangup', 'sys_pipe2', #59#
+        'sys_quotactl', 'sys_getdents64', 'sys_lseek', 'sys_read', 'sys_write', #64#
+        'sys_readv', 'sys_writev', 'sys_pread64', 'sys_pwrite64', 'sys_preadv', #69#
+        'sys_pwritev', 'sys_sendfile', 'sys_pselect6', 'sys_ppoll', 'sys_signalfd4', #74#
+        'sys_vmsplice', 'sys_splice', 'sys_tee', 'sys_readlinkat', 'sys_fstatat64', #79#
+        'sys_fstat', 'sys_sync', 'sys_fsync', 'sys_fdatasync', 'sys_sync_file_range2', #84#
+        'sys_timerfd_create', 'sys_timerfd_settime', 'sys_timerfd_gettime', 'sys_utimensat', 'sys_acct', #89#
+        'sys_capget', 'sys_capset', 'sys_personality', 'sys_exit', 'sys_exit_group', #94#
+        'sys_waitid', 'sys_set_tid_address', 'sys_unshare', 'sys_futex', 'sys_set_robust_list', #99#
+        'sys_get_robust_list', 'sys_nanosleep', 'sys_getitimer', 'sys_setitimer', 'sys_kexec_load', #104#
+        'sys_init_module', 'sys_delete_module', 'sys_timer_create', 'sys_timer_gettime', 'sys_timer_getoverrun', #109#
+        'sys_timer_settime', 'sys_timer_delete', 'sys_clock_settime', 'sys_clock_gettime', 'sys_clock_getres', #114#
+        'sys_clock_nanosleep', 'sys_syslog', 'sys_ptrace', 'sys_sched_setparam', 'sys_sched_setscheduler', #119#
+        'sys_sched_getscheduler', 'sys_sched_getparam', 'sys_sched_setaffinity', 'sys_sched_getaffinity', #123#
+        'sys_sched_yield', 'sys_sched_get_priority_max', 'sys_sched_get_priority_min', 'sys_sched_rr_get_interval', #127#
+        'sys_restart_syscall', 'sys_kill', 'sys_tkill', 'sys_tgkill', 'sys_sigaltstack', 'sys_rt_sigsuspend', #133#
+        'sys_rt_sigaction', 'sys_rt_sigprocmask', 'sys_rt_sigpending', 'sys_rt_sigtimedwait', 'sys_rt_sigqueueinfo', #138#
+        'sys_rt_sigreturn', 'sys_setpriority', 'sys_getpriority', 'sys_reboot', 'sys_setregid', 'sys_setgid', #144#
+        'sys_setreuid', 'sys_setuid', 'sys_setresuid', 'sys_getresuid', 'sys_setresgid', #149#
+        'sys_getresgid', 'sys_setfsuid', 'sys_setfsgid', 'sys_times', 'sys_setpgid', #154#
+        'sys_getpgid', 'sys_getsid', 'sys_setsid', 'sys_getgroups', 'sys_setgroups', #159#
+        'sys_uname', 'sys_sethostname', 'sys_setdomainname', 'sys_getrlimit', 'sys_setrlimit', #164#
+        'sys_getrusage', 'sys_umask', 'sys_prctl', 'sys_getcpu', 'sys_gettimeofday', #169#
+        'sys_settimeofday', 'sys_adjtimex', 'sys_getpid', 'sys_getppid', 'sys_getuid', #174#
+        'sys_geteuid', 'sys_getgid', 'sys_getegid', 'sys_gettid', 'sys_sysinfo', #179#
+        'sys_mq_open', 'sys_mq_unlink', 'sys_mq_timedsend', 'sys_mq_timedreceive', 'sys_mq_notify', #184#
+        'sys_mq_getsetattr', 'sys_msgget', 'sys_msgctl', 'sys_msgrcv', 'sys_msgsnd', #189#
+        'sys_semget', 'sys_semctl', 'sys_semtimedop', 'sys_semop', 'sys_shmget', #194#
+        'sys_shmctl', 'sys_shmat', 'sys_shmdt', 'sys_socket', 'sys_socketpair', #199#
+        'sys_bind', 'sys_listen', 'sys_accept', 'sys_connect', 'sys_getsockname', #204#
+        'sys_getpeername', 'sys_sendto', 'sys_recvfrom', 'sys_setsockopt', 'sys_getsockopt', #209#
+        'sys_shutdown', 'sys_sendmsg', 'sys_recvmsg', 'sys_readahead', 'sys_brk', #214#
+        'sys_munmap', 'sys_mremap', 'sys_add_key', 'sys_request_key', 'sys_keyctl', #219#
+        'sys_clone', 'sys_execve', 'sys_mmap', 'sys_fadvise64', 'sys_swapon', #224#
+        'sys_swapoff', 'sys_mprotect', 'sys_msync', 'sys_mlock', 'sys_munlock', #229#
+        'sys_mlockall', 'sys_munlockall', 'sys_mincore', 'sys_madvise', 'sys_remap_file_pages', #234#
+        'sys_mbind', 'sys_get_mempolicy', 'sys_set_mempolicy', 'sys_migrate_pages', 'sys_move_pages', #239#
+        'sys_rt_tgsigqueueinfo', 'sys_perf_event_open', 'sys_accept4', 'sys_recvmmsg', 'sys_arch_specific_syscall', #244#
+        'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', #249#
+        'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', #254#
+        'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', 'sys_NULL', #259#
+        'sys_wait4', 'sys_prlimit64', 'sys_fanotify_init', 'sys_fanotify_mark', 'sys_name_to_handle_at', #264#
+        'sys_open_by_handle_at', 'sys_clock_adjtime', 'sys_syncfs', 'sys_setns', 'sys_sendmmsg', #269#
+        'sys_process_vm_readv', 'sys_process_vm_writev', 'sys_kcmp', 'sys_finit_module', 'sys_sched_setattr', #274#
+        'sys_sched_getattr', 'sys_renameat2', 'sys_seccomp', 'sys_getrandom', 'sys_memfd_create', #279#
+        'sys_bpf', 'sys_execveat', 'sys_userfaultfd', 'sys_membarrier', 'sys_mlock2', #284#
+        'sys_copy_file_range',
+        ]
+
     # Define syscall for x86_32 #
     sysList_x86 = [
         'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read', 'sys_write', 'sys_open', 'sys_close', 'sys_waitpid',
@@ -4816,7 +4878,7 @@ class FileAnalyzer(object):
                 sys.exit(0)
 
         # set maxFd #
-        SystemManager.setMaxFd()
+        SystemManager.getMaxFd()
 
         self.startTime = time.time()
 
@@ -5760,6 +5822,7 @@ class SystemManager(object):
         self.diskBeforeData = None
         self.diskAfterData = None
         self.mountData = None
+        self.partitionData = None
         self.uptimeData = None
         self.loadData = None
         self.cmdlineData = None
@@ -5794,7 +5857,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setMaxFd():
+    def getMaxFd():
         if sys.platform.startswith('linux'):
             try:
                 if SystemManager.ctypesObj is None:
@@ -5811,7 +5874,6 @@ class SystemManager(object):
             except ImportError:
                 err = sys.exc_info()[1]
                 print("[Warning] Fail to import package: " + err.args[0])
-                return
 
             try:
                 # load standard libc library #
@@ -5832,13 +5894,13 @@ class SystemManager(object):
                     SystemManager.maxFd)
         else:
             print(\
-                "[Warning] Fail to set maxFd because this platform is not linux, use %d as default value" % \
+                "[Warning] Fail to get maxFd because this platform is not linux, use %d as default value" % \
                 SystemManager.maxFd)
 
 
 
     @staticmethod
-    def setComm():
+    def getComm():
         if sys.platform.startswith('linux'):
             try:
                 if SystemManager.ctypesObj is None:
@@ -5856,11 +5918,11 @@ class SystemManager(object):
                     SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
                 SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
             except:
-                print('[Warning] Fail to set comm because of prctl in libc')
+                print('[Warning] Fail to set comm because of prctl error in libc')
         elif sys.platform.startswith('darwin'):
-            print('[Warning] Fail to set comm because this platform(%s) is not supported' % sys.platform)
+            print('[Warning] Fail to get comm because %s is not supported' % sys.platform)
         else:
-            print('[Warning] Fail to set comm because this platform(%s) is not supported' % sys.platform)
+            print('[Warning] Fail to get comm because %s is not supported' % sys.platform)
 
 
 
@@ -6047,7 +6109,7 @@ class SystemManager(object):
             print('\t\t-Q  [print_allRowsInaStream]')
             print('\t\t-i  [set_interval:sec]')
             print('\t\t-g  [set_filter:comms|tids{:file}]')
-            print('\t\t-A  [set_arch:arm|x86|x64]')
+            print('\t\t-A  [set_arch:arm|aarch64|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
             print('\t\t-H  [set_functionDepth]')
@@ -6178,6 +6240,8 @@ class SystemManager(object):
 
             if arch.startswith('arm'):
                 return 'arm'
+            elif arch.startswith('aarch64'):
+                return 'aarch64'
             elif arch.startswith('x86_64') or arch.startswith('ia64'):
                 return 'x64'
             elif arch.startswith('i386') or arch.startswith('i686'):
@@ -6198,17 +6262,19 @@ class SystemManager(object):
 
         # set systemcall table #
         if arch == 'arm':
-            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_arm
+        elif arch == 'aarch64':
+            ConfigManager.sysList = ConfigManager.sysList_aarch64
         elif arch == 'x86':
-            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_x86
         elif arch == 'x64':
-            SystemManager.arch = arch
             ConfigManager.sysList = ConfigManager.sysList_x64
         else:
             SystemManager.printError(\
-                'Fail to set archtecture to %s, only arm / x86 / x64 supported' % arch)
+                'Fail to set architecture to %s, only arm / aarch64 / x86 / x64 supported' % arch)
+            return
+
+        SystemManager.arch = arch
 
 
 
@@ -8810,12 +8876,8 @@ class SystemManager(object):
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printWarning("Fail to import package: " + err.args[0])
-            return
-
-        try:
-            imp.find_module('ctypes')
-        except:
-            SystemManager.printWarning('Fail to find ctypes package')
+            SystemManager.printWarning(\
+                'Fail to set priority because of loading standard libc error')
             return
 
         try:
@@ -9032,24 +9094,27 @@ class SystemManager(object):
 
     def saveDiskInfo(self):
         diskFile = '/proc/diskstats'
+        partitionFile = '/proc/partitions'
         mountFile = '/proc/mounts'
 
         try:
-            df = open(diskFile, 'r')
+            with open(diskFile, 'r') as df:
+                if self.diskBeforeData is None:
+                    self.diskBeforeData = df.readlines()
+                else:
+                    self.diskAfterData = df.readlines()
 
-            if self.diskBeforeData is None:
-                self.diskBeforeData = df.readlines()
-            else:
-                self.diskAfterData = df.readlines()
+                    try:
+                        with open(mountFile, 'r') as mf:
+                            self.mountData = mf.readlines()
+                    except:
+                        SystemManager.printWarning("Fail to open %s" % mountFile)
 
-                try:
-                    mf = open(mountFile, 'r')
-                    self.mountData = mf.readlines()
-                    mf.close()
-                except:
-                    SystemManager.printWarning("Fail to open %s" % mountFile)
-
-            df.close()
+                    try:
+                        with open(partitionFile, 'r') as pf:
+                            self.partitionData = pf.readlines()
+                    except:
+                        SystemManager.printWarning("Fail to open %s" % partitionFile)
         except:
             SystemManager.printWarning("Fail to open %s" % diskFile)
 
@@ -9499,7 +9564,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
         elif SystemManager.depEnable:
-            # toDo: support sys_recv systemcall for x86, x64 #
+            # toDo: support sys_recv systemcall for aarch64, x86, x64 #
             if SystemManager.arch == 'arm':
                 ecmd = \
                     "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
@@ -9945,18 +10010,35 @@ class SystemManager(object):
         else:
             return
 
+        if self.partitionData is not None:
+            for l in self.partitionData:
+                try:
+                    major, minor, nrblk, dev = l.split()
+                    int(major)
+                except:
+                    continue
+
+                try:
+                    name = '/dev/%s' % dev
+                    self.diskInfo['after'][name]['nrblk'] = nrblk
+                except:
+                    continue
+        else:
+            return
+
         # print disk info #
         SystemManager.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^20}". \
+            "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^10} {9:^20}". \
             format("Dev", "Maj", "Min", "RdSize", "RdTime", "WrSize", "WrTime", \
-            "FileSystem", "MountPoint <Option>"))
+            "FileSystem", "nrBlk", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(oneLine)
 
         outputCnt = 0
 
         for key, val in self.mountInfo.items():
+            print val
             try:
                 beforeInfo = self.diskInfo['before'][key]
                 afterInfo = self.diskInfo['after'][key]
@@ -9965,13 +10047,13 @@ class SystemManager(object):
                 continue
 
             diskInfo = \
-                "{0:<16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:<20}". \
+                "{0:<16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^10} {9:<20}". \
                 format(key, afterInfo['major'], afterInfo['minor'], \
                 (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
                 (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
                 (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
                 (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
-                val['fs'], val['path'] + ' <' + val['option'] + '>')
+                val['fs'], afterInfo['nrblk'], val['path'] + ' <' + val['option'] + '>')
 
             if len(diskInfo) > SystemManager.lineLength:
                 try:
@@ -10373,7 +10455,7 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
 
             # set maxFd #
-            SystemManager.setMaxFd()
+            SystemManager.getMaxFd()
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -18646,7 +18728,7 @@ if __name__ == '__main__':
     SystemManager.setErrorLogger()
 
     # set comm #
-    SystemManager.setComm()
+    SystemManager.getComm()
 
     # save pid #
     SystemManager.pid = os.getpid()
