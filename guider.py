@@ -7137,17 +7137,19 @@ class SystemManager(object):
 
     @staticmethod
     def alarmHandler(signum, frame):
-        if SystemManager.pipeEnable:
-            if SystemManager.repeatCount > 0:
-                SystemManager.runRecordStopCmd()
-                SystemManager.repeatInterval = 5
-                SystemManager.repeatCount = 0
-                signal.alarm(SystemManager.repeatInterval)
-            else:
-                sys.exit(0)
-        elif SystemManager.repeatCount > 0:
-            if SystemManager.outputFile != None:
-                output = SystemManager.outputFile + str(SystemManager.repeatCount)
+        if SystemManager.repeatCount > SystemManager.progressCnt:
+            SystemManager.progressCnt += 1
+            signal.alarm(SystemManager.repeatInterval)
+
+            if SystemManager.pipeEnable:
+                if SystemManager.repeatCount == SystemManager.progressCnt:
+                    SystemManager.runRecordStopCmd()
+                    SystemManager.recordStatus = False
+                    signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+            elif SystemManager.outputFile != None:
+                output = '%s.%ds_%ds' % (SystemManager.outputFile, \
+                    SystemManager.progressCnt - 1 * SystemManager.repeatInterval, \
+                    SystemManager.progressCnt * SystemManager.repeatInterval)
                 try:
                     # submit system info #
                     si = SystemManager()
@@ -7166,9 +7168,6 @@ class SystemManager(object):
                             SystemManager.printInfo('trace data is saved to %s' % output)
                 except:
                     SystemManager.printWarning('Fail to save trace data to %s' % output)
-
-                SystemManager.repeatCount -= 1
-                signal.alarm(SystemManager.repeatInterval)
             else:
                 SystemManager.printError('Fail to save trace data because output file is not set')
                 sys.exit(0)
@@ -9175,8 +9174,10 @@ class SystemManager(object):
 
         while 1:
             try:
-                if SystemManager.recordStatus:
-                    fd.write(pd.read(SystemManager.pageSize))
+                buf = pd.read(SystemManager.pageSize)
+                fd.write(buf)
+                if SystemManager.recordStatus or len(buf) == SystemManager.pageSize:
+                    continue
                 else:
                     raise
             except:
@@ -9555,9 +9556,13 @@ class SystemManager(object):
             if self.cmdList["sched/sched_process_wait"]:
                 SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
-        # enable all irq events #
+        # enable irq events #
         if self.cmdList["irq"]:
-            SystemManager.writeCmd('irq/enable', '1')
+            SystemManager.writeCmd('irq/irq_handler_entry/enable', '1')
+            SystemManager.writeCmd('irq/irq_handler_exit', '1')
+            SystemManager.writeCmd('irq/softirq_entry/enable', '1')
+            SystemManager.writeCmd('irq/softirq_exit/enable', '1')
+            #SystemManager.writeCmd('irq/softirq_raise/enable', '1')
 
         # options for dependency tracing #
         if SystemManager.depEnable is False and SystemManager.futexEnable is False:
@@ -14983,18 +14988,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.irqData[irqId]
                     except:
-                        self.irqData[irqId] = dict(self.init_irqData)
-
-                    # make per-thread irq list #
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'] = {}
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
-                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+                        return
 
                     if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                         # save softirq usage #
@@ -15089,24 +15083,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.irqData[irqId]
                     except:
-                        self.irqData[irqId] = dict(self.init_irqData)
-                        self.irqData[irqId]['name'] = {}
-                        self.irqData[irqId]['name'][d['action']] = 0
-                    try:
-                        self.irqData[irqId]['name'][d['action']]
-                    except:
-                        self.irqData[irqId]['name'][d['action']] = 0
-
-                    # make per-thread irq list #
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'] = {}
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
-                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+                        return
 
                     if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                         # save softirq usage #
@@ -18851,8 +18828,8 @@ if __name__ == '__main__':
             sys.exit(0)
 
         # set signal #
-        if SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0 and \
-            SystemManager.isThreadMode():
+        if (SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0) and \
+            (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.alarm(SystemManager.repeatInterval)
@@ -18925,7 +18902,7 @@ if __name__ == '__main__':
 
         # enter loop to record and save data periodically #
         while SystemManager.repeatInterval > 0:
-            if SystemManager.repeatCount == 0:
+            if SystemManager.repeatCount == SystemManager.progressCnt:
                 sys.exit(0)
 
             # get init time in buffer for verification #
