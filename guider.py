@@ -7148,7 +7148,7 @@ class SystemManager(object):
                     signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
             elif SystemManager.outputFile != None:
                 output = '%s.%ds_%ds' % (SystemManager.outputFile, \
-                    SystemManager.progressCnt - 1 * SystemManager.repeatInterval, \
+                    (SystemManager.progressCnt - 1) * SystemManager.repeatInterval, \
                     SystemManager.progressCnt * SystemManager.repeatInterval)
                 try:
                     # submit system info #
