@@ -7158,13 +7158,12 @@ class SystemManager(object):
 
                     with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
                         with open(output, 'w') as fw:
-                            contents = fr.read()
                             fw.seek(0,0)
                             fw.writelines(SystemManager.magicString + '\n')
                             fw.writelines(SystemManager.systemInfoBuffer)
                             fw.writelines(SystemManager.magicString + '\n')
                             SystemManager.clearInfoBuffer()
-                            fw.write(contents)
+                            fw.write(fr.read())
                             SystemManager.printInfo('trace data is saved to %s' % output)
                 except:
                     SystemManager.printWarning('Fail to save trace data to %s' % output)
@@ -7616,7 +7615,7 @@ class SystemManager(object):
                 SystemManager.eventLogFD.close()
                 SystemManager.eventLogFD = None
             except:
-                SystemManager.printError("Fail to write %s event\n" % (message))
+                SystemManager.printWarning("Fail to write %s event" % (message))
         else:
             SystemManager.printError(\
                 "Fail to write %s event because there is no file descriptor\n" % message)
@@ -7792,8 +7791,11 @@ class SystemManager(object):
                     SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
 
                 if os.path.isdir(SystemManager.printFile):
+                    newInputFile = SystemManager.inputFile.replace('.dat', '.out')
+                    if SystemManager.inputFile == newInputFile:
+                        newInputFile = '%s.out' % newInputFile
                     SystemManager.inputFile = \
-                        SystemManager.printFile + token + SystemManager.inputFile.replace('dat', 'out')
+                        SystemManager.printFile + token + newInputFile
                 else:
                     SystemManager.inputFile = SystemManager.printFile
             else:
@@ -8475,11 +8477,13 @@ class SystemManager(object):
 
                 if os.path.isdir(SystemManager.outputFile):
                     SystemManager.outputFile = SystemManager.outputFile + '/guider.dat'
-                elif os.path.isdir(SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]):
-                    continue
                 else:
-                    SystemManager.printError("wrong option value with -s option")
-                    sys.exit(0)
+                    fpos = SystemManager.outputFile.rfind('/')
+                    if fpos <= 0 or os.path.isdir(SystemManager.outputFile[:fpos]):
+                        continue
+                    else:
+                        SystemManager.printError("wrong option value with -s option")
+                        sys.exit(0)
 
                 SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
 
