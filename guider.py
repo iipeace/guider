@@ -3599,7 +3599,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print memory reduce by page free in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Free Page Info] [Size: %dKB] (USER)' % \
+            SystemManager.pipePrint('[Function Free-Only Page Info] [Size: %dKB] (USER)' % \
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3685,7 +3685,7 @@ class FunctionAnalyzer(object):
 
         # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Free Page Info] [Size: %dKB] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Free-Only Page Info] [Size: %dKB] (KERNEL)' % \
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -3763,11 +3763,11 @@ class FunctionAnalyzer(object):
 
 
     def printKnownMemFreeInfo(self):
-        # Print page alloc / free pair in user space #
+        # Print page alloc-free pair in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc/Free Page Info] [Total: %dKB] (USER)' % \
+                '[Function Alloc-Free Page Info] [Total: %dKB] (USER)' % \
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -3868,10 +3868,10 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print page alloc / free pair in kernel space #
+        # Print page alloc-free pair in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Alloc/Free Page Info] [Total: %dKB] (KERNEL)' % \
+            '[Function Alloc-Free Page Info] [Total: %dKB] (KERNEL)' % \
             (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -4021,7 +4021,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                '[Function Alloc-Only Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -4124,7 +4124,7 @@ class FunctionAnalyzer(object):
         # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Alloc Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            '[Function Alloc-Only Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
             (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -4446,7 +4446,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print block write usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Block Write Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -4533,7 +4533,7 @@ class FunctionAnalyzer(object):
 
         # Print block write usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Block Write Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -4623,7 +4623,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print block read usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Block Read Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint('[Function Read Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -4707,7 +4707,7 @@ class FunctionAnalyzer(object):
 
         # Print block read usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Block Read Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Read Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -11089,7 +11089,7 @@ class ThreadAnalyzer(object):
         height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
-        suptitle('guider top memory chart', fontsize=8)
+        suptitle('guider memory chart', fontsize=8)
 
         def make_autopct(values):
             def autopct(pct):
@@ -11205,7 +11205,7 @@ class ThreadAnalyzer(object):
         ymax = 0
         ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        suptitle('guider top graph', fontsize=8)
+        suptitle('guider perf graph', fontsize=8)
 
         for idx, item in enumerate(blkWait):
             blkWait[idx] += cpuUsage[idx]
@@ -12950,6 +12950,7 @@ class ThreadAnalyzer(object):
             timelen = len(ioUsageList[0])
             ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
             for idx, item in enumerate(ioUsageList):
                 minIdx = item.index(min(item))
@@ -13037,7 +13038,7 @@ class ThreadAnalyzer(object):
                         newFlag = self.intervalData[icount][key]['new']
                         dieFlag = self.intervalData[icount][key]['die']
 
-                    # Do not use 100% becuase of output format #
+                    # Do not use 100% because of output format #
                     cpuPer = str(int(self.intervalData[icount][key]['cpuPer']))
                     if cpuPer == '100':
                         cpuPer = '99'
@@ -13064,7 +13065,8 @@ class ThreadAnalyzer(object):
             timelen = len(cpuUsageList[0])
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider interval report')
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+            title('guider perf graph')
 
             # cpu total usage #
             for item in cpuUsageList:
@@ -13155,7 +13157,7 @@ class ThreadAnalyzer(object):
                         newFlag = nowVal['new']
                         dieFlag = nowVal['die']
 
-                    # Do not use 100% becuase of output format #
+                    # Do not use 100% because of output format #
                     prtPer = str(int(nowVal['preempted'] / float(SystemManager.intervalEnable) * 100))
                     if prtPer == '100':
                         prtPer = '99'
@@ -13367,7 +13369,7 @@ class ThreadAnalyzer(object):
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
             dirPos = SystemManager.inputFile.rfind('/')
             if dirPos >= 0:
-                graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider.png'
+                graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider_graph.png'
                 savefig(graphPath, dpi=(200))
                 clf()
                 SystemManager.printStatus("write resource graph to %s" % graphPath)
