@@ -6048,24 +6048,28 @@ class SystemManager(object):
             print('\t# %s [mode] [options]' % cmd)
             print('\t$ %s <file> [options]' % cmd)
 
-            print('Example:')
+            print('\nExample:')
             print('\t# %s record -s /var/log -e mi -g comm, 1243' % cmd)
             print('\t$ %s guider.dat -o /var/log -a -i' % cmd)
             print('\t$ %s top -i 2' % cmd)
-            print('\t$ %s -h -a\n' % cmd)
+            print('\t$ %s -h' % cmd)
 
-            print('Options:')
-            print('\t[record mode]')
-            print('\t\ttop        [top]')
+            print('\nMode:')
+            print('\t[analysis]')
+            print('\t\ttop        [realtime]')
             print('\t\trecord     [thread]')
             print('\t\trecord -y  [system]')
             print('\t\trecord -f  [function]')
             print('\t\trecord -F  [file]')
             print('\t\tview       [page]')
-            print('\t[control mode]')
+            print('\t[control]')
             print('\t\tlist')
             print('\t\tstart|stop|send [pid]')
-            print('\t[record options]')
+            print('\t[convenience]')
+            print('\t\tdraw       [image]')
+
+            print('\nOptions:')
+            print('\t[record]')
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
             print('\t\t\t  [thread]   '\
@@ -6095,7 +6099,7 @@ class SystemManager(object):
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
             print('\t\t-m  [set_objdumpPath:file]')
-            print('\t[analysis options]')
+            print('\t[analysis]')
             print('\t\t-o  [save_outputData:path]')
             print('\t\t-P  [group_perProcessBasis]')
             print('\t\t-p  [show_preemptInfo:tids]')
@@ -6104,7 +6108,7 @@ class SystemManager(object):
             print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
             print('\t\t-L  [convert_textToImage]')
-            print('\t[common options]')
+            print('\t[common]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-Q  [print_allRowsInaStream]')
             print('\t\t-i  [set_interval:sec]')
@@ -6115,7 +6119,8 @@ class SystemManager(object):
             print('\t\t-H  [set_functionDepth]')
             print('\t\t-Y  [set_schedPriority:policy:prio{:pid}]')
             print('\t\t-v  [verbose]')
-            if SystemManager.findOption('a'):
+
+            if len(sys.argv) > 1:
                 print('\t[examples]')
 
                 print('\t\t[thread mode]')
@@ -6182,10 +6187,13 @@ class SystemManager(object):
                 print('\t\t\t- record and report system status to the specific image')
                 print('\t\t\t\t# %s top -o . -e r -e f' % cmd)
                 print('\t\t\t- convert a analysis text to a graph image')
+                print('\t\t\t\t# %s draw guider.out' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
                 print('\t\t\t- convert a analysis text to a graph image for specific process group')
+                print('\t\t\t\t# %s draw guider.out -g chrome' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g -g chrome' % cmd)
                 print('\t\t\t- convert a analysis text to a graph image for specific process group except for VSS')
+                print('\t\t\t\t# %s draw guider.out -g chrome -d v' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g -g chrome -d v' % cmd)
                 print('\t\t\t- report system status to the specific server')
                 print('\t\t\t\t# %s top -n 192.168.0.5:5555' % cmd)
@@ -7640,7 +7648,7 @@ class SystemManager(object):
             with open(SystemManager.inputFile, 'r') as fd:
                 textBuf = fd.read()
         except:
-            SystemManager.printError("Fail to read log from %s\n" % SystemManager.inputFile)
+            SystemManager.printError("Fail to read data from %s\n" % SystemManager.inputFile)
             return
 
         # trim from process info in top mode #
@@ -8691,6 +8699,15 @@ class SystemManager(object):
     @staticmethod
     def isTopMode():
         if sys.argv[1] == 'top':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawMode():
+        if sys.argv[1] == 'draw':
             return True
         else:
             return False
@@ -10770,7 +10787,7 @@ class ThreadAnalyzer(object):
             with open(logFile, 'r') as fd:
                 logBuf = fd.readlines()
         except:
-            SystemManager.printError("Fail to read log from %s\n" % logFile)
+            SystemManager.printError("Fail to read data from %s\n" % logFile)
             return
 
         # parse summary #
@@ -18956,6 +18973,18 @@ if __name__ == '__main__':
 
     # get tty setting #
     SystemManager.getTty()
+
+    # draw graph and chart #
+    if SystemManager.isDrawMode():
+        sys.argv[1] = 'top'
+
+        if len(sys.argv) <= 2:
+            SystemManager.printError("no input file to draw graph and chart")
+            sys.exit(0)
+
+        SystemManager.sourceFile = sys.argv[2]
+        SystemManager.graphEnable = True
+        SystemManager.parseAnalOption()
 
     # import packages to draw graph #
     if SystemManager.graphEnable:
