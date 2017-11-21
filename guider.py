@@ -6063,8 +6063,7 @@ class SystemManager(object):
             print('\t\trecord -F  [file]')
             print('\t\tview       [page]')
             print('\t[control]')
-            print('\t\tlist')
-            print('\t\tstart|stop|send [pid]')
+            print('\t\tlist|start|stop|send [proc]')
             print('\t[convenience]')
             print('\t\tdraw       [image]')
 
@@ -14271,7 +14270,9 @@ class ThreadAnalyzer(object):
                     return d['time']
 
             # check record status #
-            if SystemManager.recordStatus is False:
+            if SystemManager.isDrawMode():
+                return 0
+            elif SystemManager.recordStatus is False:
                 SystemManager.printError(\
                     "Fail to recognize format: corrupted log / no log collected")
                 sys.exit(0)
@@ -18962,6 +18963,23 @@ if __name__ == '__main__':
             # save system information #
             si.saveAllInfo()
 
+    # draw graph and chart #
+    if SystemManager.isDrawMode():
+        if len(sys.argv) <= 2:
+            SystemManager.printError("no input file to draw graph and chart")
+            sys.exit(0)
+        else:
+            SystemManager.graphEnable = True
+
+        if ThreadAnalyzer.getInitTime(sys.argv[2]) > 0:
+            SystemManager.inputFile = sys.argv[1] = sys.argv[2]
+            SystemManager.intervalEnable = 1
+            SystemManager.printFile = '.'
+            del sys.argv[2]
+        else:
+            sys.argv[1] = 'top'
+            SystemManager.sourceFile = sys.argv[2]
+
     # parse analysis option #
     SystemManager.parseAnalOption()
 
@@ -18973,18 +18991,6 @@ if __name__ == '__main__':
 
     # get tty setting #
     SystemManager.getTty()
-
-    # draw graph and chart #
-    if SystemManager.isDrawMode():
-        sys.argv[1] = 'top'
-
-        if len(sys.argv) <= 2:
-            SystemManager.printError("no input file to draw graph and chart")
-            sys.exit(0)
-
-        SystemManager.sourceFile = sys.argv[2]
-        SystemManager.graphEnable = True
-        SystemManager.parseAnalOption()
 
     # import packages to draw graph #
     if SystemManager.graphEnable:
