@@ -1306,7 +1306,6 @@ class FunctionAnalyzer(object):
                                     allocator['valueList'][pageType] = 1
 
                                 break
-
                         break
 
                 del self.pageTable[pfnv]
@@ -9579,7 +9578,7 @@ class SystemManager(object):
         # enable irq events #
         if self.cmdList["irq"]:
             SystemManager.writeCmd('irq/irq_handler_entry/enable', '1')
-            SystemManager.writeCmd('irq/irq_handler_exit', '1')
+            SystemManager.writeCmd('irq/irq_handler_exit/enable', '1')
             SystemManager.writeCmd('irq/softirq_entry/enable', '1')
             SystemManager.writeCmd('irq/softirq_exit/enable', '1')
             #SystemManager.writeCmd('irq/softirq_raise/enable', '1')
@@ -15011,6 +15010,7 @@ class ThreadAnalyzer(object):
                     # make list #
                     try:
                         self.irqData[irqId]
+                        self.threadData[thread]['irqList'][irqId]
                     except:
                         return
 
@@ -15106,6 +15106,7 @@ class ThreadAnalyzer(object):
                     # make list #
                     try:
                         self.irqData[irqId]
+                        self.threadData[thread]['irqList'][irqId]
                     except:
                         return
 
