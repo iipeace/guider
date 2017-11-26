@@ -5210,7 +5210,7 @@ class FileAnalyzer(object):
 
 
     def scanProcs(self):
-        # get process list in /proc directory #
+        # get process list in proc filesystem #
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
@@ -5975,14 +5975,13 @@ class SystemManager(object):
     def getProcTree():
         procTree = {}
 
-        # get process list in /proc directory #
+        # get process list in proc filesystem #
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
             SystemManager.printError('Fail to open %s' % (SystemManager.procPath))
             return None
 
-        # scan comms include words in SystemManager.showGroup #
         for pid in pids:
             try:
                 int(pid)
@@ -7041,15 +7040,19 @@ class SystemManager(object):
                 # submit system info #
                 SystemManager.submitSystemInfo()
 
-                # submit summarized report #
+                # submit summarized report and details #
                 ThreadAnalyzer.printIntervalUsage()
 
                 # close log file to sync #
-                SystemManager.fileForPrint.close()
+                try:
+                    SystemManager.fileForPrint.close()
+                except:
+                    pass
 
                 SystemManager.printInfo("saved top usage into %s successfully" % \
                     SystemManager.inputFile)
 
+            # convert text log to image #
             if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
 
@@ -7083,7 +7086,7 @@ class SystemManager(object):
             # submit system info #
             SystemManager.submitSystemInfo()
 
-            # submit summarized report #
+            # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
 
             try:
@@ -7095,6 +7098,7 @@ class SystemManager(object):
             SystemManager.printStatus("saved top usage into %s successfully" % \
                 SystemManager.inputFile)
 
+            # convert text log to image #
             if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
         elif SystemManager.resetEnable:
@@ -14053,16 +14057,27 @@ class ThreadAnalyzer(object):
         # print interval info #
         ThreadAnalyzer.printMemAnalysis()
 
+        # print detailed statistics #
         msg = ' Detailed Statistics '
         stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
         SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
-
-        # print detailed statistics #
         SystemManager.pipePrint(SystemManager.procBuffer)
+
+        # print process tree #
+        msg = ' Process Tree '
+        stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
+        SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        ThreadAnalyzer.printProcTree()
 
         # initialize parse buffer #
         ThreadAnalyzer.procTotalData = {}
         ThreadAnalyzer.procIntervalData = []
+
+
+
+    @staticmethod
+    def printProcTree():
+        pass
 
 
 
@@ -17922,6 +17937,7 @@ class ThreadAnalyzer(object):
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime, etc))
 
+            # print memory details #
             if SystemManager.memEnable:
                 if value['maps'] is not None:
                     for key, item in sorted(value['maps'].items(), reverse=True):
@@ -18008,6 +18024,7 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint(oneLine + '\n')
 
+            # print stacks of threads sampled #
             if SystemManager.stackEnable:
                 # set indent size including arrow #
                 initIndent = 42
@@ -18605,7 +18622,7 @@ class ThreadAnalyzer(object):
             SystemManager.printFile is not None and \
             nrReason > 0:
 
-            # submit summarized report #
+            # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
 
             # sync and close output file #
