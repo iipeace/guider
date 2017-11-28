@@ -8949,9 +8949,9 @@ class SystemManager(object):
             err = ''
             if os.geteuid() != 0:
                 err = ', it needs root permission to make priority higher'
-            SystemManager.printError(\
+            SystemManager.printWarning(\
                 'Fail to set priority of %s as %s(%s)%s' % (pid, pri, policy, err))
-            os._exit(0)
+            return
 
 
 
@@ -18935,7 +18935,7 @@ if __name__ == '__main__':
 
         # set this process to RT priority #
         if SystemManager.prio is None:
-            SystemManager.setPriority(SystemManager.pid, 'F', 90)
+            SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         # set arch #
         SystemManager.setArch(SystemManager.getArch())
