@@ -468,7 +468,7 @@ class NetworkManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM
         except ImportError:
             err = sys.exc_info()[1]
-            print("[Error] Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: " + err.args[0])
             sys.exit(0)
 
         if mode is 'server':
@@ -4885,8 +4885,8 @@ class FileAnalyzer(object):
                     (self.libguiderPath, self.libguiderPath))
                 sys.exit(0)
 
-        # set maxFd #
-        SystemManager.getMaxFd()
+        # set system maximum fd number #
+        SystemManager.setMaxFd()
 
         self.startTime = time.time()
 
@@ -5790,7 +5790,7 @@ class SystemManager(object):
     cmdEnable = False
     backgroundEnable = False
     resetEnable = False
-    warningEnable = False
+    warningEnable = True
     intervalEnable = 0
 
     functionEnable = False
@@ -5866,7 +5866,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getMaxFd():
+    def setMaxFd():
         if sys.platform.startswith('linux'):
             try:
                 if SystemManager.ctypesObj is None:
@@ -5882,7 +5882,7 @@ class SystemManager(object):
                     )
             except ImportError:
                 err = sys.exc_info()[1]
-                print("[Warning] Fail to import python package: " + err.args[0])
+                SystemManager.printWarning("Fail to import python package: " + err.args[0])
 
             try:
                 # load standard libc library #
@@ -5898,12 +5898,13 @@ class SystemManager(object):
 
                 SystemManager.maxFd = rlim.rlim_cur
             except:
-                print(\
-                    "[Warning] Fail to get maxFd because of getrlimit, use %d as default value" % \
-                    SystemManager.maxFd)
+                SystemManager.printWarning(\
+                    ("Fail to get the number of maximum file descriptor because of getrlimit fail, "
+                    "just use %d as default value") % SystemManager.maxFd)
         else:
-            print(\
-                "[Warning] Fail to get maxFd, use %d as default value" % SystemManager.maxFd)
+            SystemManager.printWarning(\
+                ("Fail to get the number of maximum file descriptor,"
+                "just use %d as default value") % SystemManager.maxFd)
 
 
 
@@ -5918,7 +5919,7 @@ class SystemManager(object):
                 from ctypes import cdll, POINTER
             except ImportError:
                 err = sys.exc_info()[1]
-                print("[Warning] Fail to import python package: " + err.args[0])
+                SystemManager.printWarning("Fail to import python package: " + err.args[0])
 
             try:
                 # load standard libc library #
@@ -5926,11 +5927,13 @@ class SystemManager(object):
                     SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
                 SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
             except:
-                print('[Warning] Fail to set comm because of prctl error in libc')
+                SystemManager.printWarning('Fail to set comm because of prctl error in libc')
         elif sys.platform.startswith('darwin'):
-            print('[Warning] Fail to get comm because %s is not supported' % sys.platform)
+            SystemManager.printWarning(\
+                'Fail to get comm because %s is not supported' % sys.platform)
         else:
-            print('[Warning] Fail to get comm because %s is not supported' % sys.platform)
+            SystemManager.printWarning(\
+                'Fail to get comm because %s is not supported' % sys.platform)
 
 
 
@@ -8022,6 +8025,8 @@ class SystemManager(object):
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
+        else:
+            SystemManager.warningEnable = False
 
         for item in SystemManager.optionList:
             if item == '':
@@ -8417,6 +8422,8 @@ class SystemManager(object):
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
+        else:
+            SystemManager.warningEnable = False
 
         for item in SystemManager.optionList:
             option = item[0]
@@ -10498,8 +10505,8 @@ class ThreadAnalyzer(object):
                         "wrong option with -e + g, use -I option to load statistics data")
                     sys.exit(0)
 
-            # set maxFd #
-            SystemManager.getMaxFd()
+            # set system maximum fd number #
+            SystemManager.setMaxFd()
 
             # set default interval #
             if SystemManager.intervalEnable == 0:
@@ -18926,7 +18933,7 @@ if __name__ == '__main__':
     if SystemManager.isRecordMode():
         if sys.platform.startswith('linux') is False and \
             sys.platform.startswith('darwin') is False:
-            print('[Error] Fail to record because this platform is not supported')
+            SystemManager.printError('Fail to record because this platform is not supported')
             sys.exit(0)
 
         # update record status #
