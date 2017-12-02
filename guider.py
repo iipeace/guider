@@ -5910,7 +5910,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getComm():
+    def setComm(comm):
         if sys.platform.startswith('linux'):
             try:
                 if SystemManager.ctypesObj is None:
@@ -5929,7 +5929,7 @@ class SystemManager(object):
                 # load standard libc library #
                 if SystemManager.libcObj is None:
                     SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-                SystemManager.libcObj.prctl(15, __module__, 0, 0, 0)
+                SystemManager.libcObj.prctl(15, comm, 0, 0, 0)
             except:
                 SystemManager.printWarning('Fail to set comm because of prctl error in libc')
         elif sys.platform.startswith('darwin'):
@@ -6293,7 +6293,7 @@ class SystemManager(object):
         else:
             SystemManager.printError(\
                 'Fail to set architecture to %s, only arm / aarch64 / x86 / x64 supported' % arch)
-            return
+            sys.exit(0)
 
         SystemManager.arch = arch
 
@@ -9291,9 +9291,7 @@ class SystemManager(object):
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["signal"] = SystemManager.depEnable
-        self.cmdList["raw_syscalls/sys_enter"] = SystemManager.depEnable
-        self.cmdList["raw_syscalls/sys_exit"] = SystemManager.depEnable
-        self.cmdList["raw_syscalls"] = SystemManager.sysEnable
+        self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
         self.cmdList["kmem/kmalloc"] = SystemManager.memEnable
@@ -9616,42 +9614,74 @@ class SystemManager(object):
             #SystemManager.writeCmd('irq/softirq_raise/enable', '1')
 
         # options for dependency tracing #
-        if SystemManager.depEnable is False and SystemManager.futexEnable is False:
-            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
-            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
-        elif SystemManager.depEnable:
-            # toDo: support sys_recv systemcall for aarch64, x86, x64 #
+        if SystemManager.depEnable:
+            ecmd = \
+                "(id == %s || id == %s" % \
+                (ConfigManager.sysList.index("sys_write"), \
+                ConfigManager.sysList.index("sys_futex"))
+            rcmd = \
+                "((id == %s || id == %s" % \
+                (ConfigManager.sysList.index("sys_write"), \
+                ConfigManager.sysList.index("sys_futex"))
+
             if SystemManager.arch == 'arm':
                 ecmd = \
-                    "(id == %s || id == %s || id == %s || id == %s || id == %s || id == %s)" % \
-                    (ConfigManager.sysList.index("sys_write"), \
-                    ConfigManager.sysList.index("sys_poll"), \
+                    ("%s || id == %s || id == %s || id == %s || "
+                    "id == %s || id == %s || id == %s || id == %s)") % \
+                    (ecmd, ConfigManager.sysList.index("sys_recv"), \
                     ConfigManager.sysList.index("sys_epoll_wait"), \
+                    ConfigManager.sysList.index("sys_poll"), \
                     ConfigManager.sysList.index("sys_select"), \
-                    ConfigManager.sysList.index("sys_recv"), \
-                    ConfigManager.sysList.index("sys_futex"))
+                    ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
                 rcmd = \
-                    "((id == %s || id == %s || id == %s || id == %s || id == %s || id == %s) && ret > 0)" % \
-                    (ConfigManager.sysList.index("sys_write"), \
+                    ("%s || id == %s || id == %s || id == %s || "
+                    "id == %s || id == %s || id == %s || id == %s) && ret > 0)") % \
+                    (rcmd, ConfigManager.sysList.index("sys_recv"), \
                     ConfigManager.sysList.index("sys_poll"), \
                     ConfigManager.sysList.index("sys_epoll_wait"), \
                     ConfigManager.sysList.index("sys_select"), \
-                    ConfigManager.sysList.index("sys_recv"), \
-                    ConfigManager.sysList.index("sys_futex"))
-
-                if self.cmdList["sched/sched_switch"]:
-                    SystemManager.writeCmd('sched/sched_switch/enable', '1')
-                if self.cmdList["sched/sched_wakeup"]:
-                    SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
-
-                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
-                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
-                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
+                    ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
+            elif SystemManager.arch == 'aarch64':
+                ecmd = "%s || id == %s || id == %s || id == %s)" % \
+                    (ecmd, ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
+                rcmd = "%s || id == %s || id == %s || id == %s) && ret > 0)" % \
+                    (rcmd, ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
             else:
-                SystemManager.printError(\
-                    "tracing thread dependecy is not supported yet except for ARM")
-                sys.exit(0)
+                ecmd = ("%s || id == %s || id == %s || id == %s || "
+                "id == %s || id == %s || id == %s)") % \
+                    (ecmd, ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_poll"), \
+                    ConfigManager.sysList.index("sys_epoll_wait"), \
+                    ConfigManager.sysList.index("sys_select"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
+                rcmd = \
+                    ("%s || id == %s || id == %s || id == %s || "
+                    "id == %s || id == %s || id == %s) && ret > 0)") % \
+                    (rcmd, ConfigManager.sysList.index("sys_recvfrom"), \
+                    ConfigManager.sysList.index("sys_poll"), \
+                    ConfigManager.sysList.index("sys_epoll_wait"), \
+                    ConfigManager.sysList.index("sys_select"), \
+                    ConfigManager.sysList.index("sys_recvmmsg"), \
+                    ConfigManager.sysList.index("sys_recvmsg"))
+
+            if self.cmdList["sched/sched_switch"]:
+                SystemManager.writeCmd('sched/sched_switch/enable', '1')
+            if self.cmdList["sched/sched_wakeup"]:
+                SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+
+            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
+            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
+            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
+            SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.futexEnable:
             ecmd = "(id == %s)" % (ConfigManager.sysList.index("sys_futex"))
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
@@ -9662,21 +9692,33 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             self.cmdList["raw_syscalls/sys_exit"] = True
+        else:
+            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
+            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
         # options for systemcall tracing #
-        if self.cmdList["raw_syscalls"]:
-            cmd = ''
+        cmd = ''
 
-            # tid filter #
-            if len(SystemManager.showGroup) > 0:
-                cmd += "("
-                for comm in SystemManager.showGroup:
+        # tid filter #
+        if len(SystemManager.showGroup) > 0:
+            cmd += "("
+            nrPid = 0
+            for comm in SystemManager.showGroup:
+                try:
+                    int(comm)
                     cmd += "common_pid == \"%s\" || " % comm
+                    nrPid += 1
+                except:
+                    pass
+            if nrPid > 0:
                 cmd = cmd[:cmd.rfind(" ||")] + ") && "
+            else:
+                cmd = ""
 
+        if self.cmdList["raw_syscalls"]:
             # syscall filter #
             if len(SystemManager.syscallList) > 0:
-                cmd += "("
+                cmd += "( id == %s ||" % ConfigManager.sysList.index("sys_execve")
                 for val in SystemManager.syscallList:
                     cmd += " id == %s ||" % val
                     if SystemManager.syscallList.index(val) == len(SystemManager.syscallList) - 1:
@@ -9692,8 +9734,12 @@ class SystemManager(object):
                 SystemManager.writeCmd('raw_syscalls/filter', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_exit/filter', '0')
+        else:
+            cmd += "( id == %s )" % ConfigManager.sysList.index("sys_execve")
+            SystemManager.writeCmd('raw_syscalls/filter', cmd)
 
-            SystemManager.writeCmd('raw_syscalls/enable', '1')
+        SystemManager.writeCmd('raw_syscalls/enable', '1')
+        self.cmdList["raw_syscalls"] = True
 
         # options for signal tracing #
         if self.cmdList["signal"]:
@@ -15577,9 +15623,10 @@ class ThreadAnalyzer(object):
                         elif nr == str(ConfigManager.sysList.index("sys_write")) and \
                             self.wakeupData['valid'] > 0:
                             self.wakeupData['valid'] -= 1
-                        elif nr == str(ConfigManager.sysList.index("sys_select")) or \
-                            nr == str(ConfigManager.sysList.index("sys_poll")) or \
-                            nr == str(ConfigManager.sysList.index("sys_epoll_wait")):
+                        elif SystemManager.arch != 'aarch64' and \
+                            (nr == str(ConfigManager.sysList.index("sys_poll")) or \
+                            nr == str(ConfigManager.sysList.index("sys_select")) or \
+                            nr == str(ConfigManager.sysList.index("sys_epoll_wait"))):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
                                 self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
@@ -15591,7 +15638,11 @@ class ThreadAnalyzer(object):
 
                                 self.wakeupData['time'] = float(time) - float(self.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
-                        elif nr == str(ConfigManager.sysList.index("sys_recv")):
+                        elif (SystemManager.arch == 'arm' and \
+                            nr == str(ConfigManager.sysList.index("sys_recv"))) or \
+                            nr == str(ConfigManager.sysList.index("sys_recvfrom")) or \
+                            nr == str(ConfigManager.sysList.index("sys_recvmsg")) or \
+                            nr == str(ConfigManager.sysList.index("sys_recvmmsg")):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
                                 ttime = float(time) - float(self.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
@@ -18886,7 +18937,7 @@ if __name__ == '__main__':
     SystemManager.setErrorLogger()
 
     # set comm #
-    SystemManager.getComm()
+    SystemManager.setComm(__module__)
 
     # save pid #
     SystemManager.pid = os.getpid()
