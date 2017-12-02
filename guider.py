@@ -8579,6 +8579,7 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "No %s syscall in %s ABI" % (val, SystemManager.arch))
                         SystemManager.syscallList.remove(val)
+                        sys.exit(0)
 
                 if len(enabledSyscall) == 0:
                     SystemManager.printInfo("enabled syscall list [ ALL ]")
@@ -12408,7 +12409,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
-                ("Name", "Tid", "Syscall", "SysId", "Usage", "Count", "Min", "Max", "Avg"))
+                ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
@@ -12453,7 +12454,7 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint(twoLine)
                 SystemManager.pipePrint(\
                     "%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
-                    ("Name", "Tid", "Time", "Diff", "Type", "Syscall", \
+                    ("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
                     "SysId", "Core", "Return", "Parameter"))
                 SystemManager.pipePrint(twoLine)
 
@@ -12467,15 +12468,15 @@ class ThreadAnalyzer(object):
                                 eventType = 'both'
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
-                                diffTime = float(self.syscallData[icount + 1][1]) - \
-                                    float(self.syscallData[icount][1])
+                                elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
+                                    float(self.syscallData[icount][1]))
                                 ret = self.syscallData[icount + 1][5]
                                 param = self.syscallData[icount][5]
                             else:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
-                                diffTime = float(0)
+                                elapsed = ' ' * 13
                                 ret = '-'
                                 param = self.syscallData[icount][5]
                         else:
@@ -12486,14 +12487,14 @@ class ThreadAnalyzer(object):
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
-                                diffTime = float(0)
+                                elapsed = ' ' * 13
                                 ret = self.syscallData[icount][5]
                                 param = '-'
 
                         SystemManager.pipePrint(\
-                            "%16s(%4s)\t%6.6f\t%6.6f\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
+                            "%16s(%4s)\t%6.6f\t%s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
                             (self.threadData[self.syscallData[icount][2]]['comm'], \
-                            self.syscallData[icount][2], eventTime, diffTime, eventType, \
+                            self.syscallData[icount][2], eventTime, elapsed, eventType, \
                             ConfigManager.sysList[int(self.syscallData[icount][4])], \
                             self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
                         cnt += 1
