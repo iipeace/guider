@@ -27,7 +27,7 @@ try:
     import struct
 except ImportError:
     err = sys.exc_info()[1]
-    print("[Error] Fail to import python default packages: " + err.args[0])
+    print("[Error] Fail to import python default packages: %s" % err.args[0])
     sys.exit(0)
 
 
@@ -468,7 +468,7 @@ class NetworkManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         if mode is 'server':
@@ -1793,7 +1793,7 @@ class FunctionAnalyzer(object):
             import subprocess
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         # Recognize binary type #
@@ -4830,7 +4830,7 @@ class FileAnalyzer(object):
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         # handle no target case #
@@ -5882,7 +5882,10 @@ class SystemManager(object):
                     )
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printWarning("Fail to import python package: " + err.args[0])
+                SystemManager.printWarning(\
+                    ("Fail to import python package: %s "
+                    "to get the number of maximum file descriptor") % err.args[0])
+                return
 
             try:
                 # load standard libc library #
@@ -5899,12 +5902,10 @@ class SystemManager(object):
                 SystemManager.maxFd = rlim.rlim_cur
             except:
                 SystemManager.printWarning(\
-                    ("Fail to get the number of maximum file descriptor because of getrlimit fail, "
-                    "just use %d as default value") % SystemManager.maxFd)
+                    "Fail to get the number of maximum file descriptor because of getrlimit fail")
         else:
             SystemManager.printWarning(\
-                ("Fail to get the number of maximum file descriptor,"
-                "just use %d as default value") % SystemManager.maxFd)
+                "Fail to get the number of maximum file descriptor because of platform support")
 
 
 
@@ -5919,7 +5920,10 @@ class SystemManager(object):
                 from ctypes import cdll, POINTER
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printWarning("Fail to import python package: " + err.args[0])
+                SystemManager.printWarning(\
+                    ("Fail to import python package: %s "
+                    "to set comm of this process") % err.args[0])
+                return
 
             try:
                 # load standard libc library #
@@ -5930,10 +5934,10 @@ class SystemManager(object):
                 SystemManager.printWarning('Fail to set comm because of prctl error in libc')
         elif sys.platform.startswith('darwin'):
             SystemManager.printWarning(\
-                'Fail to get comm because %s is not supported' % sys.platform)
+                'Fail to set comm because %s is not supported' % sys.platform)
         else:
             SystemManager.printWarning(\
-                'Fail to get comm because %s is not supported' % sys.platform)
+                'Fail to set comm because %s is not supported' % sys.platform)
 
 
 
@@ -6579,7 +6583,7 @@ class SystemManager(object):
             import subprocess
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         syms = []
@@ -7691,7 +7695,7 @@ class SystemManager(object):
             from PIL import Image, ImageFont, ImageDraw
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             return
 
         try:
@@ -7700,7 +7704,7 @@ class SystemManager(object):
             imageType = 'jpg'
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printWarning("Fail to import python package: " + err.args[0])
+            SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
 
             try:
                 # load bmp plugin instead of jpeg #
@@ -7708,7 +7712,7 @@ class SystemManager(object):
                 imageType = 'bmp'
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import python package: " + err.args[0])
+                SystemManager.printError("Fail to import python package: %s" % err.args[0])
                 return
 
         if SystemManager.imagePath is None:
@@ -7914,7 +7918,7 @@ class SystemManager(object):
                     SystemManager.jsonObject = json
                 except ImportError:
                     err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import python package: " + err.args[0])
+                    SystemManager.printError("Fail to import python package: %s" % err.args[0])
                     sys.exit(0)
 
             return True
@@ -8171,7 +8175,7 @@ class SystemManager(object):
                         SystemManager.reportEnable = True
                     except ImportError:
                         err = sys.exc_info()[1]
-                        SystemManager.printError("Fail to import python package: " + err.args[0])
+                        SystemManager.printError("Fail to import python package: %s" % err.args[0])
                         sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
@@ -8921,9 +8925,9 @@ class SystemManager(object):
             from ctypes import cdll, POINTER
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printWarning("Fail to import python package: " + err.args[0])
             SystemManager.printWarning(\
-                'Fail to set priority because of loading standard libc error')
+                ("Fail to import python package: %s "
+                "to to set priority") % err.args[0])
             return
 
         try:
@@ -10724,7 +10728,7 @@ class ThreadAnalyzer(object):
                 selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import python package: " + err.args[0])
+                SystemManager.printError("Fail to import python package: %s" % err.args[0])
 
         # run loop #
         while 1:
@@ -12247,7 +12251,10 @@ class ThreadAnalyzer(object):
                     SystemManager.jsonObject = json
                 except ImportError:
                     err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import python package: " + err.args[0])
+                    SystemManager.printError(\
+                        ("Fail to import python package: %s "
+                        "to load configuration") % err.args[0])
+                    sys.exit(0)
 
             try:
                 confBuf = confBuf.replace("'", '"')
@@ -18472,7 +18479,8 @@ class ThreadAnalyzer(object):
                     SystemManager.jsonObject = json
                 except ImportError:
                     err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import python package: " + err.args[0])
+                    SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                    sys.exit(0)
 
             # convert report data to dictionary type #
             reportStat = SystemManager.makeJsonDict(data)
@@ -19154,7 +19162,7 @@ if __name__ == '__main__':
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: " + err.args[0])
+            SystemManager.printError("Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
     # convert txt to image #
