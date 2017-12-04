@@ -364,6 +364,141 @@ class ConfigManager(object):
         'DIRTY',    # 6 #
         ]
 
+    errList = [
+        'EPERM',           # Operation not permitted #
+        'ENOENT',          # No such file or directory #
+        'ESRCH',           # No such process #
+        'EINTR',           # Interrupted system call #
+        'EIO',             # I/O error #
+        'ENXIO',           # No such device or address #
+        'E2BIG',           # Argument list too long #
+        'ENOEXEC',         # Exec format error #
+        'EBADF',           # Bad file number #
+        'ECHILD',          # No child processes #
+        'EAGAIN',          # Try again #
+        'ENOMEM',          # Out of memory #
+        'EACCES',          # Permission denied #
+        'EFAULT',          # Bad address #
+        'ENOTBLK',         # Block device required #
+        'EBUSY',           # Device or resource busy #
+        'EEXIST',          # File exists #
+        'EXDEV',           # Cross-device link #
+        'ENODEV',          # No such device #
+        'ENOTDIR',         # Not a directory #
+        'EISDIR',          # Is a directory #
+        'EINVAL',          # Invalid argument #
+        'ENFILE',          # File table overflow #
+        'EMFILE',          # Too many open files #
+        'ENOTTY',          # Not a typewriter #
+        'ETXTBSY',         # Text file busy #
+        'EFBIG',           # File too large #
+        'ENOSPC',          # No space left on device #
+        'ESPIPE',          # Illegal seek #
+        'EROFS',           # Read-only file system #
+        'EMLINK',          # Too many links #
+        'EPIPE',           # Broken pipe #
+        'EDOM',            # Math argument out of domain of func #
+        'ERANGE',          # Math result not representable #
+        'EDEADLK',         # Resource deadlock would occur #
+        'ENAMETOOLONG',    # File name too long #
+        'ENOLCK',          # No record locks available #
+        'ENOSYS',          # Function not implemented #
+        'ENOTEMPTY',       # Directory not empty #
+        'ELOOP',           # Too many symbolic links encountered #
+        'EWOULDBLOCK',     # Operation would block #
+        'ENOMSG',          # No message of desired type #
+        'EIDRM',           # Identifier removed #
+        'ECHRNG',          # Channel number out of range #
+        'EL2NSYNC',        # Level 2 not synchronized #
+        'EL3HLT',          # Level 3 halted #
+        'EL3RST',          # Level 3 reset #
+        'ELNRNG',          # Link number out of range #
+        'EUNATCH',         # Protocol driver not attached #
+        'ENOCSI',          # No CSI structure available #
+        'EL2HLT',          # Level 2 halted #
+        'EBADE',           # Invalid exchange #
+        'EBADR',           # Invalid request descriptor #
+        'EXFULL',          # Exchange full #
+        'ENOANO',          # No anode #
+        'EBADRQC',         # Invalid request code #
+        'EBADSLT ',        # Invalid slot #
+        'EDEADLOCK',
+        'EBFONT',          # Bad font file format #
+        'ENOSTR',          # Device not a stream #
+        'ENODATA',         # No data available #
+        'ETIME',           # Timer expired #
+        'ENOSR',           # Out of streams resources #
+        'ENONET',          # Machine is not on the network #
+        'ENOPKG',          # Package not installed #
+        'EREMOTE',         # Object is remote #
+        'ENOLINK',         # Link has been severed #
+        'EADV',            # Advertise error #
+        'ESRMNT',          # Srmount error #
+        'ECOMM',           # Communication error on send #
+        'EPROTO',          # Protocol error #
+        'EMULTIHOP',       # Multihop attempted #
+        'EDOTDOT',         # RFS specific error #
+        'EBADMSG',         # Not a data message #
+        'EOVERFLOW',       # Value too large for defined data type #
+        'ENOTUNIQ',        # Name not unique on network #
+        'EBADFD',          # File descriptor in bad state #
+        'EREMCHG',         # Remote address changed #
+        'ELIBACC',         # Can not access a needed shared library #
+        'ELIBBAD',         # Accessing a corrupted shared library #
+        'ELIBSCN',         # .lib section in a.out corrupted #
+        'ELIBMAX',         # Attempting to link in too many shared libraries #
+        'ELIBEXEC',        # Cannot exec a shared library directly #
+        'EILSEQ',          # Illegal byte sequence #
+        'ERESTART',        # Interrupted system call should be restarted #
+        'ESTRPIPE',        # Streams pipe error #
+        'EUSERS',          # Too many users #
+        'ENOTSOCK',        # Socket operation on non-socket #
+        'EDESTADDRREQ',    # Destination address required #
+        'EMSGSIZE',        # Message too long #
+        'EPROTOTYPE',      # Protocol wrong type for socket #
+        'EPROTOTYPE',      # Protocol wrong type for socket #
+        'ENOPROTOOPT',     # Protocol not available #
+        'EPROTONOSUPPORT', # Protocol not supported #
+        'ESOCKTNOSUPPORT', # Socket type not supported #
+        'EOPNOTSUPP',      # Operation not supported on transport endpoint #
+        'EPFNOSUPPORT',    # Protocol family not supported #
+        'EAFNOSUPPORT ',   # Address family not supported by protocol #
+        'EADDRINUSE ',     # Address already in use #
+        'EADDRNOTAVAIL',   # Cannot assign requested address #
+        'ENETDOWN',        # Network is down #
+        'ENETUNREACH',     # Network is unreachable #
+        'ENETRESET',       # Network dropped connection because of reset #
+        'ECONNABORTED',    # Software caused connection abort #
+        'ECONNRESET',      # Connection reset by peer #
+        'ENOBUFS',         # No buffer space available #
+        'EISCONN',         # Transport endpoint is already connected #
+        'ENOTCONN',        # Transport endpoint is not connected #
+        'ESHUTDOWN',       # Cannot send after transport endpoint shutdown #
+        'ETOOMANYREFS',    # Too many references: cannot splice #
+        'ETIMEDOUT',       # Connection timed out #
+        'ECONNREFUSED',    # Connection refused #
+        'EHOSTDOWN',       # Host is down #
+        'EHOSTUNREACH',    # No route to host #
+        'EALREADY',        # Operation already in progress #
+        'EINPROGRESS',     # Operation now in progress #
+        'ESTALE',          # Stale NFS file handle #
+        'EUCLEAN',         # Structure needs cleaning #
+        'ENOTNAM',         # Not a XENIX named type file #
+        'ENAVAIL',         # No XENIX semaphores available #
+        'EISNAM',          # Is a named type file #
+        'EREMOTEIO',       # Remote I/O error #
+        'EDQUOT',          # Quota exceeded #
+        'ENOMEDIUM',       # No medium found #
+        'EMEDIUMTYPE',     # Wrong medium type #
+        'ECANCELED',       # Operation Canceled #
+        'ENOKEY',          # Required key not available #
+        'EKEYEXPIRED',     # Key has expired #
+        'EKEYREVOKED',     # Key has been revoked #
+        'EKEYREJECTED',    # Key was rejected by service #
+        'EOWNERDEAD',      # Owner died #
+        'ENOTRECOVERABLE', # State not recoverable #
+    ]
+
     # Define rlimit of process #
     rlimitList = [
         'RLIMIT_CPU',
@@ -3031,7 +3166,7 @@ class FunctionAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
-        # Print profiled thread list #
+        # Print thread list #
         SystemManager.pipePrint(\
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7), \
@@ -7572,13 +7707,9 @@ class SystemManager(object):
                 else:
                     filterList.pop(idx)
             if len(filterList) > 0:
-                if SystemManager.isFunctionMode():
-                    SystemManager.printInfo(\
-                        "profiled custom events [ %s ], select them with -c option" % \
-                        ', '.join(filterList))
-                else:
-                    SystemManager.printInfo(\
-                        "profiled custom events [ %s ]" % ', '.join(filterList))
+                SystemManager.printInfo(\
+                    "profiled custom events [ %s ]" % ', '.join(filterList))
+                if SystemManager.customCmd is None:
                     SystemManager.customCmd = filterList
 
         # apply user event option #
@@ -9291,7 +9422,6 @@ class SystemManager(object):
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
-        self.cmdList["signal"] = SystemManager.depEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
@@ -9390,6 +9520,19 @@ class SystemManager(object):
             SystemManager.writeCmd('../tracing_on', '1')
         else:
             SystemManager.writeCmd('../tracing_on', '0')
+
+        # enable dynamic events #
+        SystemManager.writeCustomCmd()
+        SystemManager.writeKernelCmd()
+        SystemManager.writeUserCmd()
+
+        # enable common events #
+        if self.cmdList["task"]:
+            SystemManager.writeCmd('task/enable', '1')
+        if self.cmdList["sched/sched_process_exit"]:
+            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
+        if self.cmdList["signal"]:
+            SystemManager.writeCmd('signal/enable', '1')
 
         # FUNCTION MODE #
         if SystemManager.isFunctionMode():
@@ -9547,28 +9690,16 @@ class SystemManager(object):
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '0')
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
 
-            self.cmdList["task"] = True
-            SystemManager.writeCmd('task/enable', '1')
-            self.cmdList["sched/sched_process_exit"] = True
-            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
-
             # options for segmentation fault tracing #
-            sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
-            self.cmdList["signal"] = True
-            SystemManager.writeCmd('signal/filter', sigCmd)
-            SystemManager.writeCmd('signal/enable', '1')
+            sigDisabled = True
+            for evt in SystemManager.customCmd:
+                if evt.startswith('signal'):
+                    sigDisabled = False
+                    break
+            if sigDisabled:
+                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
+                SystemManager.writeCmd('signal/filter', sigCmd)
 
-        # enable custom events #
-        SystemManager.writeCustomCmd()
-
-        # enable kernel events #
-        SystemManager.writeKernelCmd()
-
-        # enable user events #
-        SystemManager.writeUserCmd()
-
-        # FUNCTION MODE #
-        if SystemManager.isFunctionMode():
             return
 
         # THREAD MODE #
@@ -9601,8 +9732,6 @@ class SystemManager(object):
                 SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
             if self.cmdList["sched/sched_migrate_task"]:
                 SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
-            if self.cmdList["sched/sched_process_exit"]:
-                SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
             if self.cmdList["sched/sched_process_wait"]:
                 SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
@@ -9742,11 +9871,6 @@ class SystemManager(object):
         SystemManager.writeCmd('raw_syscalls/enable', '1')
         self.cmdList["raw_syscalls"] = True
 
-        # options for signal tracing #
-        if self.cmdList["signal"]:
-            if SystemManager.depEnable:
-                SystemManager.writeCmd('signal/enable', '1')
-
         # options for hibernation tracing #
         if self.cmdList["power/suspend_resume"]:
             SystemManager.writeCmd('power/suspend_resume/enable', '1')
@@ -9812,12 +9936,6 @@ class SystemManager(object):
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_begin/enable', '1')
         if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_end/enable', '1')
-
-        # options for task event tracing #
-        if self.cmdList["task"]:
-            SystemManager.writeCmd('task/enable', '1')
-        if self.cmdList["signal"]:
-            SystemManager.writeCmd('signal/enable', '1')
 
         # options for printk event tracing #
         if self.cmdList["printk"]:
@@ -12453,32 +12571,34 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint('\n' + '[Thread Syscall History]')
                 SystemManager.pipePrint(twoLine)
                 SystemManager.pipePrint(\
-                    "%16s(%4s)\t%8s\t%8s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
-                    ("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
-                    "SysId", "Core", "Return", "Parameter"))
+                    "{0:>16}({1:>5}) {2:^9} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:^16} {9:<1}"\
+                    .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
+                    "SID", "Core", "Return", "Parameter"))
                 SystemManager.pipePrint(twoLine)
 
                 cnt = 0
                 for icount in xrange(0, len(self.syscallData)):
                     try:
+                        syscall = ConfigManager.sysList[int(self.syscallData[icount][4])]
+
                         if self.syscallData[icount][0] == 'enter':
                             if len(self.syscallData) > icount + 1 and \
                                 self.syscallData[icount + 1][0] == 'exit' and \
                                 self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
-                                eventType = 'both'
+                                eventType = 'pair'
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
                                 elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
                                     float(self.syscallData[icount][1]))
-                                ret = self.syscallData[icount + 1][5]
                                 param = self.syscallData[icount][5]
+                                ret = self.syscallData[icount + 1][5]
                             else:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
-                                elapsed = ' ' * 13
-                                ret = '-'
+                                elapsed = ' ' * 8
                                 param = self.syscallData[icount][5]
+                                ret = ' '
                         else:
                             if self.syscallData[icount - 1][0] == 'enter' and \
                                     self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
@@ -12487,15 +12607,21 @@ class ThreadAnalyzer(object):
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
                                     float(self.syscallData[icount][1]) - float(self.startTime)
-                                elapsed = ' ' * 13
+                                elapsed = ' ' * 8
+                                param = ' '
                                 ret = self.syscallData[icount][5]
-                                param = '-'
+
+                        try:
+                            nrRet = int(ret)
+                            if nrRet < 0:
+                                ret = ConfigManager.errList[abs(nrRet) - 1]
+                        except:
+                            pass
 
                         SystemManager.pipePrint(\
-                            "%16s(%4s)\t%6.6f\t%s\t%5s\t%16s\t%6s\t%4s\t%8s\t%s" % \
-                            (self.threadData[self.syscallData[icount][2]]['comm'], \
-                            self.syscallData[icount][2], eventTime, elapsed, eventType, \
-                            ConfigManager.sysList[int(self.syscallData[icount][4])], \
+                            "{0:>16}({1:>5}) {2:>3.6f} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
+                            .format(self.threadData[self.syscallData[icount][2]]['comm'], \
+                            self.syscallData[icount][2], eventTime, elapsed, eventType, syscall[4:], \
                             self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
                         cnt += 1
                     except:
