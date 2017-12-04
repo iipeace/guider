@@ -9532,6 +9532,21 @@ class SystemManager(object):
         if self.cmdList["sched/sched_process_exit"]:
             SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
         if self.cmdList["signal"]:
+            commonFilter = ""
+            genFilter = ""
+            for pid in SystemManager.showGroup:
+                try:
+                    int(pid)
+                    commonFilter = "%s common_pid == %s ||" % (commonFilter, pid)
+                    genFilter = "%s pid == %s ||" % (genFilter, pid)
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to set filter '%s' for signal because it is not integer value" % pid)
+            if len(commonFilter) > 0:
+                SystemManager.writeCmd('signal/signal_deliver/filter', \
+                    commonFilter[:commonFilter.rfind(' ||')])
+                SystemManager.writeCmd('signal/signal_generate/filter', \
+                    commonFilter + genFilter[:genFilter.rfind(' ||')])
             SystemManager.writeCmd('signal/enable', '1')
 
         # FUNCTION MODE #
@@ -9589,13 +9604,13 @@ class SystemManager(object):
 
                     return
 
-            # make filter command for function profiler #
+            # make filter for function mode #
             for cond in SystemManager.showGroup:
                 try:
                     cmd += "common_pid == %s || " % int(cond)
                 except:
                     if cond.find('>') == -1 and cond.find('<') == -1:
-                        SystemManager.printError("wrong tid %s" % cond)
+                        SystemManager.printError("wrong tid '%s'" % cond)
                         sys.exit(0)
                     else:
                         try:
@@ -9692,10 +9707,11 @@ class SystemManager(object):
 
             # options for segmentation fault tracing #
             sigDisabled = True
-            for evt in SystemManager.customCmd:
-                if evt.startswith('signal'):
-                    sigDisabled = False
-                    break
+            if SystemManager.customCmd is not None:
+                for evt in SystemManager.customCmd:
+                    if evt.startswith('signal'):
+                        sigDisabled = False
+                        break
             if sigDisabled:
                 sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
                 SystemManager.writeCmd('signal/filter', sigCmd)
@@ -15827,6 +15843,12 @@ class ThreadAnalyzer(object):
                     target_comm = d['comm']
                     pid = d['pid']
 
+                    # apply filter #
+                    for item in SystemManager.showGroup:
+                        if item != thread and comm.find(item) < 0 and \
+                            item != pid and target_comm.find(item):
+                            return
+
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
                         (round(float(time) - float(self.startTime), 7), \
                         round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
@@ -15861,6 +15883,11 @@ class ThreadAnalyzer(object):
 
                     sig = d['sig']
                     flags = d['flags']
+
+                    # apply filter #
+                    for item in SystemManager.showGroup:
+                        if item != thread and comm.find(item) < 0:
+                            return
 
                     ttime = float(time) - float(self.startTime)
                     itime = float(time) - float(self.startTime) - float(self.wakeupData['time'])
