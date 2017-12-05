@@ -497,6 +497,8 @@ class ConfigManager(object):
         'EKEYREJECTED',    # Key was rejected by service #
         'EOWNERDEAD',      # Owner died #
         'ENOTRECOVERABLE', # State not recoverable #
+        'ERFKILL',          # Operation not possible due to RF-kill #
+        'EHWPOISON',        # Memory page has hardware error #
     ]
 
     # Define rlimit of process #
@@ -5917,6 +5919,7 @@ class SystemManager(object):
     wfcEnable = False
     blockEnable = False
     userEnable = True
+    printEnable = True
     futexEnable = False
     pipeEnable = False
     depEnable = False
@@ -6227,7 +6230,7 @@ class SystemManager(object):
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
-            print('\t\t\t  [top]      {r(ss)|v(ss)}')
+            print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)}')
             print('\t\t-s  [save_traceData:path]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]')
             print('\t\t-u  [run_inBackground]')
@@ -6912,20 +6915,25 @@ class SystemManager(object):
         else:
             disableStat += 'PROCESS '
 
-        if SystemManager.cpuEnable is False:
-            disableStat += 'CPU '
-        else:
+        if SystemManager.cpuEnable:
             enableStat += 'CPU '
-
-        if SystemManager.memEnable is False:
-            disableStat += 'MEMORY '
         else:
+            disableStat += 'CPU '
+
+        if SystemManager.memEnable:
             enableStat += 'MEMORY '
-
-        if SystemManager.blockEnable is False:
-            disableStat += 'BLOCK '
         else:
+            disableStat += 'MEMORY '
+
+        if SystemManager.blockEnable:
             enableStat += 'BLOCK '
+        else:
+            disableStat += 'BLOCK '
+
+        if SystemManager.printEnable:
+            enableStat += 'PRINT '
+        else:
+            disableStat += 'PRINT '
 
         # print options #
         if enableStat != '':
@@ -6959,8 +6967,18 @@ class SystemManager(object):
         enableStat += SystemManager.arch.upper() + ' '
         if SystemManager.warningEnable:
             enableStat += 'WARNING '
+        else:
+            disableStat += 'WARNING '
+
         if SystemManager.pipeEnable:
             enableStat += 'PIPE '
+        else:
+            disableStat += 'PIPE '
+
+        if SystemManager.printEnable:
+            enableStat += 'PRINT '
+        else:
+            disableStat += 'PRINT '
 
         # check current mode #
         if SystemManager.isTopMode():
@@ -7917,6 +7935,9 @@ class SystemManager(object):
 
     @staticmethod
     def pipePrint(line):
+        if SystemManager.printEnable is False:
+            return
+
         # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
             SystemManager.printFile == None and SystemManager.isTopMode() is False and \
@@ -8248,6 +8269,8 @@ class SystemManager(object):
                     SystemManager.rssEnable = False
                 if options.rfind('v') > -1:
                     SystemManager.vssEnable = False
+                if options.rfind('p') > -1:
+                    SystemManager.printEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -8762,6 +8785,8 @@ class SystemManager(object):
                     SystemManager.blockEnable = False
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
+                if options.rfind('p') > -1:
+                    SystemManager.printEnable = False
 
             # Ignore options #
             elif option == 'i' or option == 'a' or option == 'v' or \
