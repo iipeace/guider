@@ -436,5 +436,5 @@ Examples
      - send some signal to specific processes
          # ./guider.py send -9 1234, 4567
      - set priority of tasks
-         # %s record -Y c:-19, r:90:1217, i:0:1209
+         # ./guider.py record -Y c:-19, r:90:1217, i:0:1209
 ```
