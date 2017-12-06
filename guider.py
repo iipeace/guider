@@ -6379,7 +6379,7 @@ class SystemManager(object):
                 print('\t\t\t- send some signal to specific processes')
                 print('\t\t\t\t# %s send -9 1234, 4567' % cmd)
                 print('\t\t\t- set priority of tasks')
-                print('\t\t\t\t# %s record -Y c:-19, r:90:1217, i:0:1209')
+                print('\t\t\t\t# %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
 
             print("\nAuthor: \n\t%s(%s)" % (__author__, __email__))
             print("\nReporting bugs: \n\t%s or %s" % (__email__, __repository__))
@@ -17268,7 +17268,9 @@ class ThreadAnalyzer(object):
                     nodePointer[item] = {}
                 nodePointer = nodePointer[item]
 
-        for pid, item in sorted(procInstance.items(), key=lambda e: e[1]['runtime'], reverse=True):
+        starttimeIdx = ConfigManager.statList.index("STARTTIME")
+        for pid, item in sorted(procInstance.items(), \
+            key=lambda e: long(e[1]['stat'][starttimeIdx])):
             ppid = procInstance[pid]['stat'][ppidIdx]
 
             if ppid == '0':
