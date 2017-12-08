@@ -7319,17 +7319,20 @@ class SystemManager(object):
     def alarmHandler(signum, frame):
         if SystemManager.repeatCount > SystemManager.progressCnt:
             SystemManager.progressCnt += 1
-            signal.alarm(SystemManager.repeatInterval)
+
+            # disable alarm handler #
+            signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
 
             if SystemManager.pipeEnable:
                 if SystemManager.repeatCount == SystemManager.progressCnt:
                     SystemManager.runRecordStopCmd()
                     SystemManager.recordStatus = False
-                    signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+                signal.alarm(SystemManager.repeatInterval)
             elif SystemManager.outputFile != None:
                 output = '%s.%ds_%ds' % (SystemManager.outputFile, \
                     (SystemManager.progressCnt - 1) * SystemManager.repeatInterval, \
                     SystemManager.progressCnt * SystemManager.repeatInterval)
+
                 try:
                     # submit system info #
                     si = SystemManager()
@@ -7350,6 +7353,9 @@ class SystemManager(object):
             else:
                 SystemManager.printError('Fail to save trace data because output file is not set')
                 sys.exit(0)
+
+            # enable alarm handler #
+            signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
         else:
             sys.exit(0)
 
@@ -9382,15 +9388,24 @@ class SystemManager(object):
 
         while 1:
             try:
+                # read each 4k data through pipe #
                 buf = pd.read(SystemManager.pageSize)
+
                 fd.write(buf)
-                if SystemManager.recordStatus or len(buf) == SystemManager.pageSize:
+
+                if SystemManager.recordStatus:
                     continue
                 else:
                     raise
             except:
-                # close files to sync disk buffer #
+                # close pipe #
                 pd.close()
+
+                # read the remaining data under 4k from log buffer #
+                with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
+                    fd.write(fr.read())
+
+                # close file to sync disk buffer #
                 fd.close()
 
                 # print system information to buffer #
@@ -9518,12 +9533,11 @@ class SystemManager(object):
             sys.exit(0)
 
         # make trace buffer empty #
-        self.clearTraceBuffer()
+        SystemManager.clearTraceBuffer()
 
         # set size of trace buffer per core #
         if SystemManager.bufferSize == 0:
-            # 40MB #
-            SystemManager.bufferSize = '40960'
+            SystemManager.bufferSize = '40960' # 40MB #
         else:
             # Change from integer to string #
             SystemManager.bufferSize = str(SystemManager.bufferSize)
@@ -19246,6 +19260,7 @@ if __name__ == '__main__':
             (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
+            signal.signal(signal.SIGQUIT, SystemManager.newHandler)
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.outputFile is None:
@@ -19301,6 +19316,36 @@ if __name__ == '__main__':
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
 
+        # enter loop to record and save data periodically #
+        while SystemManager.repeatInterval > 0:
+            signal.alarm(SystemManager.repeatInterval)
+
+            if SystemManager.pipeEnable:
+                if SystemManager.outputFile is not None:
+                    SystemManager.copyPipeToFile(\
+                        '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
+                else:
+                    SystemManager.printError("wrong option with -e + p, use -s option to save data")
+
+                sys.exit(0)
+
+            # get init time in buffer for verification #
+            initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
+
+            # wait for timer #
+            signal.pause()
+
+            if SystemManager.repeatCount == SystemManager.progressCnt:
+                sys.exit(0)
+
+            # compare init time with now time for buffer verification #
+            if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
+                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
+                    SystemManager.getBufferSize())
+                sys.exit(0)
+            else:
+                SystemManager.clearTraceBuffer()
+
         if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
                 SystemManager.copyPipeToFile(\
@@ -19313,25 +19358,6 @@ if __name__ == '__main__':
         # get init time from buffer for verification #
         if SystemManager.graphEnable is False:
             initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
-
-        # enter loop to record and save data periodically #
-        while SystemManager.repeatInterval > 0:
-            if SystemManager.repeatCount == SystemManager.progressCnt:
-                sys.exit(0)
-
-            # get init time in buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
-
-            # wait for timer #
-            signal.pause()
-
-            # compare init time with now time for buffer verification #
-            if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
-                    SystemManager.getBufferSize())
-                sys.exit(0)
-            else:
-                SystemManager.clearTraceBuffer()
 
         # wait for user input #
         while 1:
