@@ -1957,7 +1957,9 @@ class FunctionAnalyzer(object):
             return
 
         # Check addr2line path #
-        if SystemManager.addr2linePath is None:
+        if SystemManager.userEnable is False:
+            return
+        elif SystemManager.addr2linePath is None:
             SystemManager.printError(\
                 "Fail to find addr2line, use -l option with addr2line path for user mode")
             sys.exit(0)
@@ -7696,6 +7698,7 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             if filterList.find('u') > -1:
                 SystemManager.userEnable = False
+                SystemManager.rootPath = '/'
             if filterList.find('c') > -1:
                 SystemManager.cpuEnable = False
 
@@ -8277,6 +8280,9 @@ class SystemManager(object):
                     SystemManager.vssEnable = False
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+                if options.rfind('u') > -1:
+                    SystemManager.userEnable = False
+                    SystemManager.rootPath = '/'
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -10903,7 +10909,28 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to get root permission to analyze opened files")
             sys.exit(0)
 
+        # import select package on foreground #
+        if SystemManager.printFile is None:
+            selectObject = None
+            try:
+                import select
+                selectObject = select
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
+
         while 1:
+            # pause and resume by enter key #
+            if SystemManager.printFile is None and selectObject != None and \
+                selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                SystemManager.pipePrint("[ Input ENTER to continue ]")
+
+                # flush buffered enter key #
+                sys.stdin.readline()
+
+                # wait for enter key #
+                sys.stdin.readline()
+
             # collect file stats as soon as possible #
             self.saveFileStat()
 
@@ -10948,7 +10975,7 @@ class ThreadAnalyzer(object):
                 selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
 
         # run loop #
         while 1:
