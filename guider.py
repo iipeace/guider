@@ -38,7 +38,7 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define color #
-    if sys.platform.startswith('linux'):
+    if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
         WARNING = '\033[95m'
         OKBLUE = '\033[94m'
         OKGREEN = '\033[92m'
@@ -6007,77 +6007,72 @@ class SystemManager(object):
 
     @staticmethod
     def setMaxFd():
-        if sys.platform.startswith('linux'):
-            try:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
+        if sys.platform.startswith('linux') is False:
+            return
 
-                class rlimit(Structure):
-                    _fields_ = (
-                        ("rlim_cur", c_uint),
-                        ("rlim_max", c_uint),
-                    )
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    ("Fail to import python package: %s "
-                    "to get the number of maximum file descriptor") % err.args[0])
-                return
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
 
-            try:
-                # load standard libc library #
-                if SystemManager.libcObj is None:
-                    SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-
-                SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
-                SystemManager.libcObj.getrlimit.restype = c_int
-
-                rlim = rlimit()
-                ret = SystemManager.libcObj.getrlimit(\
-                    ConfigManager.rlimitList.index('RLIMIT_NOFILE'), byref(rlim))
-
-                SystemManager.maxFd = rlim.rlim_cur
-            except:
-                SystemManager.printWarning(\
-                    "Fail to get the number of maximum file descriptor because of getrlimit fail")
-        else:
+            class rlimit(Structure):
+                _fields_ = (
+                    ("rlim_cur", c_uint),
+                    ("rlim_max", c_uint),
+                )
+        except ImportError:
+            err = sys.exc_info()[1]
             SystemManager.printWarning(\
-                "Fail to get the number of maximum file descriptor because of platform support")
+                ("Fail to import python package: %s "
+                "to get the number of maximum file descriptor") % err.args[0])
+            return
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+
+            SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
+            SystemManager.libcObj.getrlimit.restype = c_int
+
+            rlim = rlimit()
+            ret = SystemManager.libcObj.getrlimit(\
+                ConfigManager.rlimitList.index('RLIMIT_NOFILE'), byref(rlim))
+
+            SystemManager.maxFd = rlim.rlim_cur
+        except:
+            SystemManager.printWarning(\
+                "Fail to get the number of maximum file descriptor because of getrlimit fail")
 
 
 
     @staticmethod
     def setComm(comm):
-        if sys.platform.startswith('linux'):
-            try:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from ctypes import cdll, POINTER
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    ("Fail to import python package: %s "
-                    "to set comm of this process") % err.args[0])
-                return
+        if sys.platform.startswith('linux') is False:
+            return
 
-            try:
-                # load standard libc library #
-                if SystemManager.libcObj is None:
-                    SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-                SystemManager.libcObj.prctl(15, comm, 0, 0, 0)
-            except:
-                SystemManager.printWarning('Fail to set comm because of prctl error in libc')
-        elif sys.platform.startswith('darwin'):
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER
+        except ImportError:
+            err = sys.exc_info()[1]
             SystemManager.printWarning(\
-                'Fail to set comm because %s is not supported' % sys.platform)
-        else:
-            SystemManager.printWarning(\
-                'Fail to set comm because %s is not supported' % sys.platform)
+                ("Fail to import python package: %s "
+                "to set comm of this process") % err.args[0])
+            return
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+            SystemManager.libcObj.prctl(15, comm, 0, 0, 0)
+        except:
+            SystemManager.printWarning('Fail to set comm because of prctl error in libc')
 
 
 
@@ -6176,10 +6171,15 @@ class SystemManager(object):
 
 
     @staticmethod
-    def checkVersion():
+    def checkEnv():
+        if sys.platform.startswith('linux') is False and \
+            sys.platform.startswith('win') is False:
+            SystemManager.printError('%s platform is not supported yet' % sys.platform)
+            sys.exit(0)
+
         if sys.version_info < (2, 6):
             SystemManager.printWarning(\
-                'python version is %d.%d so that some features do not work' \
+                'python version is %d.%d so that some features may not work' \
                 % (sys.version_info[0], sys.version_info[1]))
 
 
@@ -6237,7 +6237,7 @@ class SystemManager(object):
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]')
             print('\t\t-u  [run_inBackground]')
             print('\t\t-W  [wait_forSignal]')
-            print('\t\t-R  [record_repeatedly:interval,count]')
+            print('\t\t-R  [record_repeatedly:{interval,}count]')
             print('\t\t-b  [set_bufferSize:kb]')
             print('\t\t-D  [trace_threadDependency]')
             print('\t\t-t  [trace_syscall:syscalls]')
@@ -6321,14 +6321,18 @@ class SystemManager(object):
                 print('\n\t\t[top mode]')
                 print('\t\t\t- show real-time resource usage of processes')
                 print('\t\t\t\t# %s top' % cmd)
-                print('\t\t\t- show real-time file usage of processes')
-                print('\t\t\t\t# %s top -ef' % cmd)
+                print('\t\t\t- show real-time files opened via processes')
+                print('\t\t\t\t# %s top -e f' % cmd)
+                print('\t\t\t- show real-time specific files opened via specific processes')
+                print('\t\t\t\t# %s top -e f -g init, lightdm : home, var' % cmd)
                 print('\t\t\t- show real-time resource usage of processes by sorting memory')
                 print('\t\t\t\t# %s top -S m' % cmd)
+                print('\t\t\t- show real-time resource usage of processes only 5 times')
+                print('\t\t\t\t# %s top -R 5' % cmd)
                 print('\t\t\t- show real-time resource usage of processes only 5 times per 3 sec interval')
                 print('\t\t\t\t# %s top -R 3, 5' % cmd)
                 print('\t\t\t- show real-time resource usage including disk of threads per 2 sec interval')
-                print('\t\t\t\t# %s top -e td -i 2 -a' % cmd)
+                print('\t\t\t\t# %s top -e t d -i 2 -a' % cmd)
                 print('\t\t\t- show real-time resource usage of specific processes/threads involved in specific process group')
                 print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
                 print('\t\t\t- record resource usage of processes to the specific file in background')
@@ -6336,9 +6340,9 @@ class SystemManager(object):
                 print('\t\t\t- record and report system status to the specific file in background')
                 print('\t\t\t\t# %s top -o . -e r -j . -u' % cmd)
                 print('\t\t\t- record and save system status to the specific file if some events occur')
-                print('\t\t\t\t# %s top -o . -e r -e f' % cmd)
+                print('\t\t\t\t# %s top -o . -e r R' % cmd)
                 print('\t\t\t- record and report system status to the specific image')
-                print('\t\t\t\t# %s top -o . -e r -e f' % cmd)
+                print('\t\t\t\t# %s top -o . -e r I' % cmd)
                 print('\t\t\t- convert a analysis text to a graph image')
                 print('\t\t\t\t# %s draw guider.out' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
@@ -7503,10 +7507,12 @@ class SystemManager(object):
     @staticmethod
     def printTitle():
         if SystemManager.printFile is None and SystemManager.printAllEnable is False:
-            if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            if sys.platform.startswith('linux'):
                 sys.stdout.write("\x1b[2J\x1b[H")
             elif sys.platform.startswith('win'):
                 os.system('cls')
+            else:
+                pass
 
         title = "/ g.u.i.d.e.r \tver.%s /" % __version__
         underline = '_' * (len(title))
@@ -7668,17 +7674,19 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
-            SystemManager.printInfo("only specific threads [%s] were recorded" % \
+            SystemManager.printInfo(\
+                "only specific threads including [%s] were recorded" % \
                 ', '.join(SystemManager.showGroup))
 
         # check filter list #
         if len(SystemManager.showGroup) > 0:
             if SystemManager.groupProcEnable is False:
-                SystemManager.printInfo("only specific threads [%s] are shown" % \
+                SystemManager.printInfo(\
+                    "only specific threads including [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
             else:
                 SystemManager.printInfo(\
-                    "only specific threads that involved in [%s] process groups are shown" % \
+                    "only specific threads that involved in process group including [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
 
         # apply dependency option #
@@ -7949,13 +7957,17 @@ class SystemManager(object):
 
         # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-            SystemManager.printFile == None and SystemManager.isTopMode() is False and \
-            sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            SystemManager.printFile == None and SystemManager.isTopMode() is False:
             try:
-                SystemManager.pipeForPrint = os.popen('less', 'w')
+                if sys.platform.startswith('linux'):
+                    SystemManager.pipeForPrint = os.popen('less', 'w')
+                elif sys.platform.startswith('win'):
+                    SystemManager.pipeForPrint = os.popen('more', 'w')
+                else:
+                    pass
             except:
                 SystemManager.printError(\
-                    "Fail to find less util, use -o option to save output into file\n")
+                    "Fail to find pager util, use -o option to save output into file\n")
                 sys.exit(0)
 
         # pager output #
@@ -7969,10 +7981,12 @@ class SystemManager(object):
 
         # file output #
         if SystemManager.printFile != None and SystemManager.fileForPrint == None:
-            if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            if sys.platform.startswith('linux'):
                 token = '/'
-            else:
+            elif sys.platform.startswith('win'):
                 token = '\\'
+            else:
+                pass
 
             # analysis mode #
             if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
@@ -8559,11 +8573,7 @@ class SystemManager(object):
                     SystemManager.countEnable = True
 
                     repeatParams = value.split(',')
-                    if len(repeatParams) != 2:
-                        SystemManager.printError(\
-                            "wrong option value with -R, input INTERVAL,REPEAT in format")
-                        sys.exit(0)
-                    else:
+                    if len(repeatParams) == 2:
                         try:
                             SystemManager.intervalEnable = int(repeatParams[0])
                             SystemManager.repeatCount = int(repeatParams[1])
@@ -8571,6 +8581,18 @@ class SystemManager(object):
                             SystemManager.printError(\
                                 "wrong option value with -R, input integer values")
                             sys.exit(0)
+                    elif len(repeatParams) == 1:
+                        try:
+                            SystemManager.repeatCount = int(repeatParams[0])
+                            SystemManager.intervalEnable = 1
+                        except:
+                            SystemManager.printError(\
+                                "wrong option value with -R, input a integer value")
+                            sys.exit(0)
+                    else:
+                        SystemManager.printError(\
+                            "wrong option value with -R, input INTERVAL,REPEAT in format")
+                        sys.exit(0)
 
                     if SystemManager.intervalEnable < 1 or SystemManager.repeatCount < 1:
                         SystemManager.printError(\
@@ -8665,7 +8687,7 @@ class SystemManager(object):
                     SystemManager.printError("Input value for filtering with -g option")
                     sys.exit(0)
 
-                SystemManager.printInfo("only specific threads [%s] are recorded" % \
+                SystemManager.printInfo("only specific threads including [%s] are recorded" % \
                     ', '.join(SystemManager.showGroup))
 
             elif option == 's':
@@ -8755,17 +8777,25 @@ class SystemManager(object):
 
             elif option == 'R':
                 repeatParams = value.split(',')
-                if len(repeatParams) != 2:
-                    SystemManager.printError(\
-                        "wrong option value with -R, input INTERVAL,REPEAT in format")
-                    sys.exit(0)
-                else:
+                if len(repeatParams) == 2:
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
                     except:
                         SystemManager.printError("wrong option value with -R, input integer values")
                         sys.exit(0)
+                elif len(repeatParams) == 1:
+                    try:
+                        SystemManager.repeatCount = int(repeatParams[0])
+                        SystemManager.repeatInterval = 1
+                    except:
+                        SystemManager.printError(\
+                            "wrong option value with -R, input a integer value")
+                        sys.exit(0)
+                else:
+                    SystemManager.printError(\
+                        "wrong option value with -R, input INTERVAL,REPEAT in format")
+                    sys.exit(0)
 
                 if SystemManager.repeatInterval < 1 or SystemManager.repeatCount < 1:
                     SystemManager.printError(\
@@ -10757,19 +10787,23 @@ class ThreadAnalyzer(object):
 
                 taskList = ', '.join(SystemManager.showGroup)
 
-                if SystemManager.groupProcEnable is False:
+                if SystemManager.fileTopEnable:
+                    pass
+                elif SystemManager.groupProcEnable is False:
                     if SystemManager.processEnable is False:
-                        SystemManager.printInfo("only specific threads [ %s ] are shown" % taskList)
+                        SystemManager.printInfo(\
+                            "only specific threads including [ %s ] are shown" % taskList)
                     else:
-                        SystemManager.printInfo("only specific processes [ %s ] are shown" % taskList)
+                        SystemManager.printInfo(\
+                            "only specific processes including [ %s ] are shown" % taskList)
                 else:
                     if SystemManager.processEnable is False:
                         SystemManager.printInfo(\
-                            "only specific threads that are involved in process groups [ %s ] are shown" \
+                            "only specific threads that are involved in process group including [ %s ] are shown" \
                             % taskList)
                     else:
                         SystemManager.printInfo(\
-                            "only specific processes that are involved in process groups [ %s ] are shown" \
+                            "only specific processes that are involved in process group including [ %s ] are shown" \
                             % taskList)
 
             # set configuration from file #
@@ -10919,6 +10953,33 @@ class ThreadAnalyzer(object):
                 err = sys.exc_info()[1]
                 SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
 
+        # set proc and file filter #
+        procFilter = []
+        fileFilter = []
+        if SystemManager.showGroup != []:
+            newFilter = ','.join(SystemManager.showGroup)
+            newFilter = newFilter.split(':')
+
+            for pval in newFilter[0].split(','):
+                if pval != '':
+                    procFilter.append(pval)
+            if len(procFilter) > 0:
+                plist = ', '.join(procFilter)
+                SystemManager.printInfo(\
+                    "only specific processes including [ %s ] are shown" % plist)
+
+            if len(newFilter) > 1:
+                for fval in newFilter[1].split(','):
+                    if fval != '':
+                        fileFilter.append(fval)
+            if len(fileFilter) > 0:
+                flist = ', '.join(fileFilter)
+                SystemManager.printInfo(\
+                    "only specific files including [ %s ] are shown" % flist)
+
+        # wait a minute to show options #
+        time.sleep(1)
+
         while 1:
             # pause and resume by enter key #
             if SystemManager.printFile is None and selectObject != None and \
@@ -10938,7 +10999,7 @@ class ThreadAnalyzer(object):
             prevTime = time.time()
 
             # print system status #
-            self.printFileStat()
+            self.printFileStat(procFilter, fileFilter)
 
             # check repeat count #
             if SystemManager.countEnable:
@@ -16795,7 +16856,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printFileStat(self):
+    def printFileStat(self, procFilter = [], fileFilter = []):
         # save uptime #
         try:
             SystemManager.uptimeFd.seek(0)
@@ -16824,22 +16885,6 @@ class ThreadAnalyzer(object):
             # set cpu usage as default #
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: len(e[1]['fdList']), reverse=True)
-
-        # set proc and file filter #
-        procFilter = []
-        fileFilter = []
-        if SystemManager.showGroup != []:
-            for fval in SystemManager.showGroup:
-                pos = fval.find(':')
-                if pos >= 0:
-                    procItem = fval[:pos]
-                    fileItem = fval[pos+1:]
-                    if len(procItem) > 0:
-                        procFilter.append(procItem)
-                    if len(fileItem) > 0:
-                        fileFilter.append(fileItem)
-                else:
-                    procFilter.append(fval)
 
         # print process info #
         procCnt = 0
@@ -19152,8 +19197,8 @@ if __name__ == '__main__':
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
 
-    # check version #
-    SystemManager.checkVersion()
+    # check environment #
+    SystemManager.checkEnv()
 
     # set error logger #
     SystemManager.setErrorLogger()
@@ -19212,11 +19257,6 @@ if __name__ == '__main__':
 
     # parse recording option #
     if SystemManager.isRecordMode():
-        if sys.platform.startswith('linux') is False and \
-            sys.platform.startswith('darwin') is False:
-            SystemManager.printError('Fail to record because this platform is not supported')
-            sys.exit(0)
-
         # update record status #
         SystemManager.recordStatus = True
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
