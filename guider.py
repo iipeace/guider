@@ -7674,17 +7674,19 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             SystemManager.showGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
-            SystemManager.printInfo("only specific threads [%s] were recorded" % \
+            SystemManager.printInfo(\
+                "only specific threads including [%s] were recorded" % \
                 ', '.join(SystemManager.showGroup))
 
         # check filter list #
         if len(SystemManager.showGroup) > 0:
             if SystemManager.groupProcEnable is False:
-                SystemManager.printInfo("only specific threads [%s] are shown" % \
+                SystemManager.printInfo(\
+                    "only specific threads including [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
             else:
                 SystemManager.printInfo(\
-                    "only specific threads that involved in [%s] process groups are shown" % \
+                    "only specific threads that involved in process group including [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
 
         # apply dependency option #
@@ -8685,7 +8687,7 @@ class SystemManager(object):
                     SystemManager.printError("Input value for filtering with -g option")
                     sys.exit(0)
 
-                SystemManager.printInfo("only specific threads [%s] are recorded" % \
+                SystemManager.printInfo("only specific threads including [%s] are recorded" % \
                     ', '.join(SystemManager.showGroup))
 
             elif option == 's':
@@ -10785,19 +10787,23 @@ class ThreadAnalyzer(object):
 
                 taskList = ', '.join(SystemManager.showGroup)
 
-                if SystemManager.groupProcEnable is False:
+                if SystemManager.fileTopEnable:
+                    pass
+                elif SystemManager.groupProcEnable is False:
                     if SystemManager.processEnable is False:
-                        SystemManager.printInfo("only specific threads [ %s ] are shown" % taskList)
+                        SystemManager.printInfo(\
+                            "only specific threads including [ %s ] are shown" % taskList)
                     else:
-                        SystemManager.printInfo("only specific processes [ %s ] are shown" % taskList)
+                        SystemManager.printInfo(\
+                            "only specific processes including [ %s ] are shown" % taskList)
                 else:
                     if SystemManager.processEnable is False:
                         SystemManager.printInfo(\
-                            "only specific threads that are involved in process groups [ %s ] are shown" \
+                            "only specific threads that are involved in process group including [ %s ] are shown" \
                             % taskList)
                     else:
                         SystemManager.printInfo(\
-                            "only specific processes that are involved in process groups [ %s ] are shown" \
+                            "only specific processes that are involved in process group including [ %s ] are shown" \
                             % taskList)
 
             # set configuration from file #
@@ -10957,10 +10963,22 @@ class ThreadAnalyzer(object):
             for pval in newFilter[0].split(','):
                 if pval != '':
                     procFilter.append(pval)
+            if len(procFilter) > 0:
+                plist = ', '.join(procFilter)
+                SystemManager.printInfo(\
+                    "only specific processes including [ %s ] are shown" % plist)
+
             if len(newFilter) > 1:
                 for fval in newFilter[1].split(','):
                     if fval != '':
                         fileFilter.append(fval)
+            if len(fileFilter) > 0:
+                flist = ', '.join(fileFilter)
+                SystemManager.printInfo(\
+                    "only specific files including [ %s ] are shown" % flist)
+
+        # wait a minute to show options #
+        time.sleep(1)
 
         while 1:
             # pause and resume by enter key #
