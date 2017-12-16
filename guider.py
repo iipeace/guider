@@ -1124,13 +1124,6 @@ class FunctionAnalyzer(object):
             SystemManager.showGroup.insert(0, '')
             self.target = []
         else:
-            for tid in SystemManager.showGroup:
-                try:
-                    int(tid)
-                except:
-                    SystemManager.printError(\
-                        "Fail to use filter value %s, use -g option with number as thread id" % tid)
-                    sys.exit(0)
             self.target = SystemManager.showGroup
 
         # Check root path #
@@ -2555,7 +2548,7 @@ class FunctionAnalyzer(object):
             SystemManager.printError((\
                 "Fail to analyze stack data because of corruption (overflowflow) at %s line,"\
                 " try to record again") % SystemManager.dbgEventLine)
-            sys.exit(0)
+            os._exit(0)
 
 
     def printDbgInfo(self):
@@ -3078,16 +3071,19 @@ class FunctionAnalyzer(object):
             if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
 
-            # tid filter #
+            # filter #
             found = False
             for val in desc:
-                if val == thread or val == '':
+                if SystemManager.isEffectiveTid(thread, val) or \
+                    val == '' or d['comm'].find(val) >= 0:
                     self.threadData[thread]['target'] = True
                     found = True
                     break
                 elif SystemManager.groupProcEnable:
                     try:
-                        if self.threadData[thread]['tgid'] == SystemManager.savedProcTree[val]:
+                        if SystemManager.isEffectiveTid(self.threadData[thread]['tgid'], val) or \
+                            self.threadData[thread]['tgid'] == SystemManager.savedProcTree[val] or \
+                            self.threadData[self.threadData[thread]['tgid']]['comm'].find(val) >= 0:
                             self.threadData[thread]['target'] = True
                             found = True
                             break
@@ -5955,6 +5951,7 @@ class SystemManager(object):
     preemptGroup = []
     showGroup = []
     syscallList = []
+    pidFilter = None
 
 
 
@@ -6082,6 +6079,64 @@ class SystemManager(object):
             return None
         else:
             return SystemManager.jsonObject.dumps(dictObj, indent=2)
+
+
+
+    @staticmethod
+    def getPidFilter():
+        if SystemManager.pidFilter is None:
+            cmd = ""
+            for cond in SystemManager.showGroup:
+                try:
+                    cmd += "common_pid == %s || " % int(cond)
+                except:
+                    try:
+                        ldir = cond.find('>')
+                        if ldir == 0:
+                            cmd += "common_pid >= %s || " % int(cond[1:])
+                        elif ldir == len(cond) - 1:
+                            cmd += "common_pid <= %s || " % int(cond[:-1])
+
+                        rdir = cond.find('<')
+                        if rdir == 0:
+                            cmd += "common_pid <= %s || " % int(cond[1:])
+                        elif rdir == len(cond) - 1:
+                            cmd += "common_pid >= %s || " % int(cond[:-1])
+                    except:
+                        pass
+
+            if cmd != "":
+                cmd = "(" + cmd[:cmd.rfind('||')] + ")"
+
+            SystemManager.pidFilter = cmd
+
+        return SystemManager.pidFilter
+
+
+
+    @staticmethod
+    def isEffectiveTid(tid, cond):
+        try:
+            tid = int(tid)
+
+            ldir = cond.find('>')
+            if ldir == 0 and tid >= int(cond[1:]):
+                return True
+            elif ldir == len(cond) - 1 and tid <= int(cond[:-1]):
+                return True
+
+            rdir = cond.find('<')
+            if rdir == 0 and tid <= int(cond[1:]):
+                return True
+            elif rdir == len(cond) - 1 and tid >= int(cond[:-1]):
+                return True
+
+            if tid == cond or tid == int(cond):
+                return True
+
+            return False
+        except:
+            return False
 
 
 
@@ -6279,110 +6334,110 @@ class SystemManager(object):
                 print('\t\t[thread mode]')
                 print('\t\t\t- record cpu usage of threads')
                 print('\t\t\t\t# %s record -s .' % cmd)
-                print('\t\t\t- record all resource usage of threads in background')
-                print('\t\t\t\t# %s record -s . -e mbi -u' % cmd)
-                print('\t\t\t- record all resource usage excluding cpu of threads in background')
-                print('\t\t\t\t# %s record -s . -e mbi -d c -u' % cmd)
+                print('\t\t\t- record resource usage of threads in background')
+                print('\t\t\t\t# %s record -s . -e m b i -u' % cmd)
+                print('\t\t\t- record resource usage excluding cpu of threads in background')
+                print('\t\t\t\t# %s record -s . -e m b i -d c -u' % cmd)
                 print('\t\t\t- record specific systemcalls of specific threads')
-                print('\t\t\t\t# %s record -s . -t sys_read,sys_write -g 1234' % cmd)
+                print('\t\t\t\t# %s record -s . -t sys_read, write -g 1234' % cmd)
                 print('\t\t\t- record specific user function events')
-                print('\t\t\t\t# %s record -s . -U evt1:func1:/tmp/a.out,evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
+                print('\t\t\t\t# %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
                 print('\t\t\t- record specific kernel function events')
-                print('\t\t\t\t# %s record -s . -K evt1:func1,evt2:0x1234' % cmd)
+                print('\t\t\t\t# %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
                 print('\t\t\t- record specific kernel function events with register values')
-                print('\t\t\t\t# %s record -s . -K evt1:func1:%%bp/u32.%%sp/s64,evt2:0x1234:$stack:NONE' % cmd)
+                print('\t\t\t\t# %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
                 print('\t\t\t- record specific kernel function events with return value')
-                print('\t\t\t\t# %s record -s . -K evt1:func1::*string,evt2:0x1234:NONE:**string' % cmd)
+                print('\t\t\t\t# %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
                 print('\t\t\t- analyze record data by expressing all possible information')
                 print('\t\t\t\t# %s guider.dat -o . -a -i' % cmd)
                 print('\t\t\t- analyze record data including preemption info of specific threads')
-                print('\t\t\t\t# %s guider.dat -o . -p 1234,4567' % cmd)
+                print('\t\t\t\t# %s guider.dat -o . -p 1234, 4567' % cmd)
                 print('\t\t\t- analyze specific threads that are involved in the specific processes')
-                print('\t\t\t\t# %s guider.dat -o . -P -g 1234,4567' % cmd)
+                print('\t\t\t\t# %s guider.dat -o . -P -g 1234, 4567' % cmd)
 
-                print('\n\t\t[function mode]')
+                print('\t\t[function mode]')
                 print('\t\t\t- record cpu usage of functions in all threads')
                 print('\t\t\t\t# %s record -f -s .' % cmd)
-                print('\t\t\t- record specific events of only kernel functions in all threads')
+                print('\t\t\t- record cpu usage of specific functions having tid bigger than 1024 in all threads')
+                print('\t\t\t\t# %s record -f -s . -g 1024\<' % cmd)
+                print('\t\t\t- record specific events of functions of all threads in kernel level')
                 print('\t\t\t\t# %s record -f -s . -d u -c sched/sched_switch' % cmd)
-                print('\t\t\t- record all usage of functions in specific threads')
-                print('\t\t\t\t# %s record -f -s . -e mbh -g 1234' % cmd)
-                print('\t\t\t- analyze record data by expressing all possible information')
+                print('\t\t\t- record resource usage of functions of specific threads')
+                print('\t\t\t\t# %s record -f -s . -e m b h -g 1234' % cmd)
+                print('\t\t\t- analyze function data for all')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-                print('\t\t\t- analyze record data by limit 3 depth')
+                print('\t\t\t- analyze function data only it is 3 or fewer levels')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
-                print('\t\t\t- record specific kernel functions in a specific thread')
-                print('\t\t\t\t# %s record -f -s . -e g -c SyS_read -g 1234' % cmd)
-                print('\t\t\t- record segmentation fault event in all threads')
+                print('\t\t\t- record segmentation fault event of all threads')
                 print('\t\t\t\t# %s record -f -s . -K segflt:bad_area -ep' % cmd)
-                print('\t\t\t- record blocking event without cpu usage in all threads')
+                print('\t\t\t- record blocking event except for cpu usage of all threads')
                 print('\t\t\t\t# %s record -f -s . -dc -K block:schedule' % cmd)
 
-                print('\n\t\t[top mode]')
-                print('\t\t\t- show real-time resource usage of processes')
+                print('\t\t[top mode]')
+                print('\t\t\t- show resource usage of processes in real-time')
                 print('\t\t\t\t# %s top' % cmd)
-                print('\t\t\t- show real-time files opened via processes')
+                print('\t\t\t- show files opened via processes in real-time')
                 print('\t\t\t\t# %s top -e f' % cmd)
-                print('\t\t\t- show real-time specific files opened via specific processes')
+                print('\t\t\t- show specific files opened via specific processes in real-time')
                 print('\t\t\t\t# %s top -e f -g init, lightdm : home, var' % cmd)
-                print('\t\t\t- show real-time resource usage of processes by sorting memory')
+                print('\t\t\t- show resource usage of processes by sorting memory in real-time')
                 print('\t\t\t\t# %s top -S m' % cmd)
-                print('\t\t\t- show real-time resource usage of processes only 5 times')
+                print('\t\t\t- show resource usage of processes only 5 times in real-time')
                 print('\t\t\t\t# %s top -R 5' % cmd)
-                print('\t\t\t- show real-time resource usage of processes only 5 times per 3 sec interval')
+                print('\t\t\t- show resource usage of processes only 5 times per 3 sec interval in real-time')
                 print('\t\t\t\t# %s top -R 3, 5' % cmd)
-                print('\t\t\t- show real-time resource usage including disk of threads per 2 sec interval')
+                print('\t\t\t- show resource usage including disk of threads per 2 sec interval in real-time')
                 print('\t\t\t\t# %s top -e t d -i 2 -a' % cmd)
-                print('\t\t\t- show real-time resource usage of specific processes/threads involved in specific process group')
+                print('\t\t\t- show resource usage of specific processes/threads involved in specific process group in real-time')
                 print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
-                print('\t\t\t- record resource usage of processes to the specific file in background')
+                print('\t\t\t- record resource usage of processes and write to specific file in background')
                 print('\t\t\t\t# %s top -o . -u' % cmd)
-                print('\t\t\t- record and report system status to the specific file in background')
+                print('\t\t\t- record resource usage of processes, system status and write to specific file in background')
                 print('\t\t\t\t# %s top -o . -e r -j . -u' % cmd)
-                print('\t\t\t- record and save system status to the specific file if some events occur')
+                print('\t\t\t- record resource usage of processes, system status and write to specific file if some events occur')
                 print('\t\t\t\t# %s top -o . -e r R' % cmd)
-                print('\t\t\t- record and report system status to the specific image')
+                print('\t\t\t- record resource usage of processes, system status and write to specific image')
                 print('\t\t\t\t# %s top -o . -e r I' % cmd)
-                print('\t\t\t- convert a analysis text to a graph image')
+                print('\t\t\t- draw graph and chart in image file')
                 print('\t\t\t\t# %s draw guider.out' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
-                print('\t\t\t- convert a analysis text to a graph image for specific process group')
+                print('\t\t\t- draw graph and chart for specific process group in image file')
                 print('\t\t\t\t# %s draw guider.out -g chrome' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g -g chrome' % cmd)
-                print('\t\t\t- convert a analysis text to a graph image for specific process group except for VSS')
+                print('\t\t\t- draw graph and chart for specific process group except for VSS in image')
                 print('\t\t\t\t# %s draw guider.out -g chrome -d v' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g -g chrome -d v' % cmd)
-                print('\t\t\t- report system status to the specific server')
+                print('\t\t\t- report system status to specific server')
                 print('\t\t\t\t# %s top -n 192.168.0.5:5555' % cmd)
-                print('\t\t\t- report system status to the specific server if some events occur')
+                print('\t\t\t- report system status to specific server if only some events occur')
                 print('\t\t\t\t# %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
-                print('\t\t\t- record and send analysis output to specific clients that asked dyanmic request')
+                print('\t\t\t- report system status to specific clients that asked it')
                 print('\t\t\t\t# %s top -x 5555' % cmd)
-                print('\t\t\t- receive and print analysis output from client')
+                print('\t\t\t- receive report data from server')
                 print('\t\t\t\t# %s top -x 5555 -X' % cmd)
-                print('\t\t\t- set event configuration file')
+                print('\t\t\t- set configuration file path')
                 print('\t\t\t\t# %s top -I guider.json' % cmd)
 
-                print('\n\t\t[file mode]')
-                print('\t\t\t- record memory usage of mapped files to the specific file')
+                print('\t\t[file mode]')
+                print('\t\t\t- record memory usage of files mapped to processes')
                 print('\t\t\t\t# %s record -F -o .' % cmd)
-                print('\t\t\t- record memory usage of mapped files and compare each intervals')
+                print('\t\t\t- record memory usage of files mapped to processes each intervals')
                 print('\t\t\t\t# %s record -F -i' % cmd)
 
-                print('\n\t\t[etc]')
+                print('\t\t[etc]')
                 print('\t\t\t- view page property of specific pages')
                 print('\t\t\t\t# %s view -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
-                print('\t\t\t- convert text to image')
+                print('\t\t\t- convert a text fle to a image file')
                 print('\t\t\t\t# %s guider.out -L' % cmd)
                 print('\t\t\t- wait for signal')
                 print('\t\t\t\t# %s record|top -W' % cmd)
-                print('\t\t\t- show running guider processes')
+                print('\t\t\t- show guider processes running')
                 print('\t\t\t\t# %s list' % cmd)
-                print('\t\t\t- send event signal to guider processes')
+                print('\t\t\t- send noty signal to guider processes running')
                 print('\t\t\t\t# %s send' % cmd)
-                print('\t\t\t- send stop signal to guider processes')
+                print('\t\t\t- send stop signal to guider processes running')
                 print('\t\t\t\t# %s stop' % cmd)
-                print('\t\t\t- send some signal to specific processes')
+                print('\t\t\t- send specific signals to specific processes running')
                 print('\t\t\t\t# %s send -9 1234, 4567' % cmd)
                 print('\t\t\t- set priority of tasks')
                 print('\t\t\t\t# %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
@@ -6572,25 +6627,12 @@ class SystemManager(object):
                     sys.exit(0)
 
         # apply filter #
-        if len(SystemManager.showGroup) > 0:
-            cmd = "("
-            for pid in SystemManager.showGroup:
-                try:
-                    int(pid)
-                except:
-                    SystemManager.printWarning(\
-                            "wrong option value %s, input number in integer format" % pid)
-                    continue
-                cmd += "common_pid == %s || " % pid
-
-            lastPos = cmd.rfind(" ||")
-            if lastPos >= 0:
-                cmd = cmd[:lastPos] + ")"
+        if SystemManager.showGroup != []:
+            cmd = SystemManager.getPidFilter()
+            if cmd != '':
+                SystemManager.writeCmd("kprobes/filter", cmd)
             else:
-                cmd = ''
-
-            if SystemManager.writeCmd("kprobes/filter", cmd) < 0:
-                SystemManager.printError("Fail to apply kprobe filter '%s'" % cmd)
+                SystemManager.printError("Fail to apply kprobe filter")
                 sys.exit(0)
 
         # enable kprobe events #
@@ -6693,25 +6735,12 @@ class SystemManager(object):
                 sys.exit(0)
 
         # apply filter #
-        if len(SystemManager.showGroup) > 0:
-            cmd = "("
-            for pid in SystemManager.showGroup:
-                try:
-                    int(pid)
-                except:
-                    SystemManager.printWarning(\
-                            "wrong option value %s, input number in integer format" % pid)
-                    continue
-                cmd += "common_pid == %s || " % pid
-
-            lastPos = cmd.rfind(" ||")
-            if lastPos >= 0:
-                cmd = cmd[:lastPos] + ")"
+        if SystemManager.showGroup != []:
+            cmd = SystemManager.getPidFilter()
+            if cmd != '':
+                SystemManager.writeCmd("uprobes/filter", cmd)
             else:
-                cmd = ''
-
-            if SystemManager.writeCmd("uprobes/filter", cmd) < 0:
-                SystemManager.printError("Fail to apply uprobe filter '%s'" % cmd)
+                SystemManager.printError("Fail to apply uprobe filter")
                 sys.exit(0)
 
         # enable uprobe events #
@@ -6786,6 +6815,11 @@ class SystemManager(object):
         if SystemManager.customCmd is None:
             return
 
+        if SystemManager.showGroup == []:
+            pidFilter = 'common_pid != 0'
+        else:
+            pidFilter = SystemManager.getPidFilter()
+
         for cmd in SystemManager.customCmd:
             cmdFormat = cmd.split(':')
 
@@ -6796,10 +6830,10 @@ class SystemManager(object):
             # check filter #
             if len(cmdFormat) == 1:
                 origFilter = ''
-                cmdFormat.append("common_pid != 0")
+                cmdFormat.append(pidFilter)
             else:
                 origFilter = cmdFormat[1]
-                cmdFormat[1] = "common_pid != 0 && " + cmdFormat[1]
+                cmdFormat[1] = pidFilter + " && " + cmdFormat[1]
 
             if SystemManager.isThreadMode() and cmdFormat[0] in SystemManager.cmdList:
                 SystemManager.printError(\
@@ -7465,6 +7499,13 @@ class SystemManager(object):
         try:
             fd.write(val)
             fd.close()
+
+            # modify flags in command list #
+            if path.endswith('/enable'):
+                if val == '1':
+                    SystemManager.sysInstance.cmdList[path[:path.rfind('/enable')]] = True
+                elif val == '0':
+                    SystemManager.sysInstance.cmdList[path[:path.rfind('/enable')]] = False
         except:
             SystemManager.printWarning("Fail to apply command '%s' to %s" % (val, path))
             return -2
@@ -7475,7 +7516,11 @@ class SystemManager(object):
 
     @staticmethod
     def printProgress(current, dest):
-        div = round((current / float(dest)) * 100, 1)
+        try:
+            div = round((current / float(dest)) * 100, 1)
+        except:
+            div = 0
+
         percent = int(div)
 
         if div != percent:
@@ -8684,7 +8729,7 @@ class SystemManager(object):
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
                 if len(SystemManager.showGroup) == 0:
-                    SystemManager.printError("Input value for filtering with -g option")
+                    SystemManager.printError("Input value for filter with -g option")
                     sys.exit(0)
 
                 SystemManager.printInfo("only specific threads including [%s] are recorded" % \
@@ -9492,10 +9537,10 @@ class SystemManager(object):
 
 
     def initCmdList(self):
-        self.cmdList["sched/sched_switch"] = True
-        self.cmdList["sched/sched_migrate_task"] = True
+        self.cmdList["sched/sched_switch"] = SystemManager.cpuEnable
+        self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
+        self.cmdList["sched/sched_process_exit"] = SystemManager.cpuEnable
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
@@ -9512,21 +9557,21 @@ class SystemManager(object):
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
         self.cmdList["net/net_dev_xmit"] = SystemManager.netEnable
         self.cmdList["net/netif_receive_skb"] = SystemManager.netEnable
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
+        self.cmdList["uprobes"] = SystemManager.ueventEnable
+        self.cmdList["kprobes"] = SystemManager.keventEnable
+        self.cmdList["power/cpu_idle"] = SystemManager.cpuEnable
+        self.cmdList["power/cpu_frequency"] = False
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = SystemManager.memEnable
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = SystemManager.memEnable
+        self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
+        self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
-        self.cmdList["power/suspend_resume"] = True
         self.cmdList["printk"] = True
         self.cmdList["module/module_load"] = True
         self.cmdList["module/module_free"] = True
         self.cmdList["module/module_put"] = True
-        self.cmdList["power/cpu_idle"] = True
-        self.cmdList["power/cpu_frequency"] = True
-        self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
-        self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
-        self.cmdList["uprobes"] = SystemManager.ueventEnable
-        self.cmdList["kprobes"] = SystemManager.keventEnable
+        self.cmdList["power/suspend_resume"] = True
 
 
 
@@ -9607,27 +9652,15 @@ class SystemManager(object):
         if self.cmdList["sched/sched_process_exit"]:
             SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
         if self.cmdList["signal"]:
-            commonFilter = ""
-            genFilter = ""
-            for pid in SystemManager.showGroup:
-                try:
-                    int(pid)
-                    commonFilter = "%s common_pid == %s ||" % (commonFilter, pid)
-                    genFilter = "%s pid == %s ||" % (genFilter, pid)
-                except:
-                    SystemManager.printWarning(\
-                        "Fail to set filter '%s' for signal because it is not integer value" % pid)
-            if len(commonFilter) > 0:
-                SystemManager.writeCmd('signal/signal_deliver/filter', \
-                    commonFilter[:commonFilter.rfind(' ||')])
-                SystemManager.writeCmd('signal/signal_generate/filter', \
-                    commonFilter + genFilter[:genFilter.rfind(' ||')])
+            if SystemManager.showGroup != []:
+                commonFilter  = SystemManager.getPidFilter()
+                genFilter = commonFilter.replace("common_", "")
+                SystemManager.writeCmd('signal/signal_deliver/filter', commonFilter)
+                SystemManager.writeCmd('signal/signal_generate/filter', genFilter)
             SystemManager.writeCmd('signal/enable', '1')
 
         # FUNCTION MODE #
         if SystemManager.isFunctionMode():
-            cmd = ""
-
             # check syscall tracing #
             if SystemManager.sysEnable:
                 SystemManager.printError("Fail to trace syscall in function mode")
@@ -9679,28 +9712,23 @@ class SystemManager(object):
 
                     return
 
-            # make filter for function mode #
-            for cond in SystemManager.showGroup:
-                try:
-                    cmd += "common_pid == %s || " % int(cond)
-                except:
-                    if cond.find('>') == -1 and cond.find('<') == -1:
-                        SystemManager.printError("wrong tid '%s'" % cond)
-                        sys.exit(0)
-                    else:
-                        try:
-                            if cond.find('>') >= 0:
-                                cmd += "common_pid <= %s ||" % int(cond[:cond.find('>')])
-                            elif cond.find('<') >= 0:
-                                cmd += "common_pid >= %s ||" % int(cond[:cond.find('<')])
-                        except:
-                            SystemManager.printError("wrong condition %s" % cond)
-                            sys.exit(0)
+            # define initialized command variable #
+            cmd = ""
 
+            # make filter for function mode #
+            if SystemManager.showGroup != []:
+                try:
+                    cmd = "%s%s" % (cmd, SystemManager.getPidFilter())
+                    if len(cmd) == 0:
+                        raise
+                except:
+                    SystemManager.printError(\
+                        "wrong tid %s" % SystemManager.showGroup)
+                    sys.exit(0)
+
+            # trace except for swapper threads #
             if cmd == "":
                 cmd = "(common_pid != 0)"
-            else:
-                cmd = "(" + cmd[:cmd.rfind('||')] + ")"
 
             if SystemManager.userEnable:
                 SystemManager.writeCmd('../trace_options', 'userstacktrace')
@@ -9713,8 +9741,6 @@ class SystemManager(object):
             SystemManager.writeCmd('../options/stacktrace', '1')
 
             if SystemManager.cpuEnable:
-                self.cmdList["timer/hrtimer_start"] = True
-
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
                     SystemManager.writeCmd(\
@@ -9723,11 +9749,8 @@ class SystemManager(object):
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '1')
             else:
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
-                self.cmdList["timer/hrtimer_start"] = False
 
             if SystemManager.memEnable:
-                self.cmdList["kmem/mm_page_alloc"] = True
-                self.cmdList["kmem/mm_page_free"] = True
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
                 SystemManager.writeCmd('kmem/mm_page_free/filter', cmd)
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
@@ -9735,19 +9758,15 @@ class SystemManager(object):
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
                 SystemManager.writeCmd('kmem/mm_page_free/enable', '0')
-                self.cmdList["kmem/mm_page_alloc"] = False
-                self.cmdList["kmem/mm_page_free"] = False
 
             if SystemManager.heapEnable:
                 mmapId = ConfigManager.getMmapId()
 
-                self.cmdList["raw_syscalls/sys_enter"] = True
                 sysEnterCmd = "(id == %s || id == %s)" % \
                     (mmapId, ConfigManager.sysList.index('sys_munmap'))
                 SystemManager.writeCmd('raw_syscalls/sys_enter/filter', sysEnterCmd)
                 SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
 
-                self.cmdList["raw_syscalls/sys_exit"] = True
                 sysExitCmd = "(id == %s || id == %s)" % \
                     (ConfigManager.sysList.index('sys_brk'), mmapId)
 
@@ -9756,27 +9775,17 @@ class SystemManager(object):
             else:
                 SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
                 SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
-                self.cmdList["raw_syscalls/sys_enter"] = False
-                self.cmdList["raw_syscalls/sys_exit"] = False
 
             if SystemManager.blockEnable:
-                self.cmdList["block/block_bio_remap"] = True
                 blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM)"
                 SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
                 SystemManager.writeCmd('block/block_bio_remap/enable', '1')
-
-                self.cmdList["writeback/writeback_dirty_page"] = True
-                self.cmdList["writeback/wbc_writepage"] = True
                 SystemManager.writeCmd('writeback/writeback_dirty_page/filter', cmd)
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
                 SystemManager.writeCmd('writeback/wbc_writepage/filter', cmd)
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
             else:
-                self.cmdList["block/block_bio_remap"] = False
                 SystemManager.writeCmd('block/block_bio_remap/enable', '0')
-
-                self.cmdList["writeback/writeback_dirty_page"] = False
-                self.cmdList["writeback/wbc_writepage"] = False
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '0')
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
 
@@ -9794,37 +9803,55 @@ class SystemManager(object):
             return
 
         # THREAD MODE #
-        if SystemManager.cpuEnable:
-            if self.cmdList["sched/sched_switch"]:
-                if len(SystemManager.showGroup) > 0:
-                    cmd = "prev_pid == 0 || next_pid == 0 || "
+        # enable sched events #
+        if self.cmdList["sched/sched_switch"]:
+            if len(SystemManager.showGroup) > 0:
+                cmd = "prev_pid == 0 || next_pid == 0 || "
 
-                    for comm in SystemManager.showGroup:
-                        cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
+                # apply filter #
+                for comm in SystemManager.showGroup:
+                    cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
+                    try:
+                        pid = int(comm)
+                        cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (pid, pid)
+                    except:
                         try:
-                            int(comm)
-                            cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (comm, comm)
+                            ldir = comm.find('>')
+                            if ldir == 0:
+                                cmd += "prev_pid >= %s || " % int(comm[1:])
+                                cmd += "next_pid >= %s || " % int(comm[1:])
+                            elif ldir == len(comm) - 1:
+                                cmd += "prev_pid <= %s || " % int(comm[:-1])
+                                cmd += "next_pid <= %s || " % int(comm[:-1])
+
+                            rdir = comm.find('<')
+                            if rdir == 0:
+                                cmd += "prev_pid <= %s || " % int(comm[1:])
+                                cmd += "next_pid <= %s || " % int(comm[1:])
+                            elif rdir == len(comm) - 1:
+                                cmd += "prev_pid >= %s || " % int(comm[:-1])
+                                cmd += "next_pid >= %s || " % int(comm[:-1])
                         except:
                             pass
 
-                    cmd = cmd[0:cmd.rfind("||")]
-                    if SystemManager.writeCmd('sched/sched_switch/filter', cmd) < 0:
-                        SystemManager.printError(\
-                            "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
-                        sys.exit(0)
-                else:
-                    SystemManager.writeCmd('sched/sched_switch/filter', '0')
-
-                if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
-                    SystemManager.printError("sched event of ftrace is not enabled in kernel")
+                cmd = cmd[0:cmd.rfind("||")]
+                if SystemManager.writeCmd('sched/sched_switch/filter', cmd) < 0:
+                    SystemManager.printError(\
+                        "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
                     sys.exit(0)
+            else:
+                SystemManager.writeCmd('sched/sched_switch/filter', '0')
 
-            if self.cmdList["sched/sched_wakeup"]:
-                SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
-            if self.cmdList["sched/sched_migrate_task"]:
-                SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
-            if self.cmdList["sched/sched_process_wait"]:
-                SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
+            if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
+                SystemManager.printError("sched event of ftrace is not enabled in kernel")
+                sys.exit(0)
+
+        if self.cmdList["sched/sched_wakeup"]:
+            SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+        if self.cmdList["sched/sched_migrate_task"]:
+            SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
+        if self.cmdList["sched/sched_process_wait"]:
+            SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
         # enable irq events #
         if self.cmdList["irq"]:
@@ -9834,7 +9861,7 @@ class SystemManager(object):
             SystemManager.writeCmd('irq/softirq_exit/enable', '1')
             #SystemManager.writeCmd('irq/softirq_raise/enable', '1')
 
-        # options for dependency tracing #
+        # enable events for dependency tracing #
         if SystemManager.depEnable:
             ecmd = \
                 "(id == %s || id == %s" % \
@@ -9917,56 +9944,28 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
-        # options for systemcall tracing #
-        cmd = ''
-
-        # tid filter #
-        if len(SystemManager.showGroup) > 0:
-            cmd += "("
-            nrPid = 0
-            for comm in SystemManager.showGroup:
-                try:
-                    int(comm)
-                    cmd += "common_pid == \"%s\" || " % comm
-                    nrPid += 1
-                except:
-                    pass
-            if nrPid > 0:
-                cmd = cmd[:cmd.rfind(" ||")] + ") && "
-            else:
-                cmd = ""
-
+        # enable systemcall events #
+        scmd = ""
         if self.cmdList["raw_syscalls"]:
-            # syscall filter #
+            sfilter = ""
+            pfilter = SystemManager.getPidFilter()
             if len(SystemManager.syscallList) > 0:
-                cmd += "( id == %s ||" % ConfigManager.sysList.index("sys_execve")
+                sfilter = "("
                 for val in SystemManager.syscallList:
-                    cmd += " id == %s ||" % val
-                    if SystemManager.syscallList.index(val) == len(SystemManager.syscallList) - 1:
-                        cmd += " id == %s)" % val
-                cmd = cmd[:cmd.rfind(" ||")] + ")"
-                SystemManager.writeCmd('raw_syscalls/filter', cmd)
+                    sfilter += " id == %s ||" % val
+                sfilter = "%s )" % sfilter[:sfilter.rfind(" ||")]
+
+            if len(sfilter) > 0 and len(pfilter) > 0:
+                scmd = "(%s && %s) || " % (sfilter, pfilter)
+            elif len(sfilter) == 0 and len(pfilter) == 0:
+                pass
             else:
-                cmd = cmd[:cmd.rfind(" &&")]
-                SystemManager.writeCmd('raw_syscalls/filter', cmd)
-
-            if SystemManager.sysEnable and \
-                len(SystemManager.showGroup) == 0 and len(SystemManager.syscallList) == 0:
-                SystemManager.writeCmd('raw_syscalls/filter', '0')
-                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
-                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', '0')
-        else:
-            cmd += "( id == %s )" % ConfigManager.sysList.index("sys_execve")
-            SystemManager.writeCmd('raw_syscalls/filter', cmd)
-
+                scmd = "(%s%s) || " % (sfilter, pfilter)
+        scmd += "( id == %s )" % ConfigManager.sysList.index("sys_execve")
+        SystemManager.writeCmd('raw_syscalls/filter', scmd)
         SystemManager.writeCmd('raw_syscalls/enable', '1')
-        self.cmdList["raw_syscalls"] = True
 
-        # options for hibernation tracing #
-        if self.cmdList["power/suspend_resume"]:
-            SystemManager.writeCmd('power/suspend_resume/enable', '1')
-
-        # options for memory tracing #
+        # enable memory events #
         if self.cmdList["kmem/mm_page_alloc"]:
             SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
         if self.cmdList["kmem/mm_page_free"]:
@@ -9980,7 +9979,7 @@ class SystemManager(object):
         if self.cmdList["filemap/mm_filemap_delete_from_page_cache"]:
             SystemManager.writeCmd('filemap/mm_filemap_delete_from_page_cache/enable', '1')
 
-        # options for block tracing #
+        # enable block events #
         if self.cmdList["block/block_bio_remap"]:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM"
             SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
@@ -9990,19 +9989,19 @@ class SystemManager(object):
             SystemManager.writeCmd('block/block_rq_complete/filter', cmd)
             SystemManager.writeCmd('block/block_rq_complete/enable', '1')
 
-        # options for write event tracing #
+        # enable writeback events #
         if self.cmdList["writeback/writeback_dirty_page"]:
             SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
         if self.cmdList["writeback/wbc_writepage"]:
             SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
 
-        # options for net event tracing #
+        # enable network events #
         if self.cmdList["net/net_dev_xmit"]:
             SystemManager.writeCmd('net/net_dev_xmit/enable', '1')
         if self.cmdList["net/netif_receive_skb"]:
             SystemManager.writeCmd('net/netif_receive_skb/enable', '1')
 
-        # options for module event tracing #
+        # enable module events #
         if self.cmdList["module/module_load"]:
             SystemManager.writeCmd('module/module_load/enable', '1')
         if self.cmdList["module/module_free"]:
@@ -10010,14 +10009,16 @@ class SystemManager(object):
         if self.cmdList["module/module_put"]:
             SystemManager.writeCmd('module/module_put/enable', '1')
 
-        # options for power event tracing #
+        # enable power events #
         if SystemManager.cpuEnable:
             if self.cmdList["power/cpu_idle"]:
                 SystemManager.writeCmd('power/cpu_idle/enable', '1')
             if self.cmdList["power/cpu_frequency"]:
                 SystemManager.writeCmd('power/cpu_frequency/enable', '1')
+            if self.cmdList["power/suspend_resume"]:
+                SystemManager.writeCmd('power/suspend_resume/enable', '1')
 
-        # options for reclaim event tracing #
+        # enable reclaim events #
         if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_wakeup_kswapd/enable', '1')
         if self.cmdList["vmscan/mm_vmscan_kswapd_sleep"]:
@@ -10028,7 +10029,7 @@ class SystemManager(object):
         if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"]:
             SystemManager.writeCmd('vmscan/mm_vmscan_direct_reclaim_end/enable', '1')
 
-        # options for printk event tracing #
+        # enable printk events #
         if self.cmdList["printk"]:
             SystemManager.writeCmd('printk/enable', '1')
 
@@ -10142,7 +10143,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n\n[System General Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
-        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint(twoLine)
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
@@ -10220,7 +10221,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System CPU Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
-        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint(twoLine)
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
@@ -10345,7 +10346,7 @@ class SystemManager(object):
             "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^10} {9:^20}". \
             format("Dev", "Maj", "Min", "RdSize", "RdTime", "WrSize", "WrTime", \
             "FileSystem", "nrBlk", "MountPoint <Option>"))
-        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint(twoLine)
 
         outputCnt = 0
 
@@ -10435,11 +10436,12 @@ class SystemManager(object):
             "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
             ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
             "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
-        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
             (int(beforeInfo['MemTotal']) >> 10, int(beforeInfo['SwapTotal']) >> 10))
-        SystemManager.infoBufferPrint("[  FREE] %10s %10s" % \
+        SystemManager.infoBufferPrint("[ FREE ] %10s %10s" % \
             (int(beforeInfo['MemFree']) >> 10, int(beforeInfo['SwapFree']) >> 10))
+        SystemManager.infoBufferPrint("-" * SystemManager.lineLength)
 
         memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
         swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
@@ -10447,7 +10449,7 @@ class SystemManager(object):
         swapAfterUsage = int(afterInfo['SwapTotal']) - int(afterInfo['SwapFree'])
 
         SystemManager.infoBufferPrint(\
-            "[USAGE1] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[ START] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memBeforeUsage >> 10, swapBeforeUsage >> 10, \
                 int(beforeInfo['Buffers']) >> 10, int(beforeInfo['Cached']) >> 10, \
                 int(beforeInfo['Shmem']) >> 10, int(beforeInfo['Mapped']) >> 10, \
@@ -10457,7 +10459,7 @@ class SystemManager(object):
                 int(beforeInfo['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint(\
-            "[USAGE2] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[ END  ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memAfterUsage >> 10, swapAfterUsage >> 10, \
                 int(afterInfo['Buffers']) >> 10, int(afterInfo['Cached']) >> 10, \
                 int(afterInfo['Shmem']) >> 10, int(afterInfo['Mapped']) >> 10, \
@@ -10466,8 +10468,10 @@ class SystemManager(object):
                 int(afterInfo['SReclaimable']) >> 10, int(afterInfo['SUnreclaim']) >> 10, \
                 int(afterInfo['Mlocked']) >> 10))
 
+        SystemManager.infoBufferPrint("-" * SystemManager.lineLength)
+
         SystemManager.infoBufferPrint(\
-            "[  DIFF] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 ((memAfterUsage - memBeforeUsage ) >> 10, \
                 (swapAfterUsage - swapBeforeUsage) >> 10, \
                 (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) >> 10, \
@@ -10913,13 +10917,14 @@ class ThreadAnalyzer(object):
             for key, value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
                 checkResult = False
                 for val in SystemManager.showGroup:
-                    if value['comm'].rfind(val) > -1 or key == val:
+                    if value['comm'].rfind(val) > -1 or \
+                        SystemManager.isEffectiveTid(key, val):
                         checkResult = True
                     else:
                         try:
                             if SystemManager.groupProcEnable and \
-                                (val == value['tgid'] or \
-                                self.threadData[val]['tgid'] == value['tgid']):
+                                (SystemManager.isEffectiveTid(value['tgid'], val) or \
+                                value['tgid'] == self.threadData[val]['tgid']):
                                 checkResult = True
                         except:
                             pass
@@ -11828,11 +11833,16 @@ class ThreadAnalyzer(object):
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
 
         try:
+            # convert to integer values #
             xtickLabel = ax.get_xticks().tolist()
             xtickLabel = map(int, xtickLabel)
             xlim([xtickLabel[0], xtickLabel[-1]])
             xtickLabel[-1] = '   TIME(Sec)'
             ax.set_xticklabels(xtickLabel)
+
+            ytickLabel = ax.get_yticks().tolist()
+            ytickLabel = map(int, ytickLabel)
+            ax.set_yticklabels(ytickLabel)
         except:
             pass
 
@@ -12124,16 +12134,22 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(twoLine)
 
             cnt = 0
-            callTable = {}
             for val in self.customEventData:
-                # apply filter #
-                if SystemManager.showGroup != [] and not val[2] in SystemManager.showGroup:
+                skipFlag = False
+                for fval in SystemManager.showGroup:
+                    if SystemManager.isEffectiveTid(val[2], fval) or \
+                        val[1].find(fval) >= 0:
+                        skipFlag = False
+                        break
+                    skipFlag = True
+
+                if skipFlag:
                     continue
 
+                cnt += 1
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>10.6f} {2:>16}({3:>5}) {4:<1}".\
                     format(val[0], val[3], val[1], val[2], val[4]))
-                cnt += 1
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
@@ -12161,8 +12177,10 @@ class ThreadAnalyzer(object):
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
                     val['maxPeriod'], val['minPeriod']))
+
                 for key, value in sorted(self.userInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+
                     try:
                         SystemManager.pipePrint(\
                             ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
@@ -12187,8 +12205,15 @@ class ThreadAnalyzer(object):
             callTable = {}
             for val in self.userEventData:
                 elapsed = '-'
-                # apply filter #
-                if SystemManager.showGroup != [] and not val[3] in SystemManager.showGroup:
+
+                skipFlag = False
+                for fval in SystemManager.showGroup:
+                    if SystemManager.isEffectiveTid(val[3], fval) or val[2].find(fval) >= 0:
+                        skipFlag = False
+                        break
+                    skipFlag = True
+
+                if skipFlag:
                     continue
                 elif val[0] == 'ENTER':
                     cid = '%s%s' % (val[1], val[3])
@@ -12200,10 +12225,10 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
+                cnt += 1
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
                     format(val[1], val[0], val[4], val[2], val[3], val[5], elapsed))
-                cnt += 1
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
@@ -12231,8 +12256,10 @@ class ThreadAnalyzer(object):
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
                     val['maxPeriod'], val['minPeriod']))
+
                 for key, value in sorted(self.kernelInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+
                     try:
                         SystemManager.pipePrint(\
                             ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
@@ -12258,8 +12285,15 @@ class ThreadAnalyzer(object):
             callTable = {}
             for val in self.kernelEventData:
                 elapsed = '-'
-                # apply filter #
-                if SystemManager.showGroup != [] and not val[4] in SystemManager.showGroup:
+
+                skipFlag = False
+                for fval in SystemManager.showGroup:
+                    if SystemManager.isEffectiveTid(val[4], fval) or val[3].find(fval) >= 0:
+                        skipFlag = False
+                        break
+                    skipFlag = True
+
+                if skipFlag:
                     continue
                 elif val[0] == 'ENTER':
                     cid = '%s%s' % (val[1], val[4])
@@ -12271,11 +12305,11 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
+                cnt += 1
                 args = (' '.join(val[7].split(' arg'))).replace('=','>')
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
                     format(val[1], val[0], val[5], val[3], val[4], val[6], elapsed, args))
-                cnt += 1
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
@@ -12479,8 +12513,9 @@ class ThreadAnalyzer(object):
                     value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], value['writeBlockCnt'], \
-                    value['writeBlock'], (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
+                    value['ioWait'], value['readBlock'], value['readBlockCnt'], \
+                    value['writeBlockCnt'], value['writeBlock'], \
+                    (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                     value['userPages'] >> 8, value['cachePages'] >> 8, \
                     value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
                     value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
@@ -13358,11 +13393,11 @@ class ThreadAnalyzer(object):
                     text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=5,\
                         color=color, fontweight='bold')
 
-            ylabel('Memory(MB)', fontsize=8)
+            ylabel('MEMORY(MB)', fontsize=8)
             legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
             grid(which='both', linestyle=':', linewidth='0.2')
-            yticks(fontsize = 7)
-            xticks(fontsize = 5)
+            yticks(fontsize = 5)
+            xticks(fontsize = 4)
             ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
@@ -15972,8 +16007,9 @@ class ThreadAnalyzer(object):
 
                     # apply filter #
                     for item in SystemManager.showGroup:
-                        if item != thread and comm.find(item) < 0 and \
-                            item != pid and target_comm.find(item):
+                        if SystemManager.isEffectiveTid(thread, item) is False and \
+                            SystemManager.isEffectiveTid(pid, item) is False and \
+                            comm.find(item) < 0 and target_comm.find(item):
                             return
 
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
@@ -16013,7 +16049,8 @@ class ThreadAnalyzer(object):
 
                     # apply filter #
                     for item in SystemManager.showGroup:
-                        if item != thread and comm.find(item) < 0:
+                        if SystemManager.isEffectiveTid(thread, item) is False and \
+                            comm.find(item) < 0:
                             return
 
                     ttime = float(time) - float(self.startTime)
