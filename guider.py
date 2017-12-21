@@ -5958,15 +5958,15 @@ class SystemManager(object):
     def __init__(self):
         SystemManager.sysInstance = self
 
+        self.cpuInfo = {}
         self.memInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
+        self.systemInfo = {}
 
         self.cpuData = None
-        self.memBeforeData = None
-        self.memAfterData = None
-        self.diskBeforeData = None
-        self.diskAfterData = None
+        self.memData = {}
+        self.diskData = {}
         self.mountData = None
         self.partitionData = None
         self.uptimeData = None
@@ -5975,19 +5975,10 @@ class SystemManager(object):
         self.osData = None
         self.devData = None
         self.procData = None
+        self.startTimeData = time.time()
 
-        self.cpuInfo = dict()
-        self.memInfo['before'] = dict()
-        self.memInfo['after'] = dict()
-        self.diskInfo['before'] = dict()
-        self.diskInfo['after'] = dict()
-        self.systemInfo = dict()
-
-        SystemManager.eventLogFile = None
-
-        # Save storage info first #
-        self.saveMemInfo()
-        self.saveDiskInfo()
+        # save system info first #
+        self.saveResourceSnapshot(False)
 
 
 
@@ -6216,16 +6207,6 @@ class SystemManager(object):
 
 
     @staticmethod
-    def submitSystemInfo():
-        si = SystemManager()
-        si.saveAllInfo()
-        si.printAllInfoToBuf()
-        SystemManager.pipePrint(SystemManager.systemInfoBuffer)
-        SystemManager.clearInfoBuffer()
-
-
-
-    @staticmethod
     def checkEnv():
         if sys.platform.startswith('linux') is False and \
             sys.platform.startswith('win') is False:
@@ -6289,7 +6270,7 @@ class SystemManager(object):
             print('\t\t\t  [function] {c(pu)|u(ser)}')
             print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)}')
             print('\t\t-s  [save_traceData:path]')
-            print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)]')
+            print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
             print('\t\t-u  [run_inBackground]')
             print('\t\t-W  [wait_forSignal]')
             print('\t\t-R  [record_repeatedly:{interval,}count]')
@@ -6382,6 +6363,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -e f -g init, lightdm : home, var' % cmd)
                 print('\t\t\t- show resource usage of processes by sorting memory in real-time')
                 print('\t\t\t\t# %s top -S m' % cmd)
+                print('\t\t\t- show resource usage of processes by sorting file in real-time')
+                print('\t\t\t\t# %s top -S f' % cmd)
                 print('\t\t\t- show resource usage of processes only 5 times in real-time')
                 print('\t\t\t\t# %s top -R 5' % cmd)
                 print('\t\t\t- show resource usage of processes only 5 times per 3 sec interval in real-time')
@@ -7247,8 +7230,9 @@ class SystemManager(object):
             if SystemManager.printFile is not None:
                 SystemManager.printTitle()
 
-                # submit system info #
-                SystemManager.submitSystemInfo()
+                # save system info #
+                SystemManager.sysInstance.saveResourceSnapshot()
+                SystemManager.printInfoBuffer()
 
                 # submit summarized report and details #
                 ThreadAnalyzer.printIntervalUsage()
@@ -7293,8 +7277,9 @@ class SystemManager(object):
 
             SystemManager.printTitle()
 
-            # submit system info #
-            SystemManager.submitSystemInfo()
+            # save system info #
+            SystemManager.saveResourceSnapshot()
+            SystemManager.printInfoBuffer()
 
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
@@ -7374,10 +7359,8 @@ class SystemManager(object):
                     SystemManager.progressCnt * SystemManager.repeatInterval)
 
                 try:
-                    # submit system info #
-                    si = SystemManager()
-                    si.saveAllInfo()
-                    si.printAllInfoToBuf()
+                    # save system info #
+                    SystemManager.sysInstance.saveResourceSnapshot()
 
                     with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
                         with open(output, 'w') as fw:
@@ -7570,6 +7553,7 @@ class SystemManager(object):
     @staticmethod
     def printInfoBuffer():
         SystemManager.pipePrint(SystemManager.systemInfoBuffer)
+        SystemManager.clearInfoBuffer()
 
 
 
@@ -7703,9 +7687,8 @@ class SystemManager(object):
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
         if launchPosStart > -1:
-            SystemManager.functionEnable = True
             SystemManager.threadEnable = False
-
+            SystemManager.functionEnable = True
             SystemManager.printInfo("FUNCTION MODE")
         else:
             SystemManager.threadEnable = True
@@ -8587,6 +8570,9 @@ class SystemManager(object):
                         SystemManager.printInfo("sorted by NEW")
                     elif SystemManager.sort == 'r':
                         SystemManager.printInfo("sorted by RUNTIME")
+                    elif SystemManager.sort == 'f':
+                        SystemManager.printInfo("sorted by FILE")
+                        SystemManager.fileTopEnable = True
                     else:
                         SystemManager.printError("wrong option value with -S option")
                         sys.exit(0)
@@ -9315,19 +9301,26 @@ class SystemManager(object):
 
 
 
-    def saveAllInfo(self):
-        # process tree info #
-        if SystemManager.isTopMode() is False:
-            self.saveProcInfo()
+    def saveResourceSnapshot(self, initialized=True):
+        if initialized:
+            # process info #
+            if SystemManager.isTopMode() is False:
+                self.saveProcInfo()
 
-        # resource info #
-        self.saveCpuInfo()
-        self.saveMemInfo()
-        self.saveDiskInfo()
-        self.saveSystemInfo()
+            # resource info #
+            self.saveSystemInfo()
+            self.saveCpuInfo()
+            self.saveMemInfo()
+            self.saveDiskInfo()
 
-        # os info #
-        self.saveWebOSInfo()
+            # os info #
+            self.saveWebOSInfo()
+
+            # write system info to buf #
+            self.printResourceInfo()
+        else:
+            self.saveMemInfo()
+            self.saveDiskInfo()
 
 
 
@@ -9387,28 +9380,21 @@ class SystemManager(object):
 
 
     def saveDiskInfo(self):
-        diskFile = '/proc/diskstats'
-        partitionFile = '/proc/partitions'
         mountFile = '/proc/mounts'
+        diskFile = '/proc/diskstats'
 
         try:
             with open(diskFile, 'r') as df:
-                if self.diskBeforeData is None:
-                    self.diskBeforeData = df.readlines()
+                if not 'before' in self.diskData:
+                    self.diskData['before'] = df.readlines()
                 else:
-                    self.diskAfterData = df.readlines()
+                    self.diskData['after'] = df.readlines()
 
                     try:
                         with open(mountFile, 'r') as mf:
                             self.mountData = mf.readlines()
                     except:
                         SystemManager.printWarning("Fail to open %s" % mountFile)
-
-                    try:
-                        with open(partitionFile, 'r') as pf:
-                            self.partitionData = pf.readlines()
-                    except:
-                        SystemManager.printWarning("Fail to open %s" % partitionFile)
         except:
             SystemManager.printWarning("Fail to open %s" % diskFile)
 
@@ -9421,10 +9407,10 @@ class SystemManager(object):
             f = open(memFile, 'r')
             lines = f.readlines()
 
-            if self.memBeforeData is None:
-                self.memBeforeData = lines
+            if not 'before' in self.memData:
+                self.memData['before'] = lines
             else:
-                self.memAfterData = lines
+                self.memData['after'] = lines
 
             f.close()
         except:
@@ -9464,9 +9450,6 @@ class SystemManager(object):
             SystemManager.printError("Fail to open %s" % filePath)
             sys.exit(0)
 
-        # save system information #
-        si.saveAllInfo()
-
         while 1:
             try:
                 # read each 4k data through pipe #
@@ -9489,8 +9472,8 @@ class SystemManager(object):
                 # close file to sync disk buffer #
                 fd.close()
 
-                # print system information to buffer #
-                si.printAllInfoToBuf()
+                # save system info #
+                SystemManager.sysInstance.saveResourceSnapshot()
 
                 rbuf = ''
                 with open(SystemManager.outputFile, 'r') as fd:
@@ -10088,12 +10071,15 @@ class SystemManager(object):
 
 
 
-    def printAllInfoToBuf(self):
+    def printResourceInfo(self):
         self.printSystemInfo()
+
         self.printWebOSInfo()
+
         self.printCpuInfo()
         self.printMemInfo()
         self.printDiskInfo()
+
         self.printProcInfo()
 
 
@@ -10156,8 +10142,8 @@ class SystemManager(object):
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Time', self.systemInfo['date'] + ' ' + self.systemInfo['time']))
+            timeInfo = '%s %s' % (self.systemInfo['date'], self.systemInfo['time'])
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Time', timeInfo))
         except:
             pass
         try:
@@ -10165,8 +10151,8 @@ class SystemManager(object):
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Kernel', self.systemInfo['osType'] + ' ' + self.systemInfo['kernelVer']))
+            kernelInfo = '%s %s' % (self.systemInfo['osType'], self.systemInfo['kernelVer'])
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Kernel', kernelInfo))
         except:
             pass
         try:
@@ -10174,8 +10160,21 @@ class SystemManager(object):
             RunningHour = RunningMin / 60
             if RunningHour > 0:
                 RunningMin %= 60
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('RunningTime', str(RunningHour) + ' hour  ' + str(RunningMin) + ' min'))
+            RunningInfo = '%s hour  %s min' % (str(RunningHour), str(RunningMin))
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRunTime', RunningInfo))
+        except:
+            pass
+        try:
+            RunningSec = long(time.time() - SystemManager.sysInstance.startTimeData)
+            RunningMin = RunningSec / 60
+            if RunningMin > 0:
+                RunningSec %= 60
+            RunningHour = RunningMin / 60
+            if RunningHour > 0:
+                RunningMin %= 60
+
+            runtimeInfo = '%s hour  %s min  %s sec' % (RunningHour, RunningMin, RunningSec)
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('ProcessRunTime', runtimeInfo))
         except:
             pass
         try:
@@ -10271,46 +10270,30 @@ class SystemManager(object):
 
 
     def printDiskInfo(self):
-        # parse data #
-        if self.diskBeforeData is not None or self.diskAfterData is not None:
-            time = 'before'
-            for l in self.diskBeforeData:
-                major, minor, name, readComplete, readMerge, sectorRead, readTime, \
-                writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
-                l.split()
+        # get disk stat #
+        if len(self.diskData) == 2:
+            for time in self.diskData.keys():
+                self.diskInfo[time] = {}
+                for l in self.diskData[time]:
+                    major, minor, name, readComplete, readMerge, sectorRead, \
+                    readTime, writeComplete, writeMerge, sectorWrite, writeTime, \
+                     currentIO, ioTime, ioWTime = l.split()
 
-                name = '/dev/' + name
-                self.diskInfo[time][name] = dict()
-                diskInfoBuf = self.diskInfo[time][name]
-                diskInfoBuf['major'] = major
-                diskInfoBuf['minor'] = minor
-                diskInfoBuf['readComplete'] = readComplete
-                diskInfoBuf['readTime'] = readTime
-                diskInfoBuf['writeComplete'] = writeComplete
-                diskInfoBuf['writeTime'] = writeTime
-                diskInfoBuf['currentIO'] = currentIO
-                diskInfoBuf['ioTime'] = ioTime
-
-            time = 'after'
-            for l in self.diskAfterData:
-                major, minor, name, readComplete, readMerge, sectorRead, readTime, \
-                writeComplete, writeMerge, sectorWrite, writeTime, currentIO, ioTime, ioWTime = \
-                l.split()
-
-                name = '/dev/' + name
-                self.diskInfo[time][name] = dict()
-                diskInfoBuf = self.diskInfo[time][name]
-                diskInfoBuf['major'] = major
-                diskInfoBuf['minor'] = minor
-                diskInfoBuf['readComplete'] = readComplete
-                diskInfoBuf['readTime'] = readTime
-                diskInfoBuf['writeComplete'] = writeComplete
-                diskInfoBuf['writeTime'] = writeTime
-                diskInfoBuf['currentIO'] = currentIO
-                diskInfoBuf['ioTime'] = ioTime
+                    name = '/dev/%s' % name
+                    self.diskInfo[time][name] = dict()
+                    diskInfoBuf = self.diskInfo[time][name]
+                    diskInfoBuf['major'] = major
+                    diskInfoBuf['minor'] = minor
+                    diskInfoBuf['sectorRead'] = sectorRead
+                    diskInfoBuf['readTime'] = readTime
+                    diskInfoBuf['sectorWrite'] = sectorWrite
+                    diskInfoBuf['writeTime'] = writeTime
+                    diskInfoBuf['currentIO'] = currentIO
+                    diskInfoBuf['ioTime'] = ioTime
         else:
             return
 
+        # get mount point #
         if self.mountData is not None:
             for l in self.mountData:
                 dev, path, fs, option, etc1, etc2 = l.split()
@@ -10323,49 +10306,104 @@ class SystemManager(object):
         else:
             return
 
-        if self.partitionData is not None:
-            for l in self.partitionData:
-                try:
-                    major, minor, nrblk, dev = l.split()
-                    int(major)
-                except:
-                    continue
-
-                try:
-                    name = '/dev/%s' % dev
-                    self.diskInfo['after'][name]['nrblk'] = nrblk
-                except:
-                    continue
-        else:
-            return
-
         # print disk info #
-        SystemManager.infoBufferPrint('\n[System Disk Info] [ Unit: ms/KB ]')
+        SystemManager.infoBufferPrint('\n[System Disk Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^10} {9:^20}". \
-            format("Dev", "Maj", "Min", "RdSize", "RdTime", "WrSize", "WrTime", \
-            "FileSystem", "nrBlk", "MountPoint <Option>"))
+            "{0:^16} {1:^7} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:^20}". \
+            format("DEV", "NUM", "READ", "WRITE", \
+            "TOTAL", "FREE", "USAGE", "NrAvFile", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
 
+        devInfo = {}
         outputCnt = 0
+        sizeKB = 1024
+        sizeMB = sizeKB << 10
+        sizeGB = sizeMB << 10
 
-        for key, val in self.mountInfo.items():
+        for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             try:
-                beforeInfo = self.diskInfo['before'][key]
-                afterInfo = self.diskInfo['after'][key]
-                outputCnt += 1
+                if key[0] == '/':
+                    devInfo[key] = {}
+                    outputCnt += 1
+                else:
+                    raise
             except:
                 continue
 
+            readSize = readTime = writeSize = writeTime = '?'
+
+            try:
+                beforeInfo = self.diskInfo['before'][key]
+                afterInfo = self.diskInfo['after'][key]
+
+                readSize = \
+                    (int(afterInfo['sectorRead']) - int(beforeInfo['sectorRead'])) << 9
+                if readSize > sizeMB:
+                    readSize = '%dMB' % (readSize >> 20)
+                elif readSize > sizeKB:
+                    readSize = '%dKB' % (readSize >> 10)
+                else:
+                    readSize = '%dB' % (readSize)
+
+                writeSize = \
+                    (int(afterInfo['sectorWrite']) - int(beforeInfo['sectorWrite'])) << 9
+                if writeSize > sizeMB:
+                    writeSize = '%dMB' % (writeSize >> 20)
+                elif writeSize > sizeKB:
+                    writeSize = '%dKB' % (writeSize >> 10)
+                else:
+                    writeSize = '%dB' % (writeSize)
+            except:
+                pass
+
+            major = minor = total = free = use = avail = '?'
+
+            try:
+                fstat = os.lstat(val['path'])
+                major = os.major(fstat.st_dev)
+                minor = os.minor(fstat.st_dev)
+
+                stat = os.statvfs(val['path'])
+
+                total = stat.f_bsize * stat.f_blocks
+                free = stat.f_bsize * stat.f_bavail
+                avail = stat.f_favail
+                use = '%d%%' % int((total - free) / float(total) * 100)
+
+                if total > sizeGB:
+                    total = '%dGB' % (total >> 30)
+                elif total > sizeMB:
+                    total = '%dMB' % (total >> 20)
+                elif total > sizeKB:
+                    total = '%dKB' % (total >> 10)
+                else:
+                    total = '%dB' % total
+
+                if free > sizeGB:
+                    free = '%dGB' % (free >> 30)
+                elif free > sizeMB:
+                    free = '%dMB' % (free >> 20)
+                elif free > sizeKB:
+                    free = '%dKB' % (free >> 10)
+                else:
+                    free = '%dB' % free
+
+                if avail > sizeGB:
+                    avail = '%dG' % (avail >> 30)
+                elif avail > sizeMB:
+                    avail = '%dM' % (avail >> 20)
+                elif avail > sizeKB:
+                    avail = '%dK' % (avail >> 10)
+                else:
+                    avail = '%d' % avail
+            except:
+                pass
+
             diskInfo = \
-                "{0:<16} {1:^5} {2:^5} {3:^6} {4:^6} {5:^6} {6:^6} {7:^10} {8:^10} {9:<20}". \
-                format(key, afterInfo['major'], afterInfo['minor'], \
-                (int(afterInfo['readComplete']) - int(beforeInfo['readComplete'])) * 4, \
-                (int(afterInfo['readTime']) - int(beforeInfo['readTime'])), \
-                (int(afterInfo['writeComplete']) - int(beforeInfo['writeComplete'])) * 4, \
-                (int(afterInfo['writeTime']) - int(beforeInfo['writeTime'])), \
-                val['fs'], afterInfo['nrblk'], val['path'] + ' <' + val['option'] + '>')
+                "{0:<16} {1:^7} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:<20}".\
+                format(key, '%s:%s' % (major, minor), readSize, writeSize, \
+                total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
 
             if len(diskInfo) > SystemManager.lineLength:
                 try:
@@ -10387,16 +10425,18 @@ class SystemManager(object):
 
     def printMemInfo(self):
         # parse data #
-        if self.memBeforeData is not None or self.memAfterData is not None:
+        if len(self.memData) == 2:
             time = 'before'
-            for l in self.memBeforeData:
+            self.memInfo[time] = dict()
+            for l in self.memData[time]:
                 m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
                 if m is not None:
                     d = m.groupdict()
                     self.memInfo[time][d['type']] = d['size']
 
             time = 'after'
-            for l in self.memAfterData:
+            self.memInfo[time] = dict()
+            for l in self.memData[time]:
                 m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
                 if m is not None:
                     d = m.groupdict()
@@ -14497,9 +14537,9 @@ class ThreadAnalyzer(object):
 
                 nrChild = len(childs)
                 if nrChild > 0:
-                    SystemManager.pipePrint('%s %s(%s)[%s]\n' % (indent, comm, pid, nrChild))
+                    SystemManager.pipePrint('%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild))
                 else:
-                    SystemManager.pipePrint('%s %s(%s)\n' % (indent, comm, pid))
+                    SystemManager.pipePrint('%s- %s(%s)\n' % (indent, comm, pid))
                 printTreeNodes(childs, depth + 1)
 
         # print process/thread tree #
@@ -16919,7 +16959,7 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: int(e[0]))
         else:
-            # set cpu usage as default #
+            # set the number of files opened as default #
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: len(e[1]['fdList']), reverse=True)
 
@@ -16970,32 +17010,41 @@ class ThreadAnalyzer(object):
                 (procInfo, '{0:>4}|\t{1:<105}|'.format(len(value['fdList']), details))
 
             fdCnt = 0
-            for fd, path in sorted(value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
-                # cut by rows of terminal #
-                if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
-                    int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
-                    SystemManager.printFile is None:
-                    break
+            if SystemManager.sort != 'f':
+                for fd, path in sorted(\
+                    value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
+                    # cut by rows of terminal #
+                    if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
+                        int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+                        SystemManager.printFile is None:
+                        break
 
-                if fileFilter != []:
-                    found = False
-                    for fileItem in fileFilter:
-                        if path.find(fileItem) >= 0:
-                            found = True
-                            break
-                    if found is False:
-                        continue
+                    if fileFilter != []:
+                        found = False
+                        for fileItem in fileFilter:
+                            if path.find(fileItem) >= 0:
+                                found = True
+                                break
+                        if found is False:
+                            continue
 
+                    if procInfo != '':
+                        SystemManager.addPrint(procInfo)
+                        procInfo = ''
+
+                    SystemManager.addPrint(\
+                        ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
+
+                    fdCnt += 1
+
+                if fdCnt > 0:
+                    procCnt += 1
+            else:
                 if procInfo != '':
                     SystemManager.addPrint(procInfo)
                     procInfo = ''
 
-                SystemManager.addPrint(\
-                    ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
-
                 fdCnt += 1
-
-            if fdCnt > 0:
                 procCnt += 1
 
             # cut by rows of terminal #
@@ -19292,6 +19341,9 @@ if __name__ == '__main__':
 
         sys.exit(0)
 
+    # save system info first #
+    SystemManager()
+
     # parse recording option #
     if SystemManager.isRecordMode():
         # update record status #
@@ -19304,9 +19356,6 @@ if __name__ == '__main__':
 
         # set arch #
         SystemManager.setArch(SystemManager.getArch())
-
-        # save system information #
-        si = SystemManager()
 
         SystemManager.parseRecordOption()
 
@@ -19332,9 +19381,8 @@ if __name__ == '__main__':
             signal.pause()
 
         if SystemManager.isSystemMode():
-            # save system info and write it to buffer #
-            si.saveAllInfo()
-            si.printAllInfoToBuf()
+            # save system info #
+            SystemManager.sysInstance.saveResourceSnapshot()
 
             # parse all options and make output file path #
             SystemManager.parseAnalOption()
@@ -19391,9 +19439,8 @@ if __name__ == '__main__':
             # start file profiling #
             pi = FileAnalyzer()
 
-            # save system info and write it to buffer #
-            si.saveAllInfo()
-            si.printAllInfoToBuf()
+            # save system info #
+            SystemManager.sysInstance.saveResourceSnapshot()
 
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
@@ -19415,7 +19462,7 @@ if __name__ == '__main__':
         atexit.register(SystemManager.runRecordStopCmd)
 
         # start recording #
-        si.runRecordStartCmd()
+        SystemManager.sysInstance.runRecordStartCmd()
 
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
@@ -19480,8 +19527,8 @@ if __name__ == '__main__':
                     SystemManager.getBufferSize())
                 sys.exit(0)
 
-            # save system information #
-            si.saveAllInfo()
+            # save system info #
+            SystemManager.sysInstance.saveResourceSnapshot()
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
@@ -19570,10 +19617,7 @@ if __name__ == '__main__':
     # check log file is recoginizable #
     ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
-    if SystemManager.isRecordMode():
-        # write system info to buffer #
-        si.printAllInfoToBuf()
-    else:
+    if SystemManager.isRecordMode() is False:
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
@@ -19586,7 +19630,7 @@ if __name__ == '__main__':
     # create Event Info #
     ei = EventAnalyzer()
 
-    if SystemManager.functionEnable is not False:
+    if SystemManager.isFunctionMode():
         # create FunctionAnalyzer #
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
