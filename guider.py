@@ -9004,7 +9004,6 @@ class SystemManager(object):
         except:
             pass
 
-        print os.name
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
             if myPid == pid:
@@ -10203,7 +10202,7 @@ class SystemManager(object):
         try:
             uptimeMin = int(float(self.uptimeData[0])) / 60
             h, m = divmod(uptimeMin, 60)
-            RunningInfo = '%s hour  %s min' % (h, m)
+            RunningInfo = '%sh %sm' % (h, m)
             SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
         except:
             pass
@@ -10211,15 +10210,15 @@ class SystemManager(object):
             runtime = long(time.time() - SystemManager.sysInstance.startTimeData)
             m, s = divmod(runtime, 60)
             h, m = divmod(m, 60)
-            runtimeInfo = '%s hour  %s min  %s sec' % (h, m, s)
+            runtimeInfo = '%sh %sm %ss' % (h, m, s)
             SystemManager.infoBufferPrint("{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<10}\t/\t{2:<10}\t/\t{3:<10}".format('Load', \
-                str(int(float(self.loadData[0]) * 100)) + '% (1 min)', \
-                str(int(float(self.loadData[1]) * 100)) + '% (5 min)', \
-                str(int(float(self.loadData[2]) * 100)) + '% (15 min)'))
+            SystemManager.infoBufferPrint("{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
+                str(int(float(self.loadData[0]) * 100)) + '%(1m)', \
+                str(int(float(self.loadData[1]) * 100)) + '%(5m)', \
+                str(int(float(self.loadData[2]) * 100)) + '%(15m)'))
         except:
             pass
         try:
@@ -10513,7 +10512,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint(\
             "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
             ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
-            "Active", "Inactive", "PageTables", "Slab", "SReclaimable", "SUnreclaim", "Mlocked"))
+            "Active", "Inactive", "PageTables", "Slab", "SlabRclm", "SlabUnRclm", "Mlocked"))
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
             (int(beforeInfo['MemTotal']) >> 10, int(beforeInfo['SwapTotal']) >> 10))
@@ -14534,7 +14533,7 @@ class ThreadAnalyzer(object):
         stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
         SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
         if SystemManager.procBuffer == []:
-            SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint("\n\tNone")
         else:
             SystemManager.pipePrint(SystemManager.procBuffer)
 
@@ -14556,7 +14555,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printProcTree():
         if SystemManager.procInstance is None:
-            SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint("\n\tNone")
             return
 
         # get process/thread tree #
@@ -14569,6 +14568,8 @@ class ThreadAnalyzer(object):
             for pid, childs in root.items():
                 indent = ''
                 comm = SystemManager.procInstance[pid]['stat'][commIdx][1:-1]
+                if depth == 0:
+                    indent = '\n'
 
                 for idx in xrange(0, depth):
                     indent = '%s%s|' % (indent, '     ')
