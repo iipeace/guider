@@ -3,5 +3,7 @@
 *.so
 *.swp
 *.png
+*.jpg
 *.out*
+*.dat*
 *.report

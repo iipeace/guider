@@ -5751,6 +5751,7 @@ class LogManager(object):
     """ Manager for error log """
     def __init__(self):
         self.terminal = sys.stderr
+        self.notified = False
         self.error = False
 
 
@@ -5762,11 +5763,17 @@ class LogManager(object):
             return
 
         try:
+            if self.notified is False:
+                SystemManager.printError(\
+                    'Please report %s file to https://github.com/iipeace/guider/issues' % \
+                    SystemManager.errorFile)
+                self.notified = True
+
             with open(SystemManager.errorFile, 'a') as fd:
                 fd.write(message)
         except:
             self.error = True
-            SystemManager.printError('Fail to open %s for logging error' % SystemManager.errorFile)
+            SystemManager.printError('Fail to open %s to log error' % SystemManager.errorFile)
 
 
 
@@ -7278,7 +7285,7 @@ class SystemManager(object):
             SystemManager.printTitle()
 
             # save system info #
-            SystemManager.saveResourceSnapshot()
+            SystemManager.sysInstance.saveResourceSnapshot()
             SystemManager.printInfoBuffer()
 
             # submit summarized report and details #
@@ -8990,6 +8997,14 @@ class SystemManager(object):
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
 
+        try:
+            uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
+            with open(uptimePath, 'r') as fd:
+                SystemManager.uptime = float(fd.readlines()[0].split()[0])
+        except:
+            pass
+
+        print os.name
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
             if myPid == pid:
@@ -9010,10 +9025,40 @@ class SystemManager(object):
                 continue
 
             if comm[0:compLen] == __module__:
+                runtime = '?'
+
+                try:
+                    statPath = "%s/%s" % (procPath, 'stat')
+                    with open(statPath, 'r') as fd:
+                        statList = fd.readlines()[0].split()
+
+                    commIndex = ConfigManager.statList.index("COMM")
+                    if statList[commIndex][-1] != ')':
+                        idx = ConfigManager.statList.index("COMM") + 1
+                        while 1:
+                            tmpStr = str(statList[idx])
+                            statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
+                            statList.pop(idx)
+                            if tmpStr.rfind(')') > -1:
+                                break
+
+                    procStart = (float(statList[ConfigManager.statList.index("STARTTIME")]) / 100)
+                    runtime = int(SystemManager.uptime - procStart)
+                except:
+                    pass
+
+                if runtime != '?':
+                    try:
+                        m, s = divmod(runtime, 60)
+                        h, m = divmod(m, 60)
+                        runtime = '%s:%s:%s' % (h, m, s)
+                    except:
+                        pass
+
                 try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf += '%6s\t%s\n' % (pid, cmdline)
+                    printBuf = '%s%6s\t%10s\t%s\n' % (printBuf, pid, runtime, cmdline)
                 except:
                     continue
 
@@ -9024,7 +9069,7 @@ class SystemManager(object):
         else:
             print('\n[Running Process]')
             print(twoLine)
-            print('%6s\t%s' % ("PID", "COMMAND"))
+            print('%6s\t%10s\t%s' % ("PID", "RUNTIME", "COMMAND"))
             print(oneLine)
             print(printBuf + oneLine + '\n')
 
@@ -10156,25 +10201,18 @@ class SystemManager(object):
         except:
             pass
         try:
-            RunningMin = int(float(self.uptimeData[0])) / 60
-            RunningHour = RunningMin / 60
-            if RunningHour > 0:
-                RunningMin %= 60
-            RunningInfo = '%s hour  %s min' % (str(RunningHour), str(RunningMin))
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRunTime', RunningInfo))
+            uptimeMin = int(float(self.uptimeData[0])) / 60
+            h, m = divmod(uptimeMin, 60)
+            RunningInfo = '%s hour  %s min' % (h, m)
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
         except:
             pass
         try:
-            RunningSec = long(time.time() - SystemManager.sysInstance.startTimeData)
-            RunningMin = RunningSec / 60
-            if RunningMin > 0:
-                RunningSec %= 60
-            RunningHour = RunningMin / 60
-            if RunningHour > 0:
-                RunningMin %= 60
-
-            runtimeInfo = '%s hour  %s min  %s sec' % (RunningHour, RunningMin, RunningSec)
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('ProcessRunTime', runtimeInfo))
+            runtime = long(time.time() - SystemManager.sysInstance.startTimeData)
+            m, s = divmod(runtime, 60)
+            h, m = divmod(m, 60)
+            runtimeInfo = '%s hour  %s min  %s sec' % (h, m, s)
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
         except:
             pass
         try:
@@ -17154,7 +17192,7 @@ class ThreadAnalyzer(object):
                         self.procData[pid]['fdInfo']['SOCKET'] = 0
                         self.procData[pid]['fdInfo']['DEVICE'] = 0
                         self.procData[pid]['fdInfo']['PIPE'] = 0
-                        self.procData[pid]['fdInfo']['FILE'] = 0
+                        self.procData[pid]['fdInfo']['NORMAL'] = 0
                         self.procData[pid]['fdInfo']['PROC'] = 0
 
                     # increase type count per process #
@@ -17169,7 +17207,7 @@ class ThreadAnalyzer(object):
                     elif filename.startswith('/proc'):
                         self.procData[pid]['fdInfo']['PROC'] += 1
                     else:
-                        self.procData[pid]['fdInfo']['FILE'] += 1
+                        self.procData[pid]['fdInfo']['NORMAL'] += 1
                 except:
                     self.nrFd -= 1
                     SystemManager.printWarning('Fail to open %s' % fdPath)
@@ -18374,13 +18412,12 @@ class ThreadAnalyzer(object):
             else:
                 schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-            runtimeSec = value['runtime']
-            runtimeMin = runtimeSec / 60
-            runtimeHour = runtimeMin / 60
-            if runtimeHour > 0:
-                runtimeMin %= 60
-            runtimeSec %= 60
-            lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
+            try:
+                m, s = divmod(value['runtime'], 60)
+                h, m = divmod(m, 60)
+                lifeTime = "%3d:%2d:%2d" % (h, m, s)
+            except:
+                lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
@@ -18648,13 +18685,13 @@ class ThreadAnalyzer(object):
                 else:
                     schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-                runtimeSec = value['runtime'] + SystemManager.uptimeDiff
-                runtimeMin = runtimeSec / 60
-                runtimeHour = runtimeMin / 60
-                if runtimeHour > 0:
-                    runtimeMin %= 60
-                runtimeSec %= 60
-                lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
+                try:
+                    runtime = value['runtime'] + SystemManager.uptimeDiff
+                    m, s = divmod(runtime, 60)
+                    h, m = divmod(m, 60)
+                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                except:
+                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
                 try:
                     vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
@@ -18721,13 +18758,13 @@ class ThreadAnalyzer(object):
                 else:
                     schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-                runtimeSec = value['runtime'] + SystemManager.uptimeDiff
-                runtimeMin = runtimeSec / 60
-                runtimeHour = runtimeMin / 60
-                if runtimeHour > 0:
-                    runtimeMin %= 60
-                runtimeSec %= 60
-                lifeTime = "%3d:%2d:%2d" % (runtimeHour, runtimeMin, runtimeSec)
+                try:
+                    runtime = value['runtime'] + SystemManager.uptimeDiff
+                    m, s = divmod(runtime, 60)
+                    h, m = divmod(m, 60)
+                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                except:
+                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
                 try:
                     vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
