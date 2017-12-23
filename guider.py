@@ -9050,7 +9050,7 @@ class SystemManager(object):
                     try:
                         m, s = divmod(runtime, 60)
                         h, m = divmod(m, 60)
-                        runtime = '%s:%s:%s' % (h, m, s)
+                        runtime = '%s:%2s:%2s' % (h, m, s)
                     except:
                         pass
 
@@ -9354,17 +9354,20 @@ class SystemManager(object):
             # resource info #
             self.saveSystemInfo()
             self.saveCpuInfo()
-            self.saveMemInfo()
-            self.saveDiskInfo()
 
             # os info #
-            self.saveWebOSInfo()
+            if self.saveWebOSInfo() is True:
+                pass
+            else:
+                self.saveLinuxInfo()
 
+        # storage resource info #
+        self.saveMemInfo()
+        self.saveDiskInfo()
+
+        if initialized:
             # write system info to buf #
             self.printResourceInfo()
-        else:
-            self.saveMemInfo()
-            self.saveDiskInfo()
 
 
 
@@ -9375,6 +9378,22 @@ class SystemManager(object):
             self.procData = '!!!!!'
             for tid, pid in procTree.items():
                 self.procData += tid + ':' + pid + ','
+
+
+
+    def saveLinuxInfo(self):
+        OSFile = '/etc/os-release'
+
+        try:
+            osf = open(OSFile, 'r')
+        except:
+            return
+
+        try:
+            self.osData = osf.readlines()
+            osf.close()
+        except:
+            SystemManager.printWarning("Fail to open %s for Linux" % OSFile)
 
 
 
@@ -9395,7 +9414,7 @@ class SystemManager(object):
 
         # check webOS #
         if osf == None and devf == None:
-            return
+            return False
 
         try:
             self.osData = osf.readlines()
@@ -10118,7 +10137,7 @@ class SystemManager(object):
     def printResourceInfo(self):
         self.printSystemInfo()
 
-        self.printWebOSInfo()
+        self.printOSInfo()
 
         self.printCpuInfo()
         self.printMemInfo()
@@ -10134,7 +10153,7 @@ class SystemManager(object):
 
 
 
-    def printWebOSInfo(self):
+    def printOSInfo(self):
         if self.osData is None and self.devData is None:
             return
 
@@ -10143,27 +10162,33 @@ class SystemManager(object):
         SystemManager.infoBufferPrint("{0:^35} {1:100}".format("TYPE", "Information"))
         SystemManager.infoBufferPrint(oneLine)
 
-        for val in self.osData:
-            try:
-                val = val.split(':')
+        try:
+            for data in self.osData:
+                val = data.split('=')
+                if len(val) < 2:
+                    val = data.split(':')
                 if len(val) < 2:
                     continue
-                name = val[0].replace('"', '')
-                value = val[1].replace('"', '').replace('\n', '').replace(',', '')
-                SystemManager.infoBufferPrint("{0:35} {1:<100}".format(name, value))
-            except:
-                SystemManager.printWarning("Fail to parse osData")
 
-        for val in self.devData:
-            try:
-                val = val.split(':')
-                if len(val) < 2:
-                    continue
                 name = val[0].replace('"', '')
                 value = val[1].replace('"', '').replace('\n', '').replace(',', '')
                 SystemManager.infoBufferPrint("{0:35} {1:<100}".format(name, value))
-            except:
-                SystemManager.printWarning("Fail to parse devData")
+        except:
+            SystemManager.printWarning("Fail to parse osData")
+
+        try:
+            for val in self.devData:
+                val = data.split('=')
+                if len(val) < 2:
+                    val = data.split(':')
+                if len(val) < 2:
+                    continue
+
+                name = val[0].replace('"', '')
+                value = val[1].replace('"', '').replace('\n', '').replace(',', '')
+                SystemManager.infoBufferPrint("{0:35} {1:<100}".format(name, value))
+        except:
+            SystemManager.printWarning("Fail to parse devData")
 
         SystemManager.infoBufferPrint(twoLine)
 
@@ -10202,7 +10227,8 @@ class SystemManager(object):
         try:
             uptimeMin = int(float(self.uptimeData[0])) / 60
             h, m = divmod(uptimeMin, 60)
-            RunningInfo = '%sh %sm' % (h, m)
+            d, h = divmod(h, 24)
+            RunningInfo = '%sd %sh %sm' % (d, h, m)
             SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
         except:
             pass
