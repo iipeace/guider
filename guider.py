@@ -9687,6 +9687,9 @@ class SystemManager(object):
         else:
             SystemManager.writeCmd('../tracing_on', '0')
 
+        # write start event #
+        SystemManager.writeEvent("EVENT_START", False)
+
         # enable dynamic events #
         SystemManager.writeCustomCmd()
         SystemManager.writeKernelCmd()
@@ -9705,7 +9708,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('signal/signal_generate/filter', genFilter)
             SystemManager.writeCmd('signal/enable', '1')
 
-        # FUNCTION MODE #
+        #------------------------------ FUNCTION MODE ------------------------------#
         if SystemManager.isFunctionMode():
             # check syscall tracing #
             if SystemManager.sysEnable:
@@ -9848,7 +9851,7 @@ class SystemManager(object):
 
             return
 
-        # THREAD MODE #
+        #------------------------------ THREAD MODE ------------------------------#
         # enable sched events #
         if self.cmdList["sched/sched_switch"]:
             if len(SystemManager.showGroup) > 0:
