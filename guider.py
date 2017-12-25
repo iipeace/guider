@@ -998,7 +998,6 @@ class FunctionAnalyzer(object):
 
         self.sort = 'sym'
 
-        self.startTime = '0'
         self.finishTime = '0'
         self.totalTime = 0
         self.totalTick = 0
@@ -2972,10 +2971,7 @@ class FunctionAnalyzer(object):
             d = m.groupdict()
 
             # Set time #
-            if self.startTime == '0':
-                self.startTime = d['time']
-            else:
-                self.finishTime = d['time']
+            self.finishTime = d['time']
 
             # Make thread entity #
             thread = d['thread']
@@ -3065,7 +3061,7 @@ class FunctionAnalyzer(object):
                 if m is not None:
                     gd = m.groupdict()
 
-                    ei.addEvent(d['time'], gd['event'])
+                    EventAnalyzer.addEvent(d['time'], gd['event'])
 
             # Save tgid(pid) #
             if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
@@ -3159,7 +3155,7 @@ class FunctionAnalyzer(object):
 
     def printUsage(self):
         targetCnt = 0
-        self.totalTime = float(self.finishTime) - float(self.startTime)
+        self.totalTime = float(self.finishTime) - float(SystemManager.startTime)
 
         SystemManager.printTitle()
 
@@ -3170,7 +3166,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(\
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7), \
-            'Start', round(float(self.startTime), 7), \
+            'Start', round(float(SystemManager.startTime), 7), \
              len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
@@ -4935,7 +4931,6 @@ class FileAnalyzer(object):
         self.libguider = None
         self.libguiderPath = 'libguider.so'
 
-        self.startTime = None
         self.profSuccessCnt = 0
         self.profFailedCnt = 0
         self.profPageCnt = 0
@@ -5022,8 +5017,6 @@ class FileAnalyzer(object):
 
         # set system maximum fd number #
         SystemManager.setMaxFd()
-
-        self.startTime = time.time()
 
         while 1:
             # scan proc directory and save map information of processes #
@@ -5797,6 +5790,7 @@ class SystemManager(object):
     except:
         pageSize = 4096
 
+    startTime = time.time()
     blockSize = 512
     bufferSize = 0
     ttyRows = '50'
@@ -5982,7 +5976,6 @@ class SystemManager(object):
         self.osData = None
         self.devData = None
         self.procData = None
-        self.startTimeData = time.time()
 
         # save system info first #
         self.saveResourceSnapshot(False)
@@ -9577,6 +9570,13 @@ class SystemManager(object):
 
 
     @staticmethod
+    def closePipeForPrint():
+        if SystemManager.pipeForPrint is not None:
+            SystemManager.pipeForPrint.close()
+
+
+
+    @staticmethod
     def clearTraceBuffer():
         SystemManager.writeCmd("../trace", '')
 
@@ -10233,7 +10233,7 @@ class SystemManager(object):
         except:
             pass
         try:
-            runtime = long(time.time() - SystemManager.sysInstance.startTimeData)
+            runtime = long(time.time() - SystemManager.startTime)
             m, s = divmod(runtime, 60)
             h, m = divmod(m, 60)
             runtimeInfo = '%sh %sm %ss' % (h, m, s)
@@ -10598,8 +10598,10 @@ class SystemManager(object):
 class EventAnalyzer(object):
     """ Analyzer for event profiling """
 
+    eventData = {}
+
     def __init__(self):
-        self.eventData = {}
+        pass
 
 
 
@@ -10608,7 +10610,10 @@ class EventAnalyzer(object):
 
 
 
-    def addEvent(self, time, event):
+    @staticmethod
+    def addEvent(time, event):
+        eventData = EventAnalyzer.eventData
+
         # ramdom event #
         if len(event.split('_')) == 1:
             name = event
@@ -10619,18 +10624,18 @@ class EventAnalyzer(object):
             ID = event.split('_')[1]
 
         try:
-            self.eventData[name]
+            eventData[name]
             # {'list': [ID, time, number], 'summary': [ID, cnt, avr, min, max, first, last]} #
         except:
-            self.eventData[name] = {'list': [], 'summary': []}
+            eventData[name] = {'list': [], 'summary': []}
 
-        self.eventData[name]['list'].append(\
-            [ID, time, sum(t[0] == ID for t in self.eventData[name]['list']) + 1])
+        eventData[name]['list'].append(\
+            [ID, time, sum(t[0] == ID for t in eventData[name]['list']) + 1])
 
-        if sum(id[0] == ID for id in self.eventData[name]['summary']) == 0:
-            self.eventData[name]['summary'].append([ID, 1, -1, -1, -1, time, time])
+        if sum(id[0] == ID for id in eventData[name]['summary']) == 0:
+            eventData[name]['summary'].append([ID, 1, -1, -1, -1, time, time])
         else:
-            for n in self.eventData[name]['summary']:
+            for n in eventData[name]['summary']:
                 if n[0] == ID:
                     n[1] += 1
                     n[6] = time
@@ -10638,25 +10643,31 @@ class EventAnalyzer(object):
 
 
 
-    def printEventInfo(self, start):
-        if len(self.eventData) > 0:
+    @staticmethod
+    def printEventInfo():
+        eventData = EventAnalyzer.eventData
+
+        if len(eventData) > 0:
             if SystemManager.isFunctionMode() is False:
                 SystemManager.pipePrint("\n\n\n")
 
             SystemManager.pipePrint("[%s] [ Total: %d ]" % \
-                ('Event Info', len(self.eventData)))
+                ('Event Info', len(eventData)))
             SystemManager.pipePrint(twoLine)
-            self.printEvent(start)
+            EventAnalyzer.printEvent()
             SystemManager.pipePrint(twoLine)
 
 
 
-    def printEvent(self, startTime):
-        for key, value in sorted(self.eventData.items(), key=lambda e: e[1], reverse=True):
+    @staticmethod
+    def printEvent():
+        eventData = EventAnalyzer.eventData
+
+        for key, value in sorted(eventData.items(), key=lambda e: e[1], reverse=True):
             string = ''
             head = '%10s: [total: %s] [subEvent: %s] ' % \
-                (key, len(self.eventData[key]['list']), len(self.eventData[key]['summary']))
-            for n in sorted(self.eventData[key]['summary'], key=lambda slist: slist[0]):
+                (key, len(eventData[key]['list']), len(eventData[key]['summary']))
+            for n in sorted(eventData[key]['summary'], key=lambda slist: slist[0]):
                 if n[0] == None:
                     msg = head
                 else:
@@ -10665,7 +10676,8 @@ class EventAnalyzer(object):
                 string = \
                     '%s[%8s > cnt: %d, avr: %d, min: %d, max: %d, first: %.3f, last: %.3f]' % \
                     (msg, n[0], n[1], n[2], n[3], n[4], \
-                    float(n[5]) - float(startTime), float(n[6]) - float(startTime))
+                    float(n[5]) - float(SystemManager.startTime), \
+                    float(n[6]) - float(SystemManager.startTime))
 
                 SystemManager.pipePrint("%s" % string)
 
@@ -10809,7 +10821,6 @@ class ThreadAnalyzer(object):
             self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
             self.init_preemptData = {'usage': float(0), 'count': int(0), 'max': float(0)}
 
-            self.startTime = '0'
             self.finishTime = '0'
             self.lastTidPerCore = {}
             self.lastCore = '0'
@@ -11013,7 +11024,7 @@ class ThreadAnalyzer(object):
             SystemManager.printError("No recognized data in %s" % SystemManager.inputFile)
             sys.exit(0)
 
-        self.totalTime = round(float(self.finishTime) - float(self.startTime), 7)
+        self.totalTime = round(float(self.finishTime) - float(SystemManager.startTime), 7)
 
         # apply filter #
         if len(SystemManager.showGroup) > 0:
@@ -12072,7 +12083,7 @@ class ThreadAnalyzer(object):
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
         if self.threadData[tid]['createdTime'] > 0:
-            threadName += " /%2.3f/" % (self.threadData[tid]['createdTime'] - float(self.startTime))
+            threadName += " /%2.3f/" % (self.threadData[tid]['createdTime'] - float(SystemManager.startTime))
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
         if self.threadData[tid]['childList'] is not None:
@@ -12429,7 +12440,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
             "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB/NR ]") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
-            'Start', round(float(self.startTime), 7), \
+            'Start', round(float(SystemManager.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
 
@@ -12761,7 +12772,7 @@ class ThreadAnalyzer(object):
 
             elif event is 'free':
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
-                    format('FREE', float(time) - float(self.startTime), module, comm, tid, ''))
+                    format('FREE', float(time) - float(SystemManager.startTime), module, comm, tid, ''))
             elif event is 'put':
                 try:
                     moduleTable[module]
@@ -12773,7 +12784,7 @@ class ThreadAnalyzer(object):
                 moduleTable[module]['startTime'] = 0
 
                 SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
-                    format('LOAD', float(time) - float(self.startTime), module, \
+                    format('LOAD', float(time) - float(SystemManager.startTime), module, \
                     comm, tid, moduleTable[module]['elapsed']))
 
         SystemManager.pipePrint(oneLine)
@@ -12868,7 +12879,7 @@ class ThreadAnalyzer(object):
                                 self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
                                 eventType = 'pair'
                                 eventTime = \
-                                    float(self.syscallData[icount][1]) - float(self.startTime)
+                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
                                 elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
                                     float(self.syscallData[icount][1]))
                                 param = self.syscallData[icount][5]
@@ -12876,7 +12887,7 @@ class ThreadAnalyzer(object):
                             else:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
-                                    float(self.syscallData[icount][1]) - float(self.startTime)
+                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
                                 elapsed = ' ' * 8
                                 param = self.syscallData[icount][5]
                                 ret = ' '
@@ -12887,7 +12898,7 @@ class ThreadAnalyzer(object):
                             else:
                                 eventType = self.syscallData[icount][0]
                                 eventTime = \
-                                    float(self.syscallData[icount][1]) - float(self.startTime)
+                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
                                 elapsed = ' ' * 8
                                 param = ' '
                                 ret = self.syscallData[icount][5]
@@ -12926,7 +12937,7 @@ class ThreadAnalyzer(object):
                 try:
                     SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
                         (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
-                        round(float(msg[2]) - float(self.startTime), 7), msg[3]))
+                        round(float(msg[2]) - float(SystemManager.startTime), 7), msg[3]))
                     cnt += 1
                 except:
                     continue
@@ -13226,8 +13237,8 @@ class ThreadAnalyzer(object):
 
             # check suspend event #
             for val in self.suspendData:
-                if float(self.startTime) + cnt * SystemManager.intervalEnable < float(val[0]) < \
-                    float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                if float(SystemManager.startTime) + cnt * SystemManager.intervalEnable < float(val[0]) < \
+                    float(SystemManager.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
                     if val[1] == 'S':
                         checkEvent = '!'
                     elif val[1] == 'F':
@@ -13237,8 +13248,8 @@ class ThreadAnalyzer(object):
 
             # check mark event #
             for val in self.markData:
-                if float(self.startTime) + cnt * SystemManager.intervalEnable < float(val) < \
-                    float(self.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                if float(SystemManager.startTime) + cnt * SystemManager.intervalEnable < float(val) < \
+                    float(SystemManager.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
                     checkEvent = 'v'
 
             if timeLineLen + 4 > maxLineLen:
@@ -14805,6 +14816,7 @@ class ThreadAnalyzer(object):
                     r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', line)
                 if m is not None:
                     d = m.groupdict()
+                    SystemManager.startTime = d['time']
                     return d['time']
 
                 m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' + \
@@ -14812,6 +14824,7 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.tgidEnable = False
+                    SystemManager.startTime = d['time']
                     return d['time']
 
             # check record status #
@@ -14858,7 +14871,7 @@ class ThreadAnalyzer(object):
 
         intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
 
-        if float(time) - float(self.startTime) > intervalCnt or self.finishTime != '0':
+        if float(time) - float(SystemManager.startTime) > intervalCnt or self.finishTime != '0':
             SystemManager.intervalNow += SystemManager.intervalEnable
 
             # check change of all threads #
@@ -15098,7 +15111,7 @@ class ThreadAnalyzer(object):
                 if intervalThread['cpuUsage'] > SystemManager.intervalEnable or self.finishTime != '0':
                     # first interval #
                     if index == 0:
-                        self.thisInterval = float(time) - float(self.startTime)
+                        self.thisInterval = float(time) - float(SystemManager.startTime)
                     # normal intervals #
                     elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
                         self.thisInterval = \
@@ -15111,7 +15124,7 @@ class ThreadAnalyzer(object):
                                     float(time) - float(self.intervalData[idx][key]['firstLogTime'])
                                 break
                         if self.thisInterval != SystemManager.intervalEnable:
-                            self.thisInterval = float(time) - float(self.startTime)
+                            self.thisInterval = float(time) - float(SystemManager.startTime)
 
                     # recalculate previous intervals if no context switching since profile start #
                     remainTime = intervalThread['cpuUsage']
@@ -15300,15 +15313,12 @@ class ThreadAnalyzer(object):
                     except:
                         continue
 
-            if self.startTime == '0':
-                self.startTime = time
-            else:
-                # check whether this log is last one or not #
-                if SystemManager.curLine >= SystemManager.totalLine:
-                    self.finishTime = time
+            # check whether this log is last one or not #
+            if SystemManager.curLine >= SystemManager.totalLine:
+                self.finishTime = time
 
-                # calculate usage of threads in interval #
-                self.processIntervalData(time)
+            # calculate usage of threads in interval #
+            self.processIntervalData(time)
 
             if func == "sched_switch":
                 m = re.match(\
@@ -15394,7 +15404,7 @@ class ThreadAnalyzer(object):
                     if self.threadData[prev_id]['start'] == 0:
                         # calculate running time of previous thread started before starting to profile #
                         if self.threadData[coreId]['coreSchedCnt'] == 0:
-                            diff = float(time) - float(self.startTime)
+                            diff = float(time) - float(SystemManager.startTime)
                             self.threadData[prev_id]['usage'] = diff
                         # it is possible that log was loss #
                         else:
@@ -15921,7 +15931,7 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
 
                     if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = float(time) - float(self.startTime)
+                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
                     elif thread[0] == '0' or pid == '0':
                         return
                     elif self.wakeupData['valid'] > 0 and \
@@ -15938,12 +15948,12 @@ class ThreadAnalyzer(object):
                             kicker = self.threadData[thread]['comm']
                             kicker_pid = thread
 
-                        ntime = round(float(time) - float(self.startTime), 7)
+                        ntime = round(float(time) - float(SystemManager.startTime), 7)
                         self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
                             (ntime, round(ntime - float(self.wakeupData['time']), 7), \
                             kicker, kicker_pid, target_comm, pid, "kick"))
 
-                        self.wakeupData['time'] = float(time) - float(self.startTime)
+                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
                         self.wakeupData['from'] = self.wakeupData['tid']
                         self.wakeupData['to'] = pid
                 else:
@@ -15969,7 +15979,7 @@ class ThreadAnalyzer(object):
                                 self.threadData[thread]['futexEnter'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = float(time) - float(self.startTime)
+                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
 
                     if nr == str(ConfigManager.sysList.index("sys_write")):
                         self.wakeupData['tid'] = thread
@@ -16040,13 +16050,13 @@ class ThreadAnalyzer(object):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
                                 self.lastJob[core]['job'] == "sched_wakeup") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
-                                ttime = float(time) - float(self.startTime)
+                                ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
                                 self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(ttime, 7), round(itime, 7), " ", " ", \
                                     self.threadData[thread]['comm'], thread, "wakeup"))
 
-                                self.wakeupData['time'] = float(time) - float(self.startTime)
+                                self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                         elif (SystemManager.arch == 'arm' and \
                             nr == str(ConfigManager.sysList.index("sys_recv"))) or \
@@ -16054,13 +16064,13 @@ class ThreadAnalyzer(object):
                             nr == str(ConfigManager.sysList.index("sys_recvmsg")) or \
                             nr == str(ConfigManager.sysList.index("sys_recvmmsg")):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
-                                ttime = float(time) - float(self.startTime)
+                                ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
                                 self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(ttime, 7), round(itime, 7), " ", " ", \
                                     self.threadData[thread]['comm'], thread, "recv"))
 
-                                self.wakeupData['time'] = float(time) - float(self.startTime)
+                                self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                     except:
                         pass
@@ -16118,14 +16128,14 @@ class ThreadAnalyzer(object):
                             return
 
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
-                        (round(float(time) - float(self.startTime), 7), \
-                        round(float(time) - float(self.startTime) - float(self.wakeupData['time']), 7), \
+                        (round(float(time) - float(SystemManager.startTime), 7), \
+                        round(float(time) - float(SystemManager.startTime) - float(self.wakeupData['time']), 7), \
                         self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
 
-                    self.sigData.append(('SEND', float(time) - float(self.startTime), \
+                    self.sigData.append(('SEND', float(time) - float(SystemManager.startTime), \
                         self.threadData[thread]['comm'], thread, target_comm, pid, sig))
 
-                    self.wakeupData['time'] = float(time) - float(self.startTime)
+                    self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
 
                     try:
                         # SIGCHLD #
@@ -16158,16 +16168,16 @@ class ThreadAnalyzer(object):
                             comm.find(item) < 0:
                             return
 
-                    ttime = float(time) - float(self.startTime)
-                    itime = float(time) - float(self.startTime) - float(self.wakeupData['time'])
+                    ttime = float(time) - float(SystemManager.startTime)
+                    itime = float(time) - float(SystemManager.startTime) - float(self.wakeupData['time'])
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
                         (round(ttime, 7), round(itime, 7), "", "", \
                         self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
-                    self.sigData.append(('RECV', float(time) - float(self.startTime), \
+                    self.sigData.append(('RECV', float(time) - float(SystemManager.startTime), \
                         None, None, self.threadData[thread]['comm'], thread, sig))
 
-                    self.wakeupData['time'] = float(time) - float(self.startTime)
+                    self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -16519,7 +16529,7 @@ class ThreadAnalyzer(object):
 
                     if self.threadData[tid]['coreSchedCnt'] == 0 and \
                         self.threadData[tid]['offTime'] == 0:
-                        self.threadData[tid]['offTime'] = float(time) - float(self.startTime)
+                        self.threadData[tid]['offTime'] = float(time) - float(SystemManager.startTime)
 
                     # Wake core up, but the number 3 as this condition is not certain #
                     if int(d['state']) < 3:
@@ -16560,7 +16570,7 @@ class ThreadAnalyzer(object):
                         self.suspendData = []
                         self.markData = []
                         self.consoleData = []
-                        self.startTime = time
+                        SystemManager.startTime = time
                         return
                     # finish data processing #
                     elif event == 'STOP':
@@ -16579,14 +16589,14 @@ class ThreadAnalyzer(object):
                         self.reclaimDataOld = self.reclaimData
                         self.reclaimData = {}
 
-                        self.totalTimeOld = round(float(time) - float(self.startTime), 7)
-                        self.startTime = time
+                        self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
+                        SystemManager.startTime = time
                         return
                     # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
 
-                    ei.addEvent(time, event)
+                    EventAnalyzer.addEvent(time, event)
                 else:
                     # process CPU shutdown event #
                     m = re.match(\
@@ -16635,7 +16645,7 @@ class ThreadAnalyzer(object):
                         self.suspendData = []
                         self.markData = []
                         self.consoleData = []
-                        self.startTime = time
+                        SystemManager.startTime = time
                         return
                     # finish data processing #
                     elif event == 'STOP':
@@ -16654,21 +16664,21 @@ class ThreadAnalyzer(object):
                         self.reclaimDataOld = self.reclaimData
                         self.reclaimData = {}
 
-                        self.totalTimeOld = round(float(time) - float(self.startTime), 7)
-                        self.startTime = time
+                        self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
+                        SystemManager.startTime = time
                         return
                     # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
 
-                    ei.addEvent(time, event)
+                    EventAnalyzer.addEvent(time, event)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             # custom event #
             elif func in SystemManager.customEventList:
                 # add data into list #
-                ntime = float(time) - float(self.startTime)
+                ntime = float(time) - float(SystemManager.startTime)
                 self.customEventData.append([func, comm, thread, ntime, etc.strip()])
 
                 # make event list #
@@ -16731,7 +16741,7 @@ class ThreadAnalyzer(object):
 
                     if func == '%s_enter' % name:
                         # add data into list #
-                        ntime = float(time) - float(self.startTime)
+                        ntime = float(time) - float(SystemManager.startTime)
                         self.userEventData.append(['ENTER', name, comm, thread, ntime, ''])
 
                         # get interval #
@@ -16763,7 +16773,7 @@ class ThreadAnalyzer(object):
 
                     elif func == '%s_exit' % name:
                         # add data into list #
-                        ntime = float(time) - float(self.startTime)
+                        ntime = float(time) - float(SystemManager.startTime)
                         self.userEventData.append(\
                             ['EXIT', name, comm, thread, ntime, \
                             etc[etc.find('(')+1:etc.rfind('<-')]])
@@ -16811,7 +16821,7 @@ class ThreadAnalyzer(object):
 
                     if func == '%s_enter' % name:
                         # add data into list #
-                        ntime = float(time) - float(self.startTime)
+                        ntime = float(time) - float(SystemManager.startTime)
 
                         isSaved = True
                         m = re.match(\
@@ -16862,7 +16872,7 @@ class ThreadAnalyzer(object):
 
                     elif func == '%s_exit' % name:
                         # add data into list #
-                        ntime = float(time) - float(self.startTime)
+                        ntime = float(time) - float(SystemManager.startTime)
 
                         isSaved = True
                         m = re.match(\
@@ -16950,7 +16960,7 @@ class ThreadAnalyzer(object):
                             self.suspendData = []
                             self.markData = []
                             self.consoleData = []
-                            self.startTime = time
+                            SystemManager.startTime = time
                             return
                         # finish data processing #
                         elif event == 'STOP':
@@ -16969,14 +16979,14 @@ class ThreadAnalyzer(object):
                             self.reclaimDataOld = self.reclaimData
                             self.reclaimData = {}
 
-                            self.totalTimeOld = round(float(time) - float(self.startTime), 7)
-                            self.startTime = time
+                            self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
+                            SystemManager.startTime = time
                             return
                         # saving mark event #
                         elif event == 'MARK':
                             self.markData.append(time)
 
-                        ei.addEvent(time, event)
+                        EventAnalyzer.addEvent(time, event)
 
 
 
@@ -19408,7 +19418,7 @@ if __name__ == '__main__':
     # save system info first #
     SystemManager()
 
-    # parse recording option #
+    #------------------------------ record part ------------------------------#
     if SystemManager.isRecordMode():
         # update record status #
         SystemManager.recordStatus = True
@@ -19465,10 +19475,6 @@ if __name__ == '__main__':
             # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
-            # close pipe for less util #
-            if SystemManager.pipeForPrint is not None:
-                SystemManager.pipeForPrint.close()
-
             sys.exit(0)
 
         # set signal #
@@ -19515,10 +19521,6 @@ if __name__ == '__main__':
             # print file usage per process on timeline #
             else:
                 pi.printIntervalInfo()
-
-            # close pipe for less util #
-            if SystemManager.pipeForPrint is not None:
-                SystemManager.pipeForPrint.close()
 
             sys.exit(0)
 
@@ -19593,6 +19595,10 @@ if __name__ == '__main__':
 
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
+
+    #------------------------------ analysis part ------------------------------#
+    # register exit handler #
+    atexit.register(SystemManager.closePipeForPrint)
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
@@ -19669,10 +19675,6 @@ if __name__ == '__main__':
         # create ThreadAnalyzer using proc #
         ti = ThreadAnalyzer(None)
 
-        # close pipe for less util #
-        if SystemManager.pipeForPrint is not None:
-            SystemManager.pipeForPrint.close()
-
         sys.exit(0)
 
     # set handler for exit #
@@ -19691,17 +19693,12 @@ if __name__ == '__main__':
     # print analysis option #
     SystemManager.printAnalOption()
 
-    # create Event Info #
-    ei = EventAnalyzer()
-
     if SystemManager.isFunctionMode():
         # create FunctionAnalyzer #
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
         # print Function Info #
         fi.printUsage()
-
-        start = fi.startTime
     else:
         # create ThreadAnalyzer #
         ti = ThreadAnalyzer(SystemManager.inputFile)
@@ -19727,16 +19724,11 @@ if __name__ == '__main__':
         # print system call usage #
         ti.printSyscallInfo()
 
-        start = ti.startTime
-
     # print event info #
-    ei.printEventInfo(start)
-
-    # close pipe for less util #
-    if SystemManager.pipeForPrint is not None:
-        SystemManager.pipeForPrint.close()
+    EventAnalyzer.printEventInfo()
 
     # start input menu #
     if SystemManager.selectMenu != None:
-        # make file related to taskchain #
-        ti.makeTaskChainList()
+        #ti.makeTaskChainList()
+        pass
+
