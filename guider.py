@@ -5908,7 +5908,6 @@ class SystemManager(object):
     rssEnable = True
     vssEnable = True
     heapEnable = False
-    diskEnable = False
     fileTopEnable = False
     ueventEnable = False
     keventEnable = False
@@ -6264,7 +6263,7 @@ class SystemManager(object):
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|d(isk)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}')
+                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -6369,8 +6368,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -R 5' % cmd)
                 print('\t\t\t- show resource usage of processes only 5 times per 3 sec interval in real-time')
                 print('\t\t\t\t# %s top -R 3, 5' % cmd)
-                print('\t\t\t- show resource usage including disk of threads per 2 sec interval in real-time')
-                print('\t\t\t\t# %s top -e t d -i 2 -a' % cmd)
+                print('\t\t\t- show resource usage including block of threads per 2 sec interval in real-time')
+                print('\t\t\t\t# %s top -e t b -i 2 -a' % cmd)
                 print('\t\t\t- show resource usage of specific processes/threads involved in specific process group in real-time')
                 print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
                 print('\t\t\t- record resource usage of processes and write to specific file in background')
@@ -7058,10 +7057,10 @@ class SystemManager(object):
                 else:
                     disableStat += 'CPU '
 
-                if SystemManager.diskEnable:
-                    enableStat += 'DISK '
+                if SystemManager.blockEnable:
+                    enableStat += 'BLOCK '
                 else:
-                    disableStat += 'DISK '
+                    disableStat += 'BLOCK '
 
                 if SystemManager.stackEnable:
                     enableStat += 'STACK '
@@ -8387,12 +8386,13 @@ class SystemManager(object):
                 options = value
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
-                if options.rfind('d') > -1:
+                if options.rfind('b') > -1:
                     if os.geteuid() != 0:
-                        SystemManager.printError("Fail to get root permission to analyze disk")
+                        SystemManager.printError(\
+                            "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
                     else:
-                        SystemManager.diskEnable = True
+                        SystemManager.blockEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('s') > -1:
@@ -17857,7 +17857,7 @@ class ThreadAnalyzer(object):
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # save io info #
-        if SystemManager.diskEnable:
+        if SystemManager.blockEnable:
             try:
                 self.prevProcData[tid]['ioFd'].seek(0)
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
@@ -18560,7 +18560,7 @@ class ThreadAnalyzer(object):
             except:
                 dtime = '-'
 
-            if SystemManager.diskEnable:
+            if SystemManager.blockEnable:
                 readSize = value['read'] >> 20
                 writeSize = value['write'] >> 20
             else:
@@ -18783,7 +18783,7 @@ class ThreadAnalyzer(object):
                 except:
                     shr = '-'
 
-                if SystemManager.diskEnable:
+                if SystemManager.blockEnable:
                     readSize = value['read'] >> 20
                     writeSize = value['write'] >> 20
                 else:
@@ -18856,7 +18856,7 @@ class ThreadAnalyzer(object):
                 except:
                     shr = '-'
 
-                if SystemManager.diskEnable:
+                if SystemManager.blockEnable:
                     readSize = value['read'] >> 20
                     writeSize = value['write'] >> 20
                 else:
