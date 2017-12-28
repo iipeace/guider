@@ -3249,7 +3249,7 @@ class FunctionAnalyzer(object):
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
                 value['customTotal']))
 
-        SystemManager.pipePrint(oneLine + '\n\n\n')
+        SystemManager.pipePrint("%s\n\n\n" % oneLine)
 
         # Exit because of no target #
         if len(self.target) == 0:
@@ -5102,7 +5102,7 @@ class FileAnalyzer(object):
 
             SystemManager.pipePrint(printMsg)
 
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         # Print file list #
         SystemManager.pipePrint(\
@@ -5238,7 +5238,7 @@ class FileAnalyzer(object):
 
             SystemManager.pipePrint(printMsg)
 
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         # Print file list #
         SystemManager.pipePrint(\
@@ -5338,7 +5338,7 @@ class FileAnalyzer(object):
 
             SystemManager.pipePrint(printMsg)
 
-        SystemManager.pipePrint(oneLine + '\n\n\n')
+        SystemManager.pipePrint("%s\n\n\n" % oneLine)
 
 
 
@@ -5793,9 +5793,9 @@ class SystemManager(object):
     startTime = time.time()
     blockSize = 512
     bufferSize = 0
-    ttyRows = '50'
+    ttyRows = 50
     ttyRowsMargin = 8
-    ttyCols = '156'
+    ttyCols = 156
     magicString = '@@@@@'
     procPath = '/proc'
     imagePath = None
@@ -6478,6 +6478,47 @@ class SystemManager(object):
             sys.exit(0)
 
         SystemManager.arch = arch
+
+
+
+    @staticmethod
+    def syscall(syscall, *args):
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                "Fail to import python package: %s to call syscall" % err.args[0])
+            return
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+
+            if type(syscall) is int:
+                nrSyscall = syscall
+                nmSyscall = ConfigManager.sysList[nrSyscall]
+            elif type(syscall) is str:
+                val = syscall.lower()
+                if val[0:4] == 'sys_':
+                    nmSyscall = val
+                else:
+                    nmSyscall = 'sys_%s' % val
+                nrSyscall = ConfigManager.sysList.index(nmSyscall)
+            else:
+                raise
+
+            if nmSyscall == 'sys_perf_event_open':
+                SystemManager.libcObj.syscall(nrSyscall)
+            else:
+                raise
+        except:
+            SystemManager.printWarning('Fail to call %s syscall' % syscall)
 
 
 
@@ -8790,7 +8831,7 @@ class SystemManager(object):
                         if val[0:4] == 'sys_':
                             nrSyscall = ConfigManager.sysList.index(val)
                         else:
-                            nrSyscall = ConfigManager.sysList.index('sys_' + val)
+                            nrSyscall = ConfigManager.sysList.index('sys_%s' % val)
 
                         enabledSyscall.append(ConfigManager.sysList[nrSyscall])
                         SystemManager.syscallList[SystemManager.syscallList.index(val)] = nrSyscall
@@ -9063,7 +9104,7 @@ class SystemManager(object):
             print(twoLine)
             print('%6s\t%10s\t%s' % ("PID", "RUNTIME", "COMMAND"))
             print(oneLine)
-            print(printBuf + oneLine + '\n')
+            print(printBuf + "%s\n" % oneLine)
 
 
 
@@ -9249,10 +9290,10 @@ class SystemManager(object):
     def getTty():
         try:
             if SystemManager.printAllEnable:
-                SystemManager.ttyRows = SystemManager.ttyCols = '8192'
+                SystemManager.ttyRows = SystemManager.ttyCols = 8192
             else:
                 SystemManager.ttyRows, SystemManager.ttyCols = \
-                    os.popen('stty size', 'r').read().split()
+                    map(int, os.popen('stty size', 'r').read().split())
         except:
             SystemManager.printWarning("Fail to use stty")
 
@@ -10485,7 +10526,7 @@ class SystemManager(object):
 
         if outputCnt == 0:
             SystemManager.infoBufferPrint('\tN/A')
-        SystemManager.infoBufferPrint(twoLine + '\n\n')
+        SystemManager.infoBufferPrint("%s\n\n" % twoLine)
 
 
 
@@ -14173,9 +14214,9 @@ class ThreadAnalyzer(object):
             '[SOCKET: %d] [DEV: %d] [PIPE: %d] [PROC: %d]\n') %\
             (len(SystemManager.fileInstance), nrFile, nrEvent,\
             nrSocket, nrDevice, nrPipe, nrProc))
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
         SystemManager.pipePrint("{0:^5} | {1:^144} |\n".format('REF', 'FILE'))
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         for filename, value in sorted(SystemManager.fileInstance.items(),\
             key=lambda e: int(e[1]), reverse=True):
@@ -14184,20 +14225,20 @@ class ThreadAnalyzer(object):
         if len(SystemManager.fileInstance) == 0:
             SystemManager.pipePrint('\tN/A\n')
 
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
     @staticmethod
     def printTimeline():
         SystemManager.pipePrint('\n[Top Summary Info]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
             "{6:^8} | {7:^8} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^10} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
             'SWAP(MB)', 'Rclm(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrTask', 'NetIO'))
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         pCnt = 0
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -14221,7 +14262,7 @@ class ThreadAnalyzer(object):
         if len(ThreadAnalyzer.procIntervalData) == 0 or pCnt == 0:
             SystemManager.pipePrint('\tNone\n')
 
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -14229,7 +14270,7 @@ class ThreadAnalyzer(object):
     def printCpuInterval():
         # Print title #
         SystemManager.pipePrint('\n[Top CPU Info] [Unit: %]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
@@ -14249,7 +14290,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotalData['total']
@@ -14274,7 +14315,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         # Print cpu usage of processes #
         for pid, value in sorted(\
@@ -14311,7 +14352,7 @@ class ThreadAnalyzer(object):
                 continue
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -14319,7 +14360,7 @@ class ThreadAnalyzer(object):
     def printRssInterval():
         # Print title #
         SystemManager.pipePrint('\n[Top RSS Info] [Unit: MB]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
@@ -14339,7 +14380,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
@@ -14364,7 +14405,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         # Print rss of processes #
         for pid, value in sorted(\
@@ -14396,7 +14437,7 @@ class ThreadAnalyzer(object):
                 lineLen += 5
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -14404,7 +14445,7 @@ class ThreadAnalyzer(object):
     def printVssInterval():
         # Print title #
         SystemManager.pipePrint('\n[Top VSS Info] [Unit: MB]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
@@ -14424,7 +14465,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
@@ -14449,7 +14490,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(oneLine + '\n')
+        SystemManager.pipePrint("%s\n" % oneLine)
 
         # Print vss of processes #
         for pid, value in sorted(\
@@ -14481,7 +14522,7 @@ class ThreadAnalyzer(object):
                 lineLen += 5
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -14489,7 +14530,7 @@ class ThreadAnalyzer(object):
     def printBlkInterval():
         # Print title #
         SystemManager.pipePrint('\n[Top Block Info] [Unit: %]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
@@ -14509,7 +14550,7 @@ class ThreadAnalyzer(object):
             lineLen += 5
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print block usage of processes #
         itemCnt = 0
@@ -14541,12 +14582,12 @@ class ThreadAnalyzer(object):
                 lineLen += 5
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint("%s\n" % oneLine)
             itemCnt += 1
 
         if itemCnt == 0:
             SystemManager.pipePrint('\tNone\n')
-            SystemManager.pipePrint(oneLine + '\n')
+            SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -14633,7 +14674,7 @@ class ThreadAnalyzer(object):
 
         # Print title #
         SystemManager.pipePrint('\n[Top Memory Details] [Unit: MB]\n')
-        SystemManager.pipePrint(twoLine + '\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         SystemManager.pipePrint(("{0:^16} ({1:^5}/{2:^5}) | {3:^8} | {4:^5} | "
@@ -17028,7 +17069,7 @@ class ThreadAnalyzer(object):
             "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] [Unit: %%/MB/NR]\n" % \
             (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
-        SystemManager.addPrint(twoLine + '\n' + \
+        SystemManager.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
             format("PROC", "ID", "Pid", "Nr", "Pri", "FD", "PATH", oneLine), newline = 3)
 
@@ -17092,8 +17133,8 @@ class ThreadAnalyzer(object):
                 for fd, path in sorted(\
                     value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
                     # cut by rows of terminal #
-                    if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
-                        int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+                    if SystemManager.showAll is False and SystemManager.bufferRows >= \
+                        SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
                         SystemManager.printFile is None:
                         break
 
@@ -17126,14 +17167,14 @@ class ThreadAnalyzer(object):
                 procCnt += 1
 
             # cut by rows of terminal #
-            if SystemManager.showAll is False and int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+            if SystemManager.showAll is False and SystemManager.bufferRows >= \
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
                 SystemManager.printFile is None:
                 SystemManager.addPrint('---more---')
                 break
 
             if fdCnt > 0:
-                SystemManager.addPrint(oneLine + '\n')
+                SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
@@ -18332,7 +18373,7 @@ class ThreadAnalyzer(object):
         else:
             etc = 'SignalHandler'
 
-        SystemManager.addPrint(twoLine + '\n' + \
+        SystemManager.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
@@ -18406,8 +18447,8 @@ class ThreadAnalyzer(object):
                             del self.stackTable[idx]
 
             # cut by rows of terminal #
-            if int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+            if SystemManager.bufferRows >= \
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
                 SystemManager.printFile is None:
                 SystemManager.addPrint('---more---')
                 return
@@ -18631,13 +18672,13 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
 
                         # cut by rows of terminal #
-                        if int(SystemManager.bufferRows) >= \
-                            int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin and \
+                        if SystemManager.bufferRows >= \
+                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
                             SystemManager.printFile is None:
                             SystemManager.addPrint('---more---')
                             return
 
-                SystemManager.addPrint(oneLine + '\n')
+                SystemManager.addPrint("%s\n" % oneLine)
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -18688,7 +18729,7 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint("{0:>39} | {1:1}\n".format('', 'None'))
                     else:
                         self.stackTable[idx]['total'] = 0
-                    SystemManager.addPrint(oneLine + '\n')
+                    SystemManager.addPrint("%s\n" % oneLine)
                 except:
                     pass
 
@@ -18699,7 +18740,7 @@ class ThreadAnalyzer(object):
         elif SystemManager.memEnable or SystemManager.stackEnable:
             pass
         else:
-            SystemManager.addPrint(oneLine + '\n')
+            SystemManager.addPrint("%s\n" % oneLine)
 
         self.printNewProcess()
         self.printDieProcess()
@@ -18765,13 +18806,13 @@ class ThreadAnalyzer(object):
 
             else:
                 if newCnt > 0:
-                    SystemManager.addPrint(oneLine + '\n')
+                    SystemManager.addPrint("%s\n" % oneLine)
                 break
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin:
+                SystemManager.bufferRows >= \
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -18859,13 +18900,13 @@ class ThreadAnalyzer(object):
                     pass
             else:
                 if dieCnt > 0:
-                    SystemManager.addPrint(oneLine + '\n')
+                    SystemManager.addPrint("%s\n" % oneLine)
                 return
 
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
-                int(SystemManager.bufferRows) >= \
-                int(SystemManager.ttyRows) - SystemManager.ttyRowsMargin:
+                SystemManager.bufferRows >= \
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -18876,7 +18917,7 @@ class ThreadAnalyzer(object):
             SystemManager.printWarning("Fail to recognize report data")
             return
 
-        printBuf = twoLine + '\n'
+        printBuf = "%s\n" % twoLine
 
         if 'event' in reportStat:
             for event, proc in reportStat['event'].items():
@@ -18890,7 +18931,7 @@ class ThreadAnalyzer(object):
 
                     printBuf += '\n'
 
-                printBuf += oneLine + '\n'
+                printBuf += "%s\n" % oneLine
 
             del reportStat['event']
 
@@ -18902,7 +18943,7 @@ class ThreadAnalyzer(object):
 
             printBuf += '\n'
 
-        printBuf += twoLine + '\n'
+        printBuf += "%s\n" % twoLine
 
         SystemManager.pipePrint(printBuf)
 
@@ -19418,6 +19459,9 @@ if __name__ == '__main__':
 
         sys.exit(0)
 
+    # set arch #
+    SystemManager.setArch(SystemManager.getArch())
+
     # save system info first #
     SystemManager()
 
@@ -19430,9 +19474,6 @@ if __name__ == '__main__':
         # set this process to RT priority #
         if SystemManager.prio is None:
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
-
-        # set arch #
-        SystemManager.setArch(SystemManager.getArch())
 
         SystemManager.parseRecordOption()
 
@@ -19518,11 +19559,13 @@ if __name__ == '__main__':
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
-            # print total file usage per process #
+            atexit.register(SystemManager.closePipeForPrint)
+
             if SystemManager.intervalEnable == 0:
+                # print total file usage per process #
                 pi.printUsage()
-            # print file usage per process on timeline #
             else:
+                # print file usage per process on timeline #
                 pi.printIntervalInfo()
 
             sys.exit(0)
@@ -19654,9 +19697,6 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if SystemManager.isTopMode():
-        # set arch #
-        SystemManager.setArch(SystemManager.getArch())
-
         # print record option #
         SystemManager.printRecordOption()
 
