@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2017, guider"
+__copyright__ = "Copyright 2015-2018, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
@@ -499,7 +499,7 @@ class ConfigManager(object):
         'ENOTRECOVERABLE', # State not recoverable #
         'ERFKILL',          # Operation not possible due to RF-kill #
         'EHWPOISON',        # Memory page has hardware error #
-    ]
+        ]
 
     # Define rlimit of process #
     rlimitList = [
@@ -520,6 +520,59 @@ class ConfigManager(object):
         'RLIMIT_RTPRIO',
         'RLIMIT_RTTIME',
         'RLIMIT_NLIMITS'
+        ]
+
+    # Define perf event types #
+    perfEventType = [
+        'PERF_TYPE_HARDWARE',
+        'PERF_TYPE_SOFTWARE',
+        'PERF_TYPE_TRACEPOINT',
+        'PERF_TYPE_HW_CACHE',
+        'PERF_TYPE_RAW',
+        'PERF_TYPE_BREAKPOINT',
+        ]
+    perfEventHWType = [
+        'PERF_COUNT_HW_CPU_CYCLES',
+        'PERF_COUNT_HW_INSTRUCTIONS',
+        'PERF_COUNT_HW_CACHE_REFERENCES',
+        'PERF_COUNT_HW_CACHE_MISSES',
+        'PERF_COUNT_HW_BRANCH_INSTRUCTIONS',
+        'PERF_COUNT_HW_BRANCH_MISSES',
+        'PERF_COUNT_HW_BUS_CYCLES',
+        'PERF_COUNT_HW_STALLED_CYCLES_FRONTEND',
+        'PERF_COUNT_HW_STALLED_CYCLES_BACKEND',
+        'PERF_COUNT_HW_REF_CPU_CYCLES',
+        ]
+    perfEventSWType = [
+        'PERF_COUNT_SW_CPU_CLOCK',
+        'PERF_COUNT_SW_TASK_CLOCK',
+        'PERF_COUNT_SW_PAGE_FAULTS',
+        'PERF_COUNT_SW_CONTEXT_SWITCHES',
+        'PERF_COUNT_SW_CPU_MIGRATIONS',
+        'PERF_COUNT_SW_PAGE_FAULTS_MIN',
+        'PERF_COUNT_SW_PAGE_FAULTS_MAJ',
+        'PERF_COUNT_SW_ALIGNMENT_FAULTS',
+        'PERF_COUNT_SW_EMULATION_FAULTS',
+        'PERF_COUNT_SW_DUMMY',
+        'PERF_COUNT_SW_BPF_OUTPUT',
+        ]
+    perfEventCacheType = [
+        'PERF_COUNT_HW_CACHE_L1D',
+        'PERF_COUNT_HW_CACHE_L1I',
+        'PERF_COUNT_HW_CACHE_LL',
+        'PERF_COUNT_HW_CACHE_DTLB',
+        'PERF_COUNT_HW_CACHE_ITLB',
+        'PERF_COUNT_HW_CACHE_BPU',
+        'PERF_COUNT_HW_CACHE_NODE',
+        ]
+    perfEventCacheOp = [
+        'PERF_COUNT_HW_CACHE_OP_READ',
+        'PERF_COUNT_HW_CACHE_OP_WRITE',
+        'PERF_COUNT_HW_CACHE_OP_PREFETCH',
+        ]
+    perfEventCacheOpRes = [
+        'PERF_COUNT_HW_CACHE_RESULT_ACCESS',
+        'PERF_COUNT_HW_CACHE_RESULT_MISS',
         ]
 
     taskChainEnable = None
@@ -5924,6 +5977,7 @@ class SystemManager(object):
     sysEnable = False
     waitEnable = False
     cmdEnable = False
+    perfEnable = True
     backgroundEnable = False
     resetEnable = False
     warningEnable = True
@@ -6512,12 +6566,564 @@ class SystemManager(object):
             else:
                 raise
 
-            if nmSyscall == 'sys_perf_event_open':
-                SystemManager.libcObj.syscall(nrSyscall)
+            SystemManager.libcObj.syscall(nrSyscall)
+        except:
+            SystemManager.printWarning('Fail to call %s syscall' % syscall)
+
+
+
+    @staticmethod
+    def openPerfEvent(etype, econfig):
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
+                c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to open perf event") % err.args[0])
+            SystemManager.perfEnable = False
+            return
+
+        # load standard libc library #
+        try:
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+        except:
+            SystemManager.libcObj = None
+            SystemManager.printWarning('Fail to use libc to call systemcall')
+            SystemManager.perfEnable = False
+            return
+
+        # define struct perf_event_attr #
+        class union_anon_5(Union):
+            pass
+        union_anon_5.__slots__ = [
+            'sample_period',
+            'sample_freq',
+        ]
+        union_anon_5._fields_ = [
+            ('sample_period', c_uint64),
+            ('sample_freq', c_uint64),
+        ]
+
+        class union_anon_6(Union):
+            pass
+        union_anon_6.__slots__ = [
+            'wakeup_events',
+            'wakeup_watermark',
+        ]
+        union_anon_6._fields_ = [
+            ('wakeup_events', c_uint32),
+            ('wakeup_watermark', c_uint32),
+        ]
+
+        class union_anon_7(Union):
+            pass
+        union_anon_7.__slots__ = [
+            'bp_addr',
+            'config1',
+        ]
+        union_anon_7._fields_ = [
+            ('bp_addr', c_uint64),
+            ('config1', c_uint64),
+        ]
+
+        class union_anon_8(Union):
+            pass
+        union_anon_8.__slots__ = [
+            'bp_len',
+            'config2',
+        ]
+        union_anon_8._fields_ = [
+            ('bp_len', c_uint64),
+            ('config2', c_uint64),
+        ]
+
+        class struct_perf_event_attr(Structure):
+            pass
+        '''
+        struct perf_event_attr
+        {
+
+            uint32_t type;
+
+            uint32_t size;
+
+            uint64_t config;
+
+            union
+            {
+                uint64_t sample_period;
+                uint64_t sample_freq;
+            };
+
+            uint64_t sample_type;
+
+            uint64_t read_format;
+
+            uint64_t disabled:1,                /* off by default        */
+                     inherit:1,                 /* children inherit it   */
+                     pinned:1,                  /* must always be on PMU */
+                     exclusive:1,               /* only group on PMU     */
+                     exclude_user:1,            /* don't count user      */
+                     exclude_kernel:1,          /* ditto kernel          */
+                     exclude_hv:1,              /* ditto hypervisor      */
+                     exclude_idle:1,            /* don't count when idle */
+                     mmap:1,                    /* include mmap data     */
+                     comm:1,                    /* include comm data     */
+                     freq:1,                    /* use freq, not period  */
+                     inherit_stat:1,            /* per task counts       */
+                     enable_on_exec:1,          /* next exec enables     */
+                     task:1,                    /* trace fork/exit       */
+                     watermark:1,               /* wakeup_watermark      */
+                     /*
+                      * precise_ip:
+                      *
+                      *  0 - SAMPLE_IP can have arbitrary skid
+                      *  1 - SAMPLE_IP must have constant skid
+                      *  2 - SAMPLE_IP requested to have 0 skid
+                      *  3 - SAMPLE_IP must have 0 skid
+                      *
+                      *  See also PERF_RECORD_MISC_EXACT_IP
+                      */
+                     precise_ip:2,              /* skid constraint       */
+                     mmap_data:1,               /* non-exec mmap data    */
+                     sample_id_all:1,           /* sample_type all events */
+                     exclude_host:1,            /* don't count in host   */
+                     exclude_guest:1,           /* don't count in guest  */
+                     exclude_callchain_kernel:1,        /* exclude kernel callchains */
+                     exclude_callchain_user:1,  /* exclude user callchains */
+                     mmap2:1,                   /* include mmap with inode data     */
+                     comm_exec:1,               /* flag comm events that are due to an exec */
+                     use_clockid:1,             /* use @clockid for time fields */
+                     context_switch:1,          /* context switch data */
+                     write_backward:1,          /* Write ring buffer from end to beginning */
+                     namespaces:1,              /* include namespaces data */
+                     __reserved_1:35;
+
+            union
+            {
+                uint32_t wakeup_events; /* wakeup every n events */
+                uint32_t wakeup_watermark;      /* bytes before wakeup   */
+            };
+
+            uint32_t bp_type;
+
+            union
+            {
+                uint64_t bp_addr;
+                uint64_t config1;               /* extension of config */
+            };
+
+            union
+            {
+                uint64_t bp_len;
+                uint64_t config2;               /* extension of config1 */
+            };
+
+            uint64_t branch_sample_type;        /* enum perf_branch_sample_type */
+
+            uint64_t sample_regs_user;
+
+            uint32_t sample_stack_user;
+
+            int32_t clockid;
+
+            uint64_t sample_regs_intr;
+
+            uint32_t aux_watermark;
+
+            uint16_t sample_max_stack;
+
+            uint16_t __reserved_2;              /* align to uint64_t */
+        };
+        '''
+        struct_perf_event_attr.__slots__ = [
+            'type',
+            'size',
+            'config',
+            'unnamed_1',
+            'sample_type',
+            'read_format',
+            'disabled',
+            'inherit',
+            'pinned',
+            'exclusive',
+            'exclude_user',
+            'exclude_kernel',
+            'exclude_hv',
+            'exclude_idle',
+            'mmap',
+            'comm',
+            'freq',
+            'inherit_stat',
+            'enable_on_exec',
+            'task',
+            'watermark',
+            'precise_ip',
+            'mmap_data',
+            'sample_id_all',
+            'exclude_host',
+            'exclude_guest',
+            'exclude_callchain_kernel',
+            'exclude_callchain_user',
+            'mmap2',
+            'comm_exec',
+            'use_clockid',
+            'context_switch',
+            'write_backward',
+            'namespaces',
+            '__reserved_1',
+            'unnamed_2',
+            'bp_type',
+            'unnamed_3',
+            'unnamed_4',
+            'branch_sample_type',
+            'sample_regs_user',
+            'sample_stack_user',
+            'clockid',
+            'sample_regs_intr',
+            'aux_watermark',
+            'sample_max_stack',
+            '__reserved_2',
+        ]
+        struct_perf_event_attr._anonymous_ = [
+            'unnamed_1',
+            'unnamed_2',
+            'unnamed_3',
+            'unnamed_4',
+        ]
+        struct_perf_event_attr._fields_ = [
+            ('type', c_uint32),
+            ('size', c_uint32),
+            ('config', c_uint64),
+            ('unnamed_1', union_anon_5),
+            ('sample_type', c_uint64),
+            ('read_format', c_uint64),
+            ('disabled', c_uint64, 1),
+            ('inherit', c_uint64, 1),
+            ('pinned', c_uint64, 1),
+            ('exclusive', c_uint64, 1),
+            ('exclude_user', c_uint64, 1),
+            ('exclude_kernel', c_uint64, 1),
+            ('exclude_hv', c_uint64, 1),
+            ('exclude_idle', c_uint64, 1),
+            ('mmap', c_uint64, 1),
+            ('comm', c_uint64, 1),
+            ('freq', c_uint64, 1),
+            ('inherit_stat', c_uint64, 1),
+            ('enable_on_exec', c_uint64, 1),
+            ('task', c_uint64, 1),
+            ('watermark', c_uint64, 1),
+            ('precise_ip', c_uint64, 2),
+            ('mmap_data', c_uint64, 1),
+            ('sample_id_all', c_uint64, 1),
+            ('exclude_host', c_uint64, 1),
+            ('exclude_guest', c_uint64, 1),
+            ('exclude_callchain_kernel', c_uint64, 1),
+            ('exclude_callchain_user', c_uint64, 1),
+            ('mmap2', c_uint64, 1),
+            ('comm_exec', c_uint64, 1),
+            ('use_clockid', c_uint64, 1),
+            ('context_switch', c_uint64, 1),
+            ('write_backward', c_uint64, 1),
+            ('namespaces', c_uint64, 1),
+            ('__reserved_1', c_uint64, 35),
+            ('unnamed_2', union_anon_6),
+            ('bp_type', c_uint32),
+            ('unnamed_3', union_anon_7),
+            ('unnamed_4', union_anon_8),
+            ('branch_sample_type', c_uint64),
+            ('sample_regs_user', c_uint64),
+            ('sample_stack_user', c_uint32),
+            ('clockid', c_int32),
+            ('sample_regs_intr', c_uint64),
+            ('aux_watermark', c_uint32),
+            ('sample_max_stack', c_uint16),
+            ('__reserved_2', c_uint16),
+        ]
+
+        # define constants for ioctl #
+        _IOC_NRBITS = 8
+        _IOC_TYPEBITS = 8
+        _IOC_SIZEBITS = 14 # architecture specific
+        _IOC_DIRBITS = 2
+        _IOC_NRMASK = (1 << _IOC_NRBITS) - 1
+        _IOC_TYPEMASK = (1 << _IOC_TYPEBITS) - 1
+        _IOC_SIZEMASK = (1 << _IOC_SIZEBITS) - 1
+        _IOC_DIRMASK = (1 << _IOC_DIRBITS) - 1
+        _IOC_NRSHIFT = 0
+        _IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS
+        _IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS
+        _IOC_DIRSHIFT = _IOC_SIZESHIFT + _IOC_SIZEBITS
+        _IOC_NONE = 0
+        _IOC_WRITE = 1
+        _IOC_READ = 2
+
+        def _IOC(dir, type, nr, size):
+            return  dir  << _IOC_DIRSHIFT  | \
+                    ord(type) << _IOC_TYPESHIFT | \
+                    nr   << _IOC_NRSHIFT   | \
+                    size << _IOC_SIZESHIFT
+
+        def _IO(type, nr): return _IOC(_IOC_NONE, type, nr, 0)
+        def _IOR(type, nr, size): return _IOC(_IOC_READ, type, nr, size)
+        def _IOW(type, nr, size): return _IOC(_IOC_WRITE, type, nr, size)
+        def _IOWR(type, nr, size): return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
+
+        # define CMD #
+        PERF_EVENT_IOC_ENABLE = _IO ('$', 0)
+        PERF_EVENT_IOC_DISABLE = _IO ('$', 1)
+        PERF_EVENT_IOC_REFRESH = _IO ('$', 2)
+        PERF_EVENT_IOC_RESET = _IO ('$', 3)
+        PERF_EVENT_IOC_PERIOD = _IOW('$', 4, sizeof(c_uint64))
+        PERF_EVENT_IOC_SET_OUTPUT = _IO ('$', 5)
+        PERF_EVENT_IOC_SET_FILTER = _IOW('$', 6, sizeof(c_uint))
+        PERF_EVENT_IOC_ID = _IOR('$', 7, sizeof(c_uint64))
+        PERF_EVENT_IOC_SET_BPF = _IOW('$', 8, sizeof(c_uint32))
+        PERF_EVENT_IOC_PAUSE_OUTPUT = _IOW('$', 9, sizeof(c_uint32))
+
+        # declare syscalls #
+        SystemManager.libcObj.syscall.argtypes = \
+            [c_int, POINTER(struct_perf_event_attr), c_int, c_int, c_int, c_ulong]
+        SystemManager.libcObj.syscall.restype = c_int
+        SystemManager.libcObj.ioctl.restype = c_int
+        SystemManager.libcObj.ioctl.argtypes = [c_int, c_ulong, c_int]
+
+        # set struct perf_event_attr #
+        perf_attr = struct_perf_event_attr()
+        perf_attr.size = sizeof(perf_attr)
+        perf_attr.disabled = 1
+        #perf_attr.exclude_hv = 1
+        #perf_attr.exclude_kernel = 1
+
+        try:
+            perf_attr.type = ConfigManager.perfEventType.index(etype)
+            if econfig in ConfigManager.perfEventHWType:
+                perf_attr.config = ConfigManager.perfEventHWType.index(econfig)
+            elif econfig in ConfigManager.perfEventSWType:
+                perf_attr.config = ConfigManager.perfEventSWType.index(econfig)
             else:
                 raise
         except:
-            SystemManager.printWarning('Fail to call %s syscall' % syscall)
+            SystemManager.printError\
+                ('Fail to recognize %s, %s as perf event type' % (etype, econfig))
+            return
+
+        # call a perf_event_open syscall #
+        '''
+        int perf_event_open(struct perf_event_attr *attr,
+            pid_t pid, int cpu, int group_fd, unsigned long flags);
+        '''
+        fd = SystemManager.libcObj.syscall(\
+            ConfigManager.sysList.index('sys_perf_event_open'), pointer(perf_attr),\
+            0, -1, -1, 0)
+        if fd < 0:
+            # check root permission #
+            if os.geteuid() != 0:
+                SystemManager.printError(\
+                    'Fail to get root permission to open perf event')
+                sys.exit(0)
+            else:
+                SystemManager.printWarning('Fail to open perf event %s', econfig)
+                return
+
+        # control perf event #
+        SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
+        SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_ENABLE, 0)
+
+        # free perf_attr object, but memory leak exists now #
+        del perf_attr
+
+        return fd
+
+
+
+    @staticmethod
+    def readPerfEvent(fd):
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
+                c_uint64, c_uint, c_uint32, c_int, c_ulong
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to read perf event") % err.args[0])
+            return
+
+        # load standard libc library #
+        try:
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+        except:
+            SystemManager.libcObj = None
+            SystemManager.printWarning('Fail to use libc to call systemcall')
+            return
+
+        # define struct read_format #
+        class struct_anon_5(Structure):
+            pass
+        struct_anon_5.__slots__ = [
+            'value',
+            'id',
+        ]
+        struct_anon_5._fields_ = [
+            ('value', c_uint64),
+            ('id', c_uint64),
+        ]
+
+        class struct_read_group_format(Structure):
+            pass
+        '''
+        struct read_group_format {
+            uint64_t nr;            /* The number of events */
+            uint64_t time_enabled;  /* if PERF_FORMAT_TOTAL_TIME_ENABLED */
+            uint64_t time_running;  /* if PERF_FORMAT_TOTAL_TIME_RUNNING */
+            struct {
+                uint64_t value;     /* The value of the event */
+                uint64_t id;        /* if PERF_FORMAT_ID */
+            } values[];
+        };
+        '''
+        struct_read_group_format.__slots__ = [
+            'nr',
+            #'time_enabled',
+            #'time_running',
+            'values',
+        ]
+        struct_read_group_format._fields_ = [
+            ('nr', c_uint64),
+            #('time_enabled', c_uint64),
+            #('time_running', c_uint64),
+            ('values', POINTER(struct_anon_5)),
+        ]
+
+        class struct_read_format(Structure):
+            pass
+        '''
+        struct read_format {
+            uint64_t value;         /* The value of the event */
+            uint64_t time_enabled;  /* if PERF_FORMAT_TOTAL_TIME_ENABLED */
+            uint64_t time_running;  /* if PERF_FORMAT_TOTAL_TIME_RUNNING */
+            uint64_t id;            /* if PERF_FORMAT_ID */
+        };
+        '''
+        struct_read_format.__slots__ = [
+            'value',
+            #'time_enabled',
+            #'time_running',
+            'id',
+        ]
+        struct_read_format._fields_ = [
+            ('value', c_uint64),
+            #('time_enabled', c_uint64),
+            #('time_running', c_uint64),
+            ('id', c_uint64),
+        ]
+
+        # define IOC for ioctl call #
+        _IOC_NRBITS = 8
+        _IOC_TYPEBITS = 8
+        _IOC_SIZEBITS = 14 # architecture specific
+        _IOC_DIRBITS = 2
+        _IOC_NRMASK = (1 << _IOC_NRBITS) - 1
+        _IOC_TYPEMASK = (1 << _IOC_TYPEBITS) - 1
+        _IOC_SIZEMASK = (1 << _IOC_SIZEBITS) - 1
+        _IOC_DIRMASK = (1 << _IOC_DIRBITS) - 1
+        _IOC_NRSHIFT = 0
+        _IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS
+        _IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS
+        _IOC_DIRSHIFT = _IOC_SIZESHIFT + _IOC_SIZEBITS
+        _IOC_NONE = 0
+        _IOC_WRITE = 1
+        _IOC_READ = 2
+
+        def _IOC(dir, type, nr, size):
+            return  dir  << _IOC_DIRSHIFT  | \
+                    ord(type) << _IOC_TYPESHIFT | \
+                    nr   << _IOC_NRSHIFT   | \
+                    size << _IOC_SIZESHIFT
+
+        def _IO(type, nr): return _IOC(_IOC_NONE, type, nr, 0)
+        def _IOR(type, nr, size): return _IOC(_IOC_READ, type, nr, size)
+        def _IOW(type, nr, size): return _IOC(_IOC_WRITE, type, nr, size)
+        def _IOWR(type, nr, size): return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
+
+        # define CMD #
+        PERF_EVENT_IOC_ENABLE = _IO ('$', 0)
+        PERF_EVENT_IOC_DISABLE = _IO ('$', 1)
+        PERF_EVENT_IOC_REFRESH = _IO ('$', 2)
+        PERF_EVENT_IOC_RESET = _IO ('$', 3)
+        PERF_EVENT_IOC_PERIOD = _IOW('$', 4, sizeof(c_uint64))
+        PERF_EVENT_IOC_SET_OUTPUT = _IO ('$', 5)
+        PERF_EVENT_IOC_SET_FILTER = _IOW('$', 6, sizeof(c_uint))
+        PERF_EVENT_IOC_ID = _IOR('$', 7, sizeof(c_uint64))
+        PERF_EVENT_IOC_SET_BPF = _IOW('$', 8, sizeof(c_uint32))
+        PERF_EVENT_IOC_PAUSE_OUTPUT = _IOW('$', 9, sizeof(c_uint32))
+
+        # declare syscalls #
+        SystemManager.libcObj.ioctl.restype = c_int
+        SystemManager.libcObj.ioctl.argtypes = [c_int, c_ulong]
+        SystemManager.libcObj.read.argtypes = [c_int, POINTER(None), c_uint]
+        SystemManager.libcObj.read.restype = c_int
+
+        # declare buffer #
+        pbuf = (8 * ctypes.c_ubyte)()
+
+        # read PMU data #
+        SystemManager.libcObj.read(fd, pointer(pbuf), sizeof(pbuf))
+
+        # control perf event #
+        SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
+
+        # cast buffer to data #
+        pbuf = ctypes.cast(pbuf, POINTER(c_ulong))
+        value = pbuf.contents.value
+
+        return value
+
+
+
+    @staticmethod
+    def closePerfEvent(fd):
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, c_int
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to close perf event") % err.args[0])
+            return
+
+        # load standard libc library #
+        try:
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+        except:
+            SystemManager.libcObj = None
+            SystemManager.printWarning('Fail to use libc to call systemcall')
+            return
+
+        SystemManager.libcObj.close.argtypes = [c_int]
+        SystemManager.libcObj.close.restype = c_int
+
+        try:
+            return SystemManager.libcObj.close(fd)
+        except:
+            SystemManager.printWarning('Fail to close fd for perf event')
 
 
 
@@ -9235,7 +9841,7 @@ class SystemManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 ("Fail to import python package: %s "
-                "to to set priority") % err.args[0])
+                "to set priority") % err.args[0])
             return
 
         try:
@@ -19465,7 +20071,7 @@ if __name__ == '__main__':
     # save system info first #
     SystemManager()
 
-    #------------------------------ record part ------------------------------#
+    #============================== record part ==============================#
     if SystemManager.isRecordMode():
         # update record status #
         SystemManager.recordStatus = True
@@ -19498,6 +20104,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
+        #------------------------------ SYSTEM MODE ------------------------------#
         if SystemManager.isSystemMode():
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
@@ -19540,7 +20147,7 @@ if __name__ == '__main__':
 
         SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
 
-        # create FileAnalyzer #
+        #------------------------------ FILE MODE ------------------------------#
         if SystemManager.isFileMode():
             # check permission #
             if os.geteuid() != 0:
@@ -19550,7 +20157,7 @@ if __name__ == '__main__':
             # parse analysis option #
             SystemManager.parseAnalOption()
 
-            # start file profiling #
+            # start analyzing files #
             pi = FileAnalyzer()
 
             # save system info #
@@ -19573,6 +20180,7 @@ if __name__ == '__main__':
         # register exit handler #
         atexit.register(SystemManager.runRecordStopCmd)
 
+        #------------------------------ THREAD & FUNCTION MODE ------------------------------#
         # start recording #
         SystemManager.sysInstance.runRecordStartCmd()
 
@@ -19609,6 +20217,7 @@ if __name__ == '__main__':
             else:
                 SystemManager.clearTraceBuffer()
 
+        # start writing logs to file through pipe #
         if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
                 SystemManager.copyPipeToFile(\
@@ -19642,7 +20251,7 @@ if __name__ == '__main__':
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
 
-    #------------------------------ analysis part ------------------------------#
+    #============================== analysis part ==============================#
     # register exit handler #
     atexit.register(SystemManager.closePipeForPrint)
 
@@ -19696,6 +20305,7 @@ if __name__ == '__main__':
         SystemManager.makeLogImage()
         sys.exit(0)
 
+    #------------------------------ REALTIME MODE ------------------------------#
     if SystemManager.isTopMode():
         # print record option #
         SystemManager.printRecordOption()
@@ -19736,12 +20346,14 @@ if __name__ == '__main__':
     # print analysis option #
     SystemManager.printAnalOption()
 
+    #------------------------------ FUNCTION MODE ------------------------------#
     if SystemManager.isFunctionMode():
         # create FunctionAnalyzer #
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
         # print Function Info #
         fi.printUsage()
+    #------------------------------- THREAD MODE -------------------------------#
     else:
         # create ThreadAnalyzer #
         ti = ThreadAnalyzer(SystemManager.inputFile)
@@ -19774,4 +20386,3 @@ if __name__ == '__main__':
     if SystemManager.selectMenu != None:
         #ti.makeTaskChainList()
         pass
-
