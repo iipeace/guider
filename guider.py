@@ -5046,7 +5046,7 @@ class FileAnalyzer(object):
             SystemManager.libcObj.mincore.restype = c_int
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to use libc to call systemcall')
+            SystemManager.printWarning('Fail to find libc to call systemcall')
 
         try:
             # load custom library of guider #
@@ -5890,6 +5890,8 @@ class SystemManager(object):
     customEventList = []
     userEventList = []
     kernelEventList = []
+    perfEventChannel = {}
+    perfEventData = {}
     ctypesObj = None
     libcObj = None
     libcPath = 'libc.so.6'
@@ -5980,7 +5982,7 @@ class SystemManager(object):
     perfEnable = True
     backgroundEnable = False
     resetEnable = False
-    warningEnable = True
+    warningEnable = False
     intervalEnable = 0
 
     functionEnable = False
@@ -6032,6 +6034,9 @@ class SystemManager(object):
 
         # save system info first #
         self.saveResourceSnapshot(False)
+
+        # initialize perf events #
+        SystemManager.initPerfEvents()
 
 
 
@@ -6104,7 +6109,7 @@ class SystemManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 ("Fail to import python package: %s "
-                "to set comm of this process") % err.args[0])
+                "to set comm of process") % err.args[0])
             return
 
         try:
@@ -6573,7 +6578,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def openPerfEvent(etype, econfig):
+    def openPerfEvent(etype, econfig, pid=0, cpu=-1):
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -6595,7 +6600,7 @@ class SystemManager(object):
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to use libc to call systemcall')
+            SystemManager.printWarning('Fail to find libc to call systemcall')
             SystemManager.perfEnable = False
             return
 
@@ -6899,8 +6904,8 @@ class SystemManager(object):
         perf_attr = struct_perf_event_attr()
         perf_attr.size = sizeof(perf_attr)
         perf_attr.disabled = 1
-        #perf_attr.exclude_hv = 1
         #perf_attr.exclude_kernel = 1
+        #perf_attr.exclude_hv = 1
 
         try:
             perf_attr.type = ConfigManager.perfEventType.index(etype)
@@ -6922,15 +6927,15 @@ class SystemManager(object):
         '''
         fd = SystemManager.libcObj.syscall(\
             ConfigManager.sysList.index('sys_perf_event_open'), pointer(perf_attr),\
-            0, -1, -1, 0)
+            pid, cpu, -1, 0)
         if fd < 0:
             # check root permission #
             if os.geteuid() != 0:
-                SystemManager.printError(\
+                SystemManager.printWarning(\
                     'Fail to get root permission to open perf event')
-                sys.exit(0)
+                return
             else:
-                SystemManager.printWarning('Fail to open perf event %s', econfig)
+                SystemManager.printWarning('Fail to open perf event %s' % econfig)
                 return
 
         # control perf event #
@@ -6945,7 +6950,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def readPerfEvent(fd):
+    def readPerfEvents(fdList):
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -6966,7 +6971,7 @@ class SystemManager(object):
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to use libc to call systemcall')
+            SystemManager.printWarning('Fail to find libc to call systemcall')
             return
 
         # define struct read_format #
@@ -7076,20 +7081,24 @@ class SystemManager(object):
         SystemManager.libcObj.read.argtypes = [c_int, POINTER(None), c_uint]
         SystemManager.libcObj.read.restype = c_int
 
-        # declare buffer #
+        # declare buffer and retList #
         pbuf = (8 * ctypes.c_ubyte)()
+        retList = []
 
-        # read PMU data #
-        SystemManager.libcObj.read(fd, pointer(pbuf), sizeof(pbuf))
+        for fd in fdList:
+            try:
+                # read PMU data #
+                SystemManager.libcObj.read(fd, pointer(pbuf), sizeof(pbuf))
 
-        # control perf event #
-        SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
+                # control perf event #
+                SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
 
-        # cast buffer to data #
-        pbuf = ctypes.cast(pbuf, POINTER(c_ulong))
-        value = pbuf.contents.value
+                # cast buffer to data #
+                retList.append(ctypes.cast(pbuf, POINTER(c_ulong)).contents.value)
+            except:
+                retList.append(None)
 
-        return value
+        return retList
 
 
 
@@ -7114,7 +7123,7 @@ class SystemManager(object):
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to use libc to call systemcall')
+            SystemManager.printWarning('Fail to find libc to call systemcall')
             return
 
         SystemManager.libcObj.close.argtypes = [c_int]
@@ -7124,6 +7133,40 @@ class SystemManager(object):
             return SystemManager.libcObj.close(fd)
         except:
             SystemManager.printWarning('Fail to close fd for perf event')
+
+
+
+    @staticmethod
+    def initPerfEvents():
+        for evt in ConfigManager.perfEventHWType:
+            # check perf event option #
+            if SystemManager.perfEnable is False:
+                break
+
+            # initialize hw event channels #
+            SystemManager.perfEventChannel[evt] = \
+                SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt)
+
+            # delete hw events unavailable #
+            if SystemManager.perfEventChannel[evt] is None:
+                del SystemManager.perfEventChannel[evt]
+
+
+
+    @staticmethod
+    def collectPerfData():
+        # make event list #
+        events = SystemManager.perfEventChannel.keys()
+
+        # get event data #
+        values = SystemManager.readPerfEvents(\
+            SystemManager.perfEventChannel.values())
+
+        eventData = {}
+        for idx, evt in enumerate(events):
+            eventData[evt] = values[idx]
+
+        SystemManager.perfEventData = eventData
 
 
 
@@ -7763,7 +7806,6 @@ class SystemManager(object):
 
         elif SystemManager.isSystemMode():
             SystemManager.printInfo("SYSTEM MODE")
-            SystemManager.waitEnable = True
 
         else:
             SystemManager.printInfo("THREAD MODE")
@@ -7870,7 +7912,7 @@ class SystemManager(object):
 
     @staticmethod
     def stopHandler(signum, frame):
-        if SystemManager.isFileMode():
+        if SystemManager.isFileMode() or SystemManager.isSystemMode():
             SystemManager.condExit = True
         elif SystemManager.isTopMode():
             if SystemManager.printFile is not None:
@@ -7917,6 +7959,8 @@ class SystemManager(object):
 
         if SystemManager.isFileMode():
             SystemManager.printStatus("saved file usage successfully")
+        elif SystemManager.isSystemMode():
+            pass
         elif SystemManager.isTopMode():
             if SystemManager.printFile is None:
                 return
@@ -10735,52 +10779,53 @@ class SystemManager(object):
 
     @staticmethod
     def runRecordStopCmd():
-        if SystemManager.isRecordMode() and \
-            (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
+        if (SystemManager.isRecordMode() and \
+            (SystemManager.isThreadMode() or SystemManager.isFunctionMode())) is False:
+            return
 
-            # write signal command #
-            if SystemManager.cmdEnable is not False and SystemManager.cmdFd is not None:
-                if SystemManager.signalCmd is not None:
-                    try:
-                        SystemManager.cmdFd.write(SystemManager.signalCmd)
-                        SystemManager.signalCmd = None
-                        SystemManager.printInfo("write commands to %s" %\
-                            SystemManager.cmdEnable)
-                    except:
-                        SystemManager.printError("Fail to write signal command")
-                elif SystemManager.outputFile is not None:
-                    SystemManager.saveCmd =\
-                        'cat ' + SystemManager.mountPath + '../trace > ' +\
-                        SystemManager.outputFile + '\n'
-
-            # disable all ftrace options registered #
-            for idx, val in SystemManager.cmdList.items():
-                if val is True:
-                    SystemManager.writeCmd(str(idx) + '/enable', '0')
-                    SystemManager.writeCmd(str(idx) + '/filter', '0')
-
-            if SystemManager.graphEnable is False and SystemManager.customCmd is not None:
-                for cmd in SystemManager.customCmd:
-                    event = cmd.split(':')[0]
-                    SystemManager.writeCmd(event + '/enable', '0')
-                    SystemManager.writeCmd(event + '/filter', '0')
-
-            if SystemManager.isFunctionMode():
-                SystemManager.writeCmd('../options/stacktrace', '0')
-                SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
-                SystemManager.writeCmd('../tracing_on', '0')
-
-            # write save command #
-            if SystemManager.saveCmd is not None:
+        # write signal command #
+        if SystemManager.cmdEnable is not False and SystemManager.cmdFd is not None:
+            if SystemManager.signalCmd is not None:
                 try:
-                    SystemManager.cmdFd.write(SystemManager.saveCmd)
-                    SystemManager.cmdFd.write("echo '\ntrace data is saved to %s\n'\n"\
-                        % SystemManager.outputFile)
+                    SystemManager.cmdFd.write(SystemManager.signalCmd)
+                    SystemManager.signalCmd = None
+                    SystemManager.printInfo("write commands to %s" %\
+                        SystemManager.cmdEnable)
                 except:
-                    SystemManager.printError("Fail to write save command")
+                    SystemManager.printError("Fail to write signal command")
+            elif SystemManager.outputFile is not None:
+                SystemManager.saveCmd =\
+                    'cat ' + SystemManager.mountPath + '../trace > ' +\
+                    SystemManager.outputFile + '\n'
 
-            # run user command after finishing recording #
-            SystemManager.writeRecordCmd('STOP')
+        # disable all ftrace options registered #
+        for idx, val in SystemManager.cmdList.items():
+            if val is True:
+                SystemManager.writeCmd(str(idx) + '/enable', '0')
+                SystemManager.writeCmd(str(idx) + '/filter', '0')
+
+        if SystemManager.graphEnable is False and SystemManager.customCmd is not None:
+            for cmd in SystemManager.customCmd:
+                event = cmd.split(':')[0]
+                SystemManager.writeCmd(event + '/enable', '0')
+                SystemManager.writeCmd(event + '/filter', '0')
+
+        if SystemManager.isFunctionMode():
+            SystemManager.writeCmd('../options/stacktrace', '0')
+            SystemManager.writeCmd('../trace_options', 'nouserstacktrace')
+            SystemManager.writeCmd('../tracing_on', '0')
+
+        # write save command #
+        if SystemManager.saveCmd is not None:
+            try:
+                SystemManager.cmdFd.write(SystemManager.saveCmd)
+                SystemManager.cmdFd.write("echo '\ntrace data is saved to %s\n'\n"\
+                    % SystemManager.outputFile)
+            except:
+                SystemManager.printError("Fail to write save command")
+
+        # run user command after finishing recording #
+        SystemManager.writeRecordCmd('STOP')
 
 
 
@@ -18799,6 +18844,20 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint('%s\n' % oneLine)
 
             freqPath = '/sys/devices/system/cpu/cpu'
+            tempPath = '/sys/class/thermal'
+
+            # get cpu temperature  #
+            tempData = []
+            tempDirList = \
+                [ '%s/%s/temp' % (tempPath, item) \
+                for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
+
+            for tempDir in tempDirList:
+                try:
+                    with open(tempDir, 'r') as fd:
+                        tempData.append(int(fd.readline()[:-4]))
+                except:
+                    pass
 
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
@@ -18879,6 +18938,11 @@ class ThreadAnalyzer(object):
                     if minFreq is not None and maxFreq is not None:
                         coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
+
+                    try:
+                        coreFreq = '%4sC | %s' % (tempData[idx], coreFreq)
+                    except:
+                        coreFreq = '%5s | %s' % (' ', coreFreq)
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
@@ -20007,6 +20071,9 @@ if __name__ == '__main__':
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
 
+    # check log level #
+    SystemManager.warningEnable = SystemManager.findOption('v')
+
     # check environment #
     SystemManager.checkEnv()
 
@@ -20082,9 +20149,7 @@ if __name__ == '__main__':
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         SystemManager.parseRecordOption()
-
         SystemManager.printRecordOption()
-
         SystemManager.printRecordCmd()
 
         # run in background #
@@ -20099,34 +20164,10 @@ if __name__ == '__main__':
 
         # wait for signal #
         if SystemManager.waitEnable:
-            SystemManager.printStatus("wait for starting profile... [ START(ctrl + c) ]")
+            SystemManager.printStatus("wait for user input... [ START(ctrl + c) ]")
             signal.signal(signal.SIGINT, SystemManager.defaultHandler)
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
-
-        #------------------------------ SYSTEM MODE ------------------------------#
-        if SystemManager.isSystemMode():
-            # save system info #
-            SystemManager.sysInstance.saveResourceSnapshot()
-
-            # parse all options and make output file path #
-            SystemManager.parseAnalOption()
-
-            if SystemManager.printFile is not None:
-                SystemManager.outputFile = SystemManager.printFile + '/guider.out'
-            elif SystemManager.outputFile is not None:
-                SystemManager.printFile = \
-                    SystemManager.outputFile[:SystemManager.outputFile.rfind('/')]
-
-            # get and remove process tree from data file #
-            SystemManager.getProcTreeInfo()
-
-            SystemManager.printTitle()
-
-            # print system information #
-            SystemManager.pipePrint(SystemManager.systemInfoBuffer)
-
-            sys.exit(0)
 
         # set signal #
         if (SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0) and \
@@ -20145,13 +20186,38 @@ if __name__ == '__main__':
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
-        SystemManager.printStatus(r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
+        SystemManager.printStatus(\
+            r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
+
+        #------------------------------ SYSTEM MODE ------------------------------#
+        if SystemManager.isSystemMode():
+            # parse all options and make output file path #
+            SystemManager.parseAnalOption()
+
+            # wait for user input #
+            signal.pause()
+
+            # save system info #
+            SystemManager.sysInstance.saveResourceSnapshot()
+
+            # get and remove process tree from data file #
+            SystemManager.getProcTreeInfo()
+
+            SystemManager.printTitle()
+
+            # print system information #
+            SystemManager.pipePrint(SystemManager.systemInfoBuffer)
+
+            SystemManager.closePipeForPrint()
+
+            sys.exit(0)
 
         #------------------------------ FILE MODE ------------------------------#
         if SystemManager.isFileMode():
             # check permission #
             if os.geteuid() != 0:
-                SystemManager.printError("Fail to get root permission to analyze linked files")
+                SystemManager.printError(\
+                    "Fail to get root permission to analyze linked files")
                 sys.exit(0)
 
             # parse analysis option #
