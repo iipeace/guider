@@ -18733,7 +18733,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(('%s\n' % twoLine) + \
             ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|"\
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
-            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab",\
+            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Diff", "Anon", "File", "Slab",\
             "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt",\
             "Network") + ('%s\n' % oneLine), newline = 3)
 
@@ -18775,7 +18775,7 @@ class ThreadAnalyzer(object):
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", \
             '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
-            freeMem, freeMemDiff, anonMemDiff, fileMemDiff, slabMemDiff, \
+            freeMem, freeMemDiff, totalAnonMem, totalFileMem, totalSlabMem, \
             swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
             '%s/%s' % (bgReclaim, drReclaim), '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
