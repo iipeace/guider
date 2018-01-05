@@ -8015,8 +8015,8 @@ class SystemManager(object):
     def exitHandlerForPartInfo(signum, frame):
         for dirnames in os.walk('/sys/class/block'):
             for subdirname in dirnames[1]:
-                devPath = '/sys/class/block/' + subdirname + '/dev'
-                sizePath = '/sys/class/block/' + subdirname + '/size'
+                devPath = '/sys/class/block/%s/dev' % subdirname
+                sizePath = '/sys/class/block/%s/size' % subdirname
                 devFd = open(devPath, 'r')
                 sizeFd = open(sizePath, 'r')
                 dev = devFd.readline().rstrip()
@@ -14888,7 +14888,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^8} | {4:^9} | {5:^10} | " +\
             "{6:^8} | {7:^8} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^10} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(MB)', 'BlkRW(MB)', 'BlkWait(%)',\
-            'SWAP(MB)', 'Rclm(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrTask', 'NetIO'))
+            'SWAP(MB)', 'Rclm(MB)', 'NrFlt', 'NrCtxt', 'NrIRQ', 'NrTask', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
         pCnt = 0
@@ -18735,7 +18735,7 @@ class ThreadAnalyzer(object):
             "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Free", "Anon", "File", "Slab",\
             "Swap", "Used", "InOut", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt",\
-            "NetIO") + ('%s\n' % oneLine), newline = 3)
+            "Network") + ('%s\n' % oneLine), newline = 3)
 
         interval = SystemManager.uptimeDiff
         ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
@@ -18940,9 +18940,9 @@ class ThreadAnalyzer(object):
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '%4sC | %s' % (tempData[idx], coreFreq)
+                        coreFreq = '%3s C | %s' % (tempData[idx], coreFreq)
                     except:
-                        coreFreq = '%5s | %s' % (' ', coreFreq)
+                        coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
