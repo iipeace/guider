@@ -19298,9 +19298,9 @@ class ThreadAnalyzer(object):
 
                         try:
                             prop = 'AnonHugePages:'
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
+                            tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
                         except:
-                            tmpstr = "%s%s:%4sM / " % (tmpstr, 'HUGE', 0)
+                            tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', 0)
 
                         try:
                             prop = 'Locked:'
@@ -19339,7 +19339,7 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
-                        SystemManager.addPrint("{0:>39} | {1:1}\n".format(mtype, tmpstr))
+                        SystemManager.addPrint("{0:>39} | {1:1}|\n".format(mtype, tmpstr))
 
                         # cut by rows of terminal #
                         if SystemManager.bufferRows >= \
