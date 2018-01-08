@@ -14764,8 +14764,8 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
             pid = d['pid']
 
-            # ignore created / terminated process #
-            if d['comm'][0:3] == '[+]' or d['comm'][0:3] == '[-]':
+            # ignore special processes #
+            if d['comm'][0] == '[' and d['comm'][2] == ']':
                 return
 
             if pid not in ThreadAnalyzer.procTotalData:
@@ -19497,8 +19497,82 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.addPrint("%s\n" % oneLine)
 
+        self.printSpecialProcess()
         self.printNewProcess()
         self.printDieProcess()
+
+
+
+    def printSpecialProcess(self):
+        procCnt = 0
+        for idx, value in sorted(\
+            self.procData.items(), key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
+            status = value['stat'][self.statIdx]
+            if status != 'S' and status != 'R':
+                comm = ('[%s]%s' % (status, value['stat'][self.commIdx][1:-1]))[:16]
+
+                if SystemManager.processEnable:
+                    pid = value['stat'][self.ppidIdx]
+                else:
+                    pid = value['mainID']
+
+                codeSize = (long(value['stat'][self.ecodeIdx]) - \
+                    long(value['stat'][self.scodeIdx])) >> 20
+
+                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                else:
+                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+
+                try:
+                    runtime = value['runtime'] + SystemManager.uptimeDiff
+                    m, s = divmod(runtime, 60)
+                    h, m = divmod(m, 60)
+                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                except:
+                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
+
+                try:
+                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
+                except:
+                    vmswp = '-'
+                try:
+                    shr = long(value['statm'][self.shrIdx]) >> 8
+                except:
+                    shr = '-'
+
+                if SystemManager.blockEnable:
+                    readSize = value['read'] >> 20
+                    writeSize = value['write'] >> 20
+                else:
+                    readSize = '-'
+                    writeSize = '-'
+
+                # print new thread information #
+                SystemManager.addPrint(\
+                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
+                    long(value['stat'][self.vsizeIdx]) >> 20, \
+                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    int(value['btime']), readSize, writeSize, value['majflt'],\
+                    '-', '-', '-', lifeTime, '-'))
+                procCnt += 1
+
+            else:
+                if procCnt > 0:
+                    SystemManager.addPrint("%s\n" % oneLine)
+                break
+
+            # cut by rows of terminal #
+            if SystemManager.printFile is None and \
+                SystemManager.bufferRows >= \
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
+                SystemManager.addPrint('---more---')
+                return
 
 
 
