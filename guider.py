@@ -18182,6 +18182,59 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def getGpuData():
+        devList = [
+            '/sys/devices/platform/host1x', # nVIDIA tegra #
+            ]
+
+        # get candidate list for target GPU device #
+        candList = []
+        for devPath in devList:
+            try:
+                for targetDir in os.listdir(devPath):
+                    path = '%s/%s' % (devPath, targetDir)
+                    try:
+                        if 'devfreq' in os.listdir(path):
+                            candList.append(path)
+                    except:
+                        pass
+            except:
+                pass
+
+        gpuData = {}
+        for idx, cand in enumerate(candList):
+            try:
+                target = None
+
+                # save target device info #
+                with open('%s/uevent' % cand, 'r') as fd:
+                    target = cand[cand.rfind('/')+1:]
+                    gpuData[target] = dict()
+                    for item in fd.readlines():
+                        attr, value = item[:-1].split('=')
+                        gpuData[target][attr] = value
+
+                # save target device load #
+                with open('%s/load' % cand, 'r') as fd:
+                    gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-1])
+
+                # save current clock of target device #
+                with open('%s/devfreq/%s/cur_freq' % (cand, target), 'r') as fd:
+                    gpuData[target]['CUR_FREQ'] = float(fd.readline()[:-7]) / 1000
+
+                # save min clock of target device #
+                with open('%s/devfreq/%s/min_freq' % (cand, target), 'r') as fd:
+                    gpuData[target]['MIN_FREQ'] = float(fd.readline()[:-7]) / 1000
+
+                # save max clock of target device #
+                with open('%s/devfreq/%s/max_freq' % (cand, target), 'r') as fd:
+                    gpuData[target]['MAX_FREQ'] = float(fd.readline()[:-7]) / 1000
+            except:
+                pass
+
+
+
+    @staticmethod
     def getProcTreeFromList(procInstance):
         procTree = {}
         ppidIdx = ConfigManager.statList.index("PPID")
@@ -18843,22 +18896,54 @@ class ThreadAnalyzer(object):
         if SystemManager.showAll:
             SystemManager.addPrint('%s\n' % oneLine)
 
-            freqPath = '/sys/devices/system/cpu/cpu'
-            tempPath = '/sys/class/thermal'
-
             # get cpu temperature  #
-            tempData = []
-            tempDirList = \
-                [ '%s/%s/temp' % (tempPath, item) \
-                for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
-
+            tempPath = '/sys/class/hwmon'
+            try:
+                tempDirList = \
+                    [ '%s/%s/name' % (tempPath, item) for item in os.listdir(tempPath) ]
+            except:
+                tempDirList = []
+            tempPath = None
             for tempDir in tempDirList:
                 try:
                     with open(tempDir, 'r') as fd:
-                        tempData.append(int(fd.readline()[:-4]))
+                        if fd.readline()[:-1] == 'coretemp':
+                            tempPath = tempDir[:tempDir.rfind('/')]
+                            break
                 except:
                     pass
 
+            tempData = []
+            if tempPath is None:
+                # /sys/class/thermal #
+                tempPath = '/sys/class/thermal'
+                try:
+                    tempDirList = \
+                        [ '%s/%s/temp' % (tempPath, item) \
+                        for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
+                except:
+                    tempDirList = []
+                for tempDir in tempDirList:
+                    try:
+                        with open(tempDir, 'r') as fd:
+                            tempData.append(int(fd.readline()[:-4]))
+                    except:
+                        pass
+            else:
+                # /sys/class/hwmon #
+                tempDirList = \
+                    [ '%s/%s' % (tempPath, item) \
+                    for item in os.listdir(tempPath) if item.endswith('_input') ]
+                for tempDir in tempDirList:
+                    try:
+                        with open(tempDir.replace('input', 'label'), 'r') as fd:
+                            if fd.readline()[:-1].startswith('Core '):
+                                with open(tempDir, 'r') as fd:
+                                    tempData.append(int(fd.readline()[:-4]))
+                    except:
+                        pass
+
+            freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
                     nowData = self.cpuData[int(idx)]
