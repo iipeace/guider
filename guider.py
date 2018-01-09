@@ -4981,9 +4981,6 @@ class FileAnalyzer(object):
     """ Analyzer for file profiling """
 
     def __init__(self):
-        self.libguider = None
-        self.libguiderPath = 'guidermodule.so'
-
         self.profSuccessCnt = 0
         self.profFailedCnt = 0
         self.profPageCnt = 0
@@ -5868,6 +5865,7 @@ class SystemManager(object):
     kernelEventList = []
     perfEventChannel = {}
     perfEventData = {}
+    guiderObj = None
     ctypesObj = None
     libcObj = None
     libcPath = 'libc.so.6'
@@ -6072,9 +6070,25 @@ class SystemManager(object):
 
 
     @staticmethod
+    def importModule():
+        try:
+            import guider
+            SystemManager.guiderObj = guider
+        except:
+            pass
+
+
+
+    @staticmethod
     def setComm(comm):
         if sys.platform.startswith('linux') is False:
             return
+
+        try:
+            SystemManager.guiderObj.prctl(15, comm, 0, 0, 0)
+            return
+        except:
+            pass
 
         try:
             if SystemManager.ctypesObj is None:
@@ -20288,6 +20302,9 @@ if __name__ == '__main__':
 
     # set error logger #
     SystemManager.setErrorLogger()
+
+    # import module #
+    SystemManager.importModule()
 
     # set comm #
     SystemManager.setComm(__module__)

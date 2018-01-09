@@ -12,25 +12,90 @@
 
 #include <Python.h>
 
+/*
+ * int prctl(int option, unsigned long arg2, unsigned long arg3,
+ *      unsigned long arg4, unsigned long arg5);
+ */
 static PyObject *
-guider_getpid(PyObject *self, PyObject *args)
+guider_prctl(PyObject *self, PyObject *args)
 {
-    const char *name;
+    int option, ret;
+    unsigned long arg2, arg3, arg4, arg5;
 
-    if (!PyArg_ParseTuple(args, "s", &name))
+    if (!PyArg_ParseTuple(args, "islll", &option, &arg2, &arg3, &arg4, &arg5))
     {
         return NULL;
     }
 
-    printf("called getpid with %s!\n", name);
+    ret = prctl(option, arg2, arg3, arg4, arg5);
 
-    //Py_RETURN_NONE;
-    //return Py_BuildValue("s", "Hello, Python extensions!!");
-    return Py_BuildValue("i", getpid());
+    return Py_BuildValue("i", ret);
+}
+
+/*
+ * void *mmap(void *addr, size_t length, int prot, int flags,
+ *     int fd, off_t offset);
+ */
+static PyObject *
+guider_mmap(PyObject *self, PyObject *args)
+{
+    int prot, flags, fd;
+    unsigned long addr, length, offset, ret;
+
+    if (!PyArg_ParseTuple(args, "lliiil", &addr, &length, &prot, &flags, &fd, &offset))
+    {
+        return NULL;
+    }
+
+    ret = mmap(addr, length, prot, flags, fd, offset);
+
+    return Py_BuildValue("l", ret);
+}
+
+/*
+ * int munmap(void *addr, size_t length);
+ */
+static PyObject *
+guider_munmap(PyObject *self, PyObject *args)
+{
+    int ret;
+    unsigned long addr, length;
+
+    if (!PyArg_ParseTuple(args, "ll", &addr, &length))
+    {
+        return NULL;
+    }
+
+    ret = munmap(addr, length);
+
+    return Py_BuildValue("i", ret);
+}
+
+/*
+ * int mincore(void *addr, size_t length, unsigned char *vec);
+ */
+static PyObject *
+guider_mincore(PyObject *self, PyObject *args)
+{
+    int ret;
+    char *vec;
+    unsigned long addr, length;
+
+    if (!PyArg_ParseTuple(args, "lls#", &addr, &length, &vec))
+    {
+        return NULL;
+    }
+
+    ret = mincore(addr, length, vec);
+
+    return Py_BuildValue("i", ret);
 }
 
 static PyMethodDef guiderMethods[] = {
-    {"getpid", guider_getpid, METH_VARARGS, "interface for getpid"},
+    {"prctl", guider_prctl, METH_VARARGS, "prctl()"},
+    {"mmap", guider_mmap, METH_VARARGS, "mmap()"},
+    {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
+    {"mincore", guider_mincore, METH_VARARGS, "mincore()"},
     {NULL, NULL, 0, NULL}
 };
 
