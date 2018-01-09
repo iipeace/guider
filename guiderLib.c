@@ -1,7 +1,7 @@
 /*
- * Getting memory map about file page on memory
+ * Interfacing python code with c code
  *
- * Copyright (c) 2016 Peace Lee <iipeace5@gmail.com>
+ * Copyright (c) 2018 Peace Lee <iipeace5@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -10,111 +10,32 @@
  *
  */
 
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>
+#include <Python.h>
 
-static unsigned char *table = NULL;
+static PyObject *
+guider_getpid(PyObject *self, PyObject *args)
+{
+    const char *name;
 
-unsigned char *get_filePageMap(int fd, int offset, int size) {
-	int idx;
-	void *file_mmap;
-	struct stat file_stat;
-	ssize_t page_size = getpagesize();
-	ssize_t table_size;
+    if (!PyArg_ParseTuple(args, "s", &name))
+    {
+        return NULL;
+    }
 
-	if (table != NULL) {
-		free(table);
-	}
+    printf("called getpid with %s!\n", name);
 
-	/*
-	if (fstat(fd, &file_stat) < 0) {
-		printf("[Error] Fail to fstat\n");
-		return NULL;
-	}
-	*/
-
-	if (size == 0 ) {
-		printf("[Error] Fail to get file size\n");
-		return NULL;
-	}
-
-	file_mmap = mmap((void *)0, size, PROT_NONE, MAP_SHARED, fd, offset);
-
-	if (file_mmap == MAP_FAILED) {
-		printf("[Error] Fail to mmap\n");
-		return NULL;
-	}
-
-	table_size = (size + page_size - 1) / page_size;
-	table = calloc(1, table_size);
-
-	if (table == NULL) {
-		printf("[Error] Fail to calloc\n");
-		return NULL;
-	}
-
-	if (mincore(file_mmap, size, table) != 0) {
-		printf("[Error] Fail to mincore\n");
-		return NULL;
-	}
-
-	/* toDo: parallel bit converting */
-	for (idx = 0; idx < table_size; idx++) {
-		table[idx] &= 1;
-	}
-
-	munmap(file_mmap, size);
-
-	return table;
+    //Py_RETURN_NONE;
+    //return Py_BuildValue("s", "Hello, Python extensions!!");
+    return Py_BuildValue("i", getpid());
 }
 
-int save_pipeToFile(char *inFile, char *outFile) {
-	int ret;
-	int pipefd[2];
-	int in_fd, out_fd;
-	size_t maxReadSize = 1048576;
+static PyMethodDef guiderMethods[] = {
+    {"getpid", guider_getpid, METH_VARARGS, "interface for getpid"},
+    {NULL, NULL, 0, NULL}
+};
 
-	ret = pipe(pipefd);
-	if (ret < 0) {
-		printf("[Error] Fail to open pipe\n");
-		return -1;
-	}
-
-	in_fd = open(inFile, O_RDONLY);
-	if (in_fd < 0){
-		printf("[Error] Fail to open %s\n", inFile);
-		return -1;
-	}
-
-	out_fd = open(outFile, O_CREAT | O_TRUNC | O_RDWR | O_DIRECT);
-	if (out_fd < 0){
-		printf("[Error] Fail to open %s\n", outFile);
-		return -1;
-	}
-
-	while(1){
-		sleep(1);
-
-		ret = splice(in_fd, 0, pipefd[1], NULL, maxReadSize, SPLICE_F_MORE | SPLICE_F_MOVE);
-
-		ret = splice(pipefd[0], NULL, out_fd, 0, maxReadSize, SPLICE_F_MORE | SPLICE_F_MOVE);
-
-		if (ret <= 0)
-			break;
-	}
-
-	close(pipefd[0]);
-	close(pipefd[1]);
-
-	close(in_fd);
-	close(out_fd);
-
-	return 0;
+PyMODINIT_FUNC
+initguider(void)
+{
+    (void) Py_InitModule("guider", guiderMethods);
 }
-

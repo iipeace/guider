@@ -1,6 +1,6 @@
 # Makefile to build objects of guider
 #
-# Copyright (c) 2016-2017 Peace Lee <iipeace5@gmail.com>
+# Copyright (c) 2016-2018 Peace Lee <iipeace5@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -13,12 +13,13 @@ ifneq ($(KERNELRELEASE),)
 else
 	CFLAGS = -fPIC
 	LDFLAGS = -shared
+	CPPFLAGS = $(shell python-config --includes)
 endif
 
 CC = gcc 
 RM = rm -f
 TARGET_BIN = guider
-TARGET_LIB = libguider.so
+TARGET_LIB = guidermodule.so
 
 ifneq ($(wildcard .config),)
   include .config
@@ -38,7 +39,6 @@ SRCS = guiderLib.c
 OBJS = $(SRCS:.c=.o)
 
 KPATH := /lib/modules/$(shell uname -r)/build
-
 
 
 .PHONY: all

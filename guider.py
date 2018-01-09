@@ -4982,7 +4982,7 @@ class FileAnalyzer(object):
 
     def __init__(self):
         self.libguider = None
-        self.libguiderPath = 'libguider.so'
+        self.libguiderPath = 'guidermodule.so'
 
         self.profSuccessCnt = 0
         self.profFailedCnt = 0
@@ -5046,27 +5046,8 @@ class FileAnalyzer(object):
             SystemManager.libcObj.mincore.restype = c_int
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to find libc to call systemcall')
-
-        try:
-            # load custom library of guider #
-            if SystemManager.libcObj is None:
-                self.libguider = cdll.LoadLibrary(self.libguiderPath)
-
-                # set the argument type #
-                self.libguider.get_filePageMap.argtypes = \
-                        [ctypes.c_int, ctypes.c_int, ctypes.c_int]
-
-                # set the return type #
-                self.libguider.get_filePageMap.restype = POINTER(ctypes.c_ubyte)
-        except:
-            try:
-                self.libguider = cdll.LoadLibrary('./%s' % self.libguiderPath)
-            except:
-                SystemManager.printError(\
-                    'Fail to open %s, set LD_LIBRARY_PATH to use %s' % \
-                    (self.libguiderPath, self.libguiderPath))
-                sys.exit(0)
+            SystemManager.printError('Fail to find libc to call systemcall')
+            sys.exit(0)
 
         # set system maximum fd number #
         SystemManager.setMaxFd()
@@ -5732,33 +5713,28 @@ class FileAnalyzer(object):
             offset = val['offset']
             size = val['size']
 
-            # call mincore systemcall #
-            if SystemManager.libcObj is None:
-                # call mincore systemcall by custom library of guider #
-                pagemap = self.libguider.get_filePageMap(fd, offset, size)
-            else:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from  ctypes import POINTER, c_char, c_ubyte, cast
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from  ctypes import POINTER, c_char, c_ubyte, cast
 
-                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
-                mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
+            # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+            mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
 
-                # get the size of the table to map file segment #
-                tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
+            # get the size of the table to map file segment #
+            tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
 
-                # make a pagemap table #
-                pagemap = (tsize * ctypes.c_ubyte)()
+            # make a pagemap table #
+            pagemap = (tsize * ctypes.c_ubyte)()
 
-                # call mincore systemcall by standard libc library #
-                ret = SystemManager.libcObj.mincore(mm, size, cast(pagemap, POINTER(c_ubyte)))
-                if ret < 0:
-                    pagemap = None
+            # call mincore systemcall by standard libc library #
+            ret = SystemManager.libcObj.mincore(mm, size, cast(pagemap, POINTER(c_ubyte)))
+            if ret < 0:
+                pagemap = None
 
-                # unmap #
-                SystemManager.libcObj.munmap(mm, size)
+            # unmap #
+            SystemManager.libcObj.munmap(mm, size)
 
             # save the array of ctype into list #
             if pagemap is not None:
@@ -6021,6 +5997,7 @@ class SystemManager(object):
         self.systemInfo = {}
 
         self.cpuData = None
+        self.gpuData = {}
         self.memData = {}
         self.diskData = {}
         self.mountData = None
@@ -6578,7 +6555,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def openPerfEvent(etype, econfig, pid=0, cpu=-1):
+    def openPerfEvent(etype, econfig, cpu=-1, pid=-1):
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -6935,8 +6912,7 @@ class SystemManager(object):
                     'Fail to get root permission to open perf event')
                 return
             else:
-                SystemManager.printWarning('Fail to open perf event %s' % econfig)
-                return
+                return -1
 
         # control perf event #
         SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
@@ -7138,35 +7114,65 @@ class SystemManager(object):
 
     @staticmethod
     def initPerfEvents():
-        for evt in ConfigManager.perfEventHWType:
-            # check perf event option #
-            if SystemManager.perfEnable is False:
-                break
+        attrPath = '/proc/sys/kernel/perf_event_paranoid'
+        try:
+            with open(attrPath, 'r') as fd:
+                if int(fd.readline()[:-1]) == 2:
+                    SystemManager.printWarning(\
+                        'Check value of %s to read perf events' % attrPath)
+        except:
+            pass
 
-            # initialize hw event channels #
-            SystemManager.perfEventChannel[evt] = \
-                SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt)
+        failList = {}
+        cpuPath = '/sys/devices/system/cpu'
+        cpuList = \
+            [ coreId.strip('cpu') for coreId in os.listdir(cpuPath) \
+            if coreId.startswith('cpu') ]
 
-            # delete hw events unavailable #
-            if SystemManager.perfEventChannel[evt] is None:
-                del SystemManager.perfEventChannel[evt]
+        for item in cpuList:
+            try:
+                coreId = int(item)
+            except:
+                continue
+
+            SystemManager.perfEventChannel[coreId] = {}
+            for evt in ConfigManager.perfEventHWType:
+                # check perf event option #
+                if SystemManager.perfEnable is False:
+                    break
+
+                # initialize hw event channels #
+                SystemManager.perfEventChannel[coreId][evt] = \
+                    SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt, coreId)
+
+                # handle unavailable hw events #
+                if SystemManager.perfEventChannel[coreId][evt] is -1:
+                    failList[evt] = 0
+                elif SystemManager.perfEventChannel[coreId][evt] is None:
+                    return
+
+        if len(failList) > 0:
+            SystemManager.printWarning('Fail to use perf event %s\n' % failList.keys())
 
 
 
     @staticmethod
     def collectPerfData():
-        # make event list #
-        events = SystemManager.perfEventChannel.keys()
+        SystemManager.perfEventData = {}
 
-        # get event data #
-        values = SystemManager.readPerfEvents(\
-            SystemManager.perfEventChannel.values())
+        for coreId in SystemManager.perfEventChannel.keys():
+            # make event list #
+            events = SystemManager.perfEventChannel[coreId].keys()
 
-        eventData = {}
-        for idx, evt in enumerate(events):
-            eventData[evt] = values[idx]
+            # get event data #
+            values = SystemManager.readPerfEvents(\
+                SystemManager.perfEventChannel[coreId].values())
 
-        SystemManager.perfEventData = eventData
+            for idx, evt in enumerate(events):
+                try:
+                    SystemManager.perfEventData[evt] += values[idx]
+                except:
+                    SystemManager.perfEventData[evt] = values[idx]
 
 
 
@@ -14920,7 +14926,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printCpuInterval():
         # Print title #
-        SystemManager.pipePrint('\n[Top CPU Info] [Unit: %]\n')
+        SystemManager.pipePrint('\n[Top CPU Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -15010,7 +15016,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printRssInterval():
         # Print title #
-        SystemManager.pipePrint('\n[Top RSS Info] [Unit: MB]\n')
+        SystemManager.pipePrint('\n[Top RSS Info] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -15095,7 +15101,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printVssInterval():
         # Print title #
-        SystemManager.pipePrint('\n[Top VSS Info] [Unit: MB]\n')
+        SystemManager.pipePrint('\n[Top VSS Info] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -15180,7 +15186,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printBlkInterval():
         # Print title #
-        SystemManager.pipePrint('\n[Top Block Info] [Unit: %]\n')
+        SystemManager.pipePrint('\n[Top Block Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -15324,7 +15330,7 @@ class ThreadAnalyzer(object):
             return
 
         # Print title #
-        SystemManager.pipePrint('\n[Top Memory Details] [Unit: MB]\n')
+        SystemManager.pipePrint('\n[Top Memory Details] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -17717,7 +17723,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
         SystemManager.addPrint(\
-            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] [Unit: %%/MB/NR]\n" % \
+            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] (Unit: %%/MB/NR)\n" % \
             (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
         SystemManager.addPrint("%s\n" % twoLine + \
@@ -18182,59 +18188,6 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def getGpuData():
-        devList = [
-            '/sys/devices/platform/host1x', # nVIDIA tegra #
-            ]
-
-        # get candidate list for target GPU device #
-        candList = []
-        for devPath in devList:
-            try:
-                for targetDir in os.listdir(devPath):
-                    path = '%s/%s' % (devPath, targetDir)
-                    try:
-                        if 'devfreq' in os.listdir(path):
-                            candList.append(path)
-                    except:
-                        pass
-            except:
-                pass
-
-        gpuData = {}
-        for idx, cand in enumerate(candList):
-            try:
-                target = None
-
-                # save target device info #
-                with open('%s/uevent' % cand, 'r') as fd:
-                    target = cand[cand.rfind('/')+1:]
-                    gpuData[target] = dict()
-                    for item in fd.readlines():
-                        attr, value = item[:-1].split('=')
-                        gpuData[target][attr] = value
-
-                # save target device load #
-                with open('%s/load' % cand, 'r') as fd:
-                    gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-1])
-
-                # save current clock of target device #
-                with open('%s/devfreq/%s/cur_freq' % (cand, target), 'r') as fd:
-                    gpuData[target]['CUR_FREQ'] = float(fd.readline()[:-7]) / 1000
-
-                # save min clock of target device #
-                with open('%s/devfreq/%s/min_freq' % (cand, target), 'r') as fd:
-                    gpuData[target]['MIN_FREQ'] = float(fd.readline()[:-7]) / 1000
-
-                # save max clock of target device #
-                with open('%s/devfreq/%s/max_freq' % (cand, target), 'r') as fd:
-                    gpuData[target]['MAX_FREQ'] = float(fd.readline()[:-7]) / 1000
-            except:
-                pass
-
-
-
-    @staticmethod
     def getProcTreeFromList(procInstance):
         procTree = {}
         ppidIdx = ConfigManager.statList.index("PPID")
@@ -18414,6 +18367,58 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['wchan'] = wchanBuf[0]
         except:
             self.procData[tid]['wchan'] = ''
+
+
+    def saveGpuData(self):
+        devList = [
+            '/sys/devices/platform/host1x', # nVIDIA tegra #
+            ]
+
+        self.gpuData = {}
+
+        # get candidate list for target GPU device #
+        candList = []
+        for devPath in devList:
+            try:
+                for targetDir in os.listdir(devPath):
+                    path = '%s/%s' % (devPath, targetDir)
+                    try:
+                        if 'devfreq' in os.listdir(path):
+                            candList.append(path)
+                    except:
+                        pass
+            except:
+                pass
+
+        for idx, cand in enumerate(candList):
+            try:
+                target = None
+
+                # save target device info #
+                with open('%s/uevent' % cand, 'r') as fd:
+                    target = cand[cand.rfind('/')+1:]
+                    self.gpuData[target] = dict()
+                    for item in fd.readlines():
+                        attr, value = item[:-1].split('=')
+                        self.gpuData[target][attr] = value
+
+                # save target device load #
+                with open('%s/load' % cand, 'r') as fd:
+                    self.gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-2])
+
+                # save current clock of target device #
+                with open('%s/devfreq/%s/cur_freq' % (cand, target), 'r') as fd:
+                    self.gpuData[target]['CUR_FREQ'] = int(fd.readline()[:-7])
+
+                # save min clock of target device #
+                with open('%s/devfreq/%s/min_freq' % (cand, target), 'r') as fd:
+                    self.gpuData[target]['MIN_FREQ'] = int(fd.readline()[:-7])
+
+                # save max clock of target device #
+                with open('%s/devfreq/%s/max_freq' % (cand, target), 'r') as fd:
+                    self.gpuData[target]['MAX_FREQ'] = int(fd.readline()[:-7])
+            except:
+                pass
 
 
 
@@ -18943,6 +18948,7 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
+            # CPU STATUS #
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
@@ -18994,7 +19000,6 @@ class ThreadAnalyzer(object):
                             curFreq = fd.readline()[:-1]
                     except:
                         curFreq = None
-                        pass
 
                     # get min cpu frequency #
                     minPath = '%s%s/cpufreq/cpuinfo_min_freq' % (freqPath, idx)
@@ -19003,7 +19008,6 @@ class ThreadAnalyzer(object):
                             minFreq = fd.readline()[:-1]
                     except:
                         minFreq = None
-                        pass
 
                     # get max cpu frequency #
                     maxPath = '%s%s/cpufreq/cpuinfo_max_freq' % (freqPath, idx)
@@ -19012,7 +19016,13 @@ class ThreadAnalyzer(object):
                             maxFreq = fd.readline()[:-1]
                     except:
                         maxFreq = None
-                        pass
+
+                    idPath = '%s%s/topology/core_id' % (freqPath, idx)
+                    try:
+                        with open(idPath, 'r') as fd:
+                            coreId = int(fd.readline()[:-1])
+                    except:
+                        coreId = None
 
                     # set frequency info #
                     coreFreq = ''
@@ -19025,12 +19035,51 @@ class ThreadAnalyzer(object):
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '%3s C | %s' % (tempData[idx], coreFreq)
+                        coreFreq = '%3s C | %s' % (tempData[coreId], coreFreq)
                     except:
                         coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
+                    lenCore = len(coreStat)
+                    lenFreq = len(coreFreq)
+                    lenLine = len(oneLine) - lenCore - lenFreq - 2
+
+                    # print graph of per-core usage #
+                    if totalUsage > 0:
+                        coreGraph = '#' * (lenLine * totalUsage / 100)
+                        coreGraph += (' ' * (lenLine - len(coreGraph)))
+                    else:
+                        coreGraph = ' ' * lenLine
+
+                    SystemManager.addPrint('%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
+                except:
+                    continue
+
+            # update gpu status #
+            self.saveGpuData()
+
+            # GPU STATUS #
+            for idx, value in self.gpuData.items():
+                try:
+                    totalUsage = value['CUR_LOAD']
+                    coreStat = "{0:<23}({1:<5})|".format(idx[:23], '%s %%' % totalUsage)
+
+                    # set frequency info #
+                    coreFreq = ''
+                    if curFreq is not None:
+                        coreFreq = '%d Mhz' % value['CUR_FREQ']
+                    else:
+                        coreFreq = '? Mhz'
+                    if 'MIN_FREQ' in value and 'MAX_FREQ' in value:
+                        coreFreq = '%s [%d-%d]' % (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
+                    coreFreq = '%20s|' % coreFreq
+
+                    try:
+                        coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
+                    except:
+                        coreFreq = '%3s C | %s' % ('?', coreFreq)
+
                     lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
                     lenLine = len(oneLine) - lenCore - lenFreq - 2
@@ -19439,7 +19488,6 @@ class ThreadAnalyzer(object):
             if SystemManager.stackEnable:
                 # set indent size including arrow #
                 initIndent = 42
-                indent = initIndent + 3
 
                 try:
                     for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
@@ -19453,6 +19501,8 @@ class ThreadAnalyzer(object):
                         if per == 0:
                             continue
 
+                        indent = initIndent + 3
+
                         for call in stack.split('\n'):
                             try:
                                 astack = call.split()[1]
@@ -19464,7 +19514,7 @@ class ThreadAnalyzer(object):
                                         line = line[:line.rfind('<-')]
                                     break
 
-                                if len(line) + len(astack) + indent >= SystemManager.lineLength:
+                                if indent + len(line) + len(astack) >= SystemManager.lineLength:
                                     indent = 0
                                     fullstack = '%s%s\n' % (fullstack, line)
                                     line = ' ' * initIndent
@@ -20169,7 +20219,7 @@ class ThreadAnalyzer(object):
     def printSystemStat(self):
         SystemManager.addPrint(\
             ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Fork: %d] " \
-            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] [Unit: %%/MB/NR]\n") % \
+            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] (Unit: %%/MB/NR)\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
