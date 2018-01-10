@@ -5002,49 +5002,50 @@ class FileAnalyzer(object):
             'accessTime': None, 'devid': None, 'isRep': True, 'repFile': None, 'hardLink': int(1), \
             'linkList': None}
 
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
-
         # handle no target case #
         if len(SystemManager.showGroup) == 0:
             SystemManager.showGroup.insert(0, '')
 
-        try:
-            imp.find_module('ctypes')
-        except:
-            SystemManager.printError('Fail to find ctypes package')
-            sys.exit(0)
+        if SystemManager.guiderObj is None:
+            try:
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
+                from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                sys.exit(0)
 
-        try:
-            # load standard libc library #
-            if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+            try:
+                imp.find_module('ctypes')
+            except:
+                SystemManager.printError('Fail to find ctypes package')
+                sys.exit(0)
 
-            # define mmap types #
-            SystemManager.libcObj.mmap.argtypes = \
-                [POINTER(None), c_size_t, c_int, c_int, c_int, c_long]
-            SystemManager.libcObj.mmap.restype = POINTER(None)
+            try:
+                # load standard libc library #
+                if SystemManager.libcObj is None:
+                    SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
 
-            # define munmap types #
-            SystemManager.libcObj.munmap.argtypes = [POINTER(None), c_size_t]
-            SystemManager.libcObj.munmap.restype = c_int
+                # define mmap types #
+                SystemManager.libcObj.mmap.argtypes = \
+                    [POINTER(None), c_size_t, c_int, c_int, c_int, c_long]
+                SystemManager.libcObj.mmap.restype = POINTER(None)
 
-            # define mincore types #
-            SystemManager.libcObj.mincore.argtypes = \
-                [POINTER(None), c_size_t, POINTER(c_ubyte)]
-            SystemManager.libcObj.mincore.restype = c_int
-        except:
-            SystemManager.libcObj = None
-            SystemManager.printError('Fail to find libc to call systemcall')
-            sys.exit(0)
+                # define munmap types #
+                SystemManager.libcObj.munmap.argtypes = [POINTER(None), c_size_t]
+                SystemManager.libcObj.munmap.restype = c_int
+
+                # define mincore types #
+                SystemManager.libcObj.mincore.argtypes = \
+                    [POINTER(None), c_size_t, POINTER(c_ubyte)]
+                SystemManager.libcObj.mincore.restype = c_int
+            except:
+                SystemManager.libcObj = None
+                SystemManager.printError('Fail to find libc to call systemcall')
+                sys.exit(0)
 
         # set system maximum fd number #
         SystemManager.setMaxFd()
@@ -5710,34 +5711,48 @@ class FileAnalyzer(object):
             offset = val['offset']
             size = val['size']
 
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from  ctypes import POINTER, c_char, c_ubyte, cast
+            if SystemManager.guiderObj is not None:
+                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+                mm = SystemManager.guiderObj.mmap(0, size, 0, 2, fd, offset)
 
-            # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
-            mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
+                # call mincore systemcall by standard libc library #
+                pagemap = SystemManager.guiderObj.mincore(mm, size)
 
-            # get the size of the table to map file segment #
-            tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
+                # unmap #
+                SystemManager.guiderObj.munmap(mm, size)
+            else:
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
+                from  ctypes import POINTER, c_char, c_ubyte, cast
 
-            # make a pagemap table #
-            pagemap = (tsize * ctypes.c_ubyte)()
+                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+                mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
 
-            # call mincore systemcall by standard libc library #
-            ret = SystemManager.libcObj.mincore(mm, size, cast(pagemap, POINTER(c_ubyte)))
-            if ret < 0:
-                pagemap = None
+                # get the size of the table to map file segment #
+                tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
 
-            # unmap #
-            SystemManager.libcObj.munmap(mm, size)
+                # make a pagemap table #
+                pagemap = (tsize * ctypes.c_ubyte)()
 
-            # save the array of ctype into list #
+                # call mincore systemcall by standard libc library #
+                ret = SystemManager.libcObj.mincore(mm, size, cast(pagemap, POINTER(c_ubyte)))
+                if ret < 0:
+                    pagemap = None
+
+                # unmap #
+                SystemManager.libcObj.munmap(mm, size)
+
+            # save the on-memory file page table #
             if pagemap is not None:
                 try:
-                    val['fileMap'] = \
-                        [pagemap[i] for i in xrange(size / SystemManager.pageSize)]
+                    if SystemManager.guiderObj is not None:
+                        val['fileMap'] = \
+                            [ord(pagemap[i]) for i in xrange(size / SystemManager.pageSize)]
+                    else:
+                        val['fileMap'] = \
+                            [pagemap[i] for i in xrange(size / SystemManager.pageSize)]
 
                     self.profSuccessCnt += 1
 
@@ -6032,6 +6047,15 @@ class SystemManager(object):
             return
 
         try:
+
+            SystemManager.maxFd = \
+                SystemManager.guiderObj.getrlimit(\
+                    ConfigManager.rlimitList.index('RLIMIT_NOFILE'))
+            return
+        except:
+            pass
+
+        try:
             if SystemManager.ctypesObj is None:
                 import ctypes
                 SystemManager.ctypesObj = ctypes
@@ -6073,6 +6097,7 @@ class SystemManager(object):
     def importModule():
         try:
             import guider
+            guider.check()
             SystemManager.guiderObj = guider
         except:
             pass
@@ -9895,41 +9920,56 @@ class SystemManager(object):
 
     @staticmethod
     def setPriority(pid, policy, pri):
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to set priority") % err.args[0])
-            return
+        if SystemManager.guiderObj is None:
+            try:
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
+                from ctypes import cdll, POINTER
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printWarning(\
+                    ("Fail to import python package: %s "
+                    "to set priority") % err.args[0])
+                return
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if SystemManager.guiderObj is None and SystemManager.libcObj is None:
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
 
             upolicy = policy.upper()
-            argPolicy = ctypes.c_int(ConfigManager.schedList.index(upolicy))
+
+            argPolicy = ConfigManager.schedList.index(upolicy)
+            if SystemManager.guiderObj is None:
+                argPolicy = ctypes.c_int(argPolicy)
+
             if upolicy == 'I' or upolicy == 'C' or upolicy == 'B':
-                argPriority = ctypes.c_int(0)
+                argPriority = 0
             else:
-                argPriority = ctypes.c_int(pri)
+                argPriority = pri
+            if SystemManager.guiderObj is None:
+                argPriority = ctypes.c_int(argPriority)
 
             # set scheduler policy #
-            ret = SystemManager.libcObj.sched_setscheduler(\
-                pid, argPolicy, ctypes.byref(argPriority))
+            if SystemManager.guiderObj is None:
+                ret = SystemManager.libcObj.sched_setscheduler(\
+                    pid, argPolicy, ctypes.byref(argPriority))
+            else:
+                ret = SystemManager.guiderObj.sched_setscheduler(\
+                    pid, argPolicy, argPriority)
             if ret != 0:
                 raise
 
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
-                argPriority = ctypes.c_int(pri)
-                ret = SystemManager.libcObj.setpriority(0, pid, argPriority)
+                if SystemManager.guiderObj is None:
+                    argPriority = ctypes.c_int(pri)
+                    ret = SystemManager.libcObj.setpriority(0, pid, argPriority)
+                else:
+                    argPriority = pri
+                    ret = SystemManager.guiderObj.setpriority(0, pid, argPriority)
                 if ret != 0:
                     raise
 
