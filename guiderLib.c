@@ -226,12 +226,13 @@ guider_perf_event_read(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    if (ret > 0)
-    {
+    ret = read(fd, &value, sizeof(long));
+    if (ret > 0) {
         ioctl(fd, PERF_EVENT_IOC_RESET, 0);
+        return Py_BuildValue("l", value);
+    } else {
+        return NULL;
     }
-
-    return Py_BuildValue("l", value);
 }
 
 static PyMethodDef guiderMethods[] = {

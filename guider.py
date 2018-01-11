@@ -6148,6 +6148,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def convertSize(size):
+        sizeKB = 1024
+        sizeMB = sizeKB << 10
+        sizeGB = sizeMB << 10
+        sizeTB = sizeGB << 10
+
+        if size > sizeTB:
+            return '%dTB' % (size >> 40)
+        elif size > sizeGB:
+            return '%dGB' % (size >> 30)
+        elif size > sizeMB:
+            return '%dMB' % (size >> 20)
+        elif size > sizeKB:
+            return '%dKB' % (size >> 10)
+        else:
+            return '%dB' % (size)
+
+
+
+    @staticmethod
     def getPidFilter():
         if SystemManager.pidFilter is None:
             cmd = ""
@@ -6981,6 +7001,21 @@ class SystemManager(object):
 
     @staticmethod
     def readPerfEvents(fdList):
+        if SystemManager.guiderObj is not None:
+            retList = []
+
+            for fd in fdList:
+                try:
+                    # read PMU data #
+                    value = SystemManager.guiderObj.perf_event_read(fd)
+
+                    # add value to list #
+                    retList.append(value)
+                except:
+                    retList.append(None)
+
+            return retList
+
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -11209,10 +11244,6 @@ class SystemManager(object):
             {'total': long(0), 'free': long(0), 'favail': long(0), \
             'read': long(0), 'write': long(0)}
         outputCnt = 0
-        sizeKB = 1024
-        sizeMB = sizeKB << 10
-        sizeGB = sizeMB << 10
-        sizeTB = sizeGB << 10
 
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             try:
@@ -11232,25 +11263,11 @@ class SystemManager(object):
 
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - int(beforeInfo['sectorRead'])) << 9
-                if readSize > sizeGB:
-                    readSize = '%dGB' % (readSize >> 30)
-                elif readSize > sizeMB:
-                    readSize = '%dMB' % (readSize >> 20)
-                elif readSize > sizeKB:
-                    readSize = '%dKB' % (readSize >> 10)
-                else:
-                    readSize = '%dB' % (readSize)
+                readSize = SystemManager.convertSize(readSize)
 
                 write = writeSize = \
                     (int(afterInfo['sectorWrite']) - int(beforeInfo['sectorWrite'])) << 9
-                if writeSize > sizeGB:
-                    writeSize = '%dGB' % (writeSize >> 30)
-                elif writeSize > sizeMB:
-                    writeSize = '%dMB' % (writeSize >> 20)
-                elif writeSize > sizeKB:
-                    writeSize = '%dKB' % (writeSize >> 10)
-                else:
-                    writeSize = '%dB' % (writeSize)
+                writeSize = SystemManager.convertSize(writeSize)
             except:
                 pass
 
@@ -11277,38 +11294,9 @@ class SystemManager(object):
                 except:
                     pass
 
-                if total > sizeTB:
-                    total = '%dTB' % (total >> 40)
-                elif total > sizeGB:
-                    total = '%dGB' % (total >> 30)
-                elif total > sizeMB:
-                    total = '%dMB' % (total >> 20)
-                elif total > sizeKB:
-                    total = '%dKB' % (total >> 10)
-                else:
-                    total = '%dB' % total
-
-                if free > sizeTB:
-                    free = '%dTB' % (free >> 40)
-                elif free > sizeGB:
-                    free = '%dGB' % (free >> 30)
-                elif free > sizeMB:
-                    free = '%dMB' % (free >> 20)
-                elif free > sizeKB:
-                    free = '%dKB' % (free >> 10)
-                else:
-                    free = '%dB' % free
-
-                if avail > sizeTB:
-                    avail = '%dT' % (avail >> 40)
-                elif avail > sizeGB:
-                    avail = '%dG' % (avail >> 30)
-                elif avail > sizeMB:
-                    avail = '%dM' % (avail >> 20)
-                elif avail > sizeKB:
-                    avail = '%dK' % (avail >> 10)
-                else:
-                    avail = '%d' % avail
+                total = SystemManager.convertSize(total)
+                free = SystemManager.convertSize(free)
+                avail = SystemManager.convertSize(avail)
             except:
                 pass
 
@@ -11336,70 +11324,14 @@ class SystemManager(object):
                 usage = \
                     int((totalInfo['total'] - totalInfo['free']) / float(totalInfo['total']) * 100)
 
-                total = totalInfo['total']
-                if total > sizeTB:
-                    total = '%dTB' % (total >> 40)
-                elif total > sizeGB:
-                    total = '%dGB' % (total >> 30)
-                elif total > sizeMB:
-                    total = '%dMB' % (total >> 20)
-                elif total > sizeKB:
-                    total = '%dKB' % (total >> 10)
-                else:
-                    total = '%dB' % total
-                totalInfo['total'] = total
-
-                free = totalInfo['free']
-                if free > sizeTB:
-                    free = '%dTB' % (free >> 40)
-                elif free > sizeGB:
-                    free = '%dGB' % (free >> 30)
-                elif free > sizeMB:
-                    free = '%dMB' % (free >> 20)
-                elif free > sizeKB:
-                    free = '%dKB' % (free >> 10)
-                else:
-                    free = '%dB' % free
-                totalInfo['free'] = free
-
-                avail = totalInfo['favail']
-                if avail > sizeTB:
-                    avail = '%dT' % (avail >> 40)
-                elif avail > sizeGB:
-                    avail = '%dG' % (avail >> 30)
-                elif avail > sizeMB:
-                    avail = '%dM' % (avail >> 20)
-                elif avail > sizeKB:
-                    avail = '%dK' % (avail >> 10)
-                else:
-                    avail = '%d' % avail
-                totalInfo['favail'] = avail
-
+                totalInfo['total'] = SystemManager.convertSize(totalInfo['total'])
+                totalInfo['free'] = SystemManager.convertSize(totalInfo['free'])
+                totalInfo['favail'] = SystemManager.convertSize(totalInfo['favail'])
+                totalInfo['read'] = SystemManager.convertSize(totalInfo['read'])
+                totalInfo['write'] = SystemManager.convertSize(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
-
-                readSize = totalInfo['read']
-                if readSize > sizeGB:
-                    readSize = '%dGB' % (readSize >> 30)
-                elif readSize > sizeMB:
-                    readSize = '%dMB' % (readSize >> 20)
-                elif readSize > sizeKB:
-                    readSize = '%dKB' % (readSize >> 10)
-                else:
-                    readSize = '%dB' % (readSize)
-                totalInfo['read'] = readSize
-
-                writeSize = totalInfo['write']
-                if writeSize > sizeGB:
-                    writeSize = '%dGB' % (writeSize >> 30)
-                elif writeSize > sizeMB:
-                    writeSize = '%dMB' % (writeSize >> 20)
-                elif writeSize > sizeKB:
-                    writeSize = '%dKB' % (writeSize >> 10)
-                else:
-                    writeSize = '%dB' % (writeSize)
-                totalInfo['write'] = writeSize
             except:
-                totalInfo['use'] = '?%%'
+                totalInfo['use'] = '?%'
 
             SystemManager.infoBufferPrint(\
                 "{0:^16}\n{1:^24} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:<20}".\
