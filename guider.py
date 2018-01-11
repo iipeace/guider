@@ -6596,6 +6596,32 @@ class SystemManager(object):
     @staticmethod
     def openPerfEvent(etype, econfig, cpu=-1, pid=-1):
         try:
+            nrType = ConfigManager.perfEventType.index(etype)
+            if econfig in ConfigManager.perfEventHWType:
+                nrConfig = ConfigManager.perfEventHWType.index(econfig)
+            elif econfig in ConfigManager.perfEventSWType:
+                nrConfig = ConfigManager.perfEventSWType.index(econfig)
+            else:
+                raise
+        except:
+            SystemManager.printError\
+                ('Fail to recognize %s, %s as perf event type' % (etype, econfig))
+            return
+
+        if SystemManager.guiderObj is not None:
+            fd = SystemManager.guiderObj.perf_event_open(nrType, nrConfig, pid, cpu, -1, 0)
+            if fd < 0:
+                # check root permission #
+                if os.geteuid() != 0:
+                    SystemManager.printWarning(\
+                        'Fail to get root permission to open perf event')
+                    return
+                else:
+                    return -1
+            else:
+                return fd
+
+        try:
             if SystemManager.ctypesObj is None:
                 import ctypes
                 SystemManager.ctypesObj = ctypes
@@ -6918,23 +6944,12 @@ class SystemManager(object):
 
         # set struct perf_event_attr #
         perf_attr = struct_perf_event_attr()
+        perf_attr.type = nrType
+        perf_attr.config = nrConfig
         perf_attr.size = sizeof(perf_attr)
         perf_attr.disabled = 1
         #perf_attr.exclude_kernel = 1
         #perf_attr.exclude_hv = 1
-
-        try:
-            perf_attr.type = ConfigManager.perfEventType.index(etype)
-            if econfig in ConfigManager.perfEventHWType:
-                perf_attr.config = ConfigManager.perfEventHWType.index(econfig)
-            elif econfig in ConfigManager.perfEventSWType:
-                perf_attr.config = ConfigManager.perfEventSWType.index(econfig)
-            else:
-                raise
-        except:
-            SystemManager.printError\
-                ('Fail to recognize %s, %s as perf event type' % (etype, econfig))
-            return
 
         # call a perf_event_open syscall #
         '''
@@ -7119,6 +7134,13 @@ class SystemManager(object):
 
     @staticmethod
     def closePerfEvent(fd):
+        if SystemManager.guiderObj is not None:
+            try:
+                return SystemManager.guiderObj.close(fd)
+            except:
+                SystemManager.printWarning('Fail to close fd for perf event')
+                return
+
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -7187,6 +7209,7 @@ class SystemManager(object):
                 # handle unavailable hw events #
                 if SystemManager.perfEventChannel[coreId][evt] is -1:
                     failList[evt] = 0
+                    del SystemManager.perfEventChannel[coreId][evt]
                 elif SystemManager.perfEventChannel[coreId][evt] is None:
                     return
 
@@ -7207,11 +7230,59 @@ class SystemManager(object):
             values = SystemManager.readPerfEvents(\
                 SystemManager.perfEventChannel[coreId].values())
 
+            # summarize perf data of each cores #
             for idx, evt in enumerate(events):
                 try:
                     SystemManager.perfEventData[evt] += values[idx]
                 except:
                     SystemManager.perfEventData[evt] = values[idx]
+
+
+
+    @staticmethod
+    def getPerfString():
+        perfbuf = ''
+        value = SystemManager.perfEventData
+
+        inst = buscycle = refcpucycle = cpucycle = -1
+        cacheref = cachemiss = cachemissrate = -1
+        branch = branchmiss = branchmissrate = -1
+
+        try:
+            buscycle = value['PERF_COUNT_HW_BUS_CYCLES']
+            refcpucycle = value['PERF_COUNT_HW_REF_CPU_CYCLES']
+        except:
+            pass
+
+        try:
+            cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
+            perfbuf = '%s [Cycle: %s]' % (perfbuf, format(cpucycle, ','))
+            inst = value['PERF_COUNT_HW_INSTRUCTIONS']
+            perfbuf = '%s [Inst: %s]' % (perfbuf, format(inst, ','))
+            ipc = inst / float(cpucycle)
+            perfbuf = '%s [IPC: %.3f]' % (perfbuf, ipc)
+        except:
+            pass
+
+        try:
+            cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
+            cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
+            cachemissrate = cachemiss / float(cacheref) * 100
+            perfbuf = '%s [CacheMiss: %s (%.1f%%)]' % \
+                (perfbuf, format(cachemiss, ','), cachemissrate)
+        except:
+            pass
+
+        try:
+            branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
+            branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
+            branchmissrate = branchmiss / float(branch) * 100
+            perfbuf = '%s [BranchMiss: %s (%.1f%%)]' % \
+                (perfbuf, format(branchmiss, ','), branchmissrate)
+        except:
+            pass
+
+        return perfbuf
 
 
 
@@ -11134,10 +11205,14 @@ class SystemManager(object):
         SystemManager.infoBufferPrint(twoLine)
 
         devInfo = {}
+        totalInfo = \
+            {'total': long(0), 'free': long(0), 'favail': long(0), \
+            'read': long(0), 'write': long(0)}
         outputCnt = 0
         sizeKB = 1024
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
+        sizeTB = sizeGB << 10
 
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             try:
@@ -11155,18 +11230,22 @@ class SystemManager(object):
                 beforeInfo = self.diskInfo['before'][key]
                 afterInfo = self.diskInfo['after'][key]
 
-                readSize = \
+                read = readSize = \
                     (int(afterInfo['sectorRead']) - int(beforeInfo['sectorRead'])) << 9
-                if readSize > sizeMB:
+                if readSize > sizeGB:
+                    readSize = '%dGB' % (readSize >> 30)
+                elif readSize > sizeMB:
                     readSize = '%dMB' % (readSize >> 20)
                 elif readSize > sizeKB:
                     readSize = '%dKB' % (readSize >> 10)
                 else:
                     readSize = '%dB' % (readSize)
 
-                writeSize = \
+                write = writeSize = \
                     (int(afterInfo['sectorWrite']) - int(beforeInfo['sectorWrite'])) << 9
-                if writeSize > sizeMB:
+                if writeSize > sizeGB:
+                    writeSize = '%dGB' % (writeSize >> 30)
+                elif writeSize > sizeMB:
                     writeSize = '%dMB' % (writeSize >> 20)
                 elif writeSize > sizeKB:
                     writeSize = '%dKB' % (writeSize >> 10)
@@ -11189,7 +11268,18 @@ class SystemManager(object):
                 avail = stat.f_favail
                 use = '%d%%' % int((total - free) / float(total) * 100)
 
-                if total > sizeGB:
+                try:
+                    totalInfo['total'] += total
+                    totalInfo['free'] += free
+                    totalInfo['favail'] += avail
+                    totalInfo['read'] += read
+                    totalInfo['write'] += write
+                except:
+                    pass
+
+                if total > sizeTB:
+                    total = '%dTB' % (total >> 40)
+                elif total > sizeGB:
                     total = '%dGB' % (total >> 30)
                 elif total > sizeMB:
                     total = '%dMB' % (total >> 20)
@@ -11198,7 +11288,9 @@ class SystemManager(object):
                 else:
                     total = '%dB' % total
 
-                if free > sizeGB:
+                if free > sizeTB:
+                    free = '%dTB' % (free >> 40)
+                elif free > sizeGB:
                     free = '%dGB' % (free >> 30)
                 elif free > sizeMB:
                     free = '%dMB' % (free >> 20)
@@ -11207,7 +11299,9 @@ class SystemManager(object):
                 else:
                     free = '%dB' % free
 
-                if avail > sizeGB:
+                if avail > sizeTB:
+                    avail = '%dT' % (avail >> 40)
+                elif avail > sizeGB:
                     avail = '%dG' % (avail >> 30)
                 elif avail > sizeMB:
                     avail = '%dM' % (avail >> 20)
@@ -11237,6 +11331,82 @@ class SystemManager(object):
 
         if outputCnt == 0:
             SystemManager.infoBufferPrint('\tN/A')
+        else:
+            try:
+                usage = \
+                    int((totalInfo['total'] - totalInfo['free']) / float(totalInfo['total']) * 100)
+
+                total = totalInfo['total']
+                if total > sizeTB:
+                    total = '%dTB' % (total >> 40)
+                elif total > sizeGB:
+                    total = '%dGB' % (total >> 30)
+                elif total > sizeMB:
+                    total = '%dMB' % (total >> 20)
+                elif total > sizeKB:
+                    total = '%dKB' % (total >> 10)
+                else:
+                    total = '%dB' % total
+                totalInfo['total'] = total
+
+                free = totalInfo['free']
+                if free > sizeTB:
+                    free = '%dTB' % (free >> 40)
+                elif free > sizeGB:
+                    free = '%dGB' % (free >> 30)
+                elif free > sizeMB:
+                    free = '%dMB' % (free >> 20)
+                elif free > sizeKB:
+                    free = '%dKB' % (free >> 10)
+                else:
+                    free = '%dB' % free
+                totalInfo['free'] = free
+
+                avail = totalInfo['favail']
+                if avail > sizeTB:
+                    avail = '%dT' % (avail >> 40)
+                elif avail > sizeGB:
+                    avail = '%dG' % (avail >> 30)
+                elif avail > sizeMB:
+                    avail = '%dM' % (avail >> 20)
+                elif avail > sizeKB:
+                    avail = '%dK' % (avail >> 10)
+                else:
+                    avail = '%d' % avail
+                totalInfo['favail'] = avail
+
+                totalInfo['use'] = '%d%%' % usage
+
+                readSize = totalInfo['read']
+                if readSize > sizeGB:
+                    readSize = '%dGB' % (readSize >> 30)
+                elif readSize > sizeMB:
+                    readSize = '%dMB' % (readSize >> 20)
+                elif readSize > sizeKB:
+                    readSize = '%dKB' % (readSize >> 10)
+                else:
+                    readSize = '%dB' % (readSize)
+                totalInfo['read'] = readSize
+
+                writeSize = totalInfo['write']
+                if writeSize > sizeGB:
+                    writeSize = '%dGB' % (writeSize >> 30)
+                elif writeSize > sizeMB:
+                    writeSize = '%dMB' % (writeSize >> 20)
+                elif writeSize > sizeKB:
+                    writeSize = '%dKB' % (writeSize >> 10)
+                else:
+                    writeSize = '%dB' % (writeSize)
+                totalInfo['write'] = writeSize
+            except:
+                totalInfo['use'] = '?%%'
+
+            SystemManager.infoBufferPrint(\
+                "{0:^16}\n{1:^24} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:<20}".\
+                format(oneLine, 'TOTAL', totalInfo['read'], totalInfo['write'], \
+                totalInfo['total'], totalInfo['free'], totalInfo['use'], \
+                totalInfo['favail'], ' ', ' '))
+
         SystemManager.infoBufferPrint("%s\n\n" % twoLine)
 
 
@@ -11973,6 +12143,10 @@ class ThreadAnalyzer(object):
             else:
                 # wait for next interval #
                 time.sleep(waitTime)
+
+            # collect perf data #
+            if SystemManager.perfEnable:
+                SystemManager.collectPerfData()
 
             # check request from client #
             self.checkServer()
@@ -18458,19 +18632,19 @@ class ThreadAnalyzer(object):
 
                 # save target device load #
                 with open('%s/load' % cand, 'r') as fd:
-                    self.gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-2])
+                    self.gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-1]) / 10
 
                 # save current clock of target device #
                 with open('%s/devfreq/%s/cur_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['CUR_FREQ'] = int(fd.readline()[:-7])
+                    self.gpuData[target]['CUR_FREQ'] = int(fd.readline()[:-1]) / 1000000
 
                 # save min clock of target device #
                 with open('%s/devfreq/%s/min_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['MIN_FREQ'] = int(fd.readline()[:-7])
+                    self.gpuData[target]['MIN_FREQ'] = int(fd.readline()[:-1]) / 1000000
 
                 # save max clock of target device #
                 with open('%s/devfreq/%s/max_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['MAX_FREQ'] = int(fd.readline()[:-7])
+                    self.gpuData[target]['MAX_FREQ'] = int(fd.readline()[:-1]) / 1000000
             except:
                 pass
 
@@ -18784,7 +18958,11 @@ class ThreadAnalyzer(object):
                 drReclaim += \
                     self.vmData['pgsteal_direct_movable'] - self.prevVmData['pgsteal_direct_movable']
             drReclaim = drReclaim >> 8
-            nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
+
+            if 'allocstall' in self.vmData:
+                nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
+            else:
+                nrDrReclaim = 0
         except:
             drReclaim = nrDrReclaim = 0
             SystemManager.printWarning("Fail to get drReclmMem")
@@ -19125,7 +19303,8 @@ class ThreadAnalyzer(object):
                         coreFreq = '%d Mhz' % value['CUR_FREQ']
                     else:
                         coreFreq = '? Mhz'
-                    if 'MIN_FREQ' in value and 'MAX_FREQ' in value:
+                    if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
+                        value['MIN_FREQ'] > 0 and value['MAX_FREQ'] > 0:
                         coreFreq = '%s [%d-%d]' % (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
                     coreFreq = '%20s|' % coreFreq
 
@@ -20281,10 +20460,15 @@ class ThreadAnalyzer(object):
             SystemManager.nrCore, self.nrProcess, self.nrThread, \
             self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
-        # print system usage #
+        # print PMU stat #
+        if len(SystemManager.perfEventData) > 0:
+            SystemManager.addPrint(\
+                "%s%s\n" % (' ' * len('[Top Info]'), SystemManager.getPerfString()))
+
+        # print system stat #
         self.printSystemUsage()
 
-        # print process info #
+        # print process stat #
         self.printProcUsage()
 
         # send packet to remote server #

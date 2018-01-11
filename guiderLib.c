@@ -11,11 +11,16 @@
  */
 
 #include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/ioctl.h>
 #include <sys/types.h>
+#include <linux/perf_event.h>
+#include <linux/hw_breakpoint.h>
 #include <sys/prctl.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sched.h>
+#include <inttypes.h>
 #include <Python.h>
 
 static PyObject *
@@ -83,6 +88,25 @@ guider_munmap(PyObject *self, PyObject *args)
 
     return Py_BuildValue("i", ret);
 }
+
+/*
+ * int close(int fd);
+ */
+static PyObject *
+guider_close(PyObject *self, PyObject *args)
+{
+    int ret, fd;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+    {
+        return NULL;
+    }
+
+    ret = close(fd);
+
+    return Py_BuildValue("i", ret);
+}
+
 
 /*
  * int mincore(void *addr, size_t length, unsigned char *vec);
@@ -157,14 +181,70 @@ guider_sched_setscheduler(PyObject *self, PyObject *args)
     return Py_BuildValue("i", ret);
 }
 
+/* int perf_event_open(struct perf_event_attr *attr,
+ *     pid_t pid, int cpu, int group_fd, unsigned long flags);
+ */
+static PyObject *
+guider_perf_event_open(PyObject *self, PyObject *args)
+{
+    int fd, type, pid, cpu, group_fd;
+    long config, flags;
+    struct perf_event_attr pea;
+
+    if (!PyArg_ParseTuple(args, "iliiil", &type, &config, &pid, &cpu, &group_fd, &flags))
+    {
+        return NULL;
+    }
+
+    memset(&pea, 0, sizeof(struct perf_event_attr));
+    pea.type = type;
+    pea.size = sizeof(struct perf_event_attr);
+    pea.config = config;
+    pea.disabled = 1;
+    //pea.exclude_kernel = 1;
+    //pea.exclude_hv = 1;
+
+    fd = syscall(__NR_perf_event_open, &pea, pid, cpu, group_fd, flags);
+
+    if (fd > 0)
+    {
+        ioctl(fd, PERF_EVENT_IOC_RESET, 0);
+        ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
+    }
+
+    return Py_BuildValue("i", fd);
+}
+
+static PyObject *
+guider_perf_event_read(PyObject *self, PyObject *args)
+{
+    int fd, ret;
+    long value;
+
+    if (!PyArg_ParseTuple(args, "i", &fd))
+    {
+        return NULL;
+    }
+
+    if (ret > 0)
+    {
+        ioctl(fd, PERF_EVENT_IOC_RESET, 0);
+    }
+
+    return Py_BuildValue("l", value);
+}
+
 static PyMethodDef guiderMethods[] = {
+    {"check", guider_check, METH_VARARGS, "check"},
     {"prctl", guider_prctl, METH_VARARGS, "prctl()"},
     {"getrlimit", guider_getrlimit, METH_VARARGS, "getrlimit()"},
     {"sched_setscheduler", guider_sched_setscheduler, METH_VARARGS, "sched_setscheduler()"},
     {"mmap", guider_mmap, METH_VARARGS, "mmap()"},
     {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
     {"mincore", guider_mincore, METH_VARARGS, "mincore()"},
-    {"check", guider_check, METH_VARARGS, "check"},
+    {"close", guider_close, METH_VARARGS, "close()"},
+    {"perf_event_open", guider_perf_event_open, METH_VARARGS, "perf_event_open()"},
+    {"perf_event_read", guider_perf_event_read, METH_VARARGS, "perf_event_read()"},
     {NULL, NULL, 0, NULL}
 };
 
