@@ -9192,6 +9192,10 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
+                    elif os.path.isfile('/proc/1/io') is False:
+                        SystemManager.printError(\
+                            "Fail to use bio event, please confirm kernel configuration")
+                        sys.exit(0)
                     else:
                         SystemManager.blockEnable = True
                 if options.rfind('t') > -1:
