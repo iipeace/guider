@@ -5969,6 +5969,7 @@ class SystemManager(object):
     waitEnable = False
     cmdEnable = False
     perfEnable = True
+    perfGroupEnable = False
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
@@ -6026,7 +6027,7 @@ class SystemManager(object):
         self.saveResourceSnapshot(False)
 
         # initialize perf events #
-        SystemManager.initPerfEvents()
+        SystemManager.initSystemPerfEvents()
 
 
 
@@ -6154,16 +6155,19 @@ class SystemManager(object):
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
-        if size > sizeTB:
-            return '%dTB' % (size >> 40)
-        elif size > sizeGB:
-            return '%dGB' % (size >> 30)
-        elif size > sizeMB:
-            return '%dMB' % (size >> 20)
-        elif size > sizeKB:
-            return '%dKB' % (size >> 10)
-        else:
-            return '%dB' % (size)
+        try:
+            if size > sizeTB:
+                return '%dT' % (size >> 40)
+            elif size > sizeGB:
+                return '%dG' % (size >> 30)
+            elif size > sizeMB:
+                return '%dM' % (size >> 20)
+            elif size > sizeKB:
+                return '%dK' % (size >> 10)
+            else:
+                return '%d' % (size)
+        except:
+            return None
 
 
 
@@ -6358,11 +6362,11 @@ class SystemManager(object):
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)}')
+                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)|P(erf)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
-            print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)}')
+            print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)|P(erf)}')
             print('\t\t-s  [save_traceData:path]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
             print('\t\t-u  [run_inBackground]')
@@ -6455,6 +6459,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -e f' % cmd)
                 print('\t\t\t- show specific files opened via specific processes in real-time')
                 print('\t\t\t\t# %s top -e f -g init, lightdm : home, var' % cmd)
+                print('\t\t\t- show performance stats of specific processes in real-time')
+                print('\t\t\t\t# %s top -e P -g init, lightdm' % cmd)
                 print('\t\t\t- show resource usage of processes by sorting memory in real-time')
                 print('\t\t\t\t# %s top -S m' % cmd)
                 print('\t\t\t- show resource usage of processes by sorting file in real-time')
@@ -6654,6 +6660,7 @@ class SystemManager(object):
                 ("Fail to import python package: %s "
                 "to open perf event") % err.args[0])
             SystemManager.perfEnable = False
+            SystemManager.perfGroupEnable = False
             return
 
         # load standard libc library #
@@ -6664,6 +6671,7 @@ class SystemManager(object):
             SystemManager.libcObj = None
             SystemManager.printWarning('Fail to find libc to call systemcall')
             SystemManager.perfEnable = False
+            SystemManager.perfGroupEnable = False
             return
 
         # define struct perf_event_attr #
@@ -6968,8 +6976,10 @@ class SystemManager(object):
         perf_attr.config = nrConfig
         perf_attr.size = sizeof(perf_attr)
         perf_attr.disabled = 1
+        #perf_attr.exclude_user = 1
         #perf_attr.exclude_kernel = 1
         #perf_attr.exclude_hv = 1
+        #perf_attr.exclude_idle = 1
 
         # call a perf_event_open syscall #
         '''
@@ -7168,48 +7178,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def closePerfEvent(fd):
-        if SystemManager.guiderObj is not None:
-            try:
-                return SystemManager.guiderObj.close(fd)
-            except:
-                SystemManager.printWarning('Fail to close fd for perf event')
-                return
-
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, c_int
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to close perf event") % err.args[0])
-            return
-
-        # load standard libc library #
-        try:
-            if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-        except:
-            SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to find libc to call systemcall')
-            return
-
-        SystemManager.libcObj.close.argtypes = [c_int]
-        SystemManager.libcObj.close.restype = c_int
-
-        try:
-            return SystemManager.libcObj.close(fd)
-        except:
-            SystemManager.printWarning('Fail to close fd for perf event')
-
-
-
-    @staticmethod
-    def initPerfEvents():
+    def initSystemPerfEvents():
         attrPath = '/proc/sys/kernel/perf_event_paranoid'
         try:
             with open(attrPath, 'r') as fd:
@@ -7219,42 +7188,89 @@ class SystemManager(object):
         except:
             pass
 
-        failList = {}
+        successCnt = 0
         cpuPath = '/sys/devices/system/cpu'
         cpuList = \
             [ coreId.strip('cpu') for coreId in os.listdir(cpuPath) \
             if coreId.startswith('cpu') ]
 
+        hwTargetList = [
+            'PERF_COUNT_HW_CPU_CYCLES',
+            'PERF_COUNT_HW_INSTRUCTIONS',
+            'PERF_COUNT_HW_CACHE_REFERENCES',
+            'PERF_COUNT_HW_CACHE_MISSES',
+            'PERF_COUNT_HW_BRANCH_INSTRUCTIONS',
+            'PERF_COUNT_HW_BRANCH_MISSES',
+            ]
+
+        swTargetList = [
+            'PERF_COUNT_SW_CPU_CLOCK',
+            'PERF_COUNT_SW_PAGE_FAULTS_MIN',
+            'PERF_COUNT_SW_PAGE_FAULTS_MAJ',
+            ]
+
         for item in cpuList:
+            # check perf event option #
+            if SystemManager.perfEnable is False:
+                break
+
             try:
                 coreId = int(item)
             except:
                 continue
 
             SystemManager.perfEventChannel[coreId] = {}
-            for evt in ConfigManager.perfEventHWType:
-                # check perf event option #
-                if SystemManager.perfEnable is False:
-                    break
 
+            # HW Events #
+            for evt in hwTargetList:
                 # initialize hw event channels #
                 SystemManager.perfEventChannel[coreId][evt] = \
                     SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt, coreId)
 
                 # handle unavailable hw events #
-                if SystemManager.perfEventChannel[coreId][evt] is -1:
-                    failList[evt] = 0
+                if SystemManager.perfEventChannel[coreId][evt] == -1:
                     del SystemManager.perfEventChannel[coreId][evt]
                 elif SystemManager.perfEventChannel[coreId][evt] is None:
                     return
+                else:
+                    successCnt += 1
 
-        if len(failList) > 0:
-            SystemManager.printWarning('Fail to use perf event %s\n' % failList.keys())
+            # SW Events #
+            for evt in swTargetList:
+                # initialize sw event channels #
+                SystemManager.perfEventChannel[coreId][evt] = \
+                    SystemManager.openPerfEvent('PERF_TYPE_SOFTWARE', evt, coreId)
+
+                # handle unavailable sw events #
+                if SystemManager.perfEventChannel[coreId][evt] == -1:
+                    del SystemManager.perfEventChannel[coreId][evt]
+                elif SystemManager.perfEventChannel[coreId][evt] is None:
+                    return
+                else:
+                    successCnt += 1
+
+        if successCnt == 0:
+            SystemManager.printWarning('Fail to find available perf event')
+            SystemManager.perfEnable = SystemManager.perfGroupEnable = False
 
 
 
     @staticmethod
-    def collectPerfData():
+    def initProcPerfEvents(pid):
+        eventChannel = {}
+
+        for evt in SystemManager.perfEventChannel[0].keys():
+            eventChannel[evt] = \
+                SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt, -1, pid)
+            eventChannel[evt] = \
+                SystemManager.openPerfEvent('PERF_TYPE_SOFTWARE', evt, -1, pid)
+
+        return eventChannel
+
+
+
+    @staticmethod
+    def collectSystemPerfData():
         SystemManager.perfEventData = {}
 
         for coreId in SystemManager.perfEventChannel.keys():
@@ -7275,45 +7291,83 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getPerfString():
+    def collectProcPerfData(fdList):
+        perfData = {}
+
+        # make event list #
+        events = fdList.keys()
+
+        # get event data #
+        values = SystemManager.readPerfEvents(fdList.values())
+
+        # summarize perf data of each cores #
+        for idx, evt in enumerate(events):
+            perfData[evt] = values[idx]
+
+        return perfData
+
+
+
+    @staticmethod
+    def getPerfString(value):
         perfbuf = ''
-        value = SystemManager.perfEventData
 
         inst = buscycle = refcpucycle = cpucycle = -1
         cacheref = cachemiss = cachemissrate = -1
         branch = branchmiss = branchmissrate = -1
 
-        try:
-            buscycle = value['PERF_COUNT_HW_BUS_CYCLES']
-            refcpucycle = value['PERF_COUNT_HW_REF_CPU_CYCLES']
-        except:
-            pass
-
+        # IPC stats #
         try:
             cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
-            perfbuf = '%s [Cycle: %s]' % (perfbuf, format(cpucycle, ','))
+            perfbuf = '%sCycle: %s / ' % \
+                (perfbuf, SystemManager.convertSize(cpucycle))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
-            perfbuf = '%s [Inst: %s]' % (perfbuf, format(inst, ','))
+            perfbuf = '%sInst: %s / ' % \
+                (perfbuf, SystemManager.convertSize(inst))
             ipc = inst / float(cpucycle)
-            perfbuf = '%s [IPC: %.3f]' % (perfbuf, ipc)
+            perfbuf = '%sIPC: %.3f / ' % (perfbuf, ipc)
         except:
             pass
 
+        # CACHE stats #
         try:
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%s [CacheMiss: %s (%.1f%%)]' % \
-                (perfbuf, format(cachemiss, ','), cachemissrate)
+            perfbuf = '%sCacheMiss: %s(%.1f%%) / ' % \
+                (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
         except:
             pass
 
+        # BRANCH stats #
         try:
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%s [BranchMiss: %s (%.1f%%)]' % \
-                (perfbuf, format(branchmiss, ','), branchmissrate)
+            perfbuf = '%sBranchMiss: %s(%.1f%%) / ' % \
+                (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
+        except:
+            pass
+
+        # CPU stats #
+        try:
+            perfbuf = '%sClock: %s / ' % \
+                (perfbuf, SystemManager.convertSize(value['PERF_COUNT_SW_CPU_CLOCK']))
+        except:
+            pass
+
+        # FAULT stats #
+        try:
+            faultmin = value['PERF_COUNT_SW_PAGE_FAULTS_MIN']
+            faultmaj = value['PERF_COUNT_SW_PAGE_FAULTS_MAJ']
+            perfbuf = '%sMinFlt: %s / MajFlt: %s / ' % \
+                (perfbuf, format(faultmin, ','), format(faultmaj, ','))
+        except:
+            pass
+
+        try:
+            if len(perfbuf) > 0:
+                perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
         except:
             pass
 
@@ -7856,6 +7910,11 @@ class SystemManager(object):
                     enableStat += 'CPU '
                 else:
                     disableStat += 'CPU '
+
+                if SystemManager.perfGroupEnable:
+                    enableStat += 'PERF '
+                else:
+                    disableStat += 'PERF '
 
                 if SystemManager.blockEnable:
                     enableStat += 'BLOCK '
@@ -9163,6 +9222,9 @@ class SystemManager(object):
                     SystemManager.vssEnable = False
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+                if options.rfind('P') > -1:
+                    SystemManager.perfEnable = False
+                    SystemManager.perfGroupEnable = False
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
                     SystemManager.rootPath = '/'
@@ -9206,7 +9268,11 @@ class SystemManager(object):
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False:
                         SystemManager.printError(\
-                            "wrong option with -e + s, use -g option to show stacks")
+                            "wrong option with -e + s, use also -g option to show stacks")
+                        sys.exit(0)
+                    elif os.path.isfile('/proc/1/stack') is False:
+                        SystemManager.printError(\
+                            "Fail to sample stack, please confirm kernel configuration")
                         sys.exit(0)
                     else:
                         SystemManager.stackEnable = True
@@ -9222,6 +9288,20 @@ class SystemManager(object):
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
+                if options.rfind('P') > -1:
+                    if os.geteuid() != 0:
+                        SystemManager.printError("Fail to get root permission to use PMU")
+                        sys.exit(0)
+                    elif SystemManager.findOption('g') is False:
+                        SystemManager.printError(\
+                            "wrong option with -e + P, use also -g option to show performance stat")
+                        sys.exit(0)
+                    elif os.path.isfile('/proc/sys/kernel/perf_event_paranoid') is False:
+                        SystemManager.printError(\
+                            "Fail to use PMU, please confirm kernel configuration")
+                        sys.exit(0)
+                    else:
+                        SystemManager.perfGroupEnable = True
                 if options.rfind('r') > -1:
                     try:
                         import json
@@ -10514,9 +10594,12 @@ class SystemManager(object):
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
             if os.geteuid() == 0:
-                SystemManager.printError("Check whether ftrace options are enabled in kernel")
+                cmd = '/boot/config-$(uname -r)'
+                SystemManager.printError(\
+                    "Check whether ftrace options are enabled in kernel through %s" % cmd)
             else:
-                SystemManager.printError("Fail to get root permission to trace system")
+                SystemManager.printError(\
+                    "Fail to get root permission to trace system")
 
             sys.exit(0)
 
@@ -11741,7 +11824,7 @@ class ThreadAnalyzer(object):
                 # no path of statistics file #
                 else:
                     SystemManager.printError(\
-                        "wrong option with -e + g, use -I option to load statistics data")
+                        "wrong option with -e + g, use also -I option to load statistics data")
                     sys.exit(0)
 
             # set system maximum fd number #
@@ -12079,10 +12162,6 @@ class ThreadAnalyzer(object):
             else:
                 # wait for next interval #
                 time.sleep(waitTime)
-
-            # collect perf data #
-            if SystemManager.perfEnable:
-                SystemManager.collectPerfData()
 
             # check request from client #
             self.checkServer()
@@ -12887,7 +12966,7 @@ class ThreadAnalyzer(object):
                 except:
                     item['stack'][stack] = 1
 
-            # set 1ms as sample rate #
+            # set 1ms as sampling rate #
             time.sleep(0.001)
 
             if time.time() - start >= period:
@@ -18274,6 +18353,10 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
+        # collect perf data #
+        if SystemManager.perfEnable:
+            SystemManager.collectSystemPerfData()
+
         # get process list #
         try:
             pids = os.listdir(SystemManager.procPath)
@@ -18674,7 +18757,7 @@ class ThreadAnalyzer(object):
 
 
     def saveProcData(self, path, tid):
-        # save stat info #
+        # save stat data #
         try:
             self.prevProcData[tid]['statFd'].seek(0)
             self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
@@ -18729,7 +18812,7 @@ class ThreadAnalyzer(object):
             statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
-        # save io info #
+        # save io data #
         if SystemManager.blockEnable:
             try:
                 self.prevProcData[tid]['ioFd'].seek(0)
@@ -18763,6 +18846,32 @@ class ThreadAnalyzer(object):
                     except:
                         self.procData[tid]['io'] = {}
                         self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+
+        # init perf event #
+        if SystemManager.perfGroupEnable:
+            if SystemManager.groupProcEnable:
+                if SystemManager.processEnable:
+                    if self.procData[tid]['stat'][self.ppidIdx] in SystemManager.showGroup:
+                        pass
+                    elif tid in SystemManager.showGroup:
+                        pass
+                    else:
+                        return
+                elif self.procData[tid]['mainID'] not in SystemManager.showGroup:
+                    return
+            else:
+                if tid in SystemManager.showGroup:
+                    pass
+                elif True in [self.procData[tid]['stat'][self.commIdx].find(val) >= 0 \
+                    for val in SystemManager.showGroup]:
+                    pass
+                else:
+                    return
+
+            try:
+                self.procData[tid]['perfFds'] = self.prevProcData[tid]['perfFds']
+            except:
+                self.procData[tid]['perfFds'] = SystemManager.initProcPerfEvents(int(tid))
 
 
 
@@ -19380,6 +19489,7 @@ class ThreadAnalyzer(object):
 
         # print process usage #
         procCnt = 0
+        needLine = False
         for idx, value in sortedProcData:
             # apply filter #
             if SystemManager.showGroup != []:
@@ -19566,6 +19676,16 @@ class ThreadAnalyzer(object):
                 value['btime'], readSize, writeSize, value['majflt'],\
                 yld, prtd, value['fdsize'], lifeTime, etc))
 
+            # print PMU stats #
+            try:
+                perfData = SystemManager.collectProcPerfData(value['perfFds'])
+                perfString = SystemManager.getPerfString(perfData)
+                if len(perfString) > 0:
+                    SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
+                    needLine = True
+            except:
+                value['perfFds'] = SystemManager.initProcPerfEvents(int(idx))
+
             # print memory details #
             if SystemManager.memEnable:
                 if value['maps'] is not None:
@@ -19651,7 +19771,7 @@ class ThreadAnalyzer(object):
                             SystemManager.addPrint('---more---')
                             return
 
-                SystemManager.addPrint("%s\n" % oneLine)
+                needLine = True
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -19672,6 +19792,7 @@ class ThreadAnalyzer(object):
 
                         indent = initIndent + 3
 
+                        newLine = 1
                         for call in stack.split('\n'):
                             try:
                                 astack = call.split()[1]
@@ -19686,6 +19807,7 @@ class ThreadAnalyzer(object):
                                 if indent + len(line) + len(astack) >= SystemManager.lineLength:
                                     indent = 0
                                     fullstack = '%s%s\n' % (fullstack, line)
+                                    newLine += 1
                                     line = ' ' * initIndent
 
                                 line = '%s%s <- ' % (line, astack)
@@ -19694,24 +19816,20 @@ class ThreadAnalyzer(object):
 
                         fullstack = '%s%s' % (fullstack, line)
 
-                        SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack))
+                        SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
                 except:
                     pass
 
-                try:
-                    if self.stackTable[idx]['total'] == 0:
-                        SystemManager.addPrint("{0:>39} | {1:1}\n".format('', 'None'))
-                    else:
-                        self.stackTable[idx]['total'] = 0
-                    SystemManager.addPrint("%s\n" % oneLine)
-                except:
-                    pass
+                self.stackTable[idx]['total'] = 0
+                needLine = True
 
             procCnt += 1
+            if needLine:
+                SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
             SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
-        elif SystemManager.memEnable or SystemManager.stackEnable:
+        elif needLine:
             pass
         else:
             SystemManager.addPrint("%s\n" % oneLine)
@@ -19927,23 +20045,24 @@ class ThreadAnalyzer(object):
 
                 # close fd that thread who already termiated created because of limited resource #
                 try:
-                    if value['statFd'] is not None:
-                        value['statFd'].close()
+                    value['statFd'].close()
                 except:
                     pass
                 try:
-                    if value['statusFd'] is not None:
-                        value['statusFd'].close()
+                    value['statusFd'].close()
                 except:
                     pass
                 try:
-                    if value['statmFd'] is not None:
-                        value['statmFd'].close()
+                    value['statmFd'].close()
                 except:
                     pass
                 try:
-                    if value['ioFd'] is not None:
-                        value['ioFd'].close()
+                    value['ioFd'].close()
+                except:
+                    pass
+                try:
+                    for fd in value['perfFds'].values():
+                        os.close(fd)
                 except:
                     pass
             else:
@@ -20398,8 +20517,9 @@ class ThreadAnalyzer(object):
 
         # print PMU stat #
         if len(SystemManager.perfEventData) > 0:
-            SystemManager.addPrint(\
-                "%s%s\n" % (' ' * len('[Top Info]'), SystemManager.getPerfString()))
+            perfString = SystemManager.getPerfString(SystemManager.perfEventData)
+            if len(perfString) > 0:
+                SystemManager.addPrint("%s %s\n" % (' ' * len('[Top Info]'), perfString))
 
         # print system stat #
         self.printSystemUsage()
@@ -20648,7 +20768,8 @@ if __name__ == '__main__':
                     SystemManager.copyPipeToFile(\
                         '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
                 else:
-                    SystemManager.printError("wrong option with -e + p, use -s option to save data")
+                    SystemManager.printError(\
+                        "wrong option with -e + p, use also -s option to save data")
 
                 sys.exit(0)
 
@@ -20663,7 +20784,7 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
+                SystemManager.printError("buffer size is not enough (%s KB)" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
             else:
@@ -20675,7 +20796,8 @@ if __name__ == '__main__':
                 SystemManager.copyPipeToFile(\
                     '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
             else:
-                SystemManager.printError("wrong option with -e + p, use -s option to save data")
+                SystemManager.printError(\
+                    "wrong option with -e + p, use also -s option to save data")
 
             sys.exit(0)
 
@@ -20696,7 +20818,7 @@ if __name__ == '__main__':
         if SystemManager.graphEnable is False:
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%s KB) to profile" % \
+                SystemManager.printError("buffer size is not enough (%s KB)" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
 

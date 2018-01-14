@@ -90,25 +90,6 @@ guider_munmap(PyObject *self, PyObject *args)
 }
 
 /*
- * int close(int fd);
- */
-static PyObject *
-guider_close(PyObject *self, PyObject *args)
-{
-    int ret, fd;
-
-    if (!PyArg_ParseTuple(args, "i", &fd))
-    {
-        return NULL;
-    }
-
-    ret = close(fd);
-
-    return Py_BuildValue("i", ret);
-}
-
-
-/*
  * int mincore(void *addr, size_t length, unsigned char *vec);
  */
 static PyObject *
@@ -201,8 +182,10 @@ guider_perf_event_open(PyObject *self, PyObject *args)
     pea.size = sizeof(struct perf_event_attr);
     pea.config = config;
     pea.disabled = 1;
+    //pea.exclude_user = 1;
     //pea.exclude_kernel = 1;
     //pea.exclude_hv = 1;
+    //pea.exclude_idle = 1;
 
     fd = syscall(__NR_perf_event_open, &pea, pid, cpu, group_fd, flags);
 
@@ -219,7 +202,7 @@ static PyObject *
 guider_perf_event_read(PyObject *self, PyObject *args)
 {
     int fd, ret;
-    long value;
+    long value = 0;
 
     if (!PyArg_ParseTuple(args, "i", &fd))
     {
@@ -243,7 +226,6 @@ static PyMethodDef guiderMethods[] = {
     {"mmap", guider_mmap, METH_VARARGS, "mmap()"},
     {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
     {"mincore", guider_mincore, METH_VARARGS, "mincore()"},
-    {"close", guider_close, METH_VARARGS, "close()"},
     {"perf_event_open", guider_perf_event_open, METH_VARARGS, "perf_event_open()"},
     {"perf_event_read", guider_perf_event_read, METH_VARARGS, "perf_event_read()"},
     {NULL, NULL, 0, NULL}
