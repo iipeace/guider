@@ -5879,6 +5879,7 @@ class SystemManager(object):
     userEventList = []
     kernelEventList = []
     perfEventChannel = {}
+    perfTargetEvent = []
     perfEventData = {}
     guiderObj = None
     ctypesObj = None
@@ -7180,21 +7181,6 @@ class SystemManager(object):
 
     @staticmethod
     def initSystemPerfEvents():
-        attrPath = '/proc/sys/kernel/perf_event_paranoid'
-        try:
-            with open(attrPath, 'r') as fd:
-                if int(fd.readline()[:-1]) == 2:
-                    SystemManager.printWarning(\
-                        'Check value of %s to read perf events' % attrPath)
-        except:
-            pass
-
-        successCnt = 0
-        cpuPath = '/sys/devices/system/cpu'
-        cpuList = \
-            [ coreId.strip('cpu') for coreId in os.listdir(cpuPath) \
-            if coreId.startswith('cpu') ]
-
         hwTargetList = [
             'PERF_COUNT_HW_CPU_CYCLES',
             'PERF_COUNT_HW_INSTRUCTIONS',
@@ -7209,6 +7195,21 @@ class SystemManager(object):
             'PERF_COUNT_SW_PAGE_FAULTS_MIN',
             'PERF_COUNT_SW_PAGE_FAULTS_MAJ',
             ]
+
+        attrPath = '/proc/sys/kernel/perf_event_paranoid'
+        try:
+            with open(attrPath, 'r') as fd:
+                if int(fd.readline()[:-1]) == 2:
+                    SystemManager.printWarning(\
+                        'Check value of %s to read perf events' % attrPath)
+        except:
+            pass
+
+        successCnt = 0
+        cpuPath = '/sys/devices/system/cpu'
+        cpuList = \
+            [ coreId.strip('cpu') for coreId in os.listdir(cpuPath) \
+            if coreId.startswith('cpu') ]
 
         for item in cpuList:
             # check perf event option #
@@ -7250,6 +7251,11 @@ class SystemManager(object):
                 else:
                     successCnt += 1
 
+            if len(SystemManager.perfTargetEvent) == 0 and \
+                len(SystemManager.perfEventChannel[coreId]) > 0:
+                SystemManager.perfTargetEvent = \
+                    SystemManager.perfEventChannel[coreId].keys()
+
         if successCnt == 0:
             SystemManager.printWarning('Fail to find available perf event')
             SystemManager.perfEnable = SystemManager.perfGroupEnable = False
@@ -7260,7 +7266,7 @@ class SystemManager(object):
     def initProcPerfEvents(pid):
         eventChannel = {}
 
-        for evt in SystemManager.perfEventChannel[0].keys():
+        for evt in SystemManager.perfTargetEvent:
             eventChannel[evt] = \
                 SystemManager.openPerfEvent(evt, -1, pid)
 
@@ -7272,9 +7278,20 @@ class SystemManager(object):
     def collectSystemPerfData():
         SystemManager.perfEventData = {}
 
+        if SystemManager.perfGroupEnable and \
+            len(SystemManager.perfEventChannel) == 0:
+            return
+
         for coreId in SystemManager.perfEventChannel.keys():
             # make event list #
             events = SystemManager.perfEventChannel[coreId].keys()
+
+            # remove all core events if specific target process exist #
+            if SystemManager.perfGroupEnable:
+                for fd in SystemManager.perfEventChannel[coreId].values():
+                    os.close(fd)
+                del SystemManager.perfEventChannel[coreId]
+                continue
 
             # get event data #
             values = SystemManager.readPerfEvents(\
@@ -7327,7 +7344,7 @@ class SystemManager(object):
             perfbuf = '%sInst: %s / ' % \
                 (perfbuf, SystemManager.convertSize(inst))
             ipc = inst / float(cpucycle)
-            perfbuf = '%sIPC: %.3f / ' % (perfbuf, ipc)
+            perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
         except:
             pass
 
@@ -7336,7 +7353,7 @@ class SystemManager(object):
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sCacheMiss: %s(%.1f%%) / ' % \
+            perfbuf = '%sChMiss: %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
         except:
             pass
@@ -7346,7 +7363,7 @@ class SystemManager(object):
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBranchMiss: %s(%.1f%%) / ' % \
+            perfbuf = '%sBrMiss: %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
         except:
             pass
