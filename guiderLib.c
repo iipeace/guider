@@ -198,6 +198,27 @@ guider_perf_event_open(PyObject *self, PyObject *args)
     return Py_BuildValue("i", fd);
 }
 
+/*
+ * int setpriority(int which, int who, int prio);
+ */
+static PyObject *
+guider_setpriority(PyObject *self, PyObject *args)
+{
+    int which, who, prio, ret;
+
+    if (!PyArg_ParseTuple(args, "iii", &which, &who, &prio))
+    {
+        return NULL;
+    }
+
+    ret = setpriority(which, who, prio);
+    if (ret < 0) {
+        return NULL;
+    } else {
+        return Py_BuildValue("i", ret);
+    }
+}
+
 static PyObject *
 guider_perf_event_read(PyObject *self, PyObject *args)
 {
@@ -223,6 +244,7 @@ static PyMethodDef guiderMethods[] = {
     {"prctl", guider_prctl, METH_VARARGS, "prctl()"},
     {"getrlimit", guider_getrlimit, METH_VARARGS, "getrlimit()"},
     {"sched_setscheduler", guider_sched_setscheduler, METH_VARARGS, "sched_setscheduler()"},
+    {"setpriority", guider_setpriority, METH_VARARGS, "setpriority()"},
     {"mmap", guider_mmap, METH_VARARGS, "mmap()"},
     {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
     {"mincore", guider_mincore, METH_VARARGS, "mincore()"},

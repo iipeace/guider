@@ -7311,6 +7311,9 @@ class SystemManager(object):
     def getPerfString(value):
         perfbuf = ''
 
+        if len(value) == 0:
+            return perfbuf
+
         inst = buscycle = refcpucycle = cpucycle = -1
         cacheref = cachemiss = cachemissrate = -1
         branch = branchmiss = branchmissrate = -1
@@ -8367,7 +8370,7 @@ class SystemManager(object):
             target = '%s%s' % (SystemManager.mountPath, path)
             fd = open(target, perm)
         except:
-            epath = path[0:path.rfind('/')]
+            epath = path[:path.rfind('/')]
             try:
                 SystemManager.sysInstance.cmdList[epath] = False
             except:
@@ -10611,11 +10614,13 @@ class SystemManager(object):
         else:
             # Change from integer to string #
             SystemManager.bufferSize = str(SystemManager.bufferSize)
+
         SystemManager.writeCmd("../buffer_size_kb", SystemManager.bufferSize)
         setBufferSize = SystemManager.getBufferSize()
         if int(SystemManager.bufferSize) != setBufferSize:
-            SystemManager.printWarning("Set buffer size(%s) is different with %s" % \
-                (setBufferSize, SystemManager.bufferSize))
+            SystemManager.printWarning(\
+                "Fail to set buffer size to %sKB, buffer size is %sKB now" % \
+                (SystemManager.bufferSize, setBufferSize))
 
         # initialize event list to enable #
         self.initCmdList()
@@ -10923,12 +10928,14 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.futexEnable:
-            ecmd = "(id == %s)" % (ConfigManager.sysList.index("sys_futex"))
+            ecmd = "(id == %s)" % \
+                (ConfigManager.sysList.index("sys_futex"))
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
             self.cmdList["raw_syscalls/sys_enter"] = True
 
-            rcmd = "(id == %s  && ret == 0)" % (ConfigManager.sysList.index("sys_futex"))
+            rcmd = "(id == %s  && ret == 0)" % \
+                (ConfigManager.sysList.index("sys_futex"))
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
             self.cmdList["raw_syscalls/sys_exit"] = True
@@ -10938,6 +10945,7 @@ class SystemManager(object):
 
         # enable systemcall events #
         scmd = ""
+        traceAll = False
         if self.cmdList["raw_syscalls"]:
             sfilter = ""
             pfilter = SystemManager.getPidFilter()
@@ -10950,10 +10958,14 @@ class SystemManager(object):
             if len(sfilter) > 0 and len(pfilter) > 0:
                 scmd = "(%s && %s) || " % (sfilter, pfilter)
             elif len(sfilter) == 0 and len(pfilter) == 0:
-                pass
+                traceAll = True
             else:
                 scmd = "(%s%s) || " % (sfilter, pfilter)
-        scmd += "( id == %s )" % ConfigManager.sysList.index("sys_execve")
+
+            if traceAll is False:
+                scmd = "%s( id == %s )" % (scmd, ConfigManager.sysList.index("sys_execve"))
+        else:
+            scmd = "%s( id == %s )" % (scmd, ConfigManager.sysList.index("sys_execve"))
         SystemManager.writeCmd('raw_syscalls/filter', scmd)
         SystemManager.writeCmd('raw_syscalls/enable', '1')
 
@@ -11053,8 +11065,8 @@ class SystemManager(object):
         # disable all ftrace options registered #
         for idx, val in SystemManager.cmdList.items():
             if val is True:
-                SystemManager.writeCmd(str(idx) + '/enable', '0')
-                SystemManager.writeCmd(str(idx) + '/filter', '0')
+                if SystemManager.writeCmd(str(idx) + '/enable', '0') >= 0:
+                    SystemManager.writeCmd(str(idx) + '/filter', '0')
 
         if SystemManager.graphEnable is False and SystemManager.customCmd is not None:
             for cmd in SystemManager.customCmd:
@@ -19683,7 +19695,7 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
                     needLine = True
             except:
-                value['perfFds'] = SystemManager.initProcPerfEvents(int(idx))
+                pass
 
             # print memory details #
             if SystemManager.memEnable:
@@ -20783,7 +20795,7 @@ if __name__ == '__main__':
 
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%s KB)" % \
+                SystemManager.printError("buffer size is not enough (%sKB)" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
             else:
@@ -20817,7 +20829,7 @@ if __name__ == '__main__':
         if SystemManager.graphEnable is False:
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%s KB)" % \
+                SystemManager.printError("buffer size %sKB is not enough" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
 
