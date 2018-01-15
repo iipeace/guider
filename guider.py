@@ -6620,18 +6620,19 @@ class SystemManager(object):
 
 
     @staticmethod
-    def openPerfEvent(etype, econfig, cpu=-1, pid=-1):
+    def openPerfEvent(econfig, cpu=-1, pid=-1):
         try:
-            nrType = ConfigManager.perfEventType.index(etype)
             if econfig in ConfigManager.perfEventHWType:
+                nrType = ConfigManager.perfEventType.index('PERF_TYPE_HARDWARE')
                 nrConfig = ConfigManager.perfEventHWType.index(econfig)
             elif econfig in ConfigManager.perfEventSWType:
+                nrType = ConfigManager.perfEventType.index('PERF_TYPE_SOFTWARE')
                 nrConfig = ConfigManager.perfEventSWType.index(econfig)
             else:
                 raise
         except:
-            SystemManager.printError\
-                ('Fail to recognize %s, %s as perf event type' % (etype, econfig))
+            SystemManager.printError(\
+                'Fail to recognize %s as perf event type' % econfig)
             return
 
         if SystemManager.guiderObj is not None:
@@ -7225,7 +7226,7 @@ class SystemManager(object):
             for evt in hwTargetList:
                 # initialize hw event channels #
                 SystemManager.perfEventChannel[coreId][evt] = \
-                    SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt, coreId)
+                    SystemManager.openPerfEvent(evt, coreId)
 
                 # handle unavailable hw events #
                 if SystemManager.perfEventChannel[coreId][evt] == -1:
@@ -7239,7 +7240,7 @@ class SystemManager(object):
             for evt in swTargetList:
                 # initialize sw event channels #
                 SystemManager.perfEventChannel[coreId][evt] = \
-                    SystemManager.openPerfEvent('PERF_TYPE_SOFTWARE', evt, coreId)
+                    SystemManager.openPerfEvent(evt, coreId)
 
                 # handle unavailable sw events #
                 if SystemManager.perfEventChannel[coreId][evt] == -1:
@@ -7261,9 +7262,7 @@ class SystemManager(object):
 
         for evt in SystemManager.perfEventChannel[0].keys():
             eventChannel[evt] = \
-                SystemManager.openPerfEvent('PERF_TYPE_HARDWARE', evt, -1, pid)
-            eventChannel[evt] = \
-                SystemManager.openPerfEvent('PERF_TYPE_SOFTWARE', evt, -1, pid)
+                SystemManager.openPerfEvent(evt, -1, pid)
 
         return eventChannel
 
