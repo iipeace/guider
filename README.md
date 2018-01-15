@@ -176,7 +176,7 @@ How to use
 
 ```
 Input command as bellow to start accurate tracing in thread mode
-# guider.py record 
+# guider.py record -a
 
 Input "Ctrl + c" key to finish tracing
 
@@ -249,6 +249,8 @@ CONFIG_UPROBES
 CONFIG_UPROBE_EVENT
 CONFIG_KPROBES
 CONFIG_KPROBE_EVENTS
+CONFIG_PERF_EVENTS 
+CONFIG_HW_PERF_EVENT
 ```
 
 
