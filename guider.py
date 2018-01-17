@@ -6637,6 +6637,7 @@ class SystemManager(object):
             return
 
         if SystemManager.guiderObj is not None:
+            # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
             fd = SystemManager.guiderObj.perf_event_open(nrType, nrConfig, pid, cpu, -1, 0)
             if fd < 0:
                 # check root permission #
@@ -6988,6 +6989,7 @@ class SystemManager(object):
         int perf_event_open(struct perf_event_attr *attr,
             pid_t pid, int cpu, int group_fd, unsigned long flags);
         '''
+        # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
         fd = SystemManager.libcObj.syscall(\
             ConfigManager.sysList.index('sys_perf_event_open'), pointer(perf_attr),\
             pid, cpu, -1, 0)
@@ -7353,7 +7355,7 @@ class SystemManager(object):
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sChMiss: %s(%d%%) / ' % \
+            perfbuf = '%sCacheMiss: %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
         except:
             pass
@@ -7363,7 +7365,7 @@ class SystemManager(object):
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBrMiss: %s(%d%%) / ' % \
+            perfbuf = '%sBranchMiss: %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
         except:
             pass
@@ -10962,7 +10964,6 @@ class SystemManager(object):
 
         # enable systemcall events #
         scmd = ""
-        traceAll = False
         if self.cmdList["raw_syscalls"]:
             sfilter = ""
             pfilter = SystemManager.getPidFilter()
@@ -10973,16 +10974,18 @@ class SystemManager(object):
                 sfilter = "%s )" % sfilter[:sfilter.rfind(" ||")]
 
             if len(sfilter) > 0 and len(pfilter) > 0:
-                scmd = "(%s && %s) || " % (sfilter, pfilter)
+                scmd = "(%s && %s)" % (sfilter, pfilter)
             elif len(sfilter) == 0 and len(pfilter) == 0:
-                traceAll = True
+                pass
+            elif len(sfilter) > 0:
+                scmd = "%s || ( id == %s )" % \
+                    (sfilter, ConfigManager.sysList.index("sys_execve"))
+            elif len(pfilter) > 0:
+                scmd = "(%s)" % pfilter
             else:
-                scmd = "(%s%s) || " % (sfilter, pfilter)
-
-            if traceAll is False:
-                scmd = "%s( id == %s )" % (scmd, ConfigManager.sysList.index("sys_execve"))
+                pass
         else:
-            scmd = "%s( id == %s )" % (scmd, ConfigManager.sysList.index("sys_execve"))
+            scmd = "( id == %s )" % ConfigManager.sysList.index("sys_execve")
         SystemManager.writeCmd('raw_syscalls/filter', scmd)
         SystemManager.writeCmd('raw_syscalls/enable', '1')
 
@@ -13408,6 +13411,10 @@ class ThreadAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
+        # check trace event #
+        if not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
+            return
+
         # print menu #
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
             "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB/NR ]") % \
@@ -13639,10 +13646,6 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
-
-        self.printComInfo()
-
-        self.printEventInfo()
 
         # prepare to draw graph #
         if SystemManager.graphEnable:
@@ -14243,6 +14246,9 @@ class ThreadAnalyzer(object):
         # total CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), \
             key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
+            if SystemManager.cpuEnable is False:
+                break
+
             if key[0:2] == '0[':
                 timeLine = ''
                 timeLineLen = titleLineLen
@@ -14603,9 +14609,10 @@ class ThreadAnalyzer(object):
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
-        SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
-        SystemManager.pipePrint(SystemManager.bufferString)
-        SystemManager.pipePrint(oneLine)
+        if SystemManager.cpuEnable:
+            SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.pipePrint(oneLine)
 
         # preempted units on timeline #
         SystemManager.clearPrint()
@@ -14669,9 +14676,10 @@ class ThreadAnalyzer(object):
                     SystemManager.showAll is False:
                     break
 
-        SystemManager.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
-        SystemManager.pipePrint(SystemManager.bufferString)
-        SystemManager.pipePrint(oneLine)
+        if SystemManager.cpuEnable:
+            SystemManager.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.pipePrint(oneLine)
 
         # memory usage on timeline #
         SystemManager.clearPrint()
@@ -14731,9 +14739,10 @@ class ThreadAnalyzer(object):
                         SystemManager.showAll == False:
                         break
 
-            SystemManager.pipePrint("%s# %s\n" % ('', 'MEM(MB)'))
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.pipePrint(oneLine)
+            if SystemManager.memEnable:
+                SystemManager.pipePrint("%s# %s\n" % ('', 'MEM(MB)'))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
 
         # block read usage on timeline #
         SystemManager.clearPrint()
@@ -14793,9 +14802,10 @@ class ThreadAnalyzer(object):
                     if value['readBlock'] < 1 and SystemManager.showAll == False:
                         break
 
-            SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.pipePrint(oneLine)
+            if SystemManager.blockEnable:
+                SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
 
         # block write usage on timeline #
         SystemManager.clearPrint()
@@ -14855,9 +14865,10 @@ class ThreadAnalyzer(object):
                     if value['writeBlockCnt'] < 1 and SystemManager.showAll == False:
                         break
 
-            SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_WR(MB)'))
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.pipePrint(oneLine)
+            if SystemManager.blockEnable:
+                SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_WR(MB)'))
+                SystemManager.pipePrint(SystemManager.bufferString)
+                SystemManager.pipePrint(oneLine)
 
         # event usage on timeline #
         self.printEventIntervalInfo()
@@ -19439,7 +19450,7 @@ class ThreadAnalyzer(object):
                 cutime = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
                 cstime = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
                 value['cttime'] = cutime + cstime
-                value['btime'] = int((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
+                value['btime'] = long((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
                 if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
             except:
@@ -19459,13 +19470,17 @@ class ThreadAnalyzer(object):
                 cutime = int(nowData[self.cutimeIdx] / interval)
                 cstime = int(nowData[self.cstimeIdx] / interval)
                 value['cttime'] = cutime + cstime
-                value['btime'] = int(nowData[self.btimeIdx] / interval)
+                value['btime'] = long(nowData[self.btimeIdx] / interval)
                 if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
 
                 if value['io'] is not None:
                     value['read'] = value['io']['read_bytes']
                     value['write'] = value['io']['write_bytes']
+
+            # check delayacct_blkio_ticks error #
+            if value['btime'] >= 100:
+                value['btime'] = 0
 
         # get profile mode #
         if SystemManager.processEnable:
@@ -20962,6 +20977,12 @@ if __name__ == '__main__':
 
         # print thread usage #
         ti.printUsage()
+
+        # print communication usage #
+        ti.printComInfo()
+
+        # print event usage #
+        ti.printEventInfo()
 
         # print block usage #
         ti.printBlockInfo()
