@@ -1180,9 +1180,11 @@ class FunctionAnalyzer(object):
 
         # Check root path #
         if SystemManager.rootPath is None and SystemManager.userEnable:
-            SystemManager.printError(\
-                "Fail to recognize sysroot path of target for user mode, use -r option")
-            sys.exit(0)
+            SystemManager.printWarning((\
+                "Fail to recognize sysroot path for user function analysis\n"
+                "\tso just use '/' as default sysroot path\n"
+                "\tif it is wrong then use -r option"), True)
+            SystemManager.rootPath = '/'
 
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
@@ -1900,6 +1902,8 @@ class FunctionAnalyzer(object):
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
 
+        SystemManager.deleteProgress()
+
         # Print summary about ignored events #
         self.printIgnoreEvents()
 
@@ -1923,7 +1927,9 @@ class FunctionAnalyzer(object):
         # Get symbols and source pos #
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             curIdx += 1
-            SystemManager.printProgress(curIdx, lastIdx)
+
+            if curIdx > 1:
+                SystemManager.printProgress(curIdx, lastIdx)
 
             # Handle thumbcode #
             if idx == '00c0ffee':
@@ -1968,6 +1974,8 @@ class FunctionAnalyzer(object):
         if binPath != '':
             self.getSymbolInfo(binPath, offsetList)
 
+        SystemManager.deleteProgress()
+
 
 
     def getSymbolInfo(self, binPath, offsetList):
@@ -2005,14 +2013,22 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable is False:
             return
         elif SystemManager.addr2linePath is None:
-            SystemManager.printError(\
-                "Fail to find addr2line, use -l option with addr2line path for user mode")
-            sys.exit(0)
+            addr2linePath = SystemManager.which('addr2line')
+            if addr2linePath != None:
+                SystemManager.printWarning((\
+                    "Fail to recognize addr2line path for user function analysis\n"
+                    "\tso just use %s as default addr2line path\n"
+                    "\tif it is wrong then use -l option") % addr2linePath, True)
+                SystemManager.addr2linePath = addr2linePath
+            else:
+                SystemManager.printError((\
+                    "Fail to recognize addr2line path for user function analysis "
+                    "use -l option"))
+                sys.exit(0)
         else:
             for path in SystemManager.addr2linePath:
                 if os.path.isfile(path) is False:
-                    SystemManager.printError(\
-                        "Fail to find addr2line, use -l option with addr2line path for user mode")
+                    SystemManager.printError("Fail to find %s to use addr2line" % path)
                     sys.exit(0)
 
         for path in SystemManager.addr2linePath:
@@ -2500,6 +2516,8 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
+        SystemManager.deleteProgress()
+
         # Save stack of last events per core #
         for idx in self.coreCtx.keys():
             self.lastCore = idx
@@ -2597,10 +2615,10 @@ class FunctionAnalyzer(object):
 
         if self.nowCtx['nested'] > 2:
             #self.printDbgInfo()
-            SystemManager.printError((\
-                "Fail to analyze stack data because of corruption (overflowflow) at %s line,"\
-                " try to record again") % SystemManager.dbgEventLine)
-            os._exit(0)
+            SystemManager.printWarning((\
+                "Fail to analyze stack data because of corruption (overflowflow) at %s line\n"\
+                "\tso report results may differ from actual") % SystemManager.dbgEventLine, True)
+
 
 
     def printDbgInfo(self):
@@ -2980,10 +2998,9 @@ class FunctionAnalyzer(object):
 
             if self.nowCtx['nested'] < 0:
                 #self.printDbgInfo()
-                SystemManager.printError((\
-                    "Fail to analyze stack data because of corruption (underflow) at %s line,"\
-                    " try to record again") % SystemManager.dbgEventLine)
-                sys.exit(0)
+                SystemManager.printWarning((\
+                    "Fail to analyze stack data because of corruption (underflow) at %s line\n"\
+                    "\tso report results may differ from actual") % SystemManager.dbgEventLine, True)
 
             return True
 
@@ -3116,6 +3133,9 @@ class FunctionAnalyzer(object):
 
                     EventAnalyzer.addEvent(d['time'], gd['event'])
 
+                # Return False because no stack data with this event #
+                return False
+
             # Save tgid(pid) #
             if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
@@ -3187,11 +3207,6 @@ class FunctionAnalyzer(object):
 
 
     def getBinInfo(self, addr):
-        if SystemManager.rootPath is None:
-            SystemManager.printError(\
-                "Fail to recognize sysroot path of target for user mode, use -r option")
-            sys.exit(0)
-
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
@@ -6320,6 +6335,19 @@ class SystemManager(object):
 
 
     @staticmethod
+    def which(file):
+        pathList = []
+        for path in os.environ["PATH"].split(os.pathsep):
+            if os.path.exists(os.path.join(path, file)):
+                pathList.append(os.path.join(path, file))
+        if len(pathList) == 0:
+            return None
+        else:
+            return pathList
+
+
+
+    @staticmethod
     def printOptions():
         if len(sys.argv) <= 1 or \
             sys.argv[1] == '-h' or \
@@ -7542,7 +7570,6 @@ class SystemManager(object):
 
     @staticmethod
     def writeUserCmd():
-        objdumpFound = False
         effectiveCmd = []
 
         if SystemManager.ueventEnable is False:
@@ -7576,24 +7603,34 @@ class SystemManager(object):
 
                 # symbol input #
                 if cmdFormat[1].startswith('0x') is False:
-                    # symbol input with no objdump #
+                    # symbol input with no objdump path #
                     if SystemManager.objdumpPath is None:
-                        SystemManager.printError(\
-                            "Fail to find objdump, use -m option with objdump path")
-                        sys.exit(0)
+                        objdumpPath = SystemManager.which('objdump')
+                        if objdumpPath != None:
+                            SystemManager.printWarning((\
+                                "Fail to recognize objdump path for user event tracing\n"
+                                "\tso just use %s as default objdump path\n"
+                                "\tif it is wrong then use -m option") % objdumpPath[0], True)
+                            SystemManager.objdumpPath = objdumpPath[0]
+                        else:
+                            SystemManager.printError((\
+                                "Fail to recognize objdump path for user event tracing, "
+                                "use -l option"))
+                            sys.exit(0)
                     # symbol input with objdump #
-                    elif objdumpFound is False and os.path.isfile(SystemManager.objdumpPath) is False:
+                    elif os.path.isfile(SystemManager.objdumpPath) is False:
                         SystemManager.printError("Fail to find %s to use objdump" % \
                             SystemManager.objdumpPath)
                         sys.exit(0)
-                    else:
-                        # get address of symbol in binary #
-                        addr = SystemManager.getSymOffset(\
-                            cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
-                        if addr is None:
-                            SystemManager.printError("Fail to find '%s' in %s" % \
-                                (cmdFormat[1], cmdFormat[2]))
-                            sys.exit(0)
+
+                    # get address of symbol in binary #
+                    addr = SystemManager.getSymOffset(\
+                        cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
+                    if addr is None:
+                        SystemManager.printError("Fail to find '%s' in %s" % \
+                            (cmdFormat[1], cmdFormat[2]))
+                        sys.exit(0)
+                # address input #
                 else:
                     addr = cmdFormat[1]
                     try:
@@ -8432,8 +8469,15 @@ class SystemManager(object):
 
         mod = percent % 4
 
-        sys.stdout.write('%3d' % percent + \
-            ('% ' + SystemManager.progressChar[mod] + '\b' * 6))
+        sys.stdout.write('%3d%% %s%s' % \
+            (percent, SystemManager.progressChar[mod], '\b' * 6))
+        sys.stdout.flush()
+
+
+
+    @staticmethod
+    def deleteProgress():
+        sys.stdout.write('\b' * 6)
         sys.stdout.flush()
 
 
@@ -8995,8 +9039,8 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printWarning(line):
-        if SystemManager.warningEnable:
+    def printWarning(line, always=False):
+        if SystemManager.warningEnable or always:
             print('\n%s%s%s%s' % (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
 
 
@@ -11967,6 +12011,8 @@ class ThreadAnalyzer(object):
 
             if self.stopFlag:
                 break
+
+        SystemManager.deleteProgress()
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
