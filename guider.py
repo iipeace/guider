@@ -7211,6 +7211,11 @@ class SystemManager(object):
 
     @staticmethod
     def initSystemPerfEvents():
+        # check root permission #
+        if os.geteuid() != 0:
+            SystemManager.perfEnable = False
+            return
+
         hwTargetList = [
             'PERF_COUNT_HW_CPU_CYCLES',
             'PERF_COUNT_HW_INSTRUCTIONS',
@@ -8477,7 +8482,7 @@ class SystemManager(object):
 
     @staticmethod
     def deleteProgress():
-        sys.stdout.write('\b' * 6)
+        sys.stdout.write(' ' * 6)
         sys.stdout.flush()
 
 
@@ -9314,6 +9319,13 @@ class SystemManager(object):
                 options = value
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
+
+                # no more options except for top mode #
+                if SystemManager.isTopMode() is False:
+                    continue
+
+                if options.rfind('t') > -1:
+                    SystemManager.processEnable = False
                 if options.rfind('b') > -1:
                     if os.geteuid() != 0:
                         SystemManager.printError(\
@@ -9325,8 +9337,6 @@ class SystemManager(object):
                         sys.exit(0)
                     else:
                         SystemManager.blockEnable = True
-                if options.rfind('t') > -1:
-                    SystemManager.processEnable = False
                 if options.rfind('s') > -1:
                     if os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to sample stack")
