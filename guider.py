@@ -885,7 +885,7 @@ class PageAnalyzer(object):
 
 
     @staticmethod
-    def printMemoryArea(pid, start, end):
+    def printMemoryArea(pid, start=-1, end=-1):
         count = 0
         switch = 0
         fpath = '/proc/%s/maps' % pid
@@ -899,6 +899,7 @@ class PageAnalyzer(object):
 
         start = hex(start).rstrip('L')
         end = hex(end).rstrip('L')
+        all = hex(-1).rstrip('L')
 
         # print menu #
         menuStr = ''
@@ -916,7 +917,10 @@ class PageAnalyzer(object):
 
         # print maps info #
         for line in buf:
-            if line.find('-') >= 0:
+            if start == end == all:
+                print(line[:-1])
+                count += 1
+            elif line.find('-') >= 0:
                 tmplist = line.split()
 
                 soffset, eoffset = tmplist[0].split('-')
@@ -969,9 +973,9 @@ class PageAnalyzer(object):
             SystemManager.printError("Fail to find %s process" % pid)
             os._exit(0)
 
-        page_size = os.sysconf("SC_Page PAGE_SIZE")
+        pageSize = os.sysconf("SC_PAGE_SIZE")
         pagemap_entry_size = 8
-        offset  = (addr / page_size) * pagemap_entry_size
+        offset  = (addr / pageSize) * pagemap_entry_size
 
         return PageAnalyzer.read_entry(maps_path, offset)
 
@@ -5967,6 +5971,7 @@ class SystemManager(object):
     memEnable = False
     rssEnable = True
     vssEnable = True
+    wssEnable = False
     heapEnable = False
     fileTopEnable = False
     ueventEnable = False
@@ -6378,7 +6383,7 @@ class SystemManager(object):
             print('\t\trecord -y  [system]')
             print('\t\trecord -f  [function]')
             print('\t\trecord -F  [file]')
-            print('\t\tview       [page]')
+            print('\t\tmem        [page]')
             print('\t[control]')
             print('\t\tlist|start|stop|send [proc]')
             print('\t[convenience]')
@@ -6391,7 +6396,7 @@ class SystemManager(object):
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|I(mage)|g(raph)|r(eport)|f(ile)|P(erf)}')
+                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|(ws)S|I(mage)|g(raph)|r(eport)|f(ile)|P(erf)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -6510,6 +6515,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -o . -e r R' % cmd)
                 print('\t\t\t- record resource usage of processes, system status and write to specific image')
                 print('\t\t\t\t# %s top -o . -e r I' % cmd)
+                print('\t\t\t- trace WSS(Working Set Size) for specific processes')
+                print('\t\t\t\t# %s top -e S -g chrome' % cmd)
                 print('\t\t\t- draw graph and chart in image file')
                 print('\t\t\t\t# %s draw guider.out' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
@@ -6537,8 +6544,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -F -i' % cmd)
 
                 print('\t\t[etc]')
-                print('\t\t\t- view page property of specific pages')
-                print('\t\t\t\t# %s view -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
+                print('\t\t\t- check property of specific pages')
+                print('\t\t\t\t# %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
                 print('\t\t\t- convert a text fle to a image file')
                 print('\t\t\t\t# %s guider.out -L' % cmd)
                 print('\t\t\t- wait for signal')
@@ -8026,6 +8033,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'REPFILE '
 
+                if SystemManager.wssEnable:
+                    enableStat += 'WSS '
+                else:
+                    disableStat += 'WSS '
+
                 if SystemManager.groupProcEnable:
                     enableStat += 'GROUP '
                 else:
@@ -9363,6 +9375,9 @@ class SystemManager(object):
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
+                if options.rfind('S') > -1:
+                    SystemManager.wssEnable = True
+                    SystemManager.memEnable = True
                 if options.rfind('P') > -1:
                     if os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to use PMU")
@@ -9976,8 +9991,8 @@ class SystemManager(object):
 
 
     @staticmethod
-    def isViewMode():
-        if sys.argv[1] == 'view':
+    def isMemMode():
+        if sys.argv[1] == 'mem':
             return True
         else:
             return False
@@ -12594,7 +12609,7 @@ class ThreadAnalyzer(object):
         seq = 0
         height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
-        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
+        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'dirty']
         suptitle('guider memory chart', fontsize=8)
 
         def make_autopct(values):
@@ -15677,7 +15692,7 @@ class ThreadAnalyzer(object):
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
             'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCK(KB)', \
-            'PDRT(KB)', 'SDRT(KB)', 'NONE(KB)', twoLine))
+            'PDRT(KB)', 'SDRT(KB)', 'NOPM(KB)', twoLine))
 
         cnt = 1
         limitProcCnt = 6
@@ -15723,6 +15738,7 @@ class ThreadAnalyzer(object):
                 totalLock = 0
                 totalPdirty = 0
                 totalSdirty = 0
+                totalRef = 0
                 totalNone = 0
 
                 procInfo = ' '
@@ -15783,7 +15799,13 @@ class ThreadAnalyzer(object):
                         sdirty = 0
 
                     try:
-                        none = item['NONE']
+                        ref = item['Referenced:']
+                        totalRef += ref
+                    except:
+                        ref = 0
+
+                    try:
+                        none = item['NOPM']
                         totalNone += none
                     except:
                         none = 0
@@ -18585,7 +18607,7 @@ class ThreadAnalyzer(object):
 
         checkCnt = 0
         checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Dirty:', \
-            'Private_Dirty:', 'AnonHugePages:', 'Swap:', 'Locked:']
+            'Private_Dirty:', 'Referenced:', 'AnonHugePages:', 'Swap:', 'Locked:']
 
         try:
             SystemManager.procInstance[tid]['maps'] = ptable
@@ -18668,9 +18690,9 @@ class ThreadAnalyzer(object):
 
                         if isInaccessable:
                             try:
-                                ptable[mtype]['NONE'] += val
+                                ptable[mtype]['NOPM'] += val
                             except:
-                                ptable[mtype]['NONE'] = val
+                                ptable[mtype]['NOPM'] = val
                 except:
                     pass
 
@@ -19851,7 +19873,7 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
 
                         try:
-                            prop = 'NONE'
+                            prop = 'NOPM'
                             if item[prop] > 9999:
                                 item[prop] = item[prop] >> 10
                                 tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
@@ -19862,6 +19884,30 @@ class ThreadAnalyzer(object):
 
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}|\n".format(mtype, tmpstr))
+
+                        if SystemManager.wssEnable:
+                            # get current WSS size #
+                            try:
+                                wss =  SystemManager.convertSize(item['Referenced:'] << 10)
+                            except:
+                                wss =  0
+
+                            # get previous WSS history #
+                            try:
+                                self.procData[pid]['wss'] = self.prevProcData[pid]['wss']
+                            except:
+                                self.prevProcData[pid]['wss'] = {}
+                                self.procData[pid]['wss'] = self.prevProcData[pid]['wss']
+
+                            # update WSS history #
+                            try:
+                                history = self.procData[pid]['wss'][key]
+                                self.procData[pid]['wss'][key] = '%s -> %s' % (history, wss)
+                            except:
+                                self.procData[pid]['wss'][key] = '%s' % wss
+
+                            SystemManager.addPrint(\
+                                "{0:>39} |  WSS: {1:1}\n".format(' ', self.procData[pid]['wss'][key]))
 
                         # cut by rows of terminal #
                         if SystemManager.bufferRows >= \
@@ -20723,14 +20769,15 @@ if __name__ == '__main__':
         SystemManager.sendSignalProcs(sig, argList)
         sys.exit(0)
 
-    # view system resource status #
-    if SystemManager.isViewMode():
+    # check page properties #
+    if SystemManager.isMemMode():
         pid = SystemManager.getOption('g')
         addr = SystemManager.getOption('I')
 
         if pid is None:
             SystemManager.printError("Fail to recognize pid, use -g option")
         elif addr is None:
+            PageAnalyzer.printMemoryArea(pid)
             SystemManager.printError("Fail to recognize address, use -I option")
         else:
             PageAnalyzer.getPageInfo(pid, addr)
