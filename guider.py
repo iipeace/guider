@@ -6507,6 +6507,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -e t b -i 2 -a' % cmd)
                 print('\t\t\t- show resource usage of specific processes/threads involved in specific process group in real-time')
                 print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
+                print('\t\t\t- record and print resource usage of processes')
+                print('\t\t\t\t# %s top -o . -Q' % cmd)
                 print('\t\t\t- record resource usage of processes and write to specific file in background')
                 print('\t\t\t\t# %s top -o . -u' % cmd)
                 print('\t\t\t- record resource usage of processes, system status and write to specific file in background')
@@ -8501,6 +8503,8 @@ class SystemManager(object):
 
     @staticmethod
     def addPrint(string, newline = 1):
+        if SystemManager.printAllEnable:
+            print(string[:-1])
         SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
@@ -8967,7 +8971,8 @@ class SystemManager(object):
 
         # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-            SystemManager.printFile == None and SystemManager.isTopMode() is False:
+            SystemManager.printFile == None and SystemManager.printAllEnable is False and \
+            SystemManager.isTopMode() is False:
             try:
                 if sys.platform.startswith('linux'):
                     SystemManager.pipeForPrint = os.popen('less', 'w')
@@ -9376,6 +9381,9 @@ class SystemManager(object):
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
                 if options.rfind('S') > -1:
+                    if os.geteuid() != 0:
+                        SystemManager.printError("Fail to get root permission to clear refcnts")
+                        sys.exit(0)
                     SystemManager.wssEnable = True
                     SystemManager.memEnable = True
                 if options.rfind('P') > -1:
@@ -19437,7 +19445,7 @@ class ThreadAnalyzer(object):
                     lenTotal = len(totalCoreStat)
                     lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
-                    lenLine = len(oneLine) - lenCore - lenFreq - 2
+                    lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
@@ -19477,7 +19485,7 @@ class ThreadAnalyzer(object):
 
                     lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
-                    lenLine = len(oneLine) - lenCore - lenFreq - 2
+                    lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
@@ -19771,9 +19779,11 @@ class ThreadAnalyzer(object):
                 readSize = '-'
                 writeSize = '-'
 
+            # get blocked time of parent process waits for its children #
             if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
 
+            # get waiting channel #
             if SystemManager.wchanEnable:
                 try:
                     etc = value['wchan']
@@ -19885,6 +19895,13 @@ class ThreadAnalyzer(object):
                         mtype = '(%s)[%s]' % (item['count'], key)
                         SystemManager.addPrint("{0:>39} | {1:1}|\n".format(mtype, tmpstr))
 
+                        # cut by rows of terminal #
+                        if SystemManager.bufferRows >= \
+                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                            SystemManager.printFile is None:
+                            SystemManager.addPrint('---more---')
+                            return
+
                         if SystemManager.wssEnable:
                             # get current WSS size #
                             try:
@@ -19894,27 +19911,51 @@ class ThreadAnalyzer(object):
 
                             # get previous WSS history #
                             try:
-                                self.procData[pid]['wss'] = self.prevProcData[pid]['wss']
+                                self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
                             except:
-                                self.prevProcData[pid]['wss'] = {}
-                                self.procData[pid]['wss'] = self.prevProcData[pid]['wss']
+                                self.prevProcData[idx]['wss'] = {}
+                                self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
+
+                                try:
+                                    path = '/proc/%s/clear_refs' % idx
+                                    with open(path, 'w') as fd:
+                                        fd.write('1')
+                                except:
+                                    pass
 
                             # update WSS history #
                             try:
-                                history = self.procData[pid]['wss'][key]
-                                self.procData[pid]['wss'][key] = '%s -> %s' % (history, wss)
+                                history = self.procData[idx]['wss'][key]
+                                self.procData[idx]['wss'][key] = '%s -> %5s' % (history, wss)
                             except:
-                                self.procData[pid]['wss'][key] = '%s' % wss
+                                self.procData[idx]['wss'][key] = '%5s' % wss
+
+                            # split a long line #
+                            indent = 48
+                            limit = SystemManager.lineLength - indent
+                            pstr = self.procData[idx]['wss'][key]
+                            if len(pstr) > limit:
+                                slimit = pstr[:limit].rfind(' ->') + 4
+                                src = '%s' % pstr[slimit:]
+                                des = '%s' % pstr[:slimit]
+                                while len(src) > limit:
+                                    slimit = src[:limit].rfind(' ->') + 4
+                                    des = '%s\n%s%s' % (des, ' ' * indent, src[:slimit])
+                                    src = src[slimit:]
+                                pstr = '%s\n%s%s' % (des, ' ' * indent, src)
+
+                            # count newlines #
+                            newline = pstr.count('\n')+1
+
+                            # cut by rows of terminal #
+                            if SystemManager.bufferRows + newline >= \
+                                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                                SystemManager.printFile is None:
+                                SystemManager.addPrint('---more---')
+                                return
 
                             SystemManager.addPrint(\
-                                "{0:>39} |  WSS: {1:1}\n".format(' ', self.procData[pid]['wss'][key]))
-
-                        # cut by rows of terminal #
-                        if SystemManager.bufferRows >= \
-                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                            SystemManager.printFile is None:
-                            SystemManager.addPrint('---more---')
-                            return
+                                "{0:>39} |  WSS: {1:1}\n".format(' ', pstr), newline)
 
                 needLine = True
 
@@ -19979,6 +20020,7 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.addPrint("%s\n" % oneLine)
 
+        # print unusual processes #
         self.printSpecialProcess()
         self.printNewProcess()
         self.printDieProcess()
