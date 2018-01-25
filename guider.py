@@ -2049,8 +2049,12 @@ class FunctionAnalyzer(object):
             # Get symbol by address of every maxArgLine elements in list #
             while offset < listLen:
                 # Launch addr2line #
-                proc = subprocess.Popen(args + offsetList[offset:offset+maxArgLine-1], \
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    proc = subprocess.Popen(args + offsetList[offset:offset+maxArgLine-1], \
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except:
+                    SystemManager.printError("Fail to execute %s" % path)
+                    sys.exit(0)
 
                 # Increase offset count in address list #
                 offset += maxArgLine
@@ -5968,6 +5972,7 @@ class SystemManager(object):
 
     irqEnable = False
     cpuEnable = True
+    gpuEnable = False
     memEnable = False
     rssEnable = True
     vssEnable = True
@@ -7716,8 +7721,12 @@ class SystemManager(object):
             "start finding %s... [ STOP(ctrl + c) ]" % (symbol))
 
         # start objdump process #
-        proc = subprocess.Popen(\
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+        try:
+            proc = subprocess.Popen(\
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+        except:
+            SystemManager.printError("Fail to execute %s" % objdumpPath)
+            sys.exit(0)
 
         while 1:
             try:
@@ -7910,9 +7919,9 @@ class SystemManager(object):
             disableStat += 'CPU '
 
         if SystemManager.memEnable:
-            enableStat += 'MEMORY '
+            enableStat += 'MEM '
         else:
-            disableStat += 'MEMORY '
+            disableStat += 'MEM '
 
         if SystemManager.blockEnable:
             enableStat += 'BLOCK '
@@ -7978,20 +7987,37 @@ class SystemManager(object):
             else:
                 disableStat += 'FILE '
 
+                if SystemManager.processEnable is False:
+                    enableStat += 'THREAD '
+                    disableStat += 'PROCESS '
+                else:
+                    disableStat += 'THREAD '
+                    enableStat += 'PROCESS '
+
                 if SystemManager.cpuEnable:
                     enableStat += 'CPU '
                 else:
                     disableStat += 'CPU '
 
-                if SystemManager.perfGroupEnable:
-                    enableStat += 'PERF '
+                if SystemManager.gpuEnable:
+                    enableStat += 'GPU '
                 else:
-                    disableStat += 'PERF '
+                    disableStat += 'GPU '
+
+                if SystemManager.memEnable:
+                    enableStat += 'MEM '
+                else:
+                    disableStat += 'MEM '
 
                 if SystemManager.blockEnable:
                     enableStat += 'BLOCK '
                 else:
                     disableStat += 'BLOCK '
+
+                if SystemManager.perfGroupEnable:
+                    enableStat += 'PERF '
+                else:
+                    disableStat += 'PERF '
 
                 if SystemManager.stackEnable:
                     enableStat += 'STACK '
@@ -8007,18 +8033,6 @@ class SystemManager(object):
                     enableStat += 'WFC '
                 else:
                     disableStat += 'WFC '
-
-                if SystemManager.processEnable is False:
-                    enableStat += 'THREAD '
-                    disableStat += 'PROCESS '
-                else:
-                    disableStat += 'THREAD '
-                    enableStat += 'PROCESS '
-
-                if SystemManager.memEnable:
-                    enableStat += 'MEMORY '
-                else:
-                    disableStat += 'MEMORY '
 
                 if SystemManager.graphEnable:
                     enableStat += 'GRAPH '
@@ -8069,9 +8083,9 @@ class SystemManager(object):
                     enableStat += 'CPU '
 
                 if SystemManager.memEnable is False:
-                    disableStat += 'MEMORY '
+                    disableStat += 'MEM '
                 else:
-                    enableStat += 'MEMORY '
+                    enableStat += 'MEM '
 
                 if SystemManager.heapEnable is False:
                     disableStat += 'HEAP '
@@ -8104,9 +8118,9 @@ class SystemManager(object):
                 enableStat += 'CPU '
 
             if SystemManager.memEnable:
-                enableStat += 'MEMORY '
+                enableStat += 'MEM '
             else:
-                disableStat += 'MEMORY '
+                disableStat += 'MEM '
 
             if SystemManager.blockEnable:
                 enableStat += 'BLOCK '
@@ -9341,6 +9355,8 @@ class SystemManager(object):
                 if SystemManager.isTopMode() is False:
                     continue
 
+                if options.rfind('G') > -1:
+                    SystemManager.gpuEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('b') > -1:
@@ -11775,7 +11791,8 @@ class ThreadAnalyzer(object):
         'memDiff': int(0), 'blk': int(0), 'minMem': int(0), 'maxMem': int(0), \
         'minVss': int(0), 'maxVss': int(0)}
 
-    init_procIntervalData = {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
+    init_procIntervalData = \
+        {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
 
 
 
@@ -12291,6 +12308,7 @@ class ThreadAnalyzer(object):
         blkWrite = []
         netRead = []
         netWrite = []
+        gpuUsage = {}
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
@@ -12365,7 +12383,7 @@ class ThreadAnalyzer(object):
                 break
 
         # parse cpu usage of processes #
-        compareString = ['[Top Memory Info]', '[Top VSS Info]']
+        compareString = ['[Top GPU Info]', '[Top Memory Info]', '[Top VSS Info]']
         pname = None
         pid = 0
         average = 0
@@ -12409,6 +12427,32 @@ class ThreadAnalyzer(object):
                 cpuProcUsage[pname]['pid'] = pid
                 cpuProcUsage[pname]['average'] = average
                 cpuProcUsage[pname]['usage'] = intervalList
+
+        if logBuf[finalLine-1].startswith('[Top GPU Info]'):
+            # parse gpu stat #
+            compareString = ['[Top Memory Info]', '[Top VSS Info]']
+            gname = None
+            maxUsage = 0
+            intervalList = None
+
+            for line in logBuf[finalLine:]:
+                finalLine += 1
+
+                if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
+                    break
+
+                sline = line.split('|')
+                slen = len(sline)
+
+                if slen == 3:
+                    gname = sline[0].strip()
+                    intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList is not None:
+                        intervalList += sline[1]
+                elif intervalList is not None and gname != 'GPU':
+                    # save previous info #
+                    gpuUsage[gname] = intervalList
 
         if not logBuf[finalLine-1].startswith('[Top Memory Info]'):
             # parse vss of processes #
@@ -12460,7 +12504,6 @@ class ThreadAnalyzer(object):
 
                     memProcUsage[pname]['maxVss'] = maxVss
                     memProcUsage[pname]['vssUsage'] = intervalList
-
 
             # parse rss of processes #
             compareString = ['[Top Block Info]']
@@ -12597,7 +12640,7 @@ class ThreadAnalyzer(object):
         try:
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
                 blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memProcUsage, totalRAM, swapUsage, totalSwap)
+                memFree, memProcUsage, gpuUsage, totalRAM, swapUsage, totalSwap)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
@@ -12617,7 +12660,7 @@ class ThreadAnalyzer(object):
         seq = 0
         height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
-        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'dirty']
+        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
         suptitle('guider memory chart', fontsize=8)
 
         def make_autopct(values):
@@ -12729,13 +12772,14 @@ class ThreadAnalyzer(object):
 
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-        memFree, memProcUsage, totalRAM, swapUsage, totalSwap):
-        # CPU total usage #
-        ymax = 0
+        memFree, memProcUsage, gpuUsage, totalRAM, swapUsage, totalSwap):
+
         ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         suptitle('guider perf graph', fontsize=8)
 
+        # CPU total usage #
+        ymax = 0
         for idx, item in enumerate(blkWait):
             blkWait[idx] += cpuUsage[idx]
             if ymax < blkWait[idx]:
@@ -12745,6 +12789,12 @@ class ThreadAnalyzer(object):
         labelList.append('[ CPU + I/O ]')
         plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
         labelList.append('[ CPU Only ]')
+
+        # GPU total usage #
+        for gpu, stat in gpuUsage.items():
+            stat = map(int, stat.split())
+            plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
+            labelList.append('[ %s ]' % gpu)
 
         # initialize list that count the number of process using resource more than 1% #
         effectProcList = [0] * len(timeline)
@@ -15040,13 +15090,14 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procIntervalData[index]['nrThread'] = d['nrThread']
             return
 
+        # Split stats #
+        tokenList = procLine.split('|')
+
         # Get total resource usage #
-        if 'total' not in ThreadAnalyzer.procIntervalData[index]:
-            tokenList = procLine.split('|')
+        if 'total' not in ThreadAnalyzer.procIntervalData[index] and \
+            tokenList[0].startswith('Total'):
 
-            if len(tokenList) < 4 or tokenList[0].find('Total') < 0:
-                return
-
+            # CPU & BLOCK stat #
             m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' + \
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)', tokenList[1])
             if m is not None:
@@ -15068,6 +15119,7 @@ class ThreadAnalyzer(object):
             else:
                 return
 
+            # MEM stat #
             m = re.match(r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)', tokenList[2])
             if m is not None:
                 d = m.groupdict()
@@ -15122,6 +15174,37 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procIntervalData[index]['total']['netIO'] = '-'
 
             return
+
+        # Get GPU resource usage #
+        if len(tokenList) == 5:
+            m = re.match(r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+            if m is not None:
+                d = m.groupdict()
+
+                gpu = d['gpu'].strip()
+                usage = int(d['usage'])
+
+                try:
+                    ThreadAnalyzer.procIntervalData[index]['total']['gpu']
+                except:
+                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'] = dict()
+
+                try:
+                    ThreadAnalyzer.procTotalData['total']['gpu']
+                except:
+                    ThreadAnalyzer.procTotalData['total']['gpu'] = dict()
+
+                try:
+                    ThreadAnalyzer.procTotalData['total']['gpu'][gpu] += usage
+                except:
+                    ThreadAnalyzer.procTotalData['total']['gpu'][gpu] = usage
+
+                try:
+                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'][gpu] = usage
+                except:
+                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'][d['proc']] = 0
+
+                return
 
         # Get process resource usage #
         m = re.match(r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)' + \
@@ -15375,6 +15458,68 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def printGpuInterval():
+        # Check gpu data #
+        if 'gpu' not in ThreadAnalyzer.procTotalData['total']:
+            return
+
+        # Print title #
+        SystemManager.pipePrint('\n[Top GPU Info] (Unit: %)\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Print menu #
+        gpuInfo = "{0:^16} | {1:^3} |".format('GPU', 'Avg')
+        gpuInfoLen = len(gpuInfo)
+        maxLineLen = SystemManager.lineLength
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(gpuInfo)
+        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+            if lineLen + 5 > maxLineLen:
+                timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
+                lineLen = len(gpuInfo)
+
+            timeLine += '{0:^5}'.format(i)
+            lineLen += 5
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Print gpu usage #
+        for gpu, total in ThreadAnalyzer.procTotalData['total']['gpu'].items():
+            try:
+                avg = total / len(ThreadAnalyzer.procIntervalData)
+            except:
+                avg = 0
+
+            gpuInfo = "{0:>16} | {1:>3} |".format(gpu, avg)
+            gpuInfoLen = len(gpuInfo)
+            maxLineLen = SystemManager.lineLength
+
+            timeLine = ''
+            lineLen = len(gpuInfo)
+            total = 0
+            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+                if lineLen + 5 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
+                    lineLen = len(gpuInfo)
+
+                try:
+                    usage = ThreadAnalyzer.procIntervalData[idx]['total']['gpu'][gpu]
+                    total += usage
+                except:
+                    usage = 0
+
+                timeLine += '{0:^5}'.format(usage)
+                lineLen += 5
+
+            SystemManager.pipePrint(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
+            SystemManager.pipePrint("%s\n" % oneLine)
+
+
+
+    @staticmethod
     def printRssInterval():
         # Print title #
         SystemManager.pipePrint('\n[Top RSS Info] (Unit: MB)\n')
@@ -15620,6 +15765,7 @@ class ThreadAnalyzer(object):
             # print interval info #
             ThreadAnalyzer.printTimeline()
             ThreadAnalyzer.printCpuInterval()
+            ThreadAnalyzer.printGpuInterval()
             ThreadAnalyzer.printVssInterval()
             ThreadAnalyzer.printRssInterval()
             ThreadAnalyzer.printBlkInterval()
@@ -18482,6 +18628,10 @@ class ThreadAnalyzer(object):
         if SystemManager.perfEnable:
             SystemManager.collectSystemPerfData()
 
+        # save gpu stat #
+        if SystemManager.showAll or SystemManager.gpuEnable:
+            self.saveGpuData()
+
         # get process list #
         try:
             pids = os.listdir(SystemManager.procPath)
@@ -18741,6 +18891,7 @@ class ThreadAnalyzer(object):
             self.procData[tid]['wchan'] = ''
 
 
+
     def saveGpuData(self):
         devList = [
             '/sys/devices/platform/host1x', # nVIDIA tegra #
@@ -18762,6 +18913,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
+        # read gpu stat from list #
         for idx, cand in enumerate(candList):
             try:
                 target = None
@@ -19231,10 +19383,11 @@ class ThreadAnalyzer(object):
         (netIn, netOut) = self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
-        totalCoreStat = ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|" \
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
-            format("Total", \
-            '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
+        totalCoreStat = \
+            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
+            "{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^6}({12:^4}/{13:^7})|"
+            "{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, totalAnonMem, totalFileMem, totalSlabMem, \
             swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
             '%s/%s' % (bgReclaim, drReclaim), '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
@@ -19350,7 +19503,7 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-            # CPU STATUS #
+            # CPU STAT #
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(), reverse=False):
                 try:
@@ -19458,18 +19611,18 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
-            # update gpu status #
-            self.saveGpuData()
+        if SystemManager.showAll or SystemManager.gpuEnable:
+            SystemManager.addPrint('%s\n' % oneLine)
 
-            # GPU STATUS #
+            # GPU STAT #
             for idx, value in self.gpuData.items():
                 try:
                     totalUsage = value['CUR_LOAD']
-                    coreStat = "{0:<23}({1:<5})|".format(idx[:23], '%s %%' % totalUsage)
+                    coreStat = "{0:<23}({1:>5})|".format(idx[:23], '%s %%' % totalUsage)
 
                     # set frequency info #
                     coreFreq = ''
-                    if curFreq is not None:
+                    if coreFreq is not None:
                         coreFreq = '%d Mhz' % value['CUR_FREQ']
                     else:
                         coreFreq = '? Mhz'
