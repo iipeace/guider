@@ -8517,7 +8517,7 @@ class SystemManager(object):
 
     @staticmethod
     def addPrint(string, newline = 1):
-        if SystemManager.printAllEnable:
+        if SystemManager.printFile != None and SystemManager.printAllEnable != False:
             print(string[:-1])
         SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
@@ -8541,6 +8541,9 @@ class SystemManager(object):
                 os.system('cls')
             else:
                 pass
+
+        if SystemManager.printAllEnable:
+            return
 
         title = "/ g.u.i.d.e.r \tver.%s /" % __version__
         underline = '_' * (len(title))
@@ -10097,7 +10100,7 @@ class SystemManager(object):
                 nrProc += 1
 
         if nrProc == 0:
-            SystemManager.printInfo("no running process in background")
+            SystemManager.printInfo("\nno running process in background\n")
         else:
             print('\n[Running Process]')
             print(twoLine)
@@ -19612,7 +19615,8 @@ class ThreadAnalyzer(object):
                     continue
 
         if SystemManager.showAll or SystemManager.gpuEnable:
-            SystemManager.addPrint('%s\n' % oneLine)
+            if len(self.gpuData) > 0:
+                SystemManager.addPrint('%s\n' % oneLine)
 
             # GPU STAT #
             for idx, value in self.gpuData.items():
