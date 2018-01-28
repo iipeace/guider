@@ -668,9 +668,12 @@ class NetworkManager(object):
                 else:
                     self.ip = ip
 
-                self.port = port
+                if port is None:
+                    self.port = 0
+
                 self.socket = socket(AF_INET, SOCK_DGRAM)
                 self.socket.bind((self.ip, self.port))
+                self.port = self.socket.getsockname()[1]
                 self.socket.setblocking(0)
             except:
                 self.ip = None
@@ -6420,7 +6423,7 @@ class SystemManager(object):
             print('\t\t-K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
             print('\t\t-C  [set_commandScriptPath:file]')
             print('\t\t-w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]')
-            print('\t\t-x  [set_addressForLocalServer:{ip:}port]')
+            print('\t\t-x  [set_addressForLocalServer:{ip:port}]')
             print('\t\t-X  [set_requestToRemoteServer:{req@ip:port}]')
             print('\t\t-N  [set_addressForReport:req@ip:port]')
             print('\t\t-n  [set_addressForPrint:ip:port]')
@@ -8541,8 +8544,7 @@ class SystemManager(object):
                 os.system('cls')
             else:
                 pass
-
-        if SystemManager.printAllEnable:
+        elif SystemManager.printAllEnable:
             return
 
         title = "/ g.u.i.d.e.r \tver.%s /" % __version__
@@ -9543,18 +9545,13 @@ class SystemManager(object):
                 ip = ret[1]
                 port = ret[2]
 
-                if port is None:
-                    SystemManager.printError( \
-                        "wrong option value with -x option, input IP:PORT in format")
-                    sys.exit(0)
-
                 networkObject = NetworkManager('server', ip, port)
                 if networkObject.ip is None:
                     sys.exit(0)
                 else:
                     SystemManager.addrAsServer = networkObject
 
-                SystemManager.printInfo("use %s:%d as server address" % \
+                SystemManager.printInfo("use %s:%d as local address" % \
                     (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
             elif option == 'X' and SystemManager.isTopMode():
@@ -9583,7 +9580,7 @@ class SystemManager(object):
 
                         SystemManager.printError(\
                             ("wrong option value with -X, "
-                            "input [%s]@IP:PORT as remote server address") % reqList[:-1])
+                            "input [%s]@IP:PORT as remote address") % reqList[:-1])
                         sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -9593,7 +9590,7 @@ class SystemManager(object):
                     networkObject.request = service
                     SystemManager.addrOfServer = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote server address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -10100,7 +10097,7 @@ class SystemManager(object):
                 nrProc += 1
 
         if nrProc == 0:
-            SystemManager.printInfo("\nno running process in background\n")
+            print("\nno running process in background\n")
         else:
             print('\n[Running Process]')
             print(twoLine)
@@ -20522,7 +20519,13 @@ class ThreadAnalyzer(object):
             self.printReportStat(reportStat)
         # REFUSE response #
         elif data == 'REFUSE':
-            SystemManager.printError("Fail to request service because of no support from server")
+            SystemManager.printError(\
+                "Fail to request service because of no support from server")
+            sys.exit(0)
+        # DUPLICATED response #
+        elif data == 'PRINT' or data.startswith('REPORT'):
+            SystemManager.printError(\
+                "Fail to request service because of same port used between client and sever")
             sys.exit(0)
         # PRINT service #
         else:
@@ -20590,7 +20593,7 @@ class ThreadAnalyzer(object):
                 ip = ret[1][0]
                 port = ret[1][1]
             except:
-                SystemManager.printWarning("Fail to get ip address of client from message")
+                SystemManager.printWarning("Fail to get address of client from message")
                 return
 
             networkObject = NetworkManager('client', ip, port)
