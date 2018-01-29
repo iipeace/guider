@@ -18347,7 +18347,9 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
-            SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
+            text = "{0:^16}".format('None')
+            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         # realtime mode #
         if SystemManager.printFile is None:
@@ -20159,15 +20161,20 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-                self.stackTable[idx]['total'] = 0
-                needLine = True
+                try:
+                    self.stackTable[idx]['total'] = 0
+                    needLine = True
+                except:
+                    pass
 
             procCnt += 1
             if needLine:
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
-            SystemManager.addPrint("{0:^16}\n{1:1}\n".format('None', oneLine))
+            text = "{0:^16}".format('None')
+            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
         elif needLine:
             pass
         else:
