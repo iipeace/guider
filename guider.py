@@ -812,7 +812,7 @@ class PageAnalyzer(object):
         if rangeCnt > 2:
             SystemManager.printError(\
                 "Fail to recognize address, input address such as 0x1234 or 0x1234-0x4444")
-            os._exit(0)
+            sys.exit(0)
         else:
             try:
                 if vrange[0].startswith("0x"):
@@ -826,7 +826,7 @@ class PageAnalyzer(object):
             except:
                 SystemManager.printError(\
                     "Fail to recognize address, input address such as 0xabcd or 78901234")
-                os._exit(0)
+                sys.exit(0)
 
             try:
                 if rangeCnt == 2:
@@ -844,11 +844,11 @@ class PageAnalyzer(object):
                 if addrs > addre:
                     SystemManager.printError(\
                         "Fail to recognize address, input bigger second address than first address")
-                    os._exit(0)
+                    sys.exit(0)
             except:
                 SystemManager.printError(\
                     "Fail to recognize address, input address such as 0x1234-0x4444")
-                os._exit(0)
+                sys.exit(0)
 
         print("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n%s" % \
             (pid, vaddr, "kernel/Documentation/vm/pagemap.txt", twoLine))
@@ -898,7 +898,7 @@ class PageAnalyzer(object):
                 buf = fd.readlines()
         except:
             SystemManager.printError('Fail to open %s' % fpath)
-            os._exit(0)
+            sys.exit(0)
 
         start = hex(start).rstrip('L')
         end = hex(end).rstrip('L')
@@ -974,7 +974,7 @@ class PageAnalyzer(object):
         maps_path = "/proc/{0}/pagemap".format(pid)
         if not os.path.isfile(maps_path):
             SystemManager.printError("Fail to find %s process" % pid)
-            os._exit(0)
+            sys.exit(0)
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
         pagemap_entry_size = 8
@@ -6487,7 +6487,7 @@ class SystemManager(object):
                 print('\t\t\t\t# %s record -f -s . -e m b h -g 1234' % cmd)
                 print('\t\t\t- analyze function data for all')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-                print('\t\t\t- analyze function data only it is 3 or fewer levels')
+                print('\t\t\t- analyze function data for only lower than 3 levels')
                 print('\t\t\t\t# %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
                 print('\t\t\t- record segmentation fault event of all threads')
                 print('\t\t\t\t# %s record -f -s . -K segflt:bad_area -ep' % cmd)
@@ -7510,7 +7510,7 @@ class SystemManager(object):
                     rVal = rCmd.split('/')
                     if len(rVal) > 2:
                         SystemManager.printError("wrong command '%s' with -K option" % rCmd)
-                        os._exit(0)
+                        sys.exit(0)
                     tVal = rVal[1]
 
                     # count the number of prefix * #
@@ -7533,7 +7533,7 @@ class SystemManager(object):
                 pCmd = '%s %s' % (pCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', pCmd, append=True) < 0:
                     SystemManager.printError("wrong command '%s' with -K option" % pCmd)
-                    os._exit(0)
+                    sys.exit(0)
 
             # make return commands #
             rCmd = 'r:%s_exit %s' % (cmd[0], cmd[1])
@@ -7549,7 +7549,7 @@ class SystemManager(object):
                     rVal = tCmd.split('/')
                     if len(rVal) > 2:
                         SystemManager.printError("wrong command '%s' with -K option" % tCmd)
-                        os._exit(0)
+                        sys.exit(0)
                     tVal = rVal[0]
 
                     # count the number of prefix * #
@@ -8242,7 +8242,7 @@ class SystemManager(object):
             if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
 
-            os._exit(0)
+            sys.exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
@@ -8300,7 +8300,7 @@ class SystemManager(object):
     @staticmethod
     def exitHandler(signum, frame):
         SystemManager.printError('Terminated by user\n')
-        os._exit(0)
+        sys.exit(0)
 
 
 
@@ -8439,7 +8439,7 @@ class SystemManager(object):
         if SystemManager.cmdEnable is not False:
             if SystemManager.cmdEnable == '':
                 SystemManager.printError("Fail to recognize path to write command")
-                os._exit(0)
+                sys.exit(0)
             if SystemManager.cmdFd is None:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
@@ -8448,7 +8448,7 @@ class SystemManager(object):
                 except:
                     SystemManager.printError("Fail to open %s to write command" %\
                             SystemManager.cmdEnable)
-                    os._exit(0)
+                    sys.exit(0)
             if SystemManager.cmdFd is not None:
                 try:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
@@ -9183,13 +9183,13 @@ class SystemManager(object):
                 SystemManager.printError(\
                     "wrong -%s option because it is used more than once" %\
                         SystemManager.savedOptionList[seq][0])
-                os._exit(0)
+                sys.exit(0)
             except:
                 try:
                     usedOpt[SystemManager.savedOptionList[seq][0]] = True
                 except:
                     SystemManager.printError("wrong option used")
-                    os._exit(0)
+                    sys.exit(0)
 
 
 
@@ -10211,7 +10211,7 @@ class SystemManager(object):
                     if os.geteuid() != 0:
                         SystemManager.printError(\
                             "Fail to get root permission to set priority of other thread")
-                        os._exit(0)
+                        sys.exit(0)
                     SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
                 else:
                     raise
@@ -16046,8 +16046,7 @@ class ThreadAnalyzer(object):
             if SystemManager.isDrawMode():
                 return 0
             elif SystemManager.recordStatus is False:
-                SystemManager.printError(\
-                    "Fail to recognize format: corrupted log / no log collected")
+                SystemManager.printError("Fail to read or to recognize logs")
                 sys.exit(0)
 
 
