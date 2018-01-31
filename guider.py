@@ -6404,7 +6404,7 @@ class SystemManager(object):
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|b(lock)|w(fc)|W(chan)|s(tack)|m(em)|(ws)S|I(mage)|g(raph)|r(eport)|f(ile)|P(erf)}')
+                '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|I(mage)|g(raph)|r(eport)|R(file)|f(ile)|P(erf)|G(pu)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -6441,7 +6441,7 @@ class SystemManager(object):
             print('\t\t-a  [show_allInfo]')
             print('\t\t-Q  [print_allRowsInaStream]')
             print('\t\t-i  [set_interval:sec]')
-            print('\t\t-g  [set_filter:comms|tids{:file}]')
+            print('\t\t-g  [set_filter:comms|tids{:files}]')
             print('\t\t-A  [set_arch:arm|aarch64|x86|x64]')
             print('\t\t-c  [set_customEvent:event:filter]')
             print('\t\t-E  [set_errorLogPath:file]')
@@ -6525,8 +6525,10 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -o . -e r R' % cmd)
                 print('\t\t\t- record resource usage of processes, system status and write to specific image')
                 print('\t\t\t\t# %s top -o . -e r I' % cmd)
-                print('\t\t\t- trace WSS(Working Set Size) for specific processes')
-                print('\t\t\t\t# %s top -e S -g chrome' % cmd)
+                print('\t\t\t- record resource usage of processes and write to specific file when specific conditions met')
+                print('\t\t\t\t# %s top -o . -e R' % cmd)
+                print('\t\t\t- trace memory working set for specific processes')
+                print('\t\t\t\t# %s top -e w -g chrome' % cmd)
                 print('\t\t\t- draw graph and chart in image file')
                 print('\t\t\t\t# %s draw guider.out' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g' % cmd)
@@ -7837,7 +7839,7 @@ class SystemManager(object):
             # common options #
             enableStat += SystemManager.arch.upper() + ' '
             if SystemManager.warningEnable:
-                enableStat += 'WARNING '
+                enableStat += 'WARN '
 
         # function mode #
         if SystemManager.isFunctionMode():
@@ -7967,9 +7969,9 @@ class SystemManager(object):
         # common options #
         enableStat += SystemManager.arch.upper() + ' '
         if SystemManager.warningEnable:
-            enableStat += 'WARNING '
+            enableStat += 'WARN '
         else:
-            disableStat += 'WARNING '
+            disableStat += 'WARN '
 
         if SystemManager.pipeEnable:
             enableStat += 'PIPE '
@@ -8048,9 +8050,9 @@ class SystemManager(object):
                     disableStat += 'IMAGE '
 
                 if SystemManager.reportFileEnable:
-                    enableStat += 'REPFILE '
+                    enableStat += 'RFILE '
                 else:
-                    disableStat += 'REPFILE '
+                    disableStat += 'RFILE '
 
                 if SystemManager.wssEnable:
                     enableStat += 'WSS '
@@ -8235,8 +8237,14 @@ class SystemManager(object):
                 except:
                     pass
 
-                SystemManager.printInfo("saved top usage into %s successfully" % \
-                    SystemManager.inputFile)
+                try:
+                    fsize = \
+                        SystemManager.convertSize(int(os.path.getsize(SystemManager.inputFile)))
+                except:
+                    fsize = '?'
+                SystemManager.printInfo(\
+                    "saved results based monitoring into %s [%s] successfully" % \
+                    (SystemManager.inputFile, fsize))
 
             # convert text log to image #
             if SystemManager.imageEnable:
@@ -8284,8 +8292,14 @@ class SystemManager(object):
                 pass
             SystemManager.fileForPrint = None
 
-            SystemManager.printStatus("saved top usage into %s successfully" % \
-                SystemManager.inputFile)
+            try:
+                fsize = \
+                    SystemManager.convertSize(int(os.path.getsize(SystemManager.inputFile)))
+            except:
+                fsize = '?'
+            SystemManager.printInfo(\
+                "saved results based monitoring into %s [%s] successfully" % \
+                (SystemManager.inputFile, fsize))
 
             # convert text log to image #
             if SystemManager.imageEnable:
@@ -8364,7 +8378,13 @@ class SystemManager(object):
                             fw.writelines(SystemManager.magicString + '\n')
                             SystemManager.clearInfoBuffer()
                             fw.write(fr.read())
-                            SystemManager.printInfo('trace data is saved to %s' % output)
+
+                            try:
+                                fsize = SystemManager.convertSize(int(os.path.getsize(output)))
+                            except:
+                                fsize = '?'
+                            SystemManager.printInfo(\
+                                'saved trace data into %s [%s] successfully' % (output, fsize))
                 except:
                     SystemManager.printWarning('Fail to save trace data to %s' % output)
             else:
@@ -8399,7 +8419,13 @@ class SystemManager(object):
 
                 f.writelines(lines)
 
-                SystemManager.printInfo('trace data is saved to %s' % SystemManager.outputFile)
+                try:
+                    fsize = \
+                        SystemManager.convertSize(int(os.path.getsize(SystemManager.outputFile)))
+                except:
+                    fsize = '?'
+                SystemManager.printInfo('saved trace data into %s [%s] successfully' % \
+                    (SystemManager.outputFile, fsize))
             except IOError:
                 SystemManager.printError(\
                     "Fail to write trace data to %s" % SystemManager.outputFile)
@@ -8979,7 +9005,13 @@ class SystemManager(object):
             SystemManager.printError("Fail to save image as %s\n" % SystemManager.imagePath)
             return
 
-        SystemManager.printStatus("saved image into %s successfully" % SystemManager.imagePath)
+        try:
+            fsize = \
+                SystemManager.convertSize(int(os.path.getsize(SystemManager.imagePath)))
+        except:
+            fsize = '?'
+        SystemManager.printStatus("saved image into %s [%s] successfully" % \
+            (SystemManager.imagePath, fsize))
 
 
 
@@ -9072,7 +9104,7 @@ class SystemManager(object):
                 else:
                     SystemManager.fileForPrint.writelines(line)
             except:
-                SystemManager.printError("Fail to print to file\n")
+                SystemManager.printError("Fail to write to file\n")
                 sys.exit(0)
         else:
             print(line)
@@ -9391,18 +9423,23 @@ class SystemManager(object):
                         SystemManager.stackEnable = True
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
-                if options.rfind('w') > -1:
+                if options.rfind('c') > -1:
                     SystemManager.wfcEnable = True
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
                     SystemManager.fileTopEnable = True
                 if options.rfind('R') > -1:
+                    SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
-                if options.rfind('S') > -1:
-                    if os.geteuid() != 0:
+                if options.rfind('w') > -1:
+                    if SystemManager.findOption('g') is False:
+                        SystemManager.printError(\
+                            "wrong option with -e + w, use also -g option to track memory working set")
+                        sys.exit(0)
+                    elif os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to clear refcnts")
                         sys.exit(0)
                     SystemManager.wssEnable = True
@@ -11196,7 +11233,7 @@ class SystemManager(object):
         if SystemManager.saveCmd is not None:
             try:
                 SystemManager.cmdFd.write(SystemManager.saveCmd)
-                SystemManager.cmdFd.write("echo '\ntrace data is saved to %s\n'\n"\
+                SystemManager.cmdFd.write("echo '\nsaved command for tracing into %s\n'\n"\
                     % SystemManager.outputFile)
             except:
                 SystemManager.printError("Fail to write save command")
@@ -20824,8 +20861,14 @@ class ThreadAnalyzer(object):
             try:
                 # rename output file #
                 os.rename(SystemManager.inputFile, filePath)
+
+                try:
+                    fsize = SystemManager.convertSize(int(os.path.getsize(filePath)))
+                except:
+                    fsize = '?'
                 SystemManager.printStatus(\
-                    "saved top usage by report event into %s successfully" % filePath)
+                    "saved results based monitoring by event into %s [%s] successfully" % \
+                    (filePath, fsize))
             except:
                 SystemManager.printWarning(\
                     "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
