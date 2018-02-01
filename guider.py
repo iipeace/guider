@@ -11482,7 +11482,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Disk Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:^7} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:^20}". \
+            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:^20}". \
             format("DEV", "NUM", "READ", "WRITE", \
             "TOTAL", "FREE", "USAGE", "NrAvFile", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
@@ -11549,7 +11549,7 @@ class SystemManager(object):
                 pass
 
             diskInfo = \
-                "{0:<16} {1:^7} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:<20}".\
+                "{0:<16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:<20}".\
                 format(key, '%s:%s' % (major, minor), readSize, writeSize, \
                 total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
 
@@ -11582,7 +11582,7 @@ class SystemManager(object):
                 totalInfo['use'] = '?%'
 
             SystemManager.infoBufferPrint(\
-                "{0:^16}\n{1:^24} {2:^6} {3:^6} {4:^6} {5:^6} {6:^6} {7:^9} {8:^4} {9:<20}".\
+                "{0:^16}\n{1:^24} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:<20}".\
                 format(oneLine, 'TOTAL', totalInfo['read'], totalInfo['write'], \
                 totalInfo['total'], totalInfo['free'], totalInfo['use'], \
                 totalInfo['favail'], ' ', ' '))
@@ -12811,11 +12811,22 @@ class ThreadAnalyzer(object):
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
         memFree, memProcUsage, gpuUsage, totalRAM, swapUsage, totalSwap):
 
-        ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
+        ax = subplot2grid((6,1), (0,0), rowspan=4, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         suptitle('guider perf graph', fontsize=8)
 
-        # CPU total usage #
+        #------------------------------ GPU usage ------------------------------#
+        for gpu, stat in gpuUsage.items():
+            stat = map(int, stat.split())
+            try:
+                if min(stat) == max(stat):
+                    continue
+            except:
+                pass
+            plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
+            labelList.append('[ %s ]' % gpu)
+
+        #------------------------------ CPU usage ------------------------------#
         ymax = 0
         for idx, item in enumerate(blkWait):
             blkWait[idx] += cpuUsage[idx]
@@ -12826,12 +12837,6 @@ class ThreadAnalyzer(object):
         labelList.append('[ CPU + I/O ]')
         plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
         labelList.append('[ CPU Only ]')
-
-        # GPU total usage #
-        for gpu, stat in gpuUsage.items():
-            stat = map(int, stat.split())
-            plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
-            labelList.append('[ %s ]' % gpu)
 
         # initialize list that count the number of process using resource more than 1% #
         effectProcList = [0] * len(timeline)
@@ -12897,7 +12902,6 @@ class ThreadAnalyzer(object):
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
             subplots_adjust(left=0.06, top=0.95, bottom=0.04)
-        labelList = []
 
         try:
             xtickLabel = ax.get_xticks().tolist()
@@ -12912,7 +12916,134 @@ class ThreadAnalyzer(object):
         except:
             pass
 
-        # MEMORY usage #
+        #------------------------------ I/O usage ------------------------------#
+        labelList = []
+        ax = subplot2grid((6,1), (4,0), rowspan=1, colspan=1)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # System Swap Memory #
+        usage = map(int, swapUsage)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='orange', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='orange', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='orange', fontweight='bold')
+            plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+            if totalSwap is not None:
+                labelList.append('Swap Usage (<' + totalSwap + ')')
+            else:
+                labelList.append('Swap Usage')
+
+        # System Block Read #
+        usage = map(int, blkRead)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='red', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='red', fontweight='bold')
+            plot(timeline, blkRead, '-', c='red', linewidth=1)
+            labelList.append('Block Read')
+
+        # System Block Write #
+        usage = map(int, blkWrite)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='green', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='green', fontweight='bold')
+            plot(timeline, blkWrite, '-', c='green', linewidth=1)
+            labelList.append('Block Write')
+
+        # System Network Recv #
+        usage = map(int, netRead)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='purple', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='purple', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='purple', fontweight='bold')
+            plot(timeline, netRead, '-', c='purple', linewidth=1)
+            labelList.append('Network Recv')
+
+        # System Network Send #
+        usage = map(int, netWrite)
+        minIdx = usage.index(min(usage))
+        maxIdx = usage.index(max(usage))
+        if usage[minIdx] == usage[maxIdx] == 0:
+            pass
+        else:
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            if usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            if usage[-1] > 0:
+                text(timeline[-1], usage[-1], usage[-1],\
+                        fontsize=5, color='skyblue', fontweight='bold')
+            plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
+            labelList.append('Network Send')
+
+        ylabel('I/O(MB)', fontsize=7)
+        if len(labelList) > 0:
+            legend(labelList, bbox_to_anchor=(1.1, 0.85), fontsize=3.5, loc='upper right')
+        grid(which='both', linestyle=':', linewidth='0.2')
+        tick_params(axis='x', direction='in')
+        tick_params(axis='y', direction='in')
+        yticks(fontsize = 5)
+        xticks(fontsize = 4)
+        if len(timeline) > 1:
+            xlim([timeline[0], timeline[-1]])
+        ticklabel_format(useOffset=False)
+        locator_params(axis = 'x', nbins=30)
+        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+
+        # convert tick type to integer #
+        try:
+            ax.get_xaxis().set_visible(False)
+            ytickLabel = ax.get_yticks().tolist()
+            ytickLabel = map(int, ytickLabel)
+            ax.set_yticklabels(ytickLabel)
+        except:
+            pass
+
+        #------------------------------ MEMORY usage ------------------------------#
+        labelList = []
         ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
@@ -12938,104 +13069,6 @@ class ThreadAnalyzer(object):
                     labelList.append('RAM Free (<' + totalRAM + ')')
                 else:
                     labelList.append('RAM Free')
-
-            # System Swap Memory #
-            usage = map(int, swapUsage)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='orange', fontweight='bold')
-                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
-                if totalSwap is not None:
-                    labelList.append('Swap Usage (<' + totalSwap + ')')
-                else:
-                    labelList.append('Swap Usage')
-
-            # System Block Read #
-            usage = map(int, blkRead)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='red', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='red', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='red', fontweight='bold')
-                plot(timeline, blkRead, '-', c='red', linewidth=1)
-                labelList.append('Block Read')
-
-            # System Block Write #
-            usage = map(int, blkWrite)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='green', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='green', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='green', fontweight='bold')
-                plot(timeline, blkWrite, '-', c='green', linewidth=1)
-                labelList.append('Block Write')
-
-            # System Network Recv #
-            usage = map(int, netRead)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='purple', fontweight='bold')
-                plot(timeline, netRead, '-', c='purple', linewidth=1)
-                labelList.append('Network Recv')
-
-            # System Network Send #
-            usage = map(int, netWrite)
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
-                labelList.append('Network Send')
         else:
             # Process VSS #
             if SystemManager.vssEnable:
@@ -13054,7 +13087,7 @@ class ThreadAnalyzer(object):
                         if usage[-1] > 0:
                             text(timeline[-1], usage[-1], usage[-1], fontsize=5)
                         plot(timeline, usage, '-', linewidth=1)
-                        labelList.append('%s(VSS)' % key)
+                        labelList.append('%s[VSS]' % key)
             # Process RSS #
             if SystemManager.rssEnable:
                 for key, item in sorted(\
@@ -13072,10 +13105,10 @@ class ThreadAnalyzer(object):
                         if usage[-1] > 0:
                             text(timeline[-1], usage[-1], usage[-1], fontsize=5)
                         plot(timeline, usage, '-', linewidth=1)
-                        labelList.append('%s(RSS)' % key)
+                        labelList.append('%s[RSS]' % key)
 
         ylabel('MEMORY(MB)', fontsize=7)
-        legend(labelList, bbox_to_anchor=(1.1, 0.45), fontsize=3.5, loc='upper right')
+        legend(labelList, bbox_to_anchor=(1.11, 0.95), fontsize=3.5, loc='upper right')
         grid(which='both', linestyle=':', linewidth='0.2')
         tick_params(axis='x', direction='in')
         tick_params(axis='y', direction='in')
@@ -13087,8 +13120,8 @@ class ThreadAnalyzer(object):
         locator_params(axis = 'x', nbins=30)
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
 
+        # convert tick type to integer #
         try:
-            # convert to integer values #
             xtickLabel = ax.get_xticks().tolist()
             xtickLabel = map(int, xtickLabel)
             xlim([xtickLabel[0], xtickLabel[-1]])
@@ -13139,9 +13172,15 @@ class ThreadAnalyzer(object):
             # save graph #
             savefig(outputFile, dpi=(300))
             clf()
-            SystemManager.printStatus("write resource %s to %s" % (itype, outputFile))
+            try:
+                fsize = \
+                    SystemManager.convertSize(int(os.path.getsize(outputFile)))
+            except:
+                fsize = '?'
+            SystemManager.printStatus(\
+                "write resource %s into %s [%s]" % (itype, outputFile, fsize))
         except:
-            SystemManager.printError("Fail to draw image caused by save error")
+            SystemManager.printError("Fail to draw image because of exception")
             return
 
 
@@ -15047,9 +15086,15 @@ class ThreadAnalyzer(object):
                 graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider_graph.png'
                 savefig(graphPath, dpi=(200))
                 clf()
-                SystemManager.printStatus("write resource graph to %s" % graphPath)
+                try:
+                    fsize = \
+                        SystemManager.convertSize(int(os.path.getsize(graphPath)))
+                except:
+                    fsize = '?'
+                SystemManager.printStatus(\
+                    "write resource graph into %s [%s]" % (graphPath, fsize))
             else:
-                SystemManager.printWarning("Fail to draw graph")
+                SystemManager.printWarning("Fail to draw graph because of exception")
 
 
 
@@ -15411,7 +15456,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>3} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Avg")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15424,15 +15469,15 @@ class ThreadAnalyzer(object):
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            timeLine += '{0:^5}'.format(i)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>3} |".\
             format('[CPU]', '-', '-', '-', '-', value['cpu'])
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15449,8 +15494,8 @@ class ThreadAnalyzer(object):
             else:
                 usage = 0
 
-            timeLine += '{0:^5}'.format(usage)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -15482,8 +15527,8 @@ class ThreadAnalyzer(object):
                 else:
                     usage = 0
 
-                timeLine += '{0:^5}'.format(usage)
-                lineLen += 5
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += 7
 
             # skip process used no cpu #
             if total == 0:
@@ -15517,8 +15562,8 @@ class ThreadAnalyzer(object):
                 timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                 lineLen = len(gpuInfo)
 
-            timeLine += '{0:^5}'.format(i)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
@@ -15548,8 +15593,8 @@ class ThreadAnalyzer(object):
                 except:
                     usage = 0
 
-                timeLine += '{0:^5}'.format(usage)
-                lineLen += 5
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += 7
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
@@ -15563,7 +15608,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Max")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15576,15 +15621,15 @@ class ThreadAnalyzer(object):
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            timeLine += '{0:^5}'.format(i)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'])
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15601,8 +15646,8 @@ class ThreadAnalyzer(object):
             else:
                 usage = 0
 
-            timeLine += '{0:^5}'.format(usage)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -15615,7 +15660,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:4} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxMem'])
             procInfoLen = len(procInfo)
@@ -15633,8 +15678,8 @@ class ThreadAnalyzer(object):
                 else:
                     usage = 0
 
-                timeLine += '{0:^5}'.format(usage)
-                lineLen += 5
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += 7
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
@@ -15648,7 +15693,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Max")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15661,15 +15706,15 @@ class ThreadAnalyzer(object):
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            timeLine += '{0:^5}'.format(i)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:4} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'])
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15686,8 +15731,8 @@ class ThreadAnalyzer(object):
             else:
                 usage = 0
 
-            timeLine += '{0:^5}'.format(usage)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -15700,7 +15745,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:4} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxVss'])
             procInfoLen = len(procInfo)
@@ -15718,8 +15763,8 @@ class ThreadAnalyzer(object):
                 else:
                     usage = 0
 
-                timeLine += '{0:^5}'.format(usage)
-                lineLen += 5
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += 7
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
@@ -15733,7 +15778,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:5} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15746,8 +15791,8 @@ class ThreadAnalyzer(object):
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            timeLine += '{0:^5}'.format(i)
-            lineLen += 5
+            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
+            lineLen += 7
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
@@ -15760,7 +15805,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['blk'] == 0:
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:5} |".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['blk'])
             procInfoLen = len(procInfo)
@@ -15778,8 +15823,8 @@ class ThreadAnalyzer(object):
                 else:
                     usage = 0
 
-                timeLine += '{0:^5}'.format(usage)
-                lineLen += 5
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += 7
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
