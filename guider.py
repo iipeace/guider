@@ -15493,7 +15493,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:^7} | {4:^8} | {5:^7} | " +\
+        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^6} | {3:>7} | {4:^8} | {5:^7} | " +\
             "{6:^7} | {7:^7} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^6} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU(%)', 'MEM(M)', 'BlkRW(M)', 'Wait(%)',\
             'SWAP(M)', 'Rclm(M)', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCore', 'Network'))
@@ -15533,7 +15533,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Avg")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15554,7 +15554,7 @@ class ThreadAnalyzer(object):
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>3} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
             format('[CPU]', '-', '-', '-', '-', value['cpu'])
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15584,7 +15584,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:3} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'], pid, value['ppid'], value['nrThreads'], \
                 value['pri'], value['cpu'])
             procInfoLen = len(procInfo)
@@ -15855,7 +15855,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:5} |".\
+        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -15882,7 +15882,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['blk'] == 0:
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:5} |".\
+            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['blk'])
             procInfoLen = len(procInfo)
