@@ -19885,8 +19885,12 @@ class ThreadAnalyzer(object):
         # get profile mode #
         if SystemManager.processEnable:
             mode = 'Process'
+            pid = 'PID'
+            ppid = 'PPID'
         else:
             mode = 'Thread'
+            pid = 'TID'
+            ppid = 'PID'
 
         if SystemManager.wfcEnable is False:
             dprop = 'Dly'
@@ -19902,7 +19906,7 @@ class ThreadAnalyzer(object):
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
-            format(mode, "ID", "Pid", "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
+            format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine), newline = 3)
 
