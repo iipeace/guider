@@ -9457,8 +9457,9 @@ class SystemManager(object):
                     elif os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to clear refcnts")
                         sys.exit(0)
-                    SystemManager.wssEnable = True
                     SystemManager.memEnable = True
+                    SystemManager.wssEnable = True
+                    SystemManager.sort = 'p'
                 if options.rfind('P') > -1:
                     if os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to use PMU")
@@ -19536,6 +19537,9 @@ class ThreadAnalyzer(object):
             "Network") + ('%s\n' % oneLine), newline = 3)
 
         interval = SystemManager.uptimeDiff
+        if interval == 0:
+            return
+
         ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
         nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
         nrSoftIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
@@ -19843,6 +19847,9 @@ class ThreadAnalyzer(object):
     def printProcUsage(self):
         # calculate diff between previous and now #
         interval = SystemManager.uptimeDiff
+        if interval == 0:
+            return
+
         for pid, value in self.procData.items():
             try:
                 nowData = value['stat']
@@ -19929,7 +19936,7 @@ class ThreadAnalyzer(object):
             etc = 'SignalHandler'
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
+            ("{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
@@ -20052,7 +20059,7 @@ class ThreadAnalyzer(object):
             try:
                 m, s = divmod(value['runtime'], 60)
                 h, m = divmod(m, 60)
-                lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
             except:
                 lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
@@ -20257,15 +20264,16 @@ class ThreadAnalyzer(object):
                             try:
                                 self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
                             except:
-                                self.prevProcData[idx]['wss'] = {}
-                                self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
+                                if 'wss' not in self.procData[idx]:
+                                    self.procData[idx]['wss'] = dict()
 
-                                try:
-                                    path = '/proc/%s/clear_refs' % idx
-                                    with open(path, 'w') as fd:
-                                        fd.write('1')
-                                except:
-                                    pass
+                                    # clear reference bits #
+                                    try:
+                                        path = '/proc/%s/clear_refs' % idx
+                                        with open(path, 'w') as fd:
+                                            fd.write('1')
+                                    except:
+                                        pass
 
                             # update WSS history #
                             try:
@@ -20275,21 +20283,24 @@ class ThreadAnalyzer(object):
                                 self.procData[idx]['wss'][key] = '[%5s]' % wss
 
                             # split a long line #
+                            tstr = ''
                             indent = 48
+                            isFirstLined = True
                             limit = SystemManager.lineLength - indent
                             pstr = self.procData[idx]['wss'][key]
-                            if len(pstr) > limit:
-                                slimit = pstr[:limit].rfind(' ->') + 4
-                                src = '%s' % pstr[slimit:]
+
+                            while len(pstr) > limit:
+                                slimit = len(pstr[:limit])
                                 des = '%s' % pstr[:slimit]
-                                while len(src) > limit:
-                                    slimit = src[:limit].rfind(' ->') + 4
-                                    des = '%s\n%s%s' % (des, ' ' * indent, src[:slimit])
-                                    src = src[slimit:]
-                                pstr = '%s\n%s%s' % (des, ' ' * indent, src)
+                                tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
+                                if isFirstLined:
+                                    limit -= 7
+                                    isFirstLined = False
+                                pstr = '%s' % pstr[slimit:]
+                            tstr = '%s%s' % (tstr, pstr)
 
                             # count newlines #
-                            newline = pstr.count('\n')+1
+                            newline = tstr.count('\n')+1
 
                             # cut by rows of terminal #
                             if SystemManager.bufferRows + newline >= \
@@ -20299,7 +20310,7 @@ class ThreadAnalyzer(object):
                                 return
 
                             SystemManager.addPrint(\
-                                "{0:>39} |  WSS: {1:1}\n".format(' ', pstr), newline)
+                                "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
 
                 needLine = True
 
@@ -20401,7 +20412,7 @@ class ThreadAnalyzer(object):
                     runtime = value['runtime'] + SystemManager.uptimeDiff
                     m, s = divmod(runtime, 60)
                     h, m = divmod(m, 60)
-                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
                 except:
                     lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
@@ -20472,7 +20483,7 @@ class ThreadAnalyzer(object):
                     runtime = value['runtime'] + SystemManager.uptimeDiff
                     m, s = divmod(runtime, 60)
                     h, m = divmod(m, 60)
-                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
                 except:
                     lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
@@ -20545,7 +20556,7 @@ class ThreadAnalyzer(object):
                     runtime = value['runtime'] + SystemManager.uptimeDiff
                     m, s = divmod(runtime, 60)
                     h, m = divmod(m, 60)
-                    lifeTime = "%3d:%2d:%2d" % (h, m, s)
+                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
                 except:
                     lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
 
