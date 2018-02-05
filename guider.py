@@ -14,6 +14,7 @@ __repository__ = "https://github.com/iipeace/guider"
 
 
 
+# import essential packages #
 try:
     import re
     import sys
@@ -29,6 +30,16 @@ except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
     sys.exit(0)
+
+# convert types not supported #
+try:
+    xrange
+except:
+    xrange = range
+try:
+    long
+except:
+    long = int
 
 
 
@@ -5880,6 +5891,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
 
     arch = 'arm'
+    isLinux = True
     archOption = None
     mountPath = None
     mountCmd = None
@@ -6335,8 +6347,11 @@ class SystemManager(object):
 
     @staticmethod
     def checkEnv():
-        if sys.platform.startswith('linux') is False and \
-            sys.platform.startswith('win') is False:
+        if sys.platform.startswith('linux'):
+            SystemManager.isLinux = True
+        elif sys.platform.startswith('win'):
+            SystemManager.isLinux = False
+        else:
             SystemManager.printError('%s platform is not supported yet' % sys.platform)
             sys.exit(0)
 
@@ -10327,13 +10342,15 @@ class SystemManager(object):
 
     @staticmethod
     def setTtyCols(cols):
-        os.system('stty cols %s' % (cols))
+        if SystemManager.isLinux:
+            os.system('stty cols %s' % (cols))
 
 
 
     @staticmethod
     def setTtyRows(rows):
-        os.system('stty rows %s' % (rows))
+        if SystemManager.isLinux:
+            os.system('stty rows %s' % (rows))
 
 
 
@@ -10342,9 +10359,9 @@ class SystemManager(object):
         try:
             if SystemManager.printAllEnable:
                 SystemManager.ttyRows = SystemManager.ttyCols = 8192
-            else:
+            elif SystemManager.isLinux:
                 SystemManager.ttyRows, SystemManager.ttyCols = \
-                    map(int, os.popen('stty size', 'r').read().split())
+                    list(map(int, os.popen('stty size', 'r').read().split()))
         except:
             SystemManager.printWarning("Fail to use stty")
 
@@ -12665,9 +12682,9 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
                     pname = d['comm'].strip() + '(' + pid + ')'
                     prop[pname] = {}
-                    prop[pname][sline[1].strip()] = map(int, sline[2:-1])
-                elif pid > 0:
-                    prop[pname][sline[1].strip()] = map(int, sline[2:-1])
+                    prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
+                elif int(pid) > 0:
+                    prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
 
         # get total size of RAM and swap #
         try:
@@ -12833,7 +12850,7 @@ class ThreadAnalyzer(object):
 
         #------------------------------ GPU usage ------------------------------#
         for gpu, stat in gpuUsage.items():
-            stat = map(int, stat.split())
+            stat = list(map(int, stat.split()))
             try:
                 if min(stat) == max(stat):
                     continue
@@ -12860,13 +12877,13 @@ class ThreadAnalyzer(object):
         # CPU usage of processes #
         for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
             usage = item['usage'].split()
-            usage = map(int, usage)
+            usage = list(map(int, usage))
             cpuUsage = list(usage)
 
             # merge cpu usage and wait time of processes #
             try:
                 blkUsage = blkProcUsage[idx]['usage'].split()
-                blkUsage = map(int, blkUsage)
+                blkUsage = list(map(int, blkUsage))
                 for interval, value in enumerate(blkUsage):
                     usage[interval] += value
             except:
@@ -12910,7 +12927,7 @@ class ThreadAnalyzer(object):
         ylim([0, ymax])
         if len(timeline) > 1:
             xlim([timeline[0], timeline[-1]])
-        inc = ymax / 10
+        inc = int(ymax / 10)
         if inc == 0:
             inc = 1
         yticks(xrange(0, ymax + inc, inc), fontsize=5)
@@ -12939,7 +12956,7 @@ class ThreadAnalyzer(object):
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
         # System Swap Memory #
-        usage = map(int, swapUsage)
+        usage = list(map(int, swapUsage))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -12956,13 +12973,14 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='orange', fontweight='bold')
             plot(timeline, swapUsage, '-', c='orange', linewidth=1)
             if totalSwap is not None:
-                label = 'Swap Total [%s]\nSwap Usage' % totalSwap
+                label = 'Swap Total [%s]\nSwap Usage' % \
+                    SystemManager.convertSize(long(totalSwap) << 20)
                 labelList.append(label)
             else:
                 labelList.append('Swap Usage')
 
         # System Block Read #
-        usage = map(int, blkRead)
+        usage = list(map(int, blkRead))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -12981,7 +12999,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Read')
 
         # System Block Write #
-        usage = map(int, blkWrite)
+        usage = list(map(int, blkWrite))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -13000,7 +13018,7 @@ class ThreadAnalyzer(object):
             labelList.append('Block Write')
 
         # System Background Reclaim #
-        usage = map(int, reclaimBg)
+        usage = list(map(int, reclaimBg))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -13019,7 +13037,7 @@ class ThreadAnalyzer(object):
             labelList.append('Reclaim Background')
 
         # System Direct Reclaim #
-        usage = map(int, reclaimDr)
+        usage = list(map(int, reclaimDr))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -13038,7 +13056,7 @@ class ThreadAnalyzer(object):
             labelList.append('Reclaim Foreground')
 
         # System Network Recv #
-        usage = map(int, netRead)
+        usage = list(map(int, netRead))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -13057,7 +13075,7 @@ class ThreadAnalyzer(object):
             labelList.append('Network Recv')
 
         # System Network Send #
-        usage = map(int, netWrite)
+        usage = list(map(int, netWrite))
         minIdx = usage.index(min(usage))
         maxIdx = usage.index(max(usage))
         if usage[minIdx] == usage[maxIdx] == 0:
@@ -13081,10 +13099,17 @@ class ThreadAnalyzer(object):
         grid(which='both', linestyle=':', linewidth='0.2')
         tick_params(axis='x', direction='in')
         tick_params(axis='y', direction='in')
-        if int(ax.get_yticks().tolist()[-1]) == 1:
-            yticks([0, 1], fontsize = 5)
-        else:
-            yticks(fontsize = 5)
+
+        ylist = ax.get_yticks().tolist()
+        ymin = int(min(ylist))
+        if ymin < 0:
+            ymin = 0
+        ymax = int(max(ylist))
+        inc = int(ymax / 10)
+        if inc == 0:
+            inc = 1
+        yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+
         xticks(fontsize = 4)
         if len(timeline) > 1:
             xlim([timeline[0], timeline[-1]])
@@ -13096,7 +13121,7 @@ class ThreadAnalyzer(object):
         try:
             #ax.get_xaxis().set_visible(False)
             ytickLabel = ax.get_yticks().tolist()
-            ytickLabel = map(int, ytickLabel)
+            ytickLabel = list(map(int, ytickLabel))
             ax.set_yticklabels(ytickLabel)
         except:
             pass
@@ -13122,7 +13147,7 @@ class ThreadAnalyzer(object):
 
         if len(SystemManager.showGroup) == 0 or len(memProcUsage) == 0:
             # System Free Memory #
-            usage = map(int, memFree)
+            usage = list(map(int, memFree))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] == usage[maxIdx] == 0:
@@ -13139,7 +13164,8 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', linewidth=1)
                 if totalRAM is not None:
-                    label = 'RAM Total [%s]\nRAM Free' % totalRAM
+                    label = 'RAM Total [%s]\nRAM Free' % \
+                        SystemManager.convertSize(long(totalRAM) << 20)
                     labelList.append(label)
                 else:
                     labelList.append('RAM Free')
@@ -13148,7 +13174,7 @@ class ThreadAnalyzer(object):
             if SystemManager.vssEnable:
                 for key, item in sorted(\
                     memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
-                    usage = map(int, item['vssUsage'].split())
+                    usage = list(map(int, item['vssUsage'].split()))
                     minIdx = usage.index(min(usage))
                     maxIdx = usage.index(item['maxVss'])
                     if usage[minIdx] == usage[maxIdx] == 0:
@@ -13166,7 +13192,7 @@ class ThreadAnalyzer(object):
             if SystemManager.rssEnable:
                 for key, item in sorted(\
                     memProcUsage.items(), key=lambda e: e[1]['maxRss'], reverse=True):
-                    usage = map(int, item['rssUsage'].split())
+                    usage = list(map(int, item['rssUsage'].split()))
                     minIdx = usage.index(min(usage))
                     maxIdx = usage.index(item['maxRss'])
                     if usage[minIdx] == usage[maxIdx] == 0:
@@ -13197,13 +13223,13 @@ class ThreadAnalyzer(object):
         # convert tick type to integer #
         try:
             xtickLabel = ax.get_xticks().tolist()
-            xtickLabel = map(int, xtickLabel)
+            xtickLabel = list(map(int, xtickLabel))
             xlim([xtickLabel[0], xtickLabel[-1]])
             xtickLabel[-1] = '   TIME(Sec)'
             ax.set_xticklabels(xtickLabel)
 
             ytickLabel = ax.get_yticks().tolist()
-            ytickLabel = map(int, ytickLabel)
+            ytickLabel = list(map(int, ytickLabel))
             ax.set_yticklabels(ytickLabel)
         except:
             pass
@@ -20246,7 +20272,7 @@ class ThreadAnalyzer(object):
                                 history = self.procData[idx]['wss'][key]
                                 self.procData[idx]['wss'][key] = '%s -> %5s' % (history, wss)
                             except:
-                                self.procData[idx]['wss'][key] = '%5s' % wss
+                                self.procData[idx]['wss'][key] = '[%5s]' % wss
 
                             # split a long line #
                             indent = 48
@@ -21165,7 +21191,8 @@ if __name__ == '__main__':
     SystemManager.setArch(SystemManager.getArch())
 
     # save system info first #
-    SystemManager()
+    if SystemManager.isLinux:
+        SystemManager()
 
     #============================== record part ==============================#
     if SystemManager.isRecordMode():
