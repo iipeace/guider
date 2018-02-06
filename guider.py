@@ -6001,6 +6001,7 @@ class SystemManager(object):
     wchanEnable = False
     wfcEnable = False
     blockEnable = False
+    lockEnable = False
     userEnable = True
     printEnable = True
     futexEnable = False
@@ -6417,9 +6418,10 @@ class SystemManager(object):
             print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
             print('\t\t\t  [thread]   '\
-                '{m(em)|b(lock)|i(rq)|l(og)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+                '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|I(mage)|g(raph)|r(eport)|R(file)|f(ile)|P(erf)|G(pu)}')
+                '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
+                '\n\t\t\t              I(mage)|g(raph)|r(eport)|R(file)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -6490,6 +6492,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s guider.dat -o . -p 1234, 4567' % cmd)
                 print('\t\t\t- analyze specific threads that are involved in the specific processes')
                 print('\t\t\t\t# %s guider.dat -o . -P -g 1234, 4567' % cmd)
+                print('\t\t\t- draw graph and chart in image file')
+                print('\t\t\t\t# %s draw guider.dat' % cmd)
 
                 print('\t\t[function mode]')
                 print('\t\t\t- record cpu usage of functions in all threads')
@@ -7893,11 +7897,6 @@ class SystemManager(object):
             else:
                 disableStat += 'KEVENT '
 
-            if SystemManager.graphEnable:
-                enableStat += 'GRAPH '
-            else:
-                disableStat += 'GRAPH '
-
             if SystemManager.irqEnable:
                 enableStat += 'IRQ '
             else:
@@ -8054,11 +8053,6 @@ class SystemManager(object):
                 else:
                     disableStat += 'WFC '
 
-                if SystemManager.graphEnable:
-                    enableStat += 'GRAPH '
-                else:
-                    disableStat += 'GRAPH '
-
                 if SystemManager.imageEnable:
                     enableStat += 'IMAGE '
                 else:
@@ -8181,6 +8175,11 @@ class SystemManager(object):
                 enableStat += 'SYSCALL '
             else:
                 disableStat += 'SYSCALL '
+
+            if SystemManager.lockEnable:
+                enableStat += 'LOCK '
+            else:
+                disableStat += 'LOCK '
 
             if SystemManager.futexEnable:
                 enableStat += 'FUTEX '
@@ -9803,6 +9802,8 @@ class SystemManager(object):
                     SystemManager.resetEnable = True
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
+                if options.rfind('l') > -1:
+                    SystemManager.lockEnable = True
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -10715,8 +10716,9 @@ class SystemManager(object):
         self.cmdList["net/netif_receive_skb"] = SystemManager.netEnable
         self.cmdList["uprobes"] = SystemManager.ueventEnable
         self.cmdList["kprobes"] = SystemManager.keventEnable
+        self.cmdList["filelock/locks_get_lock_context"] = SystemManager.lockEnable
         self.cmdList["power/cpu_idle"] = SystemManager.cpuEnable
-        self.cmdList["power/cpu_frequency"] = False
+        self.cmdList["power/cpu_frequency"] = False #toDo: implement power profiler #
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = SystemManager.memEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = SystemManager.memEnable
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
@@ -10809,6 +10811,10 @@ class SystemManager(object):
         SystemManager.writeCustomCmd()
         SystemManager.writeKernelCmd()
         SystemManager.writeUserCmd()
+
+        # enable filelock events #
+        if self.cmdList["filelock/locks_get_lock_context"]:
+            SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
 
         # enable common events #
         if self.cmdList["task"]:
@@ -11866,6 +11872,8 @@ class ThreadAnalyzer(object):
             self.intervalData = []
             self.depData = []
             self.sigData = []
+            self.lockTable = {}
+            self.lockData = []
             self.customEventData = []
             self.userEventData = []
             self.kernelEventData = []
@@ -11915,7 +11923,8 @@ class ThreadAnalyzer(object):
                 'lastIdleStatus': int(0), 'createdTime': float(0), 'waitStartAsParent': float(0), \
                 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, \
                 'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
-                'blkCore': int(0)}
+                'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
+                'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0)}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), \
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
@@ -14092,140 +14101,152 @@ class ThreadAnalyzer(object):
 
 
 
+    def printLockInfo(self):
+        SystemManager.clearPrint()
+
+        if len(self.lockData) == 0:
+            return
+
+
+
     def printSyscallInfo(self):
         SystemManager.clearPrint()
 
-        if self.syscallData != []:
-            outputCnt = 0
-            SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
-                ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
-            SystemManager.pipePrint(twoLine)
+        if len(self.syscallData) == 0:
+            return
 
-            for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
-                threadInfo = ''
-                syscallInfo = ''
+        outputCnt = 0
+        SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
+            ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
+        SystemManager.pipePrint(twoLine)
 
-                if key[0:2] == '0[':
+        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
+            threadInfo = ''
+            syscallInfo = ''
+
+            if key[0:2] == '0[':
+                continue
+
+            try:
+                if len(value['syscallInfo']) > 0:
+                    threadInfo = "%16s(%4s)" % (value['comm'], key)
+                else:
                     continue
+            except:
+                continue
 
+            for sysId, val in sorted(\
+                value['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
                 try:
-                    if len(value['syscallInfo']) > 0:
-                        threadInfo = "%16s(%4s)" % (value['comm'], key)
-                    else:
-                        continue
+                    if val['count'] > 0:
+                        val['average'] = val['usage'] / val['count']
+
+                        syscallInfo += \
+                            "%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
+                            (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
+                             val['count'], val['min'], val['max'], val['average'])
                 except:
                     continue
 
-                for sysId, val in sorted(\
-                    value['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
-                    try:
-                        if val['count'] > 0:
-                            val['average'] = val['usage'] / val['count']
+            if syscallInfo != '':
+                outputCnt += 1
+                SystemManager.pipePrint(threadInfo)
+                SystemManager.pipePrint('%s\n%s' % (syscallInfo[:-1], oneLine))
 
-                            syscallInfo += \
-                                "%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
-                                (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
-                                 val['count'], val['min'], val['max'], val['average'])
-                    except:
-                        continue
+        if outputCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-                if syscallInfo != '':
-                    outputCnt += 1
-                    SystemManager.pipePrint(threadInfo)
-                    SystemManager.pipePrint('%s\n%s' % (syscallInfo[:-1], oneLine))
+        SystemManager.clearPrint()
+        if SystemManager.showAll:
+            SystemManager.pipePrint('\n' + '[Thread Syscall History]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:>16}({1:>5}) {2:^9} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:^16} {9:<1}"\
+                .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
+                "SID", "Core", "Return", "Parameter"))
+            SystemManager.pipePrint(twoLine)
 
-            if outputCnt == 0:
-                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+            cnt = 0
+            for icount in xrange(0, len(self.syscallData)):
+                try:
+                    syscall = ConfigManager.sysList[int(self.syscallData[icount][4])]
 
-            SystemManager.clearPrint()
-            if SystemManager.showAll:
-                SystemManager.pipePrint('\n' + '[Thread Syscall History]')
-                SystemManager.pipePrint(twoLine)
-                SystemManager.pipePrint(\
-                    "{0:>16}({1:>5}) {2:^9} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:^16} {9:<1}"\
-                    .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
-                    "SID", "Core", "Return", "Parameter"))
-                SystemManager.pipePrint(twoLine)
-
-                cnt = 0
-                for icount in xrange(0, len(self.syscallData)):
-                    try:
-                        syscall = ConfigManager.sysList[int(self.syscallData[icount][4])]
-
-                        if self.syscallData[icount][0] == 'enter':
-                            if len(self.syscallData) > icount + 1 and \
-                                self.syscallData[icount + 1][0] == 'exit' and \
-                                self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
-                                eventType = 'pair'
-                                eventTime = \
-                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
-                                elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
-                                    float(self.syscallData[icount][1]))
-                                param = self.syscallData[icount][5]
-                                ret = self.syscallData[icount + 1][5]
-                            else:
-                                eventType = self.syscallData[icount][0]
-                                eventTime = \
-                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
-                                elapsed = ' ' * 8
-                                param = self.syscallData[icount][5]
-                                ret = ' '
+                    if self.syscallData[icount][0] == 'enter':
+                        if len(self.syscallData) > icount + 1 and \
+                            self.syscallData[icount + 1][0] == 'exit' and \
+                            self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
+                            eventType = 'pair'
+                            eventTime = \
+                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
+                            elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
+                                float(self.syscallData[icount][1]))
+                            param = self.syscallData[icount][5]
+                            ret = self.syscallData[icount + 1][5]
                         else:
-                            if self.syscallData[icount - 1][0] == 'enter' and \
-                                    self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
-                                continue
-                            else:
-                                eventType = self.syscallData[icount][0]
-                                eventTime = \
-                                    float(self.syscallData[icount][1]) - float(SystemManager.startTime)
-                                elapsed = ' ' * 8
-                                param = ' '
-                                ret = self.syscallData[icount][5]
+                            eventType = self.syscallData[icount][0]
+                            eventTime = \
+                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
+                            elapsed = ' ' * 8
+                            param = self.syscallData[icount][5]
+                            ret = ' '
+                    else:
+                        if self.syscallData[icount - 1][0] == 'enter' and \
+                                self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
+                            continue
+                        else:
+                            eventType = self.syscallData[icount][0]
+                            eventTime = \
+                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
+                            elapsed = ' ' * 8
+                            param = ' '
+                            ret = self.syscallData[icount][5]
 
-                        try:
-                            nrRet = int(ret)
-                            if nrRet < 0:
-                                ret = ConfigManager.errList[abs(nrRet) - 1]
-                        except:
-                            pass
-
-                        SystemManager.pipePrint(\
-                            "{0:>16}({1:>5}) {2:>3.6f} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
-                            .format(self.threadData[self.syscallData[icount][2]]['comm'], \
-                            self.syscallData[icount][2], eventTime, elapsed, eventType, syscall[4:], \
-                            self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
-                        cnt += 1
+                    try:
+                        nrRet = int(ret)
+                        if nrRet < 0:
+                            ret = ConfigManager.errList[abs(nrRet) - 1]
                     except:
-                        continue
-                if cnt == 0:
-                    SystemManager.pipePrint("\tNone")
-                SystemManager.pipePrint(oneLine)
+                        pass
+
+                    SystemManager.pipePrint(\
+                        "{0:>16}({1:>5}) {2:>3.6f} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
+                        .format(self.threadData[self.syscallData[icount][2]]['comm'], \
+                        self.syscallData[icount][2], eventTime, elapsed, eventType, syscall[4:], \
+                        self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
+                    cnt += 1
+                except:
+                    continue
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
 
 
 
     def printConsoleInfo(self):
-        if len(self.consoleData) > 0 and SystemManager.showAll:
-            SystemManager.pipePrint('\n' + '[Thread Message Info]')
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint(\
-                "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
-            SystemManager.pipePrint(twoLine)
+        if len(self.consoleData) == 0 or SystemManager.showAll is False:
+            return
 
-            cnt = 0
-            for msg in self.consoleData:
-                try:
-                    SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
-                        (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
-                        round(float(msg[2]) - float(SystemManager.startTime), 7), msg[3]))
-                    cnt += 1
-                except:
-                    continue
+        SystemManager.pipePrint('\n' + '[Thread Message Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
+        SystemManager.pipePrint(twoLine)
 
-            if cnt == 0:
-                SystemManager.pipePrint("\tNone")
-            SystemManager.pipePrint(twoLine)
+        cnt = 0
+        for msg in self.consoleData:
+            try:
+                SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
+                    (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
+                    round(float(msg[2]) - float(SystemManager.startTime), 7), msg[3]))
+                cnt += 1
+            except:
+                continue
+
+        if cnt == 0:
+            SystemManager.pipePrint("\tNone")
+        SystemManager.pipePrint(twoLine)
 
 
 
@@ -17826,6 +17847,74 @@ class ThreadAnalyzer(object):
                     self.threadData[pid]['comm'] = newcomm
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
+
+            elif func == "locks_get_lock_context":
+                m = re.match((\
+                    r'^\s*dev=(?P<dev>.+)\s+ino=(?P<ino>.+)'\
+                    r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    fid = '%s%s' % (d['dev'], d['ino'])
+                    ltype = d['type']
+                    ctx = d['ctx']
+
+                    # save lock data #
+                    self.lockData.append([time, fid, ltype, ctx])
+
+                    # unlock #
+                    if ltype == 'F_UNLCK':
+                        self.threadData[thread]['lockCnt'] += 1
+
+                        try:
+                            if self.lockTable[fid]['owner'] == thread:
+                                self.threadData[thread]['lockTime'] += \
+                                    time - self.lockTable[fid]['time']
+                            self.lockTable[fid]['owner'] = None
+                            self.lockTable[fid]['time'] = 0
+                            self.lockTable[fid]['type'] = None
+
+                            if self.threadData[thread]['lastLockTime'] > 0:
+                                self.threadData[thread]['lockTime'] += \
+                                    (float(time) - self.threadData[thread]['lastLockTime'])
+                                self.threadData[thread]['lastLockTime'] = 0
+                        except:
+                            self.lockTable[fid] = {}
+                            self.lockTable[fid]['owner'] = None
+                            self.lockTable[fid]['time'] = 0
+                            self.lockTable[fid]['type'] = None
+                    # try to lock #
+                    else:
+                        self.threadData[thread]['tryLockCnt'] += 1
+
+                        try:
+                            # get lock #
+                            if self.lockTable[fid]['owner'] is None:
+                                self.lockTable[fid]['owner'] = thread
+                                self.lockTable[fid]['time'] = float(time)
+                                self.lockTable[fid]['type'] = ltype
+                                self.threadData[thread]['lockCnt'] += 1
+                                self.threadData[thread]['lastLockTime'] = float(time)
+
+                                if self.threadData[thread]['lastLockWait'] > 0:
+                                    self.threadData[thread]['lockWait'] += \
+                                        time - self.threadData[thread]['lastLockWait']
+                                    self.threadData[thread]['lastLockWait'] = 0
+                            # wait lock #
+                            else:
+                                if self.threadData[thread]['lastLockWait'] > 0:
+                                    self.threadData[thread]['lockWait'] += \
+                                        time - self.threadData[thread]['lastLockWait']
+
+                                self.threadData[thread]['lastLockWait'] = float(time)
+                        except:
+                            # no lock #
+                            self.lockTable[fid] = {}
+                            self.lockTable[fid]['owner'] = thread
+                            self.lockTable[fid]['time'] = float(time)
+                            self.lockTable[fid]['type'] = ltype
+                            self.threadData[thread]['lockCnt'] += 1
+                            self.threadData[thread]['lastLockTime'] = float(time)
 
             elif func == "sched_process_exit":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -21514,11 +21603,14 @@ if __name__ == '__main__':
         # print dependency of threads #
         ti.printDepInfo()
 
-        # print kernel messages #
-        ti.printConsoleInfo()
+        # print lock of threads #
+        ti.printLockInfo()
 
         # print system call usage #
         ti.printSyscallInfo()
+
+        # print kernel messages #
+        ti.printConsoleInfo()
 
     # print event info #
     EventAnalyzer.printEventInfo()
