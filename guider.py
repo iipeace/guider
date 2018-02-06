@@ -8509,7 +8509,7 @@ class SystemManager(object):
                 pass
 
             SystemManager.printWarning(\
-                "Fail to use %s event, please confirm kernel configuration" % epath)
+                "Fail to use %s event, please check kernel configuration" % epath)
             return -1
 
         # apply command #
@@ -9417,7 +9417,7 @@ class SystemManager(object):
                         sys.exit(0)
                     elif os.path.isfile('/proc/1/io') is False:
                         SystemManager.printError(\
-                            "Fail to use bio event, please confirm kernel configuration")
+                            "Fail to use bio event, please check kernel configuration")
                         sys.exit(0)
                     else:
                         SystemManager.blockEnable = True
@@ -9431,7 +9431,7 @@ class SystemManager(object):
                         sys.exit(0)
                     elif os.path.isfile('/proc/1/stack') is False:
                         SystemManager.printError(\
-                            "Fail to sample stack, please confirm kernel configuration")
+                            "Fail to sample stack, please check kernel configuration")
                         sys.exit(0)
                     else:
                         SystemManager.stackEnable = True
@@ -9469,7 +9469,7 @@ class SystemManager(object):
                         sys.exit(0)
                     elif os.path.isfile('/proc/sys/kernel/perf_event_paranoid') is False:
                         SystemManager.printError(\
-                            "Fail to use PMU, please confirm kernel configuration")
+                            "Fail to use PMU, please check kernel configuration")
                         sys.exit(0)
                     else:
                         SystemManager.perfGroupEnable = True
@@ -11517,6 +11517,7 @@ class SystemManager(object):
             'read': long(0), 'write': long(0)}
         outputCnt = 0
 
+        # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             try:
                 if key[0] == '/':
@@ -13416,9 +13417,10 @@ class ThreadAnalyzer(object):
         # print thread tree by creation #
         if SystemManager.showAll and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + \
-                '[Thread Creation Info] [Alive: +] [Die: -] [CreatedTime: //] [ChildCount: ||] ' + \
-                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]')
+            SystemManager.pipePrint((\
+                '\n[Thread Creation Info] [Alive: +] [Die: -] '
+                '[CreatedTime: //] [ChildCount: ||] '
+                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]'))
             SystemManager.pipePrint(twoLine)
 
             for key, value in sorted(\
@@ -13431,9 +13433,10 @@ class ThreadAnalyzer(object):
         # print signal traffic #
         if SystemManager.showAll and len(self.sigData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread Signal Info]')
+            SystemManager.pipePrint('\n[Thread Signal Info]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+            SystemManager.pipePrint(\
+                "{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
                 format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemManager.pipePrint(twoLine)
 
@@ -13460,7 +13463,7 @@ class ThreadAnalyzer(object):
             totalCnt = int(0)
             totalUsage = float(0)
 
-            SystemManager.pipePrint('\n' + '[Thread IRQ Info]')
+            SystemManager.pipePrint('\n[Thread IRQ Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} {5:^10} {6:^10} {7:^10}".\
@@ -13500,7 +13503,7 @@ class ThreadAnalyzer(object):
         # print custom event info #
         if len(self.customEventInfo) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread CUSTOM Event Info]')
+            SystemManager.pipePrint('\n[Thread CUSTOM Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
@@ -13531,7 +13534,7 @@ class ThreadAnalyzer(object):
         # print custom event history #
         if SystemManager.showAll and len(self.customEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread CUSTOM Event History]')
+            SystemManager.pipePrint('\n[Thread CUSTOM Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:^32} {1:^10} {2:>16}({3:>5}) {4:<1}".\
                 format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
@@ -13561,7 +13564,7 @@ class ThreadAnalyzer(object):
         # print user event info #
         if len(self.userEventInfo) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread USER Event Info]')
+            SystemManager.pipePrint('\n[Thread USER Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
@@ -13599,7 +13602,7 @@ class ThreadAnalyzer(object):
         # print user event history #
         if SystemManager.showAll and len(self.userEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread USER Event History]')
+            SystemManager.pipePrint('\n[Thread USER Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
@@ -13640,7 +13643,7 @@ class ThreadAnalyzer(object):
         # print kernel event info #
         if len(self.kernelEventInfo) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread KERNEL Event Info]')
+            SystemManager.pipePrint('\n[Thread KERNEL Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
@@ -13678,7 +13681,7 @@ class ThreadAnalyzer(object):
         # print kernel event history #
         if SystemManager.showAll and len(self.kernelEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n' + '[Thread KERNEL Event History]')
+            SystemManager.pipePrint('\n[Thread KERNEL Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
@@ -14034,7 +14037,7 @@ class ThreadAnalyzer(object):
         init_moduleData = {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
 
         SystemManager.clearPrint()
-        SystemManager.pipePrint('\n' + '[Thread Module Info]')
+        SystemManager.pipePrint('\n[Thread Module Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
             format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
@@ -14086,7 +14089,7 @@ class ThreadAnalyzer(object):
             return
 
         SystemManager.clearPrint()
-        SystemManager.pipePrint('\n' + '[Thread Dependency Info]')
+        SystemManager.pipePrint('\n[Thread Dependency Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
             ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
@@ -14116,7 +14119,7 @@ class ThreadAnalyzer(object):
             return
 
         outputCnt = 0
-        SystemManager.pipePrint('\n' + '[Thread Syscall Info]')
+        SystemManager.pipePrint('\n[Thread Syscall Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
             ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
@@ -14160,7 +14163,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.clearPrint()
         if SystemManager.showAll:
-            SystemManager.pipePrint('\n' + '[Thread Syscall History]')
+            SystemManager.pipePrint('\n[Thread Syscall History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:>16}({1:>5}) {2:^9} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:^16} {9:<1}"\
@@ -14228,7 +14231,7 @@ class ThreadAnalyzer(object):
         if len(self.consoleData) == 0 or SystemManager.showAll is False:
             return
 
-        SystemManager.pipePrint('\n' + '[Thread Message Info]')
+        SystemManager.pipePrint('\n[Thread Message Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
@@ -14254,7 +14257,7 @@ class ThreadAnalyzer(object):
         if SystemManager.blockEnable is False:
             return
 
-        SystemManager.pipePrint('\n' + '[Thread Block Info]')
+        SystemManager.pipePrint('\n[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:^8} {1:^8} {2:^12} {3:^16} {4:>32}".\
             format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
@@ -14515,8 +14518,8 @@ class ThreadAnalyzer(object):
             not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
             return
 
-        SystemManager.pipePrint('\n' + '[Thread Interval Info] [ Unit: %s Sec ]' % \
-            SystemManager.intervalEnable)
+        SystemManager.pipePrint(\
+            '\n[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
         # graph list #
