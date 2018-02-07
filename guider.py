@@ -13447,9 +13447,13 @@ class ThreadAnalyzer(object):
                     continue
 
                 if val[0] == 'SEND':
+                    if val[3].startswith('0['):
+                        tid = 0
+                    else:
+                        tid = val[3]
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                        format(val[0], val[1], val[2], val[3], \
+                        format(val[0], val[1], val[2], tid, \
                         ConfigManager.sigList[int(val[6])], val[4], val[5]))
                 elif val[0] == 'RECV':
                     SystemManager.pipePrint(\
@@ -14088,7 +14092,6 @@ class ThreadAnalyzer(object):
         if SystemManager.depEnable is False:
             return
 
-        SystemManager.clearPrint()
         SystemManager.pipePrint('\n[Thread Dependency Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
@@ -14110,18 +14113,67 @@ class ThreadAnalyzer(object):
         if len(self.lockData) == 0:
             return
 
+        outputCnt = 0
+        SystemManager.pipePrint('\n[Thread Lock Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
+            'Name', 'Tid', 'Waited', 'Locked', 'nrTry', 'nrLock'))
+        SystemManager.pipePrint(twoLine)
+
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['lockWait'], reverse=True):
+            if key[0:2] == '0[':
+                continue
+            elif value['lockWait'] == value['lockTime'] == \
+                value['tryLockCnt'] == value['lockCnt'] == 0:
+                continue
+
+            lockInfo = '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
+                value['comm'], key, '%.3f' % float(value['lockWait']),\
+                '%.3f' % float(value['lockTime']), value['tryLockCnt'], value['lockCnt'])
+            SystemManager.pipePrint('%s\n%s' % (lockInfo, oneLine))
+            outputCnt += 1
+
+        if outputCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        if SystemManager.showAll:
+            SystemManager.pipePrint('\n[Thread Lock History]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:>16}({1:>5}) {2:^10} {3:^4} {4:^10} {5:^16} {6:^16} {7:^16}"\
+                .format("Name", "Tid", "Time", "Core", "Type", "Device", "Inode", "Context"))
+            SystemManager.pipePrint(twoLine)
+
+            cnt = 0
+            for icount in xrange(0, len(self.lockData)):
+                try:
+                    pos = self.lockData[icount][4].rfind('0x')
+                    dev = self.lockData[icount][4][:pos]
+                    inode = self.lockData[icount][4][pos:]
+                    SystemManager.pipePrint(\
+                        "{0:>16}({1:>5}) {2:^11} {3:^4} {4:^10} {5:^16} {6:^16} {7:^16}".\
+                        format(self.threadData[self.lockData[icount][0]]['comm'],\
+                        self.lockData[icount][0], self.lockData[icount][1],\
+                        self.lockData[icount][2], self.lockData[icount][3],\
+                        dev, inode, self.lockData[icount][5]))
+                    cnt += 1
+                except:
+                    continue
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
+
 
 
     def printSyscallInfo(self):
-        SystemManager.clearPrint()
-
         if len(self.syscallData) == 0:
             return
 
         outputCnt = 0
         SystemManager.pipePrint('\n[Thread Syscall Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("%16s(%4s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
+        SystemManager.pipePrint("%16s(%5s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
             ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
@@ -14134,7 +14186,7 @@ class ThreadAnalyzer(object):
 
             try:
                 if len(value['syscallInfo']) > 0:
-                    threadInfo = "%16s(%4s)" % (value['comm'], key)
+                    threadInfo = "%16s(%5s)" % (value['comm'], key)
                 else:
                     continue
             except:
@@ -14161,12 +14213,11 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-        SystemManager.clearPrint()
         if SystemManager.showAll:
             SystemManager.pipePrint('\n[Thread Syscall History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:^9} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:^16} {9:<1}"\
+                "{0:>16}({1:>5}) {2:^10} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:>16} {9:<1}"\
                 .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
                 "SID", "Core", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
@@ -14214,7 +14265,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>3.6f} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
+                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
                         .format(self.threadData[self.syscallData[icount][2]]['comm'], \
                         self.syscallData[icount][2], eventTime, elapsed, eventType, syscall[4:], \
                         self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
@@ -17863,29 +17914,23 @@ class ThreadAnalyzer(object):
                     ctx = d['ctx']
 
                     # save lock data #
-                    self.lockData.append([time, fid, ltype, ctx])
+                    self.lockData.append([thread, time, core, ltype, fid, ctx])
 
                     # unlock #
                     if ltype == 'F_UNLCK':
-                        self.threadData[thread]['lockCnt'] += 1
-
                         try:
                             if self.lockTable[fid]['owner'] == thread:
                                 self.threadData[thread]['lockTime'] += \
-                                    time - self.lockTable[fid]['time']
-                            self.lockTable[fid]['owner'] = None
-                            self.lockTable[fid]['time'] = 0
-                            self.lockTable[fid]['type'] = None
-
-                            if self.threadData[thread]['lastLockTime'] > 0:
-                                self.threadData[thread]['lockTime'] += \
-                                    (float(time) - self.threadData[thread]['lastLockTime'])
-                                self.threadData[thread]['lastLockTime'] = 0
+                                    float(time) - self.lockTable[fid]['time']
+                                self.threadData[thread]['lockCnt'] += 1
                         except:
                             self.lockTable[fid] = {}
-                            self.lockTable[fid]['owner'] = None
-                            self.lockTable[fid]['time'] = 0
-                            self.lockTable[fid]['type'] = None
+                            self.threadData[thread]['lockCnt'] += 1
+
+                        # initialize lock data #
+                        self.lockTable[fid]['owner'] = None
+                        self.lockTable[fid]['time'] = 0
+                        self.lockTable[fid]['type'] = None
                     # try to lock #
                     else:
                         self.threadData[thread]['tryLockCnt'] += 1
@@ -17896,18 +17941,20 @@ class ThreadAnalyzer(object):
                                 self.lockTable[fid]['owner'] = thread
                                 self.lockTable[fid]['time'] = float(time)
                                 self.lockTable[fid]['type'] = ltype
-                                self.threadData[thread]['lockCnt'] += 1
                                 self.threadData[thread]['lastLockTime'] = float(time)
 
+                                # add wait time to get lock #
                                 if self.threadData[thread]['lastLockWait'] > 0:
                                     self.threadData[thread]['lockWait'] += \
-                                        time - self.threadData[thread]['lastLockWait']
+                                        float(time) - self.threadData[thread]['lastLockWait']
+
                                     self.threadData[thread]['lastLockWait'] = 0
                             # wait lock #
                             else:
+                                # add wait time to get lock #
                                 if self.threadData[thread]['lastLockWait'] > 0:
                                     self.threadData[thread]['lockWait'] += \
-                                        time - self.threadData[thread]['lastLockWait']
+                                        float(time) - self.threadData[thread]['lastLockWait']
 
                                 self.threadData[thread]['lastLockWait'] = float(time)
                         except:
@@ -17916,7 +17963,6 @@ class ThreadAnalyzer(object):
                             self.lockTable[fid]['owner'] = thread
                             self.lockTable[fid]['time'] = float(time)
                             self.lockTable[fid]['type'] = ltype
-                            self.threadData[thread]['lockCnt'] += 1
                             self.threadData[thread]['lastLockTime'] = float(time)
 
             elif func == "sched_process_exit":
