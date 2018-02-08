@@ -1054,7 +1054,8 @@ class FunctionAnalyzer(object):
 
     symStackIdxTable = [
         'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
-        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE', 'CUSTOM'
+        'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE', \
+        'LOCK_TRY', 'CUSTOM'
         ]
 
 
@@ -1066,6 +1067,7 @@ class FunctionAnalyzer(object):
         self.breadEnabled = False
         self.bwriteEnabled = False
         self.sigEnabled = False
+        self.lockEnabled = False
 
         self.sort = 'sym'
 
@@ -1106,6 +1108,7 @@ class FunctionAnalyzer(object):
         self.blockRdUsageCnt = 0
         self.blockWrEventCnt = 0
         self.blockWrUsageCnt = 0
+        self.lockTryEventCnt = 0
         self.customCnt = 0
         self.customTotal = 0
 
@@ -1133,14 +1136,14 @@ class FunctionAnalyzer(object):
             'cachePages': int(0), 'kernelPages': int(0), 'heapSize': int(0), \
             'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
             'nrKnownFreePages': int(0), 'customCnt': int(0), 'nrRdBlocks': int(0), \
-            'customTotal': int(0)}
+            'nrLockTry': int(0), 'customTotal': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
             'totalCnt': int(0), 'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), \
             'heapSize': int(0), 'unknownPageFreeCnt': int(0), 'src': '', 'customCnt': int(0), \
-            'customTotal': int(0)}
+            'customTotal': int(0), 'lockTryCnt': int(0)}
 
         self.init_symData = \
             {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), \
@@ -1150,7 +1153,7 @@ class FunctionAnalyzer(object):
             'pagePair': None, 'pagePairCnt': int(0), 'pagePairTotal': float(0), \
             'pagePairMin': float(0), 'pagePairMax': float(0), 'pagePairAvr': float(0), \
             'pageRemainMin': float(0), 'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
-            'pageRemainTotal': float(0)}
+            'pageRemainTotal': float(0), 'lockTryCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
@@ -1896,6 +1899,11 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]['blockWrCnt'] += eventCnt
                 self.kernelSymData[kernelSym]['blockWrCnt'] += eventCnt
 
+            # lock try event #
+            elif event == 'LOCK_TRY':
+                self.userSymData[sym]['lockTryCnt'] += eventCnt
+                self.kernelSymData[kernelSym]['lockTryCnt'] += eventCnt
+
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
                 self.userSymData[sym]['tickCnt'] += 1
@@ -2222,6 +2230,11 @@ class FunctionAnalyzer(object):
             self.posData[self.nowCtx['kernelLastPos']]['blockWrCnt'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['blockWrCnt'] += targetCnt
 
+        elif targetEvent == 'LOCK_TRY':
+            self.lockTryEventCnt += 1
+            self.posData[self.nowCtx['kernelLastPos']]['lockTryCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['lockTryCnt'] += targetCnt
+
         elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
@@ -2414,6 +2427,8 @@ class FunctionAnalyzer(object):
 
                 if targetEvent == 'CPU_TICK':
                     self.posData[pos]['posCnt'] += 1
+                elif targetEvent == 'LOCK_TRY':
+                    self.posData[pos]['lockTryCnt'] += 1
 
             self.nowCtx['userCallStack'].append(pos)
         # kernel mode #
@@ -3005,6 +3020,25 @@ class FunctionAnalyzer(object):
 
             return False
 
+        elif isFixedEvent and func == "locks_get_lock_context:":
+            m = re.match((\
+                r'^\s*dev=(?P<dev>.+)\s+ino=(?P<ino>.+)'\
+                r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), args)
+            if m is not None:
+                d = m.groupdict()
+                if d['type'] == 'F_UNLCK':
+                    self.saveEventParam('IGNORE', 0, func[:-1])
+                else:
+                    self.lockEnabled = True
+
+                    self.threadData[tid]['nrLockTry'] += 1
+
+                    self.saveEventParam('LOCK_TRY', 1, 0)
+            else:
+                self.saveEventParam('IGNORE', 0, func[:-1])
+
+            return False
+
         # Start to record user stack #
         elif func == "<user":
             self.nowCtx['prevMode'] = self.nowCtx['curMode']
@@ -3260,21 +3294,21 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:_^53}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^8}|".\
-            format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "CUSTOM"))
+            "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
+            format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "LOCK", "CUSTOM"))
         SystemManager.pipePrint(\
-            ("{0:^16}|{1:^7}|{2:^7}|{3:^8}|{4:^5}|{5:^5}|{6:^7}|" + \
-            "{7:^9}{8:^8}{9:^8}{10:^12}|{11:^8}|{12:^7}|{13:^8}|" + \
-            "{14:^8}|{15:^9}|{16:^8}|").\
-            format(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", \
-            " ", " ", " ", " ", " ", " "))
+            (("{0:^16}|{1:^7}|{2:^7}|{3:^6}|{4:^6}|{5:^7}|"
+            "{6:^9}{7:^8}{8:^8}{9:^12}|{10:^8}|{11:^7}|{12:^8}|"
+            "{13:^8}|{14:^9}|{15:^6}|{16:^8}|")).\
+            format(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", \
+            " ", " ", " ", " ", " ", " ", " "))
         SystemManager.pipePrint(\
-            ("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^8}|{4:_^5}|{5:_^5}|{6:_^7}|" + \
-            "{7:_^9}({8:_^8}/{9:_^8}/{10:_^8})|{11:_^8}|{12:_^7}|{13:_^8}|" + \
-            "{14:_^8}|{15:_^9}|{16:_^8}|").\
-            format("Name", "Tid", "Pid", "Target", "DIE", "NEW", \
+            (("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^6}|{4:_^6}|"
+            "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
+            "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
+            format("Name", "Tid", "Pid", "PICK", "LIFE", \
             "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXP", \
-            "READ", "WRITE", "NR"))
+            "READ", "WRITE", "TRY", "EVENT"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -3307,9 +3341,9 @@ class FunctionAnalyzer(object):
 
             # get cpu usage #
             if self.totalTick > 0:
-                cpuPer = float(value['cpuTick']) / float(self.totalTick) * 100
+                cpuPer = '%.1f%%' % (float(value['cpuTick']) / float(self.totalTick) * 100)
             else:
-                cpuPer = 0
+                cpuPer = '0.0%'
 
             # set break condition #
             if SystemManager.sort == 'm':
@@ -3319,25 +3353,32 @@ class FunctionAnalyzer(object):
             else:
                 breakCond = cpuPer
 
+            # check condition for stop #
             if breakCond < 1 and SystemManager.showAll is False:
                 pass
 
-            if value['die']:
-                dieMark = 'v'
-
+            # set lifecycle flags #
             if value['new']:
-                newMark = 'v'
+                life = 'N'
+            else:
+                life = ' '
+            if value['die']:
+                life = '%sD' % life
+
+            # remove percentage if no tick #
+            if float(value['cpuTick']) == 0:
+                cpuPer = '-'
 
             SystemManager.pipePrint(\
-                ("{0:>16}|{1:>7}|{2:>7}|{3:^8}|{4:^5}|{5:^5}|{6:6.1f}%|" + \
-                "{7:8}K({8:7}K/{9:7}K/{10:7}K)|{11:6}K|{12:7}K|" + \
-                "{13:7}K|{14:7}K|{15:8}K|{16:8}|").\
-                format(value['comm'], idx, value['tgid'], targetMark, dieMark, newMark, \
+                (("{0:>16}|{1:>7}|{2:>7}|{3:^6}|{4:^6}|"
+                "{5:>7}|{6:8}K({7:7}K/{8:7}K/{9:7}K)|{10:6}K|{11:7}K|"
+                "{12:7}K|{13:7}K|{14:8}K|{15:6}|{16:8}|")).\
+                format(value['comm'], idx, value['tgid'], targetMark, life, \
                 cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
                 value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
-                value['customTotal']))
+                value['nrLockTry'], value['customTotal']))
 
         SystemManager.pipePrint("%s\n\n\n" % oneLine)
 
@@ -3351,6 +3392,7 @@ class FunctionAnalyzer(object):
         self.printHeapUsage()
         self.printBlockRdUsage()
         self.printBlockWrUsage()
+        self.printLockUsage()
         self.printCustomUsage()
 
 
@@ -4659,6 +4701,184 @@ class FunctionAnalyzer(object):
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
+
+
+
+    def printLockUsage(self):
+        # no lock try event #
+        if self.lockEnabled is False:
+            return
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        lockIndex = FunctionAnalyzer.symStackIdxTable.index('LOCK_TRY')
+
+        if SystemManager.userEnable:
+            # Print lock try count in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function Lock Try Info] [Cnt: %d] (USER)' % \
+                (self.lockTryEventCnt))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userSymData.items(), key=lambda e: e[1]['lockTryCnt'], reverse=True):
+
+                if value['lockTryCnt'] == 0:
+                    break
+
+                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                    format(value['lockTryCnt'], idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
+
+                # Sort by usage #
+                targetStack = sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
+
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    lockTryCnt = stack[lockIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if lockTryCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        # Make stack info by symbol for print #
+                        symbolStack = ''
+                        stackIdx = 0
+                        indentLen = len("\t" * 4 * 4)
+                        appliedIndentLen = indentLen
+
+                        if self.sort is 'sym':
+                            for sym in subStack:
+                                if sym is None or sym == '0':
+                                    symbolSet = ' <- None'
+                                elif self.userSymData[sym]['origBin'] == '??':
+                                    symbolSet = ' <- ' + sym
+                                else:
+                                    symbolSet = ' <- ' + sym + \
+                                        ' [' + self.userSymData[sym]['origBin'] + ']'
+
+                                lpos = appliedIndentLen + \
+                                    len(symbolStack[stackIdx:]) + len(symbolSet)
+                                if symbolStack != '' and lpos > SystemManager.lineLength:
+                                    stackIdx = len(symbolStack)
+                                    symbolStack += '\n' + ' ' * indentLen
+                                    appliedIndentLen = 0
+
+                                symbolStack += symbolSet
+                        elif self.sort is 'pos':
+                            for pos in subStack:
+                                if pos is None:
+                                    symbolStack += ' <- None'
+                                # No symbol so that just print pos #
+                                elif self.posData[pos]['symbol'] == '':
+                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+                                # Print symbol #
+                                else:
+                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
+                                        ' [' + self.posData[pos]['origBin'] + ']'
+
+                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                        format(lockTryCnt, symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.lockTryEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+            SystemManager.pipePrint('')
+
+        # Print lock try count in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function Lock Try Info] [Cnt: %d] (KERNEL)' % \
+            (self.lockTryEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print lock try count of stacks #
+        for idx, value in sorted(\
+            self.kernelSymData.items(), key=lambda e: e[1]['lockTryCnt'], reverse=True):
+
+            if value['lockTryCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:8} |{1:^134}".format(value['lockTryCnt'], idx))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x: x[lockIndex], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                lockTryCnt = stack[lockIndex]
+                subStack = list(stack[subStackIndex])
+
+                if lockTryCnt == 0:
+                    continue
+
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
+                else:
+                    # Make stack info by symbol for print #
+                    symbolStack = ''
+                    stackIdx = 0
+                    indentLen = len("\t" * 4 * 4)
+                    appliedIndentLen = indentLen
+
+                    try:
+                        for pos in subStack:
+                            if self.posData[pos]['symbol'] == '':
+                                symbolSet = ' <- ' + hex(int(pos, 16))
+                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
+                                symbolSet = ' <- ' + hex(int(pos, 16))
+                            else:
+                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
+
+                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                            if symbolStack != '' and lpos > SystemManager.lineLength:
+                                stackIdx = len(symbolStack)
+                                symbolStack += '\n' + ' ' * indentLen
+                                appliedIndentLen = 0
+
+                            symbolStack += symbolSet
+                    except:
+                        continue
+
+                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    format(lockTryCnt, symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        if self.lockTryEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
 
 
 
@@ -7952,6 +8172,11 @@ class SystemManager(object):
         else:
             disableStat += 'PRINT '
 
+        if SystemManager.lockEnable:
+            enableStat += 'LOCK '
+        else:
+            disableStat += 'LOCK '
+
         # print options #
         if enableStat != '':
             SystemManager.printInfo("enabled analysis options [ %s]" % enableStat)
@@ -8115,6 +8340,11 @@ class SystemManager(object):
                     disableStat += 'USER '
                 else:
                     enableStat += 'USER '
+
+                if SystemManager.lockEnable:
+                    enableStat += 'LOCK '
+                else:
+                    disableStat += 'LOCK '
 
         elif SystemManager.isFileMode():
             SystemManager.printInfo("FILE MODE")
@@ -8794,6 +9024,8 @@ class SystemManager(object):
                 SystemManager.blockEnable = True
             if filterList.find('h') > -1:
                 SystemManager.heapEnable = True
+            if filterList.find('l') > -1:
+                SystemManager.lockEnable = True
             if filterList.find('i') > -1:
                 SystemManager.irqEnable = True
             if filterList.find('n') > -1:
@@ -9948,6 +10180,8 @@ class SystemManager(object):
                     SystemManager.memEnable = False
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = False
+                if options.rfind('l') > -1:
+                    SystemManager.lockEnable = False
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = False
                 if options.rfind('u') > -1:
@@ -10696,7 +10930,7 @@ class SystemManager(object):
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = SystemManager.cpuEnable
         self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
-        self.cmdList["sched/sched_process_exit"] = SystemManager.cpuEnable
+        self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
         self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
