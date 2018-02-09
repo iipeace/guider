@@ -20097,7 +20097,7 @@ class ThreadAnalyzer(object):
             # CPU STAT #
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(),\
-                key=lambda x:str(x), reverse=False):
+                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
                 try:
                     nowData = self.cpuData[int(idx)]
 
