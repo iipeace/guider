@@ -8543,6 +8543,16 @@ class SystemManager(object):
             if SystemManager.printFile is None:
                 return
 
+            # reload data written to file #
+            if SystemManager.pipeEnable:
+                SystemManager.fileForPrint.seek(0, 0)
+                SystemManager.procBuffer = \
+                    SystemManager.fileForPrint.read().replace('\n\n', 'NEWSTAT\n\n')
+                SystemManager.procBuffer = SystemManager.procBuffer.split('NEWSTAT')
+                SystemManager.fileForPrint.seek(0, 0)
+                SystemManager.fileForPrint.truncate()
+
+            # print title #
             SystemManager.printTitle()
 
             # save system info #
