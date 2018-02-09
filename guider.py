@@ -856,6 +856,8 @@ class PageAnalyzer(object):
                     SystemManager.printError(\
                         "Fail to recognize address, input bigger second address than first address")
                     sys.exit(0)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printError(\
                     "Fail to recognize address, input address such as 0x1234-0x4444")
@@ -2096,11 +2098,11 @@ class FunctionAnalyzer(object):
 
                 while 1:
                     # Get return of addr2line #
-                    addr = proc.stdout.readline().replace('\n', '')[2:]
-                    symbol = proc.stdout.readline().replace('\n', '')
-                    src = proc.stdout.readline().replace('\n', '')
+                    addr = proc.stdout.readline().decode().replace('\n', '')[2:]
+                    symbol = proc.stdout.readline().decode().replace('\n', '')
+                    src = proc.stdout.readline().decode().replace('\n', '')
 
-                    err = proc.stderr.readline().replace('\n', '')
+                    err = proc.stderr.readline().decode().replace('\n', '')
                     if len(err) > 0:
                         SystemManager.printWarning(err[err.find(':') + 2:])
 
@@ -3343,7 +3345,7 @@ class FunctionAnalyzer(object):
             if self.totalTick > 0:
                 cpuPer = '%.1f%%' % (float(value['cpuTick']) / float(self.totalTick) * 100)
             else:
-                cpuPer = '0.0%'
+                cpuPer = '0.0%%'
 
             # set break condition #
             if SystemManager.sort == 'm':
@@ -3351,7 +3353,7 @@ class FunctionAnalyzer(object):
             elif SystemManager.sort == 'b':
                 breakCond = value['nrRdBlocks']
             else:
-                breakCond = cpuPer
+                breakCond = int(cpuPer[:cpuPer.rfind('.')])
 
             # check condition for stop #
             if breakCond < 1 and SystemManager.showAll is False:
@@ -6112,6 +6114,7 @@ class SystemManager(object):
 
     arch = 'arm'
     isLinux = True
+    isAndroid = False
     archOption = None
     mountPath = None
     mountCmd = None
@@ -6570,6 +6573,9 @@ class SystemManager(object):
     def checkEnv():
         if sys.platform.startswith('linux'):
             SystemManager.isLinux = True
+            if 'ANDROID_ROOT' in os.environ:
+                SystemManager.isAndroid = True
+                SystemManager.libcPath = 'libc.so'
         elif sys.platform.startswith('win'):
             SystemManager.isLinux = False
         else:
@@ -6754,6 +6760,8 @@ class SystemManager(object):
                 print('\t\t\t\t# %s top -e t b -i 2 -a' % cmd)
                 print('\t\t\t- show resource usage of specific processes/threads involved in specific process group in real-time')
                 print('\t\t\t\t# %s top -g 1234,4567 -P' % cmd)
+                print('\t\t\t- record resource usage of processes and write to specific file in real-time')
+                print('\t\t\t\t# %s top -o . -e p' % cmd)
                 print('\t\t\t- record and print resource usage of processes')
                 print('\t\t\t\t# %s top -o . -Q' % cmd)
                 print('\t\t\t- record resource usage of processes and write to specific file in background')
@@ -7766,6 +7774,8 @@ class SystemManager(object):
 
                     # add argument command to entry command #
                     sCmd = '%s %s' % (sCmd, tVal)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -7805,6 +7815,8 @@ class SystemManager(object):
                         sCmd = '%s%s%s:%s' % ('+0(' * wCnt, '$retval', ')' * wCnt, tVal[wCnt:])
                     else:
                         sCmd = 'NONE'
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -8466,6 +8478,16 @@ class SystemManager(object):
             SystemManager.condExit = True
         elif SystemManager.isTopMode():
             if SystemManager.printFile is not None:
+                # reload data written to file #
+                if SystemManager.pipeEnable:
+                    SystemManager.fileForPrint.seek(0, 0)
+                    SystemManager.procBuffer = \
+                        SystemManager.fileForPrint.read().replace('\n\n', 'NEWSTAT\n\n')
+                    SystemManager.procBuffer = SystemManager.procBuffer.split('NEWSTAT')
+                    SystemManager.fileForPrint.seek(0, 0)
+                    SystemManager.fileForPrint.truncate()
+
+                # print title #
                 SystemManager.printTitle()
 
                 # save system info #
@@ -9333,7 +9355,7 @@ class SystemManager(object):
                 SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
 
             try:
-                SystemManager.fileForPrint = open(SystemManager.inputFile, 'w')
+                SystemManager.fileForPrint = open(SystemManager.inputFile, 'w+')
 
                 # print output file name #
                 if SystemManager.printFile != None:
@@ -9461,6 +9483,8 @@ class SystemManager(object):
                 SystemManager.printError(\
                     "wrong -%s option because it is used more than once" %\
                         SystemManager.savedOptionList[seq][0])
+                sys.exit(0)
+            except SystemExit:
                 sys.exit(0)
             except:
                 try:
@@ -9640,6 +9664,8 @@ class SystemManager(object):
 
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
+                if options.rfind('p') > -1:
+                    SystemManager.pipeEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('b') > -1:
@@ -10599,7 +10625,7 @@ class SystemManager(object):
                 SystemManager.ttyRows, SystemManager.ttyCols = \
                     list(map(int, os.popen('stty size', 'r').read().split()))
         except:
-            SystemManager.printWarning("Fail to use stty")
+            SystemManager.printWarning("Fail to get terminal info")
 
 
 
@@ -14499,10 +14525,11 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}"\
-                        .format(self.threadData[self.syscallData[icount][2]]['comm'], \
-                        self.syscallData[icount][2], eventTime, elapsed, eventType, syscall[4:], \
-                        self.syscallData[icount][4], self.syscallData[icount][3], ret, param))
+                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}".\
+                        format(self.threadData[self.syscallData[icount][2]]['comm'], \
+                        self.syscallData[icount][2], '%.6f' % eventTime, \
+                        '%.6f' % elapsed, eventType, syscall[4:], self.syscallData[icount][4], \
+                        self.syscallData[icount][3], ret, param))
                     cnt += 1
                 except:
                     continue
@@ -16270,7 +16297,7 @@ class ThreadAnalyzer(object):
 
         # print detailed statistics #
         msg = ' Detailed Statistics '
-        stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
+        stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
         SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
         if SystemManager.procBuffer == []:
             SystemManager.pipePrint("\n\tNone")
@@ -16282,7 +16309,7 @@ class ThreadAnalyzer(object):
             msg = ' Process Tree '
         else:
             msg = ' Thread Tree '
-        stars = '*' * ((int(SystemManager.lineLength) - len(msg)) / 2)
+        stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
         SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
         ThreadAnalyzer.printProcTree()
 
@@ -18910,8 +18937,9 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         # realtime mode #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
+        if SystemManager.pipeEnable or SystemManager.printFile is None:
+            if SystemManager.pipeEnable is False:
+                SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
@@ -19065,7 +19093,8 @@ class ThreadAnalyzer(object):
 
             # set the number of core #
             SystemManager.nrCore = 0
-            for idx, val in sorted(self.cpuData.items(), reverse=False):
+            for idx, val in sorted(self.cpuData.items(),\
+                key=lambda x:str(x[0]), reverse=False):
                 try:
                     SystemManager.maxCore = int(idx)
                     SystemManager.nrCore += 1
@@ -20067,7 +20096,8 @@ class ThreadAnalyzer(object):
 
             # CPU STAT #
             freqPath = '/sys/devices/system/cpu/cpu'
-            for idx, value in sorted(self.cpuData.items(), reverse=False):
+            for idx, value in sorted(self.cpuData.items(),\
+                key=lambda x:str(x), reverse=False):
                 try:
                     nowData = self.cpuData[int(idx)]
 
@@ -20164,7 +20194,7 @@ class ThreadAnalyzer(object):
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
-                        coreGraph = '#' * (lenLine * totalUsage / 100)
+                        coreGraph = '#' * int(lenLine * totalUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
@@ -20205,7 +20235,7 @@ class ThreadAnalyzer(object):
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
-                        coreGraph = '#' * (lenLine * totalUsage / 100)
+                        coreGraph = '#' * int(lenLine * totalUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
@@ -21474,8 +21504,9 @@ class ThreadAnalyzer(object):
                         cli.ignore += 1
 
         # realtime mode #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
+        if SystemManager.pipeEnable or SystemManager.printFile is None:
+            if SystemManager.pipeEnable is False:
+                SystemManager.printTitle()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
