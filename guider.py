@@ -1166,11 +1166,11 @@ class FunctionAnalyzer(object):
             'prevTid': None, 'prevTime': None}
 
         self.init_pageLinkData = \
-            {'sym': '0', 'subStackAddr': int(0), 'kernelSym': '0', 'kernelSubStackAddr': int(0), \
+            {'sym': '0', 'subStackAddr': int(0), 'ksym': '0', 'ksubStackAddr': int(0), \
             'type': '0', 'time': '0'}
 
         self.init_heapSegData = {'tid': '0', 'size': int(0), 'sym': '0', 'subStackAddr': int(0), \
-            'kernelSym': '0', 'kernelSubStackAddr': int(0), 'time': float(0), 'core': '0'}
+            'ksym': '0', 'ksubStackAddr': int(0), 'time': float(0), 'core': '0'}
 
         self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
 
@@ -1248,14 +1248,14 @@ class FunctionAnalyzer(object):
 
 
 
-    def handleHeapExpand(self, sym, kernelSym, stackAddr, kernelStackAddr, size, arg):
+    def handleHeapExpand(self, sym, ksym, stackAddr, kstackAddr, size, arg):
         addr = arg[0]
         time = arg[1]
         core = arg[2]
         tid = arg[3]
 
         self.userSymData[sym]['heapSize'] += size
-        self.kernelSymData[kernelSym]['heapSize'] += size
+        self.kernelSymData[ksym]['heapSize'] += size
 
         try:
             self.heapTable[addr]['size'] = size
@@ -1264,9 +1264,9 @@ class FunctionAnalyzer(object):
             self.heapTable[addr]['size'] = size
 
         self.heapTable[addr]['sym'] = sym
-        self.heapTable[addr]['kernelSym'] = kernelSym
+        self.heapTable[addr]['ksym'] = ksym
         self.heapTable[addr]['subStackAddr'] = stackAddr
-        self.heapTable[addr]['kernelSubStackAddr'] = kernelStackAddr
+        self.heapTable[addr]['ksubStackAddr'] = kstackAddr
         self.heapTable[addr]['time'] = time
         self.heapTable[addr]['core'] = core
         self.heapTable[addr]['tid'] = tid
@@ -1290,12 +1290,12 @@ class FunctionAnalyzer(object):
 
         try:
             sym = self.heapTable[addr]['sym']
-            kernelSym = self.heapTable[addr]['kernelSym']
+            ksym = self.heapTable[addr]['ksym']
             stackAddr = self.heapTable[addr]['subStackAddr']
-            kernelStackAddr= self.heapTable[addr]['kernelSubStackAddr']
+            kstackAddr= self.heapTable[addr]['ksubStackAddr']
 
             self.userSymData[sym]['heapSize'] -= size
-            self.kernelSymData[kernelSym]['heapSize'] -= size
+            self.kernelSymData[ksym]['heapSize'] -= size
         except:
             SystemManager.printWarning("Fail to find heap segment to be freed")
             return
@@ -1314,11 +1314,11 @@ class FunctionAnalyzer(object):
                 break
 
         # Set kernel stack list #
-        kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+        kernelTargetStack = self.kernelSymData[ksym]['stack']
 
         # Find kernel stack of symbol allocated this segment #
         for val in kernelTargetStack:
-            if id(val[subStackIndex]) == kernelStackAddr:
+            if id(val[subStackIndex]) == kstackAddr:
                 # Increase heap count of subStack #
                 val[heapExpIndex] -= size
                 break
@@ -1328,7 +1328,7 @@ class FunctionAnalyzer(object):
 
 
     def handlePageFree(\
-        self, sym, kernelSym, stackAddr, kernelStackAddr, pageFreeCnt, pageType, pfn, atime):
+        self, sym, ksym, stackAddr, kstackAddr, pageFreeCnt, pageType, pfn, atime):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
@@ -1344,8 +1344,8 @@ class FunctionAnalyzer(object):
                 # toDo: fix bug about wrong count of pos #
                 allocSym = self.pageTable[pfnv]['sym']
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
-                allocKernelSym = self.pageTable[pfnv]['kernelSym']
-                allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
+                allocKernelSym = self.pageTable[pfnv]['ksym']
+                allocKernelStackAddr = self.pageTable[pfnv]['ksubStackAddr']
                 allocTime = self.pageTable[pfnv]['time']
 
                 self.pageUsageCnt -= 1
@@ -1463,11 +1463,11 @@ class FunctionAnalyzer(object):
                         val[argIndex][subStackPageInfoIdx] -= 1
 
                         # Set kernel stack list to free this page #
-                        subTargetStack = self.kernelSymData[kernelSym]['stack']
+                        subTargetStack = self.kernelSymData[ksym]['stack']
 
                         # Find kernel stack to free this page #
                         for sval in subTargetStack:
-                            if id(sval[subStackIndex]) == kernelStackAddr:
+                            if id(sval[subStackIndex]) == kstackAddr:
                                 if self.kernelSymData[allocKernelSym]['pagePair'] is None:
                                     self.kernelSymData[allocKernelSym]['pagePair'] = {}
 
@@ -1485,7 +1485,7 @@ class FunctionAnalyzer(object):
                                         allocCall = 'None'
 
                                 try:
-                                    freeCall = '%s' % kernelSym
+                                    freeCall = '%s' % ksym
                                     for addr in sval[subStackIndex]:
                                         freeCall = '%s <- %s' % \
                                             (freeCall, self.posData[addr]['symbol'])
@@ -1522,7 +1522,7 @@ class FunctionAnalyzer(object):
 
                 self.pageUnknownFreeCnt += 1
                 self.userSymData[sym]['unknownPageFreeCnt'] += 1
-                self.kernelSymData[kernelSym]['unknownPageFreeCnt'] += 1
+                self.kernelSymData[ksym]['unknownPageFreeCnt'] += 1
 
                 # Set user stack list #
                 if self.sort is 'sym':
@@ -1537,11 +1537,11 @@ class FunctionAnalyzer(object):
                         break
 
                 # Set kernel stack list #
-                kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+                kernelTargetStack = self.kernelSymData[ksym]['stack']
 
                 # Find subStack allocated this page #
                 for val in kernelTargetStack:
-                    if id(val[subStackIndex]) == kernelStackAddr:
+                    if id(val[subStackIndex]) == kstackAddr:
                         val[pageFreeIndex] += 1
                         break
 
@@ -1550,7 +1550,7 @@ class FunctionAnalyzer(object):
 
 
     def handlePageAlloc(\
-        self, sym, kernelSym, stackAddr, kernelStackAddr, pageAllocCnt, pageType, pfn, atime):
+        self, sym, ksym, stackAddr, kstackAddr, pageAllocCnt, pageType, pfn, atime):
 
         subStackPageInfoIdx = 0
 
@@ -1560,19 +1560,19 @@ class FunctionAnalyzer(object):
 
         # Increase counts of page to be allocated #
         self.userSymData[sym]['pageCnt'] += pageAllocCnt
-        self.kernelSymData[kernelSym]['pageCnt'] += pageAllocCnt
+        self.kernelSymData[ksym]['pageCnt'] += pageAllocCnt
 
         if pageType == 'USER':
             self.userSymData[sym]['userPageCnt'] += pageAllocCnt
-            self.kernelSymData[kernelSym]['userPageCnt'] += pageAllocCnt
+            self.kernelSymData[ksym]['userPageCnt'] += pageAllocCnt
             subStackPageInfoIdx = 0
         elif pageType == 'CACHE':
             self.userSymData[sym]['cachePageCnt'] += pageAllocCnt
-            self.kernelSymData[kernelSym]['cachePageCnt'] += pageAllocCnt
+            self.kernelSymData[ksym]['cachePageCnt'] += pageAllocCnt
             subStackPageInfoIdx = 1
         elif pageType == 'KERNEL':
             self.userSymData[sym]['kernelPageCnt'] += pageAllocCnt
-            self.kernelSymData[kernelSym]['kernelPageCnt'] += pageAllocCnt
+            self.kernelSymData[ksym]['kernelPageCnt'] += pageAllocCnt
             subStackPageInfoIdx = 2
 
         # Set user stack list #
@@ -1589,11 +1589,11 @@ class FunctionAnalyzer(object):
                 break
 
         # Set kernel stack list #
-        kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+        kernelTargetStack = self.kernelSymData[ksym]['stack']
 
         # Find kernel stack of symbol allocated this page #
         for val in kernelTargetStack:
-            if id(val[subStackIndex]) == kernelStackAddr:
+            if id(val[subStackIndex]) == kstackAddr:
                 # Increase page count of subStack #
                 val[argIndex][subStackPageInfoIdx] += pageAllocCnt
                 break
@@ -1608,8 +1608,8 @@ class FunctionAnalyzer(object):
                 allocSym = self.pageTable[pfnv]['sym']
 
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
-                allocKernelSym = self.pageTable[pfnv]['kernelSym']
-                allocKernelStackAddr = self.pageTable[pfnv]['kernelSubStackAddr']
+                allocKernelSym = self.pageTable[pfnv]['ksym']
+                allocKernelStackAddr = self.pageTable[pfnv]['ksubStackAddr']
 
                 # Decrease counts of page already allocated but no free log #
                 self.pageUsageCnt -= 1
@@ -1658,19 +1658,19 @@ class FunctionAnalyzer(object):
                 self.pageTable[pfnv] = dict(self.init_pageLinkData)
 
             self.pageTable[pfnv]['sym'] = sym
-            self.pageTable[pfnv]['kernelSym'] = kernelSym
+            self.pageTable[pfnv]['ksym'] = ksym
             self.pageTable[pfnv]['type'] = pageType
             self.pageTable[pfnv]['subStackAddr'] = stackAddr
-            self.pageTable[pfnv]['kernelSubStackAddr'] = kernelStackAddr
+            self.pageTable[pfnv]['ksubStackAddr'] = kstackAddr
             self.pageTable[pfnv]['time'] = atime
 
 
 
     def mergeStacks(self):
         sym = ''
-        kernelSym = ''
+        ksym = ''
         stackAddr = 0
-        kernelStackAddr = 0
+        kstackAddr = 0
         lineCnt = -1
         lastIdx = len(self.userCallData)
 
@@ -1729,9 +1729,9 @@ class FunctionAnalyzer(object):
                 # No symbol related to last pos #
                 if self.posData[kernelPos]['symbol'] == '':
                     self.posData[kernelPos]['symbol'] = kernelPos
-                    kernelSym = kernelPos
+                    ksym = kernelPos
                 else:
-                    kernelSym = self.posData[kernelPos]['symbol']
+                    ksym = self.posData[kernelPos]['symbol']
             except:
                 continue
 
@@ -1747,11 +1747,11 @@ class FunctionAnalyzer(object):
 
             # Make kenel symbol table of last pos in stack #
             try:
-                self.kernelSymData[kernelSym]
+                self.kernelSymData[ksym]
             except:
-                self.kernelSymData[kernelSym] = dict(self.init_symData)
-                self.kernelSymData[kernelSym]['stack'] = []
-                self.kernelSymData[kernelSym]['pos'] = kernelPos
+                self.kernelSymData[ksym] = dict(self.init_symData)
+                self.kernelSymData[ksym]['stack'] = []
+                self.kernelSymData[ksym]['pos'] = kernelPos
 
             # Set target user stack #
             if self.sort is 'sym':
@@ -1827,7 +1827,7 @@ class FunctionAnalyzer(object):
                     stackAddr = id(stack)
 
             # Set target kernel stack #
-            kernelTargetStack = self.kernelSymData[kernelSym]['stack']
+            kernelTargetStack = self.kernelSymData[ksym]['stack']
 
             # First stack related to this symbol #
             if len(kernelTargetStack) == 0:
@@ -1837,7 +1837,7 @@ class FunctionAnalyzer(object):
                 tempList[argIndex] = list(subStackPageInfo)
                 kernelTargetStack.append(tempList)
 
-                kernelStackAddr = id(kernelStack)
+                kstackAddr = id(kernelStack)
             else:
                 found = False
                 for stackInfo in kernelTargetStack:
@@ -1846,7 +1846,7 @@ class FunctionAnalyzer(object):
                         len(list(set(stackInfo[subStackIndex]) - set(kernelStack))) == 0:
                         found = True
                         stackInfo[eventIndex] += eventCnt
-                        kernelStackAddr = id(stackInfo[subStackIndex])
+                        kstackAddr = id(stackInfo[subStackIndex])
                         break
 
                 # New stack related to this symbol #
@@ -1857,7 +1857,7 @@ class FunctionAnalyzer(object):
                     tempList[argIndex] = list(subStackPageInfo)
                     kernelTargetStack.append(tempList)
 
-                    kernelStackAddr = id(kernelStack)
+                    kstackAddr = id(kernelStack)
 
             # Recover PAGE_FREE count to merge with unknownPageFreeCnt #
             if event == 'PAGE_FREE':
@@ -1870,7 +1870,7 @@ class FunctionAnalyzer(object):
                 atime = arg[2]
 
                 self.handlePageAlloc(\
-                    sym, kernelSym, stackAddr, kernelStackAddr, \
+                    sym, ksym, stackAddr, kstackAddr, \
                     eventCnt, pageType, pfn, atime)
 
             # memory free event #
@@ -1880,12 +1880,12 @@ class FunctionAnalyzer(object):
                 atime = arg[2]
 
                 self.handlePageFree(\
-                    sym, kernelSym, stackAddr, kernelStackAddr, \
+                    sym, ksym, stackAddr, kstackAddr, \
                     eventCnt, pageType, pfn, atime)
 
             # heap expand event #
             elif event == 'HEAP_EXPAND':
-                self.handleHeapExpand(sym, kernelSym, stackAddr, kernelStackAddr, eventCnt, arg)
+                self.handleHeapExpand(sym, ksym, stackAddr, kstackAddr, eventCnt, arg)
 
             # heap expand event #
             elif event == 'HEAP_REDUCE':
@@ -1894,31 +1894,31 @@ class FunctionAnalyzer(object):
             # block read event #
             elif event == 'BLK_READ':
                 self.userSymData[sym]['blockRdCnt'] += eventCnt
-                self.kernelSymData[kernelSym]['blockRdCnt'] += eventCnt
+                self.kernelSymData[ksym]['blockRdCnt'] += eventCnt
 
             # block write event #
             elif event == 'BLK_WRITE':
                 self.userSymData[sym]['blockWrCnt'] += eventCnt
-                self.kernelSymData[kernelSym]['blockWrCnt'] += eventCnt
+                self.kernelSymData[ksym]['blockWrCnt'] += eventCnt
 
             # lock try event #
             elif event == 'LOCK_TRY':
                 self.userSymData[sym]['lockTryCnt'] += eventCnt
-                self.kernelSymData[kernelSym]['lockTryCnt'] += eventCnt
+                self.kernelSymData[ksym]['lockTryCnt'] += eventCnt
 
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
                 self.userSymData[sym]['tickCnt'] += 1
-                self.kernelSymData[kernelSym]['tickCnt'] += 1
+                self.kernelSymData[ksym]['tickCnt'] += 1
 
             # periodic event such as cpu tick #
             elif event == 'CUSTOM':
                 if eventCnt > 0:
                     self.userSymData[sym]['customTotal'] += 1
-                    self.kernelSymData[kernelSym]['customTotal'] += 1
+                    self.kernelSymData[ksym]['customTotal'] += 1
 
                 self.userSymData[sym]['customCnt'] += eventCnt
-                self.kernelSymData[kernelSym]['customCnt'] += eventCnt
+                self.kernelSymData[ksym]['customCnt'] += eventCnt
 
             # etc event #
             elif event is 'IGNORE':
@@ -4264,9 +4264,9 @@ class FunctionAnalyzer(object):
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
         # Calculate page lifetime #
-        for pfn, item in sorted(self.pageTable.items(), key=lambda e: e[1], reverse=True):
+        for pfn, item in self.pageTable.items():
             if item is None:
-                break
+                continue
 
             lifeTime = float(self.finishTime) - float(item['time'])
 
@@ -4279,12 +4279,12 @@ class FunctionAnalyzer(object):
                 self.userSymData[item['sym']]['pageRemainMax'] = lifeTime
 
             # Set kernel page lifetime #
-            self.kernelSymData[item['kernelSym']]['pageRemainTotal'] += lifeTime
-            if self.kernelSymData[item['kernelSym']]['pageRemainMin'] == 0 or \
-                self.kernelSymData[item['kernelSym']]['pageRemainMin'] > lifeTime:
-                self.kernelSymData[item['kernelSym']]['pageRemainMin'] = lifeTime
-            if self.kernelSymData[item['kernelSym']]['pageRemainMax'] < lifeTime:
-                self.kernelSymData[item['kernelSym']]['pageRemainMax'] = lifeTime
+            self.kernelSymData[item['ksym']]['pageRemainTotal'] += lifeTime
+            if self.kernelSymData[item['ksym']]['pageRemainMin'] == 0 or \
+                self.kernelSymData[item['ksym']]['pageRemainMin'] > lifeTime:
+                self.kernelSymData[item['ksym']]['pageRemainMin'] = lifeTime
+            if self.kernelSymData[item['ksym']]['pageRemainMax'] < lifeTime:
+                self.kernelSymData[item['ksym']]['pageRemainMax'] = lifeTime
 
         # Print memory usage by page allocation in user space #
         if SystemManager.userEnable:
@@ -4618,9 +4618,9 @@ class FunctionAnalyzer(object):
                 tid = segment[1]['tid']
 
                 usersym = segment[1]['sym']
-                kernelsym = segment[1]['kernelSym']
+                kernelsym = segment[1]['ksym']
                 userstack = segment[1]['subStackAddr']
-                kernelstack = segment[1]['kernelSubStackAddr']
+                kernelstack = segment[1]['ksubStackAddr']
 
                 title = \
                     "{0:^32}| {1:>10} | {2:>10} | {3:>10} | {4:>16}({5:>7})| {6:>6} | {7:>15} |".\
@@ -12065,7 +12065,7 @@ class EventAnalyzer(object):
     def printEvent():
         eventData = EventAnalyzer.eventData
 
-        for key, value in sorted(eventData.items(), key=lambda e: e[1], reverse=True):
+        for key, value in eventData.items():
             string = ''
             head = '%10s: [total: %s] [subEvent: %s] ' % \
                 (key, len(eventData[key]['list']), len(eventData[key]['summary']))
@@ -18382,13 +18382,11 @@ class ThreadAnalyzer(object):
                         self.markData = []
                         self.consoleData = []
                         SystemManager.startTime = time
-                        return
                     # finish data processing #
                     elif event == 'STOP':
                         SystemManager.totalLine = SystemManager.curLine
                         self.finishTime = time
                         self.stopFlag = True
-                        return
                     # restart data processing #
                     elif event == 'RESTART':
                         self.threadDataOld = self.threadData
@@ -18402,7 +18400,6 @@ class ThreadAnalyzer(object):
 
                         self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
                         SystemManager.startTime = time
-                        return
                     # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
@@ -18457,13 +18454,11 @@ class ThreadAnalyzer(object):
                         self.markData = []
                         self.consoleData = []
                         SystemManager.startTime = time
-                        return
                     # finish data processing #
                     elif event == 'STOP':
                         SystemManager.totalLine = SystemManager.curLine
                         self.finishTime = time
                         self.stopFlag = True
-                        return
                     # restart data processing #
                     elif event == 'RESTART':
                         self.threadDataOld = self.threadData
@@ -18477,7 +18472,6 @@ class ThreadAnalyzer(object):
 
                         self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
                         SystemManager.startTime = time
-                        return
                     # save mark event #
                     elif event == 'MARK':
                         self.markData.append(time)
@@ -18772,13 +18766,11 @@ class ThreadAnalyzer(object):
                             self.markData = []
                             self.consoleData = []
                             SystemManager.startTime = time
-                            return
                         # finish data processing #
                         elif event == 'STOP':
                             SystemManager.totalLine = SystemManager.curLine
                             self.finishTime = time
                             self.stopFlag = True
-                            return
                         # restart data processing #
                         elif event == 'RESTART':
                             self.threadDataOld = self.threadData
@@ -18792,7 +18784,6 @@ class ThreadAnalyzer(object):
 
                             self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
                             SystemManager.startTime = time
-                            return
                         # saving mark event #
                         elif event == 'MARK':
                             self.markData.append(time)
