@@ -11778,7 +11778,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Disk Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:^20}". \
+            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:>40}". \
             format("DEV", "NUM", "READ", "WRITE", \
             "TOTAL", "FREE", "USAGE", "NrAvFile", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
@@ -11845,9 +11845,11 @@ class SystemManager(object):
             except:
                 pass
 
+            SystemManager.infoBufferPrint("{0:<16}".format(key))
+
             diskInfo = \
                 "{0:<16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:<20}".\
-                format(key, '%s:%s' % (major, minor), readSize, writeSize, \
+                format(' ', '%s:%s' % (major, minor), readSize, writeSize, \
                 total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
 
             if len(diskInfo) > SystemManager.lineLength:
