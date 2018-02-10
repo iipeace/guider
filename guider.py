@@ -10628,14 +10628,16 @@ class SystemManager(object):
 
     @staticmethod
     def getTty():
-        try:
-            if SystemManager.printAllEnable:
-                SystemManager.ttyRows = SystemManager.ttyCols = 8192
-            elif SystemManager.isLinux:
+        if SystemManager.printAllEnable:
+            SystemManager.ttyRows = SystemManager.ttyCols = 8192
+        elif SystemManager.isLinux:
+            try:
+                pd = os.popen('stty size', 'r')
                 SystemManager.ttyRows, SystemManager.ttyCols = \
-                    list(map(int, os.popen('stty size', 'r').read().split()))
-        except:
-            SystemManager.printWarning("Fail to get terminal info")
+                    list(map(int, pd.read().split()))
+                pd.close()
+            except:
+                SystemManager.printWarning("Fail to get terminal info")
 
 
 
