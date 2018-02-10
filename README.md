@@ -222,9 +222,8 @@ Kernel Configuration
 =======
 
 ```
-Enable kernel options  for thread / function mode as bellow
+Enable kernel options as below to take advantage of all the features
 
-[ Default ]
 CONFIG_RING_BUFFER
 CONFIG_FTRACE
 CONFIG_TRACING
@@ -232,8 +231,10 @@ CONFIG_TRACING_SUPPORT
 CONFIG_EVENT_TRACING
 CONFIG_NOP_TRACER
 CONFIG_TRACEPOINTS
-
-[ Optional ]
+CONFIG_TASKSTATS
+CONFIG_TASK_DELAY_ACCT
+CONFIG_TASK_XACCT
+CONFIG_TASK_IO_ACCOUNTING
 CONFIG_DYNAMIC_FTRACE
 CONFIG_HAVE_DYNAMIC_FTRACE
 CONFIG_FTRACE_SYSCALLS
