@@ -976,7 +976,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def read_entry(path, offset, size=8):
-        with open(path, 'r') as f:
+        with open(path, 'rb') as f:
             f.seek(offset, 0)
             return struct.unpack('Q', f.read(size))[0]
 
@@ -991,7 +991,7 @@ class PageAnalyzer(object):
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
         pagemap_entry_size = 8
-        offset  = (addr / pageSize) * pagemap_entry_size
+        offset  = int(addr / pageSize) * pagemap_entry_size
 
         return PageAnalyzer.read_entry(maps_path, offset)
 
@@ -2558,7 +2558,7 @@ class FunctionAnalyzer(object):
         SystemManager.deleteProgress()
 
         # Save stack of last events per core #
-        for idx in self.coreCtx.keys():
+        for idx in list(self.coreCtx.keys()):
             self.lastCore = idx
             self.nowCtx = self.coreCtx[idx]
 
@@ -3408,7 +3408,7 @@ class FunctionAnalyzer(object):
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('CUSTOM')
 
         # Make custom event list #
-        customList = ', '.join(self.customEventTable.keys())
+        customList = ', '.join(list(self.customEventTable.keys()))
 
         if SystemManager.userEnable:
             # Print custom usage in user space #
@@ -5407,8 +5407,8 @@ class FileAnalyzer(object):
         for fileName, val in sorted(\
             self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             memSize = val['pageCnt'] * SystemManager.pageSize >> 10
-            fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                SystemManager.pageSize) * SystemManager.pageSize >> 10
+            idx = val['totalSize'] + SystemManager.pageSize - 1
+            fileSize = (int(idx / SystemManager.pageSize) * SystemManager.pageSize) >> 10
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
@@ -5547,7 +5547,7 @@ class FileAnalyzer(object):
 
         lineLength = SystemManager.lineLength
 
-        printMsg += '_' * ((lineLength - len(printMsg)) / 2 - 2)
+        printMsg += '_' * (int((lineLength - len(printMsg)) / 2) - 2)
         printMsg += 'Library'
         printMsg += '_' * (lineLength - len(printMsg))
 
@@ -5559,12 +5559,14 @@ class FileAnalyzer(object):
             self.fileList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
                 memSize = \
-                    self.intervalFileData[0][fileName]['pageCnt'] * SystemManager.pageSize >> 10
+                    self.intervalFileData[0][fileName]['pageCnt'] * \
+                    SystemManager.pageSize >> 10
             except:
                 memSize = 0
             try:
-                fileSize = ((val['totalSize'] + SystemManager.pageSize - 1) / \
-                    SystemManager.pageSize) * SystemManager.pageSize >> 10
+                idx = val['totalSize'] + SystemManager.pageSize - 1
+                fileSize = \
+                    (int(idx / SystemManager.pageSize) * SystemManager.pageSize) >> 10
             except:
                 fileSize = 0
 
@@ -5739,8 +5741,10 @@ class FileAnalyzer(object):
 
                 # convert address and size to index in mapping table #
                 offset = mapInfo['offset'] - self.fileData[fileName]['offset']
-                offset = (offset + SystemManager.pageSize - 1) / SystemManager.pageSize
-                size = (mapInfo['size'] + SystemManager.pageSize - 1) / SystemManager.pageSize
+                offset = \
+                    int((offset + SystemManager.pageSize - 1) / SystemManager.pageSize)
+                size = \
+                    int((mapInfo['size'] + SystemManager.pageSize - 1) / SystemManager.pageSize)
 
                 mapInfo['fileMap'] = list(self.fileData[fileName]['fileMap'][offset:size])
                 mapInfo['pageCnt'] = mapInfo['fileMap'].count(1)
@@ -5990,7 +5994,7 @@ class FileAnalyzer(object):
                 mm = SystemManager.libcObj.mmap(POINTER(c_char)(), size, 0, 2, fd, offset)
 
                 # get the size of the table to map file segment #
-                tsize = (size + SystemManager.pageSize - 1) / SystemManager.pageSize;
+                tsize = int((size + SystemManager.pageSize - 1) / SystemManager.pageSize);
 
                 # make a pagemap table #
                 pagemap = (tsize * ctypes.c_ubyte)()
@@ -6008,10 +6012,10 @@ class FileAnalyzer(object):
                 try:
                     if SystemManager.guiderObj is not None:
                         val['fileMap'] = \
-                            [ord(pagemap[i]) for i in xrange(size / SystemManager.pageSize)]
+                            [ord(pagemap[i]) for i in xrange(int(size / SystemManager.pageSize))]
                     else:
                         val['fileMap'] = \
-                            [pagemap[i] for i in xrange(size / SystemManager.pageSize)]
+                            [pagemap[i] for i in xrange(int(size / SystemManager.pageSize))]
 
                     self.profSuccessCnt += 1
 
@@ -7481,6 +7485,30 @@ class SystemManager(object):
         if os.geteuid() != 0:
             SystemManager.perfEnable = False
             return
+        # check configuration #
+        else:
+            try:
+                PMUs = '/sys/bus/event_source/devices'
+                attrPath = '/proc/sys/kernel/perf_event_paranoid'
+                with open(attrPath, 'w+') as fd:
+                    '''
+                    -1 - not paranoid at all
+                     0 - disallow raw tracepoint access for unpriv
+                     1 - disallow cpu events for unpriv
+                     2 - disallow kernel profiling for unpriv
+                     3 - disallow user profiling for unpriv
+                    '''
+                    paranoid = int(fd.readline()[:-1])
+                    if paranoid > -1:
+                        fd.seek(0)
+                        # write all privilege to read perf events #
+                        fd.write('-1')
+                        SystemManager.printWarning(\
+                            'Change value of %s from %s to -1 to read all perf events' % \
+                            (attrPath, paranoid))
+            except:
+                SystemManager.printWarning("enable CONFIG_PERF_EVENTS option in kernel")
+                return
 
         hwTargetList = [
             'PERF_COUNT_HW_CPU_CYCLES',
@@ -7496,15 +7524,6 @@ class SystemManager(object):
             'PERF_COUNT_SW_PAGE_FAULTS_MIN',
             'PERF_COUNT_SW_PAGE_FAULTS_MAJ',
             ]
-
-        attrPath = '/proc/sys/kernel/perf_event_paranoid'
-        try:
-            with open(attrPath, 'r') as fd:
-                if int(fd.readline()[:-1]) == 2:
-                    SystemManager.printWarning(\
-                        'Check value of %s to read perf events' % attrPath)
-        except:
-            pass
 
         successCnt = 0
         cpuPath = '/sys/devices/system/cpu'
@@ -7555,7 +7574,7 @@ class SystemManager(object):
             if len(SystemManager.perfTargetEvent) == 0 and \
                 len(SystemManager.perfEventChannel[coreId]) > 0:
                 SystemManager.perfTargetEvent = \
-                    SystemManager.perfEventChannel[coreId].keys()
+                    list(SystemManager.perfEventChannel[coreId].keys())
 
         if successCnt == 0:
             SystemManager.printWarning('Fail to find available perf event')
@@ -7583,9 +7602,9 @@ class SystemManager(object):
             len(SystemManager.perfEventChannel) == 0:
             return
 
-        for coreId in SystemManager.perfEventChannel.keys():
+        for coreId in list(SystemManager.perfEventChannel.keys()):
             # make event list #
-            events = SystemManager.perfEventChannel[coreId].keys()
+            events = list(SystemManager.perfEventChannel[coreId].keys())
 
             # remove all core events if specific target process exist #
             if SystemManager.perfGroupEnable:
@@ -7612,7 +7631,7 @@ class SystemManager(object):
         perfData = {}
 
         # make event list #
-        events = fdList.keys()
+        events = list(fdList.keys())
 
         # get event data #
         values = SystemManager.readPerfEvents(fdList.values())
@@ -10615,14 +10634,14 @@ class SystemManager(object):
     @staticmethod
     def setTtyCols(cols):
         if SystemManager.isLinux:
-            os.system('stty cols %s' % (cols))
+            os.system('stty cols %s > /dev/null' % (cols))
 
 
 
     @staticmethod
     def setTtyRows(rows):
         if SystemManager.isLinux:
-            os.system('stty rows %s' % (rows))
+            os.system('stty rows %s > /dev/null' % (rows))
 
 
 
@@ -10632,7 +10651,7 @@ class SystemManager(object):
             SystemManager.ttyRows = SystemManager.ttyCols = 8192
         elif SystemManager.isLinux:
             try:
-                pd = os.popen('stty size', 'r')
+                pd = os.popen('stty size 2> /dev/null', 'r')
                 SystemManager.ttyRows, SystemManager.ttyCols = \
                     list(map(int, pd.read().split()))
                 pd.close()
@@ -11630,7 +11649,7 @@ class SystemManager(object):
         except:
             pass
         try:
-            uptimeMin = int(float(self.uptimeData[0])) / 60
+            uptimeMin = int(float(self.uptimeData[0]) / 60)
             h, m = divmod(uptimeMin, 60)
             d, h = divmod(h, 24)
             RunningInfo = '%sd %sh %sm' % (d, h, m)
@@ -11740,7 +11759,7 @@ class SystemManager(object):
     def printDiskInfo(self):
         # get disk stat #
         if len(self.diskData) == 2:
-            for time in self.diskData.keys():
+            for time in list(self.diskData.keys()):
                 self.diskInfo[time] = {}
                 for l in self.diskData[time]:
                     major, minor, name, readComplete, readMerge, sectorRead, \
@@ -11765,6 +11784,14 @@ class SystemManager(object):
         if self.mountData is not None:
             for l in self.mountData:
                 dev, path, fs, option, etc1, etc2 = l.split()
+
+                # get real link #
+                try:
+                    dev = os.readlink(dev)
+                    if dev.startswith('/dev/block/'):
+                        dev = '/dev/%s' % dev[dev.rfind('/')+1:]
+                except:
+                    pass
 
                 self.mountInfo[dev] = dict()
                 mountInfoBuf = self.mountInfo[dev]
@@ -13012,7 +13039,7 @@ class ThreadAnalyzer(object):
 
     def drawChart(self, data):
         seq = 0
-        height = len(data) / 2 if len(data) % 2 == 0 else len(data) / 2 + 1
+        height = int(len(data) / 2) if len(data) % 2 == 0 else int(len(data) / 2 + 1)
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
         propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
         suptitle('guider memory chart', fontsize=8)
@@ -13750,13 +13777,13 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(twoLine)
 
             SystemManager.clearPrint()
-            for key in sorted(self.irqData.keys()):
+            for key in sorted(list(self.irqData.keys())):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SystemManager.addPrint(\
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
-                    format(key, ' | '.join(self.irqData[key]['name'].keys()), \
+                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
@@ -15819,7 +15846,7 @@ class ThreadAnalyzer(object):
 
         if idx > 0:
             for pid, val in ThreadAnalyzer.procTotalData.items():
-                val['cpu'] /= idx
+                val['cpu'] = int(val['cpu'] / idx)
                 val['memDiff'] = val['lastMem'] - val['initMem']
 
 
@@ -15830,7 +15857,7 @@ class ThreadAnalyzer(object):
             return
 
         nrEvent = nrSocket = nrDevice = nrPipe = nrProc = nrFile = 0
-        for filename in SystemManager.fileInstance.keys():
+        for filename in list(SystemManager.fileInstance.keys()):
             # increase type count per process #
             if filename.startswith('anon'):
                 nrEvent  += 1
@@ -16796,7 +16823,7 @@ class ThreadAnalyzer(object):
 
                 # calculate custom event usage in this interval #
                 if 'totalCustomEvent' in intervalThread:
-                    for evt in intervalThread['totalCustomEvent'].keys():
+                    for evt in list(intervalThread['totalCustomEvent'].keys()):
                         try:
                             intervalThread['customEvent'][evt]['count'] = \
                                 intervalThread['totalCustomEvent'][evt]['count'] - \
@@ -16810,7 +16837,7 @@ class ThreadAnalyzer(object):
 
                 # calculate user event usage in this interval #
                 if 'totalUserEvent' in intervalThread:
-                    for evt in intervalThread['totalUserEvent'].keys():
+                    for evt in list(intervalThread['totalUserEvent'].keys()):
                         try:
                             intervalThread['userEvent'][evt]['count'] = \
                                 intervalThread['totalUserEvent'][evt]['count'] - \
@@ -16834,7 +16861,7 @@ class ThreadAnalyzer(object):
 
                 # calculate kernel event usage in this interval #
                 if 'totalKernelEvent' in intervalThread:
-                    for evt in intervalThread['totalKernelEvent'].keys():
+                    for evt in list(intervalThread['totalKernelEvent'].keys()):
                         try:
                             intervalThread['kernelEvent'][evt]['count'] = \
                                 intervalThread['totalKernelEvent'][evt]['count'] - \
@@ -21424,9 +21451,9 @@ class ThreadAnalyzer(object):
 
             # make output path #
             filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
-            for event in self.reportData['event'].keys():
-                filePath += '_' + event
-            filePath += '_' + str(long(SystemManager.uptime)) + '.out'
+            for event in list(self.reportData['event'].keys()):
+                filePath = '%s_%s' % (filePath, event)
+            filePath = '%s_%s.out' % (filePath, str(long(SystemManager.uptime)))
 
             try:
                 # rename output file #
