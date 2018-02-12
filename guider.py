@@ -11786,12 +11786,20 @@ class SystemManager(object):
                 dev, path, fs, option, etc1, etc2 = l.split()
 
                 # get real link #
+                while 1:
+                    try:
+                        dev = os.readlink(dev)
+                    except:
+                        break
+
+                # make a path for linking #
                 try:
-                    dev = os.readlink(dev)
-                    if dev.startswith('/dev/block/'):
-                        dev = '/dev/%s' % dev[dev.rfind('/')+1:]
+                    dev = '/dev/%s' % dev[dev.rfind('/')+1:]
                 except:
-                    pass
+                    dev = 'NONE'
+
+                if dev not in self.diskInfo['before']:
+                    continue
 
                 self.mountInfo[dev] = dict()
                 mountInfoBuf = self.mountInfo[dev]
