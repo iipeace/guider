@@ -11766,7 +11766,6 @@ class SystemManager(object):
                     readTime, writeComplete, writeMerge, sectorWrite, writeTime, \
                      currentIO, ioTime, ioWTime = l.split()
 
-                    name = '/dev/%s' % name
                     self.diskInfo[time][name] = dict()
                     diskInfoBuf = self.diskInfo[time][name]
                     diskInfoBuf['major'] = major
@@ -11785,27 +11784,18 @@ class SystemManager(object):
             for l in self.mountData:
                 dev, path, fs, option, etc1, etc2 = l.split()
 
-                # get real link #
-                while 1:
-                    try:
-                        dev = os.readlink(dev)
-                    except:
-                        break
-
-                # make a path for linking #
                 try:
-                    dev = '/dev/%s' % dev[dev.rfind('/')+1:]
+                    rpath = os.path.realpath(dev)
+                    dev = rpath[rpath.rfind('/')+1:]
+                    if dev not in self.diskInfo['before']:
+                        continue
                 except:
-                    dev = 'NONE'
-
-                if dev not in self.diskInfo['before']:
                     continue
 
-                self.mountInfo[dev] = dict()
-                mountInfoBuf = self.mountInfo[dev]
-                mountInfoBuf['path'] = path
-                mountInfoBuf['fs'] = fs
-                mountInfoBuf['option'] = option
+                self.mountInfo[rpath] = dict()
+                self.mountInfo[rpath]['path'] = path
+                self.mountInfo[rpath]['fs'] = fs
+                self.mountInfo[rpath]['option'] = option
         else:
             return
 
@@ -11831,15 +11821,16 @@ class SystemManager(object):
                     devInfo[key] = {}
                     outputCnt += 1
                 else:
-                    raise
+                    continue
             except:
                 continue
 
+            dev = key[key.rfind('/')+1:]
             readSize = readTime = writeSize = writeTime = '?'
 
             try:
-                beforeInfo = self.diskInfo['before'][key]
-                afterInfo = self.diskInfo['after'][key]
+                beforeInfo = self.diskInfo['before'][dev]
+                afterInfo = self.diskInfo['after'][dev]
 
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - int(beforeInfo['sectorRead'])) << 9
@@ -13168,6 +13159,12 @@ class ThreadAnalyzer(object):
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         suptitle('guider perf graph', fontsize=8)
 
+        # calculate potion of swap and ram #
+        if max(list(map(int, swapUsage))) > int(max(list(map(int, memFree))) / 10):
+            isSwapInMemoryBox = True
+        else:
+            isSwapInMemoryBox = False
+
         #------------------------------ GPU usage ------------------------------#
         for gpu, stat in gpuUsage.items():
             stat = list(map(int, stat.split()))
@@ -13275,29 +13272,30 @@ class ThreadAnalyzer(object):
         ax = subplot2grid((6,1), (4,0), rowspan=1, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # System Swap Memory #
-        usage = list(map(int, swapUsage))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='orange', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='orange', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='orange', fontweight='bold')
-            plot(timeline, swapUsage, '-', c='orange', linewidth=1)
-            if totalSwap is not None:
-                label = 'Swap Total [%s]\nSwap Usage' % \
-                    SystemManager.convertSize(long(totalSwap) << 20)
-                labelList.append(label)
+        if isSwapInMemoryBox is False:
+            # System Swap Memory #
+            usage = list(map(int, swapUsage))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
             else:
-                labelList.append('Swap Usage')
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='orange', fontweight='bold')
+                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+                if totalSwap is not None:
+                    label = 'Swap Total [%s]\nSwap Usage' % \
+                        SystemManager.convertSize(long(totalSwap) << 20)
+                    labelList.append(label)
+                else:
+                    labelList.append('Swap Usage')
 
         # System Block Read #
         usage = list(map(int, blkRead))
@@ -13489,6 +13487,31 @@ class ThreadAnalyzer(object):
                     labelList.append(label)
                 else:
                     labelList.append('RAM Free')
+
+            if isSwapInMemoryBox:
+                # System Swap Memory #
+                usage = list(map(int, swapUsage))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    pass
+                else:
+                    if usage[minIdx] > 0:
+                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    if usage[maxIdx] > 0:
+                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    if usage[-1] > 0:
+                        text(timeline[-1], usage[-1], usage[-1],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+                    if totalSwap is not None:
+                        label = 'Swap Total [%s]\nSwap Usage' % \
+                            SystemManager.convertSize(long(totalSwap) << 20)
+                        labelList.append(label)
+                    else:
+                        labelList.append('Swap Usage')
         else:
             # Process VSS #
             if SystemManager.vssEnable:
