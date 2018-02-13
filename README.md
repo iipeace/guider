@@ -17,7 +17,6 @@ Guider pursues three characteristics as bellow.
 
 Output
 =======
-           
     [Top Info] [Time: 2863246.420] [Interval: 1.0] [Ctxt: 1711] [Fork: 0] [IRQ: 898] [Core: 12] [Task: 337/814] [RAM: 64374] [Swap: 65477] [Unit: %/MB/NR]
     ==========================================================================================================================================================
       ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Free/Anon/File/Slab)| Swap (Used/ InOut )| Reclaim  | BlkRW | NrFlt | NrBlk | NrSIRQ  | NrMlk | NrDrt  |   NetIO    |
@@ -168,8 +167,8 @@ Output
       +      4K(     4/     0/     0)| <- __do_page_fault <- do_page_fault <- page_fault <- load_elf_binary <- search_binary_handler
                                          <- do_execve_common.isra.23 <- SyS_execve <- stub_execve
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       
-
+![guider-graph-image](https://cloud.githubusercontent.com/assets/15862689/23285445/a03e0bf0-fa74-11e6-9f5a-872a3f10fe48.png)    
+![guider-chart-image](https://cloud.githubusercontent.com/assets/15862689/24597375/67f31f22-1880-11e7-8290-64554ed2859c.png)
 
 How to use
 =======
