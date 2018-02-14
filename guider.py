@@ -19545,27 +19545,35 @@ class ThreadAnalyzer(object):
 
     def saveGpuData(self):
         devList = [
-            '/sys/devices/platform/host1x', # nVIDIA tegra #
+            '/sys/devices', # nVIDIA tegra #
             ]
 
         self.gpuData = {}
 
+        try:
+            self.heterogeneousList
+        except:
+            self.heterogeneousList = {}
+
         # get candidate list for target GPU device #
-        candList = []
+        candList = self.heterogeneousList
         for devPath in devList:
             try:
                 for targetDir in os.listdir(devPath):
                     path = '%s/%s' % (devPath, targetDir)
+                    if path in candList:
+                        continue
+
                     try:
                         if 'devfreq' in os.listdir(path):
-                            candList.append(path)
+                            candList[path] = None
                     except:
                         pass
             except:
                 pass
 
         # read gpu stat from list #
-        for idx, cand in enumerate(candList):
+        for idx, cand in enumerate(list(candList.keys())):
             try:
                 target = None
 
@@ -20106,7 +20114,9 @@ class ThreadAnalyzer(object):
             self.reportData['net']['netInput'] = netIn
             self.reportData['net']['netOutput'] = netOut
 
-        # print each cpu usage #
+        # print each core usage #
+        cpuTempData = []
+        gpuTempData = []
         if SystemManager.showAll:
             SystemManager.addPrint('%s\n' % oneLine)
 
@@ -20127,20 +20137,27 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-            tempData = []
             if tempPath is None:
                 # /sys/class/thermal #
                 tempPath = '/sys/class/thermal'
                 try:
                     tempDirList = \
-                        [ '%s/%s/temp' % (tempPath, item) \
+                        [ '%s/%s' % (tempPath, item) \
                         for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
                 except:
                     tempDirList = []
                 for tempDir in tempDirList:
                     try:
-                        with open(tempDir, 'r') as fd:
-                            tempData.append(int(fd.readline()[:-4]))
+                        ctype = None
+
+                        with open('%s/type' % tempDir, 'r') as fd:
+                            ctype = fd.readline()[:-1]
+
+                        with open('%s/temp' % tempDir, 'r') as fd:
+                            if ctype.find('CPU') >= 0:
+                                cpuTempData.append(int(fd.readline()[:-4]))
+                            elif ctype.find('GPU') >= 0:
+                                gpuTempData.append(int(fd.readline()[:-4]))
                     except:
                         pass
             else:
@@ -20153,7 +20170,7 @@ class ThreadAnalyzer(object):
                         with open(tempDir.replace('input', 'label'), 'r') as fd:
                             if fd.readline()[:-1].startswith('Core '):
                                 with open(tempDir, 'r') as fd:
-                                    tempData.append(int(fd.readline()[:-4]))
+                                    cpuTempData.append(int(fd.readline()[:-4]))
                     except:
                         pass
 
@@ -20245,7 +20262,7 @@ class ThreadAnalyzer(object):
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '%3s C | %s' % (tempData[coreId], coreFreq)
+                        coreFreq = '%3s C | %s' % (cpuTempData[coreId], coreFreq)
                     except:
                         coreFreq = '%3s C | %s' % ('?', coreFreq)
 
@@ -20290,7 +20307,10 @@ class ThreadAnalyzer(object):
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except:
-                        coreFreq = '%3s C | %s' % ('?', coreFreq)
+                        if len(gpuTempData) > 0:
+                            coreFreq = '%3s C | %s' % (gpuTempData[0], coreFreq)
+                        else:
+                            coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
