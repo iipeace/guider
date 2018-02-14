@@ -20116,60 +20116,67 @@ class ThreadAnalyzer(object):
 
         # get temperature #
         if SystemManager.showAll or SystemManager.gpuEnable:
-            cpuTempData = []
-            gpuTempData = []
+            coreTempData = {}
+            tempDirList = []
             tempPath = '/sys/class/hwmon'
+
             try:
-                tempDirList = \
-                    [ '%s/%s/name' % (tempPath, item) for item in os.listdir(tempPath) ]
+                for item in os.listdir(tempPath):
+                    tempDirList.append('%s/%s/name' % (tempPath, item))
+                    tempDirList.append('%s/%s/device/name' % (tempPath, item))
             except:
-                tempDirList = []
-            tempPath = None
+                pass
+
+            tempPath = []
             for tempDir in tempDirList:
                 try:
                     with open(tempDir, 'r') as fd:
                         if fd.readline()[:-1] == 'coretemp':
-                            tempPath = tempDir[:tempDir.rfind('/')]
-                            break
+                            tempPath.append(tempDir[:tempDir.rfind('/')])
                 except:
                     pass
 
-            # /sys/class/thermal #
-            if tempPath is None:
-                tempPath = '/sys/class/thermal'
-                try:
-                    tempDirList = \
-                        [ '%s/%s' % (tempPath, item) \
-                        for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
-                except:
-                    tempDirList = []
-                for tempDir in tempDirList:
+            # /sys/class/hwmon #
+            for hwPath in tempPath:
+                tempDirList = \
+                    [ '%s/%s' % (hwPath, item) \
+                    for item in os.listdir(hwPath) if item.endswith('_input') ]
+                for tempDir in sorted(tempDirList):
                     try:
-                        ctype = None
-
-                        with open('%s/type' % tempDir, 'r') as fd:
-                            ctype = fd.readline()[:-1]
-
-                        with open('%s/temp' % tempDir, 'r') as fd:
-                            if ctype.find('CPU') >= 0:
-                                cpuTempData.append(int(fd.readline()[:-4]))
-                            elif ctype.find('GPU') >= 0:
-                                gpuTempData.append(int(fd.readline()[:-4]))
+                        with open(tempDir.replace('input', 'label'), 'r') as lfd:
+                            name = lfd.readline()[:-1]
+                            if name.startswith('Physical id '):
+                                phyId = name[name.rfind(' ')+1:]
+                            elif name.startswith('Core '):
+                                coreId = name[name.rfind(' ')+1:]
+                                with open(tempDir, 'r') as ifd:
+                                    coreTempData['%s-%s' % (phyId, coreId)] = \
+                                        int(ifd.readline()[:-4])
                     except:
                         pass
-            # /sys/class/hwmon #
-            else:
+
+            # /sys/class/thermal #
+            tempPath = '/sys/class/thermal'
+            try:
                 tempDirList = \
                     [ '%s/%s' % (tempPath, item) \
-                    for item in os.listdir(tempPath) if item.endswith('_input') ]
-                for tempDir in tempDirList:
-                    try:
-                        with open(tempDir.replace('input', 'label'), 'r') as fd:
-                            if fd.readline()[:-1].startswith('Core '):
-                                with open(tempDir, 'r') as fd:
-                                    cpuTempData.append(int(fd.readline()[:-4]))
-                    except:
-                        pass
+                    for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
+            except:
+                tempDirList = []
+            for tempDir in sorted(tempDirList):
+                try:
+                    ctype = None
+
+                    with open('%s/type' % tempDir, 'r') as fd:
+                        ctype = fd.readline()[:-1]
+
+                    with open('%s/temp' % tempDir, 'r') as fd:
+                        if ctype.find('CPU') >= 0:
+                            coreTempData['CPU'] = int(fd.readline()[:-4])
+                        elif ctype.find('GPU') >= 0:
+                            coreTempData['GPU'] = int(fd.readline()[:-4])
+                except:
+                    pass
 
         # print CPU stat #
         if SystemManager.showAll:
@@ -20245,12 +20252,19 @@ class ThreadAnalyzer(object):
                     except:
                         maxFreq = None
 
+                    pidPath = '%s%s/topology/physical_package_id' % (freqPath, idx)
+                    try:
+                        with open(pidPath, 'r') as fd:
+                            phyId = int(fd.readline()[:-1])
+                    except:
+                        phyId = 0
+
                     idPath = '%s%s/topology/core_id' % (freqPath, idx)
                     try:
                         with open(idPath, 'r') as fd:
                             coreId = int(fd.readline()[:-1])
                     except:
-                        coreId = None
+                        coreId = 0
 
                     # set frequency info #
                     coreFreq = ''
@@ -20263,9 +20277,13 @@ class ThreadAnalyzer(object):
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '%3s C | %s' % (cpuTempData[coreId], coreFreq)
+                        coreFreq = '%3s C | %s' % \
+                            (coreTempData['%s-%s' % (phyId, coreId)], coreFreq)
                     except:
-                        coreFreq = '%3s C | %s' % ('?', coreFreq)
+                        try:
+                            coreFreq = '%3s C | %s' % (coreTempData['CPU'], coreFreq)
+                        except:
+                            coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
@@ -20308,9 +20326,9 @@ class ThreadAnalyzer(object):
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except:
-                        if len(gpuTempData) > 0:
-                            coreFreq = '%3s C | %s' % (gpuTempData[0], coreFreq)
-                        else:
+                        try:
+                            coreFreq = '%3s C | %s' % (coreTempData['GPU'], coreFreq)
+                        except:
                             coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     lenCore = len(coreStat)
