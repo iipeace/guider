@@ -20114,13 +20114,10 @@ class ThreadAnalyzer(object):
             self.reportData['net']['netInput'] = netIn
             self.reportData['net']['netOutput'] = netOut
 
-        # print each core usage #
-        cpuTempData = []
-        gpuTempData = []
-        if SystemManager.showAll:
-            SystemManager.addPrint('%s\n' % oneLine)
-
-            # get cpu temperature  #
+        # get temperature #
+        if SystemManager.showAll or SystemManager.gpuEnable:
+            cpuTempData = []
+            gpuTempData = []
             tempPath = '/sys/class/hwmon'
             try:
                 tempDirList = \
@@ -20137,8 +20134,8 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
+            # /sys/class/thermal #
             if tempPath is None:
-                # /sys/class/thermal #
                 tempPath = '/sys/class/thermal'
                 try:
                     tempDirList = \
@@ -20160,8 +20157,8 @@ class ThreadAnalyzer(object):
                                 gpuTempData.append(int(fd.readline()[:-4]))
                     except:
                         pass
+            # /sys/class/hwmon #
             else:
-                # /sys/class/hwmon #
                 tempDirList = \
                     [ '%s/%s' % (tempPath, item) \
                     for item in os.listdir(tempPath) if item.endswith('_input') ]
@@ -20174,7 +20171,11 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-            # CPU STAT #
+        # print CPU stat #
+        if SystemManager.showAll:
+            if len(self.cpuData) > 0:
+                SystemManager.addPrint('%s\n' % oneLine)
+
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(),\
                 key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
@@ -20283,11 +20284,11 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
+        # print GPU STAT #
         if SystemManager.showAll or SystemManager.gpuEnable:
             if len(self.gpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
-            # GPU STAT #
             for idx, value in self.gpuData.items():
                 try:
                     totalUsage = value['CUR_LOAD']
