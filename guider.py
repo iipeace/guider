@@ -20284,7 +20284,7 @@ class ThreadAnalyzer(object):
                             coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
                                 format(cid, coreTempData['CPU'], coreFreq)
                         except:
-                            if cid is None:
+                            if cid is not None:
                                 coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
                                     format(cid, '?', coreFreq)
                             else:
