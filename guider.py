@@ -20252,19 +20252,18 @@ class ThreadAnalyzer(object):
                     except:
                         maxFreq = None
 
+                    idPath = '%s%s/topology/core_id' % (freqPath, idx)
                     pidPath = '%s%s/topology/physical_package_id' % (freqPath, idx)
                     try:
                         with open(pidPath, 'r') as fd:
                             phyId = int(fd.readline()[:-1])
-                    except:
-                        phyId = 0
 
-                    idPath = '%s%s/topology/core_id' % (freqPath, idx)
-                    try:
                         with open(idPath, 'r') as fd:
                             coreId = int(fd.readline()[:-1])
+
+                        cid = '%s-%s' % (phyId, coreId)
                     except:
-                        coreId = 0
+                        cid = None
 
                     # set frequency info #
                     coreFreq = ''
@@ -20273,17 +20272,23 @@ class ThreadAnalyzer(object):
                     else:
                         coreFreq = '? Mhz'
                     if minFreq is not None and maxFreq is not None:
-                        coreFreq = '%s [%d-%d]' % (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
+                        coreFreq = '%s [%d-%d]' % \
+                            (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '%3s C | %s' % \
-                            (coreTempData['%s-%s' % (phyId, coreId)], coreFreq)
+                        coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                            format(cid, coreTempData[cid], coreFreq)
                     except:
                         try:
-                            coreFreq = '%3s C | %s' % (coreTempData['CPU'], coreFreq)
+                            coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                                format(cid, coreTempData['CPU'], coreFreq)
                         except:
-                            coreFreq = '%3s C | %s' % ('?', coreFreq)
+                            if cid is None:
+                                coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                                    format(cid, '?', coreFreq)
+                            else:
+                                coreFreq = '%3s C | %s' % ('?', coreFreq)
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
