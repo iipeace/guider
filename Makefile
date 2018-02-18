@@ -13,7 +13,7 @@ ifneq ($(KERNELRELEASE),)
 else
 	CFLAGS = -fPIC
 	LDFLAGS = -shared
-	CPPFLAGS = $(shell python-config --includes)
+	CPPFLAGS := $(shell python-config --includes)
 endif
 
 CC = gcc 
@@ -23,6 +23,12 @@ TARGET_LIB = guidermodule.so
 
 ifneq ($(wildcard .config),)
   include .config
+endif
+
+ifeq ($(MAKECMDGOALS),clean)
+ifeq ($(CPPFLAGS),)
+  $(error "Fail to find Python.h so that requires CPPFLAGS variable")
+endif
 endif
 
 prefix ?= /usr
@@ -45,7 +51,7 @@ KPATH := /lib/modules/$(shell uname -r)/build
 all: ${TARGET_LIB} ${TARGET_PYC}
 
 $(TARGET_PYC): $(TARGET_PY)
-		@test -s ${PCC} || { echo "Fail to compile guider"; false; }
+		@test -s ${PCC} || { echo "Fail to find python binary"; false; }
 		$(PCC) $(PFLAGS) $^
 
 $(TARGET_LIB): $(OBJS)
