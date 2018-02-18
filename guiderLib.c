@@ -15,7 +15,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
 #include <sys/prctl.h>
 #include <sys/mman.h>
 #include <sys/resource.h>

@@ -25,6 +25,10 @@ ifneq ($(wildcard .config),)
   include .config
 endif
 
+ifeq ($(CPPFLAGS),)
+  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
+endif
+
 prefix ?= /usr
 
 PCC = $(shell which python)
