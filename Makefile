@@ -14,9 +14,6 @@ else
 	CFLAGS = -fPIC
 	LDFLAGS = -shared
 	CPPFLAGS = $(shell python-config --includes)
-ifeq ($(CPPFLAGS),)
-	  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
-endif
 endif
 
 CC = gcc 
