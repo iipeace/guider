@@ -14,6 +14,9 @@ else
 	CFLAGS = -fPIC
 	LDFLAGS = -shared
 	CPPFLAGS = $(shell python-config --includes)
+ifeq ($(CPPFLAGS),)
+	  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
+endif
 endif
 
 CC = gcc 
@@ -49,11 +52,7 @@ $(TARGET_PYC): $(TARGET_PY)
 		$(PCC) $(PFLAGS) $^
 
 $(TARGET_LIB): $(OBJS)
-		ifeq ($(CPPFLAGS),)
-		  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
-		else
-		  $(CC) ${LDFLAGS} -o $@ $^
-		endif
+		$(CC) ${LDFLAGS} -o $@ $^
 
 .PHONY: install
 install: all
