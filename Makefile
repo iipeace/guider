@@ -25,10 +25,6 @@ ifneq ($(wildcard .config),)
   include .config
 endif
 
-ifeq ($(CPPFLAGS),)
-  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
-endif
-
 prefix ?= /usr
 
 PCC = $(shell which python)
@@ -53,7 +49,11 @@ $(TARGET_PYC): $(TARGET_PY)
 		$(PCC) $(PFLAGS) $^
 
 $(TARGET_LIB): $(OBJS)
-		$(CC) ${LDFLAGS} -o $@ $^
+		ifeq ($(CPPFLAGS),)
+		  $(error "Fail to find Python.h so that require CPPFLAGS variable with -I option")
+		else
+		  $(CC) ${LDFLAGS} -o $@ $^
+		endif
 
 .PHONY: install
 install: all
