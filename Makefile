@@ -12,12 +12,17 @@ ifneq ($(KERNELRELEASE),)
 	obj-m := guiderMod.o
 else
     ifneq ($(MAKECMDGOALS),clean)
-	  CFLAGS = -fPIC
-	  LDFLAGS = -shared
-	  CPPFLAGS := $(shell python-config --includes)
+      CFLAGS = -fPIC
+      LDFLAGS = -shared
+      CPPFLAGS := $(shell python-config --includes)
+      PCC = $(shell which python)
+      PFLAGS = -m py_compile
 
       ifeq ($(CPPFLAGS),)
         $(error "Fail to find Python.h so that requires CPPFLAGS variable")
+      endif
+      ifeq ($(PCC),)
+        $(error "Fail to find python so that requires PCC variable")
       endif
     endif
 endif
@@ -33,8 +38,6 @@ endif
 
 prefix ?= /usr
 
-PCC = $(shell which python)
-PFLAGS = -m py_compile
 TARGET_PY = guider.py
 TARGET_PYC = guider.pyc
 INSTALL_DIR = $(prefix)/share/guider
@@ -51,7 +54,6 @@ KPATH := /lib/modules/$(shell uname -r)/build
 all: ${TARGET_LIB} ${TARGET_PYC}
 
 $(TARGET_PYC): $(TARGET_PY)
-		@test -s ${PCC} || { echo "Fail to find python binary"; false; }
 		$(PCC) $(PFLAGS) $^
 
 $(TARGET_LIB): $(OBJS)
