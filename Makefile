@@ -11,9 +11,15 @@
 ifneq ($(KERNELRELEASE),)
 	obj-m := guiderMod.o
 else
-	CFLAGS = -fPIC
-	LDFLAGS = -shared
-	CPPFLAGS := $(shell python-config --includes)
+    ifneq ($(MAKECMDGOALS),clean)
+	  CFLAGS = -fPIC
+	  LDFLAGS = -shared
+	  CPPFLAGS := $(shell python-config --includes)
+
+      ifeq ($(CPPFLAGS),)
+        $(error "Fail to find Python.h so that requires CPPFLAGS variable")
+      endif
+    endif
 endif
 
 CC = gcc 
@@ -23,12 +29,6 @@ TARGET_LIB = guidermodule.so
 
 ifneq ($(wildcard .config),)
   include .config
-endif
-
-ifeq ($(MAKECMDGOALS),clean)
-ifeq ($(CPPFLAGS),)
-  $(error "Fail to find Python.h so that requires CPPFLAGS variable")
-endif
 endif
 
 prefix ?= /usr
