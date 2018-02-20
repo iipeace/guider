@@ -12119,6 +12119,7 @@ class ThreadAnalyzer(object):
     """ Analyzer for thread profiling """
 
     reportData = {}
+    termProcList = {}
     procTotalData = {}
     procIntervalData = []
 
@@ -15806,10 +15807,20 @@ class ThreadAnalyzer(object):
         if m is not None:
             d = m.groupdict()
             pid = d['pid']
+            comm = d['comm']
 
-            # ignore special processes #
-            if d['comm'][0] == '[' and d['comm'][2] == ']':
-                return
+            try:
+                # ignore special processes #
+                if comm[0] == '[' and comm[2] == ']':
+                    # add die process to list #
+                    if comm[1] == '-':
+                        try:
+                            ThreadAnalyzer.termProcList[comm[3:]] += 1
+                        except:
+                            ThreadAnalyzer.termProcList[comm[3:]] = 1
+                    return
+            except:
+                pass
 
             if pid not in ThreadAnalyzer.procTotalData:
                 ThreadAnalyzer.procTotalData[pid] = dict(ThreadAnalyzer.init_procTotalData)
@@ -16376,6 +16387,15 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.pipePrint(SystemManager.procBuffer)
 
+        # print terminated process info #
+        if SystemManager.processEnable:
+            msg = ' Terminated Process '
+        else:
+            msg = ' Terminated Thread '
+        stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
+        SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        ThreadAnalyzer.printTermProc()
+
         # print process tree #
         if SystemManager.processEnable:
             msg = ' Process Tree '
@@ -16386,8 +16406,24 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printProcTree()
 
         # initialize parse buffer #
+        ThreadAnalyzer.termProcList = {}
         ThreadAnalyzer.procTotalData = {}
         ThreadAnalyzer.procIntervalData = []
+
+
+
+    @staticmethod
+    def printTermProc():
+        if len(ThreadAnalyzer.termProcList) == 0:
+            SystemManager.pipePrint("\n\tNone")
+            return
+
+        SystemManager.pipePrint("\n{0:1}\n{1:^16} {2:^5}\n{3:1}\n".\
+            format(twoLine, "Name", "Count", oneLine))
+        for comm, cnt in sorted(ThreadAnalyzer.termProcList.items(),\
+            key=lambda e: e[1], reverse=True):
+            SystemManager.pipePrint("{0:^16} {1:^5}\n".format(comm, cnt))
+        SystemManager.pipePrint(oneLine)
 
 
 
@@ -16683,7 +16719,7 @@ class ThreadAnalyzer(object):
             SystemManager.intervalNow += SystemManager.intervalEnable
 
             # check change of all threads #
-            for key, value in sorted(self.threadData.items(), \
+            for key, value in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
                 index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
                 nextIndex = int(SystemManager.intervalNow / SystemManager.intervalEnable)

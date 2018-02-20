@@ -19,7 +19,7 @@ else
       PFLAGS = -m py_compile
 
       ifeq ($(CPPFLAGS),)
-        $(error "Fail to find Python.h so that requires CPPFLAGS variable")
+        $(warning "Fail to find Python.h so that requires CPPFLAGS variable")
       endif
       ifeq ($(PCC),)
         $(error "Fail to find python so that requires PCC variable")
@@ -51,7 +51,7 @@ KPATH := /lib/modules/$(shell uname -r)/build
 
 
 .PHONY: all
-all: ${TARGET_LIB} ${TARGET_PYC}
+all: ${TARGET_PYC} ${TARGET_LIB}
 
 $(TARGET_PYC): $(TARGET_PY)
 		$(PCC) $(PFLAGS) $^
