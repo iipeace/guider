@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2018, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.8.9"
+__version__ = "3.9.0"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20001,12 +20001,15 @@ class ThreadAnalyzer(object):
             SystemManager.printWarning("Fail to get etcMem")
 
         # print system status menu #
-        SystemManager.addPrint(('%s\n' % twoLine) + \
-            ("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|"\
-            "{11:^6}({12:^4}/{13:^7})|{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
-            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ", "Mem", "Diff", "Anon", "File", "Slab",\
-            "Swap", "Diff", "I/O", "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt",\
-            "Network") + ('%s\n' % oneLine), newline = 3)
+        SystemManager.addPrint(
+            ("%s\n%s%s\n" % (twoLine,\
+            (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
+            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:^4})|{11:^6}({12:^4}/{13:^7})|"\
+            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
+            "Mem", "Diff", "Anon", "File", "Slab", "Swap", "Diff", "I/O",\
+            "Reclaim", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
+            oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
@@ -20047,8 +20050,8 @@ class ThreadAnalyzer(object):
 
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
-            "{6:^5}({7:^4}/{8:^4}/{9:^4}/{10:^4})|{11:^6}({12:^4}/{13:^7})|"
-            "{14:^10}|{15:^7}|{16:^7}|{17:^7}|{18:^9}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
+            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, totalAnonMem, totalFileMem, totalSlabMem, \
             swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
@@ -20146,6 +20149,8 @@ class ThreadAnalyzer(object):
                         with open(tempDir.replace('input', 'label'), 'r') as lfd:
                             name = lfd.readline()[:-1]
                             if name.startswith('Physical id '):
+                                phyId = name[name.rfind(' ')+1:]
+                            elif name.startswith('Package id '):
                                 phyId = name[name.rfind(' ')+1:]
                             elif name.startswith('Core '):
                                 coreId = name[name.rfind(' ')+1:]
@@ -20277,15 +20282,15 @@ class ThreadAnalyzer(object):
                     coreFreq = '%20s|' % coreFreq
 
                     try:
-                        coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                        coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                             format(cid, coreTempData[cid], coreFreq)
                     except:
                         try:
-                            coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                            coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                                 format(cid, coreTempData['CPU'], coreFreq)
                         except:
                             if cid is not None:
-                                coreFreq = '{0:^7} | {1:>3} C | {2:<1}'.\
+                                coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                                     format(cid, '?', coreFreq)
                             else:
                                 coreFreq = '%3s C | %s' % ('?', coreFreq)
