@@ -14555,6 +14555,16 @@ class ThreadAnalyzer(object):
                 "SID", "Core", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
+            # remove calls of unavailable threads #
+            for icount in xrange(0, len(self.syscallData)):
+                try:
+                    self.threadData[self.syscallData[icount][2]]
+                except:
+                    try:
+                        del self.syscallData[icount]
+                    except:
+                        break
+
             cnt = 0
             for icount in xrange(0, len(self.syscallData)):
                 try:
@@ -14564,7 +14574,7 @@ class ThreadAnalyzer(object):
                         if len(self.syscallData) > icount + 1 and \
                             self.syscallData[icount + 1][0] == 'exit' and \
                             self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
-                            eventType = 'pair'
+                            eventType = 'all'
                             eventTime = \
                                 float(self.syscallData[icount][1]) - float(SystemManager.startTime)
                             elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
@@ -14601,7 +14611,7 @@ class ThreadAnalyzer(object):
                         "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}".\
                         format(self.threadData[self.syscallData[icount][2]]['comm'], \
                         self.syscallData[icount][2], '%.6f' % eventTime, \
-                        '%.6f' % elapsed, eventType, syscall[4:], self.syscallData[icount][4], \
+                        elapsed, eventType, syscall[4:], self.syscallData[icount][4], \
                         self.syscallData[icount][3], ret, param))
                     cnt += 1
                 except:
