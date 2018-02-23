@@ -10848,10 +10848,10 @@ class SystemManager(object):
             for core in corelist:
                 cachePath = '/sys/devices/system/cpu/%s/cache' % core
 
+                self.cpuCacheInfo[core] = ''
+
                 try:
                     typelist = os.listdir(cachePath)
-
-                    self.cpuCacheInfo[core] = ''
 
                     for index in typelist:
                         level = '?'
@@ -10873,6 +10873,9 @@ class SystemManager(object):
                             (self.cpuCacheInfo[core], level[:-1], type[:-1], size[:-1])
                 except:
                     pass
+
+                if len(self.cpuCacheInfo[core]) == 0:
+                    del self.cpuCacheInfo[core]
         except:
             pass
 
