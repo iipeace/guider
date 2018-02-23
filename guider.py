@@ -6274,6 +6274,7 @@ class SystemManager(object):
         SystemManager.sysInstance = self
 
         self.cpuInfo = {}
+        self.cpuCacheInfo = {}
         self.memInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
@@ -10749,6 +10750,7 @@ class SystemManager(object):
             # resource info #
             self.saveSystemInfo()
             self.saveCpuInfo()
+            self.saveCpuCacheInfo()
 
             # os info #
             if self.saveWebOSInfo() is True:
@@ -10834,6 +10836,45 @@ class SystemManager(object):
             f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % cpuFile)
+
+
+
+    def saveCpuCacheInfo(self):
+        cpuPath = '/sys/devices/system/cpu'
+
+        try:
+            corelist = os.listdir(cpuPath)
+
+            for core in corelist:
+                cachePath = '/sys/devices/system/cpu/%s/cache' % core
+
+                try:
+                    typelist = os.listdir(cachePath)
+
+                    self.cpuCacheInfo[core] = ''
+
+                    for index in typelist:
+                        level = '?'
+                        path = '%s/%s/level' % (cachePath, index)
+                        with open(path, 'r') as fd:
+                            level = fd.readline()
+
+                        type = '?'
+                        path = '%s/%s/type' % (cachePath, index)
+                        with open(path, 'r') as fd:
+                            type = fd.readline()
+
+                        size = '?'
+                        path = '%s/%s/size' % (cachePath, index)
+                        with open(path, 'r') as fd:
+                            size = fd.readline()
+
+                        self.cpuCacheInfo[core] = '%sL%s(%s)=%s   ' % \
+                            (self.cpuCacheInfo[core], level[:-1], type[:-1], size[:-1])
+                except:
+                    pass
+        except:
+            pass
 
 
 
@@ -11564,6 +11605,7 @@ class SystemManager(object):
         self.printOSInfo()
 
         self.printCpuInfo()
+        self.printCpuCacheInfo()
         self.printMemInfo()
         self.printDiskInfo()
 
@@ -11692,6 +11734,27 @@ class SystemManager(object):
             pass
 
         SystemManager.infoBufferPrint(twoLine)
+
+
+
+    def printCpuCacheInfo(self):
+        if len(self.cpuCacheInfo) == 0:
+            return
+
+        SystemManager.infoBufferPrint('\n[System CPU Cache Info]')
+        SystemManager.infoBufferPrint(twoLine)
+        SystemManager.infoBufferPrint("{0:^20} {1:100}".format("Core", "Information"))
+        SystemManager.infoBufferPrint(twoLine)
+
+        for core, info in sorted(self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
+            try:
+                SystemManager.infoBufferPrint("{0:20} {1:<100}".format(core, info))
+            except:
+                pass
+
+        SystemManager.infoBufferPrint(twoLine)
+
+
 
     def printCpuInfo(self):
         # parse data #
@@ -15968,8 +16031,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^14} | {4:^8} | {5:^4} | " +\
-            "{6:^6} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
+        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^17} | {4:^7} | {5:^4} | " +\
+            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU', 'Free/Anon/File', 'BlkRW', 'Wait',\
             'SWAP', 'NrRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -15986,8 +16049,8 @@ class ThreadAnalyzer(object):
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint((\
-                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^14} | {5:^8} | {6:>4} | " +\
-                "{7:>6} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
+                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^17} | {5:^7} | {6:>4} | " +\
+                "{7:>4} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
                 '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['filemem']),\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
