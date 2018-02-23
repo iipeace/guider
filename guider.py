@@ -12669,6 +12669,8 @@ class ThreadAnalyzer(object):
         cpuUsage = []
         nrCore = []
         memFree = []
+        memAnon = []
+        memFile = []
         swapUsage = []
         reclaimBg = []
         reclaimDr = []
@@ -12714,7 +12716,10 @@ class ThreadAnalyzer(object):
                 except:
                     cpuUsage.append(0)
                 try:
-                    memFree.append(int(summaryList[3]))
+                    memStat = summaryList[3].split('/')
+                    memFree.append(int(memStat[0]))
+                    memAnon.append(int(memStat[1]))
+                    memFile.append(int(memStat[2]))
                 except:
                     memFree.append(0)
                 try:
@@ -12727,15 +12732,15 @@ class ThreadAnalyzer(object):
                     swapUsage.append(0)
                 try:
                     reclaim = summaryList[7].strip().split('/')
-                    reclaimBg.append(int(reclaim[0]))
-                    reclaimDr.append(int(reclaim[1]))
+                    reclaimBg.append(int(reclaim[0]) << 2)
+                    reclaimDr.append(int(reclaim[1]) << 2)
                 except:
                     netRead.append(0)
                     netWrite.append(0)
                 try:
                     blkUsage = summaryList[4].split('/')
-                    blkRead.append(int(blkUsage[0]))
-                    blkWrite.append(int(blkUsage[1]))
+                    blkRead.append(int(blkUsage[0]) << 10)
+                    blkWrite.append(int(blkUsage[1]) << 10)
                 except:
                     blkRead.append(0)
                     blkWrite.append(0)
@@ -12749,13 +12754,13 @@ class ThreadAnalyzer(object):
                         raise
 
                     if netstat[0][-1] == 'M':
+                        netRead.append(int(netstat[0][:-1]) << 10)
+                    else:
                         netRead.append(int(netstat[0][:-1]))
-                    else:
-                        netRead.append(0)
                     if netstat[1][-1] == 'M':
-                        netWrite.append(int(netstat[1][:-1]))
+                        netWrite.append(int(netstat[1][:-1]) << 10)
                     else:
-                        netWrite.append(0)
+                        netWrite.append(int(netstat[1][:-1]))
                 except:
                     netRead.append(0)
                     netWrite.append(0)
@@ -13020,8 +13025,8 @@ class ThreadAnalyzer(object):
         try:
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
                 blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memProcUsage, gpuUsage, totalRAM, swapUsage, totalSwap,\
-                reclaimBg, reclaimDr, nrCore)
+                memFree, memAnon, memFile, memProcUsage, gpuUsage,\
+                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
@@ -13153,18 +13158,12 @@ class ThreadAnalyzer(object):
 
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-        memFree, memProcUsage, gpuUsage, totalRAM, swapUsage, totalSwap,\
-        reclaimBg, reclaimDr, nrCore):
+        memFree, memAnon, memFile, memProcUsage, gpuUsage,\
+        totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore):
 
         ax = subplot2grid((6,1), (0,0), rowspan=4, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         suptitle('guider perf graph', fontsize=8)
-
-        # calculate potion of swap and ram #
-        if max(list(map(int, swapUsage))) > int(max(list(map(int, memFree))) / 10):
-            isSwapInMemoryBox = True
-        else:
-            isSwapInMemoryBox = False
 
         #------------------------------ GPU usage ------------------------------#
         for gpu, stat in gpuUsage.items():
@@ -13272,31 +13271,6 @@ class ThreadAnalyzer(object):
         labelList = []
         ax = subplot2grid((6,1), (4,0), rowspan=1, colspan=1)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-
-        if isSwapInMemoryBox is False:
-            # System Swap Memory #
-            usage = list(map(int, swapUsage))
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='orange', fontweight='bold')
-                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
-                if totalSwap is not None:
-                    label = 'Swap Total [%s]\nSwap Usage' % \
-                        SystemManager.convertSize(long(totalSwap) << 20)
-                    labelList.append(label)
-                else:
-                    labelList.append('Swap Usage')
 
         # System Block Read #
         usage = list(map(int, blkRead))
@@ -13412,7 +13386,7 @@ class ThreadAnalyzer(object):
             plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
             labelList.append('Network Send')
 
-        ylabel('I/O(MB)', fontsize=7)
+        ylabel('I/O(KB)', fontsize=7)
         if len(labelList) > 0:
             legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
         grid(which='both', linestyle=':', linewidth='0.2')
@@ -13489,30 +13463,67 @@ class ThreadAnalyzer(object):
                 else:
                     labelList.append('RAM Free')
 
-            if isSwapInMemoryBox:
-                # System Swap Memory #
-                usage = list(map(int, swapUsage))
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    pass
+            # System Anon Memory #
+            usage = list(map(int, memAnon))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                plot(timeline, usage, '-', c='skyblue', linewidth=1)
+                labelList.append('RAM Anon')
+
+            # System File Memory #
+            usage = list(map(int, memFile))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='darkgray', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='darkgray', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='darkgray', fontweight='bold')
+                plot(timeline, usage, '-', c='darkgray', linewidth=1)
+                labelList.append('RAM File')
+
+            # System Swap Memory #
+            usage = list(map(int, swapUsage))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='orange', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='orange', fontweight='bold')
+                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+                if totalSwap is not None:
+                    label = 'Swap Total [%s]\nSwap Usage' % \
+                        SystemManager.convertSize(long(totalSwap) << 20)
+                    labelList.append(label)
                 else:
-                    if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
-                    if usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
-                    if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='orange', fontweight='bold')
-                    plot(timeline, swapUsage, '-', c='orange', linewidth=1)
-                    if totalSwap is not None:
-                        label = 'Swap Total [%s]\nSwap Usage' % \
-                            SystemManager.convertSize(long(totalSwap) << 20)
-                        labelList.append(label)
-                    else:
-                        labelList.append('Swap Usage')
+                    labelList.append('Swap Usage')
         else:
             # Process VSS #
             if SystemManager.vssEnable:
@@ -15959,7 +15970,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^14} | {4:^8} | {5:^4} | " +\
             "{6:^6} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Mem(Anon/File)', 'BlkRW', 'Wait',\
+            format('IDX', 'Interval', 'CPU', 'Free/Anon/File', 'BlkRW', 'Wait',\
             'SWAP', 'NrRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -15978,7 +15989,7 @@ class ThreadAnalyzer(object):
                 "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^14} | {5:^8} | {6:>4} | " +\
                 "{7:>6} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
-                '%s(%s/%s)' % (val['total']['mem'], val['total']['anonmem'], val['total']['filemem']),\
+                '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['filemem']),\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
                 val['total']['rclm'], val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], \
                 task, val['nrCore'], val['total']['netIO']))
