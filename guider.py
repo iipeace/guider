@@ -8508,7 +8508,7 @@ class SystemManager(object):
                     SystemManager.fileForPrint.truncate()
 
                 # print title #
-                SystemManager.printTitle()
+                SystemManager.printTitle(True)
 
                 # save system info #
                 SystemManager.sysInstance.saveResourceSnapshot()
@@ -8573,7 +8573,7 @@ class SystemManager(object):
                 SystemManager.fileForPrint.truncate()
 
             # print title #
-            SystemManager.printTitle()
+            SystemManager.printTitle(True)
 
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
@@ -8858,7 +8858,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printTitle():
+    def printTitle(absolute=False):
         if SystemManager.printFile is None and SystemManager.printAllEnable is False:
             if sys.platform.startswith('linux'):
                 sys.stdout.write("\x1b[2J\x1b[H")
@@ -8866,7 +8866,7 @@ class SystemManager(object):
                 os.system('cls')
             else:
                 pass
-        elif SystemManager.printAllEnable:
+        elif absolute is False and SystemManager.printAllEnable:
             return
 
         title = "/ g.u.i.d.e.r \tver.%s /" % __version__
@@ -10633,16 +10633,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setTty():
+        if SystemManager.isLinux:
+            if SystemManager.ttyRows < 50:
+                SystemManager.setTtyRows(50)
+            if SystemManager.ttyCols < len(oneLine):
+                SystemManager.setTtyRows(len(oneLine))
+
+
+
+    @staticmethod
     def setTtyCols(cols):
         if SystemManager.isLinux:
-            os.system('stty cols %s > /dev/null' % (cols))
+            os.system('stty cols %s 2> /dev/null' % (cols))
 
 
 
     @staticmethod
     def setTtyRows(rows):
         if SystemManager.isLinux:
-            os.system('stty rows %s > /dev/null' % (rows))
+            os.system('stty rows %s 2> /dev/null' % (rows))
 
 
 
@@ -16042,9 +16052,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^17} | {4:^7} | {5:^4} | " +\
+        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Free/Anon/File', 'BlkRW', 'Wait',\
+            format('IDX', 'Interval', 'CPU', 'Free/Anon/File', 'BlkRW', 'Blk',\
             'SWAP', 'NrRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -16060,7 +16070,7 @@ class ThreadAnalyzer(object):
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint((\
-                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^17} | {5:^7} | {6:>4} | " +\
+                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | {5:^7} | {6:>3} | " +\
                 "{7:>4} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
                 '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['filemem']),\
@@ -22088,6 +22098,9 @@ if __name__ == '__main__':
 
     # get tty setting #
     SystemManager.getTty()
+
+    # set tty setting #
+    SystemManager.setTty()
 
     # import packages to draw graph #
     if SystemManager.graphEnable:
