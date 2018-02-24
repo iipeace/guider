@@ -19999,7 +19999,7 @@ class ThreadAnalyzer(object):
 
         # kernel memory #
         try:
-            totalKernelMem = totalMem - (totalAnonMem + totalFileMem)
+            totalKernelMem = totalMem - (totalAnonMem + totalFileMem + freeMem)
         except:
             totalKernelMem =  0
 
