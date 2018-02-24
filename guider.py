@@ -11749,11 +11749,19 @@ class SystemManager(object):
         SystemManager.infoBufferPrint("{0:^20} {1:100}".format("Core", "Information"))
         SystemManager.infoBufferPrint(twoLine)
 
-        for core, info in sorted(self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
-            try:
-                SystemManager.infoBufferPrint("{0:20} {1:<100}".format(core, info))
-            except:
-                pass
+        cnt = 0
+        try:
+            for core, info in sorted(self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
+                try:
+                    SystemManager.infoBufferPrint("{0:20} {1:<100}".format(core, info))
+                    cnt += 1
+                except:
+                    pass
+        except:
+            pass
+
+        if cnt == 0:
+            SystemManager.infoBufferPrint("{0:^16}".format('None'))
 
         SystemManager.infoBufferPrint(twoLine)
 
