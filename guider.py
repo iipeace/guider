@@ -12754,7 +12754,7 @@ class ThreadAnalyzer(object):
         nrCore = []
         memFree = []
         memAnon = []
-        memFile = []
+        memCache = []
         swapUsage = []
         reclaimBg = []
         reclaimDr = []
@@ -12803,7 +12803,7 @@ class ThreadAnalyzer(object):
                     memStat = summaryList[3].split('/')
                     memFree.append(int(memStat[0]))
                     memAnon.append(int(memStat[1]))
-                    memFile.append(int(memStat[2]))
+                    memCache.append(int(memStat[2]))
                 except:
                     memFree.append(0)
                 try:
@@ -13109,7 +13109,7 @@ class ThreadAnalyzer(object):
         try:
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
                 blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memFile, memProcUsage, gpuUsage,\
+                memFree, memAnon, memCache, memProcUsage, gpuUsage,\
                 totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
@@ -13242,7 +13242,7 @@ class ThreadAnalyzer(object):
 
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-        memFree, memAnon, memFile, memProcUsage, gpuUsage,\
+        memFree, memAnon, memCache, memProcUsage, gpuUsage,\
         totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore):
 
         ax = subplot2grid((6,1), (0,0), rowspan=4, colspan=1)
@@ -13567,7 +13567,7 @@ class ThreadAnalyzer(object):
                 labelList.append('RAM Anon')
 
             # System File Memory #
-            usage = list(map(int, memFile))
+            usage = list(map(int, memCache))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
             if usage[minIdx] == usage[maxIdx] == 0:
@@ -13583,7 +13583,7 @@ class ThreadAnalyzer(object):
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='darkgray', fontweight='bold')
                 plot(timeline, usage, '-', c='darkgray', linewidth=1)
-                labelList.append('RAM File')
+                labelList.append('RAM Cache')
 
             # System Swap Memory #
             usage = list(map(int, swapUsage))
@@ -15820,7 +15820,7 @@ class ThreadAnalyzer(object):
 
             # MEM stat #
             m = re.match((r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)\s*'
-                r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<file>\-*[0-9]+)\s*'
+                r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<cache>\-*[0-9]+)\s*'
                 r'/\s*(?P<kernel>\-*[0-9]+)'), tokenList[2])
             if m is not None:
                 d = m.groupdict()
@@ -15828,7 +15828,7 @@ class ThreadAnalyzer(object):
                 freeMem = int(d['free'])
                 freeMemDiff = int(d['freeDiff'])
                 anonMem = int(d['anon'])
-                fileMem = int(d['file'])
+                cacheMem = int(d['cache'])
                 kernelMem = int(d['kernel'])
 
                 if ThreadAnalyzer.procTotalData['total']['initMem'] == 0:
@@ -15847,7 +15847,7 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procIntervalData[index]['total']['mem'] = freeMem
                 ThreadAnalyzer.procIntervalData[index]['total']['memDiff'] = freeMemDiff
                 ThreadAnalyzer.procIntervalData[index]['total']['anonmem'] = anonMem
-                ThreadAnalyzer.procIntervalData[index]['total']['filemem'] = fileMem
+                ThreadAnalyzer.procIntervalData[index]['total']['cachemem'] = cacheMem
                 ThreadAnalyzer.procIntervalData[index]['total']['kernelmem'] = kernelMem
             else:
                 return
@@ -16054,7 +16054,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Free/Anon/File', 'BlkRW', 'Blk',\
+            format('IDX', 'Interval', 'CPU', 'Free/Anon/Cache', 'BlkRW', 'Blk',\
             'SWAP', 'NrRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -16073,7 +16073,7 @@ class ThreadAnalyzer(object):
                 "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | {5:^7} | {6:>3} | " +\
                 "{7:>4} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
-                '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['filemem']),\
+                '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['cachemem']),\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
                 val['total']['rclm'], val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], \
                 task, val['nrCore'], val['total']['netIO']))
@@ -19997,12 +19997,6 @@ class ThreadAnalyzer(object):
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
             SystemManager.printWarning("Fail to get fileMem")
 
-        # kernel memory #
-        try:
-            totalKernelMem = totalMem - (totalAnonMem + totalFileMem + freeMem)
-        except:
-            totalKernelMem =  0
-
         # dirty memory #
         try:
             nrDirty = self.vmData['nr_dirty']
@@ -20030,6 +20024,14 @@ class ThreadAnalyzer(object):
         except:
             slabReclm = slabUnReclm = slabReclmDiff = slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
             SystemManager.printWarning("Fail to get slabMem")
+
+        totalCacheMem = totalFileMem + totalSlabMem
+
+        # kernel memory #
+        try:
+            totalKernelMem = totalMem - (totalAnonMem + totalCacheMem + freeMem)
+        except:
+            totalKernelMem =  0
 
         # fault #
         try:
@@ -20171,7 +20173,7 @@ class ThreadAnalyzer(object):
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            "Mem", "Diff", "Anon", "File", "Ker", "Swap", "Diff", "I/O",\
+            "Mem", "Diff", "Anon", "Cache", "Ker", "Swap", "Diff", "I/O",\
             "NrRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
             oneLine)), newline = 3)
 
@@ -20217,7 +20219,7 @@ class ThreadAnalyzer(object):
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
-            freeMem, freeMemDiff, totalAnonMem, totalFileMem, totalKernelMem, \
+            freeMem, freeMemDiff, totalAnonMem, totalCacheMem, totalKernelMem, \
             swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
             '%s/%s' % (bgReclaim, drReclaim), '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
@@ -20248,6 +20250,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
+            self.reportData['mem']['cache'] = totalCacheMem
             self.reportData['mem']['kernel'] = totalKernelMem
             self.reportData['mem']['dirty'] = nrDirty
             self.reportData['mem']['freeDiff'] = freeMemDiff
