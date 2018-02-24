@@ -13365,14 +13365,14 @@ class ThreadAnalyzer(object):
         else:
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='cyan', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
             if usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='cyan', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
             if usage[-1] > 0:
                 text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='cyan', fontweight='bold')
-            plot(timeline, blkRead, '-', c='cyan', linewidth=1)
+                        fontsize=5, color='skyblue', fontweight='bold')
+            plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
             labelList.append('Block Read')
 
         # System Block Write #
@@ -13539,7 +13539,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '-', c='blue', linewidth=1)
+                plot(timeline, usage, '.-', c='blue', linewidth=3, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
                         SystemManager.convertSize(long(totalRAM) << 20)
