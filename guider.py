@@ -11763,7 +11763,7 @@ class SystemManager(object):
         try:
             for core, info in sorted(self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
                 try:
-                    SystemManager.infoBufferPrint("{0:20} {1:<100}".format(core, info))
+                    SystemManager.infoBufferPrint("{0:^20} {1:<100}".format(core[3:], info))
                     cnt += 1
                 except:
                     pass
@@ -12801,11 +12801,21 @@ class ThreadAnalyzer(object):
                     cpuUsage.append(0)
                 try:
                     memStat = summaryList[3].split('/')
+                    if len(memStat) != 3:
+                        raise
                     memFree.append(int(memStat[0]))
                     memAnon.append(int(memStat[1]))
                     memCache.append(int(memStat[2]))
                 except:
-                    memFree.append(0)
+                    # for backward compatibility #
+                    try:
+                        memFree.append(int(summaryList[3]))
+                        memAnon.append(0)
+                        memCache.append(0)
+                    except:
+                        memFree.append(0)
+                        memAnon.append(0)
+                        memCache.append(0)
                 try:
                     blkWait.append(int(summaryList[5]))
                 except:
@@ -13566,7 +13576,7 @@ class ThreadAnalyzer(object):
                 plot(timeline, usage, '-', c='skyblue', linewidth=1)
                 labelList.append('RAM Anon')
 
-            # System File Memory #
+            # System Cache Memory #
             usage = list(map(int, memCache))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
