@@ -21017,6 +21017,8 @@ class ThreadAnalyzer(object):
                     # update uss #
                     elif SystemManager.ussEnable:
                         mems -= (sss >> 2)
+                        if mems < 0:
+                            mems = 0
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
