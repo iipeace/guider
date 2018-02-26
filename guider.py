@@ -20894,6 +20894,7 @@ class ThreadAnalyzer(object):
 
             # get memory details #
             if SystemManager.memEnable or SystemManager.pssEnable or SystemManager.ussEnable:
+                rss = 0
                 sss = 0
                 pss = 0
                 memBuf = []
@@ -20914,6 +20915,7 @@ class ThreadAnalyzer(object):
                         try:
                             prop = 'Rss:'
                             tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            rss += item[prop]
                         except:
                             tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
@@ -21016,9 +21018,7 @@ class ThreadAnalyzer(object):
                         mems = pss >> 2
                     # update uss #
                     elif SystemManager.ussEnable:
-                        mems -= (sss >> 2)
-                        if mems < 0:
-                            mems = 0
+                        mems = (rss - sss) >> 2
 
             SystemManager.addPrint(\
                 ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
