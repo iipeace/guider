@@ -20049,13 +20049,6 @@ class ThreadAnalyzer(object):
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
             SystemManager.printWarning("Fail to get fileMem")
 
-        # swapcache memory #
-        try:
-            swapCacheMem = self.memData['SwapCached'] >> 10
-        except:
-            swapCacheMem = 0
-            SystemManager.printWarning("Fail to get swapCacheMem")
-
         # dirty memory #
         try:
             nrDirty = self.vmData['nr_dirty']
@@ -20084,7 +20077,7 @@ class ThreadAnalyzer(object):
             slabReclm = slabUnReclm = slabReclmDiff = slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
             SystemManager.printWarning("Fail to get slabMem")
 
-        totalCacheMem = totalFileMem + swapCacheMem + totalSlabMem
+        totalCacheMem = totalFileMem + totalSlabMem
 
         # kernel memory #
         try:
