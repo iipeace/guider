@@ -6648,14 +6648,14 @@ class SystemManager(object):
 
             print('\nOptions:')
             print('\t[record]')
-            print('\t\t-e  [enable_optionsPerMode:bellowCharacters]')
+            print('\t\t-e  [enable_optionsPerMode:belowCharacters]')
             print('\t\t\t  [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
                 '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
                 '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|f(ile)}')
-            print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
+            print('\t\t-d  [disable_optionsPerMode:belowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
             print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)|P(erf)}')
@@ -18294,7 +18294,7 @@ class ThreadAnalyzer(object):
 
                                     """
                                     if error of size and time of block read is big then \
-                                    consider inserting bellow condition
+                                    consider inserting below conditions
                                     # self.threadData[value['thread']]['readQueueCnt'] == 0 #
                                     """
                                     if self.threadData[value['thread']]['readStart'] > 0:
