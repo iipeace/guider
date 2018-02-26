@@ -6217,6 +6217,8 @@ class SystemManager(object):
     gpuEnable = False
     memEnable = False
     rssEnable = True
+    pssEnable = False
+    ussEnable = False
     vssEnable = True
     wssEnable = False
     heapEnable = False
@@ -6652,7 +6654,7 @@ class SystemManager(object):
                 '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
                 '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
-                '\n\t\t\t              I(mage)|g(raph)|r(eport)|R(file)|f(ile)}')
+                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:bellowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -8320,6 +8322,16 @@ class SystemManager(object):
                 else:
                     disableStat += 'RFILE '
 
+                if SystemManager.pssEnable:
+                    enableStat += 'PSS '
+                else:
+                    disableStat += 'PSS '
+
+                if SystemManager.ussEnable:
+                    enableStat += 'USS '
+                else:
+                    disableStat += 'USS '
+
                 if SystemManager.wssEnable:
                     enableStat += 'WSS '
                 else:
@@ -8850,6 +8862,24 @@ class SystemManager(object):
 
 
     @staticmethod
+    def delPrint(newline = 1):
+        try:
+            target = SystemManager.bufferString
+            start = target.rfind('\n')
+            pos = newline
+
+            while start >= 0 and pos > 1:
+                start = target.rfind('\n', start - 1)
+                pos -= 1
+
+            SystemManager.bufferString = target[:start + 1]
+            SystemManager.bufferRows -= newline
+        except:
+            pass
+
+
+
+    @staticmethod
     def clearPrint():
         del SystemManager.bufferString
         SystemManager.bufferString = ''
@@ -8859,6 +8889,9 @@ class SystemManager(object):
 
     @staticmethod
     def printTitle(absolute=False):
+        if SystemManager.printEnable is False:
+            return
+
         if SystemManager.printFile is None and SystemManager.printAllEnable is False:
             if sys.platform.startswith('linux'):
                 sys.stdout.write("\x1b[2J\x1b[H")
@@ -9723,6 +9756,12 @@ class SystemManager(object):
                         sys.exit(0)
                     else:
                         SystemManager.stackEnable = True
+                if options.rfind('S') > -1:
+                    SystemManager.pssEnable = True
+                    SystemManager.sort = 'm'
+                if options.rfind('u') > -1:
+                    SystemManager.ussEnable = True
+                    SystemManager.sort = 'm'
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
                 if options.rfind('c') > -1:
@@ -9746,7 +9785,7 @@ class SystemManager(object):
                         sys.exit(0)
                     SystemManager.memEnable = True
                     SystemManager.wssEnable = True
-                    SystemManager.sort = 'p'
+                    SystemManager.sort = 'm'
                 if options.rfind('P') > -1:
                     if os.geteuid() != 0:
                         SystemManager.printError("Fail to get root permission to use PMU")
@@ -19160,9 +19199,12 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         # realtime mode #
-        if SystemManager.pipeEnable or SystemManager.printFile is None:
-            if SystemManager.pipeEnable is False:
-                SystemManager.printTitle()
+        if SystemManager.printFile is None:
+            SystemManager.printTitle()
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.clearPrint()
+        # pipe mode #
+        elif SystemManager.pipeEnable:
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
@@ -19575,7 +19617,7 @@ class ThreadAnalyzer(object):
         ptable = {'ANON': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         checkCnt = 0
-        checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Dirty:', \
+        checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Clean:', 'Shared_Dirty:', \
             'Private_Dirty:', 'Referenced:', 'AnonHugePages:', 'Swap:', 'Locked:']
 
         try:
@@ -20627,12 +20669,19 @@ class ThreadAnalyzer(object):
         else:
             etc = 'SignalHandler'
 
+        if SystemManager.pssEnable:
+            mem = 'PSS'
+        elif SystemManager.ussEnable:
+            mem = 'USS'
+        else:
+            mem = 'RSS'
+
         SystemManager.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "Mem", "RSS", "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine), newline = 3)
 
         # set sort value #
@@ -20767,7 +20816,7 @@ class ThreadAnalyzer(object):
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
-            if SystemManager.memEnable:
+            if SystemManager.memEnable or SystemManager.pssEnable or SystemManager.ussEnable:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             try:
@@ -20838,30 +20887,17 @@ class ThreadAnalyzer(object):
                 except:
                     etc = '-'
 
-            SystemManager.addPrint(\
-                ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                value['ttime'], value['utime'], value['stime'], dtime, \
-                long(value['stat'][self.vsizeIdx]) >> 20, \
-                long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
-                value['btime'], readSize, writeSize, value['majflt'],\
-                yld, prtd, value['fdsize'], lifeTime, etc))
-
-            # print PMU stats #
             try:
-                perfData = SystemManager.collectProcPerfData(value['perfFds'])
-                perfString = SystemManager.getPerfString(perfData)
-                if len(perfString) > 0:
-                    SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
-                    needLine = True
+                mems = long(value['stat'][self.rssIdx])
             except:
-                pass
+                mems = 0
 
-            # print memory details #
-            if SystemManager.memEnable:
+            # get memory details #
+            if SystemManager.memEnable or SystemManager.pssEnable or SystemManager.ussEnable:
+                sss = 0
+                pss = 0
+                memBuf = []
+
                 if value['maps'] is not None:
                     for key, item in sorted(value['maps'].items(), reverse=True):
                         tmpstr = ''
@@ -20884,6 +20920,7 @@ class ThreadAnalyzer(object):
                         try:
                             prop = 'Pss:'
                             tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                            pss += item[prop]
                         except:
                             tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
@@ -20906,7 +20943,14 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
 
                         try:
+                            prop = 'Shared_Clean:'
+                            sss += item[prop]
+                        except:
+                            pass
+
+                        try:
                             prop = 'Shared_Dirty:'
+                            sss += item[prop]
                             if item[prop] > 9999:
                                 item[prop] = item[prop] >> 10
                                 tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
@@ -20936,14 +20980,7 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
-                        SystemManager.addPrint("{0:>39} | {1:1}|\n".format(mtype, tmpstr))
-
-                        # cut by rows of terminal #
-                        if SystemManager.bufferRows >= \
-                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                            SystemManager.printFile is None:
-                            SystemManager.addPrint('---more---')
-                            return
+                        memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
 
                         if SystemManager.wssEnable:
                             # get current WSS size #
@@ -20974,35 +21011,80 @@ class ThreadAnalyzer(object):
                             except:
                                 self.procData[idx]['wss'][key] = '[%5s]' % wss
 
-                            # split a long line #
-                            tstr = ''
-                            indent = 48
-                            isFirstLined = True
-                            limit = SystemManager.lineLength - indent
-                            pstr = self.procData[idx]['wss'][key]
+                    # update pss #
+                    if SystemManager.pssEnable:
+                        mems = pss >> 2
+                    # update uss #
+                    elif SystemManager.ussEnable:
+                        mems -= (sss >> 2)
 
-                            while len(pstr) > limit:
-                                slimit = len(pstr[:limit])
-                                des = '%s' % pstr[:slimit]
-                                tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
-                                if isFirstLined:
-                                    limit -= 7
-                                    isFirstLined = False
-                                pstr = '%s' % pstr[slimit:]
-                            tstr = '%s%s' % (tstr, pstr)
+            SystemManager.addPrint(\
+                ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                value['ttime'], value['utime'], value['stime'], dtime, \
+                long(value['stat'][self.vsizeIdx]) >> 20, \
+                mems >> 8, codeSize, shr, vmswp, \
+                value['btime'], readSize, writeSize, value['majflt'],\
+                yld, prtd, value['fdsize'], lifeTime, etc))
 
-                            # count newlines #
-                            newline = tstr.count('\n')+1
+            # print PMU stats #
+            try:
+                perfData = SystemManager.collectProcPerfData(value['perfFds'])
+                perfString = SystemManager.getPerfString(perfData)
+                if len(perfString) > 0:
+                    SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
+                    needLine = True
+            except:
+                pass
 
-                            # cut by rows of terminal #
-                            if SystemManager.bufferRows + newline >= \
-                                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                                SystemManager.printFile is None:
-                                SystemManager.addPrint('---more---')
-                                return
+            # print memory details #
+            if SystemManager.memEnable:
+                for memData in memBuf:
+                    mprop = memData[0]
+                    mval = memData[1]
 
-                            SystemManager.addPrint(\
-                                "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
+                    SystemManager.addPrint(mval)
+
+                    # cut by rows of terminal #
+                    if SystemManager.bufferRows >= \
+                        SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                        SystemManager.printFile is None:
+                        SystemManager.addPrint('---more---')
+                        return
+
+                    if SystemManager.wssEnable:
+                        # split a long line #
+                        tstr = ''
+                        indent = 48
+                        isFirstLined = True
+                        limit = SystemManager.lineLength - indent
+                        pstr = self.procData[idx]['wss'][mprop]
+
+                        while len(pstr) > limit:
+                            slimit = len(pstr[:limit])
+                            des = '%s' % pstr[:slimit]
+                            tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
+                            if isFirstLined:
+                                limit -= 7
+                                isFirstLined = False
+                            pstr = '%s' % pstr[slimit:]
+                        tstr = '%s%s' % (tstr, pstr)
+
+                        # count newlines #
+                        newline = tstr.count('\n')+1
+
+                        # cut by rows of terminal #
+                        if SystemManager.bufferRows + newline >= \
+                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                            SystemManager.printFile is None:
+                            SystemManager.addPrint('---more---')
+                            return
+
+                        SystemManager.addPrint(\
+                            "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
 
                 needLine = True
 
@@ -21794,9 +21876,12 @@ class ThreadAnalyzer(object):
                         cli.ignore += 1
 
         # realtime mode #
-        if SystemManager.pipeEnable or SystemManager.printFile is None:
-            if SystemManager.pipeEnable is False:
-                SystemManager.printTitle()
+        if SystemManager.printFile is None:
+            SystemManager.printTitle()
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.clearPrint()
+        # pipe mode #
+        elif SystemManager.pipeEnable:
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # buffered mode #
