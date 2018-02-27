@@ -6119,6 +6119,7 @@ class SystemManager(object):
     arch = 'arm'
     isLinux = True
     isAndroid = False
+    drawMode = False
     archOption = None
     mountPath = None
     mountCmd = None
@@ -6193,6 +6194,7 @@ class SystemManager(object):
     systemInfoBuffer = ''
     kerSymTable = {}
     reportData = {}
+    layout = None
 
     eventLogFile = None
     eventLogFD = None
@@ -6216,10 +6218,10 @@ class SystemManager(object):
     cpuEnable = True
     gpuEnable = False
     memEnable = False
-    rssEnable = True
+    rssEnable = False
     pssEnable = False
     ussEnable = False
-    vssEnable = True
+    vssEnable = False
     wssEnable = False
     heapEnable = False
     fileTopEnable = False
@@ -6686,7 +6688,8 @@ class SystemManager(object):
             print('\t\t-r  [set_targetRootPath:dir]')
             print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
-            print('\t\t-L  [convert_textToImage]')
+            print('\t\t-Z  [convert_textToImage]')
+            print('\t\t-L  [set_layout:type:size]')
             print('\t[common]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-Q  [print_allRowsInaStream]')
@@ -6789,9 +6792,10 @@ class SystemManager(object):
                 print('\t\t\t- draw graph and chart for specific process group in image file')
                 print('\t\t\t\t# %s draw guider.out -g chrome' % cmd)
                 print('\t\t\t\t# %s top -I guider.out -e g -g chrome' % cmd)
-                print('\t\t\t- draw graph and chart for specific process group except for VSS in image')
-                print('\t\t\t\t# %s draw guider.out -g chrome -d v' % cmd)
-                print('\t\t\t\t# %s top -I guider.out -e g -g chrome -d v' % cmd)
+                print('\t\t\t- draw cpu and memory graphs of specific processes in image file propotionally')
+                print('\t\t\t\t# %s draw guider.out -g chrome -L cpu:3, mem:3' % cmd)
+                print('\t\t\t- draw VSS graph and chart for specific processes in image file')
+                print('\t\t\t\t# %s draw guider.out -g chrome -e v' % cmd)
                 print('\t\t\t- report system status to specific server')
                 print('\t\t\t\t# %s top -n 192.168.0.5:5555' % cmd)
                 print('\t\t\t- report system status to specific server if only some events occur')
@@ -6813,7 +6817,7 @@ class SystemManager(object):
                 print('\t\t\t- check property of specific pages')
                 print('\t\t\t\t# %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
                 print('\t\t\t- convert a text fle to a image file')
-                print('\t\t\t\t# %s guider.out -L' % cmd)
+                print('\t\t\t\t# %s guider.out -Z' % cmd)
                 print('\t\t\t- wait for signal')
                 print('\t\t\t\t# %s record|top -W' % cmd)
                 print('\t\t\t- show guider processes running')
@@ -9647,8 +9651,14 @@ class SystemManager(object):
             elif option == 'I' and SystemManager.isTopMode():
                 SystemManager.sourceFile = value
 
-            elif option == 'L' and SystemManager.isTopMode() is False:
+            elif option == 'Z' and SystemManager.isTopMode() is False:
                 SystemManager.customImageEnable = True
+
+            elif option == 'L' and SystemManager.isTopMode():
+                SystemManager.layout = value
+                if len(value) == 0:
+                    SystemManager.printError("no option value with -L option")
+                    sys.exit(0)
 
             elif option == 'a':
                 SystemManager.showAll = True
@@ -9687,10 +9697,6 @@ class SystemManager(object):
 
             elif option == 'd':
                 options = value
-                if options.rfind('r') > -1:
-                    SystemManager.rssEnable = False
-                if options.rfind('v') > -1:
-                    SystemManager.vssEnable = False
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
                 if options.rfind('P') > -1:
@@ -9725,6 +9731,8 @@ class SystemManager(object):
                 if SystemManager.isTopMode() is False:
                     continue
 
+                if options.rfind('v') > -1:
+                    SystemManager.vssEnable = True
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
                 if options.rfind('p') > -1:
@@ -9801,14 +9809,18 @@ class SystemManager(object):
                     else:
                         SystemManager.perfGroupEnable = True
                 if options.rfind('r') > -1:
-                    try:
-                        import json
-                        SystemManager.jsonObject = json
-                        SystemManager.reportEnable = True
-                    except ImportError:
-                        err = sys.exc_info()[1]
-                        SystemManager.printError("Fail to import python package: %s" % err.args[0])
-                        sys.exit(0)
+                    if SystemManager.isDrawMode():
+                        SystemManager.rssEnable = True
+                    else:
+                        try:
+                            import json
+                            SystemManager.jsonObject = json
+                            SystemManager.reportEnable = True
+                        except ImportError:
+                            err = sys.exc_info()[1]
+                            SystemManager.printError(\
+                                "Fail to import python package: %s" % err.args[0])
+                            sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
                 # Handle error about record option #
@@ -10390,7 +10402,8 @@ class SystemManager(object):
 
     @staticmethod
     def isDrawMode():
-        if sys.argv[1] == 'draw':
+        if sys.argv[1] == 'draw' or SystemManager.drawMode:
+            SystemManager.drawMode = True
             return True
         else:
             return False
@@ -13160,6 +13173,8 @@ class ThreadAnalyzer(object):
                 blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
                 memFree, memAnon, memCache, memProcUsage, gpuUsage,\
                 totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore)
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
@@ -13168,6 +13183,8 @@ class ThreadAnalyzer(object):
         # draw chart and save it #
         try:
             self.drawChart(prop)
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError("Fail to draw chart while setting property")
             return
@@ -13294,284 +13311,355 @@ class ThreadAnalyzer(object):
         memFree, memAnon, memCache, memProcUsage, gpuUsage,\
         totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore):
 
-        ax = subplot2grid((6,1), (0,0), rowspan=4, colspan=1)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        suptitle('guider perf graph', fontsize=8)
+        def drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
 
-        #------------------------------ GPU usage ------------------------------#
-        for gpu, stat in gpuUsage.items():
-            stat = list(map(int, stat.split()))
+            ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle('guider perf graph', fontsize=8)
+
+            #------------------------------ GPU usage ------------------------------#
+            for gpu, stat in gpuUsage.items():
+                stat = list(map(int, stat.split()))
+                try:
+                    if min(stat) == max(stat):
+                        continue
+                except:
+                    pass
+                plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
+                labelList.append('[ %s ]' % gpu)
+
+            #------------------------------ CPU usage ------------------------------#
+            ymax = 0
+            for idx, item in enumerate(blkWait):
+                blkWait[idx] += cpuUsage[idx]
+                if ymax < blkWait[idx]:
+                    ymax = blkWait[idx]
+
+            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU + I/O ]')
+            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            labelList.append('[ CPU Only ]')
+
+            # initialize list that count the number of process using resource more than 1% #
+            effectProcList = [0] * len(timeline)
+
+            # CPU usage of processes #
+            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+                usage = item['usage'].split()
+                usage = list(map(int, usage))
+                cpuUsage = list(usage)
+
+                # merge cpu usage and wait time of processes #
+                try:
+                    blkUsage = blkProcUsage[idx]['usage'].split()
+                    blkUsage = list(map(int, blkUsage))
+                    for interval, value in enumerate(blkUsage):
+                        usage[interval] += value
+                except:
+                    pass
+
+                # increase effectProcList count #
+                for seq, cnt in enumerate(usage):
+                    if cnt > 0:
+                        effectProcList[seq] += 1
+
+                # get max usage #
+                maxusage = max(usage)
+                if ymax < maxusage:
+                    ymax = maxusage
+
+                maxIdx = usage.index(maxusage)
+                color = plot(timeline, usage, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
+                maxCpuPer = str(cpuUsage[maxIdx])
+                if idx in blkProcUsage:
+                    maxBlkPer = str(blkUsage[maxIdx])
+                else:
+                    maxBlkPer = '0'
+                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
+                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
+                        fontsize=3, color=color, fontweight='bold')
+                labelList.append(idx)
+
+            ylabel('CPU+I/O(%)', fontsize=8)
+            legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+            grid(which='both', linestyle=':', linewidth='0.2')
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+            xticks(fontsize=4)
+            ylim([0, ymax])
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
+            inc = int(ymax / 10)
+            if inc == 0:
+                inc = 1
+            yticks(xrange(0, ymax + inc, inc), fontsize=5)
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+
+            if xtype == 3:
+                # draw the number of tasks #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   TASK(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 2:
+                # draw the number of cores #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   CORE(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 1:
+                # convert tick type to integer #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xtickLabel = list(map(int, xtickLabel))
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    xtickLabel[-1] = '   TIME(Sec)'
+                    ax.set_xticklabels(xtickLabel)
+
+                    ytickLabel = ax.get_yticks().tolist()
+                    ytickLabel = list(map(int, ytickLabel))
+                    ax.set_yticklabels(ytickLabel)
+                except:
+                    pass
+
+
+        def drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
+
+            labelList = []
+            ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            # System Block Read #
+            usage = list(map(int, blkRead))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
+                labelList.append('Block Read')
+
+            # System Block Write #
+            usage = list(map(int, blkWrite))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='green', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='green', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='green', fontweight='bold')
+                plot(timeline, blkWrite, '-', c='green', linewidth=1)
+                labelList.append('Block Write')
+
+            # System Background Reclaim #
+            usage = list(map(int, reclaimBg))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='pink', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='pink', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='pink', fontweight='bold')
+                plot(timeline, reclaimBg, '-', c='pink', linewidth=1)
+                labelList.append('Reclaim Background')
+
+            # System Direct Reclaim #
+            usage = list(map(int, reclaimDr))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='red', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='red', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='red', fontweight='bold')
+                plot(timeline, reclaimDr, '-', c='red', linewidth=1)
+                labelList.append('Reclaim Foreground')
+
+            # System Network Recv #
+            usage = list(map(int, netRead))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='purple', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='purple', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='purple', fontweight='bold')
+                plot(timeline, netRead, '-', c='purple', linewidth=1)
+                labelList.append('Network Recv')
+
+            # System Network Send #
+            usage = list(map(int, netWrite))
+            minIdx = usage.index(min(usage))
+            maxIdx = usage.index(max(usage))
+            if usage[minIdx] == usage[maxIdx] == 0:
+                pass
+            else:
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], usage[-1],\
+                            fontsize=5, color='skyblue', fontweight='bold')
+                plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
+                labelList.append('Network Send')
+
+            ylabel('I/O(KB)', fontsize=7)
+            if len(labelList) > 0:
+                legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
+            grid(which='both', linestyle=':', linewidth='0.2')
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+
+            ylist = ax.get_yticks().tolist()
+            ymin = int(min(ylist))
+            if ymin < 0:
+                ymin = 0
+            ymax = int(max(ylist))
+            inc = int(ymax / 10)
+            if inc == 0:
+                inc = 1
+            yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+
+            xticks(fontsize = 4)
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+
+            # convert tick type to integer #
             try:
-                if min(stat) == max(stat):
-                    continue
+                #ax.get_xaxis().set_visible(False)
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+                ax.set_yticklabels(ytickLabel)
             except:
                 pass
-            plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
-            labelList.append('[ %s ]' % gpu)
 
-        #------------------------------ CPU usage ------------------------------#
-        ymax = 0
-        for idx, item in enumerate(blkWait):
-            blkWait[idx] += cpuUsage[idx]
-            if ymax < blkWait[idx]:
-                ymax = blkWait[idx]
-
-        plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
-        labelList.append('[ CPU + I/O ]')
-        plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
-        labelList.append('[ CPU Only ]')
-
-        # initialize list that count the number of process using resource more than 1% #
-        effectProcList = [0] * len(timeline)
-
-        # CPU usage of processes #
-        for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
-            usage = item['usage'].split()
-            usage = list(map(int, usage))
-            cpuUsage = list(usage)
-
-            # merge cpu usage and wait time of processes #
-            try:
-                blkUsage = blkProcUsage[idx]['usage'].split()
-                blkUsage = list(map(int, blkUsage))
-                for interval, value in enumerate(blkUsage):
-                    usage[interval] += value
-            except:
-                pass
-
-            # increase effectProcList count #
-            for seq, cnt in enumerate(usage):
-                if cnt > 0:
-                    effectProcList[seq] += 1
-
-            # get max usage #
-            maxusage = max(usage)
-            if ymax < maxusage:
-                ymax = maxusage
-
-            maxIdx = usage.index(maxusage)
-            color = plot(timeline, usage, '-')[0].get_color()
-
-            ytick = yticks()[0]
-            if len(ytick) > 1:
-                margin = (ytick[1] - ytick[0]) / 10
-            else:
-                margin = 0
-
-            maxCpuPer = str(cpuUsage[maxIdx])
-            if idx in blkProcUsage:
-                maxBlkPer = str(blkUsage[maxIdx])
-            else:
-                maxBlkPer = '0'
-            maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
-            text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
-                    fontsize=3, color=color, fontweight='bold')
-            labelList.append(idx)
-
-        ylabel('CPU+I/O(%)', fontsize=8)
-        legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
-        grid(which='both', linestyle=':', linewidth='0.2')
-        tick_params(axis='x', direction='in')
-        tick_params(axis='y', direction='in')
-        xticks(fontsize=4)
-        ylim([0, ymax])
-        if len(timeline) > 1:
-            xlim([timeline[0], timeline[-1]])
-        inc = int(ymax / 10)
-        if inc == 0:
-            inc = 1
-        yticks(xrange(0, ymax + inc, inc), fontsize=5)
-        ticklabel_format(useOffset=False)
-        locator_params(axis = 'x', nbins=30)
-        figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
-            subplots_adjust(left=0.06, top=0.95, bottom=0.04)
-
-        # draw the number of tasks #
-        try:
-            xtickLabel = ax.get_xticks().tolist()
-            xlim([xtickLabel[0], xtickLabel[-1]])
-            for seq, cnt in enumerate(xtickLabel):
+            if xtype == 3:
+                # draw the number of tasks #
                 try:
-                    xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   TASK(NR)'
+                    ax.set_xticklabels(xtickLabel)
                 except:
-                    xtickLabel[seq] = ' '
-            xtickLabel[-1] = '   TASK(NR)'
-            ax.set_xticklabels(xtickLabel)
-        except:
-            pass
-
-        #------------------------------ I/O usage ------------------------------#
-        labelList = []
-        ax = subplot2grid((6,1), (4,0), rowspan=1, colspan=1)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-
-        # System Block Read #
-        usage = list(map(int, blkRead))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
-            labelList.append('Block Read')
-
-        # System Block Write #
-        usage = list(map(int, blkWrite))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='green', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='green', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='green', fontweight='bold')
-            plot(timeline, blkWrite, '-', c='green', linewidth=1)
-            labelList.append('Block Write')
-
-        # System Background Reclaim #
-        usage = list(map(int, reclaimBg))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='pink', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='pink', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='pink', fontweight='bold')
-            plot(timeline, reclaimBg, '-', c='pink', linewidth=1)
-            labelList.append('Reclaim Background')
-
-        # System Direct Reclaim #
-        usage = list(map(int, reclaimDr))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='red', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='red', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='red', fontweight='bold')
-            plot(timeline, reclaimDr, '-', c='red', linewidth=1)
-            labelList.append('Reclaim Foreground')
-
-        # System Network Recv #
-        usage = list(map(int, netRead))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='purple', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='purple', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='purple', fontweight='bold')
-            plot(timeline, netRead, '-', c='purple', linewidth=1)
-            labelList.append('Network Recv')
-
-        # System Network Send #
-        usage = list(map(int, netWrite))
-        minIdx = usage.index(min(usage))
-        maxIdx = usage.index(max(usage))
-        if usage[minIdx] == usage[maxIdx] == 0:
-            pass
-        else:
-            if usage[minIdx] > 0:
-                text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            if usage[maxIdx] > 0:
-                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            if usage[-1] > 0:
-                text(timeline[-1], usage[-1], usage[-1],\
-                        fontsize=5, color='skyblue', fontweight='bold')
-            plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
-            labelList.append('Network Send')
-
-        ylabel('I/O(KB)', fontsize=7)
-        if len(labelList) > 0:
-            legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
-        grid(which='both', linestyle=':', linewidth='0.2')
-        tick_params(axis='x', direction='in')
-        tick_params(axis='y', direction='in')
-
-        ylist = ax.get_yticks().tolist()
-        ymin = int(min(ylist))
-        if ymin < 0:
-            ymin = 0
-        ymax = int(max(ylist))
-        inc = int(ymax / 10)
-        if inc == 0:
-            inc = 1
-        yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
-
-        xticks(fontsize = 4)
-        if len(timeline) > 1:
-            xlim([timeline[0], timeline[-1]])
-        ticklabel_format(useOffset=False)
-        locator_params(axis = 'x', nbins=30)
-        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
-
-        # convert tick type to integer #
-        try:
-            #ax.get_xaxis().set_visible(False)
-            ytickLabel = ax.get_yticks().tolist()
-            ytickLabel = list(map(int, ytickLabel))
-            ax.set_yticklabels(ytickLabel)
-        except:
-            pass
-
-        # draw the number of cores #
-        try:
-            xtickLabel = ax.get_xticks().tolist()
-            xlim([xtickLabel[0], xtickLabel[-1]])
-            for seq, cnt in enumerate(xtickLabel):
+                    pass
+            elif xtype == 2:
+                # draw the number of cores #
                 try:
-                    xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   CORE(NR)'
+                    ax.set_xticklabels(xtickLabel)
                 except:
-                    xtickLabel[seq] = ' '
-            xtickLabel[-1] = '   CORE(NR)'
-            ax.set_xticklabels(xtickLabel)
-        except:
-            pass
+                    pass
+            elif xtype == 1:
+                # convert tick type to integer #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xtickLabel = list(map(int, xtickLabel))
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    xtickLabel[-1] = '   TIME(Sec)'
+                    ax.set_xticklabels(xtickLabel)
 
-        #------------------------------ MEMORY usage ------------------------------#
-        labelList = []
-        ax = subplot2grid((6,1), (5,0), rowspan=1, colspan=1)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                    ytickLabel = ax.get_yticks().tolist()
+                    ytickLabel = list(map(int, ytickLabel))
+                    ax.set_yticklabels(ytickLabel)
+                except:
+                    pass
 
-        if len(SystemManager.showGroup) == 0 or len(memProcUsage) == 0:
+        def drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
+
+            labelList = []
+            ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
             # System Free Memory #
             usage = list(map(int, memFree))
             minIdx = usage.index(min(usage))
@@ -13657,70 +13745,153 @@ class ThreadAnalyzer(object):
                     labelList.append(label)
                 else:
                     labelList.append('Swap Usage')
+
+            if len(memProcUsage) > 0:
+                # Process VSS #
+                if SystemManager.vssEnable:
+                    for key, item in sorted(\
+                        memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
+                        usage = list(map(int, item['vssUsage'].split()))
+                        minIdx = usage.index(min(usage))
+                        maxIdx = usage.index(item['maxVss'])
+                        if usage[minIdx] == usage[maxIdx] == 0:
+                            pass
+                        else:
+                            if usage[minIdx] > 0:
+                                text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
+                            if usage[maxIdx] > 0:
+                                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
+                            if usage[-1] > 0:
+                                text(timeline[-1], usage[-1], usage[-1], fontsize=5)
+                            plot(timeline, usage, '-', linewidth=1)
+                            labelList.append('%s[VSS]' % key)
+                # Process RSS #
+                if SystemManager.rssEnable:
+                    for key, item in sorted(\
+                        memProcUsage.items(), key=lambda e: e[1]['maxRss'], reverse=True):
+                        usage = list(map(int, item['rssUsage'].split()))
+                        minIdx = usage.index(min(usage))
+                        maxIdx = usage.index(item['maxRss'])
+                        if usage[minIdx] == usage[maxIdx] == 0:
+                            pass
+                        else:
+                            if usage[minIdx] > 0:
+                                text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
+                            if usage[maxIdx] > 0:
+                                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
+                            if usage[-1] > 0:
+                                text(timeline[-1], usage[-1], usage[-1], fontsize=5)
+                            plot(timeline, usage, '-', linewidth=1)
+                            labelList.append('%s[RSS]' % key)
+
+            ylabel('MEMORY(MB)', fontsize=7)
+            legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
+            grid(which='both', linestyle=':', linewidth='0.2')
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+            yticks(fontsize = 5)
+            xticks(fontsize = 4)
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
+            ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+
+            if xtype == 3:
+                # draw the number of tasks #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   TASK(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 2:
+                # draw the number of cores #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   CORE(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 1:
+                # convert tick type to integer #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xtickLabel = list(map(int, xtickLabel))
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    xtickLabel[-1] = '   TIME(Sec)'
+                    ax.set_xticklabels(xtickLabel)
+
+                    ytickLabel = ax.get_yticks().tolist()
+                    ytickLabel = list(map(int, ytickLabel))
+                    ax.set_yticklabels(ytickLabel)
+                except:
+                    pass
+
+        if SystemManager.layout is None:
+            drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                memFree, memAnon, memCache, memProcUsage, gpuUsage, 3,\
+                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 0, 4)
+
+            drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                memFree, memAnon, memCache, memProcUsage, gpuUsage, 2,\
+                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 4, 1)
+
+            drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                memFree, memAnon, memCache, memProcUsage, gpuUsage, 1,\
+                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 5, 1)
         else:
-            # Process VSS #
-            if SystemManager.vssEnable:
-                for key, item in sorted(\
-                    memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
-                    usage = list(map(int, item['vssUsage'].split()))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(item['maxVss'])
-                    if usage[minIdx] == usage[maxIdx] == 0:
-                        pass
-                    else:
-                        if usage[minIdx] > 0:
-                            text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
-                        if usage[maxIdx] > 0:
-                            text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
-                        if usage[-1] > 0:
-                            text(timeline[-1], usage[-1], usage[-1], fontsize=5)
-                        plot(timeline, usage, '-', linewidth=1)
-                        labelList.append('%s[VSS]' % key)
-            # Process RSS #
-            if SystemManager.rssEnable:
-                for key, item in sorted(\
-                    memProcUsage.items(), key=lambda e: e[1]['maxRss'], reverse=True):
-                    usage = list(map(int, item['rssUsage'].split()))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(item['maxRss'])
-                    if usage[minIdx] == usage[maxIdx] == 0:
-                        pass
-                    else:
-                        if usage[minIdx] > 0:
-                            text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
-                        if usage[maxIdx] > 0:
-                            text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
-                        if usage[-1] > 0:
-                            text(timeline[-1], usage[-1], usage[-1], fontsize=5)
-                        plot(timeline, usage, '-', linewidth=1)
-                        labelList.append('%s[RSS]' % key)
+            pos = 0
+            layout = SystemManager.layout.split(',')
 
-        ylabel('MEMORY(MB)', fontsize=7)
-        legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
-        grid(which='both', linestyle=':', linewidth='0.2')
-        tick_params(axis='x', direction='in')
-        tick_params(axis='y', direction='in')
-        yticks(fontsize = 5)
-        xticks(fontsize = 4)
-        if len(timeline) > 1:
-            xlim([timeline[0], timeline[-1]])
-        ticklabel_format(useOffset=False)
-        locator_params(axis = 'x', nbins=30)
-        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+            for idx, graph in enumerate(layout):
+                try:
+                    (target, size) = graph.split(':')
 
-        # convert tick type to integer #
-        try:
-            xtickLabel = ax.get_xticks().tolist()
-            xtickLabel = list(map(int, xtickLabel))
-            xlim([xtickLabel[0], xtickLabel[-1]])
-            xtickLabel[-1] = '   TIME(Sec)'
-            ax.set_xticklabels(xtickLabel)
+                    xtype = len(layout) - idx
 
-            ytickLabel = ax.get_yticks().tolist()
-            ytickLabel = list(map(int, ytickLabel))
-            ax.set_yticklabels(ytickLabel)
-        except:
-            pass
+                    size = int(size)
+                    if pos + size > 6:
+                        SystemManager.printError(\
+                            "Fail to draw graph because total size of graphs is bigger than 6")
+                        sys.exit(0)
+
+                    if target == 'cpu':
+                        drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                    elif target == 'mem':
+                        drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                    elif target == 'io':
+                        drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
+                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
+                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+
+                    pos += size
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    raise
 
 
 
