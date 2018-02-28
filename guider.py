@@ -6656,11 +6656,11 @@ class SystemManager(object):
                 '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
                 '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
-                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|f(ile)}')
+                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:belowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
-            print('\t\t\t  [top]      {r(ss)|v(ss)|p(rint)|P(erf)}')
+            print('\t\t\t  [top]      {c(pu)|p(rint)|P(erf)}')
             print('\t\t-s  [save_traceData:path]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
             print('\t\t-u  [run_inBackground]')
@@ -9705,6 +9705,8 @@ class SystemManager(object):
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
                     SystemManager.rootPath = '/'
+                if options.rfind('c') > -1:
+                    SystemManager.cpuEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -12288,10 +12290,11 @@ class ThreadAnalyzer(object):
     init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
         'startIdx': int(0), 'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), \
         'memDiff': int(0), 'blk': int(0), 'minMem': int(0), 'maxMem': int(0), \
-        'minVss': int(0), 'maxVss': int(0)}
+        'minVss': int(0), 'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
 
     init_procIntervalData = \
-        {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), 'blk': int(0)}
+        {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), \
+        'blk': int(0), 'blkrd': int(0), 'blkwr': int(0)}
 
 
 
@@ -13093,6 +13096,8 @@ class ThreadAnalyzer(object):
         pname = None
         pid = 0
         total = 0
+        totalrd = 0
+        totalwr = 0
         intervalList = None
 
         for line in logBuf[finalLine:]:
@@ -13110,7 +13115,10 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     pname = d['comm'].strip() + '(' + d['pid'] + ')'
                     pid = d['pid']
-                    total = int(sline[1])
+                    try:
+                        total = int(sline[1])
+                    except:
+                        total = sline[1]
                     intervalList = sline[2]
             elif slen == 2:
                 if intervalList is not None:
@@ -13348,18 +13356,22 @@ class ThreadAnalyzer(object):
 
             # CPU usage of processes #
             for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+                if SystemManager.cpuEnable is False:
+                    break
+
                 usage = item['usage'].split()
                 usage = list(map(int, usage))
                 cpuUsage = list(usage)
 
-                # merge cpu usage and wait time of processes #
-                try:
-                    blkUsage = blkProcUsage[idx]['usage'].split()
-                    blkUsage = list(map(int, blkUsage))
-                    for interval, value in enumerate(blkUsage):
-                        usage[interval] += value
-                except:
-                    pass
+                if SystemManager.blockEnable is False:
+                    # merge cpu usage and wait time of processes #
+                    try:
+                        blkUsage = blkProcUsage[idx]['usage'].split()
+                        blkUsage = list(map(int, blkUsage))
+                        for interval, value in enumerate(blkUsage):
+                            usage[interval] += value
+                    except:
+                        pass
 
                 # increase effectProcList count #
                 for seq, cnt in enumerate(usage):
@@ -13381,7 +13393,7 @@ class ThreadAnalyzer(object):
                     margin = 0
 
                 maxCpuPer = str(cpuUsage[maxIdx])
-                if idx in blkProcUsage:
+                if idx in blkProcUsage and SystemManager.blockEnable is False:
                     maxBlkPer = str(blkUsage[maxIdx])
                 else:
                     maxBlkPer = '0'
@@ -13477,7 +13489,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
+                plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
                 labelList.append('Block Read')
 
             # System Block Write #
@@ -13496,7 +13508,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='green', fontweight='bold')
-                plot(timeline, blkWrite, '-', c='green', linewidth=1)
+                plot(timeline, blkWrite, '-', c='green', linewidth=2)
                 labelList.append('Block Write')
 
             # System Background Reclaim #
@@ -13515,7 +13527,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='pink', fontweight='bold')
-                plot(timeline, reclaimBg, '-', c='pink', linewidth=1)
+                plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
                 labelList.append('Reclaim Background')
 
             # System Direct Reclaim #
@@ -13534,7 +13546,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='red', fontweight='bold')
-                plot(timeline, reclaimDr, '-', c='red', linewidth=1)
+                plot(timeline, reclaimDr, '-', c='red', linewidth=2)
                 labelList.append('Reclaim Foreground')
 
             # System Network Recv #
@@ -13553,7 +13565,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='purple', fontweight='bold')
-                plot(timeline, netRead, '-', c='purple', linewidth=1)
+                plot(timeline, netRead, '-', c='purple', linewidth=2)
                 labelList.append('Network Recv')
 
             # System Network Send #
@@ -13572,8 +13584,60 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, netWrite, '-', c='skyblue', linewidth=1)
+                plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
                 labelList.append('Network Send')
+
+            # IO usage of processes #
+            for idx, item in blkProcUsage.items():
+                if SystemManager.blockEnable is False:
+                    break
+
+                usage = item['usage'].split()
+                rdUsage = list()
+                wrUsage = list()
+
+                # divide io graph #
+                for item in usage:
+                    io = item.split('/')
+                    rdUsage.append(int(io[0]) << 10)
+                    wrUsage.append(int(io[1]) << 10)
+
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
+                # Block Write of process #
+                minIdx = wrUsage.index(min(wrUsage))
+                maxIdx = wrUsage.index(max(wrUsage))
+                if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
+                    pass
+                else:
+                    color = plot(timeline, wrUsage, '-', linewidth=1)[0].get_color()
+                    if wrUsage[maxIdx] > 0:
+                        text(timeline[maxIdx], wrUsage[maxIdx] + margin, '[%s]%s' % \
+                            (wrUsage[maxIdx], idx), fontsize=3, color=color, fontweight='bold')
+                    if wrUsage[-1] > 0:
+                        text(timeline[-1], wrUsage[-1] + margin, '[%s]%s' % (wrUsage[-1], idx),\
+                                fontsize=3, color=color, fontweight='bold')
+                    labelList.append(idx)
+
+                # Block Read of process #
+                minIdx = rdUsage.index(min(rdUsage))
+                maxIdx = rdUsage.index(max(rdUsage))
+                if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
+                    pass
+                else:
+                    color = plot(timeline, rdUsage, '-', linewidth=1)[0].get_color()
+                    if rdUsage[maxIdx] > 0:
+                        text(timeline[maxIdx], rdUsage[maxIdx] + margin, '[%s]%s' % \
+                            (rdUsage[maxIdx], idx), fontsize=3, color=color, fontweight='bold')
+                    if rdUsage[-1] > 0:
+                        text(timeline[-1], rdUsage[-1] + margin, '[%s]%s' % (rdUsage[-1], idx),\
+                                fontsize=3, color=color, fontweight='bold')
+                    labelList.append(idx)
 
             ylabel('I/O(KB)', fontsize=7)
             if len(labelList) > 0:
@@ -13676,7 +13740,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '.-', c='blue', linewidth=3, solid_capstyle='round')
+                plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
                         SystemManager.convertSize(long(totalRAM) << 20)
@@ -13700,7 +13764,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, usage, '-', c='skyblue', linewidth=1)
+                plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
                 labelList.append('RAM Anon')
 
             # System Cache Memory #
@@ -13719,7 +13783,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='darkgray', fontweight='bold')
-                plot(timeline, usage, '-', c='darkgray', linewidth=1)
+                plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
                 labelList.append('RAM Cache')
 
             # System Swap Memory #
@@ -13738,7 +13802,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='orange', fontweight='bold')
-                plot(timeline, swapUsage, '-', c='orange', linewidth=1)
+                plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
                 if totalSwap is not None:
                     label = 'Swap Total [%s]\nSwap Usage' % \
                         SystemManager.convertSize(long(totalSwap) << 20)
@@ -13747,6 +13811,13 @@ class ThreadAnalyzer(object):
                     labelList.append('Swap Usage')
 
             if len(memProcUsage) > 0:
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
                 # Process VSS #
                 if SystemManager.vssEnable:
                     for key, item in sorted(\
@@ -13757,13 +13828,16 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
+                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
-                                text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
+                                text(timeline[minIdx], usage[minIdx] + margin, \
+                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
                             if usage[maxIdx] > 0:
-                                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
+                                text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
                             if usage[-1] > 0:
-                                text(timeline[-1], usage[-1], usage[-1], fontsize=5)
-                            plot(timeline, usage, '-', linewidth=1)
+                                text(timeline[-1], usage[-1] + margin, \
+                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
                             labelList.append('%s[VSS]' % key)
                 # Process RSS #
                 if SystemManager.rssEnable:
@@ -13775,13 +13849,16 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
+                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
-                                text(timeline[minIdx], usage[minIdx], usage[minIdx], fontsize=5)
+                                text(timeline[minIdx], usage[minIdx] + margin, \
+                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
                             if usage[maxIdx] > 0:
-                                text(timeline[maxIdx], usage[maxIdx], usage[maxIdx], fontsize=5)
+                                text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
                             if usage[-1] > 0:
-                                text(timeline[-1], usage[-1], usage[-1], fontsize=5)
-                            plot(timeline, usage, '-', linewidth=1)
+                                text(timeline[-1], usage[-1] + margin, \
+                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
                             labelList.append('%s[RSS]' % key)
 
             ylabel('MEMORY(MB)', fontsize=7)
@@ -16134,9 +16211,10 @@ class ThreadAnalyzer(object):
                 return
 
         # Get process resource usage #
-        m = re.match(r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)' + \
-            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>[0-9]+)' + \
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>[0-9]+)\(', procLine)
+        m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
+            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>[0-9]+)'
+            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>[0-9]+)'
+            r'\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if m is not None:
             d = m.groupdict()
             pid = d['pid']
@@ -16159,13 +16237,24 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procTotalData[pid] = dict(ThreadAnalyzer.init_procTotalData)
                 ThreadAnalyzer.procTotalData[pid]['startIdx'] = index
 
+            cpu = int(d['cpu'])
+            blk = int(d['blk'])
+            try:
+                blkrd = int(d['blkrd'])
+                blkwr = int(d['blkwr'])
+                SystemManager.blockEnable = True
+            except:
+                blkrd = blkwr = 0
+
             ThreadAnalyzer.procTotalData[pid]['comm'] = d['comm']
             ThreadAnalyzer.procTotalData[pid]['ppid'] = d['ppid']
             ThreadAnalyzer.procTotalData[pid]['nrThreads'] = d['nrThreads']
             ThreadAnalyzer.procTotalData[pid]['pri'] = d['pri']
 
-            ThreadAnalyzer.procTotalData[pid]['cpu'] += int(d['cpu'])
-            ThreadAnalyzer.procTotalData[pid]['blk'] += int(d['blk'])
+            ThreadAnalyzer.procTotalData[pid]['cpu'] += cpu
+            ThreadAnalyzer.procTotalData[pid]['blk'] += blk
+            ThreadAnalyzer.procTotalData[pid]['blkrd'] += blkrd
+            ThreadAnalyzer.procTotalData[pid]['blkwr'] += blkwr
 
             # set vss #
             vss = int(d['vss'])
@@ -16191,12 +16280,14 @@ class ThreadAnalyzer(object):
             if pid not in ThreadAnalyzer.procIntervalData[index]:
                 ThreadAnalyzer.procIntervalData[index][pid] = \
                     dict(ThreadAnalyzer.init_procIntervalData)
-                ThreadAnalyzer.procIntervalData[index][pid]['cpu'] = int(d['cpu'])
+                ThreadAnalyzer.procIntervalData[index][pid]['cpu'] = cpu
                 ThreadAnalyzer.procIntervalData[index][pid]['vss'] = vss
-                ThreadAnalyzer.procIntervalData[index][pid]['blk'] = int(d['blk'])
+                ThreadAnalyzer.procIntervalData[index][pid]['blk'] = blk
+                ThreadAnalyzer.procIntervalData[index][pid]['blkrd'] = blkrd
+                ThreadAnalyzer.procIntervalData[index][pid]['blkwr'] = blkwr
                 ThreadAnalyzer.procIntervalData[index][pid]['mem'] = rss
                 ThreadAnalyzer.procIntervalData[index][pid]['memDiff'] = \
-                    int(d['rss']) - ThreadAnalyzer.procTotalData[pid]['lastMem']
+                    rss - ThreadAnalyzer.procTotalData[pid]['lastMem']
 
                 ThreadAnalyzer.procTotalData[pid]['lastMem'] = rss
 
@@ -16659,12 +16750,17 @@ class ThreadAnalyzer(object):
         for pid, value in sorted(\
             ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['blk'], reverse=True):
 
-            if pid is 'total' or value['blk'] == 0:
+            if pid is 'total' or value['blk'] == value['blkrd'] == value['blkwr'] == 0:
                 continue
+
+            if SystemManager.blockEnable:
+                bstat = '%s/%s' % (value['blkrd'], value['blkwr'])
+            else:
+                bstat = value['blk']
 
             procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], value['blk'])
+                value['nrThreads'], value['pri'], bstat)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -16676,9 +16772,16 @@ class ThreadAnalyzer(object):
                     lineLen = len(procInfo)
 
                 if pid in ThreadAnalyzer.procIntervalData[idx]:
-                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['blk']
+                    target = ThreadAnalyzer.procIntervalData[idx][pid]
+                    if SystemManager.blockEnable:
+                        usage = '%s/%s' % (target['blkrd'], target['blkwr'])
+                    else:
+                        usage = target['blk']
                 else:
-                    usage = 0
+                    if SystemManager.blockEnable:
+                        usage = '0/0'
+                    else:
+                        usage = 0
 
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
