@@ -6689,7 +6689,7 @@ class SystemManager(object):
             print('\t\t-I  [set_inputValue:file|addr]')
             print('\t\t-q  [configure_taskList]')
             print('\t\t-Z  [convert_textToImage]')
-            print('\t\t-L  [set_layout:type:size]')
+            print('\t\t-L  [set_graphLayout:CPU|MEM|IO:size]')
             print('\t[common]')
             print('\t\t-a  [show_allInfo]')
             print('\t\t-Q  [print_allRowsInaStream]')
@@ -13472,6 +13472,7 @@ class ThreadAnalyzer(object):
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle('guider perf graph', fontsize=8)
 
             # System Block Read #
             usage = list(map(int, blkRead))
@@ -13622,7 +13623,7 @@ class ThreadAnalyzer(object):
                     if wrUsage[-1] > 0:
                         text(timeline[-1], wrUsage[-1] + margin, '[%s]%s' % (wrUsage[-1], idx),\
                                 fontsize=3, color=color, fontweight='bold')
-                    labelList.append(idx)
+                    labelList.append('%s[BWR]' % idx)
 
                 # Block Read of process #
                 minIdx = rdUsage.index(min(rdUsage))
@@ -13637,7 +13638,7 @@ class ThreadAnalyzer(object):
                     if rdUsage[-1] > 0:
                         text(timeline[-1], rdUsage[-1] + margin, '[%s]%s' % (rdUsage[-1], idx),\
                                 fontsize=3, color=color, fontweight='bold')
-                    labelList.append(idx)
+                    labelList.append('%s[BRD]' % idx)
 
             ylabel('I/O(KB)', fontsize=7)
             if len(labelList) > 0:
@@ -13661,7 +13662,8 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             # convert tick type to integer #
             try:
@@ -13723,6 +13725,7 @@ class ThreadAnalyzer(object):
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle('guider perf graph', fontsize=8)
 
             # System Free Memory #
             usage = list(map(int, memFree))
@@ -13740,7 +13743,7 @@ class ThreadAnalyzer(object):
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], usage[-1],\
                             fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
+                plot(timeline, usage, '-', c='blue', linewidth=3, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
                         SystemManager.convertSize(long(totalRAM) << 20)
@@ -13872,7 +13875,8 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k')
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             if xtype == 3:
                 # draw the number of tasks #
@@ -13948,21 +13952,25 @@ class ThreadAnalyzer(object):
                             "Fail to draw graph because total size of graphs is bigger than 6")
                         sys.exit(0)
 
-                    if target == 'cpu':
+                    if target.upper() == 'CPU':
                         drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
                             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
                             memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
                             totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
-                    elif target == 'mem':
+                    elif target.upper() == 'MEM':
                         drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
                             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
                             memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
                             totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
-                    elif target == 'io':
+                    elif target.upper() == 'IO':
                         drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
                             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
                             memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
                             totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                    else:
+                        SystemManager.printError(\
+                            "Fail to draw graph because '%s' is not recognized" % target)
+                        sys.exit(0)
 
                     pos += size
                 except SystemExit:
@@ -15686,7 +15694,6 @@ class ThreadAnalyzer(object):
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-            title('guider perf graph')
 
             # cpu total usage #
             for item in cpuUsageList:
