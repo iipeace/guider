@@ -15131,6 +15131,8 @@ class ThreadAnalyzer(object):
             format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
         SystemManager.pipePrint(oneLine)
 
+        cnt = 0
+
         if len(self.blockTable[0]) > 0:
             SystemManager.pipePrint('# READ\n')
             for num, size in self.blockTable[0].items():
@@ -15145,6 +15147,7 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
+                cnt += 1
             SystemManager.pipePrint(oneLine)
 
         if len(self.blockTable[1]) > 0:
@@ -15161,6 +15164,11 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
+                cnt += 1
+            SystemManager.pipePrint(oneLine)
+
+        if cnt == 0:
+            SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
 
 
