@@ -2765,7 +2765,7 @@ class FunctionAnalyzer(object):
             return False
 
         # memory free event #
-        elif isFixedEvent and func == "mm_page_free:":
+        elif isFixedEvent and (func == "mm_page_free:" or func == "mm_page_free_direct:"):
             m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
                 r'order=(?P<order>[0-9]+)', args)
             if m is not None:
@@ -6222,6 +6222,7 @@ class SystemManager(object):
     pssEnable = False
     ussEnable = False
     vssEnable = False
+    leakEnable = False
     wssEnable = False
     heapEnable = False
     fileTopEnable = False
@@ -6656,7 +6657,7 @@ class SystemManager(object):
                 '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
                 '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
-                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|f(ile)}')
+                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)|f(ile)}')
             print('\t\t-d  [disable_optionsPerMode:belowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
@@ -9735,6 +9736,8 @@ class SystemManager(object):
 
                 if options.rfind('v') > -1:
                     SystemManager.vssEnable = True
+                if options.rfind('l') > -1:
+                    SystemManager.leakEnable = True
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
                 if options.rfind('p') > -1:
@@ -11102,6 +11105,7 @@ class SystemManager(object):
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
+        self.cmdList["kmem/mm_page_free_direct"] = False
         self.cmdList["kmem/kmalloc"] = SystemManager.memEnable
         self.cmdList["kmem/kfree"] = SystemManager.memEnable
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
@@ -11321,12 +11325,15 @@ class SystemManager(object):
 
             if SystemManager.memEnable:
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
-                SystemManager.writeCmd('kmem/mm_page_free/filter', cmd)
+                if SystemManager.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
+                    SystemManager.writeCmd('kmem/mm_page_free_direct/filter', cmd)
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
-                SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
+                if SystemManager.writeCmd('kmem/mm_page_free/enable', '1') < 0:
+                    SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '1')
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
-                SystemManager.writeCmd('kmem/mm_page_free/enable', '0')
+                if SystemManager.writeCmd('kmem/mm_page_free/enable', '0') < 0:
+                    SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
 
             if SystemManager.heapEnable:
                 mmapId = ConfigManager.getMmapId()
@@ -11546,7 +11553,8 @@ class SystemManager(object):
         if self.cmdList["kmem/mm_page_alloc"]:
             SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
         if self.cmdList["kmem/mm_page_free"]:
-            SystemManager.writeCmd('kmem/mm_page_free/enable', '1')
+            if SystemManager.writeCmd('kmem/mm_page_free/enable', '1') < 0:
+                SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '1')
         if self.cmdList["kmem/kmalloc"]:
             SystemManager.writeCmd('kmem/kmalloc/enable', '1')
         if self.cmdList["kmem/kfree"]:
@@ -11977,6 +11985,9 @@ class SystemManager(object):
                 write = writeSize = \
                     (int(afterInfo['sectorWrite']) - int(beforeInfo['sectorWrite'])) << 9
                 writeSize = SystemManager.convertSize(writeSize)
+
+                totalInfo['read'] += read
+                totalInfo['write'] += write
             except:
                 pass
 
@@ -11998,8 +12009,6 @@ class SystemManager(object):
                     totalInfo['total'] += total
                     totalInfo['free'] += free
                     totalInfo['favail'] += avail
-                    totalInfo['read'] += read
-                    totalInfo['write'] += write
                 except:
                     pass
 
@@ -12032,8 +12041,11 @@ class SystemManager(object):
             SystemManager.infoBufferPrint('\tN/A')
         else:
             try:
-                usage = \
-                    int((totalInfo['total'] - totalInfo['free']) / float(totalInfo['total']) * 100)
+                try:
+                    usage = int((totalInfo['total'] - totalInfo['free']) / \
+                        float(totalInfo['total']) * 100)
+                except:
+                    usage = 0
 
                 totalInfo['total'] = SystemManager.convertSize(totalInfo['total'])
                 totalInfo['free'] = SystemManager.convertSize(totalInfo['free'])
@@ -12294,7 +12306,7 @@ class ThreadAnalyzer(object):
 
     init_procIntervalData = \
         {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), \
-        'blk': int(0), 'blkrd': int(0), 'blkwr': int(0)}
+        'blk': int(0), 'blkrd': int(0), 'blkwr': int(0), 'die': False}
 
 
 
@@ -12941,11 +12953,11 @@ class ThreadAnalyzer(object):
                     if SystemManager.showGroup != []:
                         found = False
                         for idx in SystemManager.showGroup:
-                            if comm.find(idx) < 0 and d['pid'] != idx:
+                            if comm.find(idx) > -1 or d['pid'] == idx:
                                 found = True
-                                intervalList = None
                                 break
-                        if found:
+                        if found is False:
+                            intervalList = None
                             continue
 
                     pid = d['pid']
@@ -13014,11 +13026,11 @@ class ThreadAnalyzer(object):
                         if SystemManager.showGroup != []:
                             found = False
                             for idx in SystemManager.showGroup:
-                                if comm.find(idx) < 0 and d['pid'] != idx:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
-                                    intervalList = None
                                     break
-                            if found:
+                            if found is False:
+                                intervalList = None
                                 continue
 
                         pid = d['pid']
@@ -13064,11 +13076,11 @@ class ThreadAnalyzer(object):
                         if SystemManager.showGroup != []:
                             found = False
                             for idx in SystemManager.showGroup:
-                                if comm.find(idx) < 0 and d['pid'] != idx:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
-                                    intervalList = None
                                     break
-                            if found:
+                            if found is False:
+                                intervalList = None
                                 continue
 
                         pid = d['pid']
@@ -13113,6 +13125,18 @@ class ThreadAnalyzer(object):
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                 if m is not None:
                     d = m.groupdict()
+                    comm = d['comm'].strip()
+
+                    if SystemManager.showGroup != []:
+                        found = False
+                        for idx in SystemManager.showGroup:
+                            if comm.find(idx) > -1 or d['pid'] == idx:
+                                found = True
+                                break
+                        if found is False:
+                            intervalList = None
+                            continue
+
                     pname = d['comm'].strip() + '(' + d['pid'] + ')'
                     pid = d['pid']
                     try:
@@ -13336,7 +13360,7 @@ class ThreadAnalyzer(object):
                         continue
                 except:
                     pass
-                plot(timeline, stat, '.-', c='olive', linewidth=3, solid_capstyle='round')
+                plot(timeline, stat, '-', c='olive', linewidth=2, solid_capstyle='round')
                 labelList.append('[ %s ]' % gpu)
 
             #------------------------------ CPU usage ------------------------------#
@@ -13346,9 +13370,9 @@ class ThreadAnalyzer(object):
                 if ymax < blkWait[idx]:
                     ymax = blkWait[idx]
 
-            plot(timeline, blkWait, '.-', c='pink', linewidth=3, solid_capstyle='round')
+            plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
             labelList.append('[ CPU + I/O ]')
-            plot(timeline, cpuUsage, '.-', c='red', linewidth=3, solid_capstyle='round')
+            plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
             labelList.append('[ CPU Only ]')
 
             # initialize list that count the number of process using resource more than 1% #
@@ -13727,99 +13751,106 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
 
-            # System Free Memory #
-            usage = list(map(int, memFree))
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='blue', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='blue', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '-', c='blue', linewidth=3, solid_capstyle='round')
-                if totalRAM is not None:
-                    label = 'RAM Total [%s]\nRAM Free' % \
-                        SystemManager.convertSize(long(totalRAM) << 20)
-                    labelList.append(label)
+            # SYSTEM STAT #
+            if SystemManager.showGroup == [] and SystemManager.leakEnable is False:
+                # System Free Memory #
+                usage = list(map(int, memFree))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    pass
                 else:
-                    labelList.append('RAM Free')
+                    if usage[minIdx] > 0:
+                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                                fontsize=5, color='blue', fontweight='bold')
+                    if usage[maxIdx] > 0:
+                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                                fontsize=5, color='blue', fontweight='bold')
+                    if usage[-1] > 0:
+                        text(timeline[-1], usage[-1], usage[-1],\
+                                fontsize=5, color='blue', fontweight='bold')
+                    plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
+                    if totalRAM is not None:
+                        label = 'RAM Total [%s]\nRAM Free' % \
+                            SystemManager.convertSize(long(totalRAM) << 20)
+                        labelList.append(label)
+                    else:
+                        labelList.append('RAM Free')
 
-            # System Anon Memory #
-            usage = list(map(int, memAnon))
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
-                labelList.append('RAM Anon')
-
-            # System Cache Memory #
-            usage = list(map(int, memCache))
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='darkgray', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='darkgray', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='darkgray', fontweight='bold')
-                plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
-                labelList.append('RAM Cache')
-
-            # System Swap Memory #
-            usage = list(map(int, swapUsage))
-            minIdx = usage.index(min(usage))
-            maxIdx = usage.index(max(usage))
-            if usage[minIdx] == usage[maxIdx] == 0:
-                pass
-            else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='orange', fontweight='bold')
-                if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
-                            fontsize=5, color='orange', fontweight='bold')
-                plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
-                if totalSwap is not None:
-                    label = 'Swap Total [%s]\nSwap Usage' % \
-                        SystemManager.convertSize(long(totalSwap) << 20)
-                    labelList.append(label)
+                # System Anon Memory #
+                usage = list(map(int, memAnon))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    pass
                 else:
-                    labelList.append('Swap Usage')
+                    if usage[minIdx] > 0:
+                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                                fontsize=5, color='skyblue', fontweight='bold')
+                    if usage[maxIdx] > 0:
+                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                                fontsize=5, color='skyblue', fontweight='bold')
+                    if usage[-1] > 0:
+                        text(timeline[-1], usage[-1], usage[-1],\
+                                fontsize=5, color='skyblue', fontweight='bold')
+                    plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
+                    labelList.append('RAM Anon')
 
-            if len(memProcUsage) > 0:
+                # System Cache Memory #
+                usage = list(map(int, memCache))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    pass
+                else:
+                    if usage[minIdx] > 0:
+                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                                fontsize=5, color='darkgray', fontweight='bold')
+                    if usage[maxIdx] > 0:
+                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                                fontsize=5, color='darkgray', fontweight='bold')
+                    if usage[-1] > 0:
+                        text(timeline[-1], usage[-1], usage[-1],\
+                                fontsize=5, color='darkgray', fontweight='bold')
+                    plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
+                    labelList.append('RAM Cache')
+
+                # System Swap Memory #
+                usage = list(map(int, swapUsage))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    pass
+                else:
+                    if usage[minIdx] > 0:
+                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    if usage[maxIdx] > 0:
+                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    if usage[-1] > 0:
+                        text(timeline[-1], usage[-1], usage[-1],\
+                                fontsize=5, color='orange', fontweight='bold')
+                    plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
+                    if totalSwap is not None:
+                        label = 'Swap Total [%s]\nSwap Usage' % \
+                            SystemManager.convertSize(long(totalSwap) << 20)
+                        labelList.append(label)
+                    else:
+                        labelList.append('Swap Usage')
+            # PROCESS STAT #
+            else:
                 # get margin #
                 ytick = yticks()[0]
                 if len(ytick) > 1:
                     margin = (ytick[1] - ytick[0]) / 10
                 else:
                     margin = 0
+
+                if SystemManager.vssEnable is False and \
+                    SystemManager.rssEnable is False and \
+                    SystemManager.leakEnable is False:
+                    SystemManager.vssEnable = SystemManager.rssEnable = True
 
                 # Process VSS #
                 if SystemManager.vssEnable:
@@ -13841,6 +13872,42 @@ class ThreadAnalyzer(object):
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
                                     '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
+                            labelList.append('%s[VSS]' % key)
+                # Process Leak #
+                elif SystemManager.leakEnable:
+                    # get VSS diffs #
+                    for key, item in sorted(\
+                        memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
+                        usage = list(map(int, item['vssUsage'].split()))
+                        maxVss = max(usage)
+                        if maxVss == 0:
+                            item['vssDiff'] = 0
+                            continue
+
+                        minVss = min(x for x in usage if x != 0)
+                        diff = maxVss - minVss
+                        item['vssDiff'] = diff
+                    # draw leakage plots #
+                    for key, item in sorted(\
+                        memProcUsage.items(), key=lambda e: e[1]['vssDiff'], reverse=True):
+                        if item['vssDiff'] == 0:
+                            break
+
+                        usage = list(map(int, item['vssUsage'].split()))
+                        minIdx = usage.index(min(usage))
+                        maxIdx = usage.index(item['maxVss'])
+                        if usage[minIdx] == usage[maxIdx] == 0:
+                            pass
+                        else:
+                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                            if usage[minIdx] > 0:
+                                text(timeline[minIdx], usage[minIdx] - margin, \
+                                    '[%s/-%s]%s' % (usage[minIdx], item['vssDiff'], key), \
+                                    color=color, fontsize=3)
+                            if usage[maxIdx] > 0:
+                                text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                    '[%s/+%s]%s' % (usage[maxIdx], item['vssDiff'], key), \
+                                    color=color, fontsize=3)
                             labelList.append('%s[VSS]' % key)
                 # Process RSS #
                 if SystemManager.rssEnable:
@@ -13942,7 +14009,12 @@ class ThreadAnalyzer(object):
 
             for idx, graph in enumerate(layout):
                 try:
-                    (target, size) = graph.split(':')
+                    try:
+                        (target, size) = graph.split(':')
+                    except:
+                        SystemManager.printError(\
+                            "Fail to draw graph because graph format [TYPE:SIZE] is wrong")
+                        sys.exit(0)
 
                     xtype = len(layout) - idx
 
@@ -14568,7 +14640,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['nrPages'], reverse=True)
         elif SystemManager.sort == 'b':
             sortedThreadData = sorted(self.threadData.items(), \
-                key=lambda e: e[1]['readBlock'], reverse=True)
+                key=lambda e: e[1]['readBlock'] + e[1]['writeBlock'], reverse=True)
         else:
             # set cpu usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
@@ -14591,11 +14663,10 @@ class ThreadAnalyzer(object):
             if SystemManager.sort == 'm':
                 breakCond = value['nrPages']
             elif SystemManager.sort == 'b':
-                breakCond = value['readBlock']
+                breakCond = value['readBlock'] + value['writeBlock']
             else:
                 breakCond = usagePercent
                 value['cpuRank'] = count + 1
-                count += 1
 
             if breakCond < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
                 break
@@ -14613,6 +14684,8 @@ class ThreadAnalyzer(object):
                 value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
                 value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
                 value['dReclaimWait'], value['dReclaimCnt']))
+
+            count += 1
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -16236,6 +16309,14 @@ class ThreadAnalyzer(object):
                             ThreadAnalyzer.termProcList[comm[3:]] += 1
                         except:
                             ThreadAnalyzer.termProcList[comm[3:]] = 1
+
+                        try:
+                            ThreadAnalyzer.procIntervalData[index-1][pid] = \
+                                dict(ThreadAnalyzer.init_procIntervalData)
+                            ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
+                        except:
+                            pass
+
                     return
             except:
                 pass
@@ -16295,7 +16376,6 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.procIntervalData[index][pid]['mem'] = rss
                 ThreadAnalyzer.procIntervalData[index][pid]['memDiff'] = \
                     rss - ThreadAnalyzer.procTotalData[pid]['lastMem']
-
                 ThreadAnalyzer.procTotalData[pid]['lastMem'] = rss
 
 
@@ -16610,9 +16690,9 @@ class ThreadAnalyzer(object):
         # Print rss of processes #
         for pid, value in sorted(\
             ThreadAnalyzer.procTotalData.items(), \
-            key=lambda e: 0 if not 'rss' in e[1] else e[1]['maxMem'], reverse=True):
+            key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], reverse=True):
 
-            if pid is 'total':
+            if pid is 'total' or value['maxMem'] == 0:
                 continue
 
             procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
@@ -16621,17 +16701,33 @@ class ThreadAnalyzer(object):
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
+            prev = 0
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+            intervalData = ThreadAnalyzer.procIntervalData
+            for idx in xrange(0,len(intervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntervalData[idx]:
-                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['mem']
+                # process is shown #
+                if pid in intervalData[idx] and intervalData[idx][pid]['die'] is False:
+                    usage = intervalData[idx][pid]['mem']
+                    if usage == 0 and prev > 0:
+                        usage = prev
+                    else:
+                        prev = usage
+                # process was shown previously #
+                elif prev > 0:
+                    try:
+                        if intervalData[idx-1][pid]['die']:
+                            prev = usage = 0
+                        else:
+                            usage = prev
+                    except:
+                        usage = prev
                 else:
-                    usage = 0
+                    prev = usage = 0
 
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
@@ -16695,9 +16791,9 @@ class ThreadAnalyzer(object):
         # Print vss of processes #
         for pid, value in sorted(\
             ThreadAnalyzer.procTotalData.items(), \
-            key=lambda e: 0 if not 'vss' in e[1] else e[1]['maxVss'], reverse=True):
+            key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
 
-            if pid is 'total':
+            if pid is 'total' or value['maxVss'] == 0:
                 continue
 
             procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
@@ -16706,17 +16802,35 @@ class ThreadAnalyzer(object):
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
+            prev = 0
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+            intervalData = ThreadAnalyzer.procIntervalData
+            for idx in xrange(0,len(intervalData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntervalData[idx]:
-                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['vss']
+                # process is shown #
+                if pid in intervalData[idx] and intervalData[idx][pid]['die'] is False:
+                    usage = intervalData[idx][pid]['vss']
+                    if usage == 0 and prev > 0:
+                        usage = prev
+                    else:
+                        prev = usage
+                # process was shown previously #
+                elif prev > 0:
+                    try:
+                        # process was terminated #
+                        if intervalData[idx-1][pid]['die']:
+                            prev = usage = 0
+                        # process is alive #
+                        else:
+                            usage = prev
+                    except:
+                        usage = prev
                 else:
-                    usage = 0
+                    prev = usage = 0
 
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
@@ -18072,7 +18186,7 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
-            elif func == "mm_page_free":
+            elif func == "mm_page_free" or func == "mm_page_free_direct":
                 m = re.match(\
                     r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)', etc)
                 if m is not None:
