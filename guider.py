@@ -2922,20 +2922,31 @@ class FunctionAnalyzer(object):
 
             return False
 
-        # block read request event #
+        # block request event #
         elif isFixedEvent and func == "block_bio_remap:":
             m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', args)
             if m is not None:
                 b = m.groupdict()
 
-                if b['operation'][0] == 'R':
+                opt = b['operation']
+
+                if opt[0] == 'R':
                     self.breadEnabled = True
 
                     blockRdCnt = int(b['size'])
                     self.threadData[tid]['nrRdBlocks'] += blockRdCnt
 
                     self.saveEventParam('BLK_READ', blockRdCnt, 0)
+
+                    return False
+                elif opt == 'WS':
+                    self.bwriteEnabled = True
+
+                    blockWrCnt = int(b['size'])
+                    self.threadData[tid]['nrWrBlocks'] += blockWrCnt
+
+                    self.saveEventParam('BLK_WRITE', blockWrCnt, 0)
 
                     return False
 
@@ -2954,9 +2965,9 @@ class FunctionAnalyzer(object):
                 b = m.groupdict()
                 self.bwriteEnabled = True
 
-                self.threadData[tid]['nrWrBlocks'] += 1
+                self.threadData[tid]['nrWrBlocks'] += 8
 
-                self.saveEventParam('BLK_WRITE', 1, 0)
+                self.saveEventParam('BLK_WRITE', 8, 0)
 
                 return False
 
@@ -2974,9 +2985,9 @@ class FunctionAnalyzer(object):
                 if d['skip'] == '0':
                     self.bwriteEnabled = True
 
-                    self.threadData[tid]['nrWrBlocks'] += 1
+                    self.threadData[tid]['nrWrBlocks'] += 8
 
-                    self.saveEventParam('BLK_WRITE', 1, 0)
+                    self.saveEventParam('BLK_WRITE', 8, 0)
 
                     return False
 
@@ -3379,7 +3390,7 @@ class FunctionAnalyzer(object):
                 cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
                 value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
-                int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 4), \
+                int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 0.5), \
                 value['nrLockTry'], value['customTotal']))
 
         SystemManager.pipePrint("%s\n\n\n" % oneLine)
@@ -4896,7 +4907,7 @@ class FunctionAnalyzer(object):
             # Print block write usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
+                (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -4910,7 +4921,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['blockWrCnt'] * 4), idx, \
+                    format(int(value['blockWrCnt'] * 0.5), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
                 # Set target stack #
@@ -4972,7 +4983,7 @@ class FunctionAnalyzer(object):
                                         ' [' + self.posData[pos]['origBin'] + ']'
 
                     SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
-                        format(int(blockWrCnt * 4), symbolStack))
+                        format(int(blockWrCnt * 0.5), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -4984,7 +4995,7 @@ class FunctionAnalyzer(object):
         # Print block write usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (self.blockWrUsageCnt * 4, self.blockWrEventCnt))
+            (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -5009,7 +5020,7 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.pipePrint("{0:7}K |{1:^134}".\
-                format(int(value['blockWrCnt'] * 4), idx))
+                format(int(value['blockWrCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
             value['stack'] = sorted(value['stack'], key=lambda x: x[blkWrIndex], reverse=True)
@@ -5051,7 +5062,7 @@ class FunctionAnalyzer(object):
                         continue
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
-                    format(int(blockWrCnt * 4), symbolStack))
+                    format(int(blockWrCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -11353,7 +11364,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
 
             if SystemManager.blockEnable:
-                blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM)"
+                blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
                 SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
                 SystemManager.writeCmd('block/block_bio_remap/enable', '1')
                 SystemManager.writeCmd('writeback/writeback_dirty_page/filter', cmd)
@@ -11566,11 +11577,11 @@ class SystemManager(object):
 
         # enable block events #
         if self.cmdList["block/block_bio_remap"]:
-            cmd = "rwbs == R || rwbs == RA || rwbs == RM"
+            cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
             SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
             SystemManager.writeCmd('block/block_bio_remap/enable', '1')
         if self.cmdList["block/block_rq_complete"]:
-            cmd = "rwbs == R || rwbs == RA || rwbs == RM"
+            cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
             SystemManager.writeCmd('block/block_rq_complete/filter', cmd)
             SystemManager.writeCmd('block/block_rq_complete/enable', '1')
 
@@ -12359,8 +12370,8 @@ class ThreadAnalyzer(object):
             self.kernelInfo = {}
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), \
-                'yield': int(0), 'cpuWait': float(0), 'pri': '0', 'ioWait': float(0), \
-                'reqBlock': int(0), 'readBlock': int(0), 'ioRank': int(0), 'irq': float(0), \
+                'yield': int(0), 'cpuWait': float(0), 'pri': '0', 'ioRdWait': float(0), \
+                'reqRdBlock': int(0), 'readBlock': int(0), 'ioRank': int(0), 'irq': float(0), \
                 'reclaimWait': float(0), 'reclaimCnt': int(0), 'ptid': '-'*5, 'new': ' ', \
                 'die': ' ', 'preempted': int(0), 'preemption': int(0), 'start': float(0), \
                 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
@@ -12377,7 +12388,10 @@ class ThreadAnalyzer(object):
                 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, \
                 'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
                 'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
-                'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0)}
+                'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
+                'reqWrBlock': int(0), 'writeQueueCnt': int(0), 'writeBlockCnt': int(0), \
+                'writeStart': float(0), 'ioWrWait': float(0), 'awriteBlock': int(0), \
+                'awriteBlockCnt': int(0)}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), \
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
@@ -12593,15 +12607,25 @@ class ThreadAnalyzer(object):
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
 
-        # add blocking time to read blocks from disk #
         if SystemManager.blockEnable:
+            # add blocking time to read blocks from disk #
             for idx, item in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['readStart'], reverse=True):
                 if item['readStart'] > 0:
                     waitTime = float(self.finishTime) - item['readStart']
-                    item['ioWait'] += waitTime
-                    self.threadData[item['blkCore']]['ioWait'] += waitTime
+                    item['ioRdWait'] += waitTime
+                    self.threadData[item['blkCore']]['ioRdWait'] += waitTime
                     item['readStart'] = 0
+                else:
+                    break
+            # add blocking time to write blocks to disk #
+            for idx, item in sorted(\
+                self.threadData.items(), key=lambda e: e[1]['writeStart'], reverse=True):
+                if item['writeStart'] > 0:
+                    waitTime = float(self.finishTime) - item['writeStart']
+                    item['ioWrWait'] += waitTime
+                    self.threadData[item['blkCore']]['ioWrWait'] += waitTime
+                    item['writeStart'] = 0
                 else:
                     break
 
@@ -14161,7 +14185,7 @@ class ThreadAnalyzer(object):
             ConfigManager.writeConfData(\
                 fd, str(index) + '=' + ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-')\
                 + '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
-                str(self.threadData[t]['reqBlock']) + ' ' + \
+                str(self.threadData[t]['reqRdBlock']) + ' ' + \
                 str(self.threadData[t]['cpuRank']) + ' ' + \
                 str(self.threadData[t]['usage']) + '\n')
 
@@ -14556,9 +14580,9 @@ class ThreadAnalyzer(object):
             format("", "", "", "", "", ""))
 
         SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|" + \
-            "%5s|%5s|%5s|%4s|%5s(%3s/%5s)|%4s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
             ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', \
-            'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'WCnt', 'MB', \
+            'Yld', ' Lose', 'Steal', 'Mig', 'Rd', 'MB', 'Cnt', 'Wr', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
 
@@ -14573,15 +14597,14 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]['usage'] = 0
 
         # sort by size of io usage and convert read blocks to MB size #
-        count = 0
         for key, value in sorted(\
             self.threadData.items(), key=lambda e: e[1]['readBlock'], reverse=True):
-            value['ioRank'] = count + 1
             if value['readBlock'] > 0:
                 value['readBlock'] = (value['readBlock'] * SystemManager.blockSize) >> 20
-                count += 1
             if value['writeBlock'] > 0:
-                value['writeBlock'] = (value['writeBlock'] * SystemManager.pageSize) >> 20
+                value['writeBlock'] = (value['writeBlock'] * SystemManager.blockSize) >> 20
+            if value['awriteBlock'] > 0:
+                value['awriteBlock'] = (value['awriteBlock'] * SystemManager.pageSize) >> 20
 
         # print total information after sorting by time of cpu usage #
         count = 0
@@ -14608,14 +14631,14 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
                     "%3s|%3s|%4.2f(%2d)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
                         self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
                         round(float(value['offTime']), 7), 0, 0, value['irq'], \
                         value['offCnt'], '-', '-', '-', \
-                        value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                        value['writeBlockCnt'], value['writeBlock'], \
+                        value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
+                        value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                         (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                         value['userPages'] >> 8, value['cachePages'] >> 8, \
                         value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
@@ -14640,7 +14663,8 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['nrPages'], reverse=True)
         elif SystemManager.sort == 'b':
             sortedThreadData = sorted(self.threadData.items(), \
-                key=lambda e: e[1]['readBlock'] + e[1]['writeBlock'], reverse=True)
+                key=lambda e: e[1]['readBlock'] + e[1]['writeBlock'] + e[1]['awriteBlock'], \
+                reverse=True)
         else:
             # set cpu usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
@@ -14663,22 +14687,21 @@ class ThreadAnalyzer(object):
             if SystemManager.sort == 'm':
                 breakCond = value['nrPages']
             elif SystemManager.sort == 'b':
-                breakCond = value['readBlock'] + value['writeBlock']
+                breakCond = value['readBlock'] + value['writeBlock'] + value['awriteBlock']
             else:
                 breakCond = usagePercent
-                value['cpuRank'] = count + 1
 
             if breakCond < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
                 break
 
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
-                "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d/%3d/%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
+                "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], \
                 str(round(float(usagePercent), 1)), value['cpuWait'], value['maxPreempted'], \
                 value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
-                value['migrate'], value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                value['writeBlockCnt'], value['writeBlock'], \
+                value['migrate'], value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
+                value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                 (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                 value['userPages'] >> 8, value['cachePages'] >> 8, \
                 value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
@@ -14728,14 +14751,14 @@ class ThreadAnalyzer(object):
             if SystemManager.showAll:
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d/%3d/%3d)|" \
+                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
                     "%3d|%3d|%4.2f(%2d)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                    value['writeBlockCnt'], value['writeBlock'], \
+                    value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
+                    value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                     (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                     value['userPages'] >> 8, value['cachePages'] >> 8, \
                     value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
@@ -14757,14 +14780,14 @@ class ThreadAnalyzer(object):
             if SystemManager.showAll:
                 SystemManager.addPrint(\
                     ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%5d)|%4s(%3s)|%4d(%3d/%3d/%3d)|" \
+                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
                     "%3d|%3d|%4.2f(%2d)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioWait'], value['readBlock'], value['readBlockCnt'], \
-                    value['writeBlockCnt'], value['writeBlock'], \
+                    value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
+                    value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                     (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                     value['userPages'] >> 8, value['cachePages'] >> 8, \
                     value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
@@ -15545,7 +15568,7 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
-                        SystemManager.pageSize) >> 20)
+                        SystemManager.blockSize) >> 20)
                 except:
                     timeLine += '%3d ' % (0)
 
@@ -15953,7 +15976,7 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['reqBlock'], reverse=True):
+                self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
 
                 if key[0:2] != '0[':
                     timeLine = ''
@@ -16016,7 +16039,7 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['writeBlock'], reverse=True):
+                self.threadData.items(), key=lambda e: e[1]['writeBlock'] + e[1]['awriteBlock'], reverse=True):
 
                 if key[0:2] != '0[':
                     timeLine = ''
@@ -16062,12 +16085,12 @@ class ThreadAnalyzer(object):
 
                         timeLine += '%4s' % (newFlag + \
                             str(int((self.intervalData[icount][key]['bwUsage'] * \
-                            SystemManager.pageSize) >> 20)) + dieFlag)
+                            SystemManager.blockSize) >> 20)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if value['writeBlockCnt'] < 1 and SystemManager.showAll == False:
+                    if value['writeBlockCnt'] + value['awriteBlockCnt'] < 1 and SystemManager.showAll == False:
                         break
 
             if SystemManager.blockEnable:
@@ -17347,8 +17370,10 @@ class ThreadAnalyzer(object):
                 intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
                 intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
                 intervalThread['totalCoreSchedCnt'] = int(self.threadData[key]['coreSchedCnt'])
-                intervalThread['totalBrUsage'] = int(self.threadData[key]['reqBlock'])
-                intervalThread['totalBwUsage'] = int(self.threadData[key]['writeBlock'])
+                intervalThread['totalBrUsage'] = int(self.threadData[key]['reqRdBlock'])
+                intervalThread['totalBwUsage'] = \
+                    int(self.threadData[key]['writeBlock']) + \
+                    (int(self.threadData[key]['awriteBlock']) << 3)
                 intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
                 intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
 
@@ -17423,8 +17448,10 @@ class ThreadAnalyzer(object):
                     intervalThread['cpuUsage'] = float(self.threadData[key]['usage'])
                     intervalThread['preempted'] = float(self.threadData[key]['cpuWait'])
                     intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                    intervalThread['brUsage'] = int(self.threadData[key]['reqBlock'])
-                    intervalThread['bwUsage'] = int(self.threadData[key]['writeBlock'])
+                    intervalThread['brUsage'] = int(self.threadData[key]['reqRdBlock'])
+                    intervalThread['bwUsage'] = \
+                        int(self.threadData[key]['writeBlock']) + \
+                        (int(self.threadData[key]['awriteBlock']) << 3)
                     intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
                     intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
 
@@ -18597,7 +18624,10 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    if d['operation'][0] == 'R':
+                    opt = d['operation']
+
+                    # read operations #
+                    if opt[0] == 'R':
 
                         SystemManager.blockEnable = True
 
@@ -18608,7 +18638,7 @@ class ThreadAnalyzer(object):
                             'major': d['major'], 'minor': d['minor'], \
                             'address': int(d['address']), 'size': int(d['size'])}
 
-                        self.threadData[thread]['reqBlock'] += int(d['size'])
+                        self.threadData[thread]['reqRdBlock'] += int(d['size'])
                         self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
                         self.threadData[thread]['blkCore'] = coreId
@@ -18621,13 +18651,46 @@ class ThreadAnalyzer(object):
                             minor = partSet[1][:-1]
                             addr = partInfo[2]
 
-                            self.savePartOpt(thread, comm, 'R', major, minor, addr, \
+                            self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
                                 SystemManager.blockSize * int(d['size']))
                         except:
                             SystemManager.printWarning("Fail to save partition info")
 
                         if self.threadData[thread]['readStart'] == 0:
                             self.threadData[thread]['readStart'] = float(time)
+                    # synchronous write operation #
+                    elif opt == 'WS':
+
+                        SystemManager.blockEnable = True
+
+                        bio = '%s/%s/%s/%s' % \
+                            (d['major'], d['minor'], opt[0], d['address'])
+
+                        self.ioData[bio] = {'thread': thread, 'time': float(time), \
+                            'major': d['major'], 'minor': d['minor'], \
+                            'address': int(d['address']), 'size': int(d['size'])}
+
+                        self.threadData[thread]['reqWrBlock'] += int(d['size'])
+                        self.threadData[thread]['writeQueueCnt'] += 1
+                        self.threadData[thread]['writeBlockCnt'] += 1
+                        self.threadData[thread]['blkCore'] = coreId
+                        self.threadData[coreId]['writeBlockCnt'] += 1
+
+                        try:
+                            partInfo = d['part'].split()
+                            partSet = partInfo[1].split(',')
+                            major = partSet[0][1:]
+                            minor = partSet[1][:-1]
+                            addr = partInfo[2]
+
+                            self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
+                                SystemManager.blockSize * int(d['size']))
+                        except:
+                            SystemManager.printWarning("Fail to save partition info")
+
+                        if self.threadData[thread]['writeStart'] == 0:
+                            self.threadData[thread]['writeStart'] = float(time)
+
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -18639,9 +18702,10 @@ class ThreadAnalyzer(object):
 
                     address = d['address']
                     size = d['size']
+                    opt = d['operation']
 
                     bio = '%s/%s/%s/%s' % \
-                        (d['major'], d['minor'], d['operation'][0], d['address'])
+                        (d['major'], d['minor'], opt[0], d['address'])
 
                     try:
                         self.threadData[self.ioData[bio]['thread']]
@@ -18688,27 +18752,51 @@ class ThreadAnalyzer(object):
                                 if bioEnd < value['address'] + value['size']:
                                     pass
 
-                                self.threadData[value['thread']]['readBlock'] += matchBlock
-                                self.threadData[coreId]['readBlock'] += matchBlock
+                                if opt[0] == 'R':
+                                    self.threadData[value['thread']]['readBlock'] += matchBlock
+                                    self.threadData[coreId]['readBlock'] += matchBlock
 
-                                if value['size'] == 0:
-                                    if self.threadData[value['thread']]['readQueueCnt'] > 0:
-                                        self.threadData[value['thread']]['readQueueCnt'] -= 1
+                                    if value['size'] == 0:
+                                        if self.threadData[value['thread']]['readQueueCnt'] > 0:
+                                            self.threadData[value['thread']]['readQueueCnt'] -= 1
 
-                                    """
-                                    if error of size and time of block read is big then \
-                                    consider inserting below conditions
-                                    # self.threadData[value['thread']]['readQueueCnt'] == 0 #
-                                    """
-                                    if self.threadData[value['thread']]['readStart'] > 0:
-                                        waitTime = \
-                                            float(time) - \
-                                            self.threadData[value['thread']]['readStart']
-                                        self.threadData[coreId]['ioWait'] += waitTime
-                                        self.threadData[value['thread']]['ioWait'] += waitTime
-                                        self.threadData[value['thread']]['readStart'] = 0
+                                        """
+                                        if error of size and time of block read is big then \
+                                        consider inserting below conditions
+                                        # self.threadData[value['thread']]['readQueueCnt'] == 0 #
+                                        """
+                                        if self.threadData[value['thread']]['readStart'] > 0:
+                                            waitTime = \
+                                                float(time) - \
+                                                self.threadData[value['thread']]['readStart']
+                                            self.threadData[coreId]['ioRdWait'] += waitTime
+                                            self.threadData[value['thread']]['ioRdWait'] += waitTime
+                                            self.threadData[value['thread']]['readStart'] = 0
 
-                                    del value
+                                        del value
+                                elif opt == 'WS':
+                                    self.threadData[value['thread']]['writeBlock'] += matchBlock
+                                    self.threadData[coreId]['writeBlock'] += matchBlock
+
+                                    if value['size'] == 0:
+                                        if self.threadData[value['thread']]['writeQueueCnt'] > 0:
+                                            self.threadData[value['thread']]['writeQueueCnt'] -= 1
+
+                                        """
+                                        if error of size and time of block read is big then \
+                                        consider inserting below conditions
+                                        # self.threadData[value['thread']]['writeQueueCnt'] == 0 #
+                                        """
+                                        if self.threadData[value['thread']]['writeStart'] > 0:
+                                            waitTime = \
+                                                float(time) - \
+                                                self.threadData[value['thread']]['writeStart']
+                                            self.threadData[coreId]['ioWrWait'] += waitTime
+                                            self.threadData[value['thread']]['ioWrWait'] += waitTime
+                                            self.threadData[value['thread']]['writeStart'] = 0
+
+                                        del value
+
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -18720,10 +18808,10 @@ class ThreadAnalyzer(object):
 
                     SystemManager.blockEnable = True
 
-                    self.threadData[thread]['writeBlock'] += 1
-                    self.threadData[thread]['writeBlockCnt'] += 1
-                    self.threadData[coreId]['writeBlock'] += 1
-                    self.threadData[coreId]['writeBlockCnt'] += 1
+                    self.threadData[thread]['awriteBlock'] += 1
+                    self.threadData[thread]['awriteBlockCnt'] += 1
+                    self.threadData[coreId]['awriteBlock'] += 1
+                    self.threadData[coreId]['awriteBlockCnt'] += 1
 
                     self.savePartOpt(\
                         thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
@@ -18739,10 +18827,10 @@ class ThreadAnalyzer(object):
                     if d['skip'] == '0':
                         SystemManager.blockEnable = True
 
-                        self.threadData[thread]['writeBlock'] += 1
-                        self.threadData[thread]['writeBlockCnt'] += 1
-                        self.threadData[coreId]['writeBlock'] += 1
-                        self.threadData[coreId]['writeBlockCnt'] += 1
+                        self.threadData[thread]['awriteBlock'] += 1
+                        self.threadData[thread]['awriteBlockCnt'] += 1
+                        self.threadData[coreId]['awriteBlock'] += 1
+                        self.threadData[coreId]['awriteBlockCnt'] += 1
 
                         self.savePartOpt(\
                             thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
