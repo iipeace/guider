@@ -13776,7 +13776,8 @@ class ThreadAnalyzer(object):
             suptitle('guider perf graph', fontsize=8)
 
             # SYSTEM STAT #
-            if SystemManager.showGroup == [] and SystemManager.leakEnable is False:
+            if SystemManager.vssEnable is False and SystemManager.rssEnable is False and \
+                SystemManager.leakEnable is False:
                 # System Free Memory #
                 usage = list(map(int, memFree))
                 minIdx = usage.index(min(usage))
@@ -13870,11 +13871,6 @@ class ThreadAnalyzer(object):
                     margin = (ytick[1] - ytick[0]) / 10
                 else:
                     margin = 0
-
-                if SystemManager.vssEnable is False and \
-                    SystemManager.rssEnable is False and \
-                    SystemManager.leakEnable is False:
-                    SystemManager.vssEnable = SystemManager.rssEnable = True
 
                 # Process VSS #
                 if SystemManager.vssEnable:
