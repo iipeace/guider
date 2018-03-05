@@ -1323,7 +1323,7 @@ class FunctionAnalyzer(object):
                 val[heapExpIndex] -= size
                 break
 
-        del self.heapTable[addr]
+        self.heapTable.pop(addr)
 
 
 
@@ -1515,8 +1515,7 @@ class FunctionAnalyzer(object):
                                 break
                         break
 
-                del self.pageTable[pfnv]
-                self.pageTable[pfnv] = None
+                self.pageTable.pop(pfnv, None)
             except:
                 # this page is allocated before starting profile #
 
@@ -2481,7 +2480,7 @@ class FunctionAnalyzer(object):
             self.threadData[self.heapTable[addr]['tid']]['heapSize'] -= \
                 self.heapTable[addr]['size']
 
-            del self.heapTable[addr]
+            self.heapTable.pop(addr, None)
         except:
             SystemManager.printWarning('Fail to free heap segment %s of %s(%s) at %s' % \
                 (addr, self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
@@ -2793,8 +2792,7 @@ class FunctionAnalyzer(object):
 
                         self.threadData[tid]['nrKnownFreePages'] += 1
 
-                        del self.pageTable[pfnv]
-                        self.pageTable[pfnv] = None
+                        self.pageTable.pop(pfnv)
                     except:
                         # this page was allocated before starting profile #
 
@@ -6241,7 +6239,7 @@ class SystemManager(object):
     keventEnable = False
     netEnable = False
     stackEnable = False
-    wchanEnable = False
+    wchanEnable = True
     wfcEnable = False
     blockEnable = False
     lockEnable = False
@@ -9719,6 +9717,8 @@ class SystemManager(object):
                     SystemManager.rootPath = '/'
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
+                if options.rfind('W') > -1:
+                    SystemManager.wchanEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -9786,8 +9786,6 @@ class SystemManager(object):
                 if options.rfind('u') > -1:
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
-                if options.rfind('W') > -1:
-                    SystemManager.wchanEnable = True
                 if options.rfind('c') > -1:
                     SystemManager.wfcEnable = True
                 if options.rfind('I') > -1:
@@ -12658,7 +12656,7 @@ class ThreadAnalyzer(object):
                 # remove thread information #
                 if checkResult == False and key[0:2] != '0[':
                     try:
-                        del self.threadData[key]
+                        self.threadData.pop(key, None)
                     except:
                         continue
 
@@ -14130,7 +14128,7 @@ class ThreadAnalyzer(object):
                     item['fd'].seek(0)
                     stack = item['fd'].read()
                 except:
-                    del self.stackTable[idx]
+                    self.stackTable.pop(idx, None)
 
                 try:
                     item['total'] += 1
@@ -15529,6 +15527,7 @@ class ThreadAnalyzer(object):
 
         if SystemManager.blockEnable:
             # total block read usage on timeline #
+            brtotal = 0
             timeLine = ''
             timeLineLen = titleLineLen
             lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -15542,16 +15541,20 @@ class ThreadAnalyzer(object):
                 try:
                     timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBr'] * \
                         SystemManager.blockSize) >> 20)
+                    brtotal += self.intervalData[icount]['toTal']['totalBr']
                 except:
                     timeLine += '%3d ' % (0)
 
-            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
-            if SystemManager.graphEnable:
-                timeLineData = [int(n) for n in timeLine.split()]
-                ioUsageList.append(timeLineData)
-                ioLabelList.append('Block Read')
+            if brtotal > 0:
+                SystemManager.addPrint(\
+                    "\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
+                if SystemManager.graphEnable:
+                    timeLineData = [int(n) for n in timeLine.split()]
+                    ioUsageList.append(timeLineData)
+                    ioLabelList.append('Block Read')
 
             # total block write usage on timeline #
+            bwtotal = 0
             timeLine = ''
             timeLineLen = titleLineLen
             lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -15565,14 +15568,19 @@ class ThreadAnalyzer(object):
                 try:
                     timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
                         SystemManager.blockSize) >> 20)
+                    bwtotal += self.intervalData[icount]['toTal']['totalBw']
                 except:
                     timeLine += '%3d ' % (0)
 
-            SystemManager.addPrint("%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
-            if SystemManager.graphEnable:
-                timeLineData = [int(n) for n in timeLine.split()]
-                ioUsageList.append(timeLineData)
-                ioLabelList.append('Block Write')
+            if bwtotal > 0:
+                if brtotal == 0:
+                    SystemManager.addPrint('\n')
+                SystemManager.addPrint(\
+                    "%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
+                if SystemManager.graphEnable:
+                    timeLineData = [int(n) for n in timeLine.split()]
+                    ioUsageList.append(timeLineData)
+                    ioLabelList.append('Block Write')
 
         # total custom event usage on timeline #
         newLine = True
@@ -15843,7 +15851,10 @@ class ThreadAnalyzer(object):
         for key, value in sorted(\
             self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
 
-            if key[0:2] != '0[':
+            if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
+                SystemManager.showAll is False:
+                break
+            elif key[0:2] != '0[':
                 timeLine = ''
                 timeLineLen = titleLineLen
                 lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -15896,11 +15907,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
-                    SystemManager.showAll is False:
-                    break
-
-        if SystemManager.cpuEnable:
+        if len(SystemManager.bufferString) > 0:
             SystemManager.pipePrint("%s# %s\n" % ('', 'Delay(%)'))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
@@ -15911,7 +15918,10 @@ class ThreadAnalyzer(object):
             for key, value in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['nrPages'], reverse=True):
 
-                if key[0:2] != '0[':
+                if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
+                    SystemManager.showAll == False:
+                    break
+                elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -15959,11 +15969,7 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
-                        SystemManager.showAll == False:
-                        break
-
-            if SystemManager.memEnable:
+            if len(SystemManager.bufferString) > 0:
                 SystemManager.pipePrint("%s# %s\n" % ('', 'MEM(MB)'))
                 SystemManager.pipePrint(SystemManager.bufferString)
                 SystemManager.pipePrint(oneLine)
@@ -15974,7 +15980,9 @@ class ThreadAnalyzer(object):
             for key, value in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
 
-                if key[0:2] != '0[':
+                if value['readBlock'] < 1 and SystemManager.showAll == False:
+                    break
+                elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -16023,10 +16031,7 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if value['readBlock'] < 1 and SystemManager.showAll == False:
-                        break
-
-            if SystemManager.blockEnable:
+            if len(SystemManager.bufferString) > 0:
                 SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_RD(MB)'))
                 SystemManager.pipePrint(SystemManager.bufferString)
                 SystemManager.pipePrint(oneLine)
@@ -16034,10 +16039,13 @@ class ThreadAnalyzer(object):
         # block write usage on timeline #
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
-            for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['writeBlock'] + e[1]['awriteBlock'], reverse=True):
+            for key, value in sorted(self.threadData.items(),\
+                key=lambda e: e[1]['writeBlock'] + e[1]['awriteBlock'], reverse=True):
 
-                if key[0:2] != '0[':
+                if value['writeBlockCnt'] + value['awriteBlockCnt'] < 1 and \
+                    SystemManager.showAll == False:
+                    break
+                elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
@@ -16086,10 +16094,7 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                    if value['writeBlockCnt'] + value['awriteBlockCnt'] < 1 and SystemManager.showAll == False:
-                        break
-
-            if SystemManager.blockEnable:
+            if len(SystemManager.bufferString) > 0:
                 SystemManager.pipePrint("%s# %s\n" % ('', 'BLK_WR(MB)'))
                 SystemManager.pipePrint(SystemManager.bufferString)
                 SystemManager.pipePrint(oneLine)
@@ -18250,8 +18255,7 @@ class ThreadAnalyzer(object):
                                 self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
                                 self.threadData[coreId]['kernelPages'] -= 1
 
-                            del self.pageTable[pfnv]
-                            self.pageTable[pfnv] = {}
+                            self.pageTable.pop(pfnv)
                         except:
                             # this page is allocated before starting profile #
                             self.threadData[thread]['anonReclaimedPages'] += 1
@@ -18342,8 +18346,7 @@ class ThreadAnalyzer(object):
                         self.threadData[self.kmemTable[ptr]['core']]['wasteKmem'] -= \
                             self.kmemTable[ptr]['waste']
 
-                        self.kmemTable[ptr] = {}
-                        del self.kmemTable[ptr]
+                        self.kmemTable.pop(ptr)
                     except:
                         '''
                         this allocated object is not logged or \
@@ -18738,10 +18741,10 @@ class ThreadAnalyzer(object):
                                         matchBlock = matchEnd - matchStart
                                         value['size'] = matchStart - value['address']
                                     else:
-                                        del value
+                                        self.ioData.pop(key, None)
                                         continue
                                 else:
-                                    del value
+                                    self.ioData.pop(key, None)
                                     continue
 
                                 # just ignore error ;( #
@@ -18769,7 +18772,7 @@ class ThreadAnalyzer(object):
                                             self.threadData[value['thread']]['ioRdWait'] += waitTime
                                             self.threadData[value['thread']]['readStart'] = 0
 
-                                        del value
+                                        self.ioData.pop(key, None)
                                 elif opt == 'WS':
                                     self.threadData[value['thread']]['writeBlock'] += matchBlock
                                     self.threadData[coreId]['writeBlock'] += matchBlock
@@ -18791,7 +18794,7 @@ class ThreadAnalyzer(object):
                                             self.threadData[value['thread']]['ioWrWait'] += waitTime
                                             self.threadData[value['thread']]['writeStart'] = 0
 
-                                        del value
+                                        self.ioData.pop(key, None)
 
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
@@ -18853,7 +18856,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['comm'] = comm
 
                     self.threadData[key]['reclaimWait'] += float(time) - float(value['start'])
-                    del self.reclaimData[key]
+                    self.reclaimData.pop(key, None)
 
             elif func == "mm_vmscan_direct_reclaim_begin":
                 if self.threadData[thread]['dReclaimStart'] <= 0:
@@ -20403,7 +20406,7 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['statFd'] = None
             except:
                 SystemManager.printWarning('Fail to open %s' % statPath)
-                del self.procData[tid]
+                self.procData.pop(tid, None)
                 return
 
         # check change of stat #
@@ -20459,7 +20462,7 @@ class ThreadAnalyzer(object):
                         self.procData[tid]['ioFd'] = None
                 except:
                     SystemManager.printWarning('Fail to open %s' % ioPath)
-                    del self.procData[tid]
+                    self.procData.pop(tid, None)
                     return
 
             # parse io usage #
@@ -21239,7 +21242,7 @@ class ThreadAnalyzer(object):
                             self.stackTable[idx]['total'] = 0
                         except:
                             SystemManager.printWarning("Fail to open %s" % spath)
-                            del self.stackTable[idx]
+                            self.stackTable.pop(idx, None)
 
             # cut by rows of terminal #
             if SystemManager.bufferRows >= \
