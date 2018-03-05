@@ -7,6 +7,21 @@
 # Software Foundation; either version 2 of the License, or (at your option)
 # any later version.
 
+ifneq ($(findstring $(MAKEFLAGS),s),s)
+  ifneq ($(V),1)
+	QUIET_CC       = @echo '  CC       '$(patsubst $(objdir)/%,%,$@);
+	QUIET_PCC      = @echo '  PCC      '$(patsubst $(objdir)/%,%,$@);
+	QUIET_LINK     = @echo '  LINK     '$(patsubst $(objdir)/%,%,$@);
+	QUIET_MKDIR    = @echo '  MKDIR    '$(patsubst $(objdir)/%,%,$@);
+	QUIET_GEN      = @echo '  GEN      '$(patsubst $(objdir)/%,%,$@);
+
+	QUIET_CLEAN    = @printf '  CLEAN    %s\n' $1;
+	QUIET_INSTALL  = @printf '  INSTALL  %s\n' $1;
+	QUIET_UNINSTALL= @printf '  REMOVE   %s\n' $1;
+
+	Q = @
+  endif
+endif
 
 ifneq ($(KERNELRELEASE),)
 	obj-m := guiderMod.o
@@ -29,6 +44,9 @@ endif
 
 CC = gcc 
 RM = rm -f
+INSTALL = install
+SED = sed
+
 TARGET_BIN = guider
 TARGET_LIB = guidermodule.so
 
@@ -45,37 +63,47 @@ SBIN_DIR = $(prefix)/sbin
 LIB_DIR = $(prefix)/lib
 
 SRCS = guiderLib.c
-OBJS = $(SRCS:.c=.o)
+OBJS = guiderLib.o
 
 KPATH := /lib/modules/$(shell uname -r)/build
 
 
 .PHONY: all
-all: ${TARGET_PYC} ${TARGET_LIB}
+all: $(TARGET_PYC) $(OBJS) $(TARGET_LIB)
 
 $(TARGET_PYC): $(TARGET_PY)
-		$(PCC) $(PFLAGS) $^
+	$(QUIET_PCC)$(PCC) $(PFLAGS) $^
+
+$(OBJS): $(SRCS)
+	$(QUIET_CC)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $^
 
 $(TARGET_LIB): $(OBJS)
-		$(CC) ${LDFLAGS} -o $@ $^
+	$(QUIET_CC)$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 .PHONY: install
 install: all
-	@mkdir -p ${INSTALL_DIR} ${SBIN_DIR} ${LIB_DIR}
-	@cp ${TARGET_PYC} ${INSTALL_DIR}/ || { echo "Fail to install into ${INSTALL_DIR}"; false; }
-	@cp ${TARGET_BIN} ${SBIN_DIR}/ || { echo "Fail to install into ${SBIN_DIR}"; false; }
-	@cp ${TARGET_LIB} ${LIB_DIR}/ || { echo "Fail to install into ${LIB_DIR}"; false; }
-	@sed -i "s%PREFIX_DIR=%PREFIX_DIR=$(prefix)%g" ${SBIN_DIR}/${TARGET_BIN}
+	$(Q)$(INSTALL) -d -m 755 $(INSTALL_DIR)
+	$(Q)$(INSTALL) -d -m 755 $(SBIN_DIR)
+	$(Q)$(INSTALL) -d -m 755 $(LIB_DIR)
+	$(call QUIET_INSTALL, $(TARGET_PYC))
+	$(Q)$(INSTALL) $(TARGET_PYC) $(INSTALL_DIR)/$(TARGET_PYC)
+	$(call QUIET_INSTALL, $(TARGET_BIN))
+	$(Q)$(INSTALL) $(TARGET_BIN) $(SBIN_DIR)/$(TARGET_BIN)
+	$(call QUIET_INSTALL, $(TARGET_LIB))
+	$(Q)$(INSTALL) $(TARGET_LIB) $(LIB_DIR)/$(TARGET_LIB)
+	$(Q)$(SED) -i "s%PREFIX_DIR=%PREFIX_DIR=$(prefix)%g" $(SBIN_DIR)/$(TARGET_BIN)
 
 .PHONY: kernel
 kernel: all
-	@make -C $(KPATH) M=$(PWD) modules
+	$(Q)$(MAKE) -C $(KPATH) M=$(PWD) modules
 
 .PHONY: clean
 clean:
-	@-${RM} -f ${TARGET_LIB} ${OBJS} $(SRCS:.c=.d)
-	@-${RM} -f ${TARGET_PYC}
-	@-${RM} -f ${INSTALL_DIR}/*
-	@-${RM} -f ${SBIN_DIR}/${TARGET_BIN}
-	@-${RM} -f ${LIB_DIR}/${TARGET_LIB}
-	@make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	$(call QUIET_CLEAN, guider)
+	$(Q)$(RM) $(TARGET_LIB) $(OBJS)
+	$(Q)$(RM) $(TARGET_PYC)
+	$(Q)$(RM) $(INSTALL_DIR)/*
+	$(Q)$(RM) $(SBIN_DIR)/$(TARGET_BIN)
+	$(Q)$(RM) $(LIB_DIR)/$(TARGET_LIB)
+	$(call QUIET_CLEAN, kernel-module)
+	$(Q)$(MAKE) -sC /lib/modules/$(shell uname -r)/build M=$(PWD) clean
