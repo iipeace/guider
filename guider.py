@@ -6665,12 +6665,12 @@ class SystemManager(object):
             print('\t\t\t  [thread]   '\
                 '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
             print('\t\t\t  [top]      '\
-                '{t(hread)|b(lock)|wf(c)|W(chan)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|'\
-                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)|f(ile)}')
+                '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
+                '\n\t\t\t              ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
             print('\t\t-d  [disable_optionsPerMode:belowCharacters]')
             print('\t\t\t  [thread]   {c(pu)}')
             print('\t\t\t  [function] {c(pu)|u(ser)}')
-            print('\t\t\t  [top]      {c(pu)|p(rint)|P(erf)}')
+            print('\t\t\t  [top]      {c(pu)|p(rint)|P(erf)|W(chan)}')
             print('\t\t-s  [save_traceData:path]')
             print('\t\t-S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
             print('\t\t-u  [run_inBackground]')
