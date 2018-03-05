@@ -15459,7 +15459,7 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             # print timeline #
-            if icount * SystemManager.intervalEnable < float(self.totalTime):
+            if icount * SystemManager.intervalEnable <= float(self.totalTime):
                 timeLine += '%s%2d ' % (checkEvent, icount * SystemManager.intervalEnable)
             else:
                 timeLine += '%s%.2f ' % (checkEvent, self.totalTime)
@@ -20969,9 +20969,13 @@ class ThreadAnalyzer(object):
                     try:
                         with open(pidPath, 'r') as fd:
                             phyId = int(fd.readline()[:-1])
+                            if phyId < 0:
+                                phyId = '?'
 
                         with open(idPath, 'r') as fd:
                             coreId = int(fd.readline()[:-1])
+                            if coreId < 0:
+                                coerId = '?'
 
                         cid = '%s-%s' % (phyId, coreId)
                     except:
