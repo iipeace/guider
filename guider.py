@@ -21372,7 +21372,7 @@ class ThreadAnalyzer(object):
             # get waiting channel #
             if SystemManager.wchanEnable:
                 try:
-                    etc = value['wchan']
+                    etc = value['wchan'][:21]
                 except:
                     etc = ''
             else:
