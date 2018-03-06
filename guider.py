@@ -16040,9 +16040,9 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(),\
-                key=lambda e: e[1]['writeBlock'] + e[1]['awriteBlock'], reverse=True):
+                key=lambda e: e[1]['reqWrBlock'] + (e[1]['awriteBlock'] << 3), reverse=True):
 
-                if value['writeBlockCnt'] + value['awriteBlockCnt'] < 1 and \
+                if value['reqWrBlock'] + (value['awriteBlock'] << 3) < 1 and \
                     SystemManager.showAll == False:
                     break
                 elif key[0:2] != '0[':
@@ -17661,7 +17661,7 @@ class ThreadAnalyzer(object):
                 self.intervalData[index]['toTal']['totalBr'] += \
                     self.intervalData[index][key]['brUsage']
                 self.intervalData[index]['toTal']['totalBw'] += \
-                    self.intervalData[index][key]['bwUsage'] >> 1
+                    self.intervalData[index][key]['bwUsage']
 
                 """
                 calculate total memory usage in this interval \
