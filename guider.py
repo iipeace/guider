@@ -15180,7 +15180,8 @@ class ThreadAnalyzer(object):
 
         if len(self.blockTable[0]) > 0:
             SystemManager.pipePrint('# READ\n')
-            for num, size in self.blockTable[0].items():
+            for num, size in sorted(\
+                self.blockTable[0].items(), key=lambda e:e[1], reverse=True):
                 try:
                     dev = SystemManager.savedMountTree[num]['dev']
                     filesystem = SystemManager.savedMountTree[num]['filesystem']
@@ -15197,7 +15198,8 @@ class ThreadAnalyzer(object):
 
         if len(self.blockTable[1]) > 0:
             SystemManager.pipePrint('# WRITE\n')
-            for num, size in self.blockTable[1].items():
+            for num, size in sorted(\
+                self.blockTable[1].items(), key=lambda e:e[1], reverse=True):
                 try:
                     dev = SystemManager.savedMountTree[num]['dev']
                     filesystem = SystemManager.savedMountTree[num]['filesystem']
