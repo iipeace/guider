@@ -8983,22 +8983,34 @@ class SystemManager(object):
         mountPosStart = SystemManager.systemInfoBuffer.find('Disk Info')
         if mountPosStart == -1:
             return
-        mountPosStart = SystemManager.systemInfoBuffer.find(oneLine, mountPosStart)
+        mountPosStart = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart+1)
+        if mountPosStart == -1:
+            return
+        mountPosStart = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart+1)
         if mountPosStart == -1:
             return
         mountPosStart = SystemManager.systemInfoBuffer.find('\n', mountPosStart)
         if mountPosStart == -1:
             return
-        mountPosEnd = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart)
+        mountPosEnd = SystemManager.systemInfoBuffer.find(oneLine, mountPosStart)
         if mountPosEnd == -1:
             return
 
+        try:
+            mountTable = []
+            tempTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
+            for idx, line in enumerate(tempTable):
+                if len(line.split()) == 1:
+                    mountTable.append('%s %s' % (line, tempTable[idx+1]))
+        except:
+            pass
+
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
-        mountTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
         for item in mountTable:
-            m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+)\s+(?P<min>[0-9]+)\s+' + \
-                r'(?P<readSize>[0-9]+)\s+(?P<readTime>[0-9]+)\s+(?P<writeSize>[0-9]+)\s+' + \
-                r'(?P<writeTime>[0-9]+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
+            m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+' + \
+                r'(?P<readSize>.+)\s+(?P<writeSize>.+)\s+(?P<totalSize>.+)\s+' + \
+                r'(?P<freeSize>.+)\s+(?P<Usage>.+)\s+(?P<nrFile>.+)\s+' + \
+                r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
             if m is not None:
                 d = m.groupdict()
                 mid = d['maj'] + ':' + d['min']
