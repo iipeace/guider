@@ -6225,6 +6225,7 @@ class SystemManager(object):
 
     irqEnable = False
     cpuEnable = True
+    latEnable = cpuEnable
     gpuEnable = False
     memEnable = False
     rssEnable = False
@@ -8150,10 +8151,15 @@ class SystemManager(object):
             else:
                 disableStat += 'INTERVAL '
 
-            if SystemManager.depEnable:
-                enableStat += 'DEPENDENCY '
+            if SystemManager.latEnable:
+                enableStat += 'LATENCY '
             else:
-                disableStat += 'DEPENDENCY '
+                disableStat += 'LATENCY '
+
+            if SystemManager.depEnable:
+                enableStat += 'DEP '
+            else:
+                disableStat += 'DEP '
 
             if SystemManager.ueventEnable:
                 enableStat += 'UEVENT '
@@ -8455,9 +8461,14 @@ class SystemManager(object):
                 disableStat += 'REPEAT '
 
             if SystemManager.depEnable:
-                enableStat += 'DEPENDENCY '
+                enableStat += 'DEP '
             else:
-                disableStat += 'DEPENDENCY '
+                disableStat += 'DEP '
+
+            if SystemManager.latEnable:
+                enableStat += 'LATENCY '
+            else:
+                disableStat += 'LATENCY '
 
             if SystemManager.sysEnable:
                 enableStat += 'SYSCALL '
@@ -9111,6 +9122,7 @@ class SystemManager(object):
                 SystemManager.rootPath = '/'
             if filterList.find('c') > -1:
                 SystemManager.cpuEnable = False
+                SystemManager.latEnable = False
 
         # apply enable option #
         launchPosStart = SystemManager.launchBuffer.find(' -e')
@@ -10297,6 +10309,7 @@ class SystemManager(object):
                 options = value
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
+                    SystemManager.latEnable = False
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = False
                 if options.rfind('h') > -1:
@@ -10309,6 +10322,8 @@ class SystemManager(object):
                     SystemManager.userEnable = False
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+                if options.rfind('l') > -1:
+                    SystemManager.latEnable = False
 
             # Ignore options #
             elif option == 'i' or option == 'a' or option == 'v' or \
@@ -11109,7 +11124,8 @@ class SystemManager(object):
         self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_wakeup"] = SystemManager.depEnable
+        self.cmdList["sched/sched_wakeup"] = \
+            (SystemManager.cpuEnable and SystemManager.latEnable) or SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
@@ -12389,7 +12405,7 @@ class ThreadAnalyzer(object):
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
                 'reqWrBlock': int(0), 'writeQueueCnt': int(0), 'writeBlockCnt': int(0), \
                 'writeStart': float(0), 'ioWrWait': float(0), 'awriteBlock': int(0), \
-                'awriteBlockCnt': int(0)}
+                'awriteBlockCnt': int(0), 'schedLatency': float(0), 'schedReady': float(0)}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), \
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
@@ -14573,9 +14589,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
             format("", "", "", "", "", ""))
 
-        SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s(%5s)|%3s|%5s|" + \
+        SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|" + \
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
-            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Delay', 'Max', 'Pri', ' IRQ ', \
+            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', ' IRQ ', \
             'Yld', ' Lose', 'Steal', 'Mig', 'Rd', 'MB', 'Cnt', 'Wr', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
@@ -14624,13 +14640,13 @@ class ThreadAnalyzer(object):
                     value['offTime'] += float(self.finishTime) - value['lastOff']
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
                     "%3s|%3s|%4.2f(%2d)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
                         self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
-                        round(float(value['offTime']), 7), 0, 0, value['irq'], \
-                        value['offCnt'], '-', '-', '-', \
+                        round(float(value['offTime']), 7), value['schedLatency'], '-', \
+                        value['irq'], value['offCnt'], '-', '-', '-', \
                         value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                         value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                         (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
@@ -14689,10 +14705,10 @@ class ThreadAnalyzer(object):
                 break
 
             SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" + \
+                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" + \
                 "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], \
-                str(round(float(usagePercent), 1)), value['cpuWait'], value['maxPreempted'], \
+                str(round(float(usagePercent), 1)), value['cpuWait'], value['schedLatency'], \
                 value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
                 value['migrate'], value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                 value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
@@ -14744,12 +14760,12 @@ class ThreadAnalyzer(object):
             count += 1
             if SystemManager.showAll:
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
                     "%3d|%3d|%4.2f(%2d)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
-                    value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                    value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                     value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
@@ -14773,12 +14789,12 @@ class ThreadAnalyzer(object):
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
             if SystemManager.showAll:
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f(%5.2f)|%3s|%5.2f|" \
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
                     "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
                     "%3d|%3d|%4.2f(%2d)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
-                    value['cpuWait'], value['maxPreempted'], value['pri'], value['irq'], \
+                    value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
                     value['yield'], value['preempted'], value['preemption'], value['migrate'], \
                     value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                     value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
@@ -17919,6 +17935,15 @@ class ThreadAnalyzer(object):
                     if self.threadData[next_id]['stop'] == 0:
                         # no stop time of next thread because of some reasons #
                         self.threadData[next_id]['stop'] = 0
+
+                        # calculate sched latency  of next thread #
+                        if self.threadData[next_id]['schedReady'] > 0:
+                            self.threadData[next_id]['schedLatency'] += \
+                                (float(time) - self.threadData[next_id]['schedReady'])
+                            self.threadData[coreId]['schedLatency'] += \
+                                (float(time) - self.threadData[next_id]['schedReady'])
+                            self.threadData[next_id]['schedReady'] = 0
+                    # set sched status of next thread #
                     elif self.threadData[next_id]['lastStatus'] == 'P':
                         preemptedTime = \
                             self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
@@ -17937,7 +17962,6 @@ class ThreadAnalyzer(object):
                         except:
                             pass
 
-                    # set sched status of next thread #
                     self.threadData[next_id]['lastStatus'] = 'R'
                 else:
                     SystemManager.printWarning(\
@@ -18358,13 +18382,19 @@ class ThreadAnalyzer(object):
 
             elif func == "sched_wakeup":
                 m = re.match(\
-                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
-                    r'target_cpu=(?P<target>[0-9]+)', etc)
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+', etc)
                 if m is not None:
                     d = m.groupdict()
 
                     target_comm = d['comm']
                     pid = d['pid']
+
+                    try:
+                        self.threadData[pid]
+                    except:
+                        self.threadData[pid] = dict(self.init_threadData)
+                        self.threadData[pid]['comm'] = target_comm
+                    self.threadData[pid]['schedReady'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
