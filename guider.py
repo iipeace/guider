@@ -9008,8 +9008,8 @@ class SystemManager(object):
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         for item in mountTable:
             m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+' + \
-                r'(?P<readSize>.+)\s+(?P<writeSize>.+)\s+(?P<totalSize>.+)\s+' + \
-                r'(?P<freeSize>.+)\s+(?P<Usage>.+)\s+(?P<nrFile>.+)\s+' + \
+                r'(?P<readSize>\S+)\s+(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+' + \
+                r'(?P<freeSize>\S+)\s+(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+' + \
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
             if m is not None:
                 d = m.groupdict()
@@ -15172,7 +15172,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^8} {1:^8} {2:^12} {3:^16} {4:>32}".\
+        SystemManager.pipePrint("{0:^8} {1:^16} {2:^12} {3:^20} {4:>32}".\
             format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
         SystemManager.pipePrint(oneLine)
 
@@ -15191,7 +15191,7 @@ class ThreadAnalyzer(object):
                     filesystem = '?'
                     mount = '\t\t\t?'
 
-                SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
+                SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
                 cnt += 1
             SystemManager.pipePrint(oneLine)
@@ -15209,7 +15209,7 @@ class ThreadAnalyzer(object):
                     filesystem = '?'
                     mount = '\t\t\t?'
 
-                SystemManager.pipePrint("{0:^8} {1:>8} {2:^12} {3:<16} {4:<32}".\
+                SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
                     format(num, size >> 10, filesystem, dev, mount))
                 cnt += 1
             SystemManager.pipePrint(oneLine)
