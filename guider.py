@@ -13190,8 +13190,8 @@ class ThreadAnalyzer(object):
                             intervalList = None
                             continue
 
-                    pname = d['comm'].strip() + '(' + d['pid'] + ')'
                     pid = d['pid']
+                    pname = '%s(%s)' % (comm, pid)
                     try:
                         total = int(sline[1])
                     except:
@@ -13228,7 +13228,8 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
                     pid = d['pid']
-                    pname = d['comm'].strip() + '(' + pid + ')'
+                    comm = d['comm'].strip()
+                    pname = '%s(%s)' % (comm, pid)
                     prop[pname] = {}
                     prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
                 elif int(pid) > 0:
@@ -16474,11 +16475,11 @@ class ThreadAnalyzer(object):
                             ThreadAnalyzer.termProcList[comm[3:]] = 1
 
                         try:
+                            ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
+                        except:
                             ThreadAnalyzer.procIntervalData[index-1][pid] = \
                                 dict(ThreadAnalyzer.init_procIntervalData)
                             ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
-                        except:
-                            pass
 
                     return
             except:
@@ -16872,17 +16873,25 @@ class ThreadAnalyzer(object):
                     lineLen = len(procInfo)
 
                 # process is shown #
-                if pid in intervalData[idx] and intervalData[idx][pid]['die'] is False:
-                    usage = intervalData[idx][pid]['mem']
-                    if usage == 0 and prev > 0:
-                        usage = prev
+                if pid in intervalData[idx]:
+                    if intervalData[idx][pid]['die']:
+                        try:
+                            usage = intervalData[idx][pid]['mem']
+                        except:
+                            prev = usage = 0
                     else:
-                        prev = usage
+                        usage = intervalData[idx][pid]['mem']
+                        if usage == 0 and prev > 0:
+                            usage = prev
+                        else:
+                            prev = usage
                 # process was shown previously #
                 elif prev > 0:
                     try:
+                        # process was terminated #
                         if intervalData[idx-1][pid]['die']:
                             prev = usage = 0
+                        # process is alive #
                         else:
                             usage = prev
                     except:
@@ -16973,12 +16982,18 @@ class ThreadAnalyzer(object):
                     lineLen = len(procInfo)
 
                 # process is shown #
-                if pid in intervalData[idx] and intervalData[idx][pid]['die'] is False:
-                    usage = intervalData[idx][pid]['vss']
-                    if usage == 0 and prev > 0:
-                        usage = prev
+                if pid in intervalData[idx]:
+                    if intervalData[idx][pid]['die']:
+                        try:
+                            usage = intervalData[idx][pid]['vss']
+                        except:
+                            prev = usage = 0
                     else:
-                        prev = usage
+                        usage = intervalData[idx][pid]['vss']
+                        if usage == 0 and prev > 0:
+                            usage = prev
+                        else:
+                            prev = usage
                 # process was shown previously #
                 elif prev > 0:
                     try:
