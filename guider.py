@@ -12357,7 +12357,7 @@ class ThreadAnalyzer(object):
             self.reclaimData = {}
             self.pageTable = {}
             self.kmemTable = {}
-            self.blockTable = [{}, {}]
+            self.blockTable = [{}, {}, {}]
             self.moduleData = []
             self.intervalData = []
             self.depData = []
@@ -12647,6 +12647,9 @@ class ThreadAnalyzer(object):
             # add blocking time to write blocks to disk #
             for idx, item in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['writeStart'], reverse=True):
+                # cancel to add blocking time for write because async write #
+                break
+
                 if item['writeStart'] > 0:
                     waitTime = float(self.finishTime) - item['writeStart']
                     item['ioWrWait'] += waitTime
@@ -13900,11 +13903,19 @@ class ThreadAnalyzer(object):
 
                 # Process VSS #
                 if SystemManager.vssEnable:
-                    for key, item in sorted(\
-                        memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
+                    for key, item in sorted(memProcUsage.items(),\
+                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
-                        minIdx = usage.index(min(usage))
-                        maxIdx = usage.index(item['maxVss'])
+
+                        try:
+                            minIdx = usage.index(min(usage))
+                        except:
+                            minIdx = 0
+                        try:
+                            maxIdx = usage.index(item['maxVss'])
+                        except:
+                            maxIdx = 0
+
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
@@ -13922,15 +13933,23 @@ class ThreadAnalyzer(object):
                 # Process Leak #
                 elif SystemManager.leakEnable:
                     # get VSS diffs #
-                    for key, item in sorted(\
-                        memProcUsage.items(), key=lambda e: e[1]['maxVss'], reverse=True):
+                    for key, item in sorted(memProcUsage.items(),\
+                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
-                        maxVss = max(usage)
+                        try:
+                            maxVss = max(usage)
+                        except:
+                            maxVss = 0
+
                         if maxVss == 0:
                             item['vssDiff'] = 0
                             continue
 
-                        minVss = min(x for x in usage if x != 0)
+                        try:
+                            minVss = min(x for x in usage if x != 0)
+                        except:
+                            minVss = 0
+
                         diff = maxVss - minVss
                         item['vssDiff'] = diff
                     # draw leakage plots #
@@ -13940,8 +13959,17 @@ class ThreadAnalyzer(object):
                             break
 
                         usage = list(map(int, item['vssUsage'].split()))
-                        minIdx = usage.index(min(usage))
-                        maxIdx = usage.index(item['maxVss'])
+
+                        try:
+                            minIdx = usage.index(min(usage))
+                        except:
+                            minIdx = 0
+
+                        try:
+                            maxIdx = usage.index(item['maxVss'])
+                        except:
+                            maxIdx = 0
+
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
@@ -13957,11 +13985,23 @@ class ThreadAnalyzer(object):
                             labelList.append('%s[VSS]' % key)
                 # Process RSS #
                 if SystemManager.rssEnable:
-                    for key, item in sorted(\
-                        memProcUsage.items(), key=lambda e: e[1]['maxRss'], reverse=True):
-                        usage = list(map(int, item['rssUsage'].split()))
-                        minIdx = usage.index(min(usage))
-                        maxIdx = usage.index(item['maxRss'])
+                    for key, item in sorted(memProcUsage.items(),\
+                        key=lambda e: 0 if not 'maxRss' in e[1] else e[1]['maxRss'], reverse=True):
+                        try:
+                            usage = list(map(int, item['rssUsage'].split()))
+                        except:
+                            continue
+
+                        try:
+                            minIdx = usage.index(min(usage))
+                        except:
+                            minIdx = 0
+
+                        try:
+                            maxIdx = usage.index(item['maxRss'])
+                        except:
+                            maxIdx = 0
+
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
@@ -14603,8 +14643,8 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|" + \
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
-            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', ' IRQ ', \
-            'Yld', ' Lose', 'Steal', 'Mig', 'Rd', 'MB', 'Cnt', 'Wr', 'MB', \
+            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc ', 'Pri', ' IRQ ', \
+            'Yld ', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'Write', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
 
@@ -15178,8 +15218,9 @@ class ThreadAnalyzer(object):
 
         cnt = 0
 
+        # total read #
         if len(self.blockTable[0]) > 0:
-            SystemManager.pipePrint('# READ\n')
+            SystemManager.pipePrint('# TOTAL READ\n')
             for num, size in sorted(\
                 self.blockTable[0].items(), key=lambda e:e[1], reverse=True):
                 try:
@@ -15191,13 +15232,19 @@ class ThreadAnalyzer(object):
                     filesystem = '?'
                     mount = '\t\t\t?'
 
+                try:
+                    size = format((size >> 10), ',')
+                except:
+                    size = size >> 10
+
                 SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                    format(num, size >> 10, filesystem, dev, mount))
+                    format(num, size, filesystem, dev, mount))
                 cnt += 1
             SystemManager.pipePrint(oneLine)
 
+        # total write #
         if len(self.blockTable[1]) > 0:
-            SystemManager.pipePrint('# WRITE\n')
+            SystemManager.pipePrint('# TOTAL WRITE\n')
             for num, size in sorted(\
                 self.blockTable[1].items(), key=lambda e:e[1], reverse=True):
                 try:
@@ -15209,10 +15256,64 @@ class ThreadAnalyzer(object):
                     filesystem = '?'
                     mount = '\t\t\t?'
 
+                try:
+                    size = format((size >> 10), ',')
+                except:
+                    size = size >> 10
+
                 SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                    format(num, size >> 10, filesystem, dev, mount))
+                    format(num, size, filesystem, dev, mount))
                 cnt += 1
             SystemManager.pipePrint(oneLine)
+
+        for tid, data in self.blockTable[2].items():
+        # thread read #
+            if len(data[0]) > 0:
+                SystemManager.pipePrint('# %s(%s) READ\n' % (tid, self.threadData[tid]['comm']))
+                for num, size in sorted(\
+                    data[0].items(), key=lambda e:e[1], reverse=True):
+                    try:
+                        dev = SystemManager.savedMountTree[num]['dev']
+                        filesystem = SystemManager.savedMountTree[num]['filesystem']
+                        mount = SystemManager.savedMountTree[num]['mount']
+                    except:
+                        dev = '\t\t\t?'
+                        filesystem = '?'
+                        mount = '\t\t\t?'
+
+                    try:
+                        size = format((size >> 10), ',')
+                    except:
+                        size = size >> 10
+
+                    SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
+                        format(num, size, filesystem, dev, mount))
+                    cnt += 1
+                SystemManager.pipePrint(oneLine)
+
+            # thread write #
+            if len(data[1]) > 0:
+                SystemManager.pipePrint('# %s(%s) WRITE\n' % (tid, self.threadData[tid]['comm']))
+                for num, size in sorted(\
+                    data[1].items(), key=lambda e:e[1], reverse=True):
+                    try:
+                        dev = SystemManager.savedMountTree[num]['dev']
+                        filesystem = SystemManager.savedMountTree[num]['filesystem']
+                        mount = SystemManager.savedMountTree[num]['mount']
+                    except:
+                        dev = '\t\t\t?'
+                        filesystem = '?'
+                        mount = '\t\t\t?'
+
+                    try:
+                        size = format((size >> 10), ',')
+                    except:
+                        size = size >> 10
+
+                    SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
+                        format(num, size, filesystem, dev, mount))
+                    cnt += 1
+                SystemManager.pipePrint(oneLine)
 
         if cnt == 0:
             SystemManager.pipePrint("\tNone")
@@ -16408,18 +16509,16 @@ class ThreadAnalyzer(object):
 
             # set vss #
             vss = int(d['vss'])
-            if ThreadAnalyzer.procTotalData[pid]['minVss'] == 0 or \
-                ThreadAnalyzer.procTotalData[pid]['minVss'] > vss:
+            if ThreadAnalyzer.procTotalData[pid]['minVss'] >= vss:
                 ThreadAnalyzer.procTotalData[pid]['minVss'] = vss
             if ThreadAnalyzer.procTotalData[pid]['maxVss'] < vss:
                 ThreadAnalyzer.procTotalData[pid]['maxVss'] = vss
 
             # set rss #
             rss = int(d['rss'])
-            if ThreadAnalyzer.procTotalData[pid]['minMem'] == 0 or \
-                ThreadAnalyzer.procTotalData[pid]['minMem'] > rss:
+            if ThreadAnalyzer.procTotalData[pid]['minMem'] >= rss:
                 ThreadAnalyzer.procTotalData[pid]['minMem'] = rss
-            if ThreadAnalyzer.procTotalData[pid]['maxMem'] < rss:
+            if ThreadAnalyzer.procTotalData[pid]['maxMem'] <= rss:
                 ThreadAnalyzer.procTotalData[pid]['maxMem'] = rss
 
             # set mem #
@@ -17312,18 +17411,45 @@ class ThreadAnalyzer(object):
             if found is False:
                 return
 
+        # total block info #
+        readTable = self.blockTable[0]
+        writeTable = self.blockTable[1]
+        taskTable = self.blockTable[2]
+
         if opt == 'R':
             try:
-                self.blockTable[0][major + ':' + minor] += int(size)
+                readTable[major + ':' + minor] += int(size)
             except:
-                self.blockTable[0][major + ':' + minor] = 0
-                self.blockTable[0][major + ':' + minor] += int(size)
+                readTable[major + ':' + minor] = 0
+                readTable[major + ':' + minor] += int(size)
         elif opt == 'W':
             try:
-                self.blockTable[1][major + ':' + minor] += int(size)
+                writeTable[major + ':' + minor] += int(size)
             except:
-                self.blockTable[1][major + ':' + minor] = 0
-                self.blockTable[1][major + ':' + minor] += int(size)
+                writeTable[major + ':' + minor] = 0
+                writeTable[major + ':' + minor] += int(size)
+        else:
+            SystemManager.printWarning("Fail to recognize operation of block event")
+
+        # thread block info #
+        if tid not in taskTable:
+            taskTable[tid] = [{}, {}]
+
+        readTable = taskTable[tid][0]
+        writeTable = taskTable[tid][1]
+
+        if opt == 'R':
+            try:
+                readTable[major + ':' + minor] += int(size)
+            except:
+                readTable[major + ':' + minor] = 0
+                readTable[major + ':' + minor] += int(size)
+        elif opt == 'W':
+            try:
+                writeTable[major + ':' + minor] += int(size)
+            except:
+                writeTable[major + ':' + minor] = 0
+                writeTable[major + ':' + minor] += int(size)
         else:
             SystemManager.printWarning("Fail to recognize operation of block event")
 
@@ -18760,85 +18886,92 @@ class ThreadAnalyzer(object):
                     for key, value in sorted(\
                         self.ioData.items(), key=lambda e: e[1]['address'], reverse=False):
 
-                        if value['major'] == d['major'] and value['minor'] == d['minor']:
-                            if bioStart <= value['address'] < bioEnd or \
-                                bioStart < value['address'] + value['size'] <= bioEnd:
+                        # skip different requests with device number #
+                        if value['major'] != d['major'] or value['minor'] != d['minor']:
+                            continue
 
-                                matchBlock = 0
+                        # skip irrelevant requests #
+                        if (bioStart <= value['address'] < bioEnd or \
+                            bioStart < value['address'] + value['size'] <= bioEnd) is False:
+                            continue
 
-                                if bioStart < value['address']:
-                                    matchStart = value['address']
-                                else:
-                                    matchStart = bioStart
+                        # remove bio request in table #
+                        self.ioData.pop(key, None)
 
-                                if bioEnd > value['address'] + value['size']:
-                                    matchEnd = value['address'] + value['size']
-                                else:
-                                    matchEnd = bioEnd
+                        matchBlock = 0
 
-                                if matchStart == value['address']:
-                                    matchBlock = matchEnd - value['address']
-                                    value['size'] = value['address'] + value['size'] - matchEnd
-                                    value['address'] = matchEnd
-                                elif matchStart > value['address']:
-                                    if matchEnd == value['address'] + value['size']:
-                                        matchBlock = matchEnd - matchStart
-                                        value['size'] = matchStart - value['address']
-                                    else:
-                                        self.ioData.pop(key, None)
-                                        continue
-                                else:
-                                    self.ioData.pop(key, None)
-                                    continue
+                        if bioStart < value['address']:
+                            matchStart = value['address']
+                        else:
+                            matchStart = bioStart
 
-                                # just ignore error ;( #
-                                if bioEnd < value['address'] + value['size']:
-                                    pass
+                        if bioEnd > value['address'] + value['size']:
+                            matchEnd = value['address'] + value['size']
+                        else:
+                            matchEnd = bioEnd
 
-                                if opt[0] == 'R':
-                                    self.threadData[value['thread']]['readBlock'] += matchBlock
-                                    self.threadData[coreId]['readBlock'] += matchBlock
+                        if matchStart == value['address']:
+                            matchBlock = matchEnd - value['address']
+                            value['size'] = value['address'] + value['size'] - matchEnd
+                            value['address'] = matchEnd
+                        elif matchStart > value['address']:
+                            if matchEnd == value['address'] + value['size']:
+                                matchBlock = matchEnd - matchStart
+                                value['size'] = matchStart - value['address']
+                            else:
+                                continue
+                        else:
+                            continue
 
-                                    if value['size'] == 0:
-                                        if self.threadData[value['thread']]['readQueueCnt'] > 0:
-                                            self.threadData[value['thread']]['readQueueCnt'] -= 1
+                        # just ignore error ;( #
+                        if bioEnd < value['address'] + value['size']:
+                            pass
 
-                                        """
-                                        if error of size and time of block read is big then \
-                                        consider inserting below conditions
-                                        # self.threadData[value['thread']]['readQueueCnt'] == 0 #
-                                        """
-                                        if self.threadData[value['thread']]['readStart'] > 0:
-                                            waitTime = \
-                                                float(time) - \
-                                                self.threadData[value['thread']]['readStart']
-                                            self.threadData[coreId]['ioRdWait'] += waitTime
-                                            self.threadData[value['thread']]['ioRdWait'] += waitTime
-                                            self.threadData[value['thread']]['readStart'] = 0
+                        if opt[0] == 'R':
+                            self.threadData[value['thread']]['readBlock'] += matchBlock
+                            self.threadData[coreId]['readBlock'] += matchBlock
 
-                                        self.ioData.pop(key, None)
-                                elif opt == 'WS':
-                                    self.threadData[value['thread']]['writeBlock'] += matchBlock
-                                    self.threadData[coreId]['writeBlock'] += matchBlock
+                            if value['size'] != 0:
+                                continue
 
-                                    if value['size'] == 0:
-                                        if self.threadData[value['thread']]['writeQueueCnt'] > 0:
-                                            self.threadData[value['thread']]['writeQueueCnt'] -= 1
+                            if self.threadData[value['thread']]['readQueueCnt'] > 0:
+                                self.threadData[value['thread']]['readQueueCnt'] -= 1
 
-                                        """
-                                        if error of size and time of block read is big then \
-                                        consider inserting below conditions
-                                        # self.threadData[value['thread']]['writeQueueCnt'] == 0 #
-                                        """
-                                        if self.threadData[value['thread']]['writeStart'] > 0:
-                                            waitTime = \
-                                                float(time) - \
-                                                self.threadData[value['thread']]['writeStart']
-                                            self.threadData[coreId]['ioWrWait'] += waitTime
-                                            self.threadData[value['thread']]['ioWrWait'] += waitTime
-                                            self.threadData[value['thread']]['writeStart'] = 0
+                            """
+                            if error of size and time of block read is big then \
+                            consider inserting below conditions
+                            # self.threadData[value['thread']]['readQueueCnt'] == 0 #
+                            """
+                            if self.threadData[value['thread']]['readStart'] > 0:
+                                waitTime = \
+                                    float(time) - \
+                                    self.threadData[value['thread']]['readStart']
+                                self.threadData[coreId]['ioRdWait'] += waitTime
+                                self.threadData[value['thread']]['ioRdWait'] += waitTime
+                                self.threadData[value['thread']]['readStart'] = 0
 
-                                        self.ioData.pop(key, None)
+                        elif opt == 'WS':
+                            self.threadData[value['thread']]['writeBlock'] += matchBlock
+                            self.threadData[coreId]['writeBlock'] += matchBlock
+
+                            if thread != value['thread'] or value['size'] != 0:
+                                continue
+
+                            if self.threadData[value['thread']]['writeQueueCnt'] > 0:
+                                self.threadData[value['thread']]['writeQueueCnt'] -= 1
+
+                            """
+                            if error of size and time of block read is big then \
+                            consider inserting below conditions
+                            # self.threadData[value['thread']]['writeQueueCnt'] == 0 #
+                            """
+                            if self.threadData[value['thread']]['writeStart'] > 0:
+                                waitTime = \
+                                    float(time) - \
+                                    self.threadData[value['thread']]['writeStart']
+                                self.threadData[coreId]['ioWrWait'] += waitTime
+                                self.threadData[value['thread']]['ioWrWait'] += waitTime
+                                self.threadData[value['thread']]['writeStart'] = 0
 
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
