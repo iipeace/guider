@@ -1,38 +1,28 @@
 diff --git a/arch/arm64/kernel/stacktrace.c b/arch/arm64/kernel/stacktrace.c
-index d5718a0..1439be7 100644
+index 76809cc..a2bd63b 100644
 --- a/arch/arm64/kernel/stacktrace.c
 +++ b/arch/arm64/kernel/stacktrace.c
-@@ -22,10 +22,12 @@
- #include <linux/sched/debug.h>
- #include <linux/sched/task_stack.h>
- #include <linux/stacktrace.h>
-+#include <linux/uaccess.h>
- 
- #include <asm/irq.h>
- #include <asm/stack_pointer.h>
- #include <asm/stacktrace.h>
-+#include <asm/uaccess.h>
- 
- /*
-  * AArch64 PCS assigns the frame pointer to x29.
-@@ -191,3 +193,90 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -186,3 +186,99 @@ void save_stack_trace(struct stack_trace *trace)
  
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
 +
 +#ifdef CONFIG_USER_STACKTRACE_SUPPORT
 +/*
-+ * User-stack-tracer for ARM archtecture
++ * User-stack-tracer for ARM64 archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option in Kconfig
 + * 2. patch and rebuild kernel
-+ * 3. build target binary with bellow options
-+ *	-g -mapcs-frame -rdynamic -fno-omit-frame-pointer option
++ * 3. build target binary with below options
++ *	-g -rdynamic -fno-omit-frame-pointer option
 + */
++
++#include <linux/sched/task_stack.h>
++#include <linux/uaccess.h>
++#include <asm/uaccess.h>
++
 +struct stack_frame_user {
 +	unsigned long next_fp;
-+	unsigned long ip;
 +	unsigned long lr;
-+	unsigned long pc;
 +};
 +
 +static int copy_stack_frame_user(const void __user *fp,
@@ -56,17 +46,25 @@ index d5718a0..1439be7 100644
 +{
 +	int try = 0;
 +	int max_try = trace->max_entries * 2;
-+	int offset = sizeof(struct stack_frame_user) - 4;
 +	struct stack_frame_user frame;
 +	const void __user *saved_addr;
 +
 +	const struct pt_regs *regs = task_pt_regs(current);
 +	const void __user *fp = (const void __user *)regs->regs[29];
++	const void __user *lr = (const void __user *)regs->regs[30];
++	const void __user *sp = (const void __user *)regs->sp;
 +
 +	trace->entries[trace->nr_entries++] = regs->pc;
 +
++    if (lr) {
++        trace->entries[trace->nr_entries++] = (unsigned long)lr;
++        saved_addr = (const void __user *)lr;
++    } else {
++        saved_addr = (const void __user *)regs->pc;
++    }
++
 +	while (trace->nr_entries < trace->max_entries && try++ < max_try) {
-+		if (!fp || !copy_stack_frame_user(fp - offset, &frame))
++		if (!fp || !copy_stack_frame_user(fp, &frame))
 +			break;
 +
 +		if (!frame.lr) {
@@ -87,8 +85,6 @@ index d5718a0..1439be7 100644
 +
 +		if (frame.next_fp > (unsigned long)sp) {
 +			fp = (const void __user *)frame.next_fp;
-+		} else if (frame.ip > (unsigned long)sp) {
-+			fp = (const void __user *)frame.ip;
 +		} else {
 +			break;
 +		}

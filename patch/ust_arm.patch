@@ -1,8 +1,8 @@
 diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
-index a56e7c8..7749ca8 100644
+index 65228bf4..a3fe421 100644
 --- a/arch/arm/kernel/stacktrace.c
 +++ b/arch/arm/kernel/stacktrace.c
-@@ -169,3 +169,103 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -179,3 +179,103 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
@@ -12,7 +12,7 @@ index a56e7c8..7749ca8 100644
 + * User-stack-tracer for ARM archtecture
 + * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option in Kconfig
 + * 2. patch and rebuild kernel
-+ * 3. build target binary with bellow options
++ * 3. build target binary with below options
 + *	-g -mapcs-frame -rdynamic -fno-omit-frame-pointer option
 + */
 +
