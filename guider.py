@@ -6106,6 +6106,8 @@ class SystemManager(object):
     startTime = time.time()
     blockSize = 512
     bufferSize = 0
+    termGetId = None
+    termSetId = None
     ttyRows = 50
     ttyRowsMargin = 8
     ttyCols = 156
@@ -6159,6 +6161,7 @@ class SystemManager(object):
     guiderObj = None
     ctypesObj = None
     libcObj = None
+    fcntlObj = None
     libcPath = 'libc.so.6'
 
     addrAsServer = None
@@ -6634,7 +6637,7 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
-            print('\n[ g.u.i.d.e.r     %s ]\n\n' % __version__)
+            SystemManager.printRawTitle()
 
             print('Usage:')
             print('    # %s [mode] [options]' % cmd)
@@ -6646,208 +6649,233 @@ class SystemManager(object):
             print('    $ %s top -i 2' % cmd)
             print('    $ %s -h' % cmd)
 
-            print('\nMode:')
-            print('    [analysis]')
-            print('        top        [realtime]')
-            print('        record     [thread]')
-            print('        record -y  [system]')
-            print('        record -f  [function]')
-            print('        record -F  [file]')
-            print('        mem        [page]')
-            print('    [control]')
-            print('        list|start|stop|send [proc]')
-            print('    [convenience]')
-            print('        draw       [image]')
+            if len(sys.argv) > 1 and \
+                (sys.argv[1] == '-h' or \
+                sys.argv[1] == '--help' or \
+                SystemManager.findOption('h')):
 
-            print('\nOptions:')
-            print('    [record]')
-            print('        -e  [enable_optionsPerMode:belowCharacters]')
-            print('              [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
-            print('              [thread]   '\
-                '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
-            print('              [top]      '\
-                '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
-                '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
-            print('        -d  [disable_optionsPerMode:belowCharacters]')
-            print('              [thread]   {c(pu)}')
-            print('              [function] {c(pu)|u(ser)}')
-            print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)}')
-            print('        -s  [save_traceData:path]')
-            print('        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
-            print('        -u  [run_inBackground]')
-            print('        -W  [wait_forSignal]')
-            print('        -R  [record_repeatedly:{interval,}count]')
-            print('        -b  [set_bufferSize:kb]')
-            print('        -D  [trace_threadDependency]')
-            print('        -t  [trace_syscall:syscalls]')
-            print('        -T  [set_fontPath]')
-            print('        -j  [set_reportPath:path]')
-            print('        -U  [set_userEvent:name:func|addr:file]')
-            print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
-            print('        -C  [set_commandScriptPath:file]')
-            print('        -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]')
-            print('        -x  [set_addressForLocalServer:{ip:port}]')
-            print('        -X  [set_requestToRemoteServer:{req@ip:port}]')
-            print('        -N  [set_addressForReport:req@ip:port]')
-            print('        -n  [set_addressForPrint:ip:port]')
-            print('        -m  [set_objdumpPath:file]')
-            print('    [analysis]')
-            print('        -o  [save_outputData:path]')
-            print('        -P  [group_perProcessBasis]')
-            print('        -p  [show_preemptInfo:tids]')
-            print('        -l  [set_addr2linePath:files]')
-            print('        -r  [set_targetRootPath:dir]')
-            print('        -I  [set_inputValue:file|addr]')
-            print('        -q  [configure_taskList]')
-            print('        -Z  [convert_textToImage]')
-            print('        -L  [set_graphLayout:CPU|MEM|IO:size]')
-            print('    [common]')
-            print('        -a  [show_allInfo]')
-            print('        -Q  [print_allRowsInaStream]')
-            print('        -i  [set_interval:sec]')
-            print('        -g  [set_filter:comms|tids{:files}]')
-            print('        -A  [set_arch:arm|aarch64|x86|x64]')
-            print('        -c  [set_customEvent:event:filter]')
-            print('        -E  [set_errorLogPath:file]')
-            print('        -H  [set_functionDepth]')
-            print('        -Y  [set_schedPriority:policy:prio{:pid}]')
-            print('        -v  [verbose]')
+                print('\nMode:')
+                print('    [analysis]')
+                print('        top        [realtime]')
+                print('        record     [thread]')
+                print('        record -y  [system]')
+                print('        record -f  [function]')
+                print('        record -F  [file]')
+                print('        mem        [page]')
+                print('    [control]')
+                print('        list|start|stop|send [proc]')
+                print('    [convenience]')
+                print('        draw       [image]')
 
-            if len(sys.argv) > 1:
-                print('    [examples]')
+                print('\nOptions:')
+                print('    [record]')
+                print('        -e  [enable_optionsPerMode:belowCharacters]')
+                print('              [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
+                print('              [thread]   '\
+                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+                print('              [top]      '\
+                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
+                    '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
+                print('        -d  [disable_optionsPerMode:belowCharacters]')
+                print('              [thread]   {c(pu)}')
+                print('              [function] {c(pu)|u(ser)}')
+                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)}')
+                print('        -s  [save_traceData:path]')
+                print('        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
+                print('        -u  [run_inBackground]')
+                print('        -W  [wait_forSignal]')
+                print('        -R  [record_repeatedly:{interval,}count]')
+                print('        -b  [set_bufferSize:kb]')
+                print('        -D  [trace_threadDependency]')
+                print('        -t  [trace_syscall:syscalls]')
+                print('        -T  [set_fontPath]')
+                print('        -j  [set_reportPath:path]')
+                print('        -U  [set_userEvent:name:func|addr:file]')
+                print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
+                print('        -C  [set_commandScriptPath:file]')
+                print('        -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]')
+                print('        -x  [set_addressForLocalServer:{ip:port}]')
+                print('        -X  [set_requestToRemoteServer:{req@ip:port}]')
+                print('        -N  [set_addressForReport:req@ip:port]')
+                print('        -n  [set_addressForPrint:ip:port]')
+                print('        -m  [set_objdumpPath:file]')
+                print('    [analysis]')
+                print('        -o  [save_outputData:path]')
+                print('        -P  [group_perProcessBasis]')
+                print('        -p  [show_preemptInfo:tids]')
+                print('        -l  [set_addr2linePath:files]')
+                print('        -r  [set_targetRootPath:dir]')
+                print('        -I  [set_inputValue:file|addr]')
+                print('        -q  [configure_taskList]')
+                print('        -Z  [convert_textToImage]')
+                print('        -L  [set_graphLayout:CPU|MEM|IO:size]')
+                print('        -M  [set_terminalSize:{ROWS:COLS}]')
+                print('    [common]')
+                print('        -a  [show_allInfo]')
+                print('        -Q  [print_allRowsInaStream]')
+                print('        -i  [set_interval:sec]')
+                print('        -g  [set_filter:comms|tids{:files}]')
+                print('        -A  [set_arch:arm|aarch64|x86|x64]')
+                print('        -c  [set_customEvent:event:filter]')
+                print('        -E  [set_errorLogPath:file]')
+                print('        -H  [set_functionDepth]')
+                print('        -Y  [set_schedPriority:policy:prio{:pid}]')
+                print('        -v  [verbose]')
+            else:
+                print('\nHelp:')
+                print('    # %s -h | --help' % cmd)
+                print('    # %s --examples' % cmd)
+                print('    # %s --version' % cmd)
 
-                print('        [thread mode]')
-                print('            - record cpu usage of threads')
-                print('                # %s record -s .' % cmd)
-                print('            - record resource usage of threads in background')
-                print('                # %s record -s . -e m b i -u' % cmd)
-                print('            - record resource usage excluding cpu of threads in background')
-                print('                # %s record -s . -e m b i -d c -u' % cmd)
-                print('            - record specific systemcalls of specific threads')
-                print('                # %s record -s . -t sys_read, write -g 1234' % cmd)
-                print('            - record specific user function events')
-                print('                # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
-                print('            - record specific kernel function events')
-                print('                # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
-                print('            - record specific kernel function events with register values')
-                print('                # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
-                print('            - record specific kernel function events with return value')
-                print('                # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
-                print('            - analyze record data by expressing all possible information')
-                print('                # %s guider.dat -o . -a -i' % cmd)
-                print('            - analyze record data including preemption info of specific threads')
-                print('                # %s guider.dat -o . -p 1234, 4567' % cmd)
-                print('            - analyze specific threads that are involved in the specific processes')
-                print('                # %s guider.dat -o . -P -g 1234, 4567' % cmd)
-                print('            - draw graph and chart in image file')
-                print('                # %s draw guider.dat' % cmd)
+                print("\nAuthor: \n    %s(%s)" % (__author__, __email__))
+                print("\nReporting bugs: \n    %s or %s" % (__email__, __repository__))
+                print("\nCopyright: ")
+                print("    %s." % (__copyright__))
+                print("    License %s." % (__license__))
+                print("    This is free software.\n")
 
-                print('        [function mode]')
-                print('            - record cpu usage of functions in all threads')
-                print('                # %s record -f -s .' % cmd)
-                print('            - record cpu usage of specific functions having tid bigger than 1024 in all threads')
-                print('                # %s record -f -s . -g 1024\<' % cmd)
-                print('            - record specific events of functions of all threads in kernel level')
-                print('                # %s record -f -s . -d u -c sched/sched_switch' % cmd)
-                print('            - record resource usage of functions of specific threads')
-                print('                # %s record -f -s . -e m b h -g 1234' % cmd)
-                print('            - analyze function data for all')
-                print('                # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-                print('            - analyze function data for only lower than 3 levels')
-                print('                # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
-                print('            - record segmentation fault event of all threads')
-                print('                # %s record -f -s . -K segflt:bad_area -ep' % cmd)
-                print('            - record blocking event except for cpu usage of all threads')
-                print('                # %s record -f -s . -dc -K block:schedule' % cmd)
+            sys.exit(0)
 
-                print('        [top mode]')
-                print('            - show resource usage of processes in real-time')
-                print('                # %s top' % cmd)
-                print('            - show files opened via processes in real-time')
-                print('                # %s top -e f' % cmd)
-                print('            - show specific files opened via specific processes in real-time')
-                print('                # %s top -e f -g init, lightdm : home, var' % cmd)
-                print('            - show performance stats of specific processes in real-time')
-                print('                # %s top -e P -g init, lightdm' % cmd)
-                print('            - show resource usage of processes by sorting memory in real-time')
-                print('                # %s top -S m' % cmd)
-                print('            - show resource usage of processes by sorting file in real-time')
-                print('                # %s top -S f' % cmd)
-                print('            - show resource usage of processes only 5 times in real-time')
-                print('                # %s top -R 5' % cmd)
-                print('            - show resource usage of processes only 5 times per 3 sec interval in real-time')
-                print('                # %s top -R 3, 5' % cmd)
-                print('            - show resource usage including block of threads per 2 sec interval in real-time')
-                print('                # %s top -e t b -i 2 -a' % cmd)
-                print('            - show resource usage of specific processes/threads involved in specific process group in real-time')
-                print('                # %s top -g 1234,4567 -P' % cmd)
-                print('            - record resource usage of processes and write to specific file in real-time')
-                print('                # %s top -o . -e p' % cmd)
-                print('            - record and print resource usage of processes')
-                print('                # %s top -o . -Q' % cmd)
-                print('            - record resource usage of processes and write to specific file in background')
-                print('                # %s top -o . -u' % cmd)
-                print('            - record resource usage of processes, system status and write to specific file in background')
-                print('                # %s top -o . -e r -j . -u' % cmd)
-                print('            - record resource usage of processes, system status and write to specific file if some events occur')
-                print('                # %s top -o . -e r R' % cmd)
-                print('            - record resource usage of processes, system status and write to specific image')
-                print('                # %s top -o . -e r I' % cmd)
-                print('            - record resource usage of processes and write to specific file when specific conditions met')
-                print('                # %s top -o . -e R' % cmd)
-                print('            - trace memory working set for specific processes')
-                print('                # %s top -e w -g chrome' % cmd)
-                print('            - draw graph and chart in image file')
-                print('                # %s draw guider.out' % cmd)
-                print('                # %s top -I guider.out -e g' % cmd)
-                print('            - draw graph and chart for specific process group in image file')
-                print('                # %s draw guider.out -g chrome' % cmd)
-                print('                # %s top -I guider.out -e g -g chrome' % cmd)
-                print('            - draw cpu and memory graphs of specific processes in image file propotionally')
-                print('                # %s draw guider.out -g chrome -L cpu:3, mem:3' % cmd)
-                print('            - draw VSS graph and chart for specific processes in image file')
-                print('                # %s draw guider.out -g chrome -e v' % cmd)
-                print('            - report system status to specific server')
-                print('                # %s top -n 192.168.0.5:5555' % cmd)
-                print('            - report system status to specific server if only some events occur')
-                print('                # %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
-                print('            - report system status to specific clients that asked it')
-                print('                # %s top -x 5555' % cmd)
-                print('            - receive report data from server')
-                print('                # %s top -x 5555 -X' % cmd)
-                print('            - set configuration file path')
-                print('                # %s top -I guider.json' % cmd)
+        elif sys.argv[1] == '--examples':
 
-                print('        [file mode]')
-                print('            - record memory usage of files mapped to processes')
-                print('                # %s record -F -o .' % cmd)
-                print('            - record memory usage of files mapped to processes each intervals')
-                print('                # %s record -F -i' % cmd)
+            cmd = sys.argv[0]
 
-                print('        [etc]')
-                print('            - check property of specific pages')
-                print('                # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
-                print('            - convert a text fle to a image file')
-                print('                # %s guider.out -Z' % cmd)
-                print('            - wait for signal')
-                print('                # %s record|top -W' % cmd)
-                print('            - show guider processes running')
-                print('                # %s list' % cmd)
-                print('            - send noty signal to guider processes running')
-                print('                # %s send' % cmd)
-                print('            - send stop signal to guider processes running')
-                print('                # %s stop' % cmd)
-                print('            - send specific signals to specific processes running')
-                print('                # %s send -9 1234, 4567' % cmd)
-                print('            - set priority of tasks')
-                print('                # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
+            if cmd.find('.pyc') >= 0:
+                cmd = cmd[:cmd.find('.pyc')]
 
-            print("\nAuthor: \n    %s(%s)" % (__author__, __email__))
-            print("\nReporting bugs: \n    %s or %s" % (__email__, __repository__))
-            print("\nCopyright: ")
-            print("    %s." % (__copyright__))
-            print("    License %s." % (__license__))
-            print("    This is free software.\n")
+            SystemManager.printRawTitle()
+
+            print('[thread mode examples]')
+            print('    - record cpu usage of threads')
+            print('        # %s record -s .' % cmd)
+            print('    - record resource usage of threads in background')
+            print('        # %s record -s . -e m b i -u' % cmd)
+            print('    - record resource usage excluding cpu of threads in background')
+            print('        # %s record -s . -e m b i -d c -u' % cmd)
+            print('    - record specific systemcalls of specific threads')
+            print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
+            print('    - record specific user function events')
+            print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
+            print('    - record specific kernel function events')
+            print('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
+            print('    - record specific kernel function events with register values')
+            print('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
+            print('    - record specific kernel function events with return value')
+            print('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
+            print('    - analyze record data by expressing all possible information')
+            print('        # %s guider.dat -o . -a -i' % cmd)
+            print('    - analyze record data including preemption info of specific threads')
+            print('        # %s guider.dat -o . -p 1234, 4567' % cmd)
+            print('    - analyze specific threads that are involved in the specific processes')
+            print('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
+            print('    - draw graph and chart in image file')
+            print('        # %s draw guider.dat' % cmd)
+
+            print('\n[function mode examples]')
+            print('    - record cpu usage of functions in all threads')
+            print('        # %s record -f -s .' % cmd)
+            print('    - record cpu usage of specific functions having tid bigger than 1024 in all threads')
+            print('        # %s record -f -s . -g 1024\<' % cmd)
+            print('    - record specific events of functions of all threads in kernel level')
+            print('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
+            print('    - record resource usage of functions of specific threads')
+            print('        # %s record -f -s . -e m b h -g 1234' % cmd)
+            print('    - analyze function data for all')
+            print('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+            print('    - analyze function data for only lower than 3 levels')
+            print('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
+            print('    - record segmentation fault event of all threads')
+            print('        # %s record -f -s . -K segflt:bad_area -ep' % cmd)
+            print('    - record blocking event except for cpu usage of all threads')
+            print('        # %s record -f -s . -dc -K block:schedule' % cmd)
+
+            print('\n[top mode examples]')
+            print('    - show resource usage of processes in real-time')
+            print('        # %s top' % cmd)
+            print('    - show files opened via processes in real-time')
+            print('        # %s top -e f' % cmd)
+            print('    - show specific files opened via specific processes in real-time')
+            print('        # %s top -e f -g init, lightdm : home, var' % cmd)
+            print('    - show performance stats of specific processes in real-time')
+            print('        # %s top -e P -g init, lightdm' % cmd)
+            print('    - show resource usage of processes by sorting memory in real-time')
+            print('        # %s top -S m' % cmd)
+            print('    - show resource usage of processes by sorting file in real-time')
+            print('        # %s top -S f' % cmd)
+            print('    - show resource usage of processes only 5 times in real-time')
+            print('        # %s top -R 5' % cmd)
+            print('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
+            print('        # %s top -R 3, 5' % cmd)
+            print('    - show resource usage including block of threads per 2 sec interval in real-time')
+            print('        # %s top -e t b -i 2 -a' % cmd)
+            print('    - show resource usage of specific processes/threads involved in specific process group in real-time')
+            print('        # %s top -g 1234,4567 -P' % cmd)
+            print('    - record resource usage of processes and write to specific file in real-time')
+            print('        # %s top -o . -e p' % cmd)
+            print('    - record and print resource usage of processes')
+            print('        # %s top -o . -Q' % cmd)
+            print('    - record resource usage of processes and write to specific file in background')
+            print('        # %s top -o . -u' % cmd)
+            print('    - record resource usage of processes, system status and write to specific file in background')
+            print('        # %s top -o . -e r -j . -u' % cmd)
+            print('    - record resource usage of processes, system status and write to specific file if some events occur')
+            print('        # %s top -o . -e r R' % cmd)
+            print('    - record resource usage of processes, system status and write to specific image')
+            print('        # %s top -o . -e r I' % cmd)
+            print('    - record resource usage of processes and write to specific file when specific conditions met')
+            print('        # %s top -o . -e R' % cmd)
+            print('    - trace memory working set for specific processes')
+            print('        # %s top -e w -g chrome' % cmd)
+            print('    - draw graph and chart in image file')
+            print('        # %s draw guider.out' % cmd)
+            print('        # %s top -I guider.out -e g' % cmd)
+            print('    - draw graph and chart for specific process group in image file')
+            print('        # %s draw guider.out -g chrome' % cmd)
+            print('        # %s top -I guider.out -e g -g chrome' % cmd)
+            print('    - draw cpu and memory graphs of specific processes in image file propotionally')
+            print('        # %s draw guider.out -g chrome -L cpu:3, mem:3' % cmd)
+            print('    - draw VSS graph and chart for specific processes in image file')
+            print('        # %s draw guider.out -g chrome -e v' % cmd)
+            print('    - report system status to specific server')
+            print('        # %s top -n 192.168.0.5:5555' % cmd)
+            print('    - report system status to specific server if only some events occur')
+            print('        # %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
+            print('    - report system status to specific clients that asked it')
+            print('        # %s top -x 5555' % cmd)
+            print('    - receive report data from server')
+            print('        # %s top -x 5555 -X' % cmd)
+            print('    - set configuration file path')
+            print('        # %s top -I guider.json' % cmd)
+
+            print('\n[file mode examples]')
+            print('    - record memory usage of files mapped to processes')
+            print('        # %s record -F -o .' % cmd)
+            print('    - record memory usage of files mapped to processes each intervals')
+            print('        # %s record -F -i' % cmd)
+
+            print('\n[etc examples]')
+            print('    - check property of specific pages')
+            print('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
+            print('    - convert a text fle to a image file')
+            print('        # %s guider.out -Z' % cmd)
+            print('    - wait for signal')
+            print('        # %s record|top -W' % cmd)
+            print('    - show guider processes running')
+            print('        # %s list' % cmd)
+            print('    - send noty signal to guider processes running')
+            print('        # %s send' % cmd)
+            print('    - send stop signal to guider processes running')
+            print('        # %s stop' % cmd)
+            print('    - send specific signals to specific processes running')
+            print('        # %s send -9 1234, 4567' % cmd)
+            print('    - set priority of tasks')
+            print('        # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
+
+            sys.exit(0)
+
+        elif sys.argv[1] == '--version':
+
+            SystemManager.printRawTitle()
 
             sys.exit(0)
 
@@ -8879,10 +8907,12 @@ class SystemManager(object):
 
     @staticmethod
     def addPrint(string, newline = 1):
-        if SystemManager.printFile != None and SystemManager.printAllEnable != False:
-            print(string[:-1])
         SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
+
+        if SystemManager.printFile != None and SystemManager.printAllEnable != False:
+            string = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+            print(string[:-1])
 
 
 
@@ -8909,6 +8939,16 @@ class SystemManager(object):
         del SystemManager.bufferString
         SystemManager.bufferString = ''
         SystemManager.bufferRows = 0
+
+
+
+    @staticmethod
+    def printRawTitle(absolute=False):
+        title = "/ g.u.i.d.e.r \tver.%s /" % __version__
+        underline = '_' * (len(title))
+        overline = '-' * (len(title))
+        print(' %s\n%s\n%s\n' % (underline, title, overline))
+
 
 
 
@@ -9476,6 +9516,8 @@ class SystemManager(object):
                 SystemManager.printError("Fail to write to file\n")
                 sys.exit(0)
         else:
+            # cut output by terminal size #
+            line = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
             print(line)
 
 
@@ -9877,6 +9919,26 @@ class SystemManager(object):
 
             elif option == 'T':
                 SystemManager.fontPath = value
+
+            elif option == 'M':
+                try:
+                    if len(value) == 0:
+                        SystemManager.setTty()
+                    else:
+                        term = value.split(':')
+                        if len(term) == 2:
+                            if term[0].isdigit():
+                                SystemManager.setTtyRows(int(term[0]))
+                            if term[1].isdigit():
+                                SystemManager.setTtyCols(int(term[1]))
+                            SystemManager.printInfo("set terminal size [ %s:%s ]" % \
+                                (SystemManager.ttyRows, SystemManager.ttyCols))
+                        else:
+                            raise
+                except:
+                    SystemManager.printError(\
+                        "wrong option value with -M option, input number in COLS:ROWS format")
+                    sys.exit(0)
 
             elif option == 'b':
                 try:
@@ -10728,32 +10790,144 @@ class SystemManager(object):
     @staticmethod
     def setTty():
         if SystemManager.isLinux:
-            if SystemManager.ttyRows < 50:
-                SystemManager.setTtyRows(50)
-            if SystemManager.ttyCols < len(oneLine):
-                SystemManager.setTtyRows(len(oneLine))
+            # update current terminal size info #
+            SystemManager.getTty()
+
+            # set terminal height to 62 #
+            SystemManager.ttyRows = 62
+
+            try:
+                if SystemManager.termSetId is None:
+                    import termios
+                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
+
+                if SystemManager.fcntlObj is None:
+                    import fcntl
+                    SystemManager.fcntlObj = fcntl
+
+                if SystemManager.ttyCols <= len(oneLine):
+                    SystemManager.ttyCols = len(oneLine) + 1
+
+                # set terminal size #
+                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
+                    struct.pack("HHHH", SystemManager.ttyRows, SystemManager.ttyCols, 0, 0))
+
+                SystemManager.printInfo("set terminal size [ %s:%s ]" % \
+                    (SystemManager.ttyRows, SystemManager.ttyCols))
+
+                return
+            except:
+                pass
+
+            # set terminal height #
+            SystemManager.setTtyRows(SystemManager.ttyCols)
+
+            # set terminal width #
+            if SystemManager.ttyCols <= len(oneLine):
+                SystemManager.setTtyCols(len(oneLine)+1)
+                SystemManager.ttyCols = len(oneLine) + 1
+
+            SystemManager.printInfo("set terminal size [ %s:%s ]" % \
+                (SystemManager.ttyRows, SystemManager.ttyCols))
 
 
 
     @staticmethod
     def setTtyCols(cols):
         if SystemManager.isLinux:
-            os.system('stty cols %s 2> /dev/null' % (cols))
+            try:
+                if SystemManager.termSetId is None:
+                    import termios
+                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
+
+                if SystemManager.fcntlObj is None:
+                    import fcntl
+                    SystemManager.fcntlObj = fcntl
+
+                # set terminal width size #
+                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
+                    struct.pack("HHHH", 0, cols, 0, 0))
+
+                SystemManager.ttyCols = cols
+
+                return
+            except:
+                pass
+
+            try:
+                int(cols)
+                os.system('stty cols %s 2> /dev/null' % (cols))
+                SystemManager.ttyCols = cols
+            except:
+                return
 
 
 
     @staticmethod
     def setTtyRows(rows):
         if SystemManager.isLinux:
-            os.system('stty rows %s 2> /dev/null' % (rows))
+            try:
+                if SystemManager.termSetId is None:
+                    import termios
+                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
+
+                if SystemManager.fcntlObj is None:
+                    import fcntl
+                    SystemManager.fcntlObj = fcntl
+
+                # set terminal height size #
+                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
+                    struct.pack("HHHH", rows, 0, 0, 0))
+
+                SystemManager.ttyRows = rows
+
+                return
+            except:
+                pass
+
+            try:
+                int(rows)
+                os.system('stty rows %s 2> /dev/null' % (rows))
+                SystemManager.ttyRows = rows
+            except:
+                return
+
+
+
+    @staticmethod
+    def updateTty():
+        if SystemManager.termGetId is None or SystemManager.fcntlObj is None:
+            return
+
+        try:
+            SystemManager.ttyRows, SystemManager.ttyCols = \
+                struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
+                    sys.stdout.fileno(), SystemManager.termGetId, '1234'))
+        except:
+            pass
 
 
 
     @staticmethod
     def getTty():
-        if SystemManager.printAllEnable:
-            SystemManager.ttyRows = SystemManager.ttyCols = 8192
-        elif SystemManager.isLinux:
+        if SystemManager.isLinux:
+            try:
+                if SystemManager.termGetId is None:
+                    import termios
+                    SystemManager.termGetId = termios.TIOCGWINSZ
+
+                if SystemManager.fcntlObj is None:
+                    import fcntl
+                    SystemManager.fcntlObj = fcntl
+
+                SystemManager.ttyRows, SystemManager.ttyCols = \
+                    struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
+                        sys.stdout.fileno(), SystemManager.termGetId, '1234'))
+
+                return
+            except:
+                pass
+
             try:
                 pd = os.popen('stty size 2> /dev/null', 'r')
                 SystemManager.ttyRows, SystemManager.ttyCols = \
@@ -12758,6 +12932,9 @@ class ThreadAnalyzer(object):
             # save timestamp #
             prevTime = time.time()
 
+            # update terminal size #
+            SystemManager.updateTty()
+
             # print system status #
             self.printFileStat(procFilter, fileFilter)
 
@@ -12825,6 +13002,9 @@ class ThreadAnalyzer(object):
 
             # save timestamp #
             prevTime = time.time()
+
+            # update terminal size #
+            SystemManager.updateTty()
 
             if self.prevProcData != {}:
                 # print system status #
@@ -19868,7 +20048,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.showAll is False and SystemManager.bufferRows >= \
                 SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printFile is None:
+                SystemManager.printFile is None and \
+                SystemManager.printAllEnable is False:
                 SystemManager.addPrint('---more---')
                 break
 
@@ -21439,7 +21620,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.bufferRows >= \
                 SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printFile is None:
+                SystemManager.printFile is None and \
+                SystemManager.printAllEnable is False:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -21739,7 +21921,8 @@ class ThreadAnalyzer(object):
                     # cut by rows of terminal #
                     if SystemManager.bufferRows >= \
                         SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                        SystemManager.printFile is None:
+                        SystemManager.printFile is None and \
+                        SystemManager.printAllEnable is False:
                         SystemManager.addPrint('---more---')
                         return
 
@@ -21767,7 +21950,8 @@ class ThreadAnalyzer(object):
                         # cut by rows of terminal #
                         if SystemManager.bufferRows + newline >= \
                             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                            SystemManager.printFile is None:
+                            SystemManager.printFile is None and \
+                            SystemManager.printAllEnable is False:
                             SystemManager.addPrint('---more---')
                             return
 
@@ -21916,7 +22100,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
                 SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                SystemManager.printAllEnable is False:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -21987,7 +22172,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
                 SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                SystemManager.printAllEnable is False:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -22082,7 +22268,8 @@ class ThreadAnalyzer(object):
             # cut by rows of terminal #
             if SystemManager.printFile is None and \
                 SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin:
+                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                SystemManager.printAllEnable is False:
                 SystemManager.addPrint('---more---')
                 return
 
@@ -22884,9 +23071,6 @@ if __name__ == '__main__':
 
     # get tty setting #
     SystemManager.getTty()
-
-    # set tty setting #
-    SystemManager.setTty()
 
     # import packages to draw graph #
     if SystemManager.graphEnable:
