@@ -3177,6 +3177,24 @@ class FunctionAnalyzer(object):
                     self.threadData[pid]['die'] = True
 
             # Make thread name #
+            elif d['func'] == "sched_process_fork:":
+                m = re.match((\
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
+                    r'child_comm=(?P<child_comm>.*)\s+child_pid=(?P<child_pid>[0-9]+)'), d['etc'])
+                if m is not None:
+                    p = m.groupdict()
+
+                    cpid = p['child_pid']
+                    ccomm = p['child_comm']
+
+                    try:
+                        self.threadData[cpid]
+                    except:
+                        self.threadData[cpid] = dict(self.init_threadData)
+                        self.threadData[cpid]['comm'] = ccomm
+                        self.threadData[pid]['new'] = True
+
+            # Make thread name #
             elif d['func'] == "task_newtask:":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', d['etc'])
                 if m is not None:
@@ -3189,8 +3207,7 @@ class FunctionAnalyzer(object):
                     except:
                         self.threadData[pid] = dict(self.init_threadData)
                         self.threadData[pid]['comm'] = p['comm']
-
-                    self.threadData[pid]['new'] = True
+                        self.threadData[pid]['new'] = True
 
             # Save user event #
             elif d['func'].startswith("tracing_mark_write"):
@@ -9923,16 +9940,16 @@ class SystemManager(object):
             elif option == 'M':
                 try:
                     if len(value) == 0:
-                        SystemManager.setTty()
+                        SystemManager.setTtyAuto()
                     else:
+                        rows = cols = 0
                         term = value.split(':')
                         if len(term) == 2:
                             if term[0].isdigit():
-                                SystemManager.setTtyRows(int(term[0]))
+                                rows = int(term[0])
                             if term[1].isdigit():
-                                SystemManager.setTtyCols(int(term[1]))
-                            SystemManager.printInfo("set terminal size [ %s:%s ]" % \
-                                (SystemManager.ttyRows, SystemManager.ttyCols))
+                                cols = int(term[1])
+                            SystemManager.setTty(rows, cols)
                         else:
                             raise
                 except:
@@ -10413,6 +10430,13 @@ class SystemManager(object):
 
     @staticmethod
     def makeKerSymTable(symbol):
+        restPath = '/proc/sys/kernel/kptr_restrict'
+        try:
+            with open(restPath, 'w+') as fd:
+                fd.write('0')
+        except:
+            pass
+
         try:
             f = open('/proc/kallsyms', 'r')
         except IOError:
@@ -10788,114 +10812,71 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setTty():
-        if SystemManager.isLinux:
-            # update current terminal size info #
+    def setTtyAuto():
+        if SystemManager.isLinux is False:
+            return
+
+        # update current terminal size #
+        SystemManager.getTty()
+
+        # decide terminal size #
+        SystemManager.ttyRows = 62
+        if SystemManager.ttyCols <= len(oneLine):
+            SystemManager.ttyCols = len(oneLine) + 1
+
+        # set terminal size #
+        SystemManager.setTty(SystemManager.ttyRows, SystemManager.ttyCols)
+
+        # update current terminal size #
+        SystemManager.getTty()
+
+
+
+    @staticmethod
+    def setTty(rows, cols):
+        if SystemManager.isLinux is False:
+            return
+
+        try:
+            if SystemManager.termSetId is None:
+                import termios
+                SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
+
+            if SystemManager.fcntlObj is None:
+                import fcntl
+                SystemManager.fcntlObj = fcntl
+
+            # set terminal width size #
+            SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
+                struct.pack("HHHH", rows, cols, 0, 0))
+
+            # update current terminal size #
             SystemManager.getTty()
-
-            # set terminal height to 62 #
-            SystemManager.ttyRows = 62
-
-            try:
-                if SystemManager.termSetId is None:
-                    import termios
-                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
-
-                if SystemManager.fcntlObj is None:
-                    import fcntl
-                    SystemManager.fcntlObj = fcntl
-
-                if SystemManager.ttyCols <= len(oneLine):
-                    SystemManager.ttyCols = len(oneLine) + 1
-
-                # set terminal size #
-                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
-                    struct.pack("HHHH", SystemManager.ttyRows, SystemManager.ttyCols, 0, 0))
-
-                SystemManager.printInfo("set terminal size [ %s:%s ]" % \
-                    (SystemManager.ttyRows, SystemManager.ttyCols))
-
-                return
-            except:
-                pass
-
-            # set terminal height #
-            SystemManager.setTtyRows(SystemManager.ttyCols)
-
-            # set terminal width #
-            if SystemManager.ttyCols <= len(oneLine):
-                SystemManager.setTtyCols(len(oneLine)+1)
-                SystemManager.ttyCols = len(oneLine) + 1
 
             SystemManager.printInfo("set terminal size [ %s:%s ]" % \
                 (SystemManager.ttyRows, SystemManager.ttyCols))
 
+            return
+        except:
+            pass
 
-
-    @staticmethod
-    def setTtyCols(cols):
-        if SystemManager.isLinux:
-            try:
-                if SystemManager.termSetId is None:
-                    import termios
-                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
-
-                if SystemManager.fcntlObj is None:
-                    import fcntl
-                    SystemManager.fcntlObj = fcntl
-
-                # set terminal width size #
-                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
-                    struct.pack("HHHH", 0, cols, 0, 0))
-
-                SystemManager.ttyCols = cols
-
-                return
-            except:
-                pass
-
-            try:
-                int(cols)
-                os.system('stty cols %s 2> /dev/null' % (cols))
-                SystemManager.ttyCols = cols
-            except:
-                return
-
-
-
-    @staticmethod
-    def setTtyRows(rows):
-        if SystemManager.isLinux:
-            try:
-                if SystemManager.termSetId is None:
-                    import termios
-                    SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
-
-                if SystemManager.fcntlObj is None:
-                    import fcntl
-                    SystemManager.fcntlObj = fcntl
-
-                # set terminal height size #
-                SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
-                    struct.pack("HHHH", rows, 0, 0, 0))
-
-                SystemManager.ttyRows = rows
-
-                return
-            except:
-                pass
-
-            try:
-                int(rows)
-                os.system('stty rows %s 2> /dev/null' % (rows))
-                SystemManager.ttyRows = rows
-            except:
-                return
+        try:
+            int(rows)
+            int(cols)
+            os.system('stty rows %s 2> /dev/null' % (rows))
+            os.system('stty cols %s 2> /dev/null' % (cols))
+            SystemManager.ttyRows = rows
+            SystemManager.ttyCols = cols
+        except:
+            return
 
 
 
     @staticmethod
     def updateTty():
+        if SystemManager.isLinux is False:
+            return
+
         if SystemManager.termGetId is None or SystemManager.fcntlObj is None:
             return
 
@@ -10910,31 +10891,33 @@ class SystemManager(object):
 
     @staticmethod
     def getTty():
-        if SystemManager.isLinux:
-            try:
-                if SystemManager.termGetId is None:
-                    import termios
-                    SystemManager.termGetId = termios.TIOCGWINSZ
+        if SystemManager.isLinux is False:
+            return
 
-                if SystemManager.fcntlObj is None:
-                    import fcntl
-                    SystemManager.fcntlObj = fcntl
+        try:
+            if SystemManager.termGetId is None:
+                import termios
+                SystemManager.termGetId = termios.TIOCGWINSZ
 
-                SystemManager.ttyRows, SystemManager.ttyCols = \
-                    struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
-                        sys.stdout.fileno(), SystemManager.termGetId, '1234'))
+            if SystemManager.fcntlObj is None:
+                import fcntl
+                SystemManager.fcntlObj = fcntl
 
-                return
-            except:
-                pass
+            SystemManager.ttyRows, SystemManager.ttyCols = \
+                struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
+                    sys.stdout.fileno(), SystemManager.termGetId, '1234'))
 
-            try:
-                pd = os.popen('stty size 2> /dev/null', 'r')
-                SystemManager.ttyRows, SystemManager.ttyCols = \
-                    list(map(int, pd.read().split()))
-                pd.close()
-            except:
-                SystemManager.printWarning("Fail to get terminal info")
+            return
+        except:
+            pass
+
+        try:
+            pd = os.popen('stty size 2> /dev/null', 'r')
+            SystemManager.ttyRows, SystemManager.ttyCols = \
+                list(map(int, pd.read().split()))
+            pd.close()
+        except:
+            SystemManager.printWarning("Fail to get terminal info")
 
 
 
@@ -11308,6 +11291,7 @@ class SystemManager(object):
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = SystemManager.cpuEnable
         self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
+        self.cmdList["sched/sched_process_fork"] = True
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
         self.cmdList["sched/sched_wakeup"] = \
@@ -11433,6 +11417,8 @@ class SystemManager(object):
         # enable common events #
         if self.cmdList["task"]:
             SystemManager.writeCmd('task/enable', '1')
+        if self.cmdList["sched/sched_process_fork"]:
+            SystemManager.writeCmd('sched/sched_process_fork/enable', '1')
         if self.cmdList["sched/sched_process_exit"]:
             SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
         if self.cmdList["signal"]:
@@ -13662,7 +13648,7 @@ class ThreadAnalyzer(object):
 
             ylabel('CPU+I/O(%)', fontsize=8)
             legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
+            grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
             xticks(fontsize=4)
@@ -13901,7 +13887,7 @@ class ThreadAnalyzer(object):
             ylabel('I/O(KB)', fontsize=7)
             if len(labelList) > 0:
                 legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
+            grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
@@ -14200,7 +14186,7 @@ class ThreadAnalyzer(object):
 
             ylabel('MEMORY(MB)', fontsize=7)
             legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
+            grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
             yticks(fontsize = 5)
@@ -14824,8 +14810,8 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|" + \
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
-            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc ', 'Pri', ' IRQ ', \
-            'Yld ', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'Write', 'MB', \
+            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', 'IRQ', \
+            'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'Write', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
 
@@ -16032,7 +16018,7 @@ class ThreadAnalyzer(object):
 
             ylabel('MEMORY(MB)', fontsize=8)
             legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
+            grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 5)
             xticks(fontsize = 4)
             ticklabel_format(useOffset=False)
@@ -16145,7 +16131,7 @@ class ThreadAnalyzer(object):
             ylabel('CPU(%)', fontsize=8)
             legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
                 fontsize=3.5, loc='upper right')
-            grid(which='both', linestyle=':', linewidth='0.2')
+            grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 7)
             xticks(fontsize = 5)
             ticklabel_format(useOffset=False)
@@ -19268,11 +19254,38 @@ class ThreadAnalyzer(object):
                         self.threadData[pid]['new'] = 'N'
                         self.threadData[pid]['createdTime'] = float(time)
 
-                    if self.threadData[thread]['childList'] is None:
-                        self.threadData[thread]['childList'] = list()
+                        if self.threadData[thread]['childList'] is None:
+                            self.threadData[thread]['childList'] = list()
 
-                    self.threadData[thread]['childList'].append(pid)
-                    self.nrNewTask += 1
+                        self.threadData[thread]['childList'].append(pid)
+                        self.nrNewTask += 1
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+
+            elif func == "sched_process_fork":
+                m = re.match((\
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
+                    r'child_comm=(?P<child_comm>.*)\s+child_pid=(?P<child_pid>[0-9]+)'), etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    cpid = d['child_pid']
+                    ccomm = d['child_comm']
+
+                    try:
+                        self.threadData[cpid]
+                    except:
+                        self.threadData[cpid] = dict(self.init_threadData)
+                        self.threadData[cpid]['comm'] = ccomm
+                        self.threadData[cpid]['ptid'] = thread
+                        self.threadData[cpid]['new'] = 'N'
+                        self.threadData[cpid]['createdTime'] = float(time)
+
+                        if self.threadData[thread]['childList'] is None:
+                            self.threadData[thread]['childList'] = list()
+
+                        self.threadData[thread]['childList'].append(cpid)
+                        self.nrNewTask += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -20887,7 +20900,7 @@ class ThreadAnalyzer(object):
         # free memory #
         try:
             freeMem = self.vmData['nr_free_pages'] >> 8
-            freeMemDiff = (self.vmData['nr_free_pages'] - self.prevVmData['nr_free_pages']) >> 8
+            freeMemDiff = freeMem - (self.prevVmData['nr_free_pages'] >> 8)
         except:
             freeMem = freeMemDiff = 0
             SystemManager.printWarning("Fail to get freeMem")
