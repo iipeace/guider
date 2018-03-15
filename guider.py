@@ -11619,11 +11619,58 @@ class SystemManager(object):
                 SystemManager.printError("sched event of ftrace is not enabled in kernel")
                 sys.exit(0)
 
+        # build sched filter #
+        if len(SystemManager.showGroup) > 0:
+            cmd = ""
+
+            # apply filter #
+            for comm in SystemManager.showGroup:
+                cmd += "comm == \"*%s*\" || " % (comm)
+                try:
+                    pid = int(comm)
+                    cmd += "pid == \"%s\" || " % (pid)
+                except:
+                    try:
+                        ldir = comm.find('>')
+                        if ldir == 0:
+                            cmd += "pid >= %s || " % int(comm[1:])
+                        elif ldir == len(comm) - 1:
+                            cmd += "pid <= %s || " % int(comm[:-1])
+
+                        rdir = comm.find('<')
+                        if rdir == 0:
+                            cmd += "pid <= %s || " % int(comm[1:])
+                        elif rdir == len(comm) - 1:
+                            cmd += "pid >= %s || " % int(comm[:-1])
+                    except:
+                        pass
+
+            cmd = cmd[0:cmd.rfind("||")]
+        else:
+            cmd = "0"
+
         if self.cmdList["sched/sched_wakeup"]:
+            if SystemManager.writeCmd('sched/sched_wakeup/filter', cmd) < 0:
+                SystemManager.printError(\
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                sys.exit(0)
+
             SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+
         if self.cmdList["sched/sched_migrate_task"]:
+            if SystemManager.writeCmd('sched/sched_migrate_task/filter', cmd) < 0:
+                SystemManager.printError(\
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                sys.exit(0)
+
             SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
+
         if self.cmdList["sched/sched_process_wait"]:
+            if SystemManager.writeCmd('sched/sched_process_wait/filter', cmd) < 0:
+                SystemManager.printError(\
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                sys.exit(0)
+
             SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
 
         # enable irq events #
