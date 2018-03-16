@@ -6180,6 +6180,7 @@ class SystemManager(object):
     libcObj = None
     fcntlObj = None
     libcPath = 'libc.so.6'
+    matplotlibVersion = 0
 
     addrAsServer = None
     addrOfServer = None
@@ -13628,9 +13629,14 @@ class ThreadAnalyzer(object):
                 rss, swap, line, vmem, pss, lock, dirty)]
 
             # draw chart #
-            patches, texts, autotexts = \
-                pie(sizes, explode=explode, labels=labels, colors=colors,
-                autopct=make_autopct(sizes), shadow=True, startangle=90, pctdistance=0.7)
+            if SystemManager.matplotlibVersion >= 1.2:
+                patches, texts, autotexts = \
+                    pie(sizes, explode=explode, labels=labels, colors=colors,
+                    autopct=make_autopct(sizes), shadow=True, startangle=90, pctdistance=0.7)
+            else:
+                patches, texts, autotexts = \
+                    pie(sizes, explode=explode, labels=labels, colors=colors,
+                    autopct=make_autopct(sizes), shadow=True, pctdistance=0.7)
 
             # set font size #
             for idx, val in enumerate(texts):
@@ -13639,8 +13645,12 @@ class ThreadAnalyzer(object):
             axis('equal')
 
             # print total size in legend #
-            legend(patches, totalList, loc="lower right", shadow=True,\
-                fontsize=4.5, handlelength=0, bbox_to_anchor=(1.2, 0.01))
+            if SystemManager.matplotlibVersion >= 1.2:
+                legend(patches, totalList, loc="lower right", shadow=True,\
+                    fontsize=4.5, handlelength=0, bbox_to_anchor=(1.2, 0.01))
+            else:
+                legend(patches, totalList, loc="lower right", shadow=True,\
+                    handlelength=0, bbox_to_anchor=(1.2, 0.01))
 
             seq += 1
 
@@ -13739,7 +13749,10 @@ class ThreadAnalyzer(object):
                 labelList.append(idx)
 
             ylabel('CPU+I/O(%)', fontsize=8)
-            legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+            if SystemManager.matplotlibVersion >= 1.2:
+                legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+            else:
+                legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
@@ -13978,7 +13991,10 @@ class ThreadAnalyzer(object):
 
             ylabel('I/O(KB)', fontsize=7)
             if len(labelList) > 0:
-                legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
+                if SystemManager.matplotlibVersion >= 1.2:
+                    legend(labelList, bbox_to_anchor=(1.12, 0.95), fontsize=3.5, loc='upper right')
+                else:
+                    legend(labelList, bbox_to_anchor=(1.12, 0.95), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
@@ -14277,7 +14293,10 @@ class ThreadAnalyzer(object):
                             labelList.append('%s[RSS]' % key)
 
             ylabel('MEMORY(MB)', fontsize=7)
-            legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
+            if SystemManager.matplotlibVersion >= 1.2:
+                legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
+            else:
+                legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
@@ -16111,7 +16130,10 @@ class ThreadAnalyzer(object):
                         color=color, fontweight='bold')
 
             ylabel('MEMORY(MB)', fontsize=8)
-            legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
+            if SystemManager.matplotlibVersion >= 1.2:
+                legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
+            else:
+                legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 5)
             xticks(fontsize = 4)
@@ -16223,8 +16245,11 @@ class ThreadAnalyzer(object):
 
             # draw cpu graph #
             ylabel('CPU(%)', fontsize=8)
-            legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
-                fontsize=3.5, loc='upper right')
+            if SystemManager.matplotlibVersion >= 1.2:
+                legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
+                    fontsize=3.5, loc='upper right')
+            else:
+                legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -23217,6 +23242,8 @@ if __name__ == '__main__':
     if SystemManager.graphEnable:
         try:
             import matplotlib
+            SystemManager.matplotlibVersion = \
+                float('.'.join(matplotlib.__version__.split('.')[:2]))
             matplotlib.use('Agg')
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text, pie, axis,\
