@@ -12711,7 +12711,7 @@ class ThreadAnalyzer(object):
                 'new': bool(False), 'majflt': long(0), 'ttime': float(0), 'cttime': float(0), \
                 'utime': float(0), 'stime': float(0), 'preempted': long(0), 'taskPath': None, \
                 'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), \
-                'maps': None, 'status': None, 'statm': None, 'yield': long(0), 'sched': False}
+                'maps': None, 'status': None, 'statm': None, 'yield': long(0)}
 
             self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), \
                 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -20924,13 +20924,13 @@ class ThreadAnalyzer(object):
         # change sched priority #
         for item in SystemManager.schedFilter:
             try:
-                if tid in self.prevProcData and self.prevProcData[tid]['sched']:
+                if tid in self.prevProcData and 'schedChanged' in self.prevProcData[tid]:
                     pass
                 elif self.procData[tid]['stat'][self.commIdx].find(item[2]) >= 0 or tid == item[2]:
                     # change priority of a thread #
                     SystemManager.setPriority(int(tid), item[0], item[1])
 
-                self.procData[tid]['sched'] = True
+                self.procData[tid]['schedChanged'] = True
             except:
                 pass
 
