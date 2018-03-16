@@ -3192,7 +3192,7 @@ class FunctionAnalyzer(object):
                     except:
                         self.threadData[cpid] = dict(self.init_threadData)
                         self.threadData[cpid]['comm'] = ccomm
-                        self.threadData[pid]['new'] = True
+                        self.threadData[cpid]['new'] = True
 
             # Make thread name #
             elif d['func'] == "task_newtask:":
@@ -6300,6 +6300,7 @@ class SystemManager(object):
     savedMountTree = {}
     preemptGroup = []
     showGroup = []
+    schedFilter = []
     syscallList = []
     pidFilter = None
 
@@ -6715,7 +6716,7 @@ class SystemManager(object):
                 print('        -X  [set_requestToRemoteServer:{req@ip:port}]')
                 print('        -N  [set_addressForReport:req@ip:port]')
                 print('        -n  [set_addressForPrint:ip:port]')
-                print('        -m  [set_objdumpPath:file]')
+                print('        -M  [set_objdumpPath:file]')
                 print('    [analysis]')
                 print('        -o  [save_outputData:path]')
                 print('        -P  [group_perProcessBasis]')
@@ -6726,7 +6727,7 @@ class SystemManager(object):
                 print('        -q  [configure_taskList]')
                 print('        -Z  [convert_textToImage]')
                 print('        -L  [set_graphLayout:CPU|MEM|IO:size]')
-                print('        -M  [set_terminalSize:{ROWS:COLS}]')
+                print('        -m  [set_terminalSize:{ROWS:COLS}]')
                 print('    [common]')
                 print('        -a  [show_allInfo]')
                 print('        -Q  [print_allRowsInaStream]')
@@ -6772,7 +6773,7 @@ class SystemManager(object):
             print('    - record specific systemcalls of specific threads')
             print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
             print('    - record specific user function events')
-            print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -m $(which objdump)' % cmd)
+            print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
             print('    - record specific kernel function events')
             print('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
             print('    - record specific kernel function events with register values')
@@ -6809,6 +6810,8 @@ class SystemManager(object):
             print('\n[top mode examples]')
             print('    - show resource usage of processes in real-time')
             print('        # %s top' % cmd)
+            print('    - show resource usage of processes with fixed terminal size in real-time')
+            print('        # %s top -m' % cmd)
             print('    - show files opened via processes in real-time')
             print('        # %s top -e f' % cmd)
             print('    - show specific files opened via specific processes in real-time')
@@ -6885,8 +6888,10 @@ class SystemManager(object):
             print('        # %s stop' % cmd)
             print('    - send specific signals to specific processes running')
             print('        # %s send -9 1234, 4567' % cmd)
-            print('    - set priority of tasks')
+            print('    - change priority of tasks')
             print('        # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
+            print('    - update priority of tasks continuously')
+            print('        # %s record -Y r:90:task:ALL' % cmd)
 
             sys.exit(0)
 
@@ -7967,7 +7972,7 @@ class SystemManager(object):
                             SystemManager.printWarning((\
                                 "Fail to recognize objdump path for user event tracing\n"
                                 "\tso just use %s as default objdump path\n"
-                                "\tif it is wrong then use -m option") % objdumpPath[0], True)
+                                "\tif it is wrong then use -M option") % objdumpPath[0], True)
                             SystemManager.objdumpPath = objdumpPath[0]
                         else:
                             SystemManager.printError((\
@@ -8866,7 +8871,15 @@ class SystemManager(object):
             target = '%s%s' % (SystemManager.mountPath, path)
             fd = open(target, perm)
         except:
-            epath = path[:path.rfind('/')]
+            fpos = path.rfind('/')
+            try:
+                if path[fpos+1:] == 'enable':
+                    epath = path[:fpos]
+                else:
+                    epath = path[fpos+1:]
+            except:
+                epath = path
+
             try:
                 SystemManager.sysInstance.cmdList[epath] = False
             except:
@@ -8879,7 +8892,12 @@ class SystemManager(object):
         # apply command #
         try:
             fd.write(val)
-            fd.close()
+
+            # ignore some close exceptions #
+            try:
+                fd.close()
+            except:
+                pass
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -9937,7 +9955,7 @@ class SystemManager(object):
             elif option == 'T':
                 SystemManager.fontPath = value
 
-            elif option == 'M':
+            elif option == 'm':
                 try:
                     if len(value) == 0:
                         SystemManager.setTtyAuto()
@@ -9954,7 +9972,7 @@ class SystemManager(object):
                             raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -M option, input number in COLS:ROWS format")
+                        "wrong option value with -m option, input number in COLS:ROWS format")
                     sys.exit(0)
 
             elif option == 'b':
@@ -10320,7 +10338,7 @@ class SystemManager(object):
                 SystemManager.kernelCmd = str(value).split(',')
                 SystemManager.removeEmptyValue(SystemManager.kernelCmd)
 
-            elif option == 'm':
+            elif option == 'M':
                 SystemManager.objdumpPath = value
 
             elif option == 'F':
@@ -10735,9 +10753,29 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "Fail to get root permission to set priority of other thread")
                         sys.exit(0)
+
+                    # change priority of a thread #
                     SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
+                elif len(schedSet) == 4:
+                    if os.geteuid() != 0:
+                        SystemManager.printError(\
+                            "Fail to get root permission to set priority of other thread")
+                        sys.exit(0)
+
+                    # verify sched parameters #
+                    if schedSet[3] != 'ALL':
+                        raise
+                    policy = schedSet[0].upper()
+                    ConfigManager.schedList.index(policy)
+                    pri = int(schedSet[1])
+                    desc = schedSet[2]
+
+                    # add sched item to list #
+                    SystemManager.schedFilter.append([policy, pri, desc])
                 else:
                     raise
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printError(\
                     "wrong option value %s with -Y, input POLICY:PRIORITY:PID in format" % item)
@@ -10800,7 +10838,8 @@ class SystemManager(object):
                 if ret != 0:
                     raise
 
-            SystemManager.printInfo('priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
+            SystemManager.printInfo(\
+                'priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
         except:
             err = ''
             if os.geteuid() != 0:
@@ -11294,7 +11333,7 @@ class SystemManager(object):
         self.cmdList["sched/sched_process_fork"] = True
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_wakeup"] = \
+        self.cmdList["sched/sched_wakeup"] = self.cmdList["sched/sched_wakeup_new"] = \
             (SystemManager.cpuEnable and SystemManager.latEnable) or SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
@@ -11393,14 +11432,13 @@ class SystemManager(object):
         self.initCmdList()
 
         # set log format #
-        if SystemManager.graphEnable is False:
-            SystemManager.writeCmd('../trace_options', 'noirq-info')
-            SystemManager.writeCmd('../trace_options', 'noannotate')
-            SystemManager.writeCmd('../trace_options', 'print-tgid')
-            SystemManager.writeCmd('../current_tracer', 'nop')
-            SystemManager.writeCmd('../tracing_on', '1')
-        else:
-            SystemManager.writeCmd('../tracing_on', '0')
+        SystemManager.writeCmd('../trace_options', 'noirq-info')
+        SystemManager.writeCmd('../trace_options', 'noannotate')
+        SystemManager.writeCmd('../trace_options', 'print-tgid')
+        SystemManager.writeCmd('../current_tracer', 'nop')
+
+        # start tracing #
+        SystemManager.writeCmd('../tracing_on', '1')
 
         # write start event #
         SystemManager.writeEvent("EVENT_START", False)
@@ -11438,49 +11476,46 @@ class SystemManager(object):
 
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
-                if SystemManager.showGroup == []:
-                    SystemManager.printError("Fail to get tid, use -g option")
+                # reset events #
+                SystemManager.runRecordStopCmd()
+                SystemManager.clearTraceBuffer()
+
+                # set function_graph tracer #
+                if SystemManager.writeCmd('../current_tracer', 'function_graph') < 0:
+                    SystemManager.printError(\
+                        "enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
                     sys.exit(0)
-                elif os.path.isfile(SystemManager.mountPath + '../set_ftrace_pid') is False:
-                    SystemManager.printError("enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
-                    sys.exit(0)
-                else:
-                    try:
-                        int(SystemManager.showGroup[0])
-                    except:
-                        SystemManager.printError(\
-                            "wrong tid %s, input an integer value" % SystemManager.showGroup[0])
-                        sys.exit(0)
 
-                    # set target tid #
-                    SystemManager.writeCmd('../set_ftrace_pid', SystemManager.showGroup[0])
-
-                    # set function_graph tracer #
-                    if SystemManager.writeCmd('../current_tracer', 'function_graph') < 0:
-                        SystemManager.printError(\
-                            "enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
-                        sys.exit(0)
-
-                    SystemManager.writeCmd('../trace_options', 'nofuncgraph-proc')
-                    SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
-                    SystemManager.writeCmd('../trace_options', 'funcgraph-overhead')
-                    SystemManager.writeCmd('../trace_options', 'funcgraph-duration')
-                    SystemManager.writeCmd('../max_graph_depth', str(SystemManager.depth))
-
-                    if SystemManager.customCmd is None:
-                        SystemManager.writeCmd('../set_ftrace_filter', '')
-                    else:
-                        params = ' '.join(SystemManager.customCmd)
-                        SystemManager.printStatus("wait for setting function filter [ %s ]" % params)
-                        if SystemManager.writeCmd('../set_ftrace_filter', params) < 0:
-                            SystemManager.printError("Fail to set function filter")
+                if len(SystemManager.showGroup) > 0:
+                    # apply filter #
+                    for pid in SystemManager.showGroup:
+                        try:
+                            SystemManager.writeCmd('../set_ftrace_pid', str(int(pid)), True)
+                        except:
+                            SystemManager.printError(\
+                                "Fail to set pid %s filter for function graph tracing" % pid)
                             sys.exit(0)
-                        else:
-                            SystemManager.printStatus("finished function filter [ %s ]" % params)
 
-                    SystemManager.writeCmd('../tracing_on', '1')
+                SystemManager.writeCmd('../trace_options', 'nofuncgraph-proc')
+                SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
+                SystemManager.writeCmd('../trace_options', 'funcgraph-overhead')
+                SystemManager.writeCmd('../trace_options', 'funcgraph-duration')
+                SystemManager.writeCmd('../max_graph_depth', str(SystemManager.depth))
 
-                    return
+                if SystemManager.customCmd is None:
+                    SystemManager.writeCmd('../set_ftrace_filter', '')
+                else:
+                    params = ' '.join(SystemManager.customCmd)
+                    SystemManager.printStatus("wait for setting function filter [ %s ]" % params)
+                    if SystemManager.writeCmd('../set_ftrace_filter', params) < 0:
+                        SystemManager.printError("Fail to set function filter")
+                        sys.exit(0)
+                    else:
+                        SystemManager.printStatus("finished function filter [ %s ]" % params)
+
+                SystemManager.writeCmd('../tracing_on', '1')
+
+                return
 
             # define initialized command variable #
             cmd = ""
@@ -11657,6 +11692,14 @@ class SystemManager(object):
 
             SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
 
+        if self.cmdList["sched/sched_wakeup_new"]:
+            if SystemManager.writeCmd('sched/sched_wakeup_new/filter', cmd) < 0:
+                SystemManager.printError(\
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                sys.exit(0)
+
+            SystemManager.writeCmd('sched/sched_wakeup_new/enable', '1')
+
         if self.cmdList["sched/sched_migrate_task"]:
             if SystemManager.writeCmd('sched/sched_migrate_task/filter', cmd) < 0:
                 SystemManager.printError(\
@@ -11745,6 +11788,8 @@ class SystemManager(object):
                 SystemManager.writeCmd('sched/sched_switch/enable', '1')
             if self.cmdList["sched/sched_wakeup"]:
                 SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
+            if self.cmdList["sched/sched_wakeup_new"]:
+                SystemManager.writeCmd('sched/sched_wakeup_new/enable', '1')
 
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
@@ -12666,7 +12711,7 @@ class ThreadAnalyzer(object):
                 'new': bool(False), 'majflt': long(0), 'ttime': float(0), 'cttime': float(0), \
                 'utime': float(0), 'stime': float(0), 'preempted': long(0), 'taskPath': None, \
                 'mainID': '', 'btime': float(0), 'read': long(0), 'write': long(0), \
-                'maps': None, 'status': None, 'statm': None, 'yield': long(0)}
+                'maps': None, 'status': None, 'statm': None, 'yield': long(0), 'sched': False}
 
             self.init_cpuData = {'user': long(0), 'system': long(0), 'nice': long(0), \
                 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
@@ -15075,7 +15120,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         # prepare to draw graph #
-        if SystemManager.graphEnable:
+        if SystemManager.isRecordMode() is False and SystemManager.graphEnable:
             if SystemManager.intervalEnable > 0:
                 os.environ['DISPLAY'] = 'localhost:0'
                 rc('legend', fontsize=5)
@@ -15083,6 +15128,8 @@ class ThreadAnalyzer(object):
             else:
                 SystemManager.printError("use -i option if you want to draw graph")
                 SystemManager.graphEnable = False
+        else:
+            SystemManager.graphEnable = False
 
 
 
@@ -18748,7 +18795,7 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
-            elif func == "sched_wakeup":
+            elif func == "sched_wakeup" or func == "sched_wakeup_new":
                 m = re.match(\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+', etc)
                 if m is not None:
@@ -18882,7 +18929,8 @@ class ThreadAnalyzer(object):
                             nr == str(ConfigManager.sysList.index("sys_select")) or \
                             nr == str(ConfigManager.sysList.index("sys_epoll_wait"))):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
-                                self.lastJob[core]['job'] == "sched_wakeup") and \
+                                self.lastJob[core]['job'] == "sched_wakeup" or \
+                                self.lastJob[core]['job'] == "sched_wakeup_new") and \
                                 self.lastJob[core]['prevWakeupTid'] != thread:
                                 ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
@@ -20873,6 +20921,19 @@ class ThreadAnalyzer(object):
             statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
+        # change sched priority #
+        for item in SystemManager.schedFilter:
+            try:
+                if tid in self.prevProcData and self.prevProcData[tid]['sched']:
+                    pass
+                elif self.procData[tid]['stat'][self.commIdx].find(item[2]) >= 0 or tid == item[2]:
+                    # change priority of a thread #
+                    SystemManager.setPriority(int(tid), item[0], item[1])
+
+                self.procData[tid]['sched'] = True
+            except:
+                pass
+
         # save io data #
         if SystemManager.blockEnable:
             try:
@@ -21382,7 +21443,12 @@ class ThreadAnalyzer(object):
                         with open(curPath, 'r') as fd:
                             curFreq = fd.readline()[:-1]
                     except:
-                        curFreq = None
+                        curPath = '%s%s/cpufreq/scaling_cur_freq' % (freqPath, idx)
+                        try:
+                            with open(curPath, 'r') as fd:
+                                curFreq = fd.readline()[:-1]
+                        except:
+                            curFreq = None
 
                     # get min cpu frequency #
                     minPath = '%s%s/cpufreq/cpuinfo_min_freq' % (freqPath, idx)
@@ -21399,6 +21465,14 @@ class ThreadAnalyzer(object):
                             maxFreq = fd.readline()[:-1]
                     except:
                         maxFreq = None
+
+                    # get current governor #
+                    govPath = '%s%s/cpufreq/scaling_governor' % (freqPath, idx)
+                    try:
+                        with open(govPath, 'r') as fd:
+                            gov = fd.readline()[:-1]
+                    except:
+                        gov = None
 
                     idPath = '%s%s/topology/core_id' % (freqPath, idx)
                     pidPath = '%s%s/topology/physical_package_id' % (freqPath, idx)
@@ -21428,6 +21502,7 @@ class ThreadAnalyzer(object):
                             (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
 
+                    # merge core info #
                     try:
                         coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                             format(cid, coreTempData[cid], coreFreq)
@@ -21441,6 +21516,12 @@ class ThreadAnalyzer(object):
                                     format(cid, '?', coreFreq)
                             else:
                                 coreFreq = '%3s C | %s' % ('?', coreFreq)
+
+                    # merge governor info #
+                    try:
+                        coreFreq = '{0:^13} | {1:>1}'.format(gov, coreFreq)
+                    except:
+                        pass
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
