@@ -6302,6 +6302,7 @@ class SystemManager(object):
     preemptGroup = []
     showGroup = []
     schedFilter = []
+    killFilter = []
     syscallList = []
     pidFilter = None
 
@@ -6718,6 +6719,7 @@ class SystemManager(object):
                 print('        -N  [set_addressForReport:req@ip:port]')
                 print('        -n  [set_addressForPrint:ip:port]')
                 print('        -M  [set_objdumpPath:file]')
+                print('        -k  [set_killList:comms|tids]')
                 print('    [analysis]')
                 print('        -o  [save_outputData:path]')
                 print('        -P  [group_perProcessBasis]')
@@ -6738,7 +6740,7 @@ class SystemManager(object):
                 print('        -c  [set_customEvent:event:filter]')
                 print('        -E  [set_errorLogPath:file]')
                 print('        -H  [set_functionDepth]')
-                print('        -Y  [set_schedPriority:policy:prio{:pid}]')
+                print('        -Y  [set_schedPriority:policy:prio{:pid:ALL}]')
                 print('        -v  [verbose]')
             else:
                 print('\nHelp:')
@@ -6767,9 +6769,9 @@ class SystemManager(object):
             print('[thread mode examples]')
             print('    - record cpu usage of threads')
             print('        # %s record -s .' % cmd)
-            print('    - record resource usage of threads in background')
+            print('    - record specific resource usage of threads in background')
             print('        # %s record -s . -e m b i -u' % cmd)
-            print('    - record resource usage excluding cpu of threads in background')
+            print('    - record specific resource usage excluding cpu of threads in background')
             print('        # %s record -s . -e m b i -d c -u' % cmd)
             print('    - record specific systemcalls of specific threads')
             print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
@@ -9807,6 +9809,9 @@ class SystemManager(object):
                 if SystemManager.prio is None:
                     SystemManager.parsePriorityOption(value)
 
+            elif option == 'k':
+                SystemManager.killFilter = str(value).split(',')
+
             elif option == 'd':
                 options = value
                 if options.rfind('p') > -1:
@@ -10150,12 +10155,6 @@ class SystemManager(object):
             elif option == 'Q':
                 SystemManager.printAllEnable = True
 
-            elif option == 'W' or option == 'y' or option == 's' or \
-                option == 'w' or option == 't' or option == 'C' or \
-                option == 'v' or option == 'm' or option == 'F' or \
-                option == 'U' or option == 'K':
-                continue
-
             elif option == 'H':
                 try:
                     SystemManager.depth = int(value)
@@ -10196,6 +10195,12 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "wrong option value with -R, input values bigger than 0")
                         sys.exit(0)
+
+            elif option == 'W' or option == 'y' or option == 's' or \
+                option == 'w' or option == 't' or option == 'C' or \
+                option == 'v' or option == 'm' or option == 'F' or \
+                option == 'U' or option == 'K':
+                continue
 
             else:
                 SystemManager.printError("unrecognized option -%s for analysis" % option)
@@ -20958,6 +20963,11 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['schedChanged'] = True
             except:
                 pass
+
+        # kill processes #
+        for item in SystemManager.killFilter:
+            if self.procData[tid]['stat'][self.commIdx].find(item) >= 0 or tid == item:
+                os.kill(int(tid), signal.SIGKILL)
 
         # save io data #
         if SystemManager.blockEnable:
