@@ -6133,7 +6133,7 @@ class SystemManager(object):
     imagePath = None
     launchBuffer = None
     maxFd = 512
-    lineLength = 154
+    lineLength = 156
     pid = 0
     prio = None
     depth = 0
@@ -21240,7 +21240,7 @@ class ThreadAnalyzer(object):
         # print system status menu #
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
-            (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
+            (("  {0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
@@ -21286,7 +21286,7 @@ class ThreadAnalyzer(object):
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = \
-            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
+            ("  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
@@ -21434,7 +21434,7 @@ class ThreadAnalyzer(object):
                     nowData = self.cpuData[int(idx)]
 
                     if not int(idx) in self.prevCpuData:
-                        coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        coreStat = "  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                             format("Core/" + str(idx), '- %', '-', '-', '-', '-')
                         SystemManager.addPrint('%s\n' % coreStat)
                         continue
@@ -21468,7 +21468,7 @@ class ThreadAnalyzer(object):
                     if kerUsage > 100:
                         kerUsage = 100
 
-                    coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                    coreStat = "  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalUsage,\
                         userUsage, kerUsage, ioUsage, irqUsage)
 
@@ -22026,7 +22026,7 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
-                        memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+                        memBuf.append([key, "  {0:>39} | {1:1}|\n".format(mtype, tmpstr)])
 
                         if SystemManager.wssEnable:
                             # get current WSS size #
