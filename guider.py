@@ -21457,7 +21457,7 @@ class ThreadAnalyzer(object):
                     pass
 
         # print CPU stat #
-        if SystemManager.showAll:
+        if SystemManager.showAll and SystemManager.cpuEnable:
             if len(self.cpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
