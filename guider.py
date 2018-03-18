@@ -6133,7 +6133,7 @@ class SystemManager(object):
     imagePath = None
     launchBuffer = None
     maxFd = 512
-    lineLength = 154
+    lineLength = 156
     pid = 0
     prio = None
     depth = 0
@@ -21240,7 +21240,7 @@ class ThreadAnalyzer(object):
         # print system status menu #
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
-            (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
+            (("  {0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
@@ -21286,7 +21286,7 @@ class ThreadAnalyzer(object):
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = \
-            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
+            ("  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
@@ -21434,7 +21434,7 @@ class ThreadAnalyzer(object):
                     nowData = self.cpuData[int(idx)]
 
                     if not int(idx) in self.prevCpuData:
-                        coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        coreStat = "  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                             format("Core/" + str(idx), '- %', '-', '-', '-', '-')
                         SystemManager.addPrint('%s\n' % coreStat)
                         continue
@@ -21468,7 +21468,7 @@ class ThreadAnalyzer(object):
                     if kerUsage > 100:
                         kerUsage = 100
 
-                    coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                    coreStat = "  {0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalUsage,\
                         userUsage, kerUsage, ioUsage, irqUsage)
 
@@ -21720,8 +21720,8 @@ class ThreadAnalyzer(object):
             mem = 'RSS'
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
+            ("{0:^16} ({1:>6}/{2:>6}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})|" \
+            "{9:>5}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
@@ -22026,7 +22026,7 @@ class ThreadAnalyzer(object):
                             tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                         mtype = '(%s)[%s]' % (item['count'], key)
-                        memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+                        memBuf.append([key, "  {0:>39} | {1:1}|\n".format(mtype, tmpstr)])
 
                         if SystemManager.wssEnable:
                             # get current WSS size #
@@ -22065,8 +22065,8 @@ class ThreadAnalyzer(object):
                         mems = (rss - sss) >> 2
 
             SystemManager.addPrint(\
-                ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                ("{0:>16} ({1:>6}/{2:>6}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})|" \
+                "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
@@ -22256,8 +22256,8 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>16} ({1:>6}/{2:>6}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})|" \
+                    "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
@@ -22328,8 +22328,8 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})|" \
+                    "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
@@ -22402,8 +22402,8 @@ class ThreadAnalyzer(object):
 
                 # print terminated thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})|" \
+                    "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
