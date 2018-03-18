@@ -6137,6 +6137,8 @@ class SystemManager(object):
     pid = 0
     prio = None
     depth = 0
+    maxPid = 32768
+    pidDigit = 5
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -6347,6 +6349,18 @@ class SystemManager(object):
     @staticmethod
     def setErrorLogger():
         sys.stderr = LogManager()
+
+
+
+    @staticmethod
+    def getMaxPid():
+        try:
+            with open('/proc/sys/kernel/pid_max', 'r') as fd:
+                maxPid = fd.readline()[:-1]
+                SystemManager.pidDigit = len(maxPid)
+                SystemManager.maxPid = int(maxPid)
+        except:
+            pass
 
 
 
@@ -16938,13 +16952,17 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printCpuInterval():
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         # Print title #
         SystemManager.pipePrint('\n[Top CPU Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Avg")
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Avg", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -16964,8 +16982,8 @@ class ThreadAnalyzer(object):
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('[CPU]', '-', '-', '-', '-', value['cpu'])
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+            format('[CPU]', '-', '-', '-', '-', value['cpu'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -16994,9 +17012,9 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>5} |".\
-                format(value['comm'], pid, value['ppid'], value['nrThreads'], \
-                value['pri'], value['cpu'])
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+                format(value['comm'][:cl], pid, value['ppid'], value['nrThreads'], \
+                value['pri'], value['cpu'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -17090,13 +17108,17 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printRssInterval():
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         # Print title #
         SystemManager.pipePrint('\n[Top RSS Info] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Max")
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -17116,8 +17138,8 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('[FREE]', '-', '-', '-', '-', value['maxMem'])
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+            format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -17147,9 +17169,9 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['maxMem'] == 0:
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
-                format(value['comm'], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], value['maxMem'])
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+                format(value['comm'][:cl], pid, value['ppid'], \
+                value['nrThreads'], value['pri'], value['maxMem'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -17199,13 +17221,17 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printVssInterval():
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         # Print title #
         SystemManager.pipePrint('\n[Top VSS Info] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Max")
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -17225,8 +17251,8 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotalData['total']
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('[FREE]', '-', '-', '-', '-', value['maxMem'])
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+            format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -17256,9 +17282,9 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['maxVss'] == 0:
                 continue
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})|{5:>6} |".\
-                format(value['comm'], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], value['maxVss'])
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+                format(value['comm'][:cl], pid, value['ppid'], \
+                value['nrThreads'], value['pri'], value['maxVss'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -17308,13 +17334,17 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printBlkInterval():
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         # Print title #
         SystemManager.pipePrint('\n[Top Block Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum")
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -17345,9 +17375,9 @@ class ThreadAnalyzer(object):
             else:
                 bstat = value['blk']
 
-            procInfo = "{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>5} |".\
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], bstat)
+                value['nrThreads'], value['pri'], bstat, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -17490,17 +17520,21 @@ class ThreadAnalyzer(object):
         if SystemManager.procInstance is None:
             return
 
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         # Print title #
         SystemManager.pipePrint('\n[Top Memory Details] (Unit: MB)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        SystemManager.pipePrint(("{0:^16} ({1:^5}/{2:^5}) | {3:^8} | {4:^5} | "
-            "{5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
+        SystemManager.pipePrint(("{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
+            "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
             'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCK(KB)', \
-            'PDRT(KB)', 'SDRT(KB)', 'NOPM(KB)', twoLine))
+            'PDRT(KB)', 'SDRT(KB)', 'NOPM(KB)', twoLine, cl=cl, pd=pd))
 
         cnt = 1
         limitProcCnt = 6
@@ -17629,8 +17663,8 @@ class ThreadAnalyzer(object):
                 else:
                     ppid = value['mainID']
 
-                procInfo = "{0:>16} ({1:>5}/{2:>5})".\
-                        format(value['stat'][commIdx][1:-1], key, ppid)
+                procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
+                        format(value['stat'][commIdx][1:-1][:cl], key, ppid, cl=cl, pd=pd)
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
                     "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
@@ -21627,6 +21661,10 @@ class ThreadAnalyzer(object):
         if interval == 0:
             return
 
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         for pid, value in self.procData.items():
             try:
                 nowData = value['stat']
@@ -21720,12 +21758,12 @@ class ThreadAnalyzer(object):
             mem = 'RSS'
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
+            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            "Yld", "Prmt", "FD", "LifeTime", etc, oneLine), newline = 3)
+            "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
@@ -22065,16 +22103,16 @@ class ThreadAnalyzer(object):
                         mems = (rss - sss) >> 2
 
             SystemManager.addPrint(\
-                ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 mems >> 8, codeSize, shr, vmswp, \
                 value['btime'], readSize, writeSize, value['majflt'],\
-                yld, prtd, value['fdsize'], lifeTime, etc))
+                yld, prtd, value['fdsize'], lifeTime, etc, cl=cl, pd=pd))
 
             # print PMU stats #
             try:
@@ -22210,6 +22248,10 @@ class ThreadAnalyzer(object):
 
 
     def printSpecialProcess(self):
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         procCnt = 0
         for idx, value in sorted(\
             self.procData.items(), key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
@@ -22256,16 +22298,16 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-'))
+                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 procCnt += 1
 
             else:
@@ -22284,6 +22326,10 @@ class ThreadAnalyzer(object):
 
 
     def printNewProcess(self):
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
             if value['new']:
@@ -22328,16 +22374,16 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-'))
+                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 newCnt += 1
 
             else:
@@ -22356,6 +22402,10 @@ class ThreadAnalyzer(object):
 
 
     def printDieProcess(self):
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
         dieCnt = 0
         for idx, value in sorted(\
             self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
@@ -22402,16 +22452,16 @@ class ThreadAnalyzer(object):
 
                 # print terminated thread information #
                 SystemManager.addPrint(\
-                    ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
+                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-'))
+                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 dieCnt += 1
 
                 # close fd that thread who already termiated created because of limited resource #
@@ -22977,7 +23027,8 @@ if __name__ == '__main__':
     # set comm #
     SystemManager.setComm(__module__)
 
-    # save pid #
+    # set pid #
+    SystemManager.getMaxPid()
     SystemManager.pid = os.getpid()
 
     # print backgroud process list #
