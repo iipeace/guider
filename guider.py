@@ -8633,7 +8633,7 @@ class SystemManager(object):
                 except:
                     fsize = '?'
                 SystemManager.printInfo(\
-                    "saved results based monitoring into %s [%s] successfully" % \
+                    "finish saving results based monitoring into %s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -8698,7 +8698,7 @@ class SystemManager(object):
             except:
                 fsize = '?'
             SystemManager.printInfo(\
-                "saved results based monitoring into %s [%s] successfully" % \
+                "finish saving results based monitoring into %s [%s] successfully" % \
                 (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -9552,7 +9552,7 @@ class SystemManager(object):
 
                 # print output file name #
                 if SystemManager.printFile != None:
-                    SystemManager.printInfo("write statistics to %s" % (SystemManager.inputFile))
+                    SystemManager.printInfo("wait for writing statistics to %s" % (SystemManager.inputFile))
             except:
                 SystemManager.printError("Fail to open %s\n" % (SystemManager.inputFile))
                 sys.exit(0)
@@ -10680,11 +10680,11 @@ class SystemManager(object):
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % \
-                        (ConfigManager.sigList[nrSig-1], pid))
+                        (ConfigManager.sigList[nrSig], pid))
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because of permission" % \
-                        (ConfigManager.sigList[nrSig-1], pid))
+                        (ConfigManager.sigList[nrSig], pid))
             return
 
         commLocation = sys.argv[0].rfind('/')
@@ -10732,24 +10732,25 @@ class SystemManager(object):
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
-                                (ConfigManager.sigList[nrSig-1], pid))
+                                (ConfigManager.sigList[nrSig], pid))
                     elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
-                            SystemManager.printInfo("terminated %s process" % pid)
+                            SystemManager.printInfo("sent signal %s to %s process" % \
+                                (ConfigManager.sigList[nrSig], pid))
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
-                                (ConfigManager.sigList[nrSig-1], pid))
+                                (ConfigManager.sigList[nrSig], pid))
                 else:
                     try:
                         os.kill(int(pid), nrSig)
-                        SystemManager.printInfo(\
-                            "sent signal %s to %s process" % (ConfigManager.sigList[nrSig-1], pid))
+                        SystemManager.printInfo("sent signal %s to %s process" % \
+                            (ConfigManager.sigList[nrSig], pid))
                     except:
                         SystemManager.printError(\
                             "Fail to send signal %s to %s because of permission" % \
-                            (ConfigManager.sigList[nrSig-1], pid))
+                            (ConfigManager.sigList[nrSig], pid))
 
                 nrProc += 1
 
@@ -12578,7 +12579,7 @@ class ThreadAnalyzer(object):
     """ Analyzer for thread profiling """
 
     reportData = {}
-    termProcList = {}
+    lifecycleData = {}
     procTotalData = {}
     procIntervalData = []
 
@@ -16774,9 +16775,9 @@ class ThreadAnalyzer(object):
                     # add die process to list #
                     if comm[1] == '-':
                         try:
-                            ThreadAnalyzer.termProcList[comm[3:]] += 1
+                            ThreadAnalyzer.lifecycleData[comm[3:]][1] += 1
                         except:
-                            ThreadAnalyzer.termProcList[comm[3:]] = 1
+                            ThreadAnalyzer.lifecycleData[comm[3:]] = [0, 1]
 
                         try:
                             ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
@@ -16784,6 +16785,11 @@ class ThreadAnalyzer(object):
                             ThreadAnalyzer.procIntervalData[index-1][pid] = \
                                 dict(ThreadAnalyzer.init_procIntervalData)
                             ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
+                    elif comm[1] == '+':
+                        try:
+                            ThreadAnalyzer.lifecycleData[comm[3:]][0] += 1
+                        except:
+                            ThreadAnalyzer.lifecycleData[comm[3:]] = [1, 0]
 
                     return
             except:
@@ -17441,14 +17447,14 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.pipePrint(SystemManager.procBuffer)
 
-        # print terminated process info #
+        # print lifecycle info #
         if SystemManager.processEnable:
-            msg = ' Terminated Process '
+            msg = ' Process Lifecfycle '
         else:
-            msg = ' Terminated Thread '
+            msg = ' Thread Lifecycle '
         stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
         SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
-        ThreadAnalyzer.printTermProc()
+        ThreadAnalyzer.printProcLifecycle()
 
         # print process tree #
         if SystemManager.processEnable:
@@ -17460,23 +17466,24 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printProcTree()
 
         # initialize parse buffer #
-        ThreadAnalyzer.termProcList = {}
+        ThreadAnalyzer.lifecycleData = {}
         ThreadAnalyzer.procTotalData = {}
         ThreadAnalyzer.procIntervalData = []
 
 
 
     @staticmethod
-    def printTermProc():
-        if len(ThreadAnalyzer.termProcList) == 0:
+    def printProcLifecycle():
+        if len(ThreadAnalyzer.lifecycleData) == 0:
             SystemManager.pipePrint("\n\tNone")
             return
 
-        SystemManager.pipePrint("\n{0:1}\n{1:^16} {2:^5}\n{3:1}\n".\
-            format(twoLine, "Name", "Count", oneLine))
-        for comm, cnt in sorted(ThreadAnalyzer.termProcList.items(),\
-            key=lambda e: e[1], reverse=True):
-            SystemManager.pipePrint("{0:^16} {1:^5}\n".format(comm, cnt))
+        SystemManager.pipePrint("\n{0:1}\n{1:^16} {2:>15} {3:>15}\n{4:1}\n".\
+            format(twoLine, "Name", "Created", "Terminated", oneLine))
+        for comm, event in sorted(ThreadAnalyzer.lifecycleData.items(),\
+            key=lambda e: e[1][0] + e[1][1], reverse=True):
+            SystemManager.pipePrint(\
+                "{0:^16} {1:>15} {2:>15}\n".format(comm, event[0], event[1]))
         SystemManager.pipePrint(oneLine)
 
 
@@ -22905,7 +22912,7 @@ class ThreadAnalyzer(object):
                 except:
                     fsize = '?'
                 SystemManager.printStatus(\
-                    "saved results based monitoring by event into %s [%s] successfully" % \
+                    "finish saving results based monitoring by event into %s [%s] successfully" % \
                     (filePath, fsize))
             except:
                 SystemManager.printWarning(\
