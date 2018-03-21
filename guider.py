@@ -6280,6 +6280,7 @@ class SystemManager(object):
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
+    ttyEnable = False
     intervalEnable = 0
 
     functionEnable = False
@@ -9977,6 +9978,8 @@ class SystemManager(object):
 
             elif option == 'm':
                 try:
+                    SystemManager.ttyEnable = True
+
                     if len(value) == 0:
                         SystemManager.setTtyAuto()
                     else:
@@ -10872,7 +10875,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setTtyAuto():
+    def setTtyAuto(setRows=True, setCols=True):
         if SystemManager.isLinux is False:
             return
 
@@ -10880,8 +10883,9 @@ class SystemManager(object):
         SystemManager.getTty()
 
         # decide terminal size #
-        SystemManager.ttyRows = 62
-        if SystemManager.ttyCols <= len(oneLine):
+        if setRows and SystemManager.ttyRows < 62:
+            SystemManager.ttyRows = 62
+        if setCols and SystemManager.ttyCols <= len(oneLine):
             SystemManager.ttyCols = len(oneLine) + 1
 
         # set terminal size #
@@ -12655,6 +12659,8 @@ class ThreadAnalyzer(object):
             self.thisInterval = 0
             self.nrThread = 0
             self.nrProcess = 0
+            self.nrPrevThread = 0
+            self.nrPrevProcess = 0
 
             self.threadDataOld = {}
             self.irqDataOld = {}
@@ -13122,6 +13128,8 @@ class ThreadAnalyzer(object):
             del self.prevProcData
             self.prevProcData = self.procData
             self.procData = {}
+            self.nrPrevThread = self.nrThread
+            self.nrPrevProcess = self.nrProcess
             self.nrThread = 0
             self.nrProcess = 0
 
@@ -16925,7 +16933,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU', 'Free/Anon/Cache', 'BlkRW', 'Blk',\
-            'SWAP', 'NrRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
+            'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
         pCnt = 0
@@ -21286,7 +21294,7 @@ class ThreadAnalyzer(object):
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "Anon", "Cache", "Ker", "Swap", "Diff", "I/O",\
-            "NrRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
+            "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
             oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
@@ -22946,12 +22954,14 @@ class ThreadAnalyzer(object):
 
 
     def printSystemStat(self):
+        nrNewThreads = \
+            self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes']
         SystemManager.addPrint(\
-            ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Fork: %d] " \
+            ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Life: +%d/-%d] " \
             "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] (Unit: %%/MB/NR)\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
-            self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes'], \
+            nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
             SystemManager.nrCore, self.nrProcess, self.nrThread, \
             self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
@@ -23303,8 +23313,9 @@ if __name__ == '__main__':
         SystemManager.graphEnable:
         ThreadAnalyzer(SystemManager.inputFile)
 
-    # get tty setting #
-    SystemManager.getTty()
+    # set tty setting automatically #
+    if SystemManager.isTopMode() and SystemManager.ttyEnable is False:
+        SystemManager.setTtyAuto(True, False)
 
     # import packages to draw graph #
     if SystemManager.graphEnable:
