@@ -1,22 +1,30 @@
 diff --git a/arch/arm/kernel/stacktrace.c b/arch/arm/kernel/stacktrace.c
-index 65228bf4..a3fe421 100644
+index 65228bf4..22f4f5d 100644
 --- a/arch/arm/kernel/stacktrace.c
 +++ b/arch/arm/kernel/stacktrace.c
-@@ -179,3 +179,103 @@ void save_stack_trace(struct stack_trace *trace)
+@@ -179,3 +179,111 @@ void save_stack_trace(struct stack_trace *trace)
  }
  EXPORT_SYMBOL_GPL(save_stack_trace);
  #endif
 +
 +#ifdef CONFIG_USER_STACKTRACE_SUPPORT
 +/*
-+ * User-stack-tracer for ARM archtecture
-+ * 1. enable CONFIG_USER_STACKTRACE_SUPPORT option in Kconfig
++ * User Stack Tracing for ARM archtecture
++ * 1. enable a below option in arch/arm/Kconfig:
++ *    CONFIG_USER_STACKTRACE_SUPPORT
 + * 2. patch and rebuild kernel
-+ * 3. build target binary with below options
-+ *	-g -mapcs-frame -rdynamic -fno-omit-frame-pointer option
++ * 3. build target sources with below options:
++ *	  -g -mapcs-frame -rdynamic -fno-omit-frame-pointer option
 + */
 +
-+#include <linux/sched/task_stack.h>
++/*
++ * If an error occurs likes this:
++ *    implicit declaration of function 'task_stack_page' error
++ *
++ * Activate a below line:
++ *    #include <linux/sched/task_stack.h>
++ */
++
 +#include <linux/uaccess.h>
 +#include <asm/uaccess.h>
 +
