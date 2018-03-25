@@ -6125,7 +6125,7 @@ class SystemManager(object):
     bufferSize = 0
     termGetId = None
     termSetId = None
-    ttyRows = 50
+    ttyRows = 43
     ttyRowsMargin = 8
     ttyCols = 156
     magicString = '@@@@@'
@@ -10883,8 +10883,8 @@ class SystemManager(object):
         SystemManager.getTty()
 
         # decide terminal size #
-        if setRows and SystemManager.ttyRows < 62:
-            SystemManager.ttyRows = 62
+        if setRows and SystemManager.ttyRows < 24:
+            SystemManager.ttyRows = 24
         if setCols and SystemManager.ttyCols <= len(oneLine):
             SystemManager.ttyCols = len(oneLine) + 1
 
