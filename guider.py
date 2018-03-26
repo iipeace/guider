@@ -6728,7 +6728,7 @@ class SystemManager(object):
                 print('        -U  [set_userEvent:name:func|addr:file]')
                 print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
                 print('        -C  [set_commandScriptPath:file]')
-                print('        -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file:value]')
+                print('        -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file{:value}]')
                 print('        -x  [set_addressForLocalServer:{ip:port}]')
                 print('        -X  [set_requestToRemoteServer:{req@ip:port}]')
                 print('        -N  [set_addressForReport:req@ip:port]')
@@ -6798,6 +6798,8 @@ class SystemManager(object):
             print('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
             print('    - record specific kernel function events with return value')
             print('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
+            print('    - excute special commands before recording')
+            print('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
             print('    - analyze record data by expressing all possible information')
             print('        # %s guider.dat -o . -a -i' % cmd)
             print('    - analyze record data including preemption info of specific threads')
@@ -6816,6 +6818,8 @@ class SystemManager(object):
             print('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
             print('    - record resource usage of functions of specific threads')
             print('        # %s record -f -s . -e m b h -g 1234' % cmd)
+            print('    - excute special commands before recording')
+            print('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
             print('    - analyze function data for all')
             print('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
             print('    - analyze function data for only lower than 3 levels')
@@ -6862,6 +6866,8 @@ class SystemManager(object):
             print('        # %s top -o . -e r I' % cmd)
             print('    - record resource usage of processes and write to specific file when specific conditions met')
             print('        # %s top -o . -e R' % cmd)
+            print('    - excute special commands every interval')
+            print('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
             print('    - trace memory working set for specific processes')
             print('        # %s top -e w -g chrome' % cmd)
             print('    - draw graph and chart in image file')
@@ -8318,7 +8324,7 @@ class SystemManager(object):
             for item in val:
                 cmds.append(':'.join(item))
             SystemManager.printInfo(\
-                "user recording options on %s [ %s ]" % (idx, ', '.join(cmds)))
+                "user custom commands on %s [ %s ]" % (idx, ', '.join(cmds)))
 
 
 
@@ -8841,16 +8847,20 @@ class SystemManager(object):
             return
 
         for cmd in SystemManager.rcmdList[time]:
-            path = cmd[0]
-            val = cmd[1]
+            if len(cmd) == 2:
+                path = cmd[0]
+                val = cmd[1]
 
-            try:
-                with open(path, 'w') as fd:
-                    fd.write(val)
-                    SystemManager.printInfo(\
-                        "applied command '%s' to %s successfully" % (val, path))
-            except:
-                SystemManager.printWarning("Fail to apply command '%s' to %s" % (val, path))
+                try:
+                    with open(path, 'w') as fd:
+                        fd.write(val)
+                        SystemManager.printInfo(\
+                            "applied command '%s' to %s successfully" % (val, path))
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to apply command '%s' to %s" % (val, path))
+            elif len(cmd) == 1:
+                os.system(cmd[0])
 
 
 
@@ -9048,13 +9058,15 @@ class SystemManager(object):
             sitem = item.split(':')
             time = sitem[0]
 
-            if len(sitem) != 3 or \
+            if len(sitem) < 2 or len(sitem) > 3 or \
                 (time != 'BEFORE' and time != 'AFTER' and time != 'STOP'):
                 SystemManager.printError(\
                     "wrong format used, BEFORE|AFTER|STOP:file:value")
                 sys.exit(0)
-
-            tempList[time].append([sitem[1], sitem[2]])
+            elif len(sitem) == 2:
+                tempList[time].append([sitem[1]])
+            elif len(sitem) == 3:
+                tempList[time].append([sitem[1], sitem[2]])
 
         return tempList
 
@@ -9788,6 +9800,9 @@ class SystemManager(object):
                 if len(value) == 0:
                     SystemManager.printError("no option value with -L option")
                     sys.exit(0)
+
+            elif option == 'w' and SystemManager.isTopMode():
+                SystemManager.rcmdList = SystemManager.parseCustomRecordCmd(value)
 
             elif option == 'a':
                 SystemManager.showAll = True
@@ -13080,6 +13095,9 @@ class ThreadAnalyzer(object):
                 err = sys.exc_info()[1]
                 SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
 
+        # run user custom command #
+        SystemManager.writeRecordCmd('BEFORE')
+
         # run loop #
         while 1:
             if SystemManager.addrOfServer is not None:
@@ -13132,6 +13150,9 @@ class ThreadAnalyzer(object):
             self.nrPrevProcess = self.nrProcess
             self.nrThread = 0
             self.nrProcess = 0
+
+            # run user custom command #
+            SystemManager.writeRecordCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -23196,6 +23217,7 @@ if __name__ == '__main__':
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
+            # register exit handler #
             atexit.register(SystemManager.closePipeForPrint)
 
             if SystemManager.intervalEnable == 0:
@@ -23207,10 +23229,10 @@ if __name__ == '__main__':
 
             sys.exit(0)
 
+        #------------------------------ THREAD & FUNCTION MODE ------------------------------#
         # register exit handler #
         atexit.register(SystemManager.runRecordStopCmd)
 
-        #------------------------------ THREAD & FUNCTION MODE ------------------------------#
         # start recording #
         SystemManager.sysInstance.runRecordStartCmd()
 
@@ -23344,6 +23366,7 @@ if __name__ == '__main__':
     if SystemManager.isTopMode():
         # print record option #
         SystemManager.printRecordOption()
+        SystemManager.printRecordCmd()
 
         # set handler for exit #
         if sys.platform.startswith('linux'):
