@@ -11192,7 +11192,10 @@ class SystemManager(object):
                 try:
                     typelist = os.listdir(cachePath)
 
-                    for index in typelist:
+                    for index in sorted(typelist):
+                        if index.startswith('index') is False:
+                            continue
+
                         level = '?'
                         path = '%s/%s/level' % (cachePath, index)
                         with open(path, 'r') as fd:
