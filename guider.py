@@ -12643,51 +12643,7 @@ class ThreadAnalyzer(object):
 
         # thread mode #
         if file is not None:
-            self.threadData = {}
-            self.irqData = {}
-            self.ioData = {}
-            self.reclaimData = {}
-            self.pageTable = {}
-            self.kmemTable = {}
-            self.blockTable = [{}, {}, {}]
-            self.moduleData = []
-            self.intervalData = []
-            self.depData = []
-            self.sigData = []
-            self.lockTable = {}
-            self.lockData = []
-            self.customEventData = []
-            self.userEventData = []
-            self.kernelEventData = []
-            self.syscallData = []
-            self.lastJob = {}
-            self.preemptData = []
-            self.suspendData = []
-            self.markData = []
-            self.consoleData = []
-
-            self.stopFlag = False
-            self.totalTime = 0
-            self.totalTimeOld = 0
-            self.cxtSwitch = 0
-            self.nrNewTask = 0
-            self.thisInterval = 0
-            self.nrThread = 0
-            self.nrProcess = 0
-            self.nrPrevThread = 0
-            self.nrPrevProcess = 0
-
-            self.threadDataOld = {}
-            self.irqDataOld = {}
-            self.ioDataOld = {}
-            self.reclaimDataOld = {}
-            self.customEventInfo = {}
-            self.userEventInfo = {}
-            self.kernelEventInfo = {}
-
-            self.customInfo = {}
-            self.userInfo = {}
-            self.kernelInfo = {}
+            self.initThreadData()
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), \
                 'yield': int(0), 'cpuWait': float(0), 'pri': '0', 'ioRdWait': float(0), \
@@ -12759,7 +12715,9 @@ class ThreadAnalyzer(object):
                 'idle': long(0), 'wait': long(0), 'irq': long(0), 'softirq': long(0)}
 
             self.nrThread = 0
+            self.nrPrevThread = 0
             self.nrProcess = 0
+            self.nrPrevProcess = 0
             self.nrFd = 0
             self.procData = {}
             self.prevProcData = {}
@@ -18208,6 +18166,101 @@ class ThreadAnalyzer(object):
 
 
 
+    def initThreadData(self):
+        self.threadData = {}
+        self.irqData = {}
+        self.ioData = {}
+        self.reclaimData = {}
+        self.pageTable = {}
+        self.kmemTable = {}
+        self.blockTable = [{}, {}, {}]
+        self.moduleData = []
+        self.intervalData = []
+        self.depData = []
+        self.sigData = []
+        self.lockTable = {}
+        self.lockData = []
+        self.customEventData = []
+        self.userEventData = []
+        self.kernelEventData = []
+        self.syscallData = []
+        self.lastJob = {}
+        self.preemptData = []
+        self.suspendData = []
+        self.markData = []
+        self.consoleData = []
+
+        self.customEventInfo = {}
+        self.userEventInfo = {}
+        self.kernelEventInfo = {}
+
+        self.customInfo = {}
+        self.userInfo = {}
+        self.kernelInfo = {}
+
+        self.stopFlag = False
+        self.totalTime = 0
+        self.totalTimeOld = 0
+        self.cxtSwitch = 0
+        self.nrNewTask = 0
+        self.thisInterval = 0
+
+
+
+    def handleUserEvent(self, event, time):
+        # initialize ThreadAnalyzer data #
+        if event == 'START':
+            self.initThreadData()
+
+            SystemManager.startTime = time
+
+            # initialize preempt thread list #
+            if SystemManager.preemptGroup != None:
+                for index in SystemManager.preemptGroup:
+                    self.preemptData.append([False, {}, float(0), 0, float(0)])
+        # finish data processing #
+        elif event == 'STOP':
+            SystemManager.totalLine = SystemManager.curLine
+            self.finishTime = time
+            self.stopFlag = True
+        # restart data processing #
+        elif event == 'RESTART':
+            self.threadDataOld = self.threadData
+            self.irqDataOld = self.irqData
+            self.ioDataOld = self.ioData
+            self.reclaimDataOld = self.reclaimData
+            self.pageTableOld = self.pageTable
+            self.kmemTableOld = self.kmemTable
+            self.blockTableOld = self.blockTable
+            self.moduleDataOld = self.moduleData
+            self.intervalDataOld = self.intervalData
+            self.depDataOld = self.depData
+            self.sigDataOld = self.sigData
+            self.lockTableOld = self.lockTable
+            self.lockDataOld = self.lockData
+            self.customEventDataOld = self.customEventData
+            self.userEventDataOld = self.userEventData
+            self.kernelEventDataOld = self.kernelEventData
+            self.syscallDataOld = self.syscallData
+            self.preemptDataOld = self.preemptData
+            self.suspendDataOld = self.suspendData
+            self.markDataOld = self.markData
+            self.consoleDataOld = self.consoleData
+
+            self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
+
+            self.initThreadData()
+
+            SystemManager.startTime = time
+        # save mark event #
+        elif event == 'MARK':
+            self.markData.append(time)
+
+        # add event #
+        EventAnalyzer.addEvent(time, event)
+
+
+
     def parse(self, string):
         SystemManager.curLine += 1
 
@@ -19692,48 +19745,8 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    event = d['event']
+                    self.handleUserEvent(d['event'], time)
 
-                    # initialize ThreadAnalyzer data #
-                    if event == 'START':
-                        self.threadData = {}
-                        self.irqData = {}
-                        self.ioData = {}
-                        self.reclaimData = {}
-                        self.pageTable = {}
-                        self.kmemTable = {}
-                        self.intervalData = []
-                        self.depData = []
-                        self.syscallData = []
-                        self.lastJob = {}
-                        self.preemptData = []
-                        self.suspendData = []
-                        self.markData = []
-                        self.consoleData = []
-                        SystemManager.startTime = time
-                    # finish data processing #
-                    elif event == 'STOP':
-                        SystemManager.totalLine = SystemManager.curLine
-                        self.finishTime = time
-                        self.stopFlag = True
-                    # restart data processing #
-                    elif event == 'RESTART':
-                        self.threadDataOld = self.threadData
-                        self.threadData = {}
-                        self.irqDataOld = self.irqData
-                        self.irqData = {}
-                        self.ioDataOld = self.ioData
-                        self.ioData = {}
-                        self.reclaimDataOld = self.reclaimData
-                        self.reclaimData = {}
-
-                        self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
-                        SystemManager.startTime = time
-                    # save mark event #
-                    elif event == 'MARK':
-                        self.markData.append(time)
-
-                    EventAnalyzer.addEvent(time, event)
                 else:
                     # process CPU shutdown event #
                     m = re.match(\
@@ -19764,48 +19777,8 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    event = d['event']
+                    self.handleUserEvent(d['event'], time)
 
-                    # initialize ThreadAnalyzer data #
-                    if event == 'START':
-                        self.threadData = {}
-                        self.irqData = {}
-                        self.ioData = {}
-                        self.reclaimData = {}
-                        self.pageTable = {}
-                        self.kmemTable = {}
-                        self.intervalData = []
-                        self.depData = []
-                        self.syscallData = []
-                        self.lastJob = {}
-                        self.preemptData = []
-                        self.suspendData = []
-                        self.markData = []
-                        self.consoleData = []
-                        SystemManager.startTime = time
-                    # finish data processing #
-                    elif event == 'STOP':
-                        SystemManager.totalLine = SystemManager.curLine
-                        self.finishTime = time
-                        self.stopFlag = True
-                    # restart data processing #
-                    elif event == 'RESTART':
-                        self.threadDataOld = self.threadData
-                        self.threadData = {}
-                        self.irqDataOld = self.irqData
-                        self.irqData = {}
-                        self.ioDataOld = self.ioData
-                        self.ioData = {}
-                        self.reclaimDataOld = self.reclaimData
-                        self.reclaimData = {}
-
-                        self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
-                        SystemManager.startTime = time
-                    # save mark event #
-                    elif event == 'MARK':
-                        self.markData.append(time)
-
-                    EventAnalyzer.addEvent(time, event)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -20076,48 +20049,7 @@ class ThreadAnalyzer(object):
                     if m is not None:
                         d = m.groupdict()
 
-                        event = d['event']
-
-                        # initialize ThreadAnalyzer data #
-                        if event == 'START':
-                            self.threadData = {}
-                            self.irqData = {}
-                            self.ioData = {}
-                            self.reclaimData = {}
-                            self.pageTable = {}
-                            self.kmemTable = {}
-                            self.intervalData = []
-                            self.depData = []
-                            self.syscallData = []
-                            self.lastJob = {}
-                            self.preemptData = []
-                            self.suspendData = []
-                            self.markData = []
-                            self.consoleData = []
-                            SystemManager.startTime = time
-                        # finish data processing #
-                        elif event == 'STOP':
-                            SystemManager.totalLine = SystemManager.curLine
-                            self.finishTime = time
-                            self.stopFlag = True
-                        # restart data processing #
-                        elif event == 'RESTART':
-                            self.threadDataOld = self.threadData
-                            self.threadData = {}
-                            self.irqDataOld = self.irqData
-                            self.irqData = {}
-                            self.ioDataOld = self.ioData
-                            self.ioData = {}
-                            self.reclaimDataOld = self.reclaimData
-                            self.reclaimData = {}
-
-                            self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
-                            SystemManager.startTime = time
-                        # saving mark event #
-                        elif event == 'MARK':
-                            self.markData.append(time)
-
-                        EventAnalyzer.addEvent(time, event)
+                        self.handleUserEvent(d['event'], time)
 
 
 
