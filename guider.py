@@ -6307,6 +6307,7 @@ class SystemManager(object):
     schedFilter = []
     killFilter = []
     syscallList = []
+    perCoreList = []
     pidFilter = None
 
 
@@ -6737,6 +6738,7 @@ class SystemManager(object):
                 print('        -k  [set_killList:comms|tids]')
                 print('    [analysis]')
                 print('        -o  [save_outputData:path]')
+                print('        -O  [set_coreFilter:cores]')
                 print('        -P  [group_perProcessBasis]')
                 print('        -p  [show_preemptInfo:tids]')
                 print('        -l  [set_addr2linePath:files]')
@@ -8265,6 +8267,11 @@ class SystemManager(object):
             else:
                 disableStat += 'PREEMPT '
 
+            if len(SystemManager.perCoreList) > 0:
+                enableStat += 'PERCORE '
+            else:
+                disableStat += 'PERCORE '
+
             if SystemManager.customCmd is not None:
                 SystemManager.printInfo(\
                     "selected custom events [ %s ]" % ', '.join(SystemManager.customCmd))
@@ -9240,6 +9247,8 @@ class SystemManager(object):
             if filterList.find('c') > -1:
                 SystemManager.cpuEnable = False
                 SystemManager.latEnable = False
+            if filterList.find('l') > -1:
+                SystemManager.latEnable = False
 
         # apply enable option #
         launchPosStart = SystemManager.launchBuffer.find(' -e')
@@ -9990,6 +9999,22 @@ class SystemManager(object):
 
             elif option == 'T':
                 SystemManager.fontPath = value
+
+            elif option == 'O':
+                SystemManager.perCoreList = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.perCoreList)
+                if len(SystemManager.perCoreList) == 0:
+                    SystemManager.printError("Input value for filter with -O option")
+                    sys.exit(0)
+
+                for item in SystemManager.perCoreList:
+                    if item.isdigit() is False:
+                        SystemManager.printError(\
+                            "wrong option value with -O option, input number in integer format")
+                        sys.exit(0)
+
+                SystemManager.printInfo("only specific cores including [%s] are shown" % \
+                    ', '.join(SystemManager.perCoreList))
 
             elif option == 'm':
                 try:
@@ -11399,8 +11424,8 @@ class SystemManager(object):
         self.cmdList["filelock/locks_get_lock_context"] = SystemManager.lockEnable
         self.cmdList["power/cpu_idle"] = SystemManager.cpuEnable
         self.cmdList["power/cpu_frequency"] = False #toDo: implement power profiler #
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = SystemManager.memEnable
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = SystemManager.memEnable
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
         self.cmdList["task"] = True
@@ -18283,6 +18308,10 @@ class ThreadAnalyzer(object):
 
             SystemManager.logSize += len(string)
 
+            if len(SystemManager.perCoreList) > 0 and \
+                core not in SystemManager.perCoreList:
+                return
+
             self.lastCore = core
             self.lastEvent = func
 
@@ -19500,16 +19529,17 @@ class ThreadAnalyzer(object):
                         self.threadData[pid]
                     except:
                         self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = d['comm']
-                        self.threadData[pid]['ptid'] = thread
-                        self.threadData[pid]['new'] = 'N'
-                        self.threadData[pid]['createdTime'] = float(time)
 
-                        if self.threadData[thread]['childList'] is None:
-                            self.threadData[thread]['childList'] = list()
+                    self.threadData[pid]['comm'] = d['comm']
+                    self.threadData[pid]['ptid'] = thread
+                    self.threadData[pid]['new'] = 'N'
+                    self.threadData[pid]['createdTime'] = float(time)
 
-                        self.threadData[thread]['childList'].append(pid)
-                        self.nrNewTask += 1
+                    if self.threadData[thread]['childList'] is None:
+                        self.threadData[thread]['childList'] = list()
+
+                    self.threadData[thread]['childList'].append(pid)
+                    self.nrNewTask += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -19527,16 +19557,17 @@ class ThreadAnalyzer(object):
                         self.threadData[cpid]
                     except:
                         self.threadData[cpid] = dict(self.init_threadData)
-                        self.threadData[cpid]['comm'] = ccomm
-                        self.threadData[cpid]['ptid'] = thread
-                        self.threadData[cpid]['new'] = 'N'
-                        self.threadData[cpid]['createdTime'] = float(time)
 
-                        if self.threadData[thread]['childList'] is None:
-                            self.threadData[thread]['childList'] = list()
+                    self.threadData[cpid]['comm'] = ccomm
+                    self.threadData[cpid]['ptid'] = thread
+                    self.threadData[cpid]['new'] = 'N'
+                    self.threadData[cpid]['createdTime'] = float(time)
 
-                        self.threadData[thread]['childList'].append(cpid)
-                        self.nrNewTask += 1
+                    if self.threadData[thread]['childList'] is None:
+                        self.threadData[thread]['childList'] = list()
+
+                    self.threadData[thread]['childList'].append(cpid)
+                    self.nrNewTask += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
