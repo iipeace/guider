@@ -6746,7 +6746,7 @@ class SystemManager(object):
                 print('        -I  [set_inputValue:file|addr]')
                 print('        -q  [configure_taskList]')
                 print('        -Z  [convert_textToImage]')
-                print('        -L  [set_graphLayout:CPU|MEM|IO:size]')
+                print('        -L  [set_graphLayout:CPU|MEM|IO:proportion]')
                 print('        -m  [set_terminalSize:{ROWS:COLS}]')
                 print('    [common]')
                 print('        -a  [show_allInfo]')
@@ -6879,7 +6879,7 @@ class SystemManager(object):
             print('        # %s draw guider.out -g chrome' % cmd)
             print('        # %s top -I guider.out -e g -g chrome' % cmd)
             print('    - draw cpu and memory graphs of specific processes in image file propotionally')
-            print('        # %s draw guider.out -g chrome -L cpu:3, mem:3' % cmd)
+            print('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
             print('    - draw VSS graph and chart for specific processes in image file')
             print('        # %s draw guider.out -g chrome -e v' % cmd)
             print('    - report system status to specific server')
@@ -14404,24 +14404,34 @@ class ThreadAnalyzer(object):
                 totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 5, 1)
         else:
             pos = 0
+            total = 0
+            layoutList = []
             layout = SystemManager.layout.split(',')
 
+            # sum size of graph boxes #
             for idx, graph in enumerate(layout):
                 try:
-                    try:
-                        (target, size) = graph.split(':')
-                    except:
-                        SystemManager.printError(\
-                            "Fail to draw graph because graph format [TYPE:SIZE] is wrong")
-                        sys.exit(0)
-
-                    xtype = len(layout) - idx
-
+                    (target, size) = graph.split(':')
                     size = int(size)
-                    if pos + size > 6:
-                        SystemManager.printError(\
-                            "Fail to draw graph because total size of graphs is bigger than 6")
-                        sys.exit(0)
+                    if size == 0:
+                        raise
+                    else:
+                        total += size
+                        layoutList.append([target, int(size)])
+                except:
+                    SystemManager.printError(\
+                        "Fail to draw graph because graph format [TYPE:SIZE] is wrong")
+                    sys.exit(0)
+
+            for item in layoutList:
+                target = item[0]
+                size = item[1]
+
+                # convert size to proportion #
+                size = int((size / float(total)) * 6)
+
+                try:
+                    xtype = len(layoutList) - idx
 
                     if target.upper() == 'CPU':
                         drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
