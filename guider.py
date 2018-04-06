@@ -20655,6 +20655,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def saveProcSmapsData(path, tid):
+        # check root permission #
+        if os.geteuid() != 0:
+            return
+
         buf = ''
         mtype = ''
         stable = {}
