@@ -9946,9 +9946,17 @@ class SystemManager(object):
                     else:
                         SystemManager.stackEnable = True
                 if options.rfind('S') > -1:
+                    if SystemManager.isRoot() is False:
+                        SystemManager.printError(\
+                            "Fail to get root permission to analyze PSS")
+                        sys.exit(0)
                     SystemManager.pssEnable = True
                     SystemManager.sort = 'm'
                 if options.rfind('u') > -1:
+                    if SystemManager.isRoot() is False:
+                        SystemManager.printError(\
+                            "Fail to get root permission to analyze USS")
+                        sys.exit(0)
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
                 if options.rfind('c') > -1:
@@ -9962,7 +9970,8 @@ class SystemManager(object):
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
                     if SystemManager.isRoot() is False:
-                        SystemManager.printError("Fail to get root permission to analyze memory details")
+                        SystemManager.printError(\
+                            "Fail to get root permission to analyze memory details")
                         sys.exit(0)
                     SystemManager.memEnable = True
                 if options.rfind('w') > -1:
