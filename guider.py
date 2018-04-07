@@ -13566,29 +13566,30 @@ class ThreadAnalyzer(object):
         # draw and save graph #
         try:
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
-                blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memCache, memProcUsage, gpuUsage,\
-                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore)
+                blkProcUsage, blkRead, blkWrite, netRead, netWrite, memFree,\
+                memAnon, memCache, memProcUsage, gpuUsage, totalRAM, swapUsage,\
+                totalSwap, reclaimBg, reclaimDr, nrCore, logFile)
         except SystemExit:
             sys.exit(0)
         except:
             SystemManager.printError("Fail to draw graph while setting property")
             return
-        self.saveImage(logFile, 'graph')
 
         # draw chart and save it #
         try:
-            self.drawChart(prop)
+            self.drawChart(prop, logFile)
         except SystemExit:
             sys.exit(0)
         except:
             SystemManager.printError("Fail to draw chart while setting property")
             return
-        self.saveImage(logFile, 'chart')
 
 
 
-    def drawChart(self, data):
+    def drawChart(self, data, logFile):
+        if len(data) == 0:
+            return
+
         seq = 0
         height = int(len(data) / 2) if len(data) % 2 == 0 else int(len(data) / 2 + 1)
         colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
@@ -13709,12 +13710,15 @@ class ThreadAnalyzer(object):
         figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k').\
             subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
+        # save to file #
+        self.saveImage(logFile, 'chart')
+
 
 
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-        memFree, memAnon, memCache, memProcUsage, gpuUsage,\
-        totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore):
+        memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
+        swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, logFile):
 
         def drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
@@ -14474,6 +14478,9 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
                 except:
                     raise
+
+        # save to file #
+        self.saveImage(logFile, 'graph')
 
 
 
