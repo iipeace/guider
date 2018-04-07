@@ -6431,6 +6431,12 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getAffinity(pid=None):
+        pass
+
+
+
+    @staticmethod
     def setComm(comm):
         if sys.platform.startswith('linux') is False:
             return
@@ -10161,9 +10167,14 @@ class SystemManager(object):
 
             elif option == 'X' and SystemManager.isTopMode():
                 if SystemManager.findOption('x') is False:
-                    SystemManager.printError(\
-                        "wrong option with -X, use -x option to request service")
-                    sys.exit(0)
+                    networkObject = NetworkManager('server', None, None)
+                    if networkObject.ip is None:
+                        sys.exit(0)
+                    else:
+                        SystemManager.addrAsServer = networkObject
+
+                    SystemManager.printInfo("use %s:%d as local address" % \
+                        (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
 
                 # receive mode #
                 if len(value) == 0:
@@ -12648,6 +12659,8 @@ class ThreadAnalyzer(object):
 
     # request type #
     requestType = [
+        'LOG',
+        'EVENT',
         'PRINT',
         'REPORT_ALWAYS',
         'REPORT_BOUND',
@@ -22720,12 +22733,16 @@ class ThreadAnalyzer(object):
             if networkObject.ip is None:
                 return
 
-            if message == 'PRINT':
+            if message == 'EVENT':
+                pass
+            elif message == 'LOG':
+                pass
+            elif message == 'PRINT':
                 index = ip + ':' + str(port)
                 if not index in SystemManager.addrListForPrint:
                     SystemManager.addrListForPrint[index] = networkObject
                     SystemManager.printInfo(\
-                        "registered %s:%d as remote output address" % (ip, port))
+                        "registered %s:%d as remote output address for PRINT" % (ip, port))
                 else:
                     SystemManager.printWarning(\
                         "Duplicated %s:%d as remote output address" % (ip, port))
@@ -22743,10 +22760,12 @@ class ThreadAnalyzer(object):
                 index = ip + ':' + str(port)
                 if not index in SystemManager.addrListForReport:
                     SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo("registered %s:%d as remote report address" % (ip, port))
+                    SystemManager.printInfo(\
+                        "registered %s:%d as remote report address for REPORT" % (ip, port))
                 else:
                     SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo("updated %s:%d as remote report address" % (ip, port))
+                    SystemManager.printInfo(\
+                        "updated %s:%d as remote report address for REPORT" % (ip, port))
             elif message == 'ACK':
                 index = ip + ':' + str(port)
                 if index in SystemManager.addrListForPrint:
@@ -22964,9 +22983,8 @@ class ThreadAnalyzer(object):
         for addr, cli in SystemManager.addrListForReport.items():
             if cli.request == 'REPORT_ALWAYS' or nrReason > 0:
                 if cli.status == 'SENT' and cli.ignore > 1:
-                    SystemManager.printWarning(\
-                        "Stop to send data for report to %s:%d because of no response" % \
-                        (cli.ip, cli.port))
+                    SystemManager.printInfo(\
+                        "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
                     del SystemManager.addrListForReport[addr]
                 else:
                     ret = cli.send(jsonObj)
@@ -23006,9 +23024,8 @@ class ThreadAnalyzer(object):
         if len(SystemManager.addrListForPrint) > 0:
             for addr, cli in SystemManager.addrListForPrint.items():
                 if cli.status == 'SENT' and cli.ignore > 1:
-                    SystemManager.printWarning(\
-                        "Stop to send data for print to %s:%d because of no response" % \
-                        (cli.ip, cli.port))
+                    SystemManager.printInfo(\
+                        "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
                     del SystemManager.addrListForPrint[addr]
                 else:
                     ret = cli.send(SystemManager.bufferString)
