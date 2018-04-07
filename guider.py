@@ -809,7 +809,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
-        if os.geteuid() != 0:
+        if SystemManager.isRoot() is False:
             SystemManager.printError("Fail to get root permission analyze pages")
             sys.exit(0)
         elif pid is False or vaddr is False:
@@ -6149,6 +6149,7 @@ class SystemManager(object):
     arch = 'arm'
     isLinux = True
     isAndroid = False
+    isRootMode = None
     drawMode = False
     archOption = None
     mountPath = None
@@ -7013,6 +7014,18 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isRoot():
+        if SystemManager.isRootMode is None:
+            if os.geteuid() == 0:
+                SystemManager.isRootMode = True
+            else:
+                SystemManager.isRootMode = False
+
+        return SystemManager.isRootMode
+
+
+
+    @staticmethod
     def openPerfEvent(econfig, cpu=-1, pid=-1):
         try:
             if econfig in ConfigManager.perfEventHWType:
@@ -7033,7 +7046,7 @@ class SystemManager(object):
             fd = SystemManager.guiderObj.perf_event_open(nrType, nrConfig, pid, cpu, -1, 0)
             if fd < 0:
                 # check root permission #
-                if os.geteuid() != 0:
+                if SystemManager.isRoot() is False:
                     SystemManager.printWarning(\
                         'Fail to get root permission to open perf event')
                     return
@@ -7387,7 +7400,7 @@ class SystemManager(object):
             pid, cpu, -1, 0)
         if fd < 0:
             # check root permission #
-            if os.geteuid() != 0:
+            if SystemManager.isRoot() is False:
                 SystemManager.printWarning(\
                     'Fail to get root permission to open perf event')
                 return
@@ -7576,7 +7589,7 @@ class SystemManager(object):
     @staticmethod
     def initSystemPerfEvents():
         # check root permission #
-        if os.geteuid() != 0:
+        if SystemManager.isRoot() is False:
             SystemManager.perfEnable = False
             return
         # check configuration #
@@ -9902,7 +9915,7 @@ class SystemManager(object):
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
                 if options.rfind('b') > -1:
-                    if os.geteuid() != 0:
+                    if SystemManager.isRoot() is False:
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
@@ -9913,7 +9926,7 @@ class SystemManager(object):
                     else:
                         SystemManager.blockEnable = True
                 if options.rfind('s') > -1:
-                    if os.geteuid() != 0:
+                    if SystemManager.isRoot() is False:
                         SystemManager.printError("Fail to get root permission to sample stack")
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False:
@@ -9942,20 +9955,23 @@ class SystemManager(object):
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
+                    if SystemManager.isRoot() is False:
+                        SystemManager.printError("Fail to get root permission to analyze memory details")
+                        sys.exit(0)
                     SystemManager.memEnable = True
                 if options.rfind('w') > -1:
                     if SystemManager.findOption('g') is False:
                         SystemManager.printError(\
                             "wrong option with -e + w, use also -g option to track memory working set")
                         sys.exit(0)
-                    elif os.geteuid() != 0:
+                    elif SystemManager.isRoot() is False:
                         SystemManager.printError("Fail to get root permission to clear refcnts")
                         sys.exit(0)
                     SystemManager.memEnable = True
                     SystemManager.wssEnable = True
                     SystemManager.sort = 'm'
                 if options.rfind('P') > -1:
-                    if os.geteuid() != 0:
+                    if SystemManager.isRoot() is False:
                         SystemManager.printError("Fail to get root permission to use PMU")
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False:
@@ -10813,7 +10829,7 @@ class SystemManager(object):
                     SystemManager.prio = int(schedSet[1])
                     SystemManager.setPriority(SystemManager.pid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
-                    if os.geteuid() != 0:
+                    if SystemManager.isRoot() is False:
                         SystemManager.printError(\
                             "Fail to get root permission to set priority of other thread")
                         sys.exit(0)
@@ -10821,7 +10837,7 @@ class SystemManager(object):
                     # change priority of a thread #
                     SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
                 elif len(schedSet) == 4:
-                    if os.geteuid() != 0:
+                    if SystemManager.isRoot() is False:
                         SystemManager.printError(\
                             "Fail to get root permission to set priority of other thread")
                         sys.exit(0)
@@ -10906,7 +10922,7 @@ class SystemManager(object):
                 'priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
         except:
             err = ''
-            if os.geteuid() != 0:
+            if SystemManager.isRoot() is False:
                 err = ', it needs root permission to make priority higher'
             SystemManager.printWarning(\
                 'Fail to set priority of %s as %s(%s)%s' % (pid, pri, policy, err))
@@ -11469,7 +11485,7 @@ class SystemManager(object):
 
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
-            if os.geteuid() == 0:
+            if SystemManager.isRoot():
                 cmd = '/boot/config-$(uname -r)'
                 SystemManager.printError(\
                     "Check whether ftrace options are enabled in kernel through %s" % cmd)
@@ -12979,7 +12995,7 @@ class ThreadAnalyzer(object):
 
 
     def runFileTop(self):
-        if os.geteuid() != 0:
+        if SystemManager.isRoot() is False:
             SystemManager.printError("Fail to get root permission to analyze opened files")
             sys.exit(0)
 
@@ -20655,6 +20671,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def saveProcSmapsData(path, tid):
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            return
+
         buf = ''
         mtype = ''
         stable = {}
@@ -21906,7 +21926,7 @@ class ThreadAnalyzer(object):
                 self.saveProcSchedData(value['taskPath'], idx)
 
             # save wait channel info  #
-            if SystemManager.wchanEnable:
+            if SystemManager.isRoot() and SystemManager.wchanEnable:
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
@@ -23176,7 +23196,7 @@ if __name__ == '__main__':
         #------------------------------ FILE MODE ------------------------------#
         if SystemManager.isFileMode():
             # check permission #
-            if os.geteuid() != 0:
+            if SystemManager.isRoot() is False:
                 SystemManager.printError(\
                     "Fail to get root permission to analyze linked files")
                 sys.exit(0)
