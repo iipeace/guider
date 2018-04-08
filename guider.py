@@ -13220,6 +13220,7 @@ class ThreadAnalyzer(object):
         netRead = []
         netWrite = []
         gpuUsage = {}
+        eventList = {}
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
@@ -13234,7 +13235,7 @@ class ThreadAnalyzer(object):
         # parse summary #
         interval = 0
         finalLine = 0
-        compareString = '[Top CPU Info]'
+        compareString = ['[Top CPU Info]', '[Top Event Info]']
         compareLen = len(compareString)
         nrStatistics = 12
 
@@ -13314,8 +13315,39 @@ class ThreadAnalyzer(object):
                 except:
                     netRead.append(0)
                     netWrite.append(0)
-            if line[:compareLen] == compareString:
+
+            if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                 break
+
+        if logBuf[finalLine-1].startswith('[Top Event Info]'):
+            for line in logBuf[finalLine:]:
+                if line.startswith('[Top CPU Info]'):
+                    break
+
+                finalLine += 1
+
+                sline = line.split('|')
+                slen = len(sline)
+
+                if slen != 2:
+                    continue
+
+                try:
+                    time = int(float(sline[0]))
+                    event = sline[1].strip()
+                except:
+                    continue
+
+                try:
+                    eventList[event]
+                except:
+                    eventList[event] = [0] * len(timeline)
+
+                try:
+                    idx = timeline.index(time)
+                    eventList[event][idx] = 1
+                except:
+                    pass
 
         # parse cpu usage of processes #
         compareString = ['[Top GPU Info]', '[Top Memory Info]', '[Top VSS Info]']
@@ -13594,7 +13626,7 @@ class ThreadAnalyzer(object):
             self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
                 blkProcUsage, blkRead, blkWrite, netRead, netWrite, memFree,\
                 memAnon, memCache, memProcUsage, gpuUsage, totalRAM, swapUsage,\
-                totalSwap, reclaimBg, reclaimDr, nrCore, logFile)
+                totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -13744,7 +13776,7 @@ class ThreadAnalyzer(object):
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
         memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
-        swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, logFile):
+        swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile):
 
         def drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
