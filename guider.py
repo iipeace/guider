@@ -9655,7 +9655,10 @@ class SystemManager(object):
     @staticmethod
     def isEffectiveRequest(request):
         try:
-            ThreadAnalyzer.requestType.index(request)
+            if request.startswith('EVENT_') or ThreadAnalyzer.requestType.index(request):
+                pass
+            else:
+                raise
 
             if request.find('REPORT') >= 0 and SystemManager.jsonObject is None:
                 try:
@@ -22669,6 +22672,10 @@ class ThreadAnalyzer(object):
             SystemManager.printError(\
                 "Fail to request service because of same port used between client and sever")
             sys.exit(0)
+        elif data.startswith('EVENT_'):
+            SystemManager.printInfo(\
+                "registered event %s to server" % data[data.find('_')+1:])
+            sys.exit(0)
         # PRINT service #
         else:
             # realtime mode #
@@ -22742,8 +22749,12 @@ class ThreadAnalyzer(object):
             if networkObject.ip is None:
                 return
 
-            if message == 'EVENT':
-                pass
+            if message.startswith('EVENT_'):
+                event = message[message.find('_')+1:]
+
+                networkObject.send(message)
+                del networkObject
+                return
             elif message == 'LOG':
                 pass
             elif message == 'PRINT':
