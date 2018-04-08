@@ -12097,7 +12097,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System OS Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("{0:^35} {1:100}".format("TYPE", "Information"))
-        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint(twoLine)
 
         try:
             for data in self.osData:
@@ -12668,6 +12668,7 @@ class ThreadAnalyzer(object):
     lifecycleData = {}
     procTotalData = {}
     procIntervalData = []
+    procEventData = []
 
     # request type #
     requestType = [
@@ -16999,7 +17000,7 @@ class ThreadAnalyzer(object):
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU', 'Free/Anon/Cache', 'BlkRW', 'Blk',\
             'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
-        SystemManager.pipePrint("%s\n" % oneLine)
+        SystemManager.pipePrint("%s\n" % twoLine)
 
         pCnt = 0
         for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
@@ -17024,6 +17025,43 @@ class ThreadAnalyzer(object):
 
         if len(ThreadAnalyzer.procIntervalData) == 0 or pCnt == 0:
             SystemManager.pipePrint('\tNone\n')
+
+        SystemManager.pipePrint("%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def printEventInterval():
+        if len(ThreadAnalyzer.procEventData) == 0:
+            return
+
+        try:
+            initTime = ThreadAnalyzer.procIntervalData[0]['time']
+
+            eventList = list(ThreadAnalyzer.procEventData)
+            for event in eventList:
+                time = event[0]
+                name = event[1]
+
+                # skip unbounded events #
+                if float(initTime) > time:
+                    del ThreadAnalyzer.procEventData[0]
+        except:
+            return
+
+        if len(ThreadAnalyzer.procEventData) == 0:
+            return
+
+        # Print title #
+        SystemManager.pipePrint('\n[Top Event Info] (Unit: %)\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
+        SystemManager.pipePrint(("{0:^12} | {1:1}\n").format('Time', 'Event'))
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        for event in ThreadAnalyzer.procEventData:
+            time = event[0]
+            name = event[1]
+            SystemManager.pipePrint(("{0:>12} | {1:1}\n").format(time, name))
 
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -17502,6 +17540,7 @@ class ThreadAnalyzer(object):
 
             # print interval info #
             ThreadAnalyzer.printTimeline()
+            ThreadAnalyzer.printEventInterval()
             ThreadAnalyzer.printCpuInterval()
             ThreadAnalyzer.printGpuInterval()
             ThreadAnalyzer.printVssInterval()
@@ -22673,7 +22712,7 @@ class ThreadAnalyzer(object):
                 "Fail to request service because of same port used between client and sever")
             sys.exit(0)
         elif data.startswith('EVENT_'):
-            SystemManager.printInfo(\
+            SystemManager.printStatus(\
                 "registered event %s to server" % data[data.find('_')+1:])
             sys.exit(0)
         # PRINT service #
@@ -22713,7 +22752,8 @@ class ThreadAnalyzer(object):
                     SystemManager.addrOfServer.ip, \
                     SystemManager.addrOfServer.port)
 
-            SystemManager.printStatus("wait for response from server")
+            SystemManager.printStatus(\
+                "wait for response of %s from server" % SystemManager.addrOfServer.request)
         except:
             SystemManager.printError(\
                 "Fail to send request '%s'" % SystemManager.addrOfServer.request)
@@ -22751,6 +22791,9 @@ class ThreadAnalyzer(object):
 
             if message.startswith('EVENT_'):
                 event = message[message.find('_')+1:]
+
+                # append event to list #
+                ThreadAnalyzer.procEventData.append([SystemManager.uptime, event])
 
                 networkObject.send(message)
                 del networkObject
