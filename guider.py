@@ -3210,7 +3210,7 @@ class FunctionAnalyzer(object):
                         self.threadData[pid]['new'] = True
 
             # Save user event #
-            elif d['func'].startswith("tracing_mark_write"):
+            elif d['func'].startswith("tracing_mark_write") or d['func'] == '0:':
                 m = re.match(r'^\s*\S*: EVENT_(?P<event>\S+)', d['etc'])
                 if m is not None:
                     gd = m.groupdict()
@@ -9610,7 +9610,10 @@ class SystemManager(object):
                 sys.exit(0)
         else:
             # cut output by terminal size #
-            line = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
+            if SystemManager.ttyCols == 0:
+                line = '\n'.join([nline for nline in line.split('\n')])
+            else:
+                line = '\n'.join([nline[:SystemManager.ttyCols] for nline in line.split('\n')])
             print(line)
 
 
@@ -11424,7 +11427,10 @@ class SystemManager(object):
     @staticmethod
     def closePipeForPrint():
         if SystemManager.pipeForPrint is not None:
-            SystemManager.pipeForPrint.close()
+            try:
+                SystemManager.pipeForPrint.close()
+            except:
+                return
 
 
 
@@ -18438,7 +18444,8 @@ class ThreadAnalyzer(object):
             SystemManager.logSize += len(string)
 
             if len(SystemManager.perCoreList) > 0 and \
-                core not in SystemManager.perCoreList:
+                core not in SystemManager.perCoreList and \
+                (func != "console" or func != "tracing_mark_write"):
                 return
 
             self.lastCore = core
@@ -18491,6 +18498,9 @@ class ThreadAnalyzer(object):
                             continue
 
                         usage = float(time) - float(self.threadData[tid]['start'])
+                        if usage > self.lastTime - self.startTime:
+                            usage = self.lastTime - self.startTime
+
                         self.threadData[tid]['usage'] += usage
                         self.threadData[tid]['start'] = float(time)
                     except:
@@ -19935,7 +19945,7 @@ class ThreadAnalyzer(object):
                     # save consol log #
                     self.consoleData.append([d['thread'], core, time, etc])
 
-            elif func == "tracing_mark_write":
+            elif func == "tracing_mark_write" or func == "0":
                 m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
