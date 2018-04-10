@@ -6319,6 +6319,7 @@ class SystemManager(object):
         self.cpuInfo = {}
         self.cpuCacheInfo = {}
         self.memInfo = {}
+        self.devInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
         self.systemInfo = {}
@@ -11157,6 +11158,7 @@ class SystemManager(object):
             self.saveSystemInfo()
             self.saveCpuInfo()
             self.saveCpuCacheInfo()
+            self.saveDevInfo()
 
             # os info #
             if self.saveWebOSInfo() is True:
@@ -11287,6 +11289,40 @@ class SystemManager(object):
                     del self.cpuCacheInfo[core]
         except:
             pass
+
+
+
+    def saveDevInfo(self):
+        devFile = '/proc/devices'
+
+        try:
+            with open(devFile, 'r') as df:
+                target = None
+                devData = df.readlines()
+                for line in devData:
+                    if line.startswith('Character'):
+                        target = self.devInfo['char'] = {}
+                    elif line.startswith('Block'):
+                        target = self.devInfo['block'] = {}
+                    elif target == None:
+                        continue
+                    else:
+                        item = line.split()
+
+                        if len(item) != 2:
+                            continue
+
+                        try:
+                            num = int(item[0])
+                        except:
+                            continue
+
+                        try:
+                            target[num].append(item[1])
+                        except:
+                            target[num] = [item[1]]
+        except:
+            SystemManager.printWarning("Fail to open %s" % devFile)
 
 
 
@@ -12417,6 +12453,11 @@ class SystemManager(object):
                 total = SystemManager.convertSize(total)
                 free = SystemManager.convertSize(free)
                 avail = SystemManager.convertSize(avail)
+            except:
+                pass
+
+            try:
+                key = '%s (%s)' % (key, ','.join(self.devInfo['block'][major]))
             except:
                 pass
 
