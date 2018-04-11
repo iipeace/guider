@@ -6754,7 +6754,7 @@ class SystemManager(object):
                 print('        -I  [set_inputValue:file|addr]')
                 print('        -q  [configure_taskList]')
                 print('        -Z  [convert_textToImage]')
-                print('        -L  [set_graphLayout:CPU|MEM|IO:proportion]')
+                print('        -L  [set_graphLayout:CPU|MEM|IO{:proportion}]')
                 print('        -m  [set_terminalSize:{ROWS:COLS}]')
                 print('    [common]')
                 print('        -a  [show_allInfo]')
@@ -12365,14 +12365,26 @@ class SystemManager(object):
 
         # get mount point #
         if self.mountData is not None:
+            class MountException(Exception):
+                pass
+
             for l in self.mountData:
                 dev, path, fs, option, etc1, etc2 = l.split()
 
                 try:
                     rpath = os.path.realpath(dev)
                     dev = rpath[rpath.rfind('/')+1:]
+
+                    if dev.find(':') > -1:
+                        major, minor = dev.split(':')
+                        for mp in self.diskInfo['before'].values():
+                            if mp['major'] == major and mp['minor'] == minor:
+                                raise MountException
+
                     if dev not in self.diskInfo['before']:
                         continue
+                except MountException:
+                    pass
                 except:
                     continue
 
@@ -12413,6 +12425,12 @@ class SystemManager(object):
             readSize = readTime = writeSize = writeTime = '?'
 
             try:
+                if dev.find(':') > -1:
+                    major, minor = dev.split(':')
+                    for name, mp in self.diskInfo['before'].items():
+                        if mp['major'] == major and mp['minor'] == minor:
+                            dev = name
+
                 beforeInfo = self.diskInfo['before'][dev]
                 afterInfo = self.diskInfo['after'][dev]
 
@@ -13825,6 +13843,68 @@ class ThreadAnalyzer(object):
         memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
         swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile):
 
+        #============================== define part ==============================#
+
+        def drawEvent(timeline, eventList):
+            for evt, tm in eventList.items():
+                for idx, time in enumerate(tm):
+                    if time == 0:
+                        continue
+
+                    try:
+                        text(timeline[idx], yticks()[0][-1], evt, fontsize=5, style='italic',\
+                            bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
+                    except:
+                        pass
+
+        def drawBottom(xtype, ax):
+            if xtype == 1:
+                # convert tick type to integer #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xtickLabel = list(map(int, xtickLabel))
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    xtickLabel[-1] = '   TIME(Sec)'
+                    ax.set_xticklabels(xtickLabel)
+
+                    ytickLabel = ax.get_yticks().tolist()
+                    ytickLabel = list(map(int, ytickLabel))
+                    ax.set_yticklabels(ytickLabel)
+                except:
+                    pass
+            elif xtype == 3:
+                # draw the number of tasks #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    if sum(effectProcList) == 0:
+                        for seq, cnt in enumerate(xtickLabel):
+                            xtickLabel[seq] = '?'
+                    else:
+                        for seq, cnt in enumerate(xtickLabel):
+                            try:
+                                xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
+                            except:
+                                xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   TASK(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 2:
+                # draw the number of cores #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   CORE(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+
         def drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
             memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
@@ -13856,9 +13936,6 @@ class ThreadAnalyzer(object):
             labelList.append('[ CPU + I/O ]')
             plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
             labelList.append('[ CPU Only ]')
-
-            # initialize list that count the number of process using resource more than 1% #
-            effectProcList = [0] * len(timeline)
 
             # CPU usage of processes #
             for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
@@ -13929,49 +14006,7 @@ class ThreadAnalyzer(object):
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            if xtype == 3:
-                # draw the number of tasks #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   TASK(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 2:
-                # draw the number of cores #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   CORE(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 1:
-                # convert tick type to integer #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xtickLabel = list(map(int, xtickLabel))
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    xtickLabel[-1] = '   TIME(Sec)'
-                    ax.set_xticklabels(xtickLabel)
-
-                    ytickLabel = ax.get_yticks().tolist()
-                    ytickLabel = list(map(int, ytickLabel))
-                    ax.set_yticklabels(ytickLabel)
-                except:
-                    pass
-
+            drawBottom(xtype, ax)
 
         def drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
@@ -14186,48 +14221,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            if xtype == 3:
-                # draw the number of tasks #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   TASK(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 2:
-                # draw the number of cores #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   CORE(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 1:
-                # convert tick type to integer #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xtickLabel = list(map(int, xtickLabel))
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    xtickLabel[-1] = '   TIME(Sec)'
-                    ax.set_xticklabels(xtickLabel)
-
-                    ytickLabel = ax.get_yticks().tolist()
-                    ytickLabel = list(map(int, ytickLabel))
-                    ax.set_yticklabels(ytickLabel)
-                except:
-                    pass
+            drawBottom(xtype, ax)
 
         def drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
@@ -14469,54 +14463,21 @@ class ThreadAnalyzer(object):
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            if xtype == 3:
-                # draw the number of tasks #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = effectProcList[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   TASK(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 2:
-                # draw the number of cores #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = nrCore[timeline.index(int(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   CORE(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except:
-                    pass
-            elif xtype == 1:
-                # convert tick type to integer #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xtickLabel = list(map(int, xtickLabel))
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    xtickLabel[-1] = '   TIME(Sec)'
-                    ax.set_xticklabels(xtickLabel)
+            drawBottom(xtype, ax)
 
-                    ytickLabel = ax.get_yticks().tolist()
-                    ytickLabel = list(map(int, ytickLabel))
-                    ax.set_yticklabels(ytickLabel)
-                except:
-                    pass
+        #============================== body part ==============================#
+
+        # initialize list that count the number of process using resource more than 1% #
+        effectProcList = [0] * len(timeline)
 
         if SystemManager.layout is None:
             drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
                 blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
                 memFree, memAnon, memCache, memProcUsage, gpuUsage, 3,\
                 totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 0, 4)
+
+            # draw events on graphs #
+            drawEvent(timeline, eventList)
 
             drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
                 blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
@@ -14530,25 +14491,44 @@ class ThreadAnalyzer(object):
         else:
             pos = 0
             total = 0
+            layoutDict = {}
             layoutList = []
             layout = SystemManager.layout.split(',')
 
             # sum size of graph boxes #
             for idx, graph in enumerate(layout):
                 try:
-                    (target, size) = graph.split(':')
+                    if len(graph.split(':')) == 1:
+                        target = graph
+                        size = 1
+                    else:
+                        (target, size) = graph.split(':')
+
+                    # check duplicated graph #
+                    try:
+                        layoutDict[target]
+                        SystemManager.printError(\
+                            "Fail to draw graph because %s graph is duplicated" % target)
+                        sys.exit(0)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        layoutDict[target] = True
+
                     size = int(size)
                     if size == 0:
                         raise
                     else:
                         total += size
                         layoutList.append([target, int(size)])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printError(\
                         "Fail to draw graph because graph format [TYPE:SIZE] is wrong")
                     sys.exit(0)
 
-            for item in layoutList:
+            for idx, item in enumerate(layoutList):
                 target = item[0]
                 size = item[1]
 
@@ -14577,6 +14557,10 @@ class ThreadAnalyzer(object):
                         SystemManager.printError(\
                             "Fail to draw graph because '%s' is not recognized" % target)
                         sys.exit(0)
+
+                    if idx == 0:
+                        # draw events on graphs #
+                        drawEvent(timeline, eventList)
 
                     pos += size
                 except SystemExit:
@@ -22836,7 +22820,8 @@ class ThreadAnalyzer(object):
                     SystemManager.addrOfServer.port)
 
             SystemManager.printStatus(\
-                "wait for response of %s from server" % SystemManager.addrOfServer.request)
+                "wait for response of %s registration from server" % \
+                SystemManager.addrOfServer.request)
         except:
             SystemManager.printError(\
                 "Fail to send request '%s'" % SystemManager.addrOfServer.request)
