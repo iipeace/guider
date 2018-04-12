@@ -22391,8 +22391,6 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint(\
                         "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
 
-            needLine = True
-
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
                 printStackSamples(idx)
@@ -22404,7 +22402,7 @@ class ThreadAnalyzer(object):
                     pass
 
             procCnt += 1
-            if needLine:
+            if len(memBuf) > 0 or needLine:
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
