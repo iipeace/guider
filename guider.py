@@ -13410,7 +13410,7 @@ class ThreadAnalyzer(object):
 
                 try:
                     idx = timeline.index(time)
-                    eventList[event][idx] = 1
+                    eventList[event][idx] += 1
                 except:
                     pass
 
@@ -13851,6 +13851,10 @@ class ThreadAnalyzer(object):
                     if time == 0:
                         continue
 
+                    # add event count #
+                    if time > 1:
+                        evt = '%s*%s' % (evt, time)
+
                     try:
                         text(timeline[idx], yticks()[0][-1], evt, fontsize=5, style='italic',\
                             bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
@@ -13905,10 +13909,8 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        def drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
+        def drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
+            blkWait, blkProcUsage, gpuUsage, xtype, pos, size):
 
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -14008,10 +14010,8 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
+        def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
+            reclaimBg, reclaimDr, xtype, pos, size):
 
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -14223,10 +14223,8 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size):
+        def drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
+            totalRAM, swapUsage, totalSwap, xtype, pos, size):
 
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -14471,23 +14469,17 @@ class ThreadAnalyzer(object):
         effectProcList = [0] * len(timeline)
 
         if SystemManager.layout is None:
-            drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memCache, memProcUsage, gpuUsage, 3,\
-                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 0, 4)
+            drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
+                blkWait, blkProcUsage, gpuUsage, 3, 0, 4)
 
             # draw events on graphs #
             drawEvent(timeline, eventList)
 
-            drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memCache, memProcUsage, gpuUsage, 2,\
-                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 4, 1)
+            drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
+                reclaimBg, reclaimDr, 2, 4, 1)
 
-            drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memCache, memProcUsage, gpuUsage, 1,\
-                totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, 5, 1)
+            drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
+                totalRAM, swapUsage, totalSwap, 1, 5, 1)
         else:
             pos = 0
             total = 0
@@ -14539,20 +14531,14 @@ class ThreadAnalyzer(object):
                     xtype = len(layoutList) - idx
 
                     if target.upper() == 'CPU':
-                        drawCpu(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                        drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
+                            blkWait, blkProcUsage, gpuUsage, xtype, pos, size)
                     elif target.upper() == 'MEM':
-                        drawMem(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                        drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
+                            totalRAM, swapUsage, totalSwap, xtype, pos, size)
                     elif target.upper() == 'IO':
-                        drawIo(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-                            blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                            memFree, memAnon, memCache, memProcUsage, gpuUsage, xtype,\
-                            totalRAM, swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, pos, size)
+                        drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
+                            reclaimBg, reclaimDr, xtype, pos, size)
                     else:
                         SystemManager.printError(\
                             "Fail to draw graph because '%s' is not recognized" % target)
@@ -21825,15 +21811,8 @@ class ThreadAnalyzer(object):
 
 
 
-    def printProcUsage(self):
-        # calculate diff between previous and now #
+    def setProcUsage(self):
         interval = SystemManager.uptimeDiff
-        if interval == 0:
-            return
-
-        # set comm and pid size #
-        pd = SystemManager.pidDigit
-        cl = 26-(SystemManager.pidDigit*2)
 
         for pid, value in self.procData.items():
             try:
@@ -21899,6 +21878,200 @@ class ThreadAnalyzer(object):
             # check delayacct_blkio_ticks error #
             if value['btime'] >= 100:
                 value['btime'] = 0
+
+
+
+    def getMemDetails(self, idx, maps, mems):
+        rss = 0
+        sss = 0
+        pss = 0
+        memBuf = []
+
+        if maps is not None:
+            for key, item in sorted(maps.items(), reverse=True):
+                tmpstr = ''
+
+                if len(item) == 0 or item['count'] == 0:
+                    continue
+
+                try:
+                    prop = 'Size:'
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                except:
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+
+                try:
+                    prop = 'Rss:'
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    rss += item[prop]
+                except:
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+
+                try:
+                    prop = 'Pss:'
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    pss += item[prop]
+                except:
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+
+                try:
+                    prop = 'Swap:'
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                except:
+                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+
+                try:
+                    prop = 'AnonHugePages:'
+                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
+                except:
+                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', 0)
+
+                try:
+                    prop = 'Locked:'
+                    tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', item[prop])
+                except:
+                    tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
+
+                try:
+                    prop = 'Shared_Clean:'
+                    sss += item[prop]
+                except:
+                    pass
+
+                try:
+                    prop = 'Shared_Dirty:'
+                    sss += item[prop]
+                    if item[prop] > 9999:
+                        item[prop] = item[prop] >> 10
+                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
+                    else:
+                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', item[prop])
+                except:
+                    tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
+
+                try:
+                    prop = 'Private_Dirty:'
+                    if item[prop] > 9999:
+                        item[prop] = item[prop] >> 10
+                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDRT', item[prop])
+                    else:
+                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDRT', item[prop])
+                except:
+                    tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
+
+                try:
+                    prop = 'NOPM'
+                    if item[prop] > 9999:
+                        item[prop] = item[prop] >> 10
+                        tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
+                    else:
+                        tmpstr = "%s%s:%4sK" % (tmpstr, prop, item[prop])
+                except:
+                    tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
+
+                mtype = '(%s)[%s]' % (item['count'], key)
+                memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+
+                if SystemManager.wssEnable:
+                    # get current WSS size #
+                    try:
+                        wss =  SystemManager.convertSize(item['Referenced:'] << 10)
+                    except:
+                        wss =  0
+
+                    # get previous WSS history #
+                    try:
+                        self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
+                    except:
+                        if 'wss' not in self.procData[idx]:
+                            self.procData[idx]['wss'] = dict()
+
+                            # clear reference bits #
+                            try:
+                                path = '/proc/%s/clear_refs' % idx
+                                with open(path, 'w') as fd:
+                                    fd.write('1')
+                            except:
+                                pass
+
+                    # update WSS history #
+                    try:
+                        history = self.procData[idx]['wss'][key]
+                        self.procData[idx]['wss'][key] = '%s -> %5s' % (history, wss)
+                    except:
+                        self.procData[idx]['wss'][key] = '[%5s]' % wss
+
+            # update pss #
+            if SystemManager.pssEnable:
+                mems = pss >> 2
+            # update uss #
+            elif SystemManager.ussEnable:
+                mems = (rss - sss) >> 2
+
+        if SystemManager.memEnable:
+            return memBuf, mems
+        else:
+            return [], mems
+
+
+
+    def printProcUsage(self):
+        def printStackSamples(idx):
+            # set indent size including arrow #
+            initIndent = 42
+
+            try:
+                for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
+                    key=lambda e: e[1], reverse=True):
+
+                    line = ''
+                    fullstack = ''
+                    per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
+                    self.stackTable[idx]['stack'][stack] = 0
+
+                    if per == 0:
+                        continue
+
+                    indent = initIndent + 3
+
+                    newLine = 1
+                    for call in stack.split('\n'):
+                        try:
+                            astack = call.split()[1]
+
+                            if astack.startswith('0xffffffff'):
+                                if fullstack == line == '':
+                                    line = 'None'
+                                else:
+                                    line = line[:line.rfind('<-')]
+                                break
+
+                            if indent + len(line) + len(astack) >= SystemManager.lineLength:
+                                indent = 0
+                                fullstack = '%s%s\n' % (fullstack, line)
+                                newLine += 1
+                                line = ' ' * initIndent
+
+                            line = '%s%s <- ' % (line, astack)
+                        except:
+                            pass
+
+                    fullstack = '%s%s' % (fullstack, line)
+
+                    SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+            except:
+                pass
+
+        # calculate diff between previous and now #
+        if SystemManager.uptimeDiff == 0:
+            return
+
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
+        # calculate resource usage of processes #
+        self.setProcUsage()
 
         # get profile mode #
         if SystemManager.processEnable:
@@ -22116,6 +22289,7 @@ class ThreadAnalyzer(object):
             except:
                 dtime = '-'
 
+            # get io size #
             if SystemManager.blockEnable:
                 readSize = value['read'] >> 20
                 writeSize = value['write'] >> 20
@@ -22145,133 +22319,9 @@ class ThreadAnalyzer(object):
                 mems = 0
 
             # get memory details #
-            if SystemManager.memEnable or SystemManager.pssEnable or SystemManager.ussEnable:
-                rss = 0
-                sss = 0
-                pss = 0
-                memBuf = []
+            memBuf, mems = self.getMemDetails(idx, value['maps'], mems)
 
-                if value['maps'] is not None:
-                    for key, item in sorted(value['maps'].items(), reverse=True):
-                        tmpstr = ''
-
-                        if len(item) == 0 or item['count'] == 0:
-                            continue
-
-                        try:
-                            prop = 'Size:'
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        except:
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
-
-                        try:
-                            prop = 'Rss:'
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                            rss += item[prop]
-                        except:
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
-
-                        try:
-                            prop = 'Pss:'
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                            pss += item[prop]
-                        except:
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
-
-                        try:
-                            prop = 'Swap:'
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
-                        except:
-                            tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
-
-                        try:
-                            prop = 'AnonHugePages:'
-                            tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
-                        except:
-                            tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', 0)
-
-                        try:
-                            prop = 'Locked:'
-                            tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', item[prop])
-                        except:
-                            tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
-
-                        try:
-                            prop = 'Shared_Clean:'
-                            sss += item[prop]
-                        except:
-                            pass
-
-                        try:
-                            prop = 'Shared_Dirty:'
-                            sss += item[prop]
-                            if item[prop] > 9999:
-                                item[prop] = item[prop] >> 10
-                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
-                            else:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', item[prop])
-                        except:
-                            tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
-
-                        try:
-                            prop = 'Private_Dirty:'
-                            if item[prop] > 9999:
-                                item[prop] = item[prop] >> 10
-                                tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDRT', item[prop])
-                            else:
-                                tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDRT', item[prop])
-                        except:
-                            tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
-
-                        try:
-                            prop = 'NOPM'
-                            if item[prop] > 9999:
-                                item[prop] = item[prop] >> 10
-                                tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
-                            else:
-                                tmpstr = "%s%s:%4sK" % (tmpstr, prop, item[prop])
-                        except:
-                            tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
-
-                        mtype = '(%s)[%s]' % (item['count'], key)
-                        memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
-
-                        if SystemManager.wssEnable:
-                            # get current WSS size #
-                            try:
-                                wss =  SystemManager.convertSize(item['Referenced:'] << 10)
-                            except:
-                                wss =  0
-
-                            # get previous WSS history #
-                            try:
-                                self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
-                            except:
-                                if 'wss' not in self.procData[idx]:
-                                    self.procData[idx]['wss'] = dict()
-
-                                    # clear reference bits #
-                                    try:
-                                        path = '/proc/%s/clear_refs' % idx
-                                        with open(path, 'w') as fd:
-                                            fd.write('1')
-                                    except:
-                                        pass
-
-                            # update WSS history #
-                            try:
-                                history = self.procData[idx]['wss'][key]
-                                self.procData[idx]['wss'][key] = '%s -> %5s' % (history, wss)
-                            except:
-                                self.procData[idx]['wss'][key] = '[%5s]' % wss
-
-                    # update pss #
-                    if SystemManager.pssEnable:
-                        mems = pss >> 2
-                    # update uss #
-                    elif SystemManager.ussEnable:
-                        mems = (rss - sss) >> 2
-
+            # print stats of a process #
             SystemManager.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
@@ -22295,101 +22345,57 @@ class ThreadAnalyzer(object):
                 pass
 
             # print memory details #
-            if SystemManager.memEnable:
-                for memData in memBuf:
-                    mprop = memData[0]
-                    mval = memData[1]
+            for memData in memBuf:
+                mprop = memData[0]
+                mval = memData[1]
 
-                    SystemManager.addPrint(mval)
+                SystemManager.addPrint(mval)
+
+                # cut by rows of terminal #
+                if SystemManager.bufferRows >= \
+                    SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+                    SystemManager.printFile is None and \
+                    SystemManager.printAllEnable is False:
+                    SystemManager.addPrint('---more---')
+                    return
+
+                if SystemManager.wssEnable:
+                    # split a long line #
+                    tstr = ''
+                    indent = 48
+                    isFirstLined = True
+                    limit = SystemManager.lineLength - indent
+                    pstr = self.procData[idx]['wss'][mprop]
+
+                    while len(pstr) > limit:
+                        slimit = len(pstr[:limit])
+                        des = '%s' % pstr[:slimit]
+                        tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
+                        if isFirstLined:
+                            limit -= 7
+                            isFirstLined = False
+                        pstr = '%s' % pstr[slimit:]
+                    tstr = '%s%s' % (tstr, pstr)
+
+                    # count newlines #
+                    newline = tstr.count('\n')+1
 
                     # cut by rows of terminal #
-                    if SystemManager.bufferRows >= \
+                    if SystemManager.bufferRows + newline >= \
                         SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
                         SystemManager.printFile is None and \
                         SystemManager.printAllEnable is False:
                         SystemManager.addPrint('---more---')
                         return
 
-                    if SystemManager.wssEnable:
-                        # split a long line #
-                        tstr = ''
-                        indent = 48
-                        isFirstLined = True
-                        limit = SystemManager.lineLength - indent
-                        pstr = self.procData[idx]['wss'][mprop]
+                    SystemManager.addPrint(\
+                        "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
 
-                        while len(pstr) > limit:
-                            slimit = len(pstr[:limit])
-                            des = '%s' % pstr[:slimit]
-                            tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
-                            if isFirstLined:
-                                limit -= 7
-                                isFirstLined = False
-                            pstr = '%s' % pstr[slimit:]
-                        tstr = '%s%s' % (tstr, pstr)
-
-                        # count newlines #
-                        newline = tstr.count('\n')+1
-
-                        # cut by rows of terminal #
-                        if SystemManager.bufferRows + newline >= \
-                            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                            SystemManager.printFile is None and \
-                            SystemManager.printAllEnable is False:
-                            SystemManager.addPrint('---more---')
-                            return
-
-                        SystemManager.addPrint(\
-                            "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
-
-                needLine = True
+            needLine = True
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
-                # set indent size including arrow #
-                initIndent = 42
-
-                try:
-                    for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
-                        key=lambda e: e[1], reverse=True):
-
-                        line = ''
-                        fullstack = ''
-                        per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
-                        self.stackTable[idx]['stack'][stack] = 0
-
-                        if per == 0:
-                            continue
-
-                        indent = initIndent + 3
-
-                        newLine = 1
-                        for call in stack.split('\n'):
-                            try:
-                                astack = call.split()[1]
-
-                                if astack.startswith('0xffffffff'):
-                                    if fullstack == line == '':
-                                        line = 'None'
-                                    else:
-                                        line = line[:line.rfind('<-')]
-                                    break
-
-                                if indent + len(line) + len(astack) >= SystemManager.lineLength:
-                                    indent = 0
-                                    fullstack = '%s%s\n' % (fullstack, line)
-                                    newLine += 1
-                                    line = ' ' * initIndent
-
-                                line = '%s%s <- ' % (line, astack)
-                            except:
-                                pass
-
-                        fullstack = '%s%s' % (fullstack, line)
-
-                        SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
-                except:
-                    pass
+                printStackSamples(idx)
 
                 try:
                     self.stackTable[idx]['total'] = 0
@@ -22778,10 +22784,6 @@ class ThreadAnalyzer(object):
             SystemManager.printError(\
                 "Fail to request service because of same port used between client and sever")
             sys.exit(0)
-        elif data.startswith('EVENT_'):
-            SystemManager.printStatus(\
-                "registered event %s to server" % data[data.find('_')+1:])
-            sys.exit(0)
         # PRINT service #
         else:
             # realtime mode #
@@ -22819,9 +22821,17 @@ class ThreadAnalyzer(object):
                     SystemManager.addrOfServer.ip, \
                     SystemManager.addrOfServer.port)
 
+            # check event #
+            if SystemManager.addrOfServer.request.startswith('EVENT_'):
+                SystemManager.printStatus(\
+                    "requested %s to server" % SystemManager.addrOfServer.request)
+                sys.exit(0)
+
             SystemManager.printStatus(\
                 "wait for response of %s registration from server" % \
                 SystemManager.addrOfServer.request)
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError(\
                 "Fail to send request '%s'" % SystemManager.addrOfServer.request)
@@ -22832,85 +22842,89 @@ class ThreadAnalyzer(object):
         if SystemManager.addrAsServer is None:
             return
 
-        # get message from clients #
-        ret = SystemManager.addrAsServer.recv()
+        while 1:
+            # get message from clients #
+            ret = SystemManager.addrAsServer.recv()
 
-        # verify request type #
-        if ret is False:
-            SystemManager.addrAsServer = None
-            return
-        elif ret is None:
-            return
-
-        # handle request #
-        if type(ret) is tuple and type(ret[0]) is str:
-            message = ret[0]
-
-            try:
-                ip = ret[1][0]
-                port = ret[1][1]
-            except:
-                SystemManager.printWarning("Fail to get address of client from message")
+            # verify request type #
+            if ret is False:
+                SystemManager.addrAsServer = None
+                return
+            elif ret is None:
                 return
 
-            networkObject = NetworkManager('client', ip, port)
-            if networkObject.ip is None:
-                return
+            # handle request #
+            if type(ret) is tuple and type(ret[0]) is str:
+                message = ret[0]
 
-            if message.startswith('EVENT_'):
-                event = message[message.find('_')+1:]
+                try:
+                    ip = ret[1][0]
+                    port = ret[1][1]
+                except:
+                    SystemManager.printWarning("Fail to get address of client from message")
+                    continue
 
-                # append event to list #
-                ThreadAnalyzer.procEventData.append([SystemManager.uptime, event])
+                networkObject = NetworkManager('client', ip, port)
+                if networkObject.ip is None:
+                    continue
 
-                networkObject.send(message)
-                del networkObject
-                return
-            elif message == 'LOG':
-                pass
-            elif message == 'PRINT':
-                index = ip + ':' + str(port)
-                if not index in SystemManager.addrListForPrint:
-                    SystemManager.addrListForPrint[index] = networkObject
+                if message.startswith('EVENT_'):
+                    event = message[message.find('_')+1:]
+
+                    # append event to list #
+                    ThreadAnalyzer.procEventData.append([SystemManager.uptime, event])
+
                     SystemManager.printInfo(\
-                        "registered %s:%d as remote output address for PRINT" % (ip, port))
-                else:
-                    SystemManager.printWarning(\
-                        "Duplicated %s:%d as remote output address" % (ip, port))
-            elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
-                if SystemManager.reportEnable is False:
-                    SystemManager.printWarning(\
-                        "Ignored %s request from %s:%d because no report service" % \
-                        (message, ip, port))
-                    networkObject.send("REFUSE")
+                        "added event %s from %s:%d" % (event, ip, port))
+
+                    networkObject.send(message)
                     del networkObject
-                    return
+                    continue
+                elif message == 'LOG':
+                    pass
+                elif message == 'PRINT':
+                    index = ip + ':' + str(port)
+                    if not index in SystemManager.addrListForPrint:
+                        SystemManager.addrListForPrint[index] = networkObject
+                        SystemManager.printInfo(\
+                            "registered %s:%d as remote output address for PRINT" % (ip, port))
+                    else:
+                        SystemManager.printWarning(\
+                            "Duplicated %s:%d as remote output address" % (ip, port))
+                elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
+                    if SystemManager.reportEnable is False:
+                        SystemManager.printWarning(\
+                            "Ignored %s request from %s:%d because no report service" % \
+                            (message, ip, port))
+                        networkObject.send("REFUSE")
+                        del networkObject
+                        continue
 
-                networkObject.request = message
+                    networkObject.request = message
 
-                index = ip + ':' + str(port)
-                if not index in SystemManager.addrListForReport:
-                    SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo(\
-                        "registered %s:%d as remote report address for REPORT" % (ip, port))
+                    index = ip + ':' + str(port)
+                    if not index in SystemManager.addrListForReport:
+                        SystemManager.addrListForReport[index] = networkObject
+                        SystemManager.printInfo(\
+                            "registered %s:%d as remote report address for REPORT" % (ip, port))
+                    else:
+                        SystemManager.addrListForReport[index] = networkObject
+                        SystemManager.printInfo(\
+                            "updated %s:%d as remote report address for REPORT" % (ip, port))
+                elif message == 'ACK':
+                    index = ip + ':' + str(port)
+                    if index in SystemManager.addrListForPrint:
+                        SystemManager.addrListForPrint[index].ignore -= 1
+                        SystemManager.addrListForPrint[index].status = 'READY'
+                    elif index in SystemManager.addrListForReport:
+                        SystemManager.addrListForReport[index].ignore -= 1
+                        SystemManager.addrListForReport[index].status = 'READY'
+                    else:
+                        SystemManager.printWarning(\
+                            "Fail to find %s:%d as remote report address" % (ip, port))
+                # wrong request or just data from server #
                 else:
-                    SystemManager.addrListForReport[index] = networkObject
-                    SystemManager.printInfo(\
-                        "updated %s:%d as remote report address for REPORT" % (ip, port))
-            elif message == 'ACK':
-                index = ip + ':' + str(port)
-                if index in SystemManager.addrListForPrint:
-                    SystemManager.addrListForPrint[index].ignore -= 1
-                    SystemManager.addrListForPrint[index].status = 'READY'
-                elif index in SystemManager.addrListForReport:
-                    SystemManager.addrListForReport[index].ignore -= 1
-                    SystemManager.addrListForReport[index].status = 'READY'
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to find %s:%d as remote report address" % (ip, port))
-            # wrong request or just data from server #
-            else:
-                SystemManager.printError("Fail to request wrong service %s" % message)
+                    SystemManager.printError("Fail to request wrong service %s" % message)
 
 
 
