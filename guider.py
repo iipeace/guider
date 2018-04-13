@@ -533,6 +533,23 @@ class ConfigManager(object):
         'RLIMIT_NLIMITS'
         ]
 
+    # Define udp format of system #
+    udpList = [
+        'sl',
+        'local_address',
+        'rem_address',
+        'st',
+        'tx_rx_queue',
+        'tr_tm->when',
+        'retrnsmt',
+        'uid',
+        'timeout',
+        'inode',
+        'ref',
+        'pointer',
+        'drops'
+        ]
+
     # Define perf event types #
     perfEventType = [
         'PERF_TYPE_HARDWARE',
@@ -8342,6 +8359,28 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getUdpList():
+        udpPath = '/proc/net/udp'
+
+        try:
+            with open(udpPath, 'r') as fd:
+                udpBuf = fd.readlines()
+        except:
+            SystemManager.printError("Fail to open %s to get udp list " % udpPath)
+            sys.exit(0)
+
+        udpList = []
+        for line in udpBuf:
+            udpList.append(line.split())
+
+        # remove title #
+        udpList.pop(0)
+
+        return udpList
+
+
+
+    @staticmethod
     def printRecordCmd():
         for idx, val in SystemManager.rcmdList.items():
             if len(val) == 0:
@@ -10635,7 +10674,7 @@ class SystemManager(object):
 
     @staticmethod
     def isSendMode():
-        if sys.argv[1] == 'send':
+        if sys.argv[1] == 'send' or sys.argv[1] == 'kill':
             return True
         else:
             return False
@@ -10667,6 +10706,92 @@ class SystemManager(object):
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def getUdpPortList(addrList):
+        portList = []
+        inodeIdx = ConfigManager.udpList.index('inode')
+        addrIdx = ConfigManager.udpList.index('local_address')
+
+        udpList = SystemManager.getUdpList()
+        if len(udpList) == 0:
+            return portList
+
+        for udp in udpList:
+            try:
+                if udp[inodeIdx] in addrList:
+                    portList.append(int(udp[addrIdx].split(':')[1], base=16))
+            except:
+                pass
+
+        return portList
+
+
+
+    @staticmethod
+    def getProcUdpAddress(pid):
+        udpAddrList = []
+        fdlistPath = "%s/%s/fd" % (SystemManager.procPath, pid)
+
+        # save file info per process #
+        try:
+            fdlist = os.listdir(fdlistPath)
+        except:
+            SystemManager.printWarning('Fail to open %s' % fdlistPath)
+            return udpAddrList
+
+        # save fd info of process #
+        for fd in fdlist:
+            try:
+                int(fd)
+            except:
+                continue
+
+            try:
+                # add file info into fdList #
+                fdPath = "%s/%s" % (fdlistPath, fd)
+                filename = os.readlink(fdPath)
+
+                if filename.startswith('socket'):
+                    udpAddrList.append(filename.split('[')[1][:-1])
+            except:
+                SystemManager.printWarning('Fail to open %s' % fdPath)
+
+        return udpAddrList
+
+
+
+    @staticmethod
+    def getProcPids(name):
+        pidList = []
+        myPid = str(SystemManager.pid)
+        compLen = len(name)
+
+        pids = os.listdir(SystemManager.procPath)
+        for pid in pids:
+            if myPid == pid:
+                continue
+
+            try:
+                int(pid)
+            except:
+                continue
+
+            # make comm path of pid #
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+
+            try:
+                fd = open(procPath + '/comm', 'r')
+                comm = fd.readline()[0:-1]
+            except:
+                continue
+
+            if comm == name:
+                pidList.append(int(pid))
+
+        return pidList
 
 
 
@@ -13285,7 +13410,7 @@ class ThreadAnalyzer(object):
         netRead = []
         netWrite = []
         gpuUsage = {}
-        eventList = {}
+        eventList = []
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
@@ -13385,6 +13510,9 @@ class ThreadAnalyzer(object):
                 break
 
         if logBuf[finalLine-1].startswith('[Top Event Info]'):
+            # initialize event timeline #
+            eventList = [[] for x in xrange(len(timeline))]
+
             for line in logBuf[finalLine:]:
                 if line.startswith('[Top CPU Info]'):
                     break
@@ -13404,13 +13532,8 @@ class ThreadAnalyzer(object):
                     continue
 
                 try:
-                    eventList[event]
-                except:
-                    eventList[event] = [0] * len(timeline)
-
-                try:
                     idx = timeline.index(time)
-                    eventList[event][idx] += 1
+                    eventList[idx].append(event)
                 except:
                     pass
 
@@ -13846,20 +13969,18 @@ class ThreadAnalyzer(object):
         #============================== define part ==============================#
 
         def drawEvent(timeline, eventList):
-            for evt, tm in eventList.items():
-                for idx, time in enumerate(tm):
-                    if time == 0:
-                        continue
+            for tm, evts in enumerate(eventList):
+                if len(evts) == 0:
+                    continue
 
-                    # add event count #
-                    if time > 1:
-                        evt = '%s*%s' % (evt, time)
+                evtbox = '\n'.join(evts)
 
-                    try:
-                        text(timeline[idx], yticks()[0][-1], evt, fontsize=5, style='italic',\
-                            bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
-                    except:
-                        pass
+                try:
+                    text(timeline[tm], yticks()[0][-1], evtbox, fontsize=5,\
+                        verticalalignment='top', style='italic',\
+                        bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
+                except:
+                    pass
 
         def drawBottom(xtype, ax):
             if xtype == 1:
