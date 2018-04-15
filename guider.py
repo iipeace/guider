@@ -6743,7 +6743,7 @@ class SystemManager(object):
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
                 print('              [thread]   {c(pu)}')
                 print('              [function] {c(pu)|u(ser)}')
-                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)}')
+                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
                 print('        -s  [save_traceData:path]')
                 print('        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
@@ -6775,7 +6775,7 @@ class SystemManager(object):
                 print('        -q  [configure_taskList]')
                 print('        -Z  [convert_textToImage]')
                 print('        -L  [set_graphLayout:CPU|MEM|IO{:proportion}]')
-                print('        -m  [set_terminalSize:{ROWS:COLS}]')
+                print('        -m  [set_terminalSize:{rows:cols}]')
                 print('    [common]')
                 print('        -a  [show_allInfo]')
                 print('        -Q  [print_allRowsInaStream]')
@@ -8682,6 +8682,9 @@ class SystemManager(object):
         if SystemManager.isFileMode() or SystemManager.isSystemMode():
             SystemManager.condExit = True
         elif SystemManager.isTopMode():
+            # run user custom command #
+            SystemManager.writeRecordCmd('STOP')
+
             if SystemManager.printFile is not None:
                 # reload data written to file #
                 if SystemManager.pipeEnable:
@@ -13393,6 +13396,9 @@ class ThreadAnalyzer(object):
         # set network configuration #
         if SystemManager.netEnable:
             SystemManager.setServerNetwork(None, None)
+
+        # run user custom command #
+        SystemManager.writeRecordCmd('BEFORE')
 
         # run loop #
         while 1:
