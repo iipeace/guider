@@ -698,6 +698,8 @@ class NetworkManager(object):
 
                 if port is None:
                     self.port = 0
+                else:
+                    self.port = port
 
                 self.socket = socket(AF_INET, SOCK_DGRAM)
                 self.socket.bind((self.ip, self.port))
@@ -6727,6 +6729,7 @@ class SystemManager(object):
                 print('        list|start|stop|send [proc]')
                 print('    [convenience]')
                 print('        draw       [image]')
+                print('        event      [event]')
 
                 print('\nOptions:')
                 print('    [record]')
@@ -8462,6 +8465,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'STACK '
 
+                if SystemManager.netEnable:
+                    enableStat += 'NET '
+                else:
+                    disableStat += 'NET '
+
                 if SystemManager.wchanEnable:
                     enableStat += 'WCHAN '
                 else:
@@ -9825,6 +9833,9 @@ class SystemManager(object):
         else:
             SystemManager.warningEnable = False
 
+        if SystemManager.isTopMode():
+            SystemManager.netEnable = True
+
         for item in SystemManager.optionList:
             if item == '':
                 continue
@@ -9930,6 +9941,8 @@ class SystemManager(object):
                     SystemManager.cpuEnable = False
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = False
+                if options.rfind('n') > -1:
+                    SystemManager.netEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -10152,7 +10165,7 @@ class SystemManager(object):
                     networkObject.status = 'ALWAYS'
                     SystemManager.addrListForPrint[ip + ':' + str(port)] = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote output address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
 
             elif option == 'N' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
@@ -10184,7 +10197,7 @@ class SystemManager(object):
                     networkObject.request = service
                     SystemManager.addrListForReport[ip + ':' + str(port)] = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote report address" % (ip, port))
+                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
 
             elif option == 'j' and SystemManager.isTopMode():
                 SystemManager.reportPath = value
@@ -10211,25 +10224,11 @@ class SystemManager(object):
                 ip = ret[1]
                 port = ret[2]
 
-                networkObject = NetworkManager('server', ip, port)
-                if networkObject.ip is None:
-                    sys.exit(0)
-                else:
-                    SystemManager.addrAsServer = networkObject
-
-                SystemManager.printInfo("use %s:%d as local address" % \
-                    (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
+                SystemManager.setServerNetwork(ip, port)
 
             elif option == 'X' and SystemManager.isTopMode():
                 if SystemManager.findOption('x') is False:
-                    networkObject = NetworkManager('server', None, None)
-                    if networkObject.ip is None:
-                        sys.exit(0)
-                    else:
-                        SystemManager.addrAsServer = networkObject
-
-                    SystemManager.printInfo("use %s:%d as local address" % \
-                        (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
+                    SystemManager.setServerNetwork(None, None)
 
                 # receive mode #
                 if len(value) == 0:
@@ -10691,6 +10690,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isEventMode():
+        if sys.argv[1] == 'event':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isDrawMode():
         if sys.argv[1] == 'draw' or SystemManager.drawMode:
             SystemManager.drawMode = True
@@ -10710,7 +10718,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getUdpPortList(addrList):
+    def getUdpAddrList(addrList):
         portList = []
         inodeIdx = ConfigManager.udpList.index('inode')
         addrIdx = ConfigManager.udpList.index('local_address')
@@ -10722,7 +10730,10 @@ class SystemManager(object):
         for udp in udpList:
             try:
                 if udp[inodeIdx] in addrList:
-                    portList.append(int(udp[addrIdx].split(':')[1], base=16))
+                    # convert ip address and port #
+                    portList.append("%s:%s" % (\
+                        int(udp[addrIdx].split(':')[0], base=16),\
+                        int(udp[addrIdx].split(':')[1], base=16)))
             except:
                 pass
 
@@ -10731,7 +10742,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getProcUdpAddress(pid):
+    def getProcUdpObjs(pid):
         udpAddrList = []
         fdlistPath = "%s/%s/fd" % (SystemManager.procPath, pid)
 
@@ -10792,6 +10803,72 @@ class SystemManager(object):
                 pidList.append(int(pid))
 
         return pidList
+
+
+
+    @staticmethod
+    def setServerNetwork(ip, port, force=False):
+        if SystemManager.addrAsServer is not None and force is False:
+            SystemManager.printWarning(\
+                "Fail to set server network because it is already set", True)
+            return
+
+        networkObject = NetworkManager('server', ip, port)
+        if networkObject.ip is None:
+            sys.exit(0)
+
+        SystemManager.addrAsServer = networkObject
+        SystemManager.printInfo("use %s:%d as local address" % \
+            (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
+
+
+
+    @staticmethod
+    def broadcastEvent(event):
+        # get pid list of guider processes #
+        pids = SystemManager.getProcPids(__module__)
+        if len(pids) == 0:
+            SystemManager.printError("Fail to find running %s process" % __module__)
+            sys.exit(0)
+
+        # convert event name #
+        if event.startswith('EVENT_') is False:
+            event = 'EVENT_%s' % event
+
+        # get udp address list of guider processes #
+        for pid in pids:
+            objs = SystemManager.getProcUdpObjs(pid)
+
+            # get udp port list of guider processes #
+            addrs = SystemManager.getUdpAddrList(objs)
+
+            for addr in addrs:
+                try:
+                    ip, port = addr.split(':')
+                except:
+                    SystemManager.printWarning(\
+                        "Failed to use %s as remote address" % (addr))
+                    continue
+
+                networkObject = NetworkManager('client', ip, int(port))
+                ip = networkObject.ip
+                port = networkObject.port
+
+                if networkObject.ip is None or networkObject.port is None:
+                    SystemManager.printWarning(\
+                        "Failed to use %s:%s as remote address" % (ip, port))
+                    continue
+
+                try:
+                    networkObject.request = event
+                    networkObject.send(event)
+                    SystemManager.printInfo(\
+                        "sent event '%s' to %s:%s address of %s process" % \
+                        (event, ip, port, pid))
+                except:
+                    SystemManager.printWarning(\
+                        "Failed to send event '%s' to %s:%s address of %s process" % \
+                        (event, ip, port, pid))
 
 
 
@@ -13313,8 +13390,9 @@ class ThreadAnalyzer(object):
                 err = sys.exc_info()[1]
                 SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
 
-        # run user custom command #
-        SystemManager.writeRecordCmd('BEFORE')
+        # set network configuration #
+        if SystemManager.netEnable:
+            SystemManager.setServerNetwork(None, None)
 
         # run loop #
         while 1:
@@ -22994,7 +23072,7 @@ class ThreadAnalyzer(object):
                     ThreadAnalyzer.procEventData.append([SystemManager.uptime, event])
 
                     SystemManager.printInfo(\
-                        "added event %s from %s:%d" % (event, ip, port))
+                        "added event '%s' from %s:%d" % (event, ip, port))
 
                     networkObject.send(message)
                     del networkObject
@@ -23006,10 +23084,10 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForPrint:
                         SystemManager.addrListForPrint[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote output address for PRINT" % (ip, port))
+                            "registered %s:%d as remote address for PRINT" % (ip, port))
                     else:
                         SystemManager.printWarning(\
-                            "Duplicated %s:%d as remote output address" % (ip, port))
+                            "Duplicated %s:%d as remote address" % (ip, port))
                 elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                     if SystemManager.reportEnable is False:
                         SystemManager.printWarning(\
@@ -23025,11 +23103,11 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForReport:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote report address for REPORT" % (ip, port))
+                            "registered %s:%d as remote address for REPORT" % (ip, port))
                     else:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "updated %s:%d as remote report address for REPORT" % (ip, port))
+                            "updated %s:%d as remote address for REPORT" % (ip, port))
                 elif message == 'ACK':
                     index = ip + ':' + str(port)
                     if index in SystemManager.addrListForPrint:
@@ -23040,7 +23118,7 @@ class ThreadAnalyzer(object):
                         SystemManager.addrListForReport[index].status = 'READY'
                     else:
                         SystemManager.printWarning(\
-                            "Fail to find %s:%d as remote report address" % (ip, port))
+                            "Fail to find %s:%d as remote address" % (ip, port))
                 # wrong request or just data from server #
                 else:
                     SystemManager.printError("Fail to request wrong service %s" % message)
@@ -23406,6 +23484,13 @@ if __name__ == '__main__':
     # save system info first #
     if SystemManager.isLinux:
         SystemManager()
+
+    if SystemManager.isEventMode():
+        if len(sys.argv) <= 2:
+            SystemManager.broadcastEvent('EVENT')
+        else:
+            SystemManager.broadcastEvent(' '.join(sys.argv[2:]))
+        sys.exit(0)
 
     #============================== record part ==============================#
     if SystemManager.isRecordMode():
