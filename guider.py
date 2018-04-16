@@ -6726,7 +6726,7 @@ class SystemManager(object):
                 print('        record -F  [file]')
                 print('        mem        [page]')
                 print('    [control]')
-                print('        list|start|stop|send [proc]')
+                print('        list|start|stop|send|kill [proc]')
                 print('    [convenience]')
                 print('        draw       [image]')
                 print('        event      [event]')
@@ -6938,10 +6938,12 @@ class SystemManager(object):
             print('        # %s list' % cmd)
             print('    - send noty signal to guider processes running')
             print('        # %s send' % cmd)
+            print('        # %s kill ' % cmd)
             print('    - send stop signal to guider processes running')
             print('        # %s stop' % cmd)
             print('    - send specific signals to specific processes running')
             print('        # %s send -9 1234, 4567' % cmd)
+            print('        # %s kill -9 1234, 4567' % cmd)
             print('    - change priority of tasks')
             print('        # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
             print('    - update priority of tasks continuously')
@@ -10721,6 +10723,16 @@ class SystemManager(object):
 
 
     @staticmethod
+    def convertCIDR(addr):
+        addrList = []
+        splitAddr = [addr[i:i+2] for i in xrange(0, len(addr), 2)]
+        for num in reversed(splitAddr):
+            addrList.append(str(int(num, base=16)))
+        return '.'.join(addrList)
+
+
+
+    @staticmethod
     def getUdpAddrList(addrList):
         portList = []
         inodeIdx = ConfigManager.udpList.index('inode')
@@ -10733,10 +10745,10 @@ class SystemManager(object):
         for udp in udpList:
             try:
                 if udp[inodeIdx] in addrList:
+                    ip, port = udp[addrIdx].split(':')
                     # convert ip address and port #
-                    portList.append("%s:%s" % (\
-                        int(udp[addrIdx].split(':')[0], base=16),\
-                        int(udp[addrIdx].split(':')[1], base=16)))
+                    ip = SystemManager.convertCIDR(ip)
+                    portList.append("%s:%s" % (ip, int(port, base=16)))
             except:
                 pass
 
@@ -10813,7 +10825,7 @@ class SystemManager(object):
     def setServerNetwork(ip, port, force=False):
         if SystemManager.addrAsServer is not None and force is False:
             SystemManager.printWarning(\
-                "Fail to set server network because it is already set", True)
+                "Fail to set server network because it is already set")
             return
 
         networkObject = NetworkManager('server', ip, port)
