@@ -10814,7 +10814,7 @@ class SystemManager(object):
             except:
                 continue
 
-            if comm == name:
+            if comm.startswith(name):
                 pidList.append(int(pid))
 
         return pidList
@@ -12795,7 +12795,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
             "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-            ("DESC", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
+            ("DESC ", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
             "Active", "Inactive", "PageTables", "Slab", "SlabRclm", "SlabUnRclm", "Mlocked"))
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
@@ -12820,7 +12820,7 @@ class SystemManager(object):
                 int(beforeInfo['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint(\
-            "[ END  ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+            "[  END ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
                 (memAfterUsage >> 10, swapAfterUsage >> 10, \
                 int(afterInfo['Buffers']) >> 10, int(afterInfo['Cached']) >> 10, \
                 int(afterInfo['Shmem']) >> 10, int(afterInfo['Mapped']) >> 10, \
