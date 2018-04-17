@@ -683,7 +683,12 @@ class NetworkManager(object):
         self.ignore = 0
 
         try:
-            from socket import socket, AF_INET, SOCK_DGRAM
+            if SystemManager.socketObj is None:
+                import socket
+                SystemManager.socketObj = socket
+
+            socket = SystemManager.socketObj
+            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError("Fail to import python package: %s" % err.args[0])
@@ -786,6 +791,32 @@ class NetworkManager(object):
             message, address = self.socket.recvfrom(4096)
             return (message, address)
         except:
+            return None
+
+
+
+    @staticmethod
+    def getPublicIp():
+        try:
+            if SystemManager.socketObj is None:
+                import socket
+                SystemManager.socketObj = socket
+
+            socket = SystemManager.socketObj
+            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to get public IP address") % err.args[0])
+            return
+
+        try:
+            s = socket(AF_INET, SOCK_STREAM)
+            s.connect(("google.com",80))
+            return s.getsockname()[0]
+        except:
+            SystemManager.printWarning("Fail to get public IP address")
             return None
 
 
@@ -6205,6 +6236,7 @@ class SystemManager(object):
     perfEventData = {}
     guiderObj = None
     ctypesObj = None
+    socketObj = None
     libcObj = None
     fcntlObj = None
     libcPath = 'libc.so.6'
@@ -10835,7 +10867,7 @@ class SystemManager(object):
             return
 
         if ip is None:
-            SystemManager.getEffectiveIps()
+            ip = NetworkManager.getPublicIp()
 
         networkObject = NetworkManager('server', ip, port)
         if networkObject.ip is None:
