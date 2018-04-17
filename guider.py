@@ -696,13 +696,19 @@ class NetworkManager(object):
                 else:
                     self.ip = ip
 
+                self.socket = socket(AF_INET, SOCK_DGRAM)
+
                 if port is None:
-                    self.port = 0
+                    try:
+                        self.port = 5555
+                        self.socket.bind((self.ip, self.port))
+                    except:
+                        self.port = 0
+                        self.socket.bind((self.ip, self.port))
                 else:
                     self.port = port
+                    self.socket.bind((self.ip, self.port))
 
-                self.socket = socket(AF_INET, SOCK_DGRAM)
-                self.socket.bind((self.ip, self.port))
                 self.port = self.socket.getsockname()[1]
                 self.socket.setblocking(0)
             except:
@@ -10828,6 +10834,9 @@ class SystemManager(object):
                 "Fail to set server network because it is already set")
             return
 
+        if ip is None:
+            SystemManager.getEffectiveIps()
+
         networkObject = NetworkManager('server', ip, port)
         if networkObject.ip is None:
             sys.exit(0)
@@ -10835,6 +10844,54 @@ class SystemManager(object):
         SystemManager.addrAsServer = networkObject
         SystemManager.printInfo("use %s:%d as local address" % \
             (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
+
+
+
+    @staticmethod
+    def getEffectiveIps():
+        effectiveList = {}
+        connPaths = ['/proc/net/udp', '/proc/net/tcp']
+
+        for path in connPaths:
+            try:
+                with open(path, 'r') as fd:
+                    ipList = fd.readlines()
+
+                # remove title #
+                ipList.pop(0)
+
+                for line in ipList:
+                    items = line.split()
+                    effectiveList[SystemManager.convertCIDR(items[1].split(':')[0])] = None
+            except:
+                SystemManager.printWarning(\
+                    "Fail to open %s to read effective ip addresses" % path)
+                return effectiveList
+
+        return list(effectiveList.keys())
+
+
+
+    @staticmethod
+    def getRoutedIps():
+        effectiveList = []
+        routePath = '/proc/net/route'
+        try:
+            with open(routePath, 'r') as fd:
+                ipList = fd.readlines()
+
+            # remove title #
+            ipList.pop(0)
+
+            for line in ipList:
+                items = line.split()
+                effectiveList.append([items[0], SystemManager.convertCIDR(items[1])])
+
+            return effectiveList
+        except:
+            SystemManager.printWarning(\
+                "Fail to open %s to read ip addresses with device info" % routePath)
+            return effectiveList
 
 
 
