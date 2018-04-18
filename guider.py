@@ -533,7 +533,7 @@ class ConfigManager(object):
         'RLIMIT_NLIMITS'
         ]
 
-    # Define udp format of system #
+    # Define udp/tcp format of system #
     udpList = [
         'sl',
         'local_address',
@@ -548,6 +548,18 @@ class ConfigManager(object):
         'ref',
         'pointer',
         'drops'
+        ]
+
+    # Define uds format of system #
+    udsList = [
+        'Num',
+        'RefCount',
+        'Protocol',
+        'Flags',
+        'Type',
+        'St',
+        'Inode',
+        'Path',
         ]
 
     # Define perf event types #
@@ -8402,6 +8414,28 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getUdsList():
+        udsPath = '/proc/net/unix'
+
+        try:
+            with open(udsPath, 'r') as fd:
+                udsBuf = fd.readlines()
+        except:
+            SystemManager.printError("Fail to open %s to get uds list " % udsPath)
+            sys.exit(0)
+
+        udsList = []
+        for line in udsBuf:
+            udsList.append(line.split())
+
+        # remove title #
+        udsList.pop(0)
+
+        return udsList
+
+
+
+    @staticmethod
     def getUdpList():
         udpPath = '/proc/net/udp'
 
@@ -10307,7 +10341,11 @@ class SystemManager(object):
                     ip = ret[1]
                     port = ret[2]
 
-                    if service is None or ip is None or port is None or \
+                    # PRINT as default #
+                    if service is None:
+                        service = 'PRINT'
+
+                    if ip is None or port is None or \
                         SystemManager.isEffectiveRequest(service) is False:
                         reqList = ''
                         for req in ThreadAnalyzer.requestType:
@@ -10793,15 +10831,30 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getSocketPathList(addrList):
+        pathList = {}
+        inodeIdx = ConfigManager.udsList.index('Inode')
+        pathIdx = ConfigManager.udsList.index('Path')
+
+        udsList = SystemManager.getUdsList()
+        for uds in udsList:
+            try:
+                if uds[inodeIdx] in addrList:
+                    pathList[uds[pathIdx]] = None
+            except:
+                pass
+
+        return list(pathList.keys())
+
+
+
+    @staticmethod
     def getSocketAddrList(addrList):
         portList = {}
         inodeIdx = ConfigManager.udpList.index('inode')
         addrIdx = ConfigManager.udpList.index('local_address')
 
         udpList = SystemManager.getUdpList()
-        if len(udpList) == 0:
-            return list(portList.keys())
-
         for udp in udpList:
             try:
                 if udp[inodeIdx] in addrList:
@@ -10813,9 +10866,6 @@ class SystemManager(object):
                 pass
 
         tcpList = SystemManager.getTcpList()
-        if len(tcpList) == 0:
-            return list(portList.keys())
-
         for tcp in tcpList:
             try:
                 if tcp[inodeIdx] in addrList:
@@ -11079,7 +11129,7 @@ class SystemManager(object):
                 try:
                     objs = SystemManager.getProcSocketObjs(pid)
                     addrs = SystemManager.getSocketAddrList(objs)
-                    network = '[%s]' % ','.join(addrs)
+                    network = '(%s)' % ','.join(addrs)
                 except:
                     network = ''
 
@@ -20704,6 +20754,21 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint(procInfo)
                         procInfo = ''
 
+                    try:
+                        if path.startswith('socket'):
+                            obj = path.split('[')[1][:-1]
+                            addr = SystemManager.getSocketAddrList([obj])
+                            if len(addr) > 0:
+                                path = '%s (%s)' % (path, addr[0])
+                                raise
+                            uds = SystemManager.getSocketPathList([obj])
+                            if len(uds) > 0:
+                                path = '%s (%s)' % (path, uds[0])
+                            else:
+                                path = '%s (Unix Domain Socket)' % (path)
+                    except:
+                        pass
+
                     SystemManager.addPrint(\
                         ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
 
@@ -23162,12 +23227,14 @@ class ThreadAnalyzer(object):
             # set non-block socket #
             SystemManager.addrAsServer.socket.setblocking(1)
 
-            if SystemManager.addrOfServer is not 'NONE':
-                # send request to server #
-                SystemManager.addrAsServer.sendto(\
-                    SystemManager.addrOfServer.request, \
-                    SystemManager.addrOfServer.ip, \
-                    SystemManager.addrOfServer.port)
+            if SystemManager.addrOfServer is 'NONE':
+                return
+
+            # send request to server #
+            SystemManager.addrAsServer.sendto(\
+                SystemManager.addrOfServer.request, \
+                SystemManager.addrOfServer.ip, \
+                SystemManager.addrOfServer.port)
 
             # check event #
             if SystemManager.addrOfServer.request.startswith('EVENT_'):
