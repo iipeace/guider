@@ -8424,6 +8424,28 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getTcpList():
+        tcpPath = '/proc/net/tcp'
+
+        try:
+            with open(tcpPath, 'r') as fd:
+                tcpBuf = fd.readlines()
+        except:
+            SystemManager.printError("Fail to open %s to get tcp list " % tcpPath)
+            sys.exit(0)
+
+        tcpList = []
+        for line in tcpBuf:
+            tcpList.append(line.split())
+
+        # remove title #
+        tcpList.pop(0)
+
+        return tcpList
+
+
+
+    @staticmethod
     def printRecordCmd():
         for idx, val in SystemManager.rcmdList.items():
             if len(val) == 0:
@@ -10771,14 +10793,14 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getUdpAddrList(addrList):
-        portList = []
+    def getSocketAddrList(addrList):
+        portList = {}
         inodeIdx = ConfigManager.udpList.index('inode')
         addrIdx = ConfigManager.udpList.index('local_address')
 
         udpList = SystemManager.getUdpList()
         if len(udpList) == 0:
-            return portList
+            return list(portList.keys())
 
         for udp in udpList:
             try:
@@ -10786,17 +10808,31 @@ class SystemManager(object):
                     ip, port = udp[addrIdx].split(':')
                     # convert ip address and port #
                     ip = SystemManager.convertCIDR(ip)
-                    portList.append("%s:%s" % (ip, int(port, base=16)))
+                    portList["%s:%s" % (ip, int(port, base=16))] = None
             except:
                 pass
 
-        return portList
+        tcpList = SystemManager.getTcpList()
+        if len(tcpList) == 0:
+            return list(portList.keys())
+
+        for tcp in tcpList:
+            try:
+                if tcp[inodeIdx] in addrList:
+                    ip, port = tcp[addrIdx].split(':')
+                    # convert ip address and port #
+                    ip = SystemManager.convertCIDR(ip)
+                    portList["%s:%s" % (ip, int(port, base=16))] = None
+            except:
+                pass
+
+        return list(portList.keys())
 
 
 
     @staticmethod
-    def getProcUdpObjs(pid):
-        udpAddrList = []
+    def getProcSocketObjs(pid):
+        socketAddrList = []
         fdlistPath = "%s/%s/fd" % (SystemManager.procPath, pid)
 
         # save file info per process #
@@ -10804,7 +10840,7 @@ class SystemManager(object):
             fdlist = os.listdir(fdlistPath)
         except:
             SystemManager.printWarning('Fail to open %s' % fdlistPath)
-            return udpAddrList
+            return socketAddrList
 
         # save fd info of process #
         for fd in fdlist:
@@ -10819,11 +10855,11 @@ class SystemManager(object):
                 filename = os.readlink(fdPath)
 
                 if filename.startswith('socket'):
-                    udpAddrList.append(filename.split('[')[1][:-1])
+                    socketAddrList.append(filename.split('[')[1][:-1])
             except:
                 SystemManager.printWarning('Fail to open %s' % fdPath)
 
-        return udpAddrList
+        return socketAddrList
 
 
 
@@ -10939,12 +10975,12 @@ class SystemManager(object):
         if event.startswith('EVENT_') is False:
             event = 'EVENT_%s' % event
 
-        # get udp address list of guider processes #
+        # get socket inode address list of guider processes #
         for pid in pids:
-            objs = SystemManager.getProcUdpObjs(pid)
+            objs = SystemManager.getProcSocketObjs(pid)
 
             # get udp port list of guider processes #
-            addrs = SystemManager.getUdpAddrList(objs)
+            addrs = SystemManager.getSocketAddrList(objs)
 
             for addr in addrs:
                 try:
@@ -11041,16 +11077,16 @@ class SystemManager(object):
                         pass
 
                 try:
-                    objs = SystemManager.getProcUdpObjs(pid)
-                    addrs = SystemManager.getUdpAddrList(objs)
-                    network = ','.join(addrs)
+                    objs = SystemManager.getProcSocketObjs(pid)
+                    addrs = SystemManager.getSocketAddrList(objs)
+                    network = '[%s]' % ','.join(addrs)
                 except:
                     network = ''
 
                 try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf = '%s%6s\t%10s\t%s [%s]\n' % \
+                    printBuf = '%s%6s\t%10s\t%s %s\n' % \
                         (printBuf, pid, runtime, cmdline, network)
                 except:
                     continue
