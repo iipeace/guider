@@ -11041,9 +11041,17 @@ class SystemManager(object):
                         pass
 
                 try:
+                    objs = SystemManager.getProcUdpObjs(pid)
+                    addrs = SystemManager.getUdpAddrList(objs)
+                    network = ','.join(addrs)
+                except:
+                    network = ''
+
+                try:
                     cmdFd = open(procPath + '/cmdline', 'r')
                     cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf = '%s%6s\t%10s\t%s\n' % (printBuf, pid, runtime, cmdline)
+                    printBuf = '%s%6s\t%10s\t%s [%s]\n' % \
+                        (printBuf, pid, runtime, cmdline, network)
                 except:
                     continue
 
