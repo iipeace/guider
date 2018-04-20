@@ -825,7 +825,12 @@ class NetworkManager(object):
 
         try:
             s = socket(AF_INET, SOCK_STREAM)
-            s.connect(("google.com",80))
+            s.settimeout(1)
+            try:
+                # connect to google public IP #
+                s.connect(("8.8.8.8",53))
+            except:
+                raise
             return s.getsockname()[0]
         except:
             SystemManager.printWarning("Fail to get public IP address")
@@ -9665,6 +9670,31 @@ class SystemManager(object):
 
 
     @staticmethod
+    def topPrint():
+        # realtime mode #
+        if SystemManager.printFile is None:
+            SystemManager.printTitle()
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.clearPrint()
+        # pipe mode #
+        elif SystemManager.pipeEnable:
+            SystemManager.pipePrint(SystemManager.bufferString)
+            SystemManager.clearPrint()
+        # buffered mode #
+        else:
+            SystemManager.procBuffer[:0] = [SystemManager.bufferString]
+            SystemManager.procBufferSize += len(SystemManager.bufferString)
+            SystemManager.clearPrint()
+
+            while SystemManager.procBufferSize > SystemManager.bufferSize:
+                if len(SystemManager.procBuffer) == 1:
+                    break
+                SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
+                SystemManager.procBuffer.pop(-1)
+
+
+
+    @staticmethod
     def pipePrint(line):
         if SystemManager.printEnable is False:
             return
@@ -9760,7 +9790,7 @@ class SystemManager(object):
             if SystemManager.ttyCols == 0:
                 line = '\n'.join([nline for nline in line.split('\n')])
             else:
-                line = '\n'.join([nline[:SystemManager.ttyCols] for nline in line.split('\n')])
+                line = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
             print(line)
 
 
@@ -9833,23 +9863,27 @@ class SystemManager(object):
         ip = None
         port = None
 
-        optDelimiterPos = value.find('@')
-        if optDelimiterPos >= 0:
-            service = value[:optDelimiterPos]
-            addr = value[optDelimiterPos + 1:]
+        # get request and address #
+        cmdList = value.split('@')
+        if len(cmdList) >= 2:
+            service = value[0]
+            addr = value[1]
         else:
             addr = value
 
-        addrDelimiterPos = addr.find(':')
-        if addrDelimiterPos >= 0:
+        # get ip and port #
+        addrList = addr.split(':')
+        if len(addrList) >= 2:
             try:
-                ip = addr[:addrDelimiterPos]
-                port = int(addr[addrDelimiterPos + 1:])
+                if len(addrList[0]) > 0:
+                    ip = addrList[0]
+                if len(addrList[1]) > 0:
+                    port = int(addrList[1])
             except:
                 pass
         else:
             try:
-                port = int(addr)
+                port = int(addrList[0])
             except:
                 pass
 
@@ -10248,9 +10282,7 @@ class SystemManager(object):
             elif option == 'n' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
-                service = ret[0]
-                ip = ret[1]
-                port = ret[2]
+                (serve, ip, port) = ret
 
                 if ip is None or port is None:
                     SystemManager.printError( \
@@ -10272,9 +10304,7 @@ class SystemManager(object):
                 # enable report option #
                 SystemManager.reportEnable = True
 
-                service = ret[0]
-                ip = ret[1]
-                port = ret[2]
+                (serve, ip, port) = ret
 
                 if ip is None or port is None or \
                     SystemManager.isEffectiveRequest(service) is False:
@@ -10319,9 +10349,7 @@ class SystemManager(object):
             elif option == 'x' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
-                service = ret[0]
-                ip = ret[1]
-                port = ret[2]
+                (serve, ip, port) = ret
 
                 SystemManager.setServerNetwork(ip, port)
 
@@ -10337,13 +10365,14 @@ class SystemManager(object):
                 else:
                     ret = SystemManager.parseAddr(value)
 
-                    service = ret[0]
-                    ip = ret[1]
-                    port = ret[2]
+                    (service, ip, port) = ret
 
                     # PRINT as default #
                     if service is None:
                         service = 'PRINT'
+
+                    if ip is None:
+                        ip = NetworkManager.getPublicIp()
 
                     if ip is None or port is None or \
                         SystemManager.isEffectiveRequest(service) is False:
@@ -14255,7 +14284,7 @@ class ThreadAnalyzer(object):
                 evtbox = '\n'.join(evts)
 
                 try:
-                    text(timeline[tm], yticks()[0][-1], evtbox, fontsize=5,\
+                    text(timeline[tm], yticks()[0][-1], evtbox, fontsize=3,\
                         verticalalignment='top', style='italic',\
                         bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
                 except:
@@ -20765,7 +20794,7 @@ class ThreadAnalyzer(object):
                             if len(uds) > 0:
                                 path = '%s (%s)' % (path, uds[0])
                             else:
-                                path = '%s (Unix Domain Socket)' % (path)
+                                path = '%s (UDS)' % (path)
                     except:
                         pass
 
@@ -20800,26 +20829,7 @@ class ThreadAnalyzer(object):
             frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
-        # realtime mode #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.clearPrint()
-        # pipe mode #
-        elif SystemManager.pipeEnable:
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.clearPrint()
-        # buffered mode #
-        else:
-            SystemManager.procBuffer[:0] = [SystemManager.bufferString]
-            SystemManager.procBufferSize += len(SystemManager.bufferString)
-            SystemManager.clearPrint()
-
-            while SystemManager.procBufferSize > SystemManager.bufferSize:
-                if len(SystemManager.procBuffer) == 1:
-                    break
-                SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
-                SystemManager.procBuffer.pop(-1)
+        SystemManager.topPrint()
 
 
 
@@ -23227,24 +23237,24 @@ class ThreadAnalyzer(object):
             # set non-block socket #
             SystemManager.addrAsServer.socket.setblocking(1)
 
-            if SystemManager.addrOfServer is 'NONE':
-                return
+            if SystemManager.addrOfServer != 'NONE':
+                # send request to server #
+                SystemManager.addrAsServer.sendto(\
+                    SystemManager.addrOfServer.request, \
+                    SystemManager.addrOfServer.ip, \
+                    SystemManager.addrOfServer.port)
 
-            # send request to server #
-            SystemManager.addrAsServer.sendto(\
-                SystemManager.addrOfServer.request, \
-                SystemManager.addrOfServer.ip, \
-                SystemManager.addrOfServer.port)
+                # check event #
+                if SystemManager.addrOfServer.request.startswith('EVENT_'):
+                    SystemManager.printStatus(\
+                        "requested %s to server" % SystemManager.addrOfServer.request)
+                    sys.exit(0)
 
-            # check event #
-            if SystemManager.addrOfServer.request.startswith('EVENT_'):
                 SystemManager.printStatus(\
-                    "requested %s to server" % SystemManager.addrOfServer.request)
-                sys.exit(0)
-
-            SystemManager.printStatus(\
-                "wait for response of %s registration from server" % \
-                SystemManager.addrOfServer.request)
+                    "wait for response of %s registration from server" % \
+                    SystemManager.addrOfServer.request)
+            else:
+                SystemManager.printStatus("wait for input from server")
         except SystemExit:
             sys.exit(0)
         except:
@@ -23594,26 +23604,7 @@ class ThreadAnalyzer(object):
                     else:
                         cli.ignore += 1
 
-        # realtime mode #
-        if SystemManager.printFile is None:
-            SystemManager.printTitle()
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.clearPrint()
-        # pipe mode #
-        elif SystemManager.pipeEnable:
-            SystemManager.pipePrint(SystemManager.bufferString)
-            SystemManager.clearPrint()
-        # buffered mode #
-        else:
-            SystemManager.procBuffer[:0] = [SystemManager.bufferString]
-            SystemManager.procBufferSize += len(SystemManager.bufferString)
-            SystemManager.clearPrint()
-
-            while SystemManager.procBufferSize > SystemManager.bufferSize:
-                if len(SystemManager.procBuffer) == 1:
-                    break
-                SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
-                SystemManager.procBuffer.pop(-1)
+        SystemManager.topPrint()
 
 
 
