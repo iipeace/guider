@@ -808,6 +808,98 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def getUsingIps():
+        effectiveList = {}
+        connPaths = ['/proc/net/udp', '/proc/net/tcp']
+
+        for path in connPaths:
+            try:
+                with open(path, 'r') as fd:
+                    ipList = fd.readlines()
+
+                # remove title #
+                ipList.pop(0)
+
+                for line in ipList:
+                    items = line.split()
+                    effectiveList[SystemManager.convertCIDR(items[1].split(':')[0])] = None
+            except:
+                SystemManager.printWarning(\
+                    "Fail to open %s to read effective ip addresses" % path)
+                return effectiveList
+
+        return list(effectiveList.keys())
+
+
+
+    @staticmethod
+    def getGateways():
+        gateways = {}
+
+        ips = NetworkManager.getRoutedIps()
+
+        for item in ips:
+            try:
+                ip = item[1]
+                if ip == '0.0.0.0' or ip == '127.0.0.1':
+                    continue
+
+                gw = '%s.1' % ip[:ip.rfind('.')]
+                gateways[gw] = None
+            except:
+                pass
+
+        return list(gateways.keys())
+
+
+
+    @staticmethod
+    def getMainIp():
+        ipList = {}
+
+        ips = NetworkManager.getRoutedIps()
+
+        for item in ips:
+            try:
+                ip = item[1]
+                if ip == '0.0.0.0' or ip == '127.0.0.1':
+                    continue
+
+                ipList[ip] = None
+            except:
+                pass
+
+        if len(ipList) == 0:
+            return None
+        else:
+            return list(sorted(ipList.keys(), reverse=True))[0]
+
+
+
+    @staticmethod
+    def getRoutedIps():
+        effectiveList = []
+        routePath = '/proc/net/route'
+        try:
+            with open(routePath, 'r') as fd:
+                ipList = fd.readlines()
+
+            # remove title #
+            ipList.pop(0)
+
+            for line in ipList:
+                items = line.split()
+                effectiveList.append([items[0], SystemManager.convertCIDR(items[1])])
+
+            return effectiveList
+        except:
+            SystemManager.printWarning(\
+                "Fail to open %s to read ip addresses with device info" % routePath)
+            return effectiveList
+
+
+
+    @staticmethod
     def getPublicIp():
         try:
             if SystemManager.socketObj is None:
@@ -823,18 +915,26 @@ class NetworkManager(object):
                 "to get public IP address") % err.args[0])
             return
 
+        ret = None
+
         try:
             s = socket(AF_INET, SOCK_STREAM)
-            s.settimeout(1)
-            try:
-                # connect to google public IP #
-                s.connect(("8.8.8.8",53))
-            except:
-                raise
-            return s.getsockname()[0]
+            s.settimeout(0.5)
+
+            # connect to google public IP #
+            s.connect(("8.8.8.8",53))
+
+            ret = s.getsockname()[0]
         except:
             SystemManager.printWarning("Fail to get public IP address")
-            return None
+
+        try:
+            if ret is None:
+                ret = NetworkManager.getMainIp()
+        except:
+            pass
+
+        return ret
 
 
 
@@ -6785,6 +6885,7 @@ class SystemManager(object):
                 print('    [convenience]')
                 print('        draw       [image]')
                 print('        event      [event]')
+                print('        filetop    [fds]')
 
                 print('\nOptions:')
                 print('    [record]')
@@ -10813,6 +10914,17 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isFileTopMode():
+        if sys.argv[1] == 'filetop':
+            sys.argv[1] == 'top'
+            SystemManager.fileTopEnable = True
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isTopMode():
         if sys.argv[1] == 'top':
             return True
@@ -10991,54 +11103,6 @@ class SystemManager(object):
         SystemManager.addrAsServer = networkObject
         SystemManager.printInfo("use %s:%d as local address" % \
             (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
-
-
-
-    @staticmethod
-    def getEffectiveIps():
-        effectiveList = {}
-        connPaths = ['/proc/net/udp', '/proc/net/tcp']
-
-        for path in connPaths:
-            try:
-                with open(path, 'r') as fd:
-                    ipList = fd.readlines()
-
-                # remove title #
-                ipList.pop(0)
-
-                for line in ipList:
-                    items = line.split()
-                    effectiveList[SystemManager.convertCIDR(items[1].split(':')[0])] = None
-            except:
-                SystemManager.printWarning(\
-                    "Fail to open %s to read effective ip addresses" % path)
-                return effectiveList
-
-        return list(effectiveList.keys())
-
-
-
-    @staticmethod
-    def getRoutedIps():
-        effectiveList = []
-        routePath = '/proc/net/route'
-        try:
-            with open(routePath, 'r') as fd:
-                ipList = fd.readlines()
-
-            # remove title #
-            ipList.pop(0)
-
-            for line in ipList:
-                items = line.split()
-                effectiveList.append([items[0], SystemManager.convertCIDR(items[1])])
-
-            return effectiveList
-        except:
-            SystemManager.printWarning(\
-                "Fail to open %s to read ip addresses with device info" % routePath)
-            return effectiveList
 
 
 
@@ -23941,7 +24005,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     #------------------------------ REALTIME MODE ------------------------------#
-    if SystemManager.isTopMode():
+    if SystemManager.isTopMode() or SystemManager.isFileTopMode():
         # print record option #
         SystemManager.printRecordOption()
         SystemManager.printRecordCmd()
