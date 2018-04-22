@@ -928,11 +928,8 @@ class NetworkManager(object):
         except:
             SystemManager.printWarning("Fail to get public IP address")
 
-        try:
-            if ret is None:
-                ret = NetworkManager.getMainIp()
-        except:
-            pass
+        if ret is None:
+            ret = NetworkManager.getMainIp()
 
         return ret
 
@@ -10916,8 +10913,6 @@ class SystemManager(object):
     @staticmethod
     def isFileTopMode():
         if sys.argv[1] == 'filetop':
-            sys.argv[1] == 'top'
-            SystemManager.fileTopEnable = True
             return True
         else:
             return False
@@ -23978,7 +23973,8 @@ if __name__ == '__main__':
         ThreadAnalyzer(SystemManager.inputFile)
 
     # set tty setting automatically #
-    if SystemManager.isTopMode() and SystemManager.ttyEnable is False:
+    if (SystemManager.isTopMode() or SystemManager.isFileTopMode()) \
+        and SystemManager.ttyEnable is False:
         SystemManager.setTtyAuto(True, False)
 
     # import packages to draw graph #
@@ -24006,6 +24002,11 @@ if __name__ == '__main__':
 
     #------------------------------ REALTIME MODE ------------------------------#
     if SystemManager.isTopMode() or SystemManager.isFileTopMode():
+        # handle filetope mode #
+        if SystemManager.isFileTopMode():
+            sys.argv[1] = 'top'
+            SystemManager.fileTopEnable = True
+
         # print record option #
         SystemManager.printRecordOption()
         SystemManager.printRecordCmd()
