@@ -857,12 +857,13 @@ class NetworkManager(object):
     def getMainIp():
         ipList = {}
 
-        ips = NetworkManager.getRoutedIps()
+        ips = NetworkManager.getUsingIps()
 
-        for item in ips:
+        for ip in ips:
             try:
-                ip = item[1]
-                if ip == '0.0.0.0' or ip == '127.0.0.1':
+                if ip == '0.0.0.0' or \
+                    ip.endswith('.1') or \
+                    ip.startswith('127.'):
                     continue
 
                 ipList[ip] = None
@@ -919,7 +920,7 @@ class NetworkManager(object):
 
         try:
             s = socket(AF_INET, SOCK_STREAM)
-            s.settimeout(0.5)
+            s.settimeout(0.3)
 
             # connect to google public IP #
             s.connect(("8.8.8.8",53))
@@ -8518,14 +8519,17 @@ class SystemManager(object):
 
     @staticmethod
     def getUdsList():
+        udsBuf = []
         udsPath = '/proc/net/unix'
 
         try:
             with open(udsPath, 'r') as fd:
                 udsBuf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError("Fail to open %s to get uds list " % udsPath)
-            sys.exit(0)
+            return udsBuf
 
         udsList = []
         for line in udsBuf:
@@ -8540,14 +8544,17 @@ class SystemManager(object):
 
     @staticmethod
     def getUdpList():
+        udpBuf = []
         udpPath = '/proc/net/udp'
 
         try:
             with open(udpPath, 'r') as fd:
                 udpBuf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError("Fail to open %s to get udp list " % udpPath)
-            sys.exit(0)
+            return udpBuf
 
         udpList = []
         for line in udpBuf:
@@ -8562,14 +8569,17 @@ class SystemManager(object):
 
     @staticmethod
     def getTcpList():
+        tcpBuf = []
         tcpPath = '/proc/net/tcp'
 
         try:
             with open(tcpPath, 'r') as fd:
                 tcpBuf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError("Fail to open %s to get tcp list " % tcpPath)
-            sys.exit(0)
+            return tcpBuf
 
         tcpList = []
         for line in tcpBuf:
@@ -9981,7 +9991,10 @@ class SystemManager(object):
                 pass
         else:
             try:
-                port = int(addrList[0])
+                if addrList[0].find('.') > 0:
+                    ip = addrList[0]
+                else:
+                    port = int(addrList[0])
             except:
                 pass
 
@@ -10471,6 +10484,9 @@ class SystemManager(object):
 
                     if ip is None:
                         ip = NetworkManager.getPublicIp()
+
+                    if port is None:
+                        port = 5555
 
                     if ip is None or port is None or \
                         SystemManager.isEffectiveRequest(service) is False:
