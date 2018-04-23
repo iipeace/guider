@@ -823,6 +823,8 @@ class NetworkManager(object):
                 for line in ipList:
                     items = line.split()
                     effectiveList[SystemManager.convertCIDR(items[1].split(':')[0])] = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning(\
                     "Fail to open %s to read effective ip addresses" % path)
@@ -841,11 +843,15 @@ class NetworkManager(object):
         for item in ips:
             try:
                 ip = item[1]
-                if ip == '0.0.0.0' or ip == '127.0.0.1':
+                if ip == '0.0.0.0' or \
+                    ip == '127.0.0.1' or \
+                    ip.endswith('.1') is False:
                     continue
 
                 gw = '%s.1' % ip[:ip.rfind('.')]
                 gateways[gw] = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -867,6 +873,8 @@ class NetworkManager(object):
                     continue
 
                 ipList[ip] = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -893,6 +901,8 @@ class NetworkManager(object):
                 effectiveList.append([items[0], SystemManager.convertCIDR(items[1])])
 
             return effectiveList
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printWarning(\
                 "Fail to open %s to read ip addresses with device info" % routePath)
@@ -926,6 +936,8 @@ class NetworkManager(object):
             s.connect(("8.8.8.8",53))
 
             ret = s.getsockname()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printWarning("Fail to get public IP address")
 
@@ -1005,6 +1017,8 @@ class PageAnalyzer(object):
                     addrType = 'dec'
                     addrs = long(vrange[0])
                     addre = addrs
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printError(\
                     "Fail to recognize address, input address such as 0xabcd or 78901234")
@@ -1080,6 +1094,8 @@ class PageAnalyzer(object):
         try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printError('Fail to open %s' % fpath)
             sys.exit(0)
@@ -1687,6 +1703,8 @@ class FunctionAnalyzer(object):
                         break
 
                 self.pageTable.pop(pfnv, None)
+            except SystemExit:
+                sys.exit(0)
             except:
                 # this page is allocated before starting profile #
 
@@ -1824,6 +1842,8 @@ class FunctionAnalyzer(object):
                         val[pageAllocIndex] -= 1
                         val[argIndex][subStackPageInfoIdx] -= 1
                         break
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.pageTable[pfnv] = dict(self.init_pageLinkData)
 
@@ -2203,6 +2223,8 @@ class FunctionAnalyzer(object):
                                 self.posData[idx]['symbol'] = 'NoFile'
                                 self.posData[idx]['src'] = 'NoFile'
                                 break
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printWarning("Fail to find address %s" % addr)
             return
@@ -2246,6 +2268,8 @@ class FunctionAnalyzer(object):
                 try:
                     proc = subprocess.Popen(args + offsetList[offset:offset+maxArgLine-1], \
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printError("Fail to execute %s" % path)
                     sys.exit(0)
@@ -2262,6 +2286,8 @@ class FunctionAnalyzer(object):
 
                     # Cancel alarm after addr2line respond #
                     signal.alarm(0)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printWarning('No response of addr2line for %s' % binPath)
                     continue
@@ -3810,6 +3836,8 @@ class FunctionAnalyzer(object):
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -3832,6 +3860,8 @@ class FunctionAnalyzer(object):
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -4039,6 +4069,8 @@ class FunctionAnalyzer(object):
                                 appliedIndentLen = 0
 
                             symbolStack += symbolSet
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         continue
 
@@ -4215,6 +4247,8 @@ class FunctionAnalyzer(object):
                                 appliedIndentLen = 0
 
                             symbolStack += symbolSet
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         continue
 
@@ -20870,6 +20904,8 @@ class ThreadAnalyzer(object):
                                 path = '%s (%s)' % (path, uds[0])
                             else:
                                 path = '%s (UDS)' % (path)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -22559,6 +22595,8 @@ class ThreadAnalyzer(object):
                     fullstack = '%s%s' % (fullstack, line)
 
                     SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -22841,6 +22879,8 @@ class ThreadAnalyzer(object):
                 if len(perfString) > 0:
                     SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
                     needLine = True
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -23610,6 +23650,8 @@ class ThreadAnalyzer(object):
                 SystemManager.printStatus(\
                     "finish saving results based monitoring by event into %s [%s] successfully" % \
                     (filePath, fsize))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning(\
                     "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
