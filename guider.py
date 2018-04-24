@@ -9653,8 +9653,9 @@ class SystemManager(object):
             try:
                 SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
             except:
-                SystemManager.printError(\
+                SystemManager.printWarning(\
                     "Fail to open %s to write event\n" % SystemManager.eventLogFile)
+                return
 
         if SystemManager.eventLogFD != None:
             try:
@@ -9666,6 +9667,7 @@ class SystemManager(object):
                 SystemManager.eventLogFD = None
             except:
                 SystemManager.printWarning("Fail to write %s event" % (message))
+                return
         else:
             SystemManager.printError(\
                 "Fail to write %s event because there is no file descriptor\n" % message)
@@ -11156,7 +11158,7 @@ class SystemManager(object):
         # get pid list of guider processes #
         pids = SystemManager.getProcPids(__module__)
         if len(pids) == 0:
-            SystemManager.printError("Fail to find running %s process" % __module__)
+            SystemManager.printWarning("Fail to find running %s process" % __module__)
             sys.exit(0)
 
         # convert event name #
@@ -11981,6 +11983,8 @@ class SystemManager(object):
     @staticmethod
     def getMountPath():
         if SystemManager.mountPath is not None:
+            SystemManager.mountPath = \
+                "%s/tracing/events/" % SystemManager.mountPath
             return SystemManager.mountPath
 
         f = open('/proc/mounts', 'r')
@@ -11993,7 +11997,9 @@ class SystemManager(object):
                 if d['fs'] == 'debugfs':
                     f.close()
                     SystemManager.mountPath = d['dir']
-                    return d['dir']
+                    SystemManager.mountPath = \
+                        "%s/tracing/events/" % SystemManager.mountPath
+                    return SystemManager.mountPath
         f.close()
 
 
@@ -12080,11 +12086,7 @@ class SystemManager(object):
             SystemManager.mountCmd =\
                 "mount -t debugfs nodev %s" % SystemManager.mountPath
             os.system(SystemManager.mountCmd)
-        else:
-            SystemManager.mountCmd =\
-                "mount -t debugfs nodev %s" % SystemManager.mountPath
-
-        SystemManager.mountPath = "%s/tracing/events/" % SystemManager.mountPath
+            SystemManager.mountPath = "%s/tracing/events/" % SystemManager.mountPath
 
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
@@ -23812,10 +23814,14 @@ if __name__ == '__main__':
         SystemManager()
 
     if SystemManager.isEventMode():
+        SystemManager.getMountPath()
         if len(sys.argv) <= 2:
+            SystemManager.writeEvent("EVENT_USER")
             SystemManager.broadcastEvent('EVENT')
         else:
-            SystemManager.broadcastEvent(' '.join(sys.argv[2:]))
+            event = ' '.join(sys.argv[2:])
+            SystemManager.writeEvent("EVENT_%s" % event)
+            SystemManager.broadcastEvent(event)
         sys.exit(0)
 
     #============================== record part ==============================#
