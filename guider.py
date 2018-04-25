@@ -9665,6 +9665,7 @@ class SystemManager(object):
                     SystemManager.printInfo('wrote %s event' % event)
                 SystemManager.eventLogFD.close()
                 SystemManager.eventLogFD = None
+                return True
             except:
                 SystemManager.printWarning("Fail to write %s event" % (message))
                 return
@@ -11037,6 +11038,40 @@ class SystemManager(object):
 
 
     @staticmethod
+    def handleEventInput():
+        pids = []
+
+        # mount debug fs #
+        SystemManager.getMountPath()
+
+        while 1:
+            SystemManager.updateUptime()
+
+            SystemManager.printStatus("input event name... [ STOP(Ctrl + c) ]")
+
+            if len(sys.argv) <= 2:
+                try:
+                    event = sys.stdin.readline()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                if len(event.strip()) == 0:
+                    SystemManager.writeEvent("EVENT_USER")
+                    pids = SystemManager.broadcastEvent('EVENT', pids)
+                else:
+                    SystemManager.writeEvent("EVENT_%s" % event[:-1])
+                    pids = SystemManager.broadcastEvent(event[:-1], pids)
+            else:
+                event = ' '.join(sys.argv[2:])
+                SystemManager.writeEvent("EVENT_%s" % event)
+                SystemManager.broadcastEvent(event)
+                return
+
+
+
+    @staticmethod
     def getSocketAddrList(addrList):
         portList = {}
         inodeIdx = ConfigManager.udpList.index('inode')
@@ -11154,16 +11189,38 @@ class SystemManager(object):
 
 
     @staticmethod
-    def broadcastEvent(event):
-        # get pid list of guider processes #
-        pids = SystemManager.getProcPids(__module__)
-        if len(pids) == 0:
-            SystemManager.printWarning("Fail to find running %s process" % __module__)
-            sys.exit(0)
+    def updateUptime():
+        try:
+            SystemManager.uptimeFd.seek(0)
+            SystemManager.prevUptime = SystemManager.uptime
+            SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
+            SystemManager.uptimeDiff = SystemManager.uptime - SystemManager.prevUptime
+        except:
+            try:
+                uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
+                SystemManager.uptimeFd = open(uptimePath, 'r')
+                SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
+            except:
+                SystemManager.printWarning('Fail to open %s' % uptimePath)
 
+
+
+    @staticmethod
+    def broadcastEvent(event, pids = []):
         # convert event name #
         if event.startswith('EVENT_') is False:
             event = 'EVENT_%s' % event
+
+        if len(pids) == 0:
+            # get pid list of guider processes #
+            pids = SystemManager.getProcPids(__module__)
+            if len(pids) == 0:
+                if SystemManager.isEventMode():
+                    print("\nno running process in background\n")
+                else:
+                    SystemManager.printWarning(\
+                        "Failed to find running %s process to send event" % __module__)
+                return []
 
         # get socket inode address list of guider processes #
         for pid in pids:
@@ -11200,6 +11257,8 @@ class SystemManager(object):
                         "Failed to send event '%s' to %s:%s address of %s process" % \
                         (event, ip, port, pid))
 
+        return pids
+
 
 
     @staticmethod
@@ -11209,12 +11268,7 @@ class SystemManager(object):
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
 
-        try:
-            uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
-            with open(uptimePath, 'r') as fd:
-                SystemManager.uptime = float(fd.readlines()[0].split()[0])
-        except:
-            pass
+        SystemManager.updateUptime()
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
@@ -12048,7 +12102,7 @@ class SystemManager(object):
         self.cmdList["kprobes"] = SystemManager.keventEnable
         self.cmdList["filelock/locks_get_lock_context"] = SystemManager.lockEnable
         self.cmdList["power/cpu_idle"] = SystemManager.cpuEnable
-        self.cmdList["power/cpu_frequency"] = False #toDo: implement power profiler #
+        self.cmdList["power/cpu_frequency"] = False # toDo: implement power profiler #
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
@@ -13235,7 +13289,10 @@ class EventAnalyzer(object):
             SystemManager.pipePrint("[%s] [ Total: %d ]" % \
                 ('Event Info', len(eventData)))
             SystemManager.pipePrint(twoLine)
-            EventAnalyzer.printEvent()
+            try:
+                EventAnalyzer.printEvent()
+            except:
+                pass
             SystemManager.pipePrint(twoLine)
 
 
@@ -13244,21 +13301,30 @@ class EventAnalyzer(object):
     def printEvent():
         eventData = EventAnalyzer.eventData
 
-        for key, value in eventData.items():
+        for key, value in sorted(\
+            eventData.items(), key=lambda x: float(x[1]['summary'][0][5])):
             string = ''
             head = '%10s: [total: %s] [subEvent: %s] ' % \
                 (key, len(eventData[key]['list']), len(eventData[key]['summary']))
-            for n in sorted(eventData[key]['summary'], key=lambda slist: slist[0]):
-                if n[0] == None:
+            for idx, n in enumerate(sorted(\
+                eventData[key]['summary'], key=lambda slist: slist[0])):
+                if idx == 0:
                     msg = head
                 else:
                     msg = ' ' * len(head)
 
-                string = \
-                    '%s[%8s > cnt: %d, avr: %d, min: %d, max: %d, first: %.3f, last: %.3f]' % \
-                    (msg, n[0], n[1], n[2], n[3], n[4], \
-                    float(n[5]) - float(SystemManager.startTime), \
-                    float(n[6]) - float(SystemManager.startTime))
+                if n[0] == None:
+                    n[0] = 'MAIN'
+
+                try:
+                    string = \
+                        ('%s[%8s > cnt: %3d, avr: %3d, min: %3d,'
+                        'max: %3d, first: %7.3f, last: %7.3f]') % \
+                        (msg, n[0], n[1], n[2], n[3], n[4], \
+                        float(n[5]) - float(SystemManager.startTime), \
+                        float(n[6]) - float(SystemManager.startTime))
+                except:
+                    pass
 
                 SystemManager.pipePrint("%s" % string)
 
@@ -13489,7 +13555,7 @@ class ThreadAnalyzer(object):
                 SystemManager.bufferSize = int(SystemManager.bufferSize) << 10
 
             if SystemManager.printFile is not None:
-                SystemManager.printStatus(r"start profiling... [ STOP(ctrl + c), SAVE(ctrl + \) ]")
+                SystemManager.printStatus(r"start profiling... [ STOP(Ctrl + c), SAVE(Ctrl + \) ]")
 
             # file top mode #
             if SystemManager.fileTopEnable:
@@ -17650,7 +17716,8 @@ class ThreadAnalyzer(object):
         for event in ThreadAnalyzer.procEventData:
             time = event[0]
             name = event[1]
-            SystemManager.pipePrint(("{0:>12} | {1:1}\n").format(time, name))
+            SystemManager.pipePrint(("{0:>12} | {1:1}\n").\
+                format(round(time, 2), name))
 
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -20796,17 +20863,7 @@ class ThreadAnalyzer(object):
 
 
     def printFileStat(self, procFilter = [], fileFilter = []):
-        # save uptime #
-        try:
-            SystemManager.uptimeFd.seek(0)
-            SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
-        except:
-            try:
-                uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
-                SystemManager.uptimeFd = open(uptimePath, 'r')
-                SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
-            except:
-                SystemManager.printWarning('Fail to open %s' % uptimePath)
+        SystemManager.updateUptime()
 
         SystemManager.addPrint(\
             "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] (Unit: %%/MB/NR)\n" % \
@@ -21188,19 +21245,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % netstatPath)
 
-        # save uptime #
-        try:
-            SystemManager.uptimeFd.seek(0)
-            SystemManager.prevUptime = SystemManager.uptime
-            SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
-            SystemManager.uptimeDiff = SystemManager.uptime - SystemManager.prevUptime
-        except:
-            try:
-                uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
-                SystemManager.uptimeFd = open(uptimePath, 'r')
-                SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
-            except:
-                SystemManager.printWarning('Fail to open %s' % uptimePath)
+        SystemManager.updateUptime()
 
         # collect perf data #
         if SystemManager.perfEnable:
@@ -23814,14 +23859,12 @@ if __name__ == '__main__':
         SystemManager()
 
     if SystemManager.isEventMode():
-        SystemManager.getMountPath()
-        if len(sys.argv) <= 2:
-            SystemManager.writeEvent("EVENT_USER")
-            SystemManager.broadcastEvent('EVENT')
-        else:
-            event = ' '.join(sys.argv[2:])
-            SystemManager.writeEvent("EVENT_%s" % event)
-            SystemManager.broadcastEvent(event)
+        # set Signal #
+        signal.signal(signal.SIGINT, SystemManager.exitHandler)
+        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+
+        # handle events #
+        SystemManager.handleEventInput()
         sys.exit(0)
 
     #============================== record part ==============================#
