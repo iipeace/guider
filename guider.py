@@ -48,6 +48,16 @@ except:
 class ConfigManager(object):
     """ Manager for configuration """
 
+    # Define logo #
+    logo = '''
+                _      _
+   __ _  _   _ (_)  __| |  ___  _ __
+  / _` || | | || | / _` | / _ \| '__|
+ | (_| || |_| || || (_| ||  __/| |
+  \__, | \__,_||_| \__,_| \___||_|   ver.%s
+   |___/
+    ''' % __version__
+
     # Define color #
     if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
         WARNING = '\033[95m'
@@ -3506,7 +3516,7 @@ class FunctionAnalyzer(object):
         targetCnt = 0
         self.totalTime = float(self.finishTime) - float(SystemManager.startTime)
 
-        SystemManager.printTitle()
+        SystemManager.printTitle(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -5586,7 +5596,7 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        SystemManager.printTitle()
+        SystemManager.printTitle(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -5722,7 +5732,7 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        SystemManager.printTitle()
+        SystemManager.printTitle(big=True)
 
         # Print system information #
         SystemManager.printInfoBuffer()
@@ -6887,7 +6897,7 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
-            SystemManager.printRawTitle()
+            SystemManager.printRawTitle(big=True)
 
             print('Usage:')
             print('    # %s [mode] [options]' % cmd)
@@ -8939,7 +8949,7 @@ class SystemManager(object):
                     SystemManager.fileForPrint.truncate()
 
                 # print title #
-                SystemManager.printTitle(True)
+                SystemManager.printTitle(absolute=True, big=True)
 
                 # save system info #
                 SystemManager.sysInstance.saveResourceSnapshot()
@@ -9004,7 +9014,7 @@ class SystemManager(object):
                 SystemManager.fileForPrint.truncate()
 
             # print title #
-            SystemManager.printTitle(True)
+            SystemManager.printTitle(absolute=True, big=True)
 
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
@@ -9326,17 +9336,20 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRawTitle(absolute=False):
-        title = "/ g.u.i.d.e.r \tver.%s /" % __version__
-        underline = '_' * (len(title))
-        overline = '-' * (len(title))
-        print(' %s\n%s\n%s\n' % (underline, title, overline))
+    def printRawTitle(absolute=False, big=False):
+        if big:
+            print(ConfigManager.logo)
+        else:
+            title = "/ g.u.i.d.e.r \tver.%s /" % __version__
+            underline = '_' * (len(title))
+            overline = '-' * (len(title))
+            print(' %s\n%s\n%s\n' % (underline, title, overline))
 
 
 
 
     @staticmethod
-    def printTitle(absolute=False):
+    def printTitle(absolute=False, big=False):
         if SystemManager.printEnable is False:
             return
 
@@ -9350,11 +9363,13 @@ class SystemManager(object):
         elif absolute is False and SystemManager.printAllEnable:
             return
 
-        title = "/ g.u.i.d.e.r \tver.%s /" % __version__
-        underline = '_' * (len(title))
-        overline = '-' * (len(title))
-
-        SystemManager.pipePrint(' %s\n%s\n%s' % (underline, title, overline))
+        if big:
+            SystemManager.pipePrint(ConfigManager.logo)
+        else:
+            title = "/ g.u.i.d.e.r \tver.%s /" % __version__
+            underline = '_' * (len(title))
+            overline = '-' * (len(title))
+            SystemManager.pipePrint(' %s\n%s\n%s' % (underline, title, overline))
 
 
 
@@ -11248,7 +11263,7 @@ class SystemManager(object):
 
                 try:
                     networkObject.request = event
-                    networkObject.send(event)
+                    networkObject.send('%s@%s' % (event, SystemManager.uptime))
                     SystemManager.printInfo(\
                         "sent event '%s' to %s:%s address of %s process" % \
                         (event, ip, port, pid))
@@ -14007,18 +14022,20 @@ class ThreadAnalyzer(object):
                 sline = line.split('|')
                 slen = len(sline)
 
-                if slen != 2:
+                if slen != 4:
                     continue
 
                 try:
                     time = int(float(sline[0]))
-                    event = sline[1].strip()
+                    rtime = float(sline[1])
+                    dtime = float(sline[2])
+                    event = sline[3].strip()
                 except:
                     continue
 
                 try:
                     idx = timeline.index(time)
-                    eventList[idx].append(event)
+                    eventList[idx].append('%s [%.2fs]' % (event, dtime))
                 except:
                     pass
 
@@ -14532,6 +14549,14 @@ class ThreadAnalyzer(object):
                     pass
                 plot(timeline, stat, '-', c='olive', linewidth=2, solid_capstyle='round')
                 labelList.append('[ %s ]' % gpu)
+                maxUsage = max(stat)
+                maxIdx = stat.index(maxUsage)
+                for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
+                    if idx != 0 and stat[idx] == stat[idx-1]:
+                        continue
+                    text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
+                            fontsize=5, color='olive', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             #------------------------------ CPU usage ------------------------------#
             ymax = 0
@@ -14542,11 +14567,29 @@ class ThreadAnalyzer(object):
 
             plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
             labelList.append('[ CPU + I/O ]')
+            maxUsage = max(blkWait)
+            maxIdx = blkWait.index(maxUsage)
+            for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
+                if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                    continue
+                text(timeline[idx], blkWait[maxIdx], '%d%%' % maxUsage,\
+                        fontsize=5, color='pink', fontweight='bold',\
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+
             plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
             labelList.append('[ CPU Only ]')
+            maxUsage = max(cpuUsage)
+            maxIdx = cpuUsage.index(maxUsage)
+            for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
+                if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
+                    continue
+                text(timeline[idx], cpuUsage[maxIdx], '%d%%' % maxUsage,\
+                        fontsize=5, color='red', fontweight='bold',\
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             # CPU usage of processes #
-            for idx, item in sorted(cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
+            for idx, item in sorted(\
+                cpuProcUsage.items(), key=lambda e: e[1]['average'], reverse=True):
                 if SystemManager.cpuEnable is False:
                     break
 
@@ -14588,8 +14631,9 @@ class ThreadAnalyzer(object):
                     maxBlkPer = str(blkUsage[maxIdx])
                 else:
                     maxBlkPer = '0'
-                maxPer = '[' + maxCpuPer + '+' + maxBlkPer + ']'
-                text(timeline[maxIdx], usage[maxIdx] + margin, maxPer + idx,\
+                maxPer = '[%s+%s]' % (maxCpuPer, maxBlkPer)
+                ilabel = '%s%s' % (idx, maxPer)
+                text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
                         fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
@@ -14634,11 +14678,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='skyblue', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
                 labelList.append('Block Read')
@@ -14653,11 +14701,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='green', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='green', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='green', fontweight='bold')
                 plot(timeline, blkWrite, '-', c='green', linewidth=2)
                 labelList.append('Block Write')
@@ -14672,11 +14724,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='pink', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='pink', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='pink', fontweight='bold')
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
                 labelList.append('Reclaim Background')
@@ -14691,11 +14747,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='red', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='red', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='red', fontweight='bold')
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2)
                 labelList.append('Reclaim Foreground')
@@ -14710,11 +14770,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='purple', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='purple', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='purple', fontweight='bold')
                 plot(timeline, netRead, '-', c='purple', linewidth=2)
                 labelList.append('Network Recv')
@@ -14729,11 +14793,15 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                             fontsize=5, color='skyblue', fontweight='bold')
-                if usage[maxIdx] > 0:
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                             fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
-                    text(timeline[-1], usage[-1], usage[-1],\
+                    try:
+                        unit = timeline[-1]-timeline[-2]
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], usage[-1],\
                             fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
                 labelList.append('Network Send')
@@ -14771,8 +14839,12 @@ class ThreadAnalyzer(object):
                         text(timeline[maxIdx], wrUsage[maxIdx] + margin, '[%s]%s' % \
                             (wrUsage[maxIdx], idx), fontsize=3, color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
-                        text(timeline[-1], wrUsage[-1] + margin, '[%s]%s' % (wrUsage[-1], idx),\
-                                fontsize=3, color=color, fontweight='bold')
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, wrUsage[-1] + margin, '[%s]%s' % \
+                            (wrUsage[-1], idx), fontsize=3, color=color, fontweight='bold')
                     labelList.append('%s[BWR]' % idx)
 
                 # Block Read of process #
@@ -14786,8 +14858,12 @@ class ThreadAnalyzer(object):
                         text(timeline[maxIdx], rdUsage[maxIdx] + margin, '[%s]%s' % \
                             (rdUsage[maxIdx], idx), fontsize=3, color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
-                        text(timeline[-1], rdUsage[-1] + margin, '[%s]%s' % (rdUsage[-1], idx),\
-                                fontsize=3, color=color, fontweight='bold')
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, rdUsage[-1] + margin, '[%s]%s' % \
+                            (rdUsage[-1], idx), fontsize=3, color=color, fontweight='bold')
                     labelList.append('%s[BRD]' % idx)
 
             ylabel('I/O(KB)', fontsize=7)
@@ -14850,11 +14926,15 @@ class ThreadAnalyzer(object):
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                                 fontsize=5, color='blue', fontweight='bold')
-                    if usage[maxIdx] > 0:
+                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='blue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, usage[-1], usage[-1],\
                                 fontsize=5, color='blue', fontweight='bold')
                     plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
                     if totalRAM is not None:
@@ -14874,11 +14954,15 @@ class ThreadAnalyzer(object):
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                                 fontsize=5, color='skyblue', fontweight='bold')
-                    if usage[maxIdx] > 0:
+                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='skyblue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, usage[-1], usage[-1],\
                                 fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM Anon')
@@ -14893,7 +14977,7 @@ class ThreadAnalyzer(object):
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                                 fontsize=5, color='darkgray', fontweight='bold')
-                    if usage[maxIdx] > 0:
+                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='darkgray', fontweight='bold')
                     if usage[-1] > 0:
@@ -14912,7 +14996,7 @@ class ThreadAnalyzer(object):
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], usage[minIdx],\
                                 fontsize=5, color='orange', fontweight='bold')
-                    if usage[maxIdx] > 0:
+                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='orange', fontweight='bold')
                     if usage[-1] > 0:
@@ -14956,7 +15040,7 @@ class ThreadAnalyzer(object):
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
                                     '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
-                            if usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
                             if usage[-1] > 0:
@@ -15011,7 +15095,7 @@ class ThreadAnalyzer(object):
                                 text(timeline[minIdx], usage[minIdx] - margin, \
                                     '[%s/-%s]%s' % (usage[minIdx], item['vssDiff'], key), \
                                     color=color, fontsize=3)
-                            if usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s/+%s]%s' % (usage[maxIdx], item['vssDiff'], key), \
                                     color=color, fontsize=3)
@@ -15042,7 +15126,7 @@ class ThreadAnalyzer(object):
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
                                     '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
-                            if usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
                             if usage[-1] > 0:
@@ -15646,7 +15730,7 @@ class ThreadAnalyzer(object):
 
 
     def printUsage(self):
-        SystemManager.printTitle()
+        SystemManager.printTitle(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -17690,13 +17774,13 @@ class ThreadAnalyzer(object):
         if len(ThreadAnalyzer.procEventData) == 0:
             return
 
+        # remove invalid events #
         try:
             initTime = ThreadAnalyzer.procIntervalData[0]['time']
 
             eventList = list(ThreadAnalyzer.procEventData)
             for event in eventList:
                 time = event[0]
-                name = event[1]
 
                 # skip unbounded events #
                 if float(initTime) > time:
@@ -17710,14 +17794,22 @@ class ThreadAnalyzer(object):
         # Print title #
         SystemManager.pipePrint('\n[Top Event Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
-        SystemManager.pipePrint(("{0:^12} | {1:1}\n").format('Time', 'Event'))
+        SystemManager.pipePrint(("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").\
+            format('Timeline', 'Realtime', 'Duration', 'Event'))
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        for event in ThreadAnalyzer.procEventData:
-            time = event[0]
+        for idx, event in enumerate(ThreadAnalyzer.procEventData):
+            time = '%.2f' % float(event[0])
             name = event[1]
-            SystemManager.pipePrint(("{0:>12} | {1:1}\n").\
-                format(round(time, 2), name))
+            rtime = '%.2f' % float(event[2])
+            try:
+                diff = '%.2f' % \
+                    (float(ThreadAnalyzer.procEventData[idx+1][2]) - float(rtime))
+            except:
+                diff = '%.2f' % \
+                    (float(ThreadAnalyzer.procIntervalData[-1]['time']) - float(rtime))
+            SystemManager.pipePrint(("{0:>12} | {1:>12} | {2:>12} | {3:1}\n").\
+                format(time, rtime, diff, name))
 
         SystemManager.pipePrint("%s\n" % oneLine)
 
@@ -23458,8 +23550,15 @@ class ThreadAnalyzer(object):
                 if message.startswith('EVENT_'):
                     event = message[message.find('_')+1:]
 
+                    pos = event.rfind('@')
+                    if pos >= 0:
+                        rtime = event[pos+1:]
+                        event = event[:pos]
+                    else:
+                        rtime = SystemManager.uptime
+
                     # append event to list #
-                    ThreadAnalyzer.procEventData.append([SystemManager.uptime, event])
+                    ThreadAnalyzer.procEventData.append([SystemManager.uptime, event, rtime])
 
                     SystemManager.printInfo(\
                         "added event '%s' from %s:%d" % (event, ip, port))
@@ -23932,7 +24031,7 @@ if __name__ == '__main__':
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
-            SystemManager.printTitle()
+            SystemManager.printTitle(big=True)
 
             # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
