@@ -2881,7 +2881,9 @@ class FunctionAnalyzer(object):
 
 
     def parseEventInfo(self, tid, func, args, time, core):
-        if func[:-1] in self.customEventTable:
+        if len(self.customEventTable) > 0 and \
+            (func[:-1] in self.customEventTable or \
+            True in [True for event in self.customEventTable if event.find('/') == -1]):
             isFixedEvent = False
         else:
             isFixedEvent = True
@@ -3281,7 +3283,10 @@ class FunctionAnalyzer(object):
         # custom event #
         elif isFixedEvent is False:
             try:
-                cond = self.customEventTable[func[:-1]]
+                if True in [True for event in self.customEventTable if event.find('/') == -1]:
+                    cond = self.customEventTable[func[:-1]] = None
+                else:
+                    cond = self.customEventTable[func[:-1]]
 
                 customCnt = self.getCustomEventValue(func, args, cond)
 
@@ -6341,7 +6346,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 8
+    ttyRowsMargin = 6
     ttyCols = 156
     magicString = '@@@@@'
     procPath = '/proc'
@@ -6449,6 +6454,7 @@ class SystemManager(object):
     eventLogFD = None
 
     showAll = False
+    disableAll = False
     selectMenu = None
     intervalNow = 0
     recordStatus = False
@@ -6897,8 +6903,6 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
-            SystemManager.printRawTitle(big=True)
-
             print('Usage:')
             print('    # %s [mode] [options]' % cmd)
             print('    $ %s <file> [options]' % cmd)
@@ -6939,8 +6943,8 @@ class SystemManager(object):
                     '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
                     '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
-                print('              [thread]   {c(pu)}')
-                print('              [function] {c(pu)|u(ser)}')
+                print('              [thread]   {c(pu)|a(ll)}')
+                print('              [function] {c(pu)|a(ll)|u(ser)}')
                 print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
                 print('        -s  [save_traceData:path]')
                 print('        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
@@ -7006,8 +7010,6 @@ class SystemManager(object):
 
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
-
-            SystemManager.printRawTitle()
 
             print('[thread mode examples]')
             print('    - record cpu usage of threads')
@@ -7150,8 +7152,6 @@ class SystemManager(object):
             sys.exit(0)
 
         elif sys.argv[1] == '--version':
-
-            SystemManager.printRawTitle()
 
             sys.exit(0)
 
@@ -8375,6 +8375,12 @@ class SystemManager(object):
 
 
 
+    def disableAllEvents(self):
+        for event in self.cmdList.keys():
+            self.cmdList[event] = False
+
+
+
     @staticmethod
     def writeCustomCmd():
         effectiveCmd = []
@@ -8551,6 +8557,9 @@ class SystemManager(object):
             enableStat += 'LOCK '
         else:
             disableStat += 'LOCK '
+
+        if SystemManager.disableAll:
+            enableStat += 'DISABLE '
 
         # print options #
         if enableStat != '':
@@ -8811,6 +8820,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'LOCK '
 
+                if SystemManager.disableAll:
+                    enableStat += 'DISABLE '
+                else:
+                    disableStat += 'DISABLE '
+
         elif SystemManager.isFileMode():
             SystemManager.printInfo("FILE MODE")
 
@@ -8890,6 +8904,11 @@ class SystemManager(object):
                 enableStat += 'RESET '
             else:
                 disableStat += 'RESET '
+
+            if SystemManager.disableAll:
+                enableStat += 'DISABLE '
+            else:
+                disableStat += 'DISABLE '
 
         # print options #
         if enableStat != '':
@@ -9347,19 +9366,25 @@ class SystemManager(object):
 
 
 
+    @staticmethod
+    def clearScreen():
+        if sys.platform.startswith('linux'):
+            sys.stdout.write("\x1b[2J\x1b[H")
+        elif sys.platform.startswith('win'):
+            os.system('cls')
+        else:
+            pass
+
+
 
     @staticmethod
     def printTitle(absolute=False, big=False):
         if SystemManager.printEnable is False:
             return
 
-        if SystemManager.printFile is None and SystemManager.printAllEnable is False:
-            if sys.platform.startswith('linux'):
-                sys.stdout.write("\x1b[2J\x1b[H")
-            elif sys.platform.startswith('win'):
-                os.system('cls')
-            else:
-                pass
+        if SystemManager.printFile is None and \
+            SystemManager.printAllEnable is False:
+            SystemManager.clearScreen()
         elif absolute is False and SystemManager.printAllEnable:
             return
 
@@ -9572,6 +9597,8 @@ class SystemManager(object):
             if filterList.find('u') > -1:
                 SystemManager.userEnable = False
                 SystemManager.rootPath = '/'
+            if filterList.find('a') > -1:
+                SystemManager.disableAll = True
             if filterList.find('c') > -1:
                 SystemManager.cpuEnable = False
                 SystemManager.latEnable = False
@@ -9609,6 +9636,9 @@ class SystemManager(object):
                 if len(tempItem) == 2:
                     filterList[idx] = tempItem[1]
                     SystemManager.customEventList.append(tempItem[1])
+                elif len(tempItem) == 1:
+                    filterList[idx] = tempItem[0]
+                    SystemManager.customEventList.append(tempItem[0])
                 else:
                     filterList.pop(idx)
             if len(filterList) > 0:
@@ -9833,7 +9863,7 @@ class SystemManager(object):
     def topPrint():
         # realtime mode #
         if SystemManager.printFile is None:
-            SystemManager.printTitle()
+            SystemManager.clearScreen()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # pipe mode #
@@ -10875,6 +10905,8 @@ class SystemManager(object):
                     SystemManager.printEnable = False
                 if options.rfind('l') > -1:
                     SystemManager.latEnable = False
+                if options.rfind('a') > -1:
+                    SystemManager.disableAll = True
 
             # Ignore options #
             elif option == 'i' or option == 'a' or option == 'v' or \
@@ -12189,6 +12221,9 @@ class SystemManager(object):
         # initialize event list to enable #
         self.initCmdList()
 
+        if SystemManager.disableAll:
+            SystemManager.sysInstance.disableAllEvents()
+
         # set log format #
         SystemManager.writeCmd('../trace_options', 'noirq-info')
         SystemManager.writeCmd('../trace_options', 'noannotate')
@@ -12303,6 +12338,20 @@ class SystemManager(object):
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
 
+            # options for segmentation fault tracing #
+            sigDisabled = True
+            if SystemManager.customCmd is not None:
+                for evt in SystemManager.customCmd:
+                    if evt.startswith('signal'):
+                        sigDisabled = False
+                        break
+            if sigDisabled:
+                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
+                SystemManager.writeCmd('signal/filter', sigCmd)
+
+            if SystemManager.disableAll:
+                return
+
             if SystemManager.cpuEnable:
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
@@ -12354,17 +12403,6 @@ class SystemManager(object):
                 SystemManager.writeCmd('block/block_bio_remap/enable', '0')
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '0')
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
-
-            # options for segmentation fault tracing #
-            sigDisabled = True
-            if SystemManager.customCmd is not None:
-                for evt in SystemManager.customCmd:
-                    if evt.startswith('signal'):
-                        sigDisabled = False
-                        break
-            if sigDisabled:
-                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
-                SystemManager.writeCmd('signal/filter', sigCmd)
 
             return
 
@@ -18601,7 +18639,7 @@ class ThreadAnalyzer(object):
             if SystemManager.isDrawMode():
                 return 0
             elif SystemManager.recordStatus is False:
-                SystemManager.printError("Fail to read or to recognize logs")
+                SystemManager.printError("Fail to read because there is no log")
                 sys.exit(0)
 
 
@@ -20666,7 +20704,8 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             # custom event #
-            elif func in SystemManager.customEventList:
+            elif func in SystemManager.customEventList or \
+                True in [True for event in SystemManager.customEventList if event.find('/') == -1]:
                 # add data into list #
                 ntime = float(time) - float(SystemManager.startTime)
                 self.customEventData.append([func, comm, thread, ntime, etc.strip()])
@@ -23465,7 +23504,7 @@ class ThreadAnalyzer(object):
         else:
             # realtime mode #
             if SystemManager.printFile is None:
-                SystemManager.printTitle()
+                SystemManager.clearScreen()
                 SystemManager.pipePrint(data)
                 SystemManager.clearPrint()
             # buffered mode #
@@ -23877,6 +23916,9 @@ if __name__ == '__main__':
 
     oneLine = "-" * SystemManager.lineLength
     twoLine = "=" * SystemManager.lineLength
+
+    # print logo #
+    SystemManager.printRawTitle(big=True)
 
     # print options #
     SystemManager.printOptions()
