@@ -9465,14 +9465,14 @@ class SystemManager(object):
             mountTable = []
             tempTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
             for idx, line in enumerate(tempTable):
-                if len(line.split()) == 1:
+                if len(line.split()) == 2:
                     mountTable.append('%s %s' % (line, tempTable[idx+1]))
         except:
             pass
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         for item in mountTable:
-            m = re.match(r'(?P<dev>\S+)\s+(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+' + \
+            m = re.match(r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+' + \
                 r'(?P<readSize>\S+)\s+(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+' + \
                 r'(?P<freeSize>\S+)\s+(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+' + \
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
