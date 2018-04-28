@@ -6346,7 +6346,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 6
+    ttyRowsMargin = 4
     ttyCols = 156
     magicString = '@@@@@'
     procPath = '/proc'
@@ -20143,67 +20143,44 @@ class ThreadAnalyzer(object):
 
                     opt = d['operation']
 
+                    SystemManager.blockEnable = True
+
+                    bio = '%s/%s/%s/%s' % \
+                        (d['major'], d['minor'], d['operation'][0], d['address'])
+
+                    self.ioData[bio] = {'thread': thread, 'time': float(time), \
+                        'major': d['major'], 'minor': d['minor'], \
+                        'address': int(d['address']), 'size': int(d['size'])}
+
+                    try:
+                        partInfo = d['part'].split()
+                        partSet = partInfo[1].split(',')
+                        major = partSet[0][1:]
+                        minor = partSet[1][:-1]
+                        addr = partInfo[2]
+
+                        self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
+                            SystemManager.blockSize * int(d['size']))
+                    except:
+                        SystemManager.printWarning("Fail to save partition info")
+
                     # read operations #
                     if opt[0] == 'R':
-
-                        SystemManager.blockEnable = True
-
-                        bio = '%s/%s/%s/%s' % \
-                            (d['major'], d['minor'], d['operation'][0], d['address'])
-
-                        self.ioData[bio] = {'thread': thread, 'time': float(time), \
-                            'major': d['major'], 'minor': d['minor'], \
-                            'address': int(d['address']), 'size': int(d['size'])}
-
                         self.threadData[thread]['reqRdBlock'] += int(d['size'])
                         self.threadData[thread]['readQueueCnt'] += 1
                         self.threadData[thread]['readBlockCnt'] += 1
                         self.threadData[thread]['blkCore'] = coreId
                         self.threadData[coreId]['readBlockCnt'] += 1
 
-                        try:
-                            partInfo = d['part'].split()
-                            partSet = partInfo[1].split(',')
-                            major = partSet[0][1:]
-                            minor = partSet[1][:-1]
-                            addr = partInfo[2]
-
-                            self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
-                                SystemManager.blockSize * int(d['size']))
-                        except:
-                            SystemManager.printWarning("Fail to save partition info")
-
                         if self.threadData[thread]['readStart'] == 0:
                             self.threadData[thread]['readStart'] = float(time)
                     # synchronous write operation #
                     elif opt == 'WS':
-
-                        SystemManager.blockEnable = True
-
-                        bio = '%s/%s/%s/%s' % \
-                            (d['major'], d['minor'], opt[0], d['address'])
-
-                        self.ioData[bio] = {'thread': thread, 'time': float(time), \
-                            'major': d['major'], 'minor': d['minor'], \
-                            'address': int(d['address']), 'size': int(d['size'])}
-
                         self.threadData[thread]['reqWrBlock'] += int(d['size'])
                         self.threadData[thread]['writeQueueCnt'] += 1
                         self.threadData[thread]['writeBlockCnt'] += 1
                         self.threadData[thread]['blkCore'] = coreId
                         self.threadData[coreId]['writeBlockCnt'] += 1
-
-                        try:
-                            partInfo = d['part'].split()
-                            partSet = partInfo[1].split(',')
-                            major = partSet[0][1:]
-                            minor = partSet[1][:-1]
-                            addr = partInfo[2]
-
-                            self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
-                                SystemManager.blockSize * int(d['size']))
-                        except:
-                            SystemManager.printWarning("Fail to save partition info")
 
                         if self.threadData[thread]['writeStart'] == 0:
                             self.threadData[thread]['writeStart'] = float(time)
@@ -20225,7 +20202,8 @@ class ThreadAnalyzer(object):
                         (d['major'], d['minor'], opt[0], d['address'])
 
                     try:
-                        self.threadData[self.ioData[bio]['thread']]
+                        requester = self.ioData[bio]['thread']
+                        self.threadData[requester]
                         bioStart = int(address)
                         bioEnd = int(address) + int(size)
                     except:
@@ -20262,10 +20240,34 @@ class ThreadAnalyzer(object):
                             matchBlock = matchEnd - value['address']
                             value['size'] = value['address'] + value['size'] - matchEnd
                             value['address'] = matchEnd
+
+                            if value['size'] > 0:
+                                try:
+                                    mbio = '%s/%s/%s/%s' % \
+                                        (value['major'], value['minor'],\
+                                        opt[0], value['address'] + value['size'])
+
+                                    value['size'] += self.ioData[mbio]['size']
+
+                                    # remove bio request in table #
+                                    self.ioData.pop(mbio, None)
+                                except:
+                                    pass
+
+                                # recreate partial ioData uncompleted #
+                                bio = '%s/%s/%s/%s' % \
+                                    (value['major'], value['minor'], opt[0], value['address'])
+                                self.ioData[bio] = value
+
                         elif matchStart > value['address']:
                             if matchEnd == value['address'] + value['size']:
                                 matchBlock = matchEnd - matchStart
                                 value['size'] = matchStart - value['address']
+
+                                # recreate partial ioData uncompleted #
+                                bio = '%s/%s/%s/%s' % \
+                                    (value['major'], value['minor'], opt[0], value['address'])
+                                self.ioData[bio] = value
                             else:
                                 continue
                         else:
@@ -20414,19 +20416,20 @@ class ThreadAnalyzer(object):
 
                     try:
                         self.threadData[pid]
+                        SystemManager.printWarning(\
+                            "Fail to handle new task because it is already exist")
                     except:
                         self.threadData[pid] = dict(self.init_threadData)
+                        self.threadData[pid]['comm'] = d['comm']
+                        self.threadData[pid]['ptid'] = thread
+                        self.threadData[pid]['new'] = 'N'
+                        self.threadData[pid]['createdTime'] = float(time)
 
-                    self.threadData[pid]['comm'] = d['comm']
-                    self.threadData[pid]['ptid'] = thread
-                    self.threadData[pid]['new'] = 'N'
-                    self.threadData[pid]['createdTime'] = float(time)
+                        if self.threadData[thread]['childList'] is None:
+                            self.threadData[thread]['childList'] = list()
 
-                    if self.threadData[thread]['childList'] is None:
-                        self.threadData[thread]['childList'] = list()
-
-                    self.threadData[thread]['childList'].append(pid)
-                    self.nrNewTask += 1
+                        self.threadData[thread]['childList'].append(pid)
+                        self.nrNewTask += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -20442,19 +20445,20 @@ class ThreadAnalyzer(object):
 
                     try:
                         self.threadData[cpid]
+                        SystemManager.printWarning(\
+                            "Fail to handle new task because it is already exist")
                     except:
                         self.threadData[cpid] = dict(self.init_threadData)
+                        self.threadData[cpid]['comm'] = ccomm
+                        self.threadData[cpid]['ptid'] = thread
+                        self.threadData[cpid]['new'] = 'N'
+                        self.threadData[cpid]['createdTime'] = float(time)
 
-                    self.threadData[cpid]['comm'] = ccomm
-                    self.threadData[cpid]['ptid'] = thread
-                    self.threadData[cpid]['new'] = 'N'
-                    self.threadData[cpid]['createdTime'] = float(time)
+                        if self.threadData[thread]['childList'] is None:
+                            self.threadData[thread]['childList'] = list()
 
-                    if self.threadData[thread]['childList'] is None:
-                        self.threadData[thread]['childList'] = list()
-
-                    self.threadData[thread]['childList'].append(cpid)
-                    self.nrNewTask += 1
+                        self.threadData[thread]['childList'].append(cpid)
+                        self.nrNewTask += 1
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
