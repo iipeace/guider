@@ -16365,7 +16365,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:^8} {1:^16} {2:^12} {3:^20} {4:>32}".\
             format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
-        SystemManager.pipePrint(oneLine)
+        SystemManager.pipePrint(twoLine)
 
         cnt = 0
 
@@ -16391,7 +16391,7 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
                     format(num, size, filesystem, dev, mount))
                 cnt += 1
-            SystemManager.pipePrint(oneLine)
+            SystemManager.pipePrint(twoLine)
 
         # total write #
         if len(self.blockTable[1]) > 0:
@@ -16415,12 +16415,16 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
                     format(num, size, filesystem, dev, mount))
                 cnt += 1
-            SystemManager.pipePrint(oneLine)
+            SystemManager.pipePrint(twoLine)
 
         for tid, data in self.blockTable[2].items():
+            comm = self.threadData[tid]['comm']
+            if comm == '<...>':
+                comm = '?'
+
         # thread read #
             if len(data[0]) > 0:
-                SystemManager.pipePrint('# %s(%s) READ\n' % (tid, self.threadData[tid]['comm']))
+                SystemManager.pipePrint('# %s(%s) READ\n' % (tid, comm))
                 for num, size in sorted(\
                     data[0].items(), key=lambda e:e[1], reverse=True):
                     try:
@@ -16444,7 +16448,7 @@ class ThreadAnalyzer(object):
 
             # thread write #
             if len(data[1]) > 0:
-                SystemManager.pipePrint('# %s(%s) WRITE\n' % (tid, self.threadData[tid]['comm']))
+                SystemManager.pipePrint('# %s(%s) WRITE\n' % (tid, comm))
                 for num, size in sorted(\
                     data[1].items(), key=lambda e:e[1], reverse=True):
                     try:
