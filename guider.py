@@ -13440,7 +13440,7 @@ class ThreadAnalyzer(object):
             self.initThreadData()
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), \
-                'yield': int(0), 'cpuWait': float(0), 'pri': '0', 'ioRdWait': float(0), \
+                'yield': int(0), 'cpuWait': float(0), 'pri': '?', 'ioRdWait': float(0), \
                 'reqRdBlock': int(0), 'readBlock': int(0), 'ioRank': int(0), 'irq': float(0), \
                 'reclaimWait': float(0), 'reclaimCnt': int(0), 'ptid': '-'*5, 'new': ' ', \
                 'die': ' ', 'preempted': int(0), 'preemption': int(0), 'start': float(0), \
@@ -13679,6 +13679,11 @@ class ThreadAnalyzer(object):
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
 
+        # update anonymous comm #
+        for idx, val in self.threadData.items():
+            if val['comm'] == '<...>':
+                val['comm'] = '?'
+
         if SystemManager.blockEnable:
             # add blocking time to read blocks from disk #
             for idx, item in sorted(\
@@ -13703,6 +13708,10 @@ class ThreadAnalyzer(object):
                     item['writeStart'] = 0
                 else:
                     break
+            # warn uncompleted block request #
+            if len(self.ioData) > 0:
+                SystemManager.printWarning(\
+                    "Fail to handle %s block requests" % len(self.ioData))
 
         # calculate usage of threads in last interval #
         self.processIntervalData(self.finishTime)
@@ -15107,6 +15116,7 @@ class ThreadAnalyzer(object):
 
                         diff = maxVss - minVss
                         item['vssDiff'] = diff
+
                     # draw leakage plots #
                     for key, item in sorted(\
                         memProcUsage.items(), key=lambda e: e[1]['vssDiff'], reverse=True):
@@ -15482,24 +15492,35 @@ class ThreadAnalyzer(object):
 
             for val in self.sigData:
                 try:
-                    ConfigManager.sigList[int(val[6])]
+                    signal = ConfigManager.sigList[int(val[4])]
                 except:
-                    continue
+                    signal = 'SIG_%s' % val[4]
 
-                if val[0] == 'SEND':
-                    if val[3].startswith('0['):
-                        tid = 0
-                    else:
-                        tid = val[3]
+                stype = val[0]
+                stime = val[1]
+                stid = val[2]
+                rtid = val[3]
+
+                try:
+                    scomm = self.threadData[stid]['comm']
+                except:
+                    scomm = '?'
+
+                try:
+                    rcomm = self.threadData[rtid]['comm']
+                except:
+                    rcomm = '?'
+
+                if stype == 'SEND':
+                    if stid.startswith('0['):
+                        stid = 0
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                        format(val[0], val[1], val[2], tid, \
-                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                        format(stype, stime, scomm, stid, signal, rcomm, rtid))
                 elif val[0] == 'RECV':
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
-                        format(val[0], val[1], ' ', ' ', \
-                        ConfigManager.sigList[int(val[6])], val[4], val[5]))
+                        format(stype, stime, ' ', ' ', signal, rcomm, rtid))
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
@@ -15858,11 +15879,14 @@ class ThreadAnalyzer(object):
                 count += 1
             else:
                 # convert priority #
-                prio = int(value['pri']) - 120
-                if prio >= -20:
-                    value['pri'] = str(prio)
-                else:
-                    value['pri'] = 'R%2s' % abs(prio + 21)
+                try:
+                    prio = int(value['pri']) - 120
+                    if prio >= -20:
+                        value['pri'] = str(prio)
+                    else:
+                        value['pri'] = 'R%2s' % abs(prio + 21)
+                except:
+                    pass
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -16098,7 +16122,7 @@ class ThreadAnalyzer(object):
             try:
                 comm = self.threadData[tid]['comm']
             except:
-                comm = '??'
+                comm = '?'
 
             if event is 'load':
                 try:
@@ -16363,15 +16387,19 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^8} {1:^16} {2:^12} {3:^20} {4:>32}".\
-            format('ID', 'Size(KB)', 'Filesystem', 'Device', 'Mount'))
+        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:^16} {4:^12} {5:^20}".\
+            format('ID', 'NrDev', 'OPT', 'KB', 'Filesystem', 'PATH'))
         SystemManager.pipePrint(twoLine)
 
-        cnt = 0
+        tcnt = 0
 
         # total read #
         if len(self.blockTable[0]) > 0:
-            SystemManager.pipePrint('# TOTAL READ\n')
+            if tcnt == 0:
+                cid = 'TOTAL'
+            else:
+                cid = ' '
+
             for num, size in sorted(\
                 self.blockTable[0].items(), key=lambda e:e[1], reverse=True):
                 try:
@@ -16388,14 +16416,17 @@ class ThreadAnalyzer(object):
                 except:
                     size = size >> 10
 
-                SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                    format(num, size, filesystem, dev, mount))
-                cnt += 1
-            SystemManager.pipePrint(twoLine)
+                SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
+                    format(cid, num, 'READ', size, filesystem, dev))
+                tcnt += 1
 
         # total write #
         if len(self.blockTable[1]) > 0:
-            SystemManager.pipePrint('# TOTAL WRITE\n')
+            if tcnt == 0:
+                cid = 'TOTAL'
+            else:
+                cid = ' '
+
             for num, size in sorted(\
                 self.blockTable[1].items(), key=lambda e:e[1], reverse=True):
                 try:
@@ -16412,19 +16443,26 @@ class ThreadAnalyzer(object):
                 except:
                     size = size >> 10
 
-                SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                    format(num, size, filesystem, dev, mount))
-                cnt += 1
-            SystemManager.pipePrint(twoLine)
+                SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
+                    format(cid, num, 'WRITE', size, filesystem, dev))
+                tcnt += 1
+
+        if tcnt > 0:
+            SystemManager.pipePrint(oneLine)
+        else:
+            SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
 
         for tid, data in self.blockTable[2].items():
+            cnt = 0
             comm = self.threadData[tid]['comm']
-            if comm == '<...>':
-                comm = '?'
+            cid = '%s(%s)' % (tid, comm)
 
-        # thread read #
+            # thread read #
             if len(data[0]) > 0:
-                SystemManager.pipePrint('# %s(%s) READ\n' % (tid, comm))
+                if cnt > 0:
+                    cid = ' '
+
                 for num, size in sorted(\
                     data[0].items(), key=lambda e:e[1], reverse=True):
                     try:
@@ -16441,14 +16479,15 @@ class ThreadAnalyzer(object):
                     except:
                         size = size >> 10
 
-                    SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                        format(num, size, filesystem, dev, mount))
+                    SystemManager.pipePrint("{0:>23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
+                        format(cid, num, 'READ', size, filesystem, dev))
                     cnt += 1
-                SystemManager.pipePrint(oneLine)
 
             # thread write #
             if len(data[1]) > 0:
-                SystemManager.pipePrint('# %s(%s) WRITE\n' % (tid, comm))
+                if cnt > 0:
+                    cid = ' '
+
                 for num, size in sorted(\
                     data[1].items(), key=lambda e:e[1], reverse=True):
                     try:
@@ -16465,14 +16504,13 @@ class ThreadAnalyzer(object):
                     except:
                         size = size >> 10
 
-                    SystemManager.pipePrint("{0:^8} {1:>16} {2:^12} {3:<20} {4:<32}".\
-                        format(num, size, filesystem, dev, mount))
+                    SystemManager.pipePrint("{0:>23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
+                        format(cid, num, 'WRITE', size, filesystem, dev))
                     cnt += 1
+
+            if cnt > 0:
                 SystemManager.pipePrint(oneLine)
 
-        if cnt == 0:
-            SystemManager.pipePrint("\tNone")
-            SystemManager.pipePrint(oneLine)
 
 
 
@@ -18084,6 +18122,7 @@ class ThreadAnalyzer(object):
 
             prev = 0
             timeLine = ''
+            minRss = maxRss = 0
             lineLen = len(procInfo)
             intervalData = ThreadAnalyzer.procIntervalData
             for idx in xrange(0,len(intervalData)):
@@ -18118,8 +18157,22 @@ class ThreadAnalyzer(object):
                 else:
                     prev = usage = 0
 
+                if usage == 0:
+                    pass
+                else:
+                    if minRss == 0 or minRss > usage:
+                        minRss = usage
+                    if maxRss == 0 or maxRss < usage:
+                        maxRss = usage
+
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
+
+            if maxRss - minRss  > 0:
+                try:
+                    procInfo = procInfo.replace(' (', '^(', 1)
+                except:
+                    pass
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
@@ -18197,6 +18250,7 @@ class ThreadAnalyzer(object):
 
             prev = 0
             timeLine = ''
+            minVss = maxVss = 0
             lineLen = len(procInfo)
             intervalData = ThreadAnalyzer.procIntervalData
             for idx in xrange(0,len(intervalData)):
@@ -18231,8 +18285,22 @@ class ThreadAnalyzer(object):
                 else:
                     prev = usage = 0
 
+                if usage == 0:
+                    pass
+                else:
+                    if minVss == 0 or minVss > usage:
+                        minVss = usage
+                    if maxVss == 0 or maxVss < usage:
+                        maxVss = usage
+
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
+
+            if maxVss - minVss  > 0:
+                try:
+                    procInfo = procInfo.replace(' (', '^(', 1)
+                except:
+                    pass
 
             SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
@@ -18663,19 +18731,18 @@ class ThreadAnalyzer(object):
         readTable = self.blockTable[0]
         writeTable = self.blockTable[1]
         taskTable = self.blockTable[2]
+        did = '%s:%s' % (major, minor)
 
         if opt == 'R':
             try:
-                readTable[major + ':' + minor] += int(size)
+                readTable[did] += int(size)
             except:
-                readTable[major + ':' + minor] = 0
-                readTable[major + ':' + minor] += int(size)
+                readTable[did] = int(size)
         elif opt == 'W':
             try:
-                writeTable[major + ':' + minor] += int(size)
+                writeTable[did] += int(size)
             except:
-                writeTable[major + ':' + minor] = 0
-                writeTable[major + ':' + minor] += int(size)
+                writeTable[did] = int(size)
         else:
             SystemManager.printWarning("Fail to recognize operation of block event")
 
@@ -18688,16 +18755,14 @@ class ThreadAnalyzer(object):
 
         if opt == 'R':
             try:
-                readTable[major + ':' + minor] += int(size)
+                readTable[did] += int(size)
             except:
-                readTable[major + ':' + minor] = 0
-                readTable[major + ':' + minor] += int(size)
+                readTable[did] = int(size)
         elif opt == 'W':
             try:
-                writeTable[major + ':' + minor] += int(size)
+                writeTable[did] += int(size)
             except:
-                writeTable[major + ':' + minor] = 0
-                writeTable[major + ':' + minor] += int(size)
+                writeTable[did] = int(size)
         else:
             SystemManager.printWarning("Fail to recognize operation of block event")
 
@@ -19324,8 +19389,6 @@ class ThreadAnalyzer(object):
                         self.wakeupData['valid'] -= 1
 
                     # update anonymous comm #
-                    if comm == '<...>':
-                        comm = prev_comm
                     if self.threadData[prev_id]['comm'] == '<...>':
                         self.threadData[prev_id]['comm'] = prev_comm
                     if self.threadData[next_id]['comm'] == '<...>':
@@ -19337,10 +19400,10 @@ class ThreadAnalyzer(object):
                     self.threadData[next_id]['waitStartAsParent'] = float(0)
 
                     # update priority of thread to highest one #
-                    if self.threadData[prev_id]['pri'] == '0' or \
+                    if self.threadData[prev_id]['pri'] == '?' or \
                         int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
                         self.threadData[prev_id]['pri'] = d['prev_prio']
-                    if self.threadData[next_id]['pri'] == '0' or \
+                    if self.threadData[next_id]['pri'] == '?' or \
                         int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
@@ -20077,6 +20140,7 @@ class ThreadAnalyzer(object):
                     sig = d['sig']
                     target_comm = d['comm']
                     pid = d['pid']
+                    ttime = float(time) - float(SystemManager.startTime)
 
                     # apply filter #
                     for item in SystemManager.showGroup:
@@ -20086,14 +20150,12 @@ class ThreadAnalyzer(object):
                             return
 
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
-                        (round(float(time) - float(SystemManager.startTime), 7), \
-                        round(float(time) - float(SystemManager.startTime) - float(self.wakeupData['time']), 7), \
+                        (round(ttime, 7), round(ttime - float(self.wakeupData['time']), 7), \
                         self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
 
-                    self.sigData.append(('SEND', float(time) - float(SystemManager.startTime), \
-                        self.threadData[thread]['comm'], thread, target_comm, pid, sig))
+                    self.sigData.append(('SEND', ttime, thread, pid, sig))
 
-                    self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                    self.wakeupData['time'] = ttime
 
                     try:
                         # SIGCHLD #
@@ -20127,15 +20189,14 @@ class ThreadAnalyzer(object):
                             return
 
                     ttime = float(time) - float(SystemManager.startTime)
-                    itime = float(time) - float(SystemManager.startTime) - float(self.wakeupData['time'])
+                    itime = ttime - float(self.wakeupData['time'])
                     self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
                         (round(ttime, 7), round(itime, 7), "", "", \
                         self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
-                    self.sigData.append(('RECV', float(time) - float(SystemManager.startTime), \
-                        None, None, self.threadData[thread]['comm'], thread, sig))
+                    self.sigData.append(('RECV', ttime, None, thread, sig))
 
-                    self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                    self.wakeupData['time'] = ttime
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -20145,9 +20206,9 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    opt = d['operation']
-
                     SystemManager.blockEnable = True
+
+                    opt = d['operation']
 
                     bio = '%s/%s/%s/%s' % \
                         (d['major'], d['minor'], d['operation'][0], d['address'])
@@ -20205,24 +20266,19 @@ class ThreadAnalyzer(object):
                     bio = '%s/%s/%s/%s' % \
                         (d['major'], d['minor'], opt[0], d['address'])
 
-                    try:
-                        requester = self.ioData[bio]['thread']
-                        self.threadData[requester]
-                        bioStart = int(address)
-                        bioEnd = int(address) + int(size)
-                    except:
-                        return
+                    bioStart = int(address)
+                    bioEnd = int(address) + int(size)
 
-                    for key, value in sorted(\
+                    for key, request in sorted(\
                         self.ioData.items(), key=lambda e: e[1]['address'], reverse=False):
 
                         # skip different requests with device number #
-                        if value['major'] != d['major'] or value['minor'] != d['minor']:
+                        if request['major'] != d['major'] or request['minor'] != d['minor']:
                             continue
 
                         # skip irrelevant requests #
-                        if (bioStart <= value['address'] < bioEnd or \
-                            bioStart < value['address'] + value['size'] <= bioEnd) is False:
+                        if (bioStart <= request['address'] < bioEnd or \
+                            bioStart < request['address'] + request['size'] <= bioEnd) is False:
                             continue
 
                         # remove bio request in table #
@@ -20230,28 +20286,29 @@ class ThreadAnalyzer(object):
 
                         matchBlock = 0
 
-                        if bioStart < value['address']:
-                            matchStart = value['address']
+                        if bioStart < request['address']:
+                            matchStart = request['address']
                         else:
                             matchStart = bioStart
 
-                        if bioEnd > value['address'] + value['size']:
-                            matchEnd = value['address'] + value['size']
+                        if bioEnd > request['address'] + request['size']:
+                            matchEnd = request['address'] + request['size']
                         else:
                             matchEnd = bioEnd
 
-                        if matchStart == value['address']:
-                            matchBlock = matchEnd - value['address']
-                            value['size'] = value['address'] + value['size'] - matchEnd
-                            value['address'] = matchEnd
+                        # simple case #
+                        if matchStart == request['address']:
+                            matchBlock = matchEnd - request['address']
+                            request['size'] = request['address'] + request['size'] - matchEnd
+                            request['address'] = matchEnd
 
-                            if value['size'] > 0:
+                            if request['size'] > 0:
                                 try:
                                     mbio = '%s/%s/%s/%s' % \
-                                        (value['major'], value['minor'],\
-                                        opt[0], value['address'] + value['size'])
+                                        (request['major'], request['minor'],\
+                                        opt[0], request['address'] + request['size'])
 
-                                    value['size'] += self.ioData[mbio]['size']
+                                    request['size'] += self.ioData[mbio]['size']
 
                                     # remove bio request in table #
                                     self.ioData.pop(mbio, None)
@@ -20260,72 +20317,72 @@ class ThreadAnalyzer(object):
 
                                 # recreate partial ioData uncompleted #
                                 bio = '%s/%s/%s/%s' % \
-                                    (value['major'], value['minor'], opt[0], value['address'])
-                                self.ioData[bio] = value
-
-                        elif matchStart > value['address']:
-                            if matchEnd == value['address'] + value['size']:
+                                    (request['major'], request['minor'], opt[0], request['address'])
+                                self.ioData[bio] = request
+                        # complex case #
+                        elif matchStart > request['address']:
+                            if matchEnd == request['address'] + request['size']:
                                 matchBlock = matchEnd - matchStart
-                                value['size'] = matchStart - value['address']
+                                request['size'] = matchStart - request['address']
 
                                 # recreate partial ioData uncompleted #
                                 bio = '%s/%s/%s/%s' % \
-                                    (value['major'], value['minor'], opt[0], value['address'])
-                                self.ioData[bio] = value
+                                    (request['major'], request['minor'], opt[0], request['address'])
+                                self.ioData[bio] = request
                             else:
                                 continue
                         else:
                             continue
 
                         # just ignore error ;( #
-                        if bioEnd < value['address'] + value['size']:
+                        if bioEnd < request['address'] + request['size']:
                             pass
 
                         if opt[0] == 'R':
-                            self.threadData[value['thread']]['readBlock'] += matchBlock
+                            self.threadData[request['thread']]['readBlock'] += matchBlock
                             self.threadData[coreId]['readBlock'] += matchBlock
 
-                            if value['size'] != 0:
+                            if request['size'] != 0:
                                 continue
 
-                            if self.threadData[value['thread']]['readQueueCnt'] > 0:
-                                self.threadData[value['thread']]['readQueueCnt'] -= 1
+                            if self.threadData[request['thread']]['readQueueCnt'] > 0:
+                                self.threadData[request['thread']]['readQueueCnt'] -= 1
 
                             """
                             if error of size and time of block read is big then \
                             consider inserting below conditions
-                            # self.threadData[value['thread']]['readQueueCnt'] == 0 #
+                            # self.threadData[request['thread']]['readQueueCnt'] == 0 #
                             """
-                            if self.threadData[value['thread']]['readStart'] > 0:
+                            if self.threadData[request['thread']]['readStart'] > 0:
                                 waitTime = \
                                     float(time) - \
-                                    self.threadData[value['thread']]['readStart']
+                                    self.threadData[request['thread']]['readStart']
                                 self.threadData[coreId]['ioRdWait'] += waitTime
-                                self.threadData[value['thread']]['ioRdWait'] += waitTime
-                                self.threadData[value['thread']]['readStart'] = 0
+                                self.threadData[request['thread']]['ioRdWait'] += waitTime
+                                self.threadData[request['thread']]['readStart'] = 0
 
                         elif opt == 'WS':
-                            self.threadData[value['thread']]['writeBlock'] += matchBlock
+                            self.threadData[request['thread']]['writeBlock'] += matchBlock
                             self.threadData[coreId]['writeBlock'] += matchBlock
 
-                            if thread != value['thread'] or value['size'] != 0:
+                            if thread != request['thread'] or request['size'] != 0:
                                 continue
 
-                            if self.threadData[value['thread']]['writeQueueCnt'] > 0:
-                                self.threadData[value['thread']]['writeQueueCnt'] -= 1
+                            if self.threadData[request['thread']]['writeQueueCnt'] > 0:
+                                self.threadData[request['thread']]['writeQueueCnt'] -= 1
 
                             """
                             if error of size and time of block read is big then \
                             consider inserting below conditions
-                            # self.threadData[value['thread']]['writeQueueCnt'] == 0 #
+                            # self.threadData[request['thread']]['writeQueueCnt'] == 0 #
                             """
-                            if self.threadData[value['thread']]['writeStart'] > 0:
+                            if self.threadData[request['thread']]['writeStart'] > 0:
                                 waitTime = \
                                     float(time) - \
-                                    self.threadData[value['thread']]['writeStart']
+                                    self.threadData[request['thread']]['writeStart']
                                 self.threadData[coreId]['ioWrWait'] += waitTime
-                                self.threadData[value['thread']]['ioWrWait'] += waitTime
-                                self.threadData[value['thread']]['writeStart'] = 0
+                                self.threadData[request['thread']]['ioWrWait'] += waitTime
+                                self.threadData[request['thread']]['writeStart'] = 0
 
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
