@@ -15190,7 +15190,17 @@ class ThreadAnalyzer(object):
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
-            yticks(fontsize = 5)
+
+            # convert tick type to integer #
+            try:
+                ytick = map(int, yticks()[0])
+                for idx, val in enumerate(ytick):
+                    if val < 0:
+                        ytick.pop(idx)
+                yticks(ytick, fontsize=5)
+            except:
+                pass
+
             xticks(fontsize = 4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
