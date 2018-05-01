@@ -14179,7 +14179,7 @@ class ThreadAnalyzer(object):
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if m is not None:
                         d = m.groupdict()
-                        comm = d['comm'].strip()
+                        comm = d['comm'].strip().replace('^', '')
 
                         if SystemManager.showGroup != []:
                             found = False
@@ -14229,7 +14229,7 @@ class ThreadAnalyzer(object):
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if m is not None:
                         d = m.groupdict()
-                        comm = d['comm'].strip()
+                        comm = d['comm'].strip().replace('^', '')
 
                         if SystemManager.showGroup != []:
                             found = False
