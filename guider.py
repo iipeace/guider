@@ -2147,6 +2147,7 @@ class FunctionAnalyzer(object):
         binPath = ''
         offsetList = []
         curIdx = 0
+        nrNoFile = 0
         lastIdx = len(self.posData)
 
         # Set alarm handler to handle hanged addr2line #
@@ -2179,7 +2180,8 @@ class FunctionAnalyzer(object):
             if binPath != value['binary']:
                 if binPath != '':
                     # Get symbols #
-                    self.getSymbolInfo(binPath, offsetList)
+                    if self.getSymbolInfo(binPath, offsetList) == -1:
+                        nrNoFile += 1
                     offsetList = []
 
                 if value['offset'] == hex(0):
@@ -2200,9 +2202,14 @@ class FunctionAnalyzer(object):
 
         # Get symbols and source path from last binary #
         if binPath != '':
-            self.getSymbolInfo(binPath, offsetList)
+            if self.getSymbolInfo(binPath, offsetList) == -1:
+                nrNoFile += 1
 
         SystemManager.deleteProgress()
+
+        if nrNoFile > 0:
+            SystemManager.printWarning(\
+                "Fail to find total %s binaries to analyze functions" % nrNoFile, True)
 
 
 
@@ -2237,7 +2244,7 @@ class FunctionAnalyzer(object):
                     sys.exit(0)
                 except:
                     SystemManager.printWarning("Fail to find address %s" % addr)
-            return
+            return -1
 
         # Check addr2line path #
         if SystemManager.userEnable is False:
@@ -3891,7 +3898,7 @@ class FunctionAnalyzer(object):
 
     def printCpuUsage(self):
         # no cpu event #
-        if self.cpuEnabled is False:
+        if self.cpuEnabled is False or self.periodicEventCnt == 0:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
