@@ -6470,6 +6470,7 @@ class SystemManager(object):
 
     statFd = None
     memFd = None
+    irqFd = None
     vmstatFd = None
     swapFd = None
     uptimeFd = None
@@ -13529,6 +13530,8 @@ class ThreadAnalyzer(object):
             self.fileData = {}
             self.cpuData = {}
             self.prevCpuData = {}
+            self.irqData = {}
+            self.prevIrqData = {}
             self.memData = {}
             self.vmData = {}
             self.prevVmData = {}
@@ -21402,6 +21405,34 @@ class ThreadAnalyzer(object):
                 memList = line.split()
                 self.memData[memList[0][:-1]] = long(memList[1])
 
+        # save irq info #
+        try:
+            irqBuf = None
+            SystemManager.irqFd.seek(0)
+            irqBuf = SystemManager.irqFd.readlines()
+        except:
+            try:
+                irqPath = "%s/%s" % (SystemManager.procPath, 'interrupts')
+                SystemManager.irqFd = open(irqPath, 'r')
+
+                irqBuf = SystemManager.irqFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % irqPath)
+
+        if irqBuf is not None:
+            self.prevIrqData = self.irqData
+            self.irqData = {}
+            cpuCnt = len(irqBuf.pop(0).split())
+
+            for line in irqBuf:
+                irqList = line.split()
+                try:
+                    irqSum = sum(map(long, irqList[1:cpuCnt]))
+                    if irqSum > 0:
+                        self.irqData[irqList[0][:-1]] = irqSum
+                except:
+                    pass
+
         # save vmstat info #
         try:
             vmBuf = None
@@ -23970,6 +24001,8 @@ class ThreadAnalyzer(object):
 
 
     def printSystemStat(self):
+        nrIndent = len('[Top Info]')
+
         nrNewThreads = \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes']
         SystemManager.addPrint(\
@@ -23982,11 +24015,28 @@ class ThreadAnalyzer(object):
             SystemManager.nrCore, self.nrProcess, self.nrThread, \
             self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
+        # print interrupts #
+        try:
+            nrIrq = 0
+            irqData = '%s [' % (' ' * nrIndent)
+            for irq, cnt in sorted(self.irqData.items()):
+                try:
+                    irqDiff = cnt - self.prevIrqData[irq]
+                    if irqDiff > 0:
+                        nrIrq += 1
+                        irqData = '%s%s: %s / ' % (irqData, irq, '{:,}'.format(irqDiff))
+                except:
+                    pass
+            if nrIrq > 0:
+                SystemManager.addPrint("{0:<1}]\n".format(irqData[:-2]))
+        except:
+            pass
+
         # print PMU stat #
         if len(SystemManager.perfEventData) > 0:
             perfString = SystemManager.getPerfString(SystemManager.perfEventData)
             if len(perfString) > 0:
-                SystemManager.addPrint("%s %s\n" % (' ' * len('[Top Info]'), perfString))
+                SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
         # print system stat #
         self.printSystemUsage()
