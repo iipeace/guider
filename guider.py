@@ -4018,8 +4018,8 @@ class FunctionAnalyzer(object):
             for pos, value in self.posData.items():
                 if value['symbol'] == '__irq_usr' or \
                     value['symbol'] == '__irq_svc' or \
-                    value['symbol'] == '__hrtimer_start_range_ns' or \
-                    value['symbol'] == 'hrtimer_start_range_ns' or \
+                    value['symbol'] == 'gic_handle_irq' or \
+                    value['symbol'].find('hrtimer_') >= 0 or \
                     value['symbol'] == 'apic_timer_interrupt':
                     try:
                         exceptList[pos]
@@ -9125,9 +9125,12 @@ class SystemManager(object):
                     SystemManager.recordStatus = False
                 signal.alarm(SystemManager.repeatInterval)
             elif SystemManager.outputFile != None:
-                output = '%s.%ds_%ds' % (SystemManager.outputFile, \
-                    (SystemManager.progressCnt - 1) * SystemManager.repeatInterval, \
-                    SystemManager.progressCnt * SystemManager.repeatInterval)
+                if SystemManager.repeatCount == 1:
+                    output = SystemManager.outputFile
+                else:
+                    output = '%s.%ds_%ds' % (SystemManager.outputFile, \
+                        (SystemManager.progressCnt - 1) * SystemManager.repeatInterval, \
+                        SystemManager.progressCnt * SystemManager.repeatInterval)
 
                 try:
                     # save system info #
@@ -12134,7 +12137,8 @@ class SystemManager(object):
         self.cmdList["sched/sched_process_fork"] = True
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_wakeup"] = self.cmdList["sched/sched_wakeup_new"] = \
+        self.cmdList["sched/sched_wakeup"] = \
+            self.cmdList["sched/sched_wakeup_new"] = \
             (SystemManager.cpuEnable and SystemManager.latEnable) or SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
@@ -15554,7 +15558,23 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(twoLine)
 
             SystemManager.clearPrint()
-            for key in sorted(list(self.irqData.keys())):
+
+            # print irq list #
+            irqList = [irq for irq in list(self.irqData.keys()) if irq.startswith('irq')]
+            for key in sorted(irqList, key=lambda e:int(e.split('/')[1])):
+                totalCnt += self.irqData[key]['count']
+                totalUsage += self.irqData[key]['usage']
+                SystemManager.addPrint(\
+                    ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
+                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
+                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
+                    self.irqData[key]['count'], self.irqData[key]['usage'], \
+                    self.irqData[key]['max'], self.irqData[key]['min'], \
+                    self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
+
+            # print softirq list #
+            sirqList = [irq for irq in list(self.irqData.keys()) if irq.startswith('softirq')]
+            for key in sorted(sirqList, key=lambda e:int(e.split('/')[1])):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SystemManager.addPrint(\
