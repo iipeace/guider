@@ -8048,7 +8048,7 @@ class SystemManager(object):
 
         try:
             if len(perfbuf) > 0:
-                perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
+                perfbuf = '[PERF > %s]' % perfbuf[:perfbuf.rfind(' /')]
         except:
             pass
 
@@ -24017,14 +24017,28 @@ class ThreadAnalyzer(object):
 
         # print interrupts #
         try:
+            if len(self.irqData) == 0:
+                raise
+
             nrIrq = 0
-            irqData = '%s [' % (' ' * nrIndent)
+            irqData = '%s [IRQ > ' % (' ' * nrIndent)
+            lenIrq = len(irqData)
             for irq, cnt in sorted(self.irqData.items()):
                 try:
                     irqDiff = cnt - self.prevIrqData[irq]
-                    if irqDiff > 0:
-                        nrIrq += 1
-                        irqData = '%s%s: %s / ' % (irqData, irq, '{:,}'.format(irqDiff))
+                    if irqDiff <= 0:
+                        continue
+
+                    nrIrq += 1
+                    newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
+                    lenNewIrq = len(newIrq)
+
+                    if lenIrq + lenNewIrq >= len(oneLine):
+                        irqData = '%s\n %s' % (irqData, ' ' * nrIndent)
+                        lenIrq = nrIndent
+
+                    irqData = '%s%s' % (irqData, newIrq)
+                    lenIrq += lenNewIrq
                 except:
                     pass
             if nrIrq > 0:
