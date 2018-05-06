@@ -2157,8 +2157,7 @@ class FunctionAnalyzer(object):
         for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             curIdx += 1
 
-            if curIdx > 1:
-                SystemManager.printProgress(curIdx, lastIdx)
+            SystemManager.printProgress(curIdx, lastIdx)
 
             # Handle thumbcode #
             if idx == '00c0ffee':
@@ -6353,7 +6352,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 4
+    ttyRowsMargin = 2
     ttyCols = 156
     magicString = '@@@@@'
     procPath = '/proc'
@@ -6437,7 +6436,7 @@ class SystemManager(object):
     prevNetstat = ''
     netInIndex = -1
 
-    printAllEnable = False
+    printStreamEnable = False
     reportEnable = False
     countEnable = False
     reportPath = None
@@ -9139,6 +9138,9 @@ class SystemManager(object):
 
                     with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
                         with open(output, 'w') as fw:
+                            SystemManager.printInfo(\
+                                "wait for writing data to %s" % (fw.name))
+
                             fw.seek(0,0)
                             fw.writelines(SystemManager.magicString + '\n')
                             fw.writelines(SystemManager.systemInfoBuffer)
@@ -9147,11 +9149,14 @@ class SystemManager(object):
                             fw.write(fr.read())
 
                             try:
-                                fsize = SystemManager.convertSize(int(os.path.getsize(output)))
+                                fsize = SystemManager.convertSize(\
+                                    int(os.path.getsize(output)))
                             except:
                                 fsize = '?'
+
                             SystemManager.printInfo(\
-                                'saved trace data into %s [%s] successfully' % (output, fsize))
+                                'finish saving trace data into %s [%s] successfully' % \
+                                (output, fsize))
                 except:
                     SystemManager.printWarning('Fail to save trace data to %s' % output)
             else:
@@ -9179,6 +9184,9 @@ class SystemManager(object):
 
                 f = open(SystemManager.outputFile, 'w')
 
+                SystemManager.printInfo(\
+                    "wait for writing data to %s" % (f.name))
+
                 if SystemManager.systemInfoBuffer is not '':
                     f.writelines(SystemManager.magicString + '\n')
                     f.writelines(SystemManager.systemInfoBuffer)
@@ -9187,15 +9195,18 @@ class SystemManager(object):
                 f.writelines(lines)
 
                 try:
-                    fsize = \
-                        SystemManager.convertSize(int(os.path.getsize(SystemManager.outputFile)))
+                    fsize = SystemManager.convertSize(\
+                        int(os.path.getsize(SystemManager.outputFile)))
                 except:
                     fsize = '?'
-                SystemManager.printInfo('saved trace data into %s [%s] successfully' % \
+
+                SystemManager.printInfo(\
+                    'finish saving trace data into %s [%s] successfully' % \
                     (SystemManager.outputFile, fsize))
-            except IOError:
+            except:
                 SystemManager.printError(\
-                    "Fail to write trace data to %s" % SystemManager.outputFile)
+                    "Fail to write trace data to %s because %s" % \
+                    (SystemManager.outputFile, sys.exc_info()[1]))
 
             sys.exit(0)
 
@@ -9313,7 +9324,7 @@ class SystemManager(object):
         if div != percent:
             return
 
-        mod = percent % 4
+        mod = percent & 3
 
         sys.stdout.write('%3d%% %s%s' % \
             (percent, SystemManager.progressChar[mod], '\b' * 6))
@@ -9333,7 +9344,7 @@ class SystemManager(object):
         SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if SystemManager.printFile != None and SystemManager.printAllEnable != False:
+        if SystemManager.printFile != None and SystemManager.printStreamEnable:
             string = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
             print(string[:-1])
 
@@ -9393,11 +9404,12 @@ class SystemManager(object):
         if SystemManager.printEnable is False:
             return
 
-        if SystemManager.printFile is None and \
-            SystemManager.printAllEnable is False:
-            SystemManager.clearScreen()
-        elif absolute is False and SystemManager.printAllEnable:
-            return
+        if SystemManager.printFile is None:
+            if SystemManager.printStreamEnable:
+                if absolute is False:
+                    return
+            else:
+                SystemManager.clearScreen()
 
         if big:
             SystemManager.pipePrint(ConfigManager.logo)
@@ -9874,7 +9886,8 @@ class SystemManager(object):
     def topPrint():
         # realtime mode #
         if SystemManager.printFile is None:
-            SystemManager.clearScreen()
+            if SystemManager.printStreamEnable is False:
+                SystemManager.clearScreen()
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.clearPrint()
         # pipe mode #
@@ -9896,13 +9909,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def checkCutCond(newline=0):
+        if SystemManager.printFile is None and \
+            SystemManager.bufferRows + newline >= \
+            SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
+            SystemManager.printFile is None and \
+            SystemManager.printStreamEnable is False:
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def pipePrint(line):
         if SystemManager.printEnable is False:
             return
 
         # pager initialization #
         if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-            SystemManager.printFile == None and SystemManager.printAllEnable is False and \
+            SystemManager.printFile == None and SystemManager.printStreamEnable is False and \
             SystemManager.isTopMode() is False:
             try:
                 if sys.platform.startswith('linux'):
@@ -9971,7 +9997,8 @@ class SystemManager(object):
 
                 # print output file name #
                 if SystemManager.printFile != None:
-                    SystemManager.printInfo("wait for writing statistics to %s" % (SystemManager.inputFile))
+                    SystemManager.printInfo(\
+                        "wait for writing statistics to %s" % (SystemManager.inputFile))
             except:
                 SystemManager.printError("Fail to open %s\n" % (SystemManager.inputFile))
                 sys.exit(0)
@@ -9980,12 +10007,14 @@ class SystemManager(object):
         if SystemManager.fileForPrint != None:
             try:
                 if SystemManager.isTopMode() is False:
-                    SystemManager.fileForPrint.write(line + '\n')
+                    SystemManager.fileForPrint.write('%s\n' % line)
                 else:
                     SystemManager.fileForPrint.writelines(line)
             except:
-                SystemManager.printError("Fail to write to file\n")
+                SystemManager.printError(\
+                    "Fail to write to file because %s" % sys.exc_info()[1])
                 sys.exit(0)
+        # console output #
         else:
             # cut output by terminal size #
             if SystemManager.ttyCols == 0:
@@ -10268,6 +10297,8 @@ class SystemManager(object):
                 options = value
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+                if options.rfind('i') > -1:
+                    SystemManager.irqEnable = False
                 if options.rfind('P') > -1:
                     SystemManager.perfEnable = False
                     SystemManager.perfGroupEnable = False
@@ -10630,7 +10661,7 @@ class SystemManager(object):
                 SystemManager.backgroundEnable = True
 
             elif option == 'Q':
-                SystemManager.printAllEnable = True
+                SystemManager.printStreamEnable = True
 
             elif option == 'H':
                 try:
@@ -12117,10 +12148,20 @@ class SystemManager(object):
 
 
     @staticmethod
-    def closePipeForPrint():
+    def closeAllForPrint():
         if SystemManager.pipeForPrint is not None:
             try:
                 SystemManager.pipeForPrint.close()
+            except:
+                return
+        elif SystemManager.fileForPrint is not None:
+            try:
+                fsize = SystemManager.convertSize(\
+                    int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
+                SystemManager.printInfo(\
+                    "finish saving results into %s [%s] successfully" % \
+                    (SystemManager.fileForPrint.name, fsize))
+                SystemManager.fileForPrint.close()
             except:
                 return
 
@@ -13813,6 +13854,7 @@ class ThreadAnalyzer(object):
             # pause and resume by enter key #
             if SystemManager.printFile is None and selectObject != None and \
                 selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                sys.stdout.write('\b' * SystemManager.ttyCols)
                 SystemManager.pipePrint("[ Input ENTER to continue ]")
 
                 # flush buffered enter key #
@@ -13891,6 +13933,7 @@ class ThreadAnalyzer(object):
             # pause and resume by enter key #
             if SystemManager.printFile is None and selectObject != None and \
                 selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                sys.stdout.write('\b' * SystemManager.ttyCols)
                 SystemManager.pipePrint("[ Input ENTER to continue ]")
 
                 # flush buffered enter key #
@@ -16323,7 +16366,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n[Thread Syscall History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:^10} {3:^10} {4:^5} {5:^16} {6:^3} {7:^4} {8:>16} {9:<1}"\
+                "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:>17} {6:>3} {7:>4} {8:>16} {9:<1}"\
                 .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
                 "SID", "Core", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
@@ -16381,7 +16424,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:^16} {6:>3} {7:>4} {8:>16}  {9:<1}".\
+                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:>17} {6:>3} {7:>4} {8:>16}  {9:<1}".\
                         format(self.threadData[self.syscallData[icount][2]]['comm'], \
                         self.syscallData[icount][2], '%.6f' % eventTime, \
                         elapsed, eventType, syscall[4:], self.syscallData[icount][4], \
@@ -18451,7 +18494,7 @@ class ThreadAnalyzer(object):
         # print detailed statistics #
         msg = ' Detailed Statistics '
         stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
-        SystemManager.pipePrint('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        SystemManager.pipePrint('\n\n\n\n%s%s%s\n\n' % (stars, msg, stars))
         if SystemManager.procBuffer == []:
             SystemManager.pipePrint("\n\tNone")
         else:
@@ -21169,9 +21212,7 @@ class ThreadAnalyzer(object):
                 for fd, path in sorted(\
                     value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
                     # cut by rows of terminal #
-                    if SystemManager.showAll is False and SystemManager.bufferRows >= \
-                        SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                        SystemManager.printFile is None:
+                    if SystemManager.checkCutCond():
                         break
 
                     if fileFilter != []:
@@ -21197,8 +21238,6 @@ class ThreadAnalyzer(object):
                             uds = SystemManager.getSocketPathList([obj])
                             if len(uds) > 0:
                                 path = '%s (%s)' % (path, uds[0])
-                            else:
-                                path = '%s (UDS)' % (path)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -21220,10 +21259,7 @@ class ThreadAnalyzer(object):
                 procCnt += 1
 
             # cut by rows of terminal #
-            if SystemManager.showAll is False and SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printFile is None and \
-                SystemManager.printAllEnable is False:
+            if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 break
 
@@ -23024,10 +23060,7 @@ class ThreadAnalyzer(object):
                             self.stackTable.pop(idx, None)
 
             # cut by rows of terminal #
-            if SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printFile is None and \
-                SystemManager.printAllEnable is False:
+            if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return
 
@@ -23203,10 +23236,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(mval)
 
                 # cut by rows of terminal #
-                if SystemManager.bufferRows >= \
-                    SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                    SystemManager.printFile is None and \
-                    SystemManager.printAllEnable is False:
+                if SystemManager.checkCutCond():
                     SystemManager.addPrint('---more---')
                     return
 
@@ -23232,10 +23262,7 @@ class ThreadAnalyzer(object):
                     newline = tstr.count('\n')+1
 
                     # cut by rows of terminal #
-                    if SystemManager.bufferRows + newline >= \
-                        SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                        SystemManager.printFile is None and \
-                        SystemManager.printAllEnable is False:
+                    if SystemManager.checkCutCond(newline):
                         SystemManager.addPrint('---more---')
                         return
 
@@ -23341,10 +23368,7 @@ class ThreadAnalyzer(object):
                 break
 
             # cut by rows of terminal #
-            if SystemManager.printFile is None and \
-                SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printAllEnable is False:
+            if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return
 
@@ -23417,10 +23441,7 @@ class ThreadAnalyzer(object):
                 break
 
             # cut by rows of terminal #
-            if SystemManager.printFile is None and \
-                SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printAllEnable is False:
+            if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return
 
@@ -23517,10 +23538,7 @@ class ThreadAnalyzer(object):
                 return
 
             # cut by rows of terminal #
-            if SystemManager.printFile is None and \
-                SystemManager.bufferRows >= \
-                SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-                SystemManager.printAllEnable is False:
+            if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return
 
@@ -24006,7 +24024,7 @@ class ThreadAnalyzer(object):
         nrNewThreads = \
             self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes']
         SystemManager.addPrint(\
-            ("\n[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Life: +%d/-%d] " \
+            ("[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Life: +%d/-%d] " \
             "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] (Unit: %%/MB/NR)\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
@@ -24244,7 +24262,7 @@ if __name__ == '__main__':
             # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
 
-            SystemManager.closePipeForPrint()
+            SystemManager.closeAllForPrint()
 
             sys.exit(0)
 
@@ -24269,7 +24287,7 @@ if __name__ == '__main__':
             SystemManager.getProcTreeInfo()
 
             # register exit handler #
-            atexit.register(SystemManager.closePipeForPrint)
+            atexit.register(SystemManager.closeAllForPrint)
 
             if SystemManager.intervalEnable == 0:
                 # print total file usage per process #
@@ -24358,7 +24376,7 @@ if __name__ == '__main__':
 
     #============================== analysis part ==============================#
     # register exit handler #
-    atexit.register(SystemManager.closePipeForPrint)
+    atexit.register(SystemManager.closeAllForPrint)
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
