@@ -5,7 +5,7 @@ __copyright__ = "Copyright 2015-2018, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.9.0"
+__version__ = "3.9.1"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6352,7 +6352,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 2
+    ttyRowsMargin = 3
     ttyCols = 156
     magicString = '@@@@@'
     procPath = '/proc'
@@ -24041,7 +24041,9 @@ class ThreadAnalyzer(object):
             nrIrq = 0
             irqData = '%s [IRQ > ' % (' ' * nrIndent)
             lenIrq = len(irqData)
-            for irq, cnt in sorted(self.irqData.items()):
+            for irq, cnt in sorted(self.irqData.items(), key=lambda e:0 \
+                if not e[0] in self.prevIrqData \
+                else e[1] - self.prevIrqData[e[0]], reverse=True):
                 try:
                     irqDiff = cnt - self.prevIrqData[irq]
                     if irqDiff <= 0:
@@ -24052,7 +24054,7 @@ class ThreadAnalyzer(object):
                     lenNewIrq = len(newIrq)
 
                     if lenIrq + lenNewIrq >= len(oneLine):
-                        irqData = '%s\n %s' % (irqData, ' ' * nrIndent)
+                        irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
                         lenIrq = nrIndent
 
                     irqData = '%s%s' % (irqData, newIrq)
