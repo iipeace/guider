@@ -6623,6 +6623,7 @@ class SystemManager(object):
             soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
             resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
             SystemManager.maxFd = hard
+            del resource
             return
         except:
             pass
@@ -16923,8 +16924,12 @@ class ThreadAnalyzer(object):
                 lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
                 for icount in xrange(0, lval):
                     try:
-                        self.intervalData[icount][key]
-                        timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
+                        # revise core usage in DVFS system #
+                        if self.threadData[key]['coreSchedCnt'] == 0 and \
+                            self.threadData[key]['offCnt'] > 0:
+                            raise
+                        else:
+                            timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
                     except:
                         timeLine += '%3s ' % '0'
 
