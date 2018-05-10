@@ -631,7 +631,7 @@ class ConfigManager(object):
 
     @staticmethod
     def readProcData(tid, path, num):
-        path = '/proc/%s/%s' % (tid, path)
+        path = '%s/%s/%s' % (SystemManager.procPath, tid, path)
 
         try:
             f = open(path, 'r')
@@ -820,7 +820,9 @@ class NetworkManager(object):
     @staticmethod
     def getUsingIps():
         effectiveList = {}
-        connPaths = ['/proc/net/udp', '/proc/net/tcp']
+        connPaths = \
+            ['%s/net/udp' % SystemManager.procPath,\
+            '%s/net/tcp' % SystemManager.procPath]
 
         for path in connPaths:
             try:
@@ -898,7 +900,7 @@ class NetworkManager(object):
     @staticmethod
     def getRoutedIps():
         effectiveList = []
-        routePath = '/proc/net/route'
+        routePath = '%s/net/route' % SystemManager.procPath
         try:
             with open(routePath, 'r') as fd:
                 ipList = fd.readlines()
@@ -1099,7 +1101,7 @@ class PageAnalyzer(object):
     def printMemoryArea(pid, start=-1, end=-1):
         count = 0
         switch = 0
-        fpath = '/proc/%s/maps' % pid
+        fpath = '%s/%s/maps' % (SystemManager.procPath, pid)
 
         try:
             with open(fpath, 'r') as fd:
@@ -1181,7 +1183,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def get_pagemap_entry(pid, addr):
-        maps_path = "/proc/{0}/pagemap".format(pid)
+        maps_path = "{0}/{1}/pagemap".format(SystemManager.procPath, pid)
         if not os.path.isfile(maps_path):
             SystemManager.printError("Fail to find %s process" % pid)
             sys.exit(0)
@@ -1232,7 +1234,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def get_pagecount(pfn):
-        file_path = "/proc/kpagecount"
+        file_path = "%s/kpagecount" % SystemManager.procPath
         offset = pfn * 8
         return PageAnalyzer.read_entry(file_path, offset)
 
@@ -1240,7 +1242,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def get_page_flags(pfn):
-        file_path = "/proc/kpageflags"
+        file_path = "%s/kpageflags" % SystemManager.procPath
         offset = pfn * 8
         return PageAnalyzer.read_entry(file_path, offset)
 
@@ -6587,8 +6589,9 @@ class SystemManager(object):
 
     @staticmethod
     def getMaxPid():
+        path = '%s/sys/kernel/pid_max' % SystemManager.procPath
         try:
-            with open('/proc/sys/kernel/pid_max', 'r') as fd:
+            with open(path, 'r') as fd:
                 maxPid = fd.readline()[:-1]
                 SystemManager.pidDigit = len(maxPid)
                 SystemManager.maxPid = int(maxPid)
@@ -6602,8 +6605,30 @@ class SystemManager(object):
         if sys.platform.startswith('linux') is False:
             return
 
+        '''
+        maxFdPath = '%s/sys/fs/file-max' % SystemManager.procPath
         try:
+            with open(maxFdPath, 'r') as fd:
+                availMaxFd = int(fd.read())
+        except:
+            availMaxFd = SystemManager.maxFd
 
+        if availMaxFd == SystemManager.maxFd:
+            return
+        '''
+
+        # try to set maxFd with hard limit #
+        try:
+            import resource
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+            SystemManager.maxFd = hard
+            return
+        except:
+            pass
+
+        # try to get maxFd by native call #
+        try:
             SystemManager.maxFd = \
                 SystemManager.guiderObj.getrlimit(\
                     ConfigManager.rlimitList.index('RLIMIT_NOFILE'))
@@ -6611,6 +6636,7 @@ class SystemManager(object):
         except:
             pass
 
+        # try to load ctypes package #
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -6630,6 +6656,7 @@ class SystemManager(object):
                 "to get the number of maximum file descriptor") % err.args[0])
             return
 
+        # try to get maxFd by standard library call #
         try:
             # load standard libc library #
             if SystemManager.libcObj is None:
@@ -7830,7 +7857,7 @@ class SystemManager(object):
         else:
             try:
                 PMUs = '/sys/bus/event_source/devices'
-                attrPath = '/proc/sys/kernel/perf_event_paranoid'
+                attrPath = '%s/sys/kernel/perf_event_paranoid' % SystemManager.procPath
                 with open(attrPath, 'w+') as fd:
                     '''
                     -1 - not paranoid at all
@@ -8062,7 +8089,8 @@ class SystemManager(object):
         if SystemManager.keventEnable is False:
             return
         elif len(SystemManager.kernelCmd) == 0:
-            SystemManager.printError("wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
+            SystemManager.printError(\
+                "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
             sys.exit(0)
         elif os.path.isfile(SystemManager.mountPath + '../kprobe_events') is False:
             SystemManager.printError(\
@@ -8210,7 +8238,8 @@ class SystemManager(object):
         if SystemManager.ueventEnable is False:
             return
         elif len(SystemManager.userCmd) == 0:
-            SystemManager.printError("wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+            SystemManager.printError(\
+                "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
             sys.exit(0)
         elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
             SystemManager.printError(\
@@ -8580,7 +8609,7 @@ class SystemManager(object):
     @staticmethod
     def getUdsList():
         udsBuf = []
-        udsPath = '/proc/net/unix'
+        udsPath = '%s/net/unix' % SystemManager.procPath
 
         try:
             with open(udsPath, 'r') as fd:
@@ -8605,7 +8634,7 @@ class SystemManager(object):
     @staticmethod
     def getUdpList():
         udpBuf = []
-        udpPath = '/proc/net/udp'
+        udpPath = '%s/net/udp' % SystemManager.procPath
 
         try:
             with open(udpPath, 'r') as fd:
@@ -8630,7 +8659,7 @@ class SystemManager(object):
     @staticmethod
     def getTcpList():
         tcpBuf = []
-        tcpPath = '/proc/net/tcp'
+        tcpPath = '%s/net/tcp' % SystemManager.procPath
 
         try:
             with open(tcpPath, 'r') as fd:
@@ -10352,7 +10381,7 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
-                    elif os.path.isfile('/proc/1/io') is False:
+                    elif os.path.isfile('%s/1/io' % SystemManager.procPath) is False:
                         SystemManager.printError(\
                             "Fail to use bio event, please check kernel configuration")
                         sys.exit(0)
@@ -10366,7 +10395,7 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "wrong option with -e + s, use also -g option to show stacks")
                         sys.exit(0)
-                    elif os.path.isfile('/proc/1/stack') is False:
+                    elif os.path.isfile('%s/1/stack' % SystemManager.procPath) is False:
                         SystemManager.printError(\
                             "Fail to sample stack, please check kernel configuration")
                         sys.exit(0)
@@ -10420,7 +10449,8 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "wrong option with -e + P, use also -g option to show performance stat")
                         sys.exit(0)
-                    elif os.path.isfile('/proc/sys/kernel/perf_event_paranoid') is False:
+                    elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
+                        SystemManager.procPath) is False:
                         SystemManager.printError(\
                             "Fail to use PMU, please check kernel configuration")
                         sys.exit(0)
@@ -10964,17 +10994,18 @@ class SystemManager(object):
 
     @staticmethod
     def makeKerSymTable(symbol):
-        restPath = '/proc/sys/kernel/kptr_restrict'
+        restPath = '%s/sys/kernel/kptr_restrict' % SystemManager.procPath
         try:
             with open(restPath, 'w+') as fd:
                 fd.write('0')
         except:
             pass
 
+        symPath = '%s/kallsyms' % SystemManager.procPath
         try:
-            f = open('/proc/kallsyms', 'r')
+            f = open(symPath, 'r')
         except IOError:
-            SystemManager.printWarning("Fail to open %s" % '/proc/kallsyms')
+            SystemManager.printWarning("Fail to open %s" % symPath)
 
         ret = None
         startPos = len(SystemManager.kerSymTable)
@@ -11753,7 +11784,7 @@ class SystemManager(object):
 
     def saveSystemInfo(self):
         try:
-            uptimeFile = '/proc/uptime'
+            uptimeFile = '%s/uptime' % SystemManager.procPath
             f = open(uptimeFile, 'r')
             self.uptimeData = f.readline()
             f.close()
@@ -11764,7 +11795,7 @@ class SystemManager(object):
         # uptimeData[0] = running time in sec, [1]= idle time in sec * cores #
 
         try:
-            cmdlineFile = '/proc/cmdline'
+            cmdlineFile = '%s/cmdline' % SystemManager.procPath
             f = open(cmdlineFile, 'r')
             self.cmdlineData = f.readline()[0:-1]
             f.close()
@@ -11772,7 +11803,7 @@ class SystemManager(object):
             SystemManager.printWarning("Fail to open %s" % cmdlineFile)
 
         try:
-            loadFile = '/proc/loadavg'
+            loadFile = '%s/loadavg' % SystemManager.procPath
             f = open(loadFile, 'r')
             self.loadData = f.readline()
             f.close()
@@ -11789,7 +11820,7 @@ class SystemManager(object):
         '''
 
         try:
-            kernelVersionFile = '/proc/sys/kernel/osrelease'
+            kernelVersionFile = '%s/sys/kernel/osrelease' % SystemManager.procPath
             f = open(kernelVersionFile, 'r')
             self.systemInfo['kernelVer'] = f.readline().strip('\n')
             f.close()
@@ -11797,7 +11828,7 @@ class SystemManager(object):
             SystemManager.printWarning("Fail to open %s" % kernelVersionFile)
 
         try:
-            osVersionFile = '/proc/sys/kernel/version'
+            osVersionFile = '%s/sys/kernel/version' % SystemManager.procPath
             f = open(osVersionFile, 'r')
             self.systemInfo['osVer'] = f.readline().strip('\n')
             f.close()
@@ -11805,7 +11836,7 @@ class SystemManager(object):
             SystemManager.printWarning("Fail to open %s" % osVersionFile)
 
         try:
-            osTypeFile = '/proc/sys/kernel/ostype'
+            osTypeFile = '%s/sys/kernel/ostype' % SystemManager.procPath
             f = open(osTypeFile, 'r')
             self.systemInfo['osType'] = f.readline().strip('\n')
             f.close()
@@ -11813,7 +11844,7 @@ class SystemManager(object):
             SystemManager.printWarning("Fail to open %s" % osTypeFile)
 
         try:
-            timeFile = '/proc/driver/rtc'
+            timeFile = '%s/driver/rtc' % SystemManager.procPath
             f = open(timeFile, 'r')
             timeInfo = f.readlines()
 
@@ -11919,7 +11950,7 @@ class SystemManager(object):
 
 
     def saveCpuInfo(self):
-        cpuFile = '/proc/cpuinfo'
+        cpuFile = '%s/cpuinfo' % SystemManager.procPath
 
         try:
             f = open(cpuFile, 'r')
@@ -11976,7 +12007,7 @@ class SystemManager(object):
 
 
     def saveDevInfo(self):
-        devFile = '/proc/devices'
+        devFile = '%s/devices' % SystemManager.procPath
 
         try:
             with open(devFile, 'r') as df:
@@ -12010,8 +12041,8 @@ class SystemManager(object):
 
 
     def saveDiskInfo(self):
-        mountFile = '/proc/mounts'
-        diskFile = '/proc/diskstats'
+        mountFile = '%s/mounts' % SystemManager.procPath
+        diskFile = '%s/diskstats' % SystemManager.procPath
 
         try:
             with open(diskFile, 'r') as df:
@@ -12031,7 +12062,7 @@ class SystemManager(object):
 
 
     def saveMemInfo(self):
-        memFile = '/proc/meminfo'
+        memFile = '%s/meminfo' % SystemManager.procPath
 
         try:
             f = open(memFile, 'r')
@@ -12130,7 +12161,7 @@ class SystemManager(object):
                 "%s/tracing/events/" % SystemManager.mountPath
             return SystemManager.mountPath
 
-        f = open('/proc/mounts', 'r')
+        f = open('%s/mounts' % SystemManager.procPath, 'r')
         lines = f.readlines()
 
         for l in lines:
@@ -13812,6 +13843,9 @@ class ThreadAnalyzer(object):
         if SystemManager.isRoot() is False:
             SystemManager.printError("Fail to get root permission to analyze opened files")
             sys.exit(0)
+        elif os.path.isdir(SystemManager.procPath) is False:
+            SystemManager.printError("Fail to access proc filesystem")
+            sys.exit(0)
 
         # import select package on foreground #
         if SystemManager.printFile is None:
@@ -13902,6 +13936,10 @@ class ThreadAnalyzer(object):
 
 
     def runProcTop(self):
+        if os.path.isdir(SystemManager.procPath) is False:
+            SystemManager.printError("Fail to access proc filesystem")
+            sys.exit(0)
+
         # import select package on foreground #
         if SystemManager.printFile is None:
             selectObject = None
@@ -17868,7 +17906,7 @@ class ThreadAnalyzer(object):
                 nrDevice += 1
             elif filename.startswith('pipe'):
                 nrPipe += 1
-            elif filename.startswith('/proc'):
+            elif filename.startswith(SystemManager.procPath):
                 nrProc += 1
             else:
                 nrFile += 1
@@ -21145,7 +21183,7 @@ class ThreadAnalyzer(object):
         SystemManager.updateUptime()
 
         SystemManager.addPrint(\
-            "\n[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] (Unit: %%/MB/NR)\n" % \
+            "[Top File Info] [Time: %7.3f] [Proc: %d] [FD: %d] [File: %d] (Unit: %%/MB/NR)\n" % \
             (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
         SystemManager.addPrint("%s\n" % twoLine + \
@@ -21362,7 +21400,7 @@ class ThreadAnalyzer(object):
                         self.procData[pid]['fdInfo']['DEVICE'] += 1
                     elif filename.startswith('pipe'):
                         self.procData[pid]['fdInfo']['PIPE'] += 1
-                    elif filename.startswith('/proc'):
+                    elif filename.startswith(SystemManager.procPath):
                         self.procData[pid]['fdInfo']['PROC'] += 1
                     else:
                         self.procData[pid]['fdInfo']['NORMAL'] += 1
@@ -21380,7 +21418,7 @@ class ThreadAnalyzer(object):
             cpuBuf = SystemManager.statFd.readlines()
         except:
             try:
-                cpuPath = "%s/%s" % (SystemManager.procPath, 'stat')
+                cpuPath = "%s/stat" % SystemManager.procPath
                 SystemManager.statFd = open(cpuPath, 'r')
                 cpuBuf = SystemManager.statFd.readlines()
             except:
@@ -21559,7 +21597,7 @@ class ThreadAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printError('Fail to open %s' % SystemManager.procPath)
+            SystemManager.printError('Fail to open %s directory' % SystemManager.procPath)
             sys.exit(0)
 
         # save proc instance #
@@ -21575,7 +21613,7 @@ class ThreadAnalyzer(object):
 
             # make path of tid #
             procPath = "%s/%s" % (SystemManager.procPath, pid)
-            taskPath = "%s/%s" % (procPath, 'task')
+            taskPath = "%s/task" % procPath
 
             # save info per process #
             if SystemManager.processEnable:
@@ -21797,7 +21835,7 @@ class ThreadAnalyzer(object):
             wchanBuf = self.procData[tid]['wchanFd'].readlines()
         except:
             try:
-                wchanPath = "%s/%s" % (path, 'wchan')
+                wchanPath = "%s/wchan" % path
                 self.procData[tid]['wchanFd'] = open(wchanPath, 'r')
                 wchanBuf = self.procData[tid]['wchanFd'].readlines()
 
@@ -21805,6 +21843,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.maxFd - 16 < self.procData[tid]['wchanFd'].fileno():
                     self.procData[tid]['wchanFd'].close()
                     self.procData[tid]['wchanFd'] = None
+                    self.reclaimFds()
             except:
                 SystemManager.printWarning('Fail to open %s' % wchanPath)
                 return
@@ -21897,6 +21936,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.maxFd - 16 < self.procData[tid]['schedFd'].fileno():
                     self.procData[tid]['schedFd'].close()
                     self.procData[tid]['schedFd'] = None
+                    self.reclaimFds()
             except:
                 SystemManager.printWarning('Fail to open %s' % schedPath)
                 return
@@ -21919,7 +21959,7 @@ class ThreadAnalyzer(object):
             statusBuf = self.procData[tid]['statusFd'].readlines()
         except:
             try:
-                statusPath = "%s/%s" % (path, 'status')
+                statusPath = "%s/status" % path
                 self.procData[tid]['statusFd'] = open(statusPath, 'r')
                 statusBuf = self.procData[tid]['statusFd'].readlines()
 
@@ -21927,6 +21967,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.maxFd - 16 < self.procData[tid]['statusFd'].fileno():
                     self.procData[tid]['statusFd'].close()
                     self.procData[tid]['statusFd'] = None
+                    self.reclaimFds()
             except:
                 SystemManager.printWarning('Fail to open %s' % statusPath)
                 return
@@ -21959,6 +22000,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.maxFd - 16 < self.procData[tid]['statmFd'].fileno():
                     self.procData[tid]['statmFd'].close()
                     self.procData[tid]['statmFd'] = None
+                    self.reclaimFds()
             except:
                 SystemManager.printWarning('Fail to open %s' % statmPath)
                 return
@@ -21988,6 +22030,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.maxFd - 16 < self.procData[tid]['statFd'].fileno():
                     self.procData[tid]['statFd'].close()
                     self.procData[tid]['statFd'] = None
+                    self.reclaimFds()
             except:
                 SystemManager.printWarning('Fail to open %s' % statPath)
                 self.procData.pop(tid, None)
@@ -22062,6 +22105,7 @@ class ThreadAnalyzer(object):
                     if SystemManager.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
                         self.procData[tid]['ioFd'].close()
                         self.procData[tid]['ioFd'] = None
+                        self.reclaimFds()
                 except:
                     SystemManager.printWarning('Fail to open %s' % ioPath)
                     self.procData.pop(tid, None)
@@ -22102,6 +22146,56 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['perfFds'] = self.prevProcData[tid]['perfFds']
             except:
                 self.procData[tid]['perfFds'] = SystemManager.initProcPerfEvents(int(tid))
+
+
+
+    def reclaimFds(self, nrReq=64):
+        nrRclm = 0
+        for pid, val in sorted(self.procData.items(), key=lambda x:int(x[0])):
+            try:
+                val['schedFd'].close()
+                val['schedFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['wchanFd'].close()
+                val['wchanFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['ioFd'].close()
+                val['ioFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['statFd'].close()
+                val['statFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['statusFd'].close()
+                val['statusFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['statmFd'].close()
+                val['statmFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            if nrRclm > nrReq:
+                return nrRclm
 
 
 
@@ -22871,7 +22965,7 @@ class ThreadAnalyzer(object):
 
                             # clear reference bits #
                             try:
-                                path = '/proc/%s/clear_refs' % idx
+                                path = '%s/%s/clear_refs' % (SystemManager.procPath, idx)
                                 with open(path, 'w') as fd:
                                     fd.write('1')
                             except:
@@ -22929,7 +23023,8 @@ class ThreadAnalyzer(object):
                                     line = line[:line.rfind('<-')]
                                 break
 
-                            if indent + len(line) + len(astack) >= SystemManager.lineLength:
+                            lenLine = indent + len(line) + len(astack)
+                            if lenLine >= SystemManager.lineLength:
                                 indent = 0
                                 fullstack = '%s%s\n' % (fullstack, line)
                                 newLine += 1
@@ -22941,7 +23036,11 @@ class ThreadAnalyzer(object):
 
                     fullstack = '%s%s' % (fullstack, line)
 
-                    SystemManager.addPrint("{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+                    if SystemManager.checkCutCond(newLine):
+                        return -1
+
+                    SystemManager.addPrint(\
+                        "{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -23050,7 +23149,7 @@ class ThreadAnalyzer(object):
                         self.stackTable[idx] = dict()
 
                     if not 'fd' in self.stackTable[idx]:
-                        spath = '/proc/%s/stack' % idx
+                        spath = '%s/%s/stack' % (SystemManager.procPath, idx)
                         try:
                             self.stackTable[idx]['fd'] = open(spath, 'r')
                             self.stackTable[idx]['stack'] = {}
@@ -23271,7 +23370,9 @@ class ThreadAnalyzer(object):
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
-                printStackSamples(idx)
+                if printStackSamples(idx) == -1:
+                    SystemManager.addPrint('---more---')
+                    return
 
                 try:
                     self.stackTable[idx]['total'] = 0
@@ -23281,6 +23382,7 @@ class ThreadAnalyzer(object):
 
             procCnt += 1
             if len(memBuf) > 0 or needLine:
+                needLine = True
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt == 0:
