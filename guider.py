@@ -6503,6 +6503,7 @@ class SystemManager(object):
     userEnable = True
     printEnable = True
     futexEnable = False
+    powerEnable = False
     pipeEnable = False
     depEnable = False
     sysEnable = False
@@ -6974,7 +6975,7 @@ class SystemManager(object):
                 print('        -e  [enable_optionsPerMode:belowCharacters]')
                 print('              [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
-                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|r(eset)|g(raph)|f(utex)}')
+                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|P(ower)|r(eset)|g(raph)|f(utex)}')
                 print('              [top]      '\
                     '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
                     '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
@@ -8541,6 +8542,11 @@ class SystemManager(object):
             else:
                 disableStat += 'NET '
 
+            if SystemManager.powerEnable:
+                enableStat += 'POWER '
+            else:
+                disableStat += 'POWER '
+
             if SystemManager.sysEnable:
                 enableStat += 'SYSCALL '
             else:
@@ -8932,6 +8938,11 @@ class SystemManager(object):
                 enableStat += 'LOCK '
             else:
                 disableStat += 'LOCK '
+
+            if SystemManager.powerEnable:
+                enableStat += 'POWER '
+            else:
+                disableStat += 'POWER '
 
             if SystemManager.futexEnable:
                 enableStat += 'FUTEX '
@@ -9668,6 +9679,8 @@ class SystemManager(object):
                 SystemManager.memEnable = True
             if filterList.find('b') > -1:
                 SystemManager.blockEnable = True
+            if filterList.find('P') > -1:
+                SystemManager.powerEnable = True
             if filterList.find('h') > -1:
                 SystemManager.heapEnable = True
             if filterList.find('l') > -1:
@@ -10819,6 +10832,8 @@ class SystemManager(object):
                     SystemManager.pipeEnable = True
                 if options.rfind('f') > -1:
                     SystemManager.futexEnable = True
+                if options.rfind('P') > -1:
+                    SystemManager.powerEnable = True
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
                 if options.rfind('g') > -1:
@@ -12235,8 +12250,9 @@ class SystemManager(object):
         self.cmdList["uprobes"] = SystemManager.ueventEnable
         self.cmdList["kprobes"] = SystemManager.keventEnable
         self.cmdList["filelock/locks_get_lock_context"] = SystemManager.lockEnable
-        self.cmdList["power/cpu_idle"] = SystemManager.cpuEnable
-        self.cmdList["power/cpu_frequency"] = False # toDo: implement power profiler #
+        self.cmdList["power/cpu_idle"] = SystemManager.powerEnable
+        self.cmdList["power/cpu_frequency"] = SystemManager.powerEnable # toDo #
+        self.cmdList["power/suspend_resume"] = SystemManager.powerEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
@@ -12247,7 +12263,6 @@ class SystemManager(object):
         self.cmdList["module/module_load"] = True
         self.cmdList["module/module_free"] = True
         self.cmdList["module/module_put"] = True
-        self.cmdList["power/suspend_resume"] = True
 
 
 
@@ -12767,7 +12782,7 @@ class SystemManager(object):
             SystemManager.writeCmd('module/module_put/enable', '1')
 
         # enable power events #
-        if SystemManager.cpuEnable:
+        if SystemManager.powerEnable:
             if self.cmdList["power/cpu_idle"]:
                 SystemManager.writeCmd('power/cpu_idle/enable', '1')
             if self.cmdList["power/cpu_frequency"]:
@@ -15985,14 +16000,20 @@ class ThreadAnalyzer(object):
                 if value['lastOff'] > 0:
                     value['offTime'] += float(self.finishTime) - value['lastOff']
 
+                if SystemManager.powerEnable:
+                    offTime = str(round(float(value['offTime']), 2))
+                    offCnt = str(value['offCnt'])
+                else:
+                    offTime = '-'
+                    offCnt = '-'
+
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
+                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5s|%6.2f|%3s|%5.2f|" \
+                    "%5s|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
                     "%3s|%3s|%4.2f(%2d)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
                         self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
-                        round(float(value['offTime']), 7), value['schedLatency'], '-', \
-                        value['irq'], value['offCnt'], '-', '-', '-', \
+                        offTime, value['schedLatency'], '-', value['irq'], offCnt, '-', '-', '-', \
                         value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                         value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                         (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
@@ -20764,6 +20785,8 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "suspend_resume":
+                SystemManager.powerEnable = True
+
                 state = None
 
                 if etc.rfind("suspend_enter") > 0:
@@ -20827,6 +20850,8 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
+                    SystemManager.powerEnable = True
+
                     tid = '0[' + d['cpu_id']+ ']'
 
                     if self.threadData[tid]['lastIdleStatus'] == int(d['state']):
@@ -20853,6 +20878,7 @@ class ThreadAnalyzer(object):
 
             elif func == "cpu_frequency":
                 # toDo: calculate power consumption for DVFS system #
+                SystemManager.powerEnable = True
                 return
 
             elif func == "console":
