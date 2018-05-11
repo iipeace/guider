@@ -6472,6 +6472,7 @@ class SystemManager(object):
     statFd = None
     memFd = None
     irqFd = None
+    softirqFd = None
     vmstatFd = None
     swapFd = None
     uptimeFd = None
@@ -10392,7 +10393,8 @@ class SystemManager(object):
                     if SystemManager.isRoot() is False:
                         SystemManager.printError("Fail to get root permission to sample stack")
                         sys.exit(0)
-                    elif SystemManager.findOption('g') is False:
+                    elif SystemManager.findOption('g') is False or \
+                        SystemManager.getOption('g') is None:
                         SystemManager.printError(\
                             "wrong option with -e + s, use also -g option to show stacks")
                         sys.exit(0)
@@ -20834,7 +20836,8 @@ class ThreadAnalyzer(object):
 
                     if self.threadData[tid]['coreSchedCnt'] == 0 and \
                         self.threadData[tid]['offTime'] == 0:
-                        self.threadData[tid]['offTime'] = float(time) - float(SystemManager.startTime)
+                        self.threadData[tid]['offTime'] = \
+                            float(time) - float(SystemManager.startTime)
 
                     # Wake core up, but the number 3 as this condition is not certain #
                     if int(d['state']) < 3:
@@ -21497,6 +21500,22 @@ class ThreadAnalyzer(object):
                 irqBuf = SystemManager.irqFd.readlines()
             except:
                 SystemManager.printWarning('Fail to open %s' % irqPath)
+
+        # save softirq info #
+        try:
+            sirqBuf = None
+            SystemManager.softirqFd.seek(0)
+            sirqBuf = SystemManager.softirqFd.readlines()
+            irqBuf += sirqBuf[1:]
+        except:
+            try:
+                sirqPath = "%s/%s" % (SystemManager.procPath, 'softirqs')
+                SystemManager.softirqFd = open(sirqPath, 'r')
+
+                sirqBuf = SystemManager.softirqFd.readlines()
+                irqBuf += sirqBuf[1:]
+            except:
+                SystemManager.printWarning('Fail to open %s' % sirqPath)
 
         if irqBuf is not None:
             self.prevIrqData = self.irqData
