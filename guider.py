@@ -6717,6 +6717,12 @@ class SystemManager(object):
 
     @staticmethod
     def ptrace(req, pid, addr, data):
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            SystemManager.printWarning(\
+                'Fail to get root permission to call ptrace')
+            return
+
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
         except:
@@ -7026,7 +7032,7 @@ class SystemManager(object):
                 print('              [thread]   '\
                     '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|P(ower)|r(eset)|g(raph)|f(utex)}')
                 print('              [top]      '\
-                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|f(ile)|'\
+                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|i(rq)|'\
                     '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
                 print('              [thread]   {c(pu)|a(ll)}')
@@ -8810,6 +8816,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'BLOCK '
 
+                if SystemManager.irqEnable:
+                    enableStat += 'IRQ '
+                else:
+                    disableStat += 'IRQ '
+
                 if SystemManager.perfGroupEnable:
                     enableStat += 'PERF '
                 else:
@@ -10280,6 +10291,9 @@ class SystemManager(object):
 
     @staticmethod
     def parseAnalOption():
+        if SystemManager.isTopMode():
+            SystemManager.netEnable = True
+
         if len(sys.argv) <= 2:
             return
 
@@ -10291,9 +10305,6 @@ class SystemManager(object):
             SystemManager.warningEnable = True
         else:
             SystemManager.warningEnable = False
-
-        if SystemManager.isTopMode():
-            SystemManager.netEnable = True
 
         for item in SystemManager.optionList:
             if item == '':
@@ -10390,8 +10401,6 @@ class SystemManager(object):
                 options = value
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
-                if options.rfind('i') > -1:
-                    SystemManager.irqEnable = False
                 if options.rfind('P') > -1:
                     SystemManager.perfEnable = False
                     SystemManager.perfGroupEnable = False
@@ -10440,6 +10449,8 @@ class SystemManager(object):
                     SystemManager.pipeEnable = True
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+                if options.rfind('i') > -1:
+                    SystemManager.irqEnable = True
                 if options.rfind('b') > -1:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -21493,6 +21504,53 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveIrqs(self):
+        # save irq info #
+        try:
+            irqBuf = None
+            SystemManager.irqFd.seek(0)
+            irqBuf = SystemManager.irqFd.readlines()
+        except:
+            try:
+                irqPath = "%s/%s" % (SystemManager.procPath, 'interrupts')
+                SystemManager.irqFd = open(irqPath, 'r')
+
+                irqBuf = SystemManager.irqFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % irqPath)
+
+        # save softirq info #
+        try:
+            sirqBuf = None
+            SystemManager.softirqFd.seek(0)
+            sirqBuf = SystemManager.softirqFd.readlines()
+            irqBuf += sirqBuf[1:]
+        except:
+            try:
+                sirqPath = "%s/%s" % (SystemManager.procPath, 'softirqs')
+                SystemManager.softirqFd = open(sirqPath, 'r')
+
+                sirqBuf = SystemManager.softirqFd.readlines()
+                irqBuf += sirqBuf[1:]
+            except:
+                SystemManager.printWarning('Fail to open %s' % sirqPath)
+
+        if irqBuf is not None:
+            self.prevIrqData = self.irqData
+            self.irqData = {}
+            cpuCnt = len(irqBuf.pop(0).split())
+
+            for line in irqBuf:
+                irqList = line.split()
+                try:
+                    irqSum = sum(map(long, irqList[1:cpuCnt]))
+                    if irqSum > 0:
+                        self.irqData[irqList[0][:-1]] = irqSum
+                except:
+                    pass
+
+
+
     def saveSystemStat(self):
         # save cpu info #
         try:
@@ -21562,49 +21620,8 @@ class ThreadAnalyzer(object):
                 memList = line.split()
                 self.memData[memList[0][:-1]] = long(memList[1])
 
-        # save irq info #
-        try:
-            irqBuf = None
-            SystemManager.irqFd.seek(0)
-            irqBuf = SystemManager.irqFd.readlines()
-        except:
-            try:
-                irqPath = "%s/%s" % (SystemManager.procPath, 'interrupts')
-                SystemManager.irqFd = open(irqPath, 'r')
-
-                irqBuf = SystemManager.irqFd.readlines()
-            except:
-                SystemManager.printWarning('Fail to open %s' % irqPath)
-
-        # save softirq info #
-        try:
-            sirqBuf = None
-            SystemManager.softirqFd.seek(0)
-            sirqBuf = SystemManager.softirqFd.readlines()
-            irqBuf += sirqBuf[1:]
-        except:
-            try:
-                sirqPath = "%s/%s" % (SystemManager.procPath, 'softirqs')
-                SystemManager.softirqFd = open(sirqPath, 'r')
-
-                sirqBuf = SystemManager.softirqFd.readlines()
-                irqBuf += sirqBuf[1:]
-            except:
-                SystemManager.printWarning('Fail to open %s' % sirqPath)
-
-        if irqBuf is not None:
-            self.prevIrqData = self.irqData
-            self.irqData = {}
-            cpuCnt = len(irqBuf.pop(0).split())
-
-            for line in irqBuf:
-                irqList = line.split()
-                try:
-                    irqSum = sum(map(long, irqList[1:cpuCnt]))
-                    if irqSum > 0:
-                        self.irqData[irqList[0][:-1]] = irqSum
-                except:
-                    pass
+        if SystemManager.irqEnable:
+            self.saveIrqs()
 
         # save vmstat info #
         try:
@@ -24353,14 +24370,21 @@ if __name__ == '__main__':
         sig = signal.SIGQUIT
         if argList is not None:
             sigList = [item for item in argList if item.startswith('-')]
-            if len(sigList) > 0:
-                for val in sigList:
-                    try:
-                        sig = abs(int(val))
-                        del argList[argList.index(val)]
-                        break
-                    except:
-                        pass
+            for val in sigList:
+                try:
+                    if val[1:].upper() in ConfigManager.sigList:
+                        sig = ConfigManager.sigList.index(val[1:].upper())
+                    elif 'SIG%s' % val[1:].upper() in ConfigManager.sigList:
+                        sig = ConfigManager.sigList.index('SIG%s' % val[1:].upper())
+                    elif val[1:].isdigit():
+                        sig = int(val[1:])
+                    else:
+                        continue
+
+                    del argList[argList.index(val)]
+                    break
+                except:
+                    pass
         SystemManager.sendSignalProcs(sig, argList)
         sys.exit(0)
 
