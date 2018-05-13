@@ -14,6 +14,7 @@
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/ptrace.h>
 #include <linux/perf_event.h>
 #include <sys/prctl.h>
 #include <sys/mman.h>
@@ -238,6 +239,28 @@ guider_perf_event_read(PyObject *self, PyObject *args)
     }
 }
 
+/*
+ * long ptrace(enum __ptrace_request request, pid_t pid,
+ *	void *addr, void *data);
+ */
+static PyObject *
+guider_ptrace(PyObject *self, PyObject *args)
+{
+    void *addr, *data;
+    int request, pid;
+    long ret;
+    long value = 0;
+
+    if (!PyArg_ParseTuple(args, "iill", &request, &pid, &addr, &data))
+    {
+        return NULL;
+    }
+
+    ret = ptrace(request, pid, addr, data);
+
+    return Py_BuildValue("l", ret);
+}
+
 static PyMethodDef guiderMethods[] = {
     {"check", guider_check, METH_VARARGS, "check"},
     {"prctl", guider_prctl, METH_VARARGS, "prctl()"},
@@ -247,6 +270,7 @@ static PyMethodDef guiderMethods[] = {
     {"mmap", guider_mmap, METH_VARARGS, "mmap()"},
     {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
     {"mincore", guider_mincore, METH_VARARGS, "mincore()"},
+    {"ptrace", guider_ptrace, METH_VARARGS, "ptrace()"},
     {"perf_event_open", guider_perf_event_open, METH_VARARGS, "perf_event_open()"},
     {"perf_event_read", guider_perf_event_read, METH_VARARGS, "perf_event_read()"},
     {NULL, NULL, 0, NULL}
