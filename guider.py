@@ -7030,16 +7030,18 @@ class SystemManager(object):
                 print('        -e  [enable_optionsPerMode:belowCharacters]')
                 print('              [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
-                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|P(ower)|r(eset)|g(raph)|f(utex)}')
+                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|'\
+                    '\n                          P(ower)|r(eset)|g(raph)|f(utex)}')
                 print('              [top]      '\
-                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|P(erf)|G(pu)|i(rq)|'\
-                    '\n                          ps(S)|u(ss)|I(mage)|g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
+                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|'\
+                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|'\
+                    '\n                          g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
                 print('              [thread]   {c(pu)|a(ll)}')
                 print('              [function] {c(pu)|a(ll)|u(ser)}')
                 print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
                 print('        -s  [save_traceData:path]')
-                print('        -S  [sort_output:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
+                print('        -S  [sort:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
                 print('        -W  [wait_forSignal]')
                 print('        -R  [record_repeatedly:{interval,}count]')
@@ -11547,6 +11549,12 @@ class SystemManager(object):
 
 
     @staticmethod
+    def procUserInput(uinput):
+        pass
+
+
+
+    @staticmethod
     def sendSignalProcs(nrSig, pidList):
         nrProc = 0
         myPid = str(SystemManager.pid)
@@ -14055,8 +14063,8 @@ class ThreadAnalyzer(object):
                 # flush buffered enter key #
                 sys.stdin.readline()
 
-                # wait for enter key #
-                sys.stdin.readline()
+                # process user input #
+                SystemManager.procUserInput(sys.stdin.readline())
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
