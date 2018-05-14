@@ -270,15 +270,20 @@ static PyObject *
 guider_sched_setaffinity(PyObject *self, PyObject *args)
 {
     cpu_set_t set;
-    int pid, imask, ret;
+    int pid, ret, i;
+    long imask;
 
-    if (!PyArg_ParseTuple(args, "ii", &pid, &imask))
+    if (!PyArg_ParseTuple(args, "il", &pid, &imask))
     {
         return NULL;
     }
 
     CPU_ZERO(&set);
-    CPU_SET(0, &set);
+
+    for (i = 0; i < sizeof(imask); i++) {
+        if (imask & (1 << i))
+            CPU_SET(i, &set);
+    }
 
     ret = sched_setaffinity(pid, sizeof(set), &set);
 
@@ -293,8 +298,8 @@ static PyObject *
 guider_sched_getaffinity(PyObject *self, PyObject *args)
 {
     cpu_set_t mask;
-    int pid;
-    long ret;
+    int pid, ret, nrcpus, i;
+    long rmask = 0;
 
     if (!PyArg_ParseTuple(args, "i", &pid))
     {
@@ -302,11 +307,18 @@ guider_sched_getaffinity(PyObject *self, PyObject *args)
     }
 
     CPU_ZERO(&mask);
-    CPU_ISSET(0, &mask);
 
     ret = sched_getaffinity(pid, sizeof(cpu_set_t), &mask);
+    if (ret < 0)
+        return NULL;
 
-    return Py_BuildValue("l", ret);
+    nrcpus = sysconf(_SC_NPROCESSORS_ONLN);
+    for (i = 0; i < nrcpus; i++) {
+        if (CPU_ISSET(i, &mask))
+            rmask |= (1 << i);
+    }
+
+    return Py_BuildValue("l", rmask);
 }
 
 static PyMethodDef guiderMethods[] = {

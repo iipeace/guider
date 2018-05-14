@@ -6517,6 +6517,7 @@ class SystemManager(object):
     stackEnable = False
     wchanEnable = True
     wfcEnable = False
+    affinityEnable = False
     blockEnable = False
     lockEnable = False
     userEnable = True
@@ -6710,18 +6711,50 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setaffinity(pid, mask):
-        try:
-            return SystemManager.guiderObj.sched_setaffinity(pid, mask)
-        except:
+    def setaffinity(mask, pids):
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to set affinity of other thread")
+            return
+
+        if type(pids) is int or type(pids) is long:
+            pids = list(pids)
+        elif type(pids) is list:
             pass
+        else:
+            SystemManager.printError('Fail to recognize pid type')
+            return
+
+        try:
+            mask = int(mask, 16)
+        except:
+            SystemManager.printError('Fail to recognize mask type')
+            return
+
+        for pid in pids:
+            try:
+                ret = SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
+            except:
+                SystemManager.printError(\
+                    'Fail to call sched_setaffinity in guiderLib')
+                return
+
+            if ret >= 0:
+                SystemManager.printInfo(\
+                    'affinity of %s task is changed to 0x%X' % (pid, mask))
+            else:
+                SystemManager.printError(\
+                    'Fail to set affinity of %s as 0x%X' % (pid, mask))
 
 
 
     @staticmethod
     def getaffinity(pid):
         try:
-            return SystemManager.guiderObj.sched_getaffinity(pid)
+            if SystemManager.guiderObj is None:
+                return None
+
+            return '0x%X' % SystemManager.guiderObj.sched_getaffinity(pid)
         except:
             pass
 
@@ -7046,7 +7079,7 @@ class SystemManager(object):
                     '\n                          P(ower)|r(eset)|g(raph)|f(utex)}')
                 print('              [top]      '\
                     '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|'\
-                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|'\
+                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|a(ffinity)|'\
                     '\n                          g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
                 print('              [thread]   {c(pu)|a(ll)}')
@@ -8860,6 +8893,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'WFC '
 
+                if SystemManager.affinityEnable:
+                    enableStat += 'AFFINITY '
+                else:
+                    disableStat += 'AFFINITY '
+
                 if SystemManager.imageEnable:
                     enableStat += 'IMAGE '
                 else:
@@ -10507,6 +10545,9 @@ class SystemManager(object):
                     SystemManager.sort = 'm'
                 if options.rfind('c') > -1:
                     SystemManager.wfcEnable = True
+                if options.rfind('a') > -1:
+                    SystemManager.affinityEnable = True
+                    SystemManager.wchanEnable = False
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
@@ -11571,14 +11612,17 @@ class SystemManager(object):
 
             SystemManager.pipePrint("")
 
-            SystemManager.pipePrint("[Filter] {COMM|PID}")
+            SystemManager.pipePrint("[Filter]   {COMM|PID}")
             SystemManager.pipePrint("  exam) f init, 1234\n")
 
-            SystemManager.pipePrint("[Sched]  {SCHED:PRIO:PID}")
+            SystemManager.pipePrint("[Sched]    {SCHED:PRIO:PID}")
             SystemManager.pipePrint("  exam) s r:1:123, c:-1:1234\n")
 
-            SystemManager.pipePrint("[Kill]   {-SIGNAME|-SIGNO} {PID}")
+            SystemManager.pipePrint("[Kill]     {-SIGNAME|-SIGNO} {PID}")
             SystemManager.pipePrint("  exam) k -stop 123, 456\n")
+
+            SystemManager.pipePrint("[Affinity] {MASK} {PID}")
+            SystemManager.pipePrint("  exam) a f 123, 456\n")
 
             SystemManager.pipePrint("[ Input ENTER to continue ]")
             sys.stdin.readline()
@@ -11590,6 +11634,10 @@ class SystemManager(object):
             ulist[0].upper() == 'S':
             if len(ulist) > 1:
                 SystemManager.parsePriorityOption((' '.join(ulist[1:])))
+        elif ulist[0].upper() == 'AFFINITY' or \
+            ulist[0].upper() == 'A':
+            if len(ulist) > 2:
+                SystemManager.setaffinity(ulist[1], (' '.join(ulist[2:])).split(','))
         elif ulist[0].upper() == 'FILTER' or \
             ulist[0].upper() == 'F':
             if len(ulist) == 1:
@@ -14137,7 +14185,7 @@ class ThreadAnalyzer(object):
                 selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
                 SystemManager.pipePrint(\
-                    "[ Input command... ( Help / Filter / Kill / Sched / Quit ) ]")
+                    "[ Input command... ( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
 
                 # flush buffered enter key #
                 sys.stdin.readline()
@@ -23279,6 +23327,8 @@ class ThreadAnalyzer(object):
 
         if SystemManager.wchanEnable:
             etc = 'WaitChannel'
+        elif SystemManager.affinityEnable:
+            etc = 'Affinity'
         else:
             etc = 'SignalHandler'
 
@@ -23491,6 +23541,11 @@ class ThreadAnalyzer(object):
             if SystemManager.wchanEnable:
                 try:
                     etc = value['wchan'][:21]
+                except:
+                    etc = ''
+            elif SystemManager.affinityEnable:
+                try:
+                    etc = SystemManager.getaffinity(int(idx))
                 except:
                     etc = ''
             else:
