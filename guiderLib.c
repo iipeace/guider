@@ -272,7 +272,7 @@ guider_sched_setaffinity(PyObject *self, PyObject *args)
     cpu_set_t set;
     int pid, imask, ret;
 
-    if (!PyArg_ParseTuple(args, "iii", &pid, &imask))
+    if (!PyArg_ParseTuple(args, "ii", &pid, &imask))
     {
         return NULL;
     }
@@ -319,6 +319,8 @@ static PyMethodDef guiderMethods[] = {
     {"munmap", guider_munmap, METH_VARARGS, "munmap()"},
     {"mincore", guider_mincore, METH_VARARGS, "mincore()"},
     {"ptrace", guider_ptrace, METH_VARARGS, "ptrace()"},
+    {"sched_getaffinity", guider_sched_getaffinity, METH_VARARGS, "sched_getaffinity()"},
+    {"sched_setaffinity", guider_sched_setaffinity, METH_VARARGS, "sched_setaffinity()"},
     {"perf_event_open", guider_perf_event_open, METH_VARARGS, "perf_event_open()"},
     {"perf_event_read", guider_perf_event_read, METH_VARARGS, "perf_event_read()"},
     {NULL, NULL, 0, NULL}

@@ -6710,8 +6710,20 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getAffinity(pid=None):
-        pass
+    def setaffinity(pid, mask):
+        try:
+            return SystemManager.guiderObj.sched_setaffinity(pid, mask)
+        except:
+            pass
+
+
+
+    @staticmethod
+    def getaffinity(pid):
+        try:
+            return SystemManager.guiderObj.sched_getaffinity(pid)
+        except:
+            pass
 
 
 
