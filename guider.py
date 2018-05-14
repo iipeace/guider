@@ -6712,11 +6712,14 @@ class SystemManager(object):
 
     @staticmethod
     def setaffinity(mask, pids):
-        if SystemManager.isRoot() is False:
+        # check root permission #
+        if not (len(pids) == 1 and SystemManager.pid == int(pids[0])) and \
+            SystemManager.isRoot() is False:
             SystemManager.printError(\
                 "Fail to get root permission to set affinity of other thread")
             return
 
+        # check pid list #
         if type(pids) is int or type(pids) is long:
             pids = list(pids)
         elif type(pids) is list:
@@ -6725,6 +6728,7 @@ class SystemManager(object):
             SystemManager.printError('Fail to recognize pid type')
             return
 
+        # check mask type #
         try:
             mask = int(mask, 16)
         except:
@@ -11623,9 +11627,6 @@ class SystemManager(object):
 
             SystemManager.pipePrint("[Affinity] {MASK} {PID}")
             SystemManager.pipePrint("  exam) a f 123, 456\n")
-
-            SystemManager.pipePrint("[ Input ENTER to continue ]")
-            sys.stdin.readline()
         elif ulist[0].upper() == 'KILL' or \
             ulist[0].upper() == 'K':
             if len(ulist) > 1:
@@ -11645,11 +11646,21 @@ class SystemManager(object):
             else:
                 SystemManager.showGroup = (' '.join(ulist[1:])).split(',')
             SystemManager.removeEmptyValue(SystemManager.showGroup)
+
+            if SystemManager.isThreadMode():
+                mode = 'threads'
+            else:
+                mode = 'processes'
+
+            SystemManager.printInfo(\
+                "only specific %s including [ %s ] are shown" % \
+                (mode, ', '.join(SystemManager.showGroup)))
         elif ulist[0].upper() == 'QUIT' or \
             ulist[0].upper() == 'Q':
             sys.exit(0)
 
-        time.sleep(0.5)
+        SystemManager.pipePrint("[ Input ENTER to continue ]")
+        sys.stdin.readline()
 
 
 
