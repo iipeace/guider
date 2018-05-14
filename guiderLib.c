@@ -10,6 +10,7 @@
  *
  */
 
+#define _GNU_SOURCE  
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
@@ -257,6 +258,53 @@ guider_ptrace(PyObject *self, PyObject *args)
     }
 
     ret = ptrace(request, pid, addr, data);
+
+    return Py_BuildValue("l", ret);
+}
+
+/*
+ * int sched_setaffinity(pid_t pid, size_t cpusetsize,
+ *      const cpu_set_t *mask);
+ */
+static PyObject *
+guider_sched_setaffinity(PyObject *self, PyObject *args)
+{
+    cpu_set_t set;
+    int pid, imask, ret;
+
+    if (!PyArg_ParseTuple(args, "iii", &pid, &imask))
+    {
+        return NULL;
+    }
+
+    CPU_ZERO(&set);
+    CPU_SET(0, &set);
+
+    ret = sched_setaffinity(pid, sizeof(set), &set);
+
+    return Py_BuildValue("i", ret);
+}
+
+/*
+ * int sched_getaffinity(pid_t pid, size_t cpusetsize,
+ *      cpu_set_t *mask);
+ */
+static PyObject *
+guider_sched_getaffinity(PyObject *self, PyObject *args)
+{
+    cpu_set_t mask;
+    int pid;
+    long ret;
+
+    if (!PyArg_ParseTuple(args, "i", &pid))
+    {
+        return NULL;
+    }
+
+    CPU_ZERO(&mask);
+    CPU_ISSET(0, &mask);
+
+    ret = sched_getaffinity(pid, sizeof(cpu_set_t), &mask);
 
     return Py_BuildValue("l", ret);
 }

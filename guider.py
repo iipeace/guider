@@ -11550,7 +11550,73 @@ class SystemManager(object):
 
     @staticmethod
     def procUserInput(uinput):
-        pass
+        ulist = uinput.split()
+        if len(ulist) == 0:
+            return
+
+        if ulist[0].upper() == 'HELP' or \
+            ulist[0].upper() == 'H':
+
+            SystemManager.pipePrint("")
+
+            SystemManager.pipePrint("[Filter] {COMM|PID}")
+            SystemManager.pipePrint("  exam) f init, 1234\n")
+
+            SystemManager.pipePrint("[Sched]  {SCHED:PRIO:PID}")
+            SystemManager.pipePrint("  exam) s r:1:123, c:-1:1234\n")
+
+            SystemManager.pipePrint("[Kill]   {-SIGNAME|-SIGNO} {PID}")
+            SystemManager.pipePrint("  exam) k -stop 123, 456\n")
+
+            SystemManager.pipePrint("[ Input ENTER to continue ]")
+            sys.stdin.readline()
+        elif ulist[0].upper() == 'KILL' or \
+            ulist[0].upper() == 'K':
+            if len(ulist) > 1:
+                SystemManager.sendSignalArgs(ulist[1:])
+        elif ulist[0].upper() == 'SCHED' or \
+            ulist[0].upper() == 'S':
+            if len(ulist) > 1:
+                SystemManager.parsePriorityOption((' '.join(ulist[1:])))
+        elif ulist[0].upper() == 'FILTER' or \
+            ulist[0].upper() == 'F':
+            if len(ulist) == 1:
+                SystemManager.showGroup = []
+            else:
+                SystemManager.showGroup = (' '.join(ulist[1:])).split(',')
+            SystemManager.removeEmptyValue(SystemManager.showGroup)
+        elif ulist[0].upper() == 'QUIT' or \
+            ulist[0].upper() == 'Q':
+            sys.exit(0)
+
+        time.sleep(0.5)
+
+
+
+    @staticmethod
+    def sendSignalArgs(argList):
+        sig = signal.SIGQUIT
+        if argList is not None:
+            sigList = [item for item in argList if item.startswith('-')]
+            for val in sigList:
+                try:
+                    if val[1:].upper() in ConfigManager.sigList:
+                        sig = ConfigManager.sigList.index(val[1:].upper())
+                    elif 'SIG%s' % val[1:].upper() in ConfigManager.sigList:
+                        sig = ConfigManager.sigList.index('SIG%s' % val[1:].upper())
+                    elif val[1:].isdigit():
+                        sig = int(val[1:])
+                    else:
+                        continue
+
+                    del argList[argList.index(val)]
+                    break
+                except:
+                    pass
+
+        # send signal to processes #
+        argList = (''.join(argList)).split(',')
+        SystemManager.sendSignalProcs(sig, argList)
 
 
 
@@ -14058,10 +14124,13 @@ class ThreadAnalyzer(object):
             if SystemManager.printFile is None and selectObject != None and \
                 selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
-                SystemManager.pipePrint("[ Input ENTER to continue ]")
+                SystemManager.pipePrint(\
+                    "[ Input command... ( Help / Filter / Kill / Sched / Quit ) ]")
 
                 # flush buffered enter key #
                 sys.stdin.readline()
+
+                sys.stdout.write('=> ')
 
                 # process user input #
                 SystemManager.procUserInput(sys.stdin.readline())
@@ -24375,25 +24444,7 @@ if __name__ == '__main__':
 
     # send event signal to background process #
     if SystemManager.isSendMode():
-        sig = signal.SIGQUIT
-        if argList is not None:
-            sigList = [item for item in argList if item.startswith('-')]
-            for val in sigList:
-                try:
-                    if val[1:].upper() in ConfigManager.sigList:
-                        sig = ConfigManager.sigList.index(val[1:].upper())
-                    elif 'SIG%s' % val[1:].upper() in ConfigManager.sigList:
-                        sig = ConfigManager.sigList.index('SIG%s' % val[1:].upper())
-                    elif val[1:].isdigit():
-                        sig = int(val[1:])
-                    else:
-                        continue
-
-                    del argList[argList.index(val)]
-                    break
-                except:
-                    pass
-        SystemManager.sendSignalProcs(sig, argList)
+        SystemManager.sendSignalArgs(argList)
         sys.exit(0)
 
     # check page properties #
