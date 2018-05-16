@@ -10366,6 +10366,14 @@ class SystemManager(object):
         if SystemManager.isTopMode():
             SystemManager.netEnable = True
 
+            # set default processor option #
+            if SystemManager.findOption('a'):
+                SystemManager.cpuEnable = True
+                SystemManager.gpuEnable = True
+            else:
+                SystemManager.cpuEnable = False
+                SystemManager.gpuEnable = False
+
         if len(sys.argv) <= 2:
             return
 
@@ -10517,6 +10525,8 @@ class SystemManager(object):
                     SystemManager.leakEnable = True
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
+                if options.rfind('c') > -1:
+                    SystemManager.cpuEnable = True
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
                 if options.rfind('t') > -1:
@@ -21870,7 +21880,7 @@ class ThreadAnalyzer(object):
             SystemManager.collectSystemPerfData()
 
         # save gpu stat #
-        if SystemManager.showAll or SystemManager.gpuEnable:
+        if SystemManager.gpuEnable:
             self.saveGpuData()
 
         # get process list #
@@ -22804,7 +22814,7 @@ class ThreadAnalyzer(object):
             self.reportData['net']['netOutput'] = netOut
 
         # get temperature #
-        if SystemManager.showAll or SystemManager.gpuEnable:
+        if SystemManager.gpuEnable:
             coreTempData = {}
             tempDirList = []
             tempPath = '/sys/class/hwmon'
@@ -22870,7 +22880,7 @@ class ThreadAnalyzer(object):
                     pass
 
         # print CPU stat #
-        if SystemManager.showAll and SystemManager.cpuEnable:
+        if SystemManager.cpuEnable:
             if len(self.cpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
@@ -23023,7 +23033,7 @@ class ThreadAnalyzer(object):
                     continue
 
         # print GPU STAT #
-        if SystemManager.showAll or SystemManager.gpuEnable:
+        if SystemManager.gpuEnable:
             if len(self.gpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
