@@ -1441,14 +1441,20 @@ class FunctionAnalyzer(object):
         if len(self.userCallData) == 0 and \
             len(self.kernelCallData) == 0 and \
             len(self.target) > 0:
-            SystemManager.printError("No collected data related to %s" % self.target)
+            if self.target == []:
+                SystemManager.printError("No collected stack data")
+            else:
+                SystemManager.printError(\
+                    "No collected stack data related to %s" % self.target)
             sys.exit(0)
         elif SystemManager.userEnable and \
             len(self.userCallData) == 1 and \
             self.userCallData[0][0] == '0':
-            SystemManager.printError(\
-                "No user stack data related to %s, " % self.target + \
-                "enable CONFIG_USER_STACKTRACE_SUPPORT option in kernel")
+            if self.target == []:
+                SystemManager.printError("No collected user stack data")
+            else:
+                SystemManager.printError(\
+                    "No collected user stack data related to %s" % self.target)
             sys.exit(0)
 
         # Get symbols from call address #
@@ -1458,6 +1464,16 @@ class FunctionAnalyzer(object):
         # Merge callstacks by symbol and address #
         SystemManager.printStatus('start summarizing functions... [ STOP(ctrl + c) ]')
         self.mergeStacks()
+
+        # Check user symbols #
+        if len(self.userSymData) == 1 and self.userSymData.keys()[0] == '0':
+            SystemManager.userEnable = False
+
+            if self.target == []:
+                SystemManager.printWarning("No collected user stack data", True)
+            else:
+                SystemManager.printWarning(\
+                    "No collected user stack data related to %s" % self.target, True)
 
 
 
@@ -16740,7 +16756,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:^16} {4:^12} {5:^20}".\
+        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
             format('ID', 'NrDev', 'OPT', 'KB', 'Filesystem', 'PATH'))
         SystemManager.pipePrint(twoLine)
 
@@ -19073,7 +19089,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def savePartOpt(self, tid, comm, opt, major, minor, addr, size):
+    def saveBlkOpt(self, tid, comm, opt, major, minor, addr, size):
         # apply filter #
         if len(SystemManager.showGroup) > 0:
             found = False
@@ -20581,7 +20597,7 @@ class ThreadAnalyzer(object):
                         minor = partSet[1][:-1]
                         addr = partInfo[2]
 
-                        self.savePartOpt(thread, comm, opt[0], major, minor, addr, \
+                        self.saveBlkOpt(thread, comm, opt[0], major, minor, addr, \
                             SystemManager.blockSize * int(d['size']))
                     except:
                         SystemManager.printWarning("Fail to save partition info")
@@ -20757,7 +20773,7 @@ class ThreadAnalyzer(object):
                     self.threadData[coreId]['awriteBlock'] += 1
                     self.threadData[coreId]['awriteBlockCnt'] += 1
 
-                    self.savePartOpt(\
+                    self.saveBlkOpt(\
                         thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
@@ -20776,7 +20792,7 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['awriteBlock'] += 1
                         self.threadData[coreId]['awriteBlockCnt'] += 1
 
-                        self.savePartOpt(\
+                        self.saveBlkOpt(\
                             thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
