@@ -1450,12 +1450,12 @@ class FunctionAnalyzer(object):
         elif SystemManager.userEnable and \
             len(self.userCallData) == 1 and \
             self.userCallData[0][0] == '0':
+            SystemManager.userEnable = False
             if self.target == []:
-                SystemManager.printError("No collected user stack data")
+                SystemManager.printWarning("No collected user stack data", True)
             else:
-                SystemManager.printError(\
-                    "No collected user stack data related to %s" % self.target)
-            sys.exit(0)
+                SystemManager.printWarning(\
+                    "No collected user stack data related to %s" % self.target, True)
 
         # Get symbols from call address #
         SystemManager.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
@@ -1464,16 +1464,6 @@ class FunctionAnalyzer(object):
         # Merge callstacks by symbol and address #
         SystemManager.printStatus('start summarizing functions... [ STOP(ctrl + c) ]')
         self.mergeStacks()
-
-        # Check user symbols #
-        if len(self.userSymData) == 1 and self.userSymData.keys()[0] == '0':
-            SystemManager.userEnable = False
-
-            if self.target == []:
-                SystemManager.printWarning("No collected user stack data", True)
-            else:
-                SystemManager.printWarning(\
-                    "No collected user stack data related to %s" % self.target, True)
 
 
 
@@ -2434,10 +2424,12 @@ class FunctionAnalyzer(object):
         self, kernelPos, kernelStack, userPos, userStack, targetEvent, targetCnt, targetArg):
 
         # Save userstack #
-        self.userCallData.append([userPos, userStack, targetEvent, targetCnt, targetArg])
+        self.userCallData.append(\
+            [userPos, userStack, targetEvent, targetCnt, targetArg])
 
         # Save kernelstack #
-        self.kernelCallData.append([kernelPos, kernelStack, targetEvent, targetCnt, targetArg])
+        self.kernelCallData.append(\
+            [kernelPos, kernelStack, targetEvent, targetCnt, targetArg])
 
         # Save custom event stacks #
         if SystemManager.showAll and targetEvent == 'CUSTOM':
@@ -3517,8 +3509,12 @@ class FunctionAnalyzer(object):
             elif pos > -1:
                 return (string[pos+5:len(string)-2], None, None)
 
-            # exist nothing #
+            # no user stack tracing supported #
             elif string.find('??') > -1:
+                if SystemManager.userEnable:
+                    SystemManager.userEnable = False
+                    SystemManager.printWarning(\
+                        "enable CONFIG_USER_STACKTRACE_SUPPORT option in target kernel", True)
                 return ('0', None, None)
 
             else:
