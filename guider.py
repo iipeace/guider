@@ -3165,7 +3165,7 @@ class FunctionAnalyzer(object):
             return False
 
         # block request event #
-        elif isFixedEvent and func == "block_bio_remap:":
+        elif isFixedEvent and func == "block_bio_queue:":
             m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', args)
             if m is not None:
@@ -6588,13 +6588,13 @@ class SystemManager(object):
         self.diskInfo = {}
         self.mountInfo = {}
         self.systemInfo = {}
+        self.partitionInfo = {}
 
         self.cpuData = None
         self.gpuData = {}
         self.memData = {}
         self.diskData = {}
         self.mountData = None
-        self.partitionData = None
         self.uptimeData = None
         self.loadData = None
         self.cmdlineData = None
@@ -9263,19 +9263,6 @@ class SystemManager(object):
 
 
     @staticmethod
-    def exitHandlerForPartInfo(signum, frame):
-        for dirnames in os.walk('/sys/class/block'):
-            for subdirname in dirnames[1]:
-                devPath = '/sys/class/block/%s/dev' % subdirname
-                sizePath = '/sys/class/block/%s/size' % subdirname
-                devFd = open(devPath, 'r')
-                sizeFd = open(sizePath, 'r')
-                dev = devFd.readline().rstrip()
-                size = sizeFd.readline().rstrip()
-
-
-
-    @staticmethod
     def timerHandler(signum, frame):
         raise
 
@@ -9658,24 +9645,30 @@ class SystemManager(object):
             mountTable = []
             tempTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
             for idx, line in enumerate(tempTable):
-                if len(line.split()) == 2:
+                if len(line.split()) == 2 or len(line.split()) == 3:
                     mountTable.append('%s %s' % (line, tempTable[idx+1]))
         except:
             pass
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         for item in mountTable:
-            m = re.match(r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+' + \
-                r'(?P<readSize>\S+)\s+(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+' + \
-                r'(?P<freeSize>\S+)\s+(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+' + \
-                r'(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
+            m = re.match(r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+' + \
+                r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+' + \
+                r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+(?P<freeSize>\S+)\s+' + \
+                r'(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
             if m is not None:
                 d = m.groupdict()
-                mid = d['maj'] + ':' + d['min']
+                mid = '%s:%s' % (d['maj'], d['min'])
                 SystemManager.savedMountTree[mid] = dict(init_mountData)
                 SystemManager.savedMountTree[mid]['dev'] = d['dev']
                 SystemManager.savedMountTree[mid]['filesystem'] = d['filesystem']
                 SystemManager.savedMountTree[mid]['mount'] = d['mount']
+                try:
+                    start, end = d['range'].split('-')
+                    SystemManager.savedMountTree[mid]['start'] = int(start)
+                    SystemManager.savedMountTree[mid]['end'] = int(end)
+                except:
+                    pass
 
 
 
@@ -10185,7 +10178,6 @@ class SystemManager(object):
             except:
                 SystemManager.printError(\
                     "Fail to write to file because %s" % sys.exc_info()[1])
-                sys.exit(0)
         # console output #
         else:
             # cut output by terminal size #
@@ -12286,9 +12278,12 @@ class SystemManager(object):
 
 
     def saveDiskInfo(self):
+        partFile = '%s/partitions' % SystemManager.procPath
         mountFile = '%s/mounts' % SystemManager.procPath
         diskFile = '%s/diskstats' % SystemManager.procPath
+        blockDir = '/sys/class/block'
 
+        # save disk and mount info #
         try:
             with open(diskFile, 'r') as df:
                 if not 'before' in self.diskData:
@@ -12301,8 +12296,32 @@ class SystemManager(object):
                             self.mountData = mf.readlines()
                     except:
                         SystemManager.printWarning("Fail to open %s" % mountFile)
+
         except:
             SystemManager.printWarning("Fail to open %s" % diskFile)
+
+        # save disk size #
+        try:
+            for dirnames in os.walk(blockDir):
+                for subdirname in dirnames[1]:
+                    try:
+                        devPath = '/sys/class/block/%s/dev' % subdirname
+                        startPath = '/sys/class/block/%s/start' % subdirname
+                        sizePath = '/sys/class/block/%s/size' % subdirname
+                        with open(startPath, 'r') as startFd:
+                            start = startFd.readline()[:-1]
+                        with open(sizePath, 'r') as sizeFd:
+                            size = sizeFd.readline()[:-1]
+                        with open(devPath, 'r') as devFd:
+                            partName = devFd.readline()[:-1]
+                            self.partitionInfo[partName] = {}
+                            self.partitionInfo[partName]['start'] = long(start)
+                            self.partitionInfo[partName]['end'] = \
+                                long(start) + long(size)
+                    except:
+                        pass
+        except:
+            SystemManager.printWarning("Fail to access %s" % blockDir)
 
 
 
@@ -12468,7 +12487,7 @@ class SystemManager(object):
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
         self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = SystemManager.memEnable
         self.cmdList["timer/hrtimer_start"] = False
-        self.cmdList["block/block_bio_remap"] = SystemManager.blockEnable
+        self.cmdList["block/block_bio_queue"] = SystemManager.blockEnable
         self.cmdList["block/block_rq_complete"] = SystemManager.blockEnable
         self.cmdList["writeback/writeback_dirty_page"] = SystemManager.blockEnable
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
@@ -12722,14 +12741,14 @@ class SystemManager(object):
 
             if SystemManager.blockEnable:
                 blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
-                SystemManager.writeCmd('block/block_bio_remap/filter', blkCmd)
-                SystemManager.writeCmd('block/block_bio_remap/enable', '1')
+                SystemManager.writeCmd('block/block_bio_queue/filter', blkCmd)
+                SystemManager.writeCmd('block/block_bio_queue/enable', '1')
                 SystemManager.writeCmd('writeback/writeback_dirty_page/filter', cmd)
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '1')
                 SystemManager.writeCmd('writeback/wbc_writepage/filter', cmd)
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '1')
             else:
-                SystemManager.writeCmd('block/block_bio_remap/enable', '0')
+                SystemManager.writeCmd('block/block_bio_queue/enable', '0')
                 SystemManager.writeCmd('writeback/writeback_dirty_page/enable', '0')
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
 
@@ -12979,10 +12998,10 @@ class SystemManager(object):
             SystemManager.writeCmd('filemap/mm_filemap_delete_from_page_cache/enable', '1')
 
         # enable block events #
-        if self.cmdList["block/block_bio_remap"]:
+        if self.cmdList["block/block_bio_queue"]:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
-            SystemManager.writeCmd('block/block_bio_remap/filter', cmd)
-            SystemManager.writeCmd('block/block_bio_remap/enable', '1')
+            SystemManager.writeCmd('block/block_bio_queue/filter', cmd)
+            SystemManager.writeCmd('block/block_bio_queue/enable', '1')
         if self.cmdList["block/block_rq_complete"]:
             cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
             SystemManager.writeCmd('block/block_rq_complete/filter', cmd)
@@ -13375,9 +13394,9 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Disk Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:>40}". \
+            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:>40}". \
             format("DEV", "NUM", "READ", "WRITE", \
-            "TOTAL", "FREE", "USAGE", "NrAvFile", "FS", "MountPoint <Option>"))
+            "TOTAL", "FREE", "USAGE", "AVL", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
 
         devInfo = {}
@@ -13451,14 +13470,21 @@ class SystemManager(object):
                 pass
 
             try:
-                key = '%s (%s)' % (key, ','.join(self.devInfo['block'][major]))
+                devid = '%s:%s' % (major, minor)
+                prange = '[%s-%s]' % \
+                    (self.partitionInfo[devid]['start'], self.partitionInfo[devid]['end'])
+            except:
+                prange = '[?]'
+
+            try:
+                key = '%s (%s) %s' % (key, ','.join(self.devInfo['block'][major]), prange)
             except:
                 pass
 
             SystemManager.infoBufferPrint("{0:<16}".format(key))
 
             diskInfo = \
-                "{0:<16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:<20}".\
+                "{0:<16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:<20}".\
                 format(' ', '%s:%s' % (major, minor), readSize, writeSize, \
                 total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
 
@@ -13494,7 +13520,7 @@ class SystemManager(object):
                 totalInfo['use'] = '?%'
 
             SystemManager.infoBufferPrint(\
-                "{0:^16}\n{1:^24} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>9} {8:>4} {9:<20}".\
+                "{0:^16}\n{1:^24} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:<20}".\
                 format(oneLine, 'TOTAL', totalInfo['read'], totalInfo['write'], \
                 totalInfo['total'], totalInfo['free'], totalInfo['use'], \
                 totalInfo['favail'], ' ', ' '))
@@ -16757,70 +16783,80 @@ class ThreadAnalyzer(object):
 
 
     def printBlockInfo(self):
+        def printBlkUsage(cid, data, opt, tcnt):
+            for num, val in sorted(\
+                data.items(), key=lambda e:e[1], reverse=True):
+                if tcnt == 0:
+                    pass
+                else:
+                    cid = ' '
+
+                try:
+                    dev = SystemManager.savedMountTree[num]['dev']
+                    filesystem = SystemManager.savedMountTree[num]['filesystem']
+                    mount = SystemManager.savedMountTree[num]['mount']
+                except:
+                    dev = '?'
+                    filesystem = '?'
+                    mount = '?'
+
+                try:
+                    seqPer = round((val[3] / float(val[0])) * 100, 1)
+                except:
+                    seqPer = '?'
+
+                try:
+                    size = format((val[0] >> 10), ',')
+                except:
+                    size = val[0] >> 10
+
+                try:
+                    seqSize = format((val[3] >> 10), ',')
+                except:
+                    seqSize = '?'
+
+                seqString = '%s(%5s)' % (seqSize, seqPer)
+
+                if tcnt > 0:
+                    SystemManager.pipePrint('')
+
+                SystemManager.pipePrint(\
+                    "{0:>23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
+                    format(cid, num, opt, size, seqString, filesystem, dev))
+
+                # print per-operation size statistics #
+                for optSize, cnt in sorted(val[5].items()):
+                    start = SystemManager.convertSize(optSize)
+                    end = SystemManager.convertSize((optSize << 1) - 1024)
+                    SystemManager.pipePrint(\
+                        "{0:^23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
+                        format('', '', '', '[%5s - %5s]' % (start, end),\
+                        format(cnt, ','), '', '', ''))
+
+                tcnt += 1
+
+            return tcnt
+
+
         if SystemManager.blockEnable is False:
             return
 
         SystemManager.pipePrint('\n[Thread Block Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
-            format('ID', 'NrDev', 'OPT', 'KB', 'Filesystem', 'PATH'))
+        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
+            format('ID', 'NrDev', 'OPT', 'TOTAL_KB', 'SEQ_KB(    %)', 'FS', 'PATH'))
         SystemManager.pipePrint(twoLine)
 
         tcnt = 0
+        totalStr = '{0:^23}'.format('TOTAL')
 
         # total read #
         if len(self.blockTable[0]) > 0:
-            if tcnt == 0:
-                cid = 'TOTAL'
-            else:
-                cid = ' '
-
-            for num, size in sorted(\
-                self.blockTable[0].items(), key=lambda e:e[1], reverse=True):
-                try:
-                    dev = SystemManager.savedMountTree[num]['dev']
-                    filesystem = SystemManager.savedMountTree[num]['filesystem']
-                    mount = SystemManager.savedMountTree[num]['mount']
-                except:
-                    dev = '\t\t\t?'
-                    filesystem = '?'
-                    mount = '\t\t\t?'
-
-                try:
-                    size = format((size >> 10), ',')
-                except:
-                    size = size >> 10
-
-                SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
-                    format(cid, num, 'READ', size, filesystem, dev))
-                tcnt += 1
+             tcnt = printBlkUsage(totalStr, self.blockTable[0], 'READ', tcnt)
 
         # total write #
         if len(self.blockTable[1]) > 0:
-            if tcnt == 0:
-                cid = 'TOTAL'
-            else:
-                cid = ' '
-
-            for num, size in sorted(\
-                self.blockTable[1].items(), key=lambda e:e[1], reverse=True):
-                try:
-                    dev = SystemManager.savedMountTree[num]['dev']
-                    filesystem = SystemManager.savedMountTree[num]['filesystem']
-                    mount = SystemManager.savedMountTree[num]['mount']
-                except:
-                    dev = '\t\t\t?'
-                    filesystem = '?'
-                    mount = '\t\t\t?'
-
-                try:
-                    size = format((size >> 10), ',')
-                except:
-                    size = size >> 10
-
-                SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
-                    format(cid, num, 'WRITE', size, filesystem, dev))
-                tcnt += 1
+             tcnt = printBlkUsage(totalStr, self.blockTable[1], 'WRITE', tcnt)
 
         if tcnt > 0:
             SystemManager.pipePrint(oneLine)
@@ -16828,64 +16864,23 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
 
-        for tid, data in self.blockTable[2].items():
-            cnt = 0
+        # sort threads by read size #
+        for tid, data in sorted(\
+                self.blockTable[2].items(), key=lambda e:e[1][0], reverse=True):
+            tcnt = 0
             comm = self.threadData[tid]['comm']
-            cid = '%s(%s)' % (tid, comm)
+            cid = '%s(%s)' % (comm, tid)
 
             # thread read #
             if len(data[0]) > 0:
-                if cnt > 0:
-                    cid = ' '
-
-                for num, size in sorted(\
-                    data[0].items(), key=lambda e:e[1], reverse=True):
-                    try:
-                        dev = SystemManager.savedMountTree[num]['dev']
-                        filesystem = SystemManager.savedMountTree[num]['filesystem']
-                        mount = SystemManager.savedMountTree[num]['mount']
-                    except:
-                        dev = '\t\t\t?'
-                        filesystem = '?'
-                        mount = '\t\t\t?'
-
-                    try:
-                        size = format((size >> 10), ',')
-                    except:
-                        size = size >> 10
-
-                    SystemManager.pipePrint("{0:>23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
-                        format(cid, num, 'READ', size, filesystem, dev))
-                    cnt += 1
+                tcnt = printBlkUsage(cid, data[0], 'READ', tcnt)
 
             # thread write #
             if len(data[1]) > 0:
-                if cnt > 0:
-                    cid = ' '
+                tcnt = printBlkUsage(cid, data[1], 'WRITE', tcnt)
 
-                for num, size in sorted(\
-                    data[1].items(), key=lambda e:e[1], reverse=True):
-                    try:
-                        dev = SystemManager.savedMountTree[num]['dev']
-                        filesystem = SystemManager.savedMountTree[num]['filesystem']
-                        mount = SystemManager.savedMountTree[num]['mount']
-                    except:
-                        dev = '\t\t\t?'
-                        filesystem = '?'
-                        mount = '\t\t\t?'
-
-                    try:
-                        size = format((size >> 10), ',')
-                    except:
-                        size = size >> 10
-
-                    SystemManager.pipePrint("{0:>23} {1:^8} {2:^5} {3:>16} {4:^12} {5:^20}".\
-                        format(cid, num, 'WRITE', size, filesystem, dev))
-                    cnt += 1
-
-            if cnt > 0:
+            if tcnt > 0:
                 SystemManager.pipePrint(oneLine)
-
 
 
 
@@ -19096,6 +19091,10 @@ class ThreadAnalyzer(object):
 
 
     def saveBlkOpt(self, tid, comm, opt, major, minor, addr, size):
+        def getBlkOptSize(size):
+            idx = size.bit_length() - 1
+            return 1 << idx
+
         # apply filter #
         if len(SystemManager.showGroup) > 0:
             found = False
@@ -19110,18 +19109,55 @@ class ThreadAnalyzer(object):
         readTable = self.blockTable[0]
         writeTable = self.blockTable[1]
         taskTable = self.blockTable[2]
+        # [totalSize, totalCnt, lastBlk, seqSize, seqCnt, sizeTable] #
+
+        size = int(size)
+        blkSize = getBlkOptSize(size)
+        if addr is not None:
+            addr = int(addr)
+            blkOffset = addr + (size >> 9)
+
+        # revise real minor number by address #
+        for did, val in SystemManager.savedMountTree.items():
+            try:
+                if did.split(':')[0] == major and \
+                    val['start'] <= addr <= val['end']:
+                        minor = did.split(':')[1]
+                        break
+            except:
+                pass
+
+        # make device id #
         did = '%s:%s' % (major, minor)
 
         if opt == 'R':
             try:
-                readTable[did] += int(size)
+                readTable[did][0] += size
+                readTable[did][1] += 1
+                if readTable[did][2] == addr:
+                    readTable[did][3] += size
+                    readTable[did][4] += 1
+                readTable[did][2] = blkOffset
             except:
-                readTable[did] = int(size)
+                sizeTable = {}
+                readTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
+
+            try:
+                readTable[did][5][blkSize] += 1
+            except:
+                readTable[did][5][blkSize] = 1
         elif opt == 'W':
             try:
-                writeTable[did] += int(size)
+                writeTable[did][0] += size
+                writeTable[did][1] += 1
             except:
-                writeTable[did] = int(size)
+                sizeTable = {}
+                writeTable[did] = [size, 1, 0, 0, 0, sizeTable]
+
+            try:
+                writeTable[did][5][size] += 1
+            except:
+                writeTable[did][5][size] = 1
         else:
             SystemManager.printWarning("Fail to recognize operation of block event")
 
@@ -19134,14 +19170,32 @@ class ThreadAnalyzer(object):
 
         if opt == 'R':
             try:
-                readTable[did] += int(size)
+                readTable[did][0] += size
+                readTable[did][1] += 1
+                if readTable[did][2] == addr:
+                    readTable[did][3] += size
+                    readTable[did][4] += 1
+                readTable[did][2] = blkOffset
             except:
-                readTable[did] = int(size)
+                sizeTable = {}
+                readTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
+
+            try:
+                readTable[did][5][blkSize] += 1
+            except:
+                readTable[did][5][blkSize] = 1
         elif opt == 'W':
             try:
-                writeTable[did] += int(size)
+                writeTable[did][0] += size
+                writeTable[did][1] += 1
             except:
-                writeTable[did] = int(size)
+                sizeTable = {}
+                writeTable[did] = [size, 1, 0, 0, 0, sizeTable]
+
+            try:
+                writeTable[did][5][blkSize] += 1
+            except:
+                writeTable[did][5][blkSize] = 1
         else:
             SystemManager.printWarning("Fail to recognize operation of block event")
 
@@ -20579,9 +20633,9 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
-            elif func == "block_bio_remap":
+            elif func == "block_bio_queue" or func == "block_bio_remap":
                 m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)(?P<part>.+)', etc)
+                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20592,21 +20646,16 @@ class ThreadAnalyzer(object):
                     bio = '%s/%s/%s/%s' % \
                         (d['major'], d['minor'], d['operation'][0], d['address'])
 
+                    # skip redundant operation #
+                    if func == "block_bio_queue" and bio in self.ioData:
+                        return
+
                     self.ioData[bio] = {'thread': thread, 'time': float(time), \
                         'major': d['major'], 'minor': d['minor'], \
                         'address': int(d['address']), 'size': int(d['size'])}
 
-                    try:
-                        partInfo = d['part'].split()
-                        partSet = partInfo[1].split(',')
-                        major = partSet[0][1:]
-                        minor = partSet[1][:-1]
-                        addr = partInfo[2]
-
-                        self.saveBlkOpt(thread, comm, opt[0], major, minor, addr, \
-                            SystemManager.blockSize * int(d['size']))
-                    except:
-                        SystemManager.printWarning("Fail to save partition info")
+                    self.saveBlkOpt(thread, comm, opt[0], d['major'], d['minor'], \
+                        d['address'], SystemManager.blockSize * int(d['size']))
 
                     # read operations #
                     if opt[0] == 'R':
