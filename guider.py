@@ -13576,7 +13576,7 @@ class SystemManager(object):
             afterInfo['Mlocked'] = '0'
 
         # print memory info #
-        SystemManager.infoBufferPrint('\n[System Memory Info] [ Unit: MB ]')
+        SystemManager.infoBufferPrint('\n[System Memory Info] (Unit: MB)')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
             "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
@@ -16195,7 +16195,7 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
-            "[ CtxSwc: %d ] [ LogSize: %d KB ] [ Unit: Sec/MB/NR ]") % \
+            "[ CtxSwc: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
@@ -16821,8 +16821,10 @@ class ThreadAnalyzer(object):
                     SystemManager.pipePrint('')
 
                 SystemManager.pipePrint(\
-                    "{0:>23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
-                    format(cid, num, opt, size, seqString, filesystem, dev))
+                    "{0:>23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+                    format(cid, opt, num, size, seqString, filesystem, dev))
+
+                opt = ''
 
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
@@ -16841,10 +16843,12 @@ class ThreadAnalyzer(object):
         if SystemManager.blockEnable is False:
             return
 
-        SystemManager.pipePrint('\n[Thread Block Info]')
+        SystemManager.pipePrint('\n[Thread Block Info] (Unit: KB/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
-            format('ID', 'NrDev', 'OPT', 'TOTAL_KB', 'SEQ_KB(    %)', 'FS', 'PATH'))
+        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+            format('ID', 'OPT', 'NrDev', 'TOTAL', 'SEQUENTIAL(    %)', 'FS', 'PATH'))
+        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+            format('', '', '', '[ACCESS]', 'COUNT', '', ''))
         SystemManager.pipePrint(twoLine)
 
         tcnt = 0
@@ -17106,7 +17110,7 @@ class ThreadAnalyzer(object):
             return
 
         SystemManager.pipePrint(\
-            '\n[Thread Interval Info] [ Unit: %s Sec ]' % SystemManager.intervalEnable)
+            '\n[Thread Interval Info] (Unit: %s Sec)' % SystemManager.intervalEnable)
         SystemManager.pipePrint(twoLine)
 
         # graph list #
@@ -18876,7 +18880,7 @@ class ThreadAnalyzer(object):
         cl = 26-(SystemManager.pidDigit*2)
 
         # Print title #
-        SystemManager.pipePrint('\n[Top Memory Details] (Unit: MB)\n')
+        SystemManager.pipePrint('\n[Top Memory Details] (Unit: MB/KB/NR)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
@@ -19095,6 +19099,23 @@ class ThreadAnalyzer(object):
             idx = size.bit_length() - 1
             return 1 << idx
 
+        def applyBlkOpt(targetTable, addr, size, blkSize, blkOffset):
+            try:
+                targetTable[did][0] += size
+                targetTable[did][1] += 1
+                if targetTable[did][2] == addr:
+                    targetTable[did][3] += size
+                    targetTable[did][4] += 1
+                targetTable[did][2] = blkOffset
+            except:
+                sizeTable = {}
+                targetTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
+
+            try:
+                targetTable[did][5][blkSize] += 1
+            except:
+                targetTable[did][5][blkSize] = 1
+
         # apply filter #
         if len(SystemManager.showGroup) > 0:
             found = False
@@ -19111,11 +19132,17 @@ class ThreadAnalyzer(object):
         taskTable = self.blockTable[2]
         # [totalSize, totalCnt, lastBlk, seqSize, seqCnt, sizeTable] #
 
+        addr = int(addr)
         size = int(size)
-        blkSize = getBlkOptSize(size)
-        if addr is not None:
-            addr = int(addr)
+
+        if size > 1:
             blkOffset = addr + (size >> 9)
+        else:
+            # convert page to real size #
+            size = SystemManager.pageSize
+            blkOffset = addr + 1
+
+        blkSize = getBlkOptSize(size)
 
         # revise real minor number by address #
         for did, val in SystemManager.savedMountTree.items():
@@ -19131,73 +19158,31 @@ class ThreadAnalyzer(object):
         did = '%s:%s' % (major, minor)
 
         if opt == 'R':
-            try:
-                readTable[did][0] += size
-                readTable[did][1] += 1
-                if readTable[did][2] == addr:
-                    readTable[did][3] += size
-                    readTable[did][4] += 1
-                readTable[did][2] = blkOffset
-            except:
-                sizeTable = {}
-                readTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
-
-            try:
-                readTable[did][5][blkSize] += 1
-            except:
-                readTable[did][5][blkSize] = 1
+            targetTable = readTable
         elif opt == 'W':
-            try:
-                writeTable[did][0] += size
-                writeTable[did][1] += 1
-            except:
-                sizeTable = {}
-                writeTable[did] = [size, 1, 0, 0, 0, sizeTable]
-
-            try:
-                writeTable[did][5][size] += 1
-            except:
-                writeTable[did][5][size] = 1
+            targetTable = writeTable
         else:
-            SystemManager.printWarning("Fail to recognize operation of block event")
+            SystemManager.printWarning(\
+                "Fail to recognize block operation '%s'" % opt)
+            return
 
-        # thread block info #
+        # apply total block info #
+        applyBlkOpt(targetTable, addr, size, blkSize, blkOffset)
+
         if tid not in taskTable:
             taskTable[tid] = [{}, {}]
 
-        readTable = taskTable[tid][0]
-        writeTable = taskTable[tid][1]
-
         if opt == 'R':
-            try:
-                readTable[did][0] += size
-                readTable[did][1] += 1
-                if readTable[did][2] == addr:
-                    readTable[did][3] += size
-                    readTable[did][4] += 1
-                readTable[did][2] = blkOffset
-            except:
-                sizeTable = {}
-                readTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
-
-            try:
-                readTable[did][5][blkSize] += 1
-            except:
-                readTable[did][5][blkSize] = 1
+            targetTable = taskTable[tid][0]
         elif opt == 'W':
-            try:
-                writeTable[did][0] += size
-                writeTable[did][1] += 1
-            except:
-                sizeTable = {}
-                writeTable[did] = [size, 1, 0, 0, 0, sizeTable]
-
-            try:
-                writeTable[did][5][blkSize] += 1
-            except:
-                writeTable[did][5][blkSize] = 1
+            targetTable = taskTable[tid][1]
         else:
-            SystemManager.printWarning("Fail to recognize operation of block event")
+            SystemManager.printWarning(\
+                "Fail to recognize block operation '%s'" % opt)
+            return
+
+        # apply thread block info #
+        applyBlkOpt(targetTable, addr, size, blkSize, blkOffset)
 
 
 
@@ -20823,13 +20808,15 @@ class ThreadAnalyzer(object):
 
                     SystemManager.blockEnable = True
 
+                    bid = d['ino'] + d['index']
+
                     self.threadData[thread]['awriteBlock'] += 1
                     self.threadData[thread]['awriteBlockCnt'] += 1
                     self.threadData[coreId]['awriteBlock'] += 1
                     self.threadData[coreId]['awriteBlockCnt'] += 1
 
                     self.saveBlkOpt(\
-                        thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
+                        thread, comm, 'W', d['major'], d['minor'], bid, 1)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -20848,7 +20835,7 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['awriteBlockCnt'] += 1
 
                         self.saveBlkOpt(\
-                            thread, comm, 'W', d['major'], d['minor'], None, SystemManager.pageSize)
+                            thread, comm, 'W', d['major'], d['minor'], d['towrt'], 1)
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
