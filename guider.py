@@ -572,6 +572,23 @@ class ConfigManager(object):
         'Path',
         ]
 
+    # Define futex operation flags #
+    futexList = [
+        'FUTEX_WAIT',
+        'FUTEX_WAKE',
+        'FUTEX_FD',
+        'FUTEX_REQUEUE',
+        'FUTEX_CMP_REQUEUE',
+        'FUTEX_WAKE_OP',
+        'FUTEX_LOCK_PI',
+        'FUTEX_UNLOCK_PI',
+        'FUTEX_TRYLOCK_PI',
+        'FUTEX_WAIT_BITSET',
+        'FUTEX_WAKE_BITSET',
+        'FUTEX_WAIT_REQUEUE_PI',
+        'FUTEX_CMP_REQUEUE_PI',
+        ]
+
     # Define ptrace request type #
     ptraceList = [
         'PTRACE_TRACEME',       #0#
@@ -8675,6 +8692,11 @@ class SystemManager(object):
             else:
                 disableStat += 'PREEMPT '
 
+            if SystemManager.futexEnable:
+                enableStat += 'FUTEX '
+            else:
+                disableStat += 'FUTEX '
+
             if len(SystemManager.perCoreList) > 0:
                 enableStat += 'PERCORE '
             else:
@@ -9802,6 +9824,8 @@ class SystemManager(object):
                 SystemManager.blockEnable = True
             if filterList.find('P') > -1:
                 SystemManager.powerEnable = True
+            if filterList.find('f') > -1:
+                SystemManager.futexEnable = True
             if filterList.find('h') > -1:
                 SystemManager.heapEnable = True
             if filterList.find('l') > -1:
@@ -12476,9 +12500,11 @@ class SystemManager(object):
         self.cmdList["sched/sched_process_wait"] = True
         self.cmdList["sched/sched_wakeup"] = \
             self.cmdList["sched/sched_wakeup_new"] = \
-            (SystemManager.cpuEnable and SystemManager.latEnable) or SystemManager.depEnable
+            (SystemManager.cpuEnable and SystemManager.latEnable) or \
+            SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
-        self.cmdList["raw_syscalls"] = SystemManager.sysEnable | SystemManager.depEnable
+        self.cmdList["raw_syscalls"] = SystemManager.sysEnable | \
+            SystemManager.depEnable | SystemManager.futexEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free_direct"] = False
@@ -12940,17 +12966,9 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.futexEnable:
-            ecmd = "(id == %s)" % \
-                (ConfigManager.sysList.index("sys_futex"))
-            SystemManager.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
-            SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-            self.cmdList["raw_syscalls/sys_enter"] = True
-
-            rcmd = "(id == %s  && ret == 0)" % \
-                (ConfigManager.sysList.index("sys_futex"))
-            SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
-            SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
-            self.cmdList["raw_syscalls/sys_exit"] = True
+            nrFutex = ConfigManager.sysList.index("sys_futex")
+            if nrFutex not in SystemManager.syscallList:
+                SystemManager.syscallList.append(nrFutex)
         else:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
@@ -13802,8 +13820,8 @@ class ThreadAnalyzer(object):
                 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
                 'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), \
                 'longRunCore': int(-1), 'dReclaimWait': float(0), 'dReclaimStart': float(0), \
-                'dReclaimCnt': int(0), 'futexCnt': int(0), 'futexEnter': float(0), \
-                'futexTotal': float(0), 'futexMax': float(0), 'lastStatus': 'N', \
+                'dReclaimCnt': int(0), 'futexWkCnt': int(0), 'futexEnter': float(0), \
+                'futexWait': float(0), 'futexMax': float(0), 'lastStatus': 'N', \
                 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), 'nrPages': int(0), \
                 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
                 'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), \
@@ -16571,6 +16589,49 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
+
+
+
+    def printFutexInfo(self):
+        SystemManager.clearPrint()
+
+        outputCnt = 0
+        SystemManager.pipePrint('\n[Thread Futex Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}'.format(\
+            'Name', 'Tid', 'Wait', 'WaitMax', 'NrWakeup'))
+        SystemManager.pipePrint(twoLine)
+
+        # calculate futex wait time of threads not yet wake up #
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['futexEnter'], reverse=True):
+            if key[0:2] == '0[':
+                continue
+            elif value['futexEnter'] == 0:
+                break
+
+            futexTime = float(self.finishTime) - value['futexEnter']
+            if futexTime > self.threadData[key]['futexMax']:
+                self.threadData[key]['futexMax'] = futexTime
+            self.threadData[key]['futexWait'] += futexTime
+            self.threadData[key]['futexEnter'] = 0
+
+        # print futex info of threads #
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['futexWait'], reverse=True):
+            if key[0:2] == '0[':
+                continue
+            elif value['futexWait'] == 0:
+                break
+
+            futexInfo = '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}'.format(\
+                value['comm'], key, '%.3f' % float(value['futexWait']),\
+                '%.3f' % float(value['futexMax']), value['futexWkCnt'])
+            SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
+            outputCnt += 1
+
+        if outputCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
 
 
@@ -20405,6 +20466,7 @@ class ThreadAnalyzer(object):
                     nr = d['nr']
                     args = d['args']
 
+                    # futex syscall #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
                         n = re.match(\
                             r'^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), (?P<val>\S+), (?P<timep>\S+),', \
@@ -20412,13 +20474,13 @@ class ThreadAnalyzer(object):
                         if n is not None:
                             l = n.groupdict()
 
-                            op = int(l['op']) % 10
-                            if op == 0:
+                            if ConfigManager.futexList.index("FUTEX_WAIT") == int(l['op']) & 1:
                                 self.threadData[thread]['futexEnter'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
 
+                    # write syscall #
                     if nr == str(ConfigManager.sysList.index("sys_write")):
                         self.wakeupData['tid'] = thread
                         self.wakeupData['nr'] = nr
@@ -20468,11 +20530,11 @@ class ThreadAnalyzer(object):
 
                     if nr == str(ConfigManager.sysList.index("sys_futex")) and \
                         self.threadData[thread]['futexEnter'] > 0:
-                        self.threadData[thread]['futexCnt'] += 1
+                        self.threadData[thread]['futexWkCnt'] += 1
                         futexTime = float(time) - self.threadData[thread]['futexEnter']
                         if futexTime > self.threadData[thread]['futexMax']:
                             self.threadData[thread]['futexMax'] = futexTime
-                        self.threadData[thread]['futexTotal'] += futexTime
+                        self.threadData[thread]['futexWait'] += futexTime
                         self.threadData[thread]['futexEnter'] = 0
 
                     try:
@@ -24934,7 +24996,10 @@ if __name__ == '__main__':
         # print dependency of threads #
         ti.printDepInfo()
 
-        # print lock of threads #
+        # print futex of threads #
+        ti.printFutexInfo()
+
+        # print filelock of threads #
         ti.printLockInfo()
 
         # print system call usage #
