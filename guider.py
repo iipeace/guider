@@ -6551,7 +6551,6 @@ class SystemManager(object):
     lockEnable = False
     userEnable = True
     printEnable = True
-    futexEnable = False
     powerEnable = False
     pipeEnable = False
     depEnable = False
@@ -7106,10 +7105,10 @@ class SystemManager(object):
                 print('\nOptions:')
                 print('    [record]')
                 print('        -e  [enable_optionsPerMode:belowCharacters]')
-                print('              [function] {m(em)|b(lock)|h(eap)|p(ipe)|g(raph)}')
+                print('              [function] {m(em)|b(lock)|h(eap)|l(ock)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
                     '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|'\
-                    '\n                          P(ower)|r(eset)|g(raph)|f(utex)}')
+                    '\n                          P(ower)|r(eset)|g(raph)}')
                 print('              [top]      '\
                     '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|a(ffinity)|'\
@@ -7192,6 +7191,8 @@ class SystemManager(object):
             print('        # %s record -s . -e m b i -d c -u' % cmd)
             print('    - record specific systemcalls of specific threads')
             print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
+            print('    - record lock events of threads')
+            print('        # %s record -s . -e l' % cmd)
             print('    - record specific user function events')
             print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
             print('    - record specific kernel function events')
@@ -8692,11 +8693,6 @@ class SystemManager(object):
             else:
                 disableStat += 'PREEMPT '
 
-            if SystemManager.futexEnable:
-                enableStat += 'FUTEX '
-            else:
-                disableStat += 'FUTEX '
-
             if len(SystemManager.perCoreList) > 0:
                 enableStat += 'PERCORE '
             else:
@@ -9093,11 +9089,6 @@ class SystemManager(object):
                 enableStat += 'POWER '
             else:
                 disableStat += 'POWER '
-
-            if SystemManager.futexEnable:
-                enableStat += 'FUTEX '
-            else:
-                disableStat += 'FUTEX '
 
             if SystemManager.resetEnable:
                 enableStat += 'RESET '
@@ -9824,8 +9815,6 @@ class SystemManager(object):
                 SystemManager.blockEnable = True
             if filterList.find('P') > -1:
                 SystemManager.powerEnable = True
-            if filterList.find('f') > -1:
-                SystemManager.futexEnable = True
             if filterList.find('h') > -1:
                 SystemManager.heapEnable = True
             if filterList.find('l') > -1:
@@ -10987,8 +10976,6 @@ class SystemManager(object):
                     SystemManager.blockEnable = True
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
-                if options.rfind('f') > -1:
-                    SystemManager.futexEnable = True
                 if options.rfind('P') > -1:
                     SystemManager.powerEnable = True
                 if options.rfind('r') > -1:
@@ -11142,8 +11129,6 @@ class SystemManager(object):
                     SystemManager.memEnable = False
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = False
-                if options.rfind('l') > -1:
-                    SystemManager.lockEnable = False
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = False
                 if options.rfind('u') > -1:
@@ -12504,7 +12489,7 @@ class SystemManager(object):
             SystemManager.depEnable
         self.cmdList["irq"] = SystemManager.irqEnable
         self.cmdList["raw_syscalls"] = SystemManager.sysEnable | \
-            SystemManager.depEnable | SystemManager.futexEnable
+            SystemManager.depEnable | SystemManager.lockEnable
         self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
         self.cmdList["kmem/mm_page_free_direct"] = False
@@ -12965,7 +12950,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
-        elif SystemManager.futexEnable:
+        elif SystemManager.lockEnable:
             nrFutex = ConfigManager.sysList.index("sys_futex")
             if nrFutex not in SystemManager.syscallList:
                 SystemManager.syscallList.append(nrFutex)
@@ -16595,8 +16580,11 @@ class ThreadAnalyzer(object):
     def printFutexInfo(self):
         SystemManager.clearPrint()
 
+        if len(self.futexData) == 0:
+            return
+
         outputCnt = 0
-        SystemManager.pipePrint('\n[Thread Futex Info]')
+        SystemManager.pipePrint('\n[Thread Futex Lock Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}'.format(\
             'Name', 'Tid', 'Wait', 'WaitMax', 'NrWakeup'))
@@ -16633,19 +16621,47 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
+        if SystemManager.showAll:
+            SystemManager.pipePrint('\n[Thread Futex Lock History]')
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}"\
+                .format("Name", "Tid", "Time", "Core", "Type", "Target/Nr",\
+                "Opt/Ret", "Value", "Timer"))
+            SystemManager.pipePrint(twoLine)
+
+            cnt = 0
+            for icount in xrange(0, len(self.futexData)):
+                try:
+                    atime = float(self.futexData[icount][1])
+                    time = '%.3f' % (atime - float(SystemManager.startTime))
+                    SystemManager.pipePrint(\
+                        "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}".\
+                        format(self.threadData[self.futexData[icount][0]]['comm'],\
+                        self.futexData[icount][0], time,\
+                        self.futexData[icount][2], self.futexData[icount][3],\
+                        self.futexData[icount][4], self.futexData[icount][5],\
+                        self.futexData[icount][6], self.futexData[icount][7]))
+                    cnt += 1
+                except:
+                    continue
+            if cnt == 0:
+                SystemManager.pipePrint("\tNone")
+            SystemManager.pipePrint(oneLine)
 
 
-    def printLockInfo(self):
+
+    def printFlockInfo(self):
         SystemManager.clearPrint()
 
-        if len(self.lockData) == 0:
+        if len(self.flockData) == 0:
             return
 
         outputCnt = 0
-        SystemManager.pipePrint('\n[Thread Lock Info]')
+        SystemManager.pipePrint('\n[Thread File Lock Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
-            'Name', 'Tid', 'Waited', 'Locked', 'nrTry', 'nrLock'))
+            'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLock'))
         SystemManager.pipePrint(twoLine)
 
         for key, value in sorted(\
@@ -16666,25 +16682,27 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         if SystemManager.showAll:
-            SystemManager.pipePrint('\n[Thread Lock History]')
+            SystemManager.pipePrint('\n[Thread File Lock History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:^10} {3:^4} {4:^10} {5:^16} {6:^16} {7:^16}"\
+                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16}"\
                 .format("Name", "Tid", "Time", "Core", "Type", "Device", "Inode", "Context"))
             SystemManager.pipePrint(twoLine)
 
             cnt = 0
-            for icount in xrange(0, len(self.lockData)):
+            for icount in xrange(0, len(self.flockData)):
                 try:
-                    pos = self.lockData[icount][4].rfind('0x')
-                    dev = self.lockData[icount][4][:pos]
-                    inode = self.lockData[icount][4][pos:]
+                    pos = self.flockData[icount][4].rfind('0x')
+                    dev = self.flockData[icount][4][:pos]
+                    inode = self.flockData[icount][4][pos:]
+                    atime = float(self.flockData[icount][1])
+                    time = '%.3f' % (atime - float(SystemManager.startTime))
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:^11} {3:^4} {4:^10} {5:^16} {6:^16} {7:^16}".\
-                        format(self.threadData[self.lockData[icount][0]]['comm'],\
-                        self.lockData[icount][0], self.lockData[icount][1],\
-                        self.lockData[icount][2], self.lockData[icount][3],\
-                        dev, inode, self.lockData[icount][5]))
+                        "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16}".\
+                        format(self.threadData[self.flockData[icount][0]]['comm'],\
+                        self.flockData[icount][0], time,\
+                        self.flockData[icount][2], self.flockData[icount][3],\
+                        dev, inode, self.flockData[icount][5]))
                     cnt += 1
                 except:
                     continue
@@ -16699,7 +16717,7 @@ class ThreadAnalyzer(object):
             return
 
         outputCnt = 0
-        SystemManager.pipePrint('\n[Thread Syscall Info]')
+        SystemManager.pipePrint('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("%16s(%5s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
             ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
@@ -19638,7 +19656,8 @@ class ThreadAnalyzer(object):
         self.depData = []
         self.sigData = []
         self.lockTable = {}
-        self.lockData = []
+        self.flockData = []
+        self.futexData = []
         self.customEventData = []
         self.userEventData = []
         self.kernelEventData = []
@@ -19696,7 +19715,7 @@ class ThreadAnalyzer(object):
             self.depDataOld = self.depData
             self.sigDataOld = self.sigData
             self.lockTableOld = self.lockTable
-            self.lockDataOld = self.lockData
+            self.flockDataOld = self.flockData
             self.customEventDataOld = self.customEventData
             self.userEventDataOld = self.userEventData
             self.kernelEventDataOld = self.kernelEventData
@@ -20466,19 +20485,25 @@ class ThreadAnalyzer(object):
                     nr = d['nr']
                     args = d['args']
 
-                    # futex syscall #
+                    # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
-                        n = re.match(\
-                            r'^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), (?P<val>\S+), (?P<timep>\S+),', \
-                            d['args'])
+                        n = re.match((\
+                            r'^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), '
+                            r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
                         if n is not None:
                             l = n.groupdict()
 
-                            if ConfigManager.futexList.index("FUTEX_WAIT") == int(l['op']) & 1:
+                            FUTEX_CMD_MASK = ~(128|256)
+                            if ConfigManager.futexList.index("FUTEX_WAIT") == \
+                                (int(l['op'], base=16) & FUTEX_CMD_MASK):
                                 self.threadData[thread]['futexEnter'] = float(time)
+                                self.futexData.append(\
+                                    [thread, time, core, 'WAIT', l['uaddr'][1:],\
+                                    l['op'], l['val'], l['timer']])
 
                     if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                        self.wakeupData['time'] = \
+                            float(time) - float(SystemManager.startTime)
 
                     # write syscall #
                     if nr == str(ConfigManager.sysList.index("sys_write")):
@@ -20503,7 +20528,8 @@ class ThreadAnalyzer(object):
                     try:
                         self.threadData[thread]['syscallInfo'][nr]
                     except:
-                        self.threadData[thread]['syscallInfo'][nr] = dict(self.init_syscallInfo)
+                        self.threadData[thread]['syscallInfo'][nr] = \
+                            dict(self.init_syscallInfo)
 
                     self.threadData[thread]['syscallInfo'][nr]['last'] = float(time)
 
@@ -20514,11 +20540,14 @@ class ThreadAnalyzer(object):
                             idx = -1
 
                         if idx >= 0:
-                            self.syscallData.append(['enter', time, thread, core, nr, args])
+                            self.syscallData.append(\
+                                ['enter', time, thread, core, nr, args])
                     else:
-                        self.syscallData.append(['enter', time, thread, core, nr, args])
+                        self.syscallData.append(\
+                            ['enter', time, thread, core, nr, args])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sys_exit":
                 m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', etc)
@@ -20528,6 +20557,7 @@ class ThreadAnalyzer(object):
                     nr = d['nr']
                     ret = d['ret']
 
+                    # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")) and \
                         self.threadData[thread]['futexEnter'] > 0:
                         self.threadData[thread]['futexWkCnt'] += 1
@@ -20536,6 +20566,8 @@ class ThreadAnalyzer(object):
                             self.threadData[thread]['futexMax'] = futexTime
                         self.threadData[thread]['futexWait'] += futexTime
                         self.threadData[thread]['futexEnter'] = 0
+                        self.futexData.append(\
+                            [thread, time, core, 'WAKEUP', d['nr'], d['ret'], '', ''])
 
                     try:
                         if SystemManager.depEnable is False:
@@ -20553,11 +20585,13 @@ class ThreadAnalyzer(object):
                                 self.lastJob[core]['prevWakeupTid'] != thread:
                                 ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
-                                self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                self.depData.append(\
+                                    "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(ttime, 7), round(itime, 7), " ", " ", \
                                     self.threadData[thread]['comm'], thread, "wakeup"))
 
-                                self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                                self.wakeupData['time'] = \
+                                    float(time) - float(SystemManager.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                         elif (SystemManager.arch == 'arm' and \
                             nr == str(ConfigManager.sysList.index("sys_recv"))) or \
@@ -20567,11 +20601,13 @@ class ThreadAnalyzer(object):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
                                 ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
-                                self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                self.depData.append(\
+                                    "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                                     (round(ttime, 7), round(itime, 7), " ", " ", \
                                     self.threadData[thread]['comm'], thread, "recv"))
 
-                                self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                                self.wakeupData['time'] = \
+                                    float(time) - float(SystemManager.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                     except:
                         pass
@@ -20583,10 +20619,12 @@ class ThreadAnalyzer(object):
                     try:
                         self.threadData[thread]['syscallInfo'][nr]
                     except:
-                        self.threadData[thread]['syscallInfo'][nr] = dict(self.init_syscallInfo)
+                        self.threadData[thread]['syscallInfo'][nr] = \
+                            dict(self.init_syscallInfo)
 
                     if self.threadData[thread]['syscallInfo'][nr]['last'] > 0:
-                        diff = float(time) - self.threadData[thread]['syscallInfo'][nr]['last']
+                        diff = float(time) - \
+                            self.threadData[thread]['syscallInfo'][nr]['last']
                         self.threadData[thread]['syscallInfo'][nr]['usage'] += diff
                         self.threadData[thread]['syscallInfo'][nr]['last'] = 0
                         self.threadData[thread]['syscallInfo'][nr]['count'] += 1
@@ -21032,7 +21070,7 @@ class ThreadAnalyzer(object):
                     ctx = d['ctx']
 
                     # save lock data #
-                    self.lockData.append([thread, time, core, ltype, fid, ctx])
+                    self.flockData.append([thread, time, core, ltype, fid, ctx])
 
                     # unlock #
                     if ltype == 'F_UNLCK':
@@ -24990,17 +25028,15 @@ if __name__ == '__main__':
         # print resource usage of threads on timeline #
         ti.printIntervalInfo()
 
-        # print module information #
+        # print module info #
         ti.printModuleInfo()
 
         # print dependency of threads #
         ti.printDepInfo()
 
-        # print futex of threads #
+        # print futex and flock of threads #
         ti.printFutexInfo()
-
-        # print filelock of threads #
-        ti.printLockInfo()
+        ti.printFlockInfo()
 
         # print system call usage #
         ti.printSyscallInfo()
