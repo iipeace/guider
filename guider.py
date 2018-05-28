@@ -3371,6 +3371,12 @@ class FunctionAnalyzer(object):
         if m is not None:
             d = m.groupdict()
 
+            if SystemManager.countEnable and \
+                SystemManager.repeatCount * SystemManager.intervalEnable <= \
+                float(d['time']) - float(SystemManager.startTime):
+                self.lastCore = None
+                return
+
             # Set time #
             self.finishTime = d['time']
 
@@ -7121,12 +7127,12 @@ class SystemManager(object):
                 print('        -S  [sort:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
                 print('        -W  [wait_forSignal]')
-                print('        -R  [record_repeatedly:{interval,}count]')
                 print('        -b  [set_bufferSize:kb]')
                 print('        -D  [trace_threadDependency]')
                 print('        -t  [trace_syscall:syscalls]')
                 print('        -T  [set_fontPath]')
                 print('        -j  [set_reportPath:path]')
+                print('        -R  [set_repeat:{interval,}count]')
                 print('        -U  [set_userEvent:name:func|addr:file]')
                 print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
                 print('        -C  [set_commandScriptPath:file]')
@@ -7142,6 +7148,7 @@ class SystemManager(object):
                 print('        -O  [set_coreFilter:cores]')
                 print('        -P  [group_perProcessBasis]')
                 print('        -p  [show_preemptInfo:tids]')
+                print('        -R  [cut_interval:{interval,}count]')
                 print('        -l  [set_addr2linePath:files]')
                 print('        -r  [set_targetRootPath:dir]')
                 print('        -I  [set_inputValue:file|addr]')
@@ -7203,9 +7210,11 @@ class SystemManager(object):
             print('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
             print('    - excute special commands before recording')
             print('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            print('    - analyze record data by expressing all possible information')
+            print('    - analyze data by expressing all possible information')
             print('        # %s guider.dat -o . -a -i' % cmd)
-            print('    - analyze record data including preemption info of specific threads')
+            print('    - analyze data on specific interval')
+            print('        # %s guider.dat -o . -R 3' % cmd)
+            print('    - analyze data including preemption info of specific threads')
             print('        # %s guider.dat -o . -p 1234, 4567' % cmd)
             print('    - analyze specific threads that are involved in the specific processes')
             print('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
@@ -8738,6 +8747,12 @@ class SystemManager(object):
         else:
             disableStat += 'LOCK '
 
+        if SystemManager.countEnable:
+            enableStat += 'CUT '
+        else:
+            disableStat += 'CUT '
+
+        # check current mode #
         if SystemManager.disableAll:
             enableStat += 'DISABLE '
 
@@ -8861,6 +8876,11 @@ class SystemManager(object):
         else:
             disableStat += 'PRINT '
 
+        if SystemManager.repeatCount > 0:
+            enableStat += 'REPEAT '
+        else:
+            disableStat += 'REPEAT '
+
         # check current mode #
         if SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
@@ -8967,11 +8987,6 @@ class SystemManager(object):
                 else:
                     disableStat += 'REPORT '
 
-                if SystemManager.countEnable:
-                    enableStat += 'COUNT '
-                else:
-                    disableStat += 'COUNT '
-
         elif SystemManager.isFunctionMode():
             SystemManager.printInfo("FUNCTION MODE")
 
@@ -9059,11 +9074,6 @@ class SystemManager(object):
                 enableStat += 'NET '
             else:
                 disableStat += 'NET '
-
-            if SystemManager.repeatCount > 0:
-                enableStat += 'REPEAT '
-            else:
-                disableStat += 'REPEAT '
 
             if SystemManager.depEnable:
                 enableStat += 'DEP '
@@ -10866,35 +10876,34 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'R':
-                if SystemManager.isTopMode():
-                    SystemManager.countEnable = True
+                SystemManager.countEnable = True
 
-                    repeatParams = value.split(',')
-                    if len(repeatParams) == 2:
-                        try:
-                            SystemManager.intervalEnable = int(repeatParams[0])
-                            SystemManager.repeatCount = int(repeatParams[1])
-                        except:
-                            SystemManager.printError(\
-                                "wrong option value with -R, input integer values")
-                            sys.exit(0)
-                    elif len(repeatParams) == 1:
-                        try:
-                            SystemManager.repeatCount = int(repeatParams[0])
-                            SystemManager.intervalEnable = 1
-                        except:
-                            SystemManager.printError(\
-                                "wrong option value with -R, input a integer value")
-                            sys.exit(0)
-                    else:
+                repeatParams = value.split(',')
+                if len(repeatParams) == 2:
+                    try:
+                        SystemManager.intervalEnable = int(repeatParams[0])
+                        SystemManager.repeatCount = int(repeatParams[1])
+                    except:
                         SystemManager.printError(\
-                            "wrong option value with -R, input INTERVAL,REPEAT in format")
+                            "wrong option value with -R, input integer values")
                         sys.exit(0)
+                elif len(repeatParams) == 1:
+                    try:
+                        SystemManager.repeatCount = int(repeatParams[0])
+                        SystemManager.intervalEnable = 1
+                    except:
+                        SystemManager.printError(\
+                            "wrong option value with -R, input a integer value")
+                        sys.exit(0)
+                else:
+                    SystemManager.printError(\
+                        "wrong option value with -R, input INTERVAL,REPEAT in format")
+                    sys.exit(0)
 
-                    if SystemManager.intervalEnable < 1 or SystemManager.repeatCount < 1:
-                        SystemManager.printError(\
-                            "wrong option value with -R, input values bigger than 0")
-                        sys.exit(0)
+                if SystemManager.intervalEnable < 1 or SystemManager.repeatCount < 1:
+                    SystemManager.printError(\
+                        "wrong option value with -R, input values bigger than 0")
+                    sys.exit(0)
 
             elif option == 'W' or option == 'y' or option == 's' or \
                 option == 'w' or option == 't' or option == 'C' or \
@@ -19762,6 +19771,12 @@ class ThreadAnalyzer(object):
                 core not in SystemManager.perCoreList and \
                 (func != "console" or func != "tracing_mark_write"):
                 return
+            elif SystemManager.countEnable and \
+                SystemManager.repeatCount * SystemManager.intervalEnable <= \
+                float(time) - float(SystemManager.startTime):
+                self.stopFlag = True
+                self.finishTime = time
+                return
 
             self.lastCore = core
             self.lastEvent = func
@@ -19813,8 +19828,9 @@ class ThreadAnalyzer(object):
                             continue
 
                         usage = float(time) - float(self.threadData[tid]['start'])
-                        if usage > self.lastTime - self.startTime:
-                            usage = self.lastTime - self.startTime
+                        allTime = float(self.finishTime) - float(SystemManager.startTime)
+                        if usage > allTime:
+                            usage = allTime
 
                         self.threadData[tid]['usage'] += usage
                         self.threadData[tid]['start'] = float(time)
