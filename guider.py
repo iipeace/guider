@@ -7132,7 +7132,6 @@ class SystemManager(object):
                 print('        -t  [trace_syscall:syscalls]')
                 print('        -T  [set_fontPath]')
                 print('        -j  [set_reportPath:path]')
-                print('        -R  [set_repeat:{interval,}count]')
                 print('        -U  [set_userEvent:name:func|addr:file]')
                 print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
                 print('        -C  [set_commandScriptPath:file]')
@@ -7148,7 +7147,6 @@ class SystemManager(object):
                 print('        -O  [set_coreFilter:cores]')
                 print('        -P  [group_perProcessBasis]')
                 print('        -p  [show_preemptInfo:tids]')
-                print('        -R  [cut_interval:{interval,}count]')
                 print('        -l  [set_addr2linePath:files]')
                 print('        -r  [set_targetRootPath:dir]')
                 print('        -I  [set_inputValue:file|addr]')
@@ -7160,6 +7158,7 @@ class SystemManager(object):
                 print('        -a  [show_allInfo]')
                 print('        -Q  [print_allRowsInaStream]')
                 print('        -i  [set_interval:sec]')
+                print('        -R  [set_repeatCount:{interval,}count]')
                 print('        -g  [set_filter:comms|tids{:files}]')
                 print('        -A  [set_arch:arm|aarch64|x86|x64]')
                 print('        -c  [set_customEvent:event:filter]')
@@ -11718,7 +11717,10 @@ class SystemManager(object):
                     pass
 
         # send signal to processes #
-        argList = (''.join(argList)).split(',')
+        try:
+            argList = (''.join(argList)).split(',')
+        except:
+            pass
         SystemManager.sendSignalProcs(sig, argList)
 
 
@@ -13814,7 +13816,7 @@ class ThreadAnalyzer(object):
                 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
                 'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), \
                 'longRunCore': int(-1), 'dReclaimWait': float(0), 'dReclaimStart': float(0), \
-                'dReclaimCnt': int(0), 'futexWkCnt': int(0), 'futexEnter': float(0), \
+                'dReclaimCnt': int(0), 'futexWaitCnt': int(0), 'futexEnter': float(0), \
                 'futexWait': float(0), 'futexMax': float(0), 'lastStatus': 'N', \
                 'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), 'nrPages': int(0), \
                 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
@@ -16595,8 +16597,9 @@ class ThreadAnalyzer(object):
         outputCnt = 0
         SystemManager.pipePrint('\n[Thread Futex Lock Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}'.format(\
-            'Name', 'Tid', 'Wait', 'WaitMax', 'NrWakeup'))
+        SystemManager.pipePrint(\
+            '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
+            'Name', 'Tid', 'Wait', 'WaitMax', 'NrWait', 'Status'))
         SystemManager.pipePrint(twoLine)
 
         # calculate futex wait time of threads not yet wake up #
@@ -16611,7 +16614,6 @@ class ThreadAnalyzer(object):
             if futexTime > self.threadData[key]['futexMax']:
                 self.threadData[key]['futexMax'] = futexTime
             self.threadData[key]['futexWait'] += futexTime
-            self.threadData[key]['futexEnter'] = 0
 
         # print futex info of threads #
         for key, value in sorted(\
@@ -16621,9 +16623,14 @@ class ThreadAnalyzer(object):
             elif value['futexWait'] == 0:
                 break
 
-            futexInfo = '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}'.format(\
+            if value['futexEnter'] == 0:
+                status = 'Running'
+            else:
+                status = 'Wait'
+
+            futexInfo = '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
                 value['comm'], key, '%.3f' % float(value['futexWait']),\
-                '%.3f' % float(value['futexMax']), value['futexWkCnt'])
+                '%.3f' % float(value['futexMax']), value['futexWaitCnt'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
 
@@ -20513,6 +20520,7 @@ class ThreadAnalyzer(object):
                             if ConfigManager.futexList.index("FUTEX_WAIT") == \
                                 (int(l['op'], base=16) & FUTEX_CMD_MASK):
                                 self.threadData[thread]['futexEnter'] = float(time)
+                                self.threadData[thread]['futexWaitCnt'] += 1
                                 self.futexData.append(\
                                     [thread, time, core, 'WAIT', l['uaddr'][1:],\
                                     l['op'], l['val'], l['timer']])
@@ -20576,7 +20584,6 @@ class ThreadAnalyzer(object):
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")) and \
                         self.threadData[thread]['futexEnter'] > 0:
-                        self.threadData[thread]['futexWkCnt'] += 1
                         futexTime = float(time) - self.threadData[thread]['futexEnter']
                         if futexTime > self.threadData[thread]['futexMax']:
                             self.threadData[thread]['futexMax'] = futexTime
