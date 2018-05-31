@@ -12328,10 +12328,16 @@ class SystemManager(object):
                         devPath = '/sys/class/block/%s/dev' % subdirname
                         startPath = '/sys/class/block/%s/start' % subdirname
                         sizePath = '/sys/class/block/%s/size' % subdirname
-                        with open(startPath, 'r') as startFd:
-                            start = startFd.readline()[:-1]
+
                         with open(sizePath, 'r') as sizeFd:
                             size = sizeFd.readline()[:-1]
+
+                        if any(char.isdigit() for char in subdirname):
+                            with open(startPath, 'r') as startFd:
+                                start = startFd.readline()[:-1]
+                        else:
+                            start = 0
+
                         with open(devPath, 'r') as devFd:
                             partName = devFd.readline()[:-1]
                             self.partitionInfo[partName] = {}
@@ -12467,6 +12473,7 @@ class SystemManager(object):
         if SystemManager.pipeForPrint is not None:
             try:
                 SystemManager.pipeForPrint.close()
+                SystemManager.pipeForPrint = None
             except:
                 return
         elif SystemManager.fileForPrint is not None:
@@ -12477,6 +12484,7 @@ class SystemManager(object):
                     "finish saving results into %s [%s] successfully" % \
                     (SystemManager.fileForPrint.name, fsize))
                 SystemManager.fileForPrint.close()
+                SystemManager.fileForPrint = None
             except:
                 return
 
@@ -13816,15 +13824,17 @@ class ThreadAnalyzer(object):
                 'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
                 'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), \
                 'longRunCore': int(-1), 'dReclaimWait': float(0), 'dReclaimStart': float(0), \
-                'dReclaimCnt': int(0), 'futexWaitCnt': int(0), 'futexEnter': float(0), \
-                'futexWait': float(0), 'futexMax': float(0), 'lastStatus': 'N', \
-                'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), 'nrPages': int(0), \
+                'dReclaimCnt': int(0), 'futexTryCnt': int(0), 'futexEnter': float(0), \
+                'futexWait': float(0), 'futexMax': float(0), 'futexSpinWait': float(0), \
+                'futexLock': float(0), 'futexLockStart': float(0), 'futexLockMax': float(0), \
+                'futexStat': '', 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
+                'lastOff': float(0), 'nrPages': int(0), 'waitStartAsParent': float(0), \
                 'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
                 'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), \
                 'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), \
                 'userPages': int(0), 'maxPreempted': float(0), 'anonReclaimedPages': int(0), \
-                'lastIdleStatus': int(0), 'createdTime': float(0), 'waitStartAsParent': float(0), \
-                'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), 'tgid': '-'*5, \
+                'lastIdleStatus': int(0), 'createdTime': float(0), 'tgid': '-'*5, \
+                'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
                 'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
                 'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
@@ -16597,9 +16607,11 @@ class ThreadAnalyzer(object):
         outputCnt = 0
         SystemManager.pipePrint('\n[Thread Futex Lock Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint(\
-            '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
-            'Name', 'Tid', 'Wait', 'WaitMax', 'NrWait', 'Status'))
+        SystemManager.pipePrint((\
+            '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>12}\t' + \
+            '{5:>12}\t{6:>12}\t{7:>10}\t{8:>10}').\
+                format('Name', 'Tid', 'Wait', 'SpinWait', 'WaitMax',\
+                'Lock', 'LockMax', 'NrTry', 'LastStat'))
         SystemManager.pipePrint(twoLine)
 
         # calculate futex wait time of threads not yet wake up #
@@ -16628,9 +16640,17 @@ class ThreadAnalyzer(object):
             else:
                 status = 'Wait'
 
-            futexInfo = '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
-                value['comm'], key, '%.3f' % float(value['futexWait']),\
-                '%.3f' % float(value['futexMax']), value['futexWaitCnt'], status)
+            futexWait = '%.3f' % float(value['futexWait'])
+            futexSpinWait = '%.3f' % float(value['futexSpinWait'])
+            futexMax = '%.3f' % float(value['futexMax'])
+            futexLock = '%.3f' % float(value['futexLock'])
+            futexLockMax = '%.3f' % float(value['futexLockMax'])
+
+            futexInfo = \
+                ('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t' + \
+                '{4:>12}\t{5:>12}\t{6:>12}\t{7:>10}\t{8:>10}').\
+                format(value['comm'], key, futexWait, futexSpinWait, futexMax,\
+                futexLock, futexLockMax, value['futexTryCnt'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
 
@@ -16641,18 +16661,18 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n[Thread Futex Lock History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}"\
-                .format("Name", "Tid", "Time", "Core", "Type", "Target/Nr",\
-                "Opt/Ret", "Value", "Timer"))
+                "{0:>16}({1:>5}) {2:>12} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}"\
+                .format("Name", "Tid", "Time", "Core", "Type", "Target",\
+                "Operation", "Value", "Timer"))
             SystemManager.pipePrint(twoLine)
 
             cnt = 0
             for icount in xrange(0, len(self.futexData)):
                 try:
                     atime = float(self.futexData[icount][1])
-                    time = '%.3f' % (atime - float(SystemManager.startTime))
+                    time = '%.6f' % (atime - float(SystemManager.startTime))
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}".\
+                        "{0:>16}({1:>5}) {2:>12} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16} {8:>16}".\
                         format(self.threadData[self.futexData[icount][0]]['comm'],\
                         self.futexData[icount][0], time,\
                         self.futexData[icount][2], self.futexData[icount][3],\
@@ -19915,6 +19935,11 @@ class ThreadAnalyzer(object):
                     if self.threadData[next_id]['comm'] == '<...>':
                         self.threadData[next_id]['comm'] = next_comm
 
+                    # check event loss #
+                    if self.threadData[prev_id]['lastStatus'] != 'R' and \
+                        self.threadData[coreId]['coreSchedCnt'] > 0:
+                        self.threadData[prev_id]['start'] = float(time)
+
                     # write current time #
                     self.threadData[prev_id]['stop'] = float(time)
                     self.threadData[next_id]['start'] = float(time)
@@ -19928,10 +19953,16 @@ class ThreadAnalyzer(object):
                         int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
+                    # update spinning time by futex #
+                    if self.threadData[prev_id]['futexEnter'] > 0:
+                        self.threadData[prev_id]['futexSpinWait'] += \
+                            float(time) - self.threadData[prev_id]['futexEnter']
+
                     # calculate running time of previous thread #
                     diff = 0
                     if self.threadData[prev_id]['start'] == 0:
-                        # calculate running time of previous thread started before starting to profile #
+                        ''' calculate running time of previous thread started
+                            before starting to profile '''
                         if self.threadData[coreId]['coreSchedCnt'] == 0:
                             diff = float(time) - float(SystemManager.startTime)
                             self.threadData[prev_id]['usage'] = diff
@@ -19939,7 +19970,8 @@ class ThreadAnalyzer(object):
                         else:
                             pass
                     else:
-                        diff = self.threadData[prev_id]['stop'] - self.threadData[prev_id]['start']
+                        diff = self.threadData[prev_id]['stop'] - \
+                            self.threadData[prev_id]['start']
                         if diff >= 0:
                             self.threadData[prev_id]['usage'] += diff
 
@@ -19961,7 +19993,8 @@ class ThreadAnalyzer(object):
                     if SystemManager.preemptGroup != None:
                         for value in SystemManager.preemptGroup:
                             index = SystemManager.preemptGroup.index(value)
-                            if self.preemptData[index][0] and self.preemptData[index][3] == core:
+                            if self.preemptData[index][0] and \
+                                self.preemptData[index][3] == core:
                                 try:
                                     self.preemptData[index][1][prev_id]
                                 except:
@@ -20517,13 +20550,49 @@ class ThreadAnalyzer(object):
                             l = n.groupdict()
 
                             FUTEX_CMD_MASK = ~(128|256)
-                            if ConfigManager.futexList.index("FUTEX_WAIT") == \
-                                (int(l['op'], base=16) & FUTEX_CMD_MASK):
+                            maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
+
+                            try:
+                                op = ConfigManager.futexList[maskedOp]
+                            except:
+                                op = l['op']
+
+                            lockStart = self.threadData[thread]['futexLockStart']
+                            lockMax = self.threadData[thread]['futexLockMax']
+
+                            if maskedOp == \
+                                ConfigManager.futexList.index("FUTEX_LOCK_PI"):
                                 self.threadData[thread]['futexEnter'] = float(time)
-                                self.threadData[thread]['futexWaitCnt'] += 1
+                                self.threadData[thread]['futexTryCnt'] += 1
+                                self.threadData[thread]['futexStat'] = 'L'
                                 self.futexData.append(\
-                                    [thread, time, core, 'WAIT', l['uaddr'][1:],\
-                                    l['op'], l['val'], l['timer']])
+                                    [thread, time, core, 'Lock', l['uaddr'][1:],\
+                                    op, l['val'], l['timer']])
+                            elif maskedOp == \
+                                ConfigManager.futexList.index("FUTEX_WAIT"):
+                                self.threadData[thread]['futexEnter'] = float(time)
+                                self.threadData[thread]['futexTryCnt'] += 1
+                                self.threadData[thread]['futexStat'] = 'W'
+                                self.futexData.append(\
+                                    [thread, time, core, 'Wait', l['uaddr'][1:],\
+                                    op, l['val'], l['timer']])
+                            elif maskedOp == \
+                                ConfigManager.futexList.index("FUTEX_UNLOCK_PI"):
+                                self.threadData[thread]['futexEnter'] = 0
+                                self.threadData[thread]['futexStat'] = 'F'
+
+                                if lockStart > 0:
+                                    ltime = float(time) - lockStart
+                                    self.threadData[thread]['futexLock'] += ltime
+                                    if lockMax < ltime:
+                                        self.threadData[thread]['futexLockMax'] = ltime
+
+                                self.threadData[thread]['futexLockStart'] = 0
+                                self.futexData.append(\
+                                    [thread, time, core, 'UnLock', l['uaddr'][1:],\
+                                    op, l['val'], l['timer']])
+                            else:
+                                self.threadData[thread]['futexStat'] = '?'
 
                     if self.wakeupData['tid'] == '0':
                         self.wakeupData['time'] = \
@@ -20582,15 +20651,30 @@ class ThreadAnalyzer(object):
                     ret = d['ret']
 
                     # update futex lock stat #
-                    if nr == str(ConfigManager.sysList.index("sys_futex")) and \
-                        self.threadData[thread]['futexEnter'] > 0:
-                        futexTime = float(time) - self.threadData[thread]['futexEnter']
-                        if futexTime > self.threadData[thread]['futexMax']:
-                            self.threadData[thread]['futexMax'] = futexTime
-                        self.threadData[thread]['futexWait'] += futexTime
-                        self.threadData[thread]['futexEnter'] = 0
+                    if nr == str(ConfigManager.sysList.index("sys_futex")):
+                        if self.threadData[thread]['futexEnter'] > 0:
+                            futexTime = float(time) - self.threadData[thread]['futexEnter']
+
+                            if futexTime > self.threadData[thread]['futexMax']:
+                                self.threadData[thread]['futexMax'] = futexTime
+
+                            self.threadData[thread]['futexWait'] += futexTime
+                            self.threadData[thread]['futexEnter'] = 0
+
+                            lockStart = self.threadData[thread]['futexLockStart']
+                            lockMax = self.threadData[thread]['futexLockMax']
+                            lockStat = self.threadData[thread]['futexStat']
+
+                            if lockStart > 0 and lockStat == 'L':
+                                ltime = float(time) - lockStart
+                                self.threadData[thread]['futexLock'] += ltime
+                                if lockMax < ltime:
+                                    self.threadData[thread]['futexLockMax'] = ltime
+
+                            self.threadData[thread]['futexLockStart'] = float(time)
+
                         self.futexData.append(\
-                            [thread, time, core, 'WAKEUP', d['nr'], d['ret'], '', ''])
+                            [thread, time, core, 'Ret', '', '', d['ret'], ''])
 
                     try:
                         if SystemManager.depEnable is False:
