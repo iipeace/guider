@@ -20549,7 +20549,7 @@ class ThreadAnalyzer(object):
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
                         n = re.match((\
-                            r'^\s*(?P<uaddr>\S+), (?P<op>[0-9]+), '
+                            r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                             r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
                         if n is not None:
                             l = n.groupdict()
