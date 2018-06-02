@@ -16661,25 +16661,30 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n[Thread Futex Lock History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint((\
-                "{0:>12} {1:>16}({2:>5}) {3:>4} {4:^24} " + \
+                "{0:>12} {1:>16}{2:>7} {3:>4} {4:^24} " + \
                 "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                format("Time", "Name", "Tid", "Core", "Operation",\
+                format("Time", "Name", "(Tid)", "Core", "Operation",\
                  "Type", "Elapsed", "Target", "Value", "Timer"))
             SystemManager.pipePrint(twoLine)
 
             cnt = 0
             for icount in xrange(0, len(self.futexData)):
                 try:
-                    atime = float(self.futexData[icount][1])
-                    time = '%.6f' % (atime - float(SystemManager.startTime))
-                    comm = self.threadData[self.futexData[icount][0]]['comm']
                     value = self.futexData[icount]
+                    atime = float(value[1])
+                    time = '%.6f' % (atime - float(SystemManager.startTime))
+
+                    if icount > 0 and self.futexData[icount-1][0] == value[0]:
+                        tid = comm = ''
+                    else:
+                        comm = self.threadData[value[0]]['comm']
+                        tid = '(%s)' % value[0]
+
                     SystemManager.pipePrint((\
-                        "{0:>12} {1:>16}({2:>5}) {3:>4} {4:<24} " + \
+                        "{0:>12} {1:>16}{2:>7} {3:>4} {4:<24} " + \
                         "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                        format(time, comm, value[0],\
-                        value[2], value[3], value[4], value[5], value[6],\
-                        value[7], value[8]))
+                        format(time, comm, tid, value[2], value[3],\
+                        value[4], value[5], value[6], value[7], value[8]))
                     cnt += 1
                 except:
                     continue
