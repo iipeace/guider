@@ -15405,7 +15405,7 @@ class ThreadAnalyzer(object):
                         text(timeline[-1]+unit, usage[-1], usage[-1],\
                                 fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
-                    labelList.append('RAM Anon')
+                    labelList.append('RAM User')
 
                 # System Cache Memory #
                 usage = list(map(int, memCache))
@@ -18320,7 +18320,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Free/Anon/Cache', 'BlkRW', 'Blk',\
+            format('IDX', 'Interval', 'CPU', 'Free/User/Cache', 'BlkRW', 'Blk',\
             'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % twoLine)
 
@@ -22952,7 +22952,7 @@ class ThreadAnalyzer(object):
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            "Mem", "Diff", "Anon", "Cache", "Ker", "Swap", "Diff", "I/O",\
+            "Mem", "Diff", "User", "Cache", "Ker", "Swap", "Diff", "I/O",\
             "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
             oneLine)), newline = 3)
 
