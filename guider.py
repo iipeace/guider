@@ -16678,7 +16678,7 @@ class ThreadAnalyzer(object):
                         tid = comm = ''
                     else:
                         comm = self.threadData[value[0]]['comm']
-                        tid = '(%s)' % value[0]
+                        tid = '(%5s)' % value[0]
 
                     SystemManager.pipePrint((\
                         "{0:>12} {1:>16}{2:>7} {3:>4} {4:<24} " + \
@@ -16825,39 +16825,48 @@ class ThreadAnalyzer(object):
                         break
 
             cnt = 0
+            startTime = float(SystemManager.startTime)
             for icount in xrange(0, len(self.syscallData)):
                 try:
-                    syscall = ConfigManager.sysList[int(self.syscallData[icount][4])]
-
-                    if self.syscallData[icount][0] == 'enter':
-                        if len(self.syscallData) > icount + 1 and \
-                            self.syscallData[icount + 1][0] == 'exit' and \
-                            self.syscallData[icount][4] == self.syscallData[icount + 1][4]:
-                            eventType = 'all'
-                            eventTime = \
-                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
-                            elapsed = '%6.6f' % (float(self.syscallData[icount + 1][1]) - \
-                                float(self.syscallData[icount][1]))
-                            param = self.syscallData[icount][5]
-                            ret = self.syscallData[icount + 1][5]
-                        else:
-                            eventType = self.syscallData[icount][0]
-                            eventTime = \
-                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
-                            elapsed = ' ' * 8
-                            param = self.syscallData[icount][5]
-                            ret = ' '
+                    prevData = self.syscallData[icount-1]
+                    nowData = self.syscallData[icount]
+                    if len(self.syscallData) > icount + 1:
+                        nextData = self.syscallData[icount+1]
                     else:
-                        if self.syscallData[icount - 1][0] == 'enter' and \
-                                self.syscallData[icount][4] == self.syscallData[icount - 1][4]:
+                        nextData = None
+
+                    syscall = ConfigManager.sysList[int(nowData[4])]
+
+                    if nowData[0] == 'ENTER':
+                        # all #
+                        if nextData != None and \
+                            nextData[0] == 'EXIT' and \
+                            nowData[2] == nextData[2] and \
+                            nowData[4] == nextData[4]:
+                            eventType = '{0:^5}'.format('ALL')
+                            eventTime = float(nowData[1]) - startTime
+                            elapsed = \
+                                '%6.6f' % (float(nextData[1]) - float(nowData[1]))
+                            param = nowData[5]
+                            ret = nextData[5]
+                        else:
+                            eventType = nowData[0]
+                            eventTime = \
+                                float(nowData[1]) - startTime
+                            elapsed = ' ' * 8
+                            param = nowData[5]
+                            ret = ' '
+                    elif nowData[0] == 'EXIT':
+                        if prevData[0] == 'ENTER' and \
+                            nowData[2] == prevData[2] and \
+                            nowData[4] == prevData[4]:
                             continue
                         else:
-                            eventType = self.syscallData[icount][0]
-                            eventTime = \
-                                float(self.syscallData[icount][1]) - float(SystemManager.startTime)
+                            eventType = nowData[0]
+                            eventTime = float(nowData[1]) - startTime
                             elapsed = ' ' * 8
                             param = ' '
-                            ret = self.syscallData[icount][5]
+                            ret = nowData[5]
 
                     try:
                         nrRet = int(ret)
@@ -16866,12 +16875,19 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
+                    if icount > 0 and prevData[2] == nowData[2]:
+                        tid = comm = ''
+                    else:
+                        comm = self.threadData[nowData[2]]['comm']
+                        tid = '(%5s)' % nowData[2]
+
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:>17} {6:>3} {7:>4} {8:>16}  {9:<1}".\
-                        format(self.threadData[self.syscallData[icount][2]]['comm'], \
-                        self.syscallData[icount][2], '%.6f' % eventTime, \
-                        elapsed, eventType, syscall[4:], self.syscallData[icount][4], \
-                        self.syscallData[icount][3], ret, param))
+                        ("{0:>16}{1:>7} {2:>10} {3:>10} {4:>5} "
+                        "{5:>17} {6:>3} {7:>4} {8:>16}  {9:<1}").\
+                        format(comm, tid, '%.6f' % eventTime,\
+                        elapsed, eventType, syscall[4:],\
+                        nowData[4], nowData[3], ret, param))
+
                     cnt += 1
                 except:
                     continue
@@ -16891,12 +16907,14 @@ class ThreadAnalyzer(object):
             "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
         SystemManager.pipePrint(twoLine)
 
+        startTime = float(SystemManager.startTime)
+
         cnt = 0
         for msg in self.consoleData:
             try:
                 SystemManager.pipePrint("%16s %5s %4s %10.3f %s" % \
                     (self.threadData[msg[0]]['comm'], msg[0], msg[1], \
-                    round(float(msg[2]) - float(SystemManager.startTime), 7), msg[3]))
+                    round(float(msg[2]) - startTime, 7), msg[3]))
                 cnt += 1
             except:
                 continue
@@ -20647,10 +20665,10 @@ class ThreadAnalyzer(object):
 
                         if idx >= 0:
                             self.syscallData.append(\
-                                ['enter', time, thread, core, nr, args])
+                                ['ENTER', time, thread, core, nr, args])
                     else:
                         self.syscallData.append(\
-                            ['enter', time, thread, core, nr, args])
+                            ['ENTER', time, thread, core, nr, args])
                 else:
                     SystemManager.printWarning(\
                         "Fail to recognize '%s' event" % func)
@@ -20769,9 +20787,9 @@ class ThreadAnalyzer(object):
                             idx = -1
 
                         if idx >= 0:
-                            self.syscallData.append(['exit', time, thread, core, nr, ret])
+                            self.syscallData.append(['EXIT', time, thread, core, nr, ret])
                     else:
-                        self.syscallData.append(['exit', time, thread, core, nr, ret])
+                        self.syscallData.append(['EXIT', time, thread, core, nr, ret])
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
