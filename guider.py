@@ -16629,7 +16629,7 @@ class ThreadAnalyzer(object):
 
         # print futex info of threads #
         for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['futexWait'], reverse=True):
+            self.threadData.items(), key=lambda e: e[1]['futexTryCnt'], reverse=True):
             if key[0:2] == '0[':
                 continue
             elif value['futexWait'] == 0:
@@ -19965,8 +19965,14 @@ class ThreadAnalyzer(object):
 
                     # update spinning time by futex #
                     if self.threadData[prev_id]['futexEnter'] > 0:
+                        cstart = self.threadData[prev_id]['start']
+                        fstart = self.threadData[prev_id]['futexEnter']
+                        if cstart > fstart:
+                            tstart = cstart
+                        else:
+                            tstart = fstart
                         self.threadData[prev_id]['futexSpinWait'] += \
-                            float(time) - self.threadData[prev_id]['futexEnter']
+                            float(time) - tstart
 
                     # calculate running time of previous thread #
                     diff = 0
@@ -20576,7 +20582,8 @@ class ThreadAnalyzer(object):
                                 self.threadData[thread]['futexTryCnt'] += 1
                                 self.threadData[thread]['futexStat'] = 'L'
                             elif maskedOp == \
-                                ConfigManager.futexList.index("FUTEX_WAIT"):
+                                ConfigManager.futexList.index("FUTEX_WAIT") or \
+                                ConfigManager.futexList.index("FUTEX_WAIT_BITSET"):
                                 self.threadData[thread]['futexEnter'] = float(time)
                                 self.threadData[thread]['futexTryCnt'] += 1
                                 self.threadData[thread]['futexStat'] = 'W'
