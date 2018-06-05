@@ -7083,9 +7083,11 @@ class SystemManager(object):
             print('    $ %s <file> [options]' % cmd)
 
             print('\nExample:')
-            print('    # %s record -s /var/log -e mi -g comm, 1243' % cmd)
-            print('    $ %s guider.dat -o /var/log -a -i' % cmd)
-            print('    $ %s top -i 2' % cmd)
+            print('    # %s record -s /var/log -e m -g comm, 1243' % cmd)
+            print('    $ %s /var/log/guider.dat -o /var/log -a -i' % cmd)
+            print('    $ %s top -a' % cmd)
+            print('    $ %s top -o /var/log' % cmd)
+            print('    $ %s draw /var/log/guider.out' % cmd)
             print('    $ %s -h' % cmd)
 
             if len(sys.argv) > 1 and \
@@ -13763,6 +13765,7 @@ class EventAnalyzer(object):
     @staticmethod
     def printEvent():
         eventData = EventAnalyzer.eventData
+        startTime = float(SystemManager.startTime)
 
         for key, value in sorted(\
             eventData.items(), key=lambda x: float(x[1]['summary'][0][5])):
@@ -13784,8 +13787,7 @@ class EventAnalyzer(object):
                         ('%s[%8s > cnt: %3d, avr: %3d, min: %3d,'
                         'max: %3d, first: %7.3f, last: %7.3f]') % \
                         (msg, n[0], n[1], n[2], n[3], n[4], \
-                        float(n[5]) - float(SystemManager.startTime), \
-                        float(n[6]) - float(SystemManager.startTime))
+                        float(n[5]) - startTime, float(n[6]) - startTime)
                 except:
                     pass
 
@@ -14131,10 +14133,12 @@ class ThreadAnalyzer(object):
         self.processIntervalData(self.finishTime)
 
         if len(self.threadData) == 0:
-            SystemManager.printError("No recognized data in %s" % SystemManager.inputFile)
+            SystemManager.printError(\
+                "No recognized data in %s" % SystemManager.inputFile)
             sys.exit(0)
 
-        self.totalTime = round(float(self.finishTime) - float(SystemManager.startTime), 7)
+        self.totalTime = \
+            round(float(self.finishTime) - float(SystemManager.startTime), 7)
 
         # apply filter #
         if len(SystemManager.showGroup) > 0:
@@ -14169,7 +14173,8 @@ class ThreadAnalyzer(object):
 
     def runFileTop(self):
         if SystemManager.isRoot() is False:
-            SystemManager.printError("Fail to get root permission to analyze opened files")
+            SystemManager.printError(\
+                "Fail to get root permission to analyze opened files")
             sys.exit(0)
         elif os.path.isdir(SystemManager.procPath) is False:
             SystemManager.printError("Fail to access proc filesystem")
@@ -14183,7 +14188,8 @@ class ThreadAnalyzer(object):
                 selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
+                SystemManager.printWarning(\
+                    "Fail to import python package: %s" % err.args[0])
 
         # set proc and file filter #
         procFilter = []
@@ -14276,7 +14282,8 @@ class ThreadAnalyzer(object):
                 selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
+                SystemManager.printWarning(\
+                    "Fail to import python package: %s" % err.args[0])
 
         # set network configuration #
         if SystemManager.netEnable:
@@ -14812,9 +14819,12 @@ class ThreadAnalyzer(object):
             return
 
         seq = 0
-        height = int(len(data) / 2) if len(data) % 2 == 0 else int(len(data) / 2 + 1)
-        colors = ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
-        propList = ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
+        height = \
+            int(len(data) / 2) if len(data) % 2 == 0 else int(len(data) / 2 + 1)
+        colors = \
+            ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
+        propList = \
+            ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
         suptitle('guider memory chart', fontsize=8)
 
         def make_autopct(values):
@@ -15387,7 +15397,8 @@ class ThreadAnalyzer(object):
             suptitle('guider perf graph', fontsize=8)
 
             # SYSTEM STAT #
-            if SystemManager.vssEnable is False and SystemManager.rssEnable is False and \
+            if SystemManager.vssEnable is False and \
+                SystemManager.rssEnable is False and \
                 SystemManager.leakEnable is False:
                 # System Free Memory #
                 usage = list(map(int, memFree))
@@ -15762,7 +15773,8 @@ class ThreadAnalyzer(object):
                 else:
                     outputFile = dirPath + '/' + os.path.basename(outputFile)
         except:
-            SystemManager.printError("Fail to draw image caused by wrong file path %s" % outputFile)
+            SystemManager.printError(\
+                "Fail to draw image caused by wrong file path %s" % outputFile)
             return
 
         try:
@@ -15818,7 +15830,8 @@ class ThreadAnalyzer(object):
                 break
 
         ConfigManager.writeConfData(fd, '[%s]\n' % (eventInput))
-        threadInput = raw_input('Input id of target threads for taskchain (ex. 13,144,235): ')
+        threadInput = \
+            raw_input('Input id of target threads for taskchain (ex. 13,144,235): ')
         threadList = threadInput.split(',')
         ConfigManager.writeConfData(fd, 'nr_tid=' + str(len(threadList)) + '\n')
 
@@ -15839,9 +15852,10 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning("thread [%s] is not in profiled data" % t)
                 continue
 
-            ConfigManager.writeConfData(\
-                fd, str(index) + '=' + ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-')\
-                + '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
+            ConfigManager.writeConfData(fd,\
+                str(index) + '=' + \
+                ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-') + \
+                '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
                 str(self.threadData[t]['reqRdBlock']) + ' ' + \
                 str(self.threadData[t]['cpuRank']) + ' ' + \
                 str(self.threadData[t]['usage']) + '\n')
@@ -15860,7 +15874,8 @@ class ThreadAnalyzer(object):
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
         if self.threadData[tid]['createdTime'] > 0:
-            threadName += " /%2.3f/" % (self.threadData[tid]['createdTime'] - float(SystemManager.startTime))
+            threadName += " /%2.3f/" % \
+                (self.threadData[tid]['createdTime'] - float(SystemManager.startTime))
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
         if self.threadData[tid]['childList'] is not None:
@@ -15901,7 +15916,8 @@ class ThreadAnalyzer(object):
 
     def printComInfo(self):
         # print thread tree by creation #
-        if SystemManager.showAll and len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
+        if SystemManager.showAll and \
+            len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint((\
                 '\n[Thread Creation Info] [Alive: +] [Die: -] '
@@ -16035,7 +16051,8 @@ class ThreadAnalyzer(object):
                 else:
                     newLine = True
 
-                SystemManager.pipePrint("{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                SystemManager.pipePrint(\
+                    "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], val['minPeriod']))
                 for key, value in sorted(self.customInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
@@ -16121,7 +16138,8 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.pipePrint('\n[Thread USER Event History]')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
+            SystemManager.pipePrint(\
+                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
             SystemManager.pipePrint(twoLine)
 
@@ -16247,11 +16265,14 @@ class ThreadAnalyzer(object):
         SystemManager.printInfoBuffer()
 
         # check trace event #
-        if not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
+        if not (SystemManager.cpuEnable or \
+            SystemManager.memEnable or \
+            SystemManager.blockEnable):
             return
 
         # print menu #
-        SystemManager.pipePrint(("[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
+        SystemManager.pipePrint((\
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
             "[ CtxSwc: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
@@ -16562,12 +16583,15 @@ class ThreadAnalyzer(object):
             return
 
         moduleTable = {}
-        init_moduleData = {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
+        init_moduleData = \
+            {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
+        startTime = float(SystemManager.startTime)
 
         SystemManager.clearPrint()
         SystemManager.pipePrint('\n[Thread Module Info]')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
+        SystemManager.pipePrint(\
+            "{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
             format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
         SystemManager.pipePrint(twoLine)
 
@@ -16592,8 +16616,9 @@ class ThreadAnalyzer(object):
                 moduleTable[module]['loadCnt'] += 1
 
             elif event is 'free':
-                SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
-                    format('FREE', float(time) - float(SystemManager.startTime), module, comm, tid, ''))
+                SystemManager.pipePrint(\
+                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
+                    format('FREE', float(time) - startTime, module, comm, tid, ''))
             elif event is 'put':
                 try:
                     moduleTable[module]
@@ -16604,8 +16629,9 @@ class ThreadAnalyzer(object):
                     (float(time) - float(moduleTable[module]['startTime']))
                 moduleTable[module]['startTime'] = 0
 
-                SystemManager.pipePrint("{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
-                    format('LOAD', float(time) - float(SystemManager.startTime), module, \
+                SystemManager.pipePrint(\
+                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
+                    format('LOAD', float(time) - startTime, module, \
                     comm, tid, moduleTable[module]['elapsed']))
 
         SystemManager.pipePrint(oneLine)
@@ -17291,7 +17317,9 @@ class ThreadAnalyzer(object):
 
     def printIntervalInfo(self):
         if SystemManager.intervalEnable <= 0 or \
-            not (SystemManager.cpuEnable or SystemManager.memEnable or SystemManager.blockEnable):
+            not (SystemManager.cpuEnable or \
+            SystemManager.memEnable or \
+            SystemManager.blockEnable):
             return
 
         SystemManager.pipePrint(\
@@ -17311,6 +17339,7 @@ class ThreadAnalyzer(object):
         titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
         maxLineLen = SystemManager.lineLength
         timeLineLen = titleLineLen = len(titleLine)
+        startTime = float(SystemManager.startTime)
         lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 2
         for icount in xrange(1, lval):
             checkEvent = ' '
@@ -17318,8 +17347,8 @@ class ThreadAnalyzer(object):
 
             # check suspend event #
             for val in self.suspendData:
-                if float(SystemManager.startTime) + cnt * SystemManager.intervalEnable < float(val[0]) < \
-                    float(SystemManager.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                if startTime + cnt * SystemManager.intervalEnable < float(val[0]) < \
+                    startTime + ((cnt + 1) * SystemManager.intervalEnable):
                     if val[1] == 'S':
                         checkEvent = '!'
                     elif val[1] == 'F':
@@ -17329,8 +17358,8 @@ class ThreadAnalyzer(object):
 
             # check mark event #
             for val in self.markData:
-                if float(SystemManager.startTime) + cnt * SystemManager.intervalEnable < float(val) < \
-                    float(SystemManager.startTime) + ((cnt + 1) * SystemManager.intervalEnable):
+                if startTime + cnt * SystemManager.intervalEnable < float(val) < \
+                    startTime + ((cnt + 1) * SystemManager.intervalEnable):
                     checkEvent = 'v'
 
             if timeLineLen + 4 > maxLineLen:
@@ -19376,8 +19405,9 @@ class ThreadAnalyzer(object):
             return
 
         intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
+        elapsed = float(time) - float(SystemManager.startTime)
 
-        if float(time) - float(SystemManager.startTime) > intervalCnt or self.finishTime != '0':
+        if elapsed > intervalCnt or self.finishTime != '0':
             SystemManager.intervalNow += SystemManager.intervalEnable
 
             # check change of all threads #
@@ -19618,7 +19648,8 @@ class ThreadAnalyzer(object):
 
                 # fix cpu usage exceed this interval #
                 self.thisInterval = SystemManager.intervalEnable
-                if intervalThread['cpuUsage'] > SystemManager.intervalEnable or self.finishTime != '0':
+                if intervalThread['cpuUsage'] > SystemManager.intervalEnable or \
+                    self.finishTime != '0':
                     # first interval #
                     if index == 0:
                         self.thisInterval = float(time) - float(SystemManager.startTime)
@@ -20581,7 +20612,8 @@ class ThreadAnalyzer(object):
                     self.threadData[pid]['schedReady'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                        self.wakeupData['time'] = \
+                            float(time) - float(SystemManager.startTime)
                     elif thread[0] == '0' or pid == '0':
                         return
                     elif self.wakeupData['valid'] > 0 and \
@@ -20603,7 +20635,8 @@ class ThreadAnalyzer(object):
                             (ntime, round(ntime - float(self.wakeupData['time']), 7), \
                             kicker, kicker_pid, target_comm, pid, "kick"))
 
-                        self.wakeupData['time'] = float(time) - float(SystemManager.startTime)
+                        self.wakeupData['time'] = \
+                            float(time) - float(SystemManager.startTime)
                         self.wakeupData['from'] = self.wakeupData['tid']
                         self.wakeupData['to'] = pid
                 else:
