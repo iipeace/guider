@@ -8221,7 +8221,7 @@ class SystemManager(object):
 
         try:
             if len(perfbuf) > 0:
-                perfbuf = '[PERF > %s]' % perfbuf[:perfbuf.rfind(' /')]
+                perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
         except:
             pass
 
@@ -10604,21 +10604,25 @@ class SystemManager(object):
                 if options.rfind('w') > -1:
                     if SystemManager.findOption('g') is False:
                         SystemManager.printError(\
-                            "wrong option with -e + w, use also -g option to track memory working set")
+                            "wrong option with -e + w, "
+                            "use also -g option to track memory working set")
                         sys.exit(0)
                     elif SystemManager.isRoot() is False:
-                        SystemManager.printError("Fail to get root permission to clear refcnts")
+                        SystemManager.printError(\
+                            "Fail to get root permission to clear refcnts")
                         sys.exit(0)
                     SystemManager.memEnable = True
                     SystemManager.wssEnable = True
                     SystemManager.sort = 'm'
                 if options.rfind('P') > -1:
                     if SystemManager.isRoot() is False:
-                        SystemManager.printError("Fail to get root permission to use PMU")
+                        SystemManager.printError(\
+                            "Fail to get root permission to use PMU")
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False:
                         SystemManager.printError(\
-                            "wrong option with -e + P, use also -g option to show performance stat")
+                            "wrong option with -e + P, "
+                            "use also -g option to show performance stat")
                         sys.exit(0)
                     elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
                         SystemManager.procPath) is False:
@@ -10669,10 +10673,12 @@ class SystemManager(object):
                 for item in SystemManager.perCoreList:
                     if item.isdigit() is False:
                         SystemManager.printError(\
-                            "wrong option value with -O option, input number in integer format")
+                            "wrong option value with -O option, "
+                            "input number in integer format")
                         sys.exit(0)
 
-                SystemManager.printInfo("only specific cores including [%s] are shown" % \
+                SystemManager.printInfo(\
+                    "only specific cores including [%s] are shown" % \
                     ', '.join(SystemManager.perCoreList))
 
             elif option == 'm':
@@ -10694,7 +10700,8 @@ class SystemManager(object):
                             raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -m option, input number in COLS:ROWS format")
+                        "wrong option value with -m option, "
+                        "input number in COLS:ROWS format")
                     sys.exit(0)
 
             elif option == 'b':
@@ -10706,13 +10713,15 @@ class SystemManager(object):
                         SystemManager.printInfo("set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
-                            "wrong option value with -b option, input number bigger than 0")
+                            "wrong option value with -b option, "
+                            "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SystemManager.printError(\
-                            "wrong option value with -b option, input number in integer format")
+                            "wrong option value with -b option, "
+                            "input number in integer format")
                     sys.exit(0)
 
             elif option == 'n' and SystemManager.isTopMode():
@@ -10772,7 +10781,8 @@ class SystemManager(object):
 
                 if os.path.isdir(SystemManager.reportPath) == False:
                     upDirPos = SystemManager.reportPath.rfind('/')
-                    if upDirPos > 0 and os.path.isdir(SystemManager.reportPath[:upDirPos]) is False:
+                    if upDirPos > 0 and \
+                        os.path.isdir(SystemManager.reportPath[:upDirPos]) is False:
                         SystemManager.printError("wrong path with -j option")
                         sys.exit(0)
 
@@ -10780,7 +10790,8 @@ class SystemManager(object):
                     SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
 
                 SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
-                SystemManager.printInfo("start writing report to %s" % SystemManager.reportPath)
+                SystemManager.printInfo(\
+                    "start writing report to %s" % SystemManager.reportPath)
 
             elif option == 'x' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
@@ -10871,7 +10882,8 @@ class SystemManager(object):
                         raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -H option, input an unsigned integer value")
+                        "wrong option value with -H option, "
+                        "input an unsigned integer value")
                     sys.exit(0)
 
             elif option == 'R':
@@ -10911,7 +10923,8 @@ class SystemManager(object):
                 continue
 
             else:
-                SystemManager.printError("unrecognized option -%s for analysis" % option)
+                SystemManager.printError(\
+                    "unrecognized option -%s for analysis" % option)
                 sys.exit(0)
 
     @staticmethod
@@ -10941,13 +10954,15 @@ class SystemManager(object):
                         SystemManager.printInfo("set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
-                            "wrong option value with -b option, input number bigger than 0")
+                            "wrong option value with -b option, "
+                            "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -b option, input number in integer format")
+                        "wrong option value with -b option, "
+                        "input number in integer format")
                     sys.exit(0)
 
             elif option == 'Y':
@@ -10968,7 +10983,8 @@ class SystemManager(object):
 
             elif option == 'E':
                 SystemManager.errorFile = value
-                SystemManager.printInfo("error log is wrote to %s" % SystemManager.errorFile)
+                SystemManager.printInfo(\
+                    "error log is wrote to %s" % SystemManager.errorFile)
 
             elif option == 'e':
                 options = value
@@ -11000,7 +11016,8 @@ class SystemManager(object):
                     SystemManager.printError("Input value for filter with -g option")
                     sys.exit(0)
 
-                SystemManager.printInfo("only specific threads including [%s] are recorded" % \
+                SystemManager.printInfo(\
+                    "only specific threads including [%s] are recorded" % \
                     ', '.join(SystemManager.showGroup))
 
             elif option == 's':
@@ -11033,7 +11050,8 @@ class SystemManager(object):
                         raise
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -H option, input an unsigned integer value")
+                        "wrong option value with -H option, "
+                        "input an unsigned integer value")
                     sys.exit(0)
 
             elif option == 'W':
@@ -11075,7 +11093,8 @@ class SystemManager(object):
                             nrSyscall = ConfigManager.sysList.index('sys_%s' % val)
 
                         enabledSyscall.append(ConfigManager.sysList[nrSyscall])
-                        SystemManager.syscallList[SystemManager.syscallList.index(val)] = nrSyscall
+                        sidx = SystemManager.syscallList.index(val)
+                        SystemManager.syscallList[sidx] = nrSyscall
                     except:
                         SystemManager.printError(\
                             "No %s syscall in %s ABI" % (val, SystemManager.arch))
@@ -11095,7 +11114,8 @@ class SystemManager(object):
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
                     except:
-                        SystemManager.printError("wrong option value with -R, input integer values")
+                        SystemManager.printError(\
+                            "wrong option value with -R, input integer values")
                         sys.exit(0)
                 elif len(repeatParams) == 1:
                     try:
@@ -11155,7 +11175,8 @@ class SystemManager(object):
                 continue
 
             else:
-                SystemManager.printError("unrecognized option -%s for record" % option)
+                SystemManager.printError(\
+                    "unrecognized option -%s for record" % option)
                 sys.exit(0)
 
 
@@ -11335,7 +11356,8 @@ class SystemManager(object):
         while 1:
             SystemManager.updateUptime()
 
-            SystemManager.printStatus("input event name... [ STOP(Ctrl + c) ]")
+            SystemManager.printStatus(\
+                "input event name... [ STOP(Ctrl + c) ]")
 
             if len(sys.argv) <= 2:
                 try:
@@ -11481,13 +11503,16 @@ class SystemManager(object):
         try:
             SystemManager.uptimeFd.seek(0)
             SystemManager.prevUptime = SystemManager.uptime
-            SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
-            SystemManager.uptimeDiff = SystemManager.uptime - SystemManager.prevUptime
+            SystemManager.uptime = \
+                float(SystemManager.uptimeFd.readlines()[0].split()[0])
+            SystemManager.uptimeDiff = \
+                SystemManager.uptime - SystemManager.prevUptime
         except:
             try:
                 uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
                 SystemManager.uptimeFd = open(uptimePath, 'r')
-                SystemManager.uptime = float(SystemManager.uptimeFd.readlines()[0].split()[0])
+                SystemManager.uptime = \
+                    float(SystemManager.uptimeFd.readlines()[0].split()[0])
             except:
                 SystemManager.printWarning('Fail to open %s' % uptimePath)
 
@@ -11595,7 +11620,8 @@ class SystemManager(object):
                             if tmpStr.rfind(')') > -1:
                                 break
 
-                    procStart = (float(statList[ConfigManager.statList.index("STARTTIME")]) / 100)
+                    procStart = \
+                        float(statList[ConfigManager.statList.index("STARTTIME")]) / 100
                     runtime = int(SystemManager.uptime - procStart)
                 except:
                     pass
@@ -11785,7 +11811,8 @@ class SystemManager(object):
                     if SystemManager.isStartMode() and waitStatus:
                         try:
                             os.kill(int(pid), nrSig)
-                            SystemManager.printInfo("started %s process to profile" % pid)
+                            SystemManager.printInfo(\
+                                "started %s process to profile" % pid)
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
@@ -11825,7 +11852,8 @@ class SystemManager(object):
             try:
                 if len(schedSet) == 2:
                     SystemManager.prio = int(schedSet[1])
-                    SystemManager.setPriority(SystemManager.pid, schedSet[0], SystemManager.prio)
+                    SystemManager.setPriority(\
+                        SystemManager.pid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -11833,7 +11861,8 @@ class SystemManager(object):
                         sys.exit(0)
 
                     # change priority of a thread #
-                    SystemManager.setPriority(int(schedSet[2]), schedSet[0], int(schedSet[1]))
+                    SystemManager.setPriority(\
+                        int(schedSet[2]), schedSet[0], int(schedSet[1]))
                 elif len(schedSet) == 4:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -11856,7 +11885,8 @@ class SystemManager(object):
                 sys.exit(0)
             except:
                 SystemManager.printError(\
-                    "wrong option value %s with -Y, input POLICY:PRIORITY:PID in format" % item)
+                    ("wrong option value %s with -Y, "
+                    "input POLICY:PRIORITY:PID in format") % item)
                 sys.exit(0)
 
 
@@ -11958,14 +11988,16 @@ class SystemManager(object):
         try:
             if SystemManager.termSetId is None:
                 import termios
-                SystemManager.termSetId = getattr(termios, 'TIOCSWINSZ', -2146929561)
+                SystemManager.termSetId = \
+                    getattr(termios, 'TIOCSWINSZ', -2146929561)
 
             if SystemManager.fcntlObj is None:
                 import fcntl
                 SystemManager.fcntlObj = fcntl
 
             # set terminal width size #
-            SystemManager.fcntlObj.ioctl(sys.stdout.fileno(), SystemManager.termSetId,\
+            SystemManager.fcntlObj.ioctl(\
+                sys.stdout.fileno(), SystemManager.termSetId,\
                 struct.pack("HHHH", rows, cols, 0, 0))
 
             # update current terminal size #
@@ -12417,7 +12449,8 @@ class SystemManager(object):
                 pd.close()
 
                 # read the remaining data under 4k from log buffer #
-                with open(os.path.join(SystemManager.mountPath + '../trace'), 'r') as fr:
+                tpath = os.path.join(SystemManager.mountPath + '../trace')
+                with open(tpath, 'r') as fr:
                     fd.write(fr.read())
 
                 # close file to sync disk buffer #
@@ -16658,7 +16691,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         if SystemManager.showAll:
-            SystemManager.pipePrint('\n[Thread Futex Lock History]')
+            SystemManager.pipePrint('\n[Thread Futex Lock History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint((\
                 "{0:>12} {1:>16}{2:>7} {3:>4} {4:^24} " + \
@@ -16705,7 +16738,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
-            'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLock'))
+            'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLocked'))
         SystemManager.pipePrint(twoLine)
 
         for key, value in sorted(\
@@ -16717,9 +16750,10 @@ class ThreadAnalyzer(object):
                 continue
 
             lockInfo = \
-                '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(\
-                value['comm'], key, '%.3f' % float(value['lockWait']),\
-                '%.3f' % float(value['lockTime']), value['tryLockCnt'], value['lockCnt'])
+                '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.\
+                format(value['comm'], key, '%.3f' % float(value['lockWait']),\
+                '%.3f' % float(value['lockTime']),\
+                value['tryLockCnt'], value['lockCnt'])
             SystemManager.pipePrint('%s\n%s' % (lockInfo, oneLine))
             outputCnt += 1
 
@@ -16727,11 +16761,12 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         if SystemManager.showAll:
-            SystemManager.pipePrint('\n[Thread File Lock History]')
+            SystemManager.pipePrint('\n[Thread File Lock History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16}"\
-                .format("Name", "Tid", "Time", "Core", "Type", "Device", "Inode", "Context"))
+                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
+                .format("Name", "Tid", "Time", "Core",\
+                "Type", "Device", "Inode", "Context"))
             SystemManager.pipePrint(twoLine)
 
             cnt = 0
@@ -16742,10 +16777,17 @@ class ThreadAnalyzer(object):
                     inode = self.flockData[icount][4][pos:]
                     atime = float(self.flockData[icount][1])
                     time = '%.3f' % (atime - float(SystemManager.startTime))
+
+                    if icount > 0 and \
+                        self.flockData[icount-1][0] == self.flockData[icount][0]:
+                        tid = comm = ''
+                    else:
+                        comm = self.threadData[self.flockData[icount][0]]['comm']
+                        tid = '(%5s)' % self.flockData[icount][0]
+
                     SystemManager.pipePrint(\
-                        "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>16}".\
-                        format(self.threadData[self.flockData[icount][0]]['comm'],\
-                        self.flockData[icount][0], time,\
+                        "{0:>16}{1:>7} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
+                        format(comm, tid, time,\
                         self.flockData[icount][2], self.flockData[icount][3],\
                         dev, inode, self.flockData[icount][5]))
                     cnt += 1
@@ -16806,7 +16848,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
         if SystemManager.showAll:
-            SystemManager.pipePrint('\n[Thread Syscall History]')
+            SystemManager.pipePrint('\n[Thread Syscall History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:>17} {6:>3} {7:>4} {8:>16} {9:<1}"\
@@ -22689,6 +22731,12 @@ class ThreadAnalyzer(object):
 
         # init perf event #
         if SystemManager.perfGroupEnable:
+            if len(SystemManager.showGroup) == 0:
+                SystemManager.printError(\
+                    "wrong option with -e + P, "
+                    "use also -g option with values to show performance stat")
+                sys.exit(0)
+
             if SystemManager.groupProcEnable:
                 if SystemManager.processEnable:
                     if self.procData[tid]['stat'][self.ppidIdx] in SystemManager.showGroup:
