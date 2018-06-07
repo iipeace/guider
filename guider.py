@@ -13861,15 +13861,15 @@ class ThreadAnalyzer(object):
                 'longRunCore': int(-1), 'dReclaimWait': float(0), 'dReclaimStart': float(0), \
                 'dReclaimCnt': int(0), 'futexTryCnt': int(0), 'futexEnter': float(0), \
                 'futexWait': float(0), 'futexMax': float(0), 'futexSpinWait': float(0), \
-                'futexLock': float(0), 'futexLockStart': float(0), 'futexLockMax': float(0), \
-                'futexStat': '?', 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
+                'futexLock': float(0), 'futexLockMax': float(0), 'futexStat': '?', \
+                'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
                 'lastOff': float(0), 'nrPages': int(0), 'waitStartAsParent': float(0), \
-                'reclaimedPages': int(0), 'remainKmem': int(0), 'wasteKmem': int(0), \
-                'kernelPages': int(0), 'childList': None, 'readBlockCnt': int(0), \
-                'writeBlock': int(0), 'writeBlockCnt': int(0), 'cachePages': int(0), \
-                'userPages': int(0), 'maxPreempted': float(0), 'anonReclaimedPages': int(0), \
-                'lastIdleStatus': int(0), 'createdTime': float(0), 'tgid': '-'*5, \
-                'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
+                'reclaimedPages': int(0), 'remainKmem': int(0), \
+                'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
+                'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), \
+                'cachePages': int(0), 'userPages': int(0), 'maxPreempted': float(0), \
+                'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'createdTime': float(0), \
+                'tgid': '-'*5, 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
                 'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
                 'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
@@ -14099,6 +14099,22 @@ class ThreadAnalyzer(object):
         for idx, val in self.threadData.items():
             if val['comm'] == '<...>':
                 val['comm'] = '?'
+
+        # add lock time of jobs not finished yet to each threads #
+        if SystemManager.lockEnable:
+            for idx, item in self.threadData.items():
+                break
+                try:
+                    if item['futexEnter'] > 0:
+                        wtime = float(self.finishTime) - item['futexEnter']
+                        self.threadData[idx]['futexWait'] += wtime
+                        print idx, item['futexEnter'], '%f' % wtime
+
+                    for obj, time in item['futexObj'].items():
+                        ltime = float(self.finishTime) - time
+                        self.threadData[idx]['futexLock'] += ltime
+                except:
+                    pass
 
         if SystemManager.blockEnable:
             # add blocking time to read blocks from disk #
@@ -16669,7 +16685,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint((\
             '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>12}\t' + \
             '{5:>12}\t{6:>12}\t{7:>10}\t{8:>10}').\
-                format('Name', 'Tid', 'Wait', 'SpinWait', 'WaitMax',\
+                format('Name', 'Tid', 'Elapsed', 'CpuUsed', 'ProcMax',\
                 'Lock', 'LockMax', 'NrTry', 'LastStat'))
         SystemManager.pipePrint(twoLine)
 
@@ -20649,6 +20665,7 @@ class ThreadAnalyzer(object):
 
                     nr = d['nr']
                     args = d['args']
+                    td = self.threadData[thread]
 
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
@@ -20658,43 +20675,37 @@ class ThreadAnalyzer(object):
                         if n is not None:
                             l = n.groupdict()
 
+                            addr = l['uaddr']
                             FUTEX_CMD_MASK = ~(128|256)
                             maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
+                            flist = ConfigManager.futexList
 
                             try:
-                                op = ConfigManager.futexList[maskedOp]
+                                op = flist[maskedOp]
                             except:
                                 op = l['op']
 
-                            lockStart = self.threadData[thread]['futexLockStart']
-                            lockMax = self.threadData[thread]['futexLockMax']
+                            # futex object address #
+                            td['futexCandObj'] = addr
 
-                            if maskedOp == \
-                                ConfigManager.futexList.index("FUTEX_LOCK_PI"):
-                                self.threadData[thread]['futexEnter'] = float(time)
-                                self.threadData[thread]['futexTryCnt'] += 1
-                                self.threadData[thread]['futexStat'] = 'L'
-                            elif maskedOp == \
-                                ConfigManager.futexList.index("FUTEX_WAIT") or \
-                                ConfigManager.futexList.index("FUTEX_WAIT_BITSET"):
-                                self.threadData[thread]['futexEnter'] = float(time)
-                                self.threadData[thread]['futexTryCnt'] += 1
-                                self.threadData[thread]['futexStat'] = 'W'
-                            elif maskedOp == \
-                                ConfigManager.futexList.index("FUTEX_UNLOCK_PI"):
-                                self.threadData[thread]['futexEnter'] = 0
-                                self.threadData[thread]['futexStat'] = 'U'
-
-                                if lockStart > 0:
-                                    ltime = float(time) - lockStart
-                                    self.threadData[thread]['futexLock'] += ltime
-                                    if lockMax < ltime:
-                                        self.threadData[thread]['futexLockMax'] = ltime
-
-                                self.threadData[thread]['futexLockStart'] = 0
+                            # try to lock #
+                            if maskedOp == flist.index("FUTEX_LOCK_PI") or \
+                                maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
+                                td['futexStat'] = 'L'
+                                td['futexTryCnt'] += 1
+                            # wait #
+                            elif maskedOp == flist.index("FUTEX_WAIT") or \
+                                maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
+                                maskedOp == flist.index("FUTEX_WAIT_BITSET"):
+                                td['futexTryCnt'] += 1
+                                td['futexStat'] = 'W'
+                            # try to unlock #
+                            elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
+                                td['futexStat'] = 'U'
                             else:
-                                self.threadData[thread]['futexStat'] = '?'
+                                td['futexStat'] = '?'
 
+                            td['futexEnter'] = float(time)
                             otype = '{0:<10}'.format('ENTER')
                             self.futexData.append(\
                                 [thread, time, core, op, otype, '',\
@@ -20755,32 +20766,58 @@ class ThreadAnalyzer(object):
 
                     nr = d['nr']
                     ret = d['ret']
+                    td = self.threadData[thread]
 
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
-                        lockStart = self.threadData[thread]['futexLockStart']
-                        lockMax = self.threadData[thread]['futexLockMax']
-                        lockStat = self.threadData[thread]['futexStat']
+                        lockEnter = td['futexEnter']
+                        lockStat = td['futexStat']
 
-                        if self.threadData[thread]['futexEnter'] > 0:
-                            futexTime = float(time) - self.threadData[thread]['futexEnter']
+                        # futex call status #
+                        if lockEnter > 0:
+                            # elasped time #
+                            futexTime = float(time) - lockEnter
 
-                            if futexTime > self.threadData[thread]['futexMax']:
-                                self.threadData[thread]['futexMax'] = futexTime
+                            if futexTime > td['futexMax']:
+                                td['futexMax'] = futexTime
 
-                            self.threadData[thread]['futexWait'] += futexTime
-                            self.threadData[thread]['futexEnter'] = 0
+                            td['futexWait'] += futexTime
+                            td['futexEnter'] = 0
 
-                            if lockStart > 0 and lockStat == 'L':
-                                ltime = float(time) - lockStart
-                                self.threadData[thread]['futexLock'] += ltime
-                                if lockMax < ltime:
-                                    self.threadData[thread]['futexLockMax'] = ltime
+                            if (lockStat == 'L' or lockStat == 'U') and ret[0] == '0':
+                                # target object #
+                                try:
+                                    candObj = td['futexCandObj']
+                                except:
+                                    candObj = None
 
-                            self.threadData[thread]['futexLockStart'] = float(time)
+                                # lock context #
+                                if lockStat == 'L':
+                                    # register lock object #
+                                    try:
+                                        td['futexObj'][candObj] = float(time)
+                                    except:
+                                        td['futexObj'] = {}
+                                        td['futexObj'][candObj] = float(time)
+                                # unlock context #
+                                elif lockStat == 'U':
+                                    # remove lock object #
+                                    try:
+                                        lockStart = td['futexObj'][candObj]
+                                        td['futexObj'].pop(candObj, None)
+                                    except:
+                                        lockStart = 0
+
+                                    # calculate lock time #
+                                    if lockStart > 0:
+                                        ltime = float(time) - lockStart
+                                        td['futexLock'] += ltime
+                                        if td['futexLockMax'] < ltime:
+                                            td['futexLockMax'] = ltime
 
                             futexTime = '%.6f' % futexTime
                         else:
+                            td['futexStat'] = '?'
                             futexTime = ''
 
                         otype = '{0:>10}'.format('EXIT')
