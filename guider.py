@@ -23342,6 +23342,10 @@ class ThreadAnalyzer(object):
                 try:
                     nowData = self.cpuData[int(idx)]
 
+                    if SystemManager.checkCutCond():
+                        SystemManager.addPrint('---more---')
+                        return
+
                     if not int(idx) in self.prevCpuData:
                         coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                             format("Core/" + str(idx), '- %', '-', '-', '-', '-')
@@ -23491,6 +23495,10 @@ class ThreadAnalyzer(object):
 
             for idx, value in self.gpuData.items():
                 try:
+                    if SystemManager.checkCutCond():
+                        SystemManager.addPrint('---more---')
+                        return
+
                     totalUsage = value['CUR_LOAD']
                     coreStat = "{0:<23}({1:>5})|".format(idx[:23], '%s %%' % totalUsage)
 
@@ -23790,6 +23798,9 @@ class ThreadAnalyzer(object):
 
         # calculate diff between previous and now #
         if SystemManager.uptimeDiff == 0:
+            return
+
+        if SystemManager.checkCutCond():
             return
 
         # set comm and pid size #
