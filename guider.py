@@ -20872,8 +20872,6 @@ class ThreadAnalyzer(object):
                                         td['futexLock'] += ltime
                                         if td['futexLockMax'] < ltime:
                                             td['futexLockMax'] = ltime
-                                            if ltime > 0.8:
-                                                print SystemManager.curLine
 
                             futexTime = '%.6f' % futexTime
                         else:
