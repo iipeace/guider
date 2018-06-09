@@ -13853,23 +13853,25 @@ class ThreadAnalyzer(object):
 
             self.init_threadData = {'comm': '', 'usage': float(0), 'cpuRank': int(0), \
                 'yield': int(0), 'cpuWait': float(0), 'pri': '?', 'ioRdWait': float(0), \
-                'reqRdBlock': int(0), 'readBlock': int(0), 'ioRank': int(0), 'irq': float(0), \
-                'reclaimWait': float(0), 'reclaimCnt': int(0), 'ptid': '-'*5, 'new': ' ', \
-                'die': ' ', 'preempted': int(0), 'preemption': int(0), 'start': float(0), \
-                'stop': float(0), 'readQueueCnt': int(0), 'readStart': float(0), \
-                'maxRuntime': float(0), 'coreSchedCnt': int(0), 'migrate': int(0), \
-                'longRunCore': int(-1), 'dReclaimWait': float(0), 'dReclaimStart': float(0), \
-                'dReclaimCnt': int(0), 'futexTryCnt': int(0), 'futexEnter': float(0), \
-                'futexWait': float(0), 'futexMax': float(0), 'futexSpinWait': float(0), \
-                'futexLock': float(0), 'futexLockMax': float(0), 'futexStat': '?', \
-                'futexSwitch': int(0), 'futexBlockTotal': float(0), 'lastStatus': 'N', \
-                'offCnt': int(0), 'offTime': float(0), 'lastOff': float(0), 'nrPages': int(0), \
-                'waitStartAsParent': float(0), 'reclaimedPages': int(0), 'remainKmem': int(0), \
-                'wasteKmem': int(0), 'kernelPages': int(0), 'childList': None, \
-                'readBlockCnt': int(0), 'writeBlock': int(0), 'writeBlockCnt': int(0), \
-                'cachePages': int(0), 'userPages': int(0), 'maxPreempted': float(0), \
-                'anonReclaimedPages': int(0), 'lastIdleStatus': int(0), 'createdTime': float(0), \
-                'tgid': '-'*5, 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
+                'reqRdBlock': int(0), 'readBlock': int(0), 'ioRank': int(0), \
+                'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': int(0), \
+                'ptid': '-'*5, 'new': ' ', 'die': ' ', 'preempted': int(0), \
+                'preemption': int(0), 'start': float(0), 'stop': float(0), \
+                'readQueueCnt': int(0), 'readStart': float(0), 'maxRuntime': float(0), \
+                'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
+                'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
+                'ftxTryCnt': int(0), 'ftxEnter': float(0), 'ftxWait': float(0), \
+                'ftxMax': float(0), 'ftxCpuTime': float(0), 'ftxLock': float(0), \
+                'ftxLockMax': float(0), 'ftxStat': '?', 'ftxLSwitch': int(0), \
+                'ftxLBlockTotal': float(0), 'ftxBlock': float(0), 'ftxLBlock': float(0), \
+                'ftxEnt': None, 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
+                'nrPages': int(0), 'waitStartAsParent': float(0), 'reclaimedPages': int(0), \
+                'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
+                'childList': None, 'readBlockCnt': int(0), 'writeBlock': int(0), \
+                'writeBlockCnt': int(0), 'cachePages': int(0), 'userPages': int(0), \
+                'lastOff': float(0), 'maxPreempted': float(0), 'anonReclaimedPages': int(0), \
+                'lastIdleStatus': int(0), 'createdTime': float(0), 'tgid': '-'*5, \
+                'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
                 'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
                 'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
@@ -14083,6 +14085,11 @@ class ThreadAnalyzer(object):
 
         SystemManager.deleteProgress()
 
+        # update anonymous comm #
+        for idx, val in self.threadData.items():
+            if val['comm'] == '<...>':
+                val['comm'] = '?'
+
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             if self.threadData[val]['lastStatus'] == 'S':
@@ -14095,33 +14102,29 @@ class ThreadAnalyzer(object):
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
 
-        # update anonymous comm #
-        for idx, val in self.threadData.items():
-            if val['comm'] == '<...>':
-                val['comm'] = '?'
-
         # add lock time of jobs not finished yet to each threads #
         if SystemManager.lockEnable:
             for idx, item in self.threadData.items():
                 try:
                     # elapsed time #
-                    if item['futexEnter'] > 0:
-                        wtime = float(self.finishTime) - item['futexEnter']
-                        self.threadData[idx]['futexWait'] += wtime
-                        if self.threadData[idx]['futexMax'] < wtime:
-                            self.threadData[idx]['futexMax'] = wtime
+                    if item['ftxEnter'] > 0:
+                        wtime = float(self.finishTime) - item['ftxEnter']
+                        self.threadData[idx]['ftxWait'] += wtime
+                        if self.threadData[idx]['ftxMax'] < wtime:
+                            self.threadData[idx]['ftxMax'] = wtime
 
                     # lock time #
                     for obj, time in item['futexObj'].items():
                         ltime = float(self.finishTime) - time
-                        self.threadData[idx]['futexLock'] += ltime
-                        if self.threadData[idx]['futexLockMax'] < ltime:
-                            self.threadData[idx]['futexLockMax'] = ltime
+                        self.threadData[idx]['ftxLock'] += ltime
+                        if self.threadData[idx]['ftxLockMax'] < ltime:
+                            self.threadData[idx]['ftxLockMax'] = ltime
                 except:
                     pass
 
+        # add block waiting time of jobs not finished yet to each threads #
         if SystemManager.blockEnable:
-            # add blocking time to read blocks from disk #
+            # waiting for read #
             for idx, item in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['readStart'], reverse=True):
                 if item['readStart'] > 0:
@@ -14131,7 +14134,7 @@ class ThreadAnalyzer(object):
                     item['readStart'] = 0
                 else:
                     break
-            # add blocking time to write blocks to disk #
+            # waiting for synchronous write #
             for idx, item in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['writeStart'], reverse=True):
                 # cancel to add blocking time for write because async write #
@@ -16684,7 +16687,9 @@ class ThreadAnalyzer(object):
             return
 
         outputCnt = 0
-        SystemManager.pipePrint('\n[Thread Futex Lock Info] (Unit: Sec/NR)')
+        SystemManager.pipePrint(\
+            '\n[Thread Futex Lock Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
+            float(self.totalTime))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint((\
             '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>12}\t' + \
@@ -16693,45 +16698,32 @@ class ThreadAnalyzer(object):
                 'Lock', 'LockMax', 'NrCall', 'LBlock', 'NrLBlock', 'LastStat'))
         SystemManager.pipePrint(twoLine)
 
-        # calculate futex wait time of threads not yet wake up #
-        for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['futexEnter'], reverse=True):
-            if key[0:2] == '0[':
-                continue
-            elif value['futexEnter'] == 0:
-                break
-
-            futexTime = float(self.finishTime) - value['futexEnter']
-            if futexTime > self.threadData[key]['futexMax']:
-                self.threadData[key]['futexMax'] = futexTime
-            self.threadData[key]['futexWait'] += futexTime
-
         # print futex info of threads #
         for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['futexTryCnt'], reverse=True):
+            self.threadData.items(), key=lambda e: e[1]['ftxTryCnt'], reverse=True):
             if key[0:2] == '0[':
                 continue
-            elif value['futexWait'] == 0:
+            elif value['ftxWait'] == 0:
                 break
 
-            if value['futexEnter'] == 0:
+            if value['ftxEnter'] == 0:
                 status = 'Running'
             else:
                 status = 'Wait'
 
-            futexWait = '%.3f' % float(value['futexWait'])
-            futexSpinWait = '%.3f' % float(value['futexSpinWait'])
-            futexMax = '%.3f' % float(value['futexMax'])
-            futexLock = '%.3f' % float(value['futexLock'])
-            futexLockMax = '%.3f' % float(value['futexLockMax'])
-            futexBlock = '%.3f' % float(value['futexBlockTotal'])
+            ftxWait = '%.3f' % float(value['ftxWait'])
+            ftxCpuTime = '%.3f' % float(value['ftxCpuTime'])
+            ftxMax = '%.3f' % float(value['ftxMax'])
+            ftxLock = '%.3f' % float(value['ftxLock'])
+            ftxLockMax = '%.3f' % float(value['ftxLockMax'])
+            ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
 
             futexInfo = \
                 ('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t' + \
                 '{4:>12}\t{5:>12}\t{6:>12}\t{7:>10}\t{8:>12}\t{9:>10}\t{10:>10}').\
-                format(value['comm'], key, futexWait, futexSpinWait,\
-                futexMax, futexLock, futexLockMax, value['futexTryCnt'],\
-                futexBlock, value['futexSwitch'], status)
+                format(value['comm'], key, ftxWait, ftxCpuTime,\
+                ftxMax, ftxLock, ftxLockMax, value['ftxTryCnt'],\
+                ftxLBlock, value['ftxLSwitch'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
 
@@ -16752,23 +16744,46 @@ class ThreadAnalyzer(object):
             for icount in xrange(0, len(self.futexData)):
                 try:
                     value = self.futexData[icount]
+
+                    if value[1] == -1:
+                        continue
+
                     atime = float(value[1])
                     time = '%.6f' % (atime - float(SystemManager.startTime))
 
-                    if icount > 0 and self.futexData[icount-1][0] == value[0]:
-                        tid = comm = ''
+                    comm = self.threadData[value[0]]['comm']
+                    tid = '(%5s)' % value[0]
+                    core = value[2]
+
+                    try:
+                        if icount == 0:
+                            raise
+
+                        if self.futexData[icount-1][2] == value[2]:
+                            core = ''
+
+                        if self.futexData[icount-1][0] == value[0]:
+                            tid = comm = ''
+                    except:
+                        pass
+
+                    if icount + 1 <= len(self.futexData) and \
+                        self.futexData[icount+1][0] == value[0] and \
+                        self.futexData[icount][4].startswith('ENT') and \
+                        self.futexData[icount+1][4].endswith('RET'):
+                        otype = '{0:^10}'.format('ALL')
+                        elapsed = self.futexData[icount+1][5]
+                        self.futexData[icount+1][1] = -1
                     else:
-                        try:
-                            comm = self.threadData[value[0]]['comm']
-                        except:
-                            comm = ''
-                        tid = '(%5s)' % value[0]
+                        otype = value[4]
+                        elapsed = value[5]
 
                     SystemManager.pipePrint((\
                         "{0:>12} {1:>16}{2:>7} {3:>4} {4:<24} " + \
                         "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                        format(time, comm, tid, value[2], value[3],\
-                        value[4], value[5], value[6], value[7], value[8]))
+                        format(time, comm, tid, core, value[3],\
+                        otype, elapsed, value[6], value[7], value[8]))
+
                     cnt += 1
                 except:
                     pass
@@ -16902,9 +16917,9 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n[Thread Syscall History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:>16}({1:>5}) {2:>10} {3:>10} {4:>5} {5:>17} {6:>3} {7:>4} {8:>16} {9:<1}"\
-                .format("Name", "Tid", "Time", "Elapsed", "Type", "Syscall", \
-                "SID", "Core", "Return", "Parameter"))
+                "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} {6:>5} {7:>10} {8:>16} {9:<1}"\
+                .format("Time", "Name", "Tid", "Core", "Syscall", \
+                "SID", "Type", "Elapsed", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
             # remove calls of unavailable threads #
@@ -16923,6 +16938,10 @@ class ThreadAnalyzer(object):
                 try:
                     prevData = self.syscallData[icount-1]
                     nowData = self.syscallData[icount]
+
+                    if nowData[1] == -1:
+                        continue
+
                     if len(self.syscallData) > icount + 1:
                         nextData = self.syscallData[icount+1]
                     else:
@@ -16930,10 +16949,10 @@ class ThreadAnalyzer(object):
 
                     syscall = ConfigManager.sysList[int(nowData[4])]
 
-                    if nowData[0] == 'ENTER':
+                    if nowData[0] == 'ENT':
                         # all #
                         if nextData != None and \
-                            nextData[0] == 'EXIT' and \
+                            nextData[0] == 'RET' and \
                             nowData[2] == nextData[2] and \
                             nowData[4] == nextData[4]:
                             eventType = '{0:^5}'.format('ALL')
@@ -16942,24 +16961,24 @@ class ThreadAnalyzer(object):
                                 '%6.6f' % (float(nextData[1]) - float(nowData[1]))
                             param = nowData[5]
                             ret = nextData[5]
+                            nextData[1] = -1
                         else:
-                            eventType = nowData[0]
+                            eventType = '{0:<5}'.format(nowData[0])
                             eventTime = \
                                 float(nowData[1]) - startTime
                             elapsed = ' ' * 8
                             param = nowData[5]
                             ret = ' '
-                    elif nowData[0] == 'EXIT':
-                        if prevData[0] == 'ENTER' and \
-                            nowData[2] == prevData[2] and \
-                            nowData[4] == prevData[4]:
-                            continue
-                        else:
-                            eventType = nowData[0]
-                            eventTime = float(nowData[1]) - startTime
+                    elif nowData[0] == 'RET':
+                        eventType = nowData[0]
+                        eventTime = float(nowData[1]) - startTime
+                        param = ' '
+                        ret = nowData[5]
+
+                        try:
+                            elapsed = '%6.6f' % nowData[6]
+                        except:
                             elapsed = ' ' * 8
-                            param = ' '
-                            ret = nowData[5]
 
                     try:
                         nrRet = int(ret)
@@ -16974,12 +16993,17 @@ class ThreadAnalyzer(object):
                         comm = self.threadData[nowData[2]]['comm']
                         tid = '(%5s)' % nowData[2]
 
+                    if icount > 0 and prevData[3] == nowData[3]:
+                        core = ''
+                    else:
+                        core = nowData[3]
+
                     SystemManager.pipePrint(\
-                        ("{0:>16}{1:>7} {2:>10} {3:>10} {4:>5} "
-                        "{5:>17} {6:>3} {7:>4} {8:>16}  {9:<1}").\
-                        format(comm, tid, '%.6f' % eventTime,\
-                        elapsed, eventType, syscall[4:],\
-                        nowData[4], nowData[3], ret, param))
+                        ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
+                        "{6:>5} {7:>10} {8:>16}  {9:<1}").\
+                        format('%.6f' % eventTime, comm, tid,\
+                        core, syscall[4:], nowData[4],\
+                        eventType, elapsed, ret, param))
 
                     cnt += 1
                 except:
@@ -20080,32 +20104,37 @@ class ThreadAnalyzer(object):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
                     # update spin time by futex #
-                    if self.threadData[prev_id]['futexEnter'] > 0:
+                    if self.threadData[prev_id]['ftxEnter'] > 0:
                         cstart = self.threadData[prev_id]['start']
-                        fstart = self.threadData[prev_id]['futexEnter']
+                        fstart = self.threadData[prev_id]['ftxEnter']
+
                         if cstart > fstart:
                             tstart = cstart
                         else:
                             tstart = fstart
+
                         stime = float(time) - tstart
-                        self.threadData[prev_id]['futexSpinWait'] += stime
+                        self.threadData[prev_id]['ftxCpuTime'] += stime
+                        self.threadData[prev_id]['ftxBlock'] = float(time)
 
                         opt = '{0:^24}'.format('BLOCK')
-                        otype = '{0:<10}'.format('ENTER')
+                        otype = '{0:<10}'.format('ENT')
+                        stime = '%.6f' % stime
                         self.futexData.append(\
-                            [prev_id, time, core, opt, otype, '', '', '', ''])
+                            [prev_id, time, core, opt, otype, stime, '', '', ''])
 
                     # save block time with lock by futex #
                     try:
                         if len(self.threadData[prev_id]['futexObj']) > 0:
-                            self.threadData[prev_id]['futexBlock'] = float(time)
-                            self.threadData[prev_id]['futexSwitch'] += 1
+                            self.threadData[prev_id]['ftxLBlock'] = float(time)
+                            self.threadData[prev_id]['ftxLSwitch'] += 1
 
+                            # remove previous BLOCK enter event #
                             if len(self.futexData) > 0 and self.futexData[-1][1] == time:
                                 del self.futexData[-1]
 
-                            opt = '{0:^24}'.format('BLOCK_WITH_LOCK')
-                            otype = '{0:<10}'.format('ENTER')
+                            opt = '{0:^24}'.format('LOCK_BLOCK')
+                            otype = '{0:<10}'.format('ENT')
                             locks = ', '.join(self.threadData[prev_id]['futexObj'])
                             self.futexData.append(\
                                 [prev_id, time, core, opt, otype, '', locks, '', ''])
@@ -20113,31 +20142,31 @@ class ThreadAnalyzer(object):
                         pass
 
                     # update total block time with lock by futex #
-                    try:
-                        if self.threadData[next_id]['futexBlock'] > 0:
-                            cstop = self.threadData[next_id]['futexBlock']
-                            btime = float(time) - cstop
-                            self.threadData[next_id]['futexBlockTotal'] += btime
-                            self.threadData[next_id]['futexBlock'] = 0
+                    if self.threadData[next_id]['ftxLBlock'] > 0:
+                        cstop = self.threadData[next_id]['ftxLBlock']
+                        btime = float(time) - cstop
+                        self.threadData[next_id]['ftxLBlockTotal'] += btime
+                        self.threadData[next_id]['ftxLBlock'] = 0
 
-                            opt = '{0:^24}'.format('BLOCK_WITH_LOCK')
-                            otype = '{0:>10}'.format('EXIT')
+                        opt = '{0:^24}'.format('LOCK_BLOCK')
+                        otype = '{0:>10}'.format('RET')
+                        try:
                             locks = ', '.join(self.threadData[next_id]['futexObj'])
-                            btime = '%.6f' % btime
-                            self.futexData.append(\
-                                [next_id, time, core, opt, otype, btime, locks, '', ''])
-                    except:
-                        pass
-
+                        except:
+                            locks = ''
+                        btime = '%.6f' % btime
+                        self.futexData.append(\
+                            [next_id, time, core, opt, otype, btime, locks, '', ''])
                     # save switching info by futex #
-                    if self.threadData[next_id]['futexEnter'] > 0:
-                        if len(self.futexData) > 0 and self.futexData[-1][1] == time:
-                            pass
-                        else:
-                            opt = '{0:^24}'.format('BLOCK')
-                            otype = '{0:>10}'.format('EXIT')
-                            self.futexData.append(\
-                                [next_id, time, core, opt, otype, '', '', '', ''])
+                    elif self.threadData[next_id]['ftxBlock'] > 0:
+                        cstop = self.threadData[next_id]['ftxBlock']
+                        btime = '%.6f' % (float(time) - cstop)
+                        self.threadData[next_id]['ftxBlock'] = 0
+
+                        opt = '{0:^24}'.format('BLOCK')
+                        otype = '{0:>10}'.format('RET')
+                        self.futexData.append(\
+                            [next_id, time, core, opt, otype, btime, '', '', ''])
 
                     # calculate running time of previous thread #
                     diff = 0
@@ -20725,6 +20754,12 @@ class ThreadAnalyzer(object):
                     args = d['args']
                     td = self.threadData[thread]
 
+                    # apply filter #
+                    for item in SystemManager.showGroup:
+                        if SystemManager.isEffectiveTid(thread, item) is False and \
+                            comm.find(item) < 0:
+                            return
+
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
                         n = re.match((\
@@ -20733,9 +20768,11 @@ class ThreadAnalyzer(object):
                         if n is not None:
                             l = n.groupdict()
 
-                            addr = l['uaddr'][1:]
                             FUTEX_CMD_MASK = ~(128|256)
+                            # FUTEX_PRIVATE_FLAG: 128, FUTEX_CLOCK_REALTIME: 256 #
                             maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
+
+                            addr = l['uaddr'][1:]
                             flist = ConfigManager.futexList
 
                             try:
@@ -20743,28 +20780,37 @@ class ThreadAnalyzer(object):
                             except:
                                 op = l['op']
 
+                            # futex operation #
+                            td['ftxEnt'] = op
+
                             # futex object address #
                             td['futexCandObj'] = addr
 
                             # try to lock #
                             if maskedOp == flist.index("FUTEX_LOCK_PI") or \
                                 maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
-                                td['futexStat'] = 'L'
-                                td['futexTryCnt'] += 1
+                                td['ftxStat'] = 'L'
+                                td['ftxTryCnt'] += 1
+
+                                # remove already unlocked futex #
+                                try:
+                                    td['futexObj'].pop(addr, None)
+                                except:
+                                    pass
                             # wait #
                             elif maskedOp == flist.index("FUTEX_WAIT") or \
                                 maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
                                 maskedOp == flist.index("FUTEX_WAIT_BITSET"):
-                                td['futexTryCnt'] += 1
-                                td['futexStat'] = 'W'
+                                td['ftxTryCnt'] += 1
+                                td['ftxStat'] = 'W'
                             # try to unlock #
                             elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
-                                td['futexStat'] = 'U'
+                                td['ftxStat'] = 'U'
                             else:
-                                td['futexStat'] = '?'
+                                td['ftxStat'] = '?'
 
-                            td['futexEnter'] = float(time)
-                            otype = '{0:<10}'.format('ENTER')
+                            td['ftxEnter'] = float(time)
+                            otype = '{0:<10}'.format('ENT')
                             self.futexData.append(\
                                 [thread, time, core, op, otype, '',\
                                 addr, l['val'], l['timer']])
@@ -20809,10 +20855,10 @@ class ThreadAnalyzer(object):
 
                         if idx >= 0:
                             self.syscallData.append(\
-                                ['ENTER', time, thread, core, nr, args])
+                                ['ENT', time, thread, core, nr, args])
                     else:
                         self.syscallData.append(\
-                            ['ENTER', time, thread, core, nr, args])
+                            ['ENT', time, thread, core, nr, args])
                 else:
                     SystemManager.printWarning(\
                         "Fail to recognize '%s' event" % func)
@@ -20826,21 +20872,27 @@ class ThreadAnalyzer(object):
                     ret = d['ret']
                     td = self.threadData[thread]
 
+                    # apply filter #
+                    for item in SystemManager.showGroup:
+                        if SystemManager.isEffectiveTid(thread, item) is False and \
+                            comm.find(item) < 0:
+                            return
+
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
-                        lockEnter = td['futexEnter']
-                        lockStat = td['futexStat']
+                        lockEnter = td['ftxEnter']
+                        lockStat = td['ftxStat']
 
                         # futex call status #
                         if lockEnter > 0:
                             # elasped time #
                             futexTime = float(time) - lockEnter
 
-                            if futexTime > td['futexMax']:
-                                td['futexMax'] = futexTime
+                            if futexTime > td['ftxMax']:
+                                td['ftxMax'] = futexTime
 
-                            td['futexWait'] += futexTime
-                            td['futexEnter'] = 0
+                            td['ftxWait'] += futexTime
+                            td['ftxEnter'] = 0
 
                             if (lockStat == 'L' or lockStat == 'U') and ret[0] == '0':
                                 # target object #
@@ -20869,19 +20921,25 @@ class ThreadAnalyzer(object):
                                     # calculate lock time #
                                     if lockStart > 0:
                                         ltime = float(time) - lockStart
-                                        td['futexLock'] += ltime
-                                        if td['futexLockMax'] < ltime:
-                                            td['futexLockMax'] = ltime
+                                        td['ftxLock'] += ltime
+                                        if td['ftxLockMax'] < ltime:
+                                            td['ftxLockMax'] = ltime
 
                             futexTime = '%.6f' % futexTime
                         else:
-                            td['futexStat'] = '?'
+                            td['ftxStat'] = '?'
                             futexTime = ''
 
-                        otype = '{0:>10}'.format('EXIT')
+                        if td['ftxEnt'] != None:
+                            op = td['ftxEnt']
+                            td['ftxEnt'] = None
+                        else:
+                            op = ''
+
+                        otype = '{0:>10}'.format('RET')
 
                         self.futexData.append(\
-                            [thread, time, core, '', otype, futexTime, '', d['ret'], ''])
+                            [thread, time, core, op, otype, futexTime, '', d['ret'], ''])
 
                     try:
                         if SystemManager.depEnable is False:
@@ -20936,6 +20994,7 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['syscallInfo'][nr] = \
                             dict(self.init_syscallInfo)
 
+                    diff = ''
                     if self.threadData[thread]['syscallInfo'][nr]['last'] > 0:
                         diff = float(time) - \
                             self.threadData[thread]['syscallInfo'][nr]['last']
@@ -20957,9 +21016,9 @@ class ThreadAnalyzer(object):
                             idx = -1
 
                         if idx >= 0:
-                            self.syscallData.append(['EXIT', time, thread, core, nr, ret])
+                            self.syscallData.append(['RET', time, thread, core, nr, ret, diff])
                     else:
-                        self.syscallData.append(['EXIT', time, thread, core, nr, ret])
+                        self.syscallData.append(['RET', time, thread, core, nr, ret, diff])
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
