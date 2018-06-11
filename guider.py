@@ -3491,7 +3491,8 @@ class FunctionAnalyzer(object):
                 return False
 
             # Save tgid(pid) #
-            if SystemManager.tgidEnable and self.threadData[thread]['tgid'] == '-----':
+            if SystemManager.tgidEnable and \
+                self.threadData[thread]['tgid'] == '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
 
             # filter #
@@ -6929,6 +6930,22 @@ class SystemManager(object):
             SystemManager.pidFilter = cmd
 
         return SystemManager.pidFilter
+
+
+
+    @staticmethod
+    def isExceptTarget(tid, comm, tlist):
+        if len(tlist) == 0:
+            return False
+
+        exceptFlag = True
+        for item in tlist:
+            if item == tid or \
+                comm.find(item) >= 0 or \
+                SystemManager.isEffectiveTid(tid, item):
+                exceptFlag = False
+                break
+        return exceptFlag
 
 
 
@@ -12692,8 +12709,8 @@ class SystemManager(object):
                         "enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
                     sys.exit(0)
 
+                # apply filter #
                 if len(SystemManager.showGroup) > 0:
-                    # apply filter #
                     for pid in SystemManager.showGroup:
                         try:
                             SystemManager.writeCmd('../set_ftrace_pid', str(int(pid)), True)
@@ -14164,28 +14181,35 @@ class ThreadAnalyzer(object):
             round(float(self.finishTime) - float(SystemManager.startTime), 7)
 
         # apply filter #
-        if len(SystemManager.showGroup) > 0:
-            for key, value in sorted(self.threadData.items(), key=lambda e: e[1], reverse=False):
-                checkResult = False
-                for val in SystemManager.showGroup:
-                    if value['comm'].rfind(val) > -1 or \
-                        SystemManager.isEffectiveTid(key, val):
-                        checkResult = True
-                    else:
-                        try:
-                            if SystemManager.groupProcEnable and \
-                                (SystemManager.isEffectiveTid(value['tgid'], val) or \
-                                value['tgid'] == self.threadData[val]['tgid']):
-                                checkResult = True
-                        except:
-                            pass
+        if SystemManager.showGroup != []:
+            for key, value in sorted(\
+                self.threadData.items(), key=lambda e: e[1], reverse=False):
+                # except for core #
+                if key.startswith('0['):
+                    continue
 
-                # remove thread information #
-                if checkResult == False and key[0:2] != '0[':
-                    try:
-                        self.threadData.pop(key, None)
-                    except:
-                        continue
+                if SystemManager.isExceptTarget(\
+                    key, value['comm'], SystemManager.showGroup) is False:
+                    continue
+                elif SystemManager.groupProcEnable:
+                    if SystemManager.isExceptTarget(\
+                        value['tgid'], value['comm'], SystemManager.showGroup):
+                        exceptFlag = True
+                        for val in SystemManager.showGroup:
+                            try:
+                                if value['tgid'] == self.threadData[val]['tgid']:
+                                    exceptFlag = False
+                                    break
+                            except:
+                                pass
+                        if exceptFlag is False:
+                            continue
+
+                # remove thread #
+                try:
+                    self.threadData.pop(key, None)
+                except:
+                    continue
 
 
 
@@ -20755,10 +20779,9 @@ class ThreadAnalyzer(object):
                     td = self.threadData[thread]
 
                     # apply filter #
-                    for item in SystemManager.showGroup:
-                        if SystemManager.isEffectiveTid(thread, item) is False and \
-                            comm.find(item) < 0:
-                            return
+                    if SystemManager.isExceptTarget(\
+                        thread, comm, SystemManager.showGroup):
+                        return
 
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
@@ -20873,10 +20896,9 @@ class ThreadAnalyzer(object):
                     td = self.threadData[thread]
 
                     # apply filter #
-                    for item in SystemManager.showGroup:
-                        if SystemManager.isEffectiveTid(thread, item) is False and \
-                            comm.find(item) < 0:
-                            return
+                    if SystemManager.isExceptTarget(\
+                        thread, comm, SystemManager.showGroup):
+                        return
 
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
@@ -21035,9 +21057,10 @@ class ThreadAnalyzer(object):
 
                     # apply filter #
                     for item in SystemManager.showGroup:
-                        if SystemManager.isEffectiveTid(thread, item) is False and \
-                            SystemManager.isEffectiveTid(pid, item) is False and \
-                            comm.find(item) < 0 and target_comm.find(item):
+                        if SystemManager.isExceptTarget(\
+                            thread, comm, SystemManager.showGroup) and \
+                            SystemManager.isExceptTarget(\
+                            pid, target_comm, SystemManager.showGroup):
                             return
 
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
@@ -21075,8 +21098,8 @@ class ThreadAnalyzer(object):
 
                     # apply filter #
                     for item in SystemManager.showGroup:
-                        if SystemManager.isEffectiveTid(thread, item) is False and \
-                            comm.find(item) < 0:
+                        if SystemManager.isExceptTarget(\
+                            thread, comm, SystemManager.showGroup):
                             return
 
                     ttime = float(time) - float(SystemManager.startTime)
