@@ -3496,29 +3496,10 @@ class FunctionAnalyzer(object):
                 self.threadData[thread]['tgid'] = d['tgid']
 
             # apply filter #
-            found = False
-            for val in desc:
-                if SystemManager.isEffectiveTid(thread, val) or \
-                    val == '' or d['comm'].find(val) >= 0:
-                    self.threadData[thread]['target'] = True
-                    found = True
-                    break
-
-                if SystemManager.groupProcEnable is False:
-                    break
-
-                try:
-                    if SystemManager.isEffectiveTid(self.threadData[thread]['tgid'], val) or \
-                        self.threadData[thread]['tgid'] == SystemManager.savedProcTree[val] or \
-                        self.threadData[self.threadData[thread]['tgid']]['comm'].find(val) >= 0:
-                        self.threadData[thread]['target'] = True
-                        found = True
-                        break
-                except:
-                    pass
-
-            if found is False:
+            if SystemManager.isExceptTarget(thread, self.threadData):
                 return False
+            else:
+                self.threadData[thread]['target'] = True
 
             return self.parseEventInfo(thread, d['func'], d['etc'], d['time'], d['core'])
 
@@ -6937,11 +6918,10 @@ class SystemManager(object):
 
 
     @staticmethod
-    def isExceptTarget(tid, tlist, tdata, comm=None):
-        if len(tlist) == 0:
-            return False
-
+    def isExceptTarget(tid, tdata, comm=None):
         tlist = SystemManager.showGroup
+        if tlist == []:
+            return False
 
         if comm is None:
             comm = tdata[tid]['comm']
@@ -6950,6 +6930,7 @@ class SystemManager(object):
         for item in tlist:
             if item == tid or \
                 comm.find(item) >= 0 or \
+                item == '' or \
                 SystemManager.isEffectiveTid(tid, item):
                 exceptFlag = False
                 break
@@ -6957,24 +6938,22 @@ class SystemManager(object):
         if exceptFlag == False:
             return exceptFlag
         elif SystemManager.groupProcEnable:
-            # set tid to tgid #
-            tid = tdata[tid]['tgid']
+            tgid = tdata[tid]['tgid']
 
             # check tgid #
-            exceptFlag = True
             for item in tlist:
-                if item == tid or \
+                if item == tgid or \
                     comm.find(item) >= 0 or \
-                    SystemManager.isEffectiveTid(tid, item):
+                    SystemManager.isEffectiveTid(tgid, item):
                     exceptFlag = False
                     break
 
             # check tgid of other threads #
             if exceptFlag:
-                exceptFlag = True
-                for val in SystemManager.showGroup:
+                for item in tlist:
                     try:
-                        if tid == tdata[val]['tgid']:
+                        if tgid == tdata[item]['tgid'] or \
+                            tgid == SystemManager.savedProcTree[item]:
                             exceptFlag = False
                             break
                     except:
@@ -19425,9 +19404,8 @@ class ThreadAnalyzer(object):
                 targetTable[did][5][blkSize] = 1
 
         # apply filter #
-        for item in SystemManager.showGroup:
-            if SystemManager.isExceptTarget(thread, self.threadData, comm):
-                return
+        if SystemManager.isExceptTarget(thread, self.threadData, comm):
+            return
 
         # total block info #
         readTable = self.blockTable[0]
@@ -21069,12 +21047,6 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
                     ttime = float(time) - float(SystemManager.startTime)
 
-                    # apply filter #
-                    for item in SystemManager.showGroup:
-                        if SystemManager.isExceptTarget(thread, self.threadData) and \
-                            SystemManager.isExceptTarget(pid, self.threadData, target_comm):
-                            return
-
                     self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
                         (round(ttime, 7), round(ttime - float(self.wakeupData['time']), 7), \
                         self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
@@ -21107,11 +21079,6 @@ class ThreadAnalyzer(object):
 
                     sig = d['sig']
                     flags = d['flags']
-
-                    # apply filter #
-                    for item in SystemManager.showGroup:
-                        if SystemManager.isExceptTarget(thread, self.threadData):
-                            return
 
                     ttime = float(time) - float(SystemManager.startTime)
                     itime = ttime - float(self.wakeupData['time'])
