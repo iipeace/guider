@@ -23941,12 +23941,16 @@ class ThreadAnalyzer(object):
                 if SystemManager.groupProcEnable:
                     # process mode #
                     if SystemManager.processEnable:
-                        if value['stat'][self.ppidIdx] in SystemManager.showGroup:
-                            pass
-                        elif idx in SystemManager.showGroup:
+                        if idx in SystemManager.showGroup:
                             pass
                         else:
-                            continue
+                            glist = [pid for pid in SystemManager.showGroup \
+                                if pid.isdigit() and \
+                                pid in self.procData and \
+                                self.procData[pid]['stat'][self.ppidIdx] == \
+                                value['stat'][self.ppidIdx]]
+                            if len(glist) == 0:
+                                continue
                     # thread mode #
                     else:
                         glist = [tid for tid in SystemManager.showGroup \
@@ -23955,6 +23959,7 @@ class ThreadAnalyzer(object):
                             self.procData[tid]['mainID'] == value['mainID']]
 
                         if len(glist) == 0 and \
+                            idx not in SystemManager.showGroup and \
                             value['mainID'] not in SystemManager.showGroup:
                             continue
                 # single mode #
