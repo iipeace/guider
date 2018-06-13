@@ -17140,11 +17140,11 @@ class ThreadAnalyzer(object):
 
         # total read #
         if len(self.blockTable[0]) > 0:
-             tcnt = printBlkUsage(totalStr, self.blockTable[0], 'READ', tcnt)
+            tcnt = printBlkUsage(totalStr, self.blockTable[0], 'READ', tcnt)
 
         # total write #
         if len(self.blockTable[1]) > 0:
-             tcnt = printBlkUsage(totalStr, self.blockTable[1], 'WRITE', tcnt)
+            tcnt = printBlkUsage(totalStr, self.blockTable[1], 'WRITE', tcnt)
 
         if tcnt > 0:
             SystemManager.pipePrint(oneLine)
@@ -19430,8 +19430,8 @@ class ThreadAnalyzer(object):
             try:
                 if did.split(':')[0] == major and \
                     val['start'] <= addr <= val['end']:
-                        minor = did.split(':')[1]
-                        break
+                    minor = did.split(':')[1]
+                    break
             except:
                 pass
 
@@ -23937,7 +23937,9 @@ class ThreadAnalyzer(object):
         for idx, value in sortedProcData:
             # apply filter #
             if SystemManager.showGroup != []:
+                # group mode #
                 if SystemManager.groupProcEnable:
+                    # process mode #
                     if SystemManager.processEnable:
                         if value['stat'][self.ppidIdx] in SystemManager.showGroup:
                             pass
@@ -23945,8 +23947,17 @@ class ThreadAnalyzer(object):
                             pass
                         else:
                             continue
-                    elif value['mainID'] not in SystemManager.showGroup:
-                        continue
+                    # thread mode #
+                    else:
+                        glist = [tid for tid in SystemManager.showGroup \
+                            if tid.isdigit() and \
+                            tid in self.procData and \
+                            self.procData[tid]['mainID'] == value['mainID']]
+
+                        if len(glist) == 0 and \
+                            value['mainID'] not in SystemManager.showGroup:
+                            continue
+                # single mode #
                 else:
                     if idx in SystemManager.showGroup:
                         pass
