@@ -15851,6 +15851,7 @@ class ThreadAnalyzer(object):
                     stack = item['fd'].read()
                 except:
                     self.stackTable.pop(idx, None)
+                    continue
 
                 try:
                     item['total'] += 1
