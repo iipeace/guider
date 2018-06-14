@@ -13891,9 +13891,9 @@ class ThreadAnalyzer(object):
                 'readQueueCnt': int(0), 'readStart': float(0), 'maxRuntime': float(0), \
                 'coreSchedCnt': int(0), 'migrate': int(0), 'longRunCore': int(-1), \
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
-                'ftxTryCnt': int(0), 'ftxEnter': float(0), 'ftxWait': float(0), \
-                'ftxMax': float(0), 'ftxCpuTime': float(0), 'ftxLock': float(0), \
-                'ftxLockMax': float(0), 'ftxStat': '?', 'ftxLSwitch': int(0), \
+                'ftxLockCnt': int(0), 'ftxEnter': float(0), 'ftxWait': float(0), \
+                'ftxWaitCnt': int(0), 'ftxMax': float(0), 'ftxCpuTime': float(0), \
+                'ftxLock': float(0), 'ftxLockMax': float(0), 'ftxStat': '?', 'ftxLSwitch': int(0), \
                 'ftxLBlockTotal': float(0), 'ftxBlock': float(0), 'ftxLBlock': float(0), \
                 'ftxEnt': None, 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
                 'nrPages': int(0), 'waitStartAsParent': float(0), 'reclaimedPages': int(0), \
@@ -16717,15 +16717,16 @@ class ThreadAnalyzer(object):
             float(self.totalTime))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint((\
-            '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>12}\t' + \
-            '{5:>12}\t{6:>12}\t{7:>10}\t{8:>12}\t{9:>10}\t{10:>10}').\
-                format('Name', 'Tid', 'Elapsed', 'CpuUsed', 'CallMax',\
-                'Lock', 'LockMax', 'NrCall', 'LBlock', 'NrLBlock', 'LastStat'))
+            '{0:>16}({1:>5}) {2:>12} {3:>12} {4:>12} ' + \
+            '{5:>12} {6:>12} {7:>10} {8:>10} {9:>12} {10:>10} {11:>10}').\
+                format('Name', 'Tid', 'Elapsed', 'CpuTime', 'CallMax',\
+                'Lock', 'LockMax', 'NrLock', 'NrWait', 'LBlock',\
+                'NrLBlock', 'LastStat'))
         SystemManager.pipePrint(twoLine)
 
         # print futex info of threads #
-        for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['ftxTryCnt'], reverse=True):
+        for key, value in sorted(self.threadData.items(), \
+            key=lambda e: e[1]['ftxLockCnt'] + e[1]['ftxWaitCnt'], reverse=True):
             if key[0:2] == '0[':
                 continue
             elif value['ftxWait'] == 0:
@@ -16742,12 +16743,14 @@ class ThreadAnalyzer(object):
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
             ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
+            ftxLockCall = '{:,}'.format(value['ftxLockCnt'])
+            ftxWaitCall = '{:,}'.format(value['ftxWaitCnt'])
 
             futexInfo = \
-                ('{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t' + \
-                '{4:>12}\t{5:>12}\t{6:>12}\t{7:>10}\t{8:>12}\t{9:>10}\t{10:>10}').\
+                ('{0:>16}({1:>5}) {2:>12} {3:>12} {4:>12} {5:>12} ' + \
+                '{6:>12} {7:>10} {8:>10} {9:>12} {10:>10} {11:>10}').\
                 format(value['comm'], key, ftxWait, ftxCpuTime,\
-                ftxMax, ftxLock, ftxLockMax, value['ftxTryCnt'],\
+                ftxMax, ftxLock, ftxLockMax, ftxLockCall, ftxWaitCall,\
                 ftxLBlock, value['ftxLSwitch'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
@@ -20122,7 +20125,7 @@ class ThreadAnalyzer(object):
                         int(self.threadData[next_id]['pri']) > int(d['next_prio']):
                         self.threadData[next_id]['pri'] = d['next_prio']
 
-                    # update spin time by futex #
+                    # update cpu time by futex #
                     if self.threadData[prev_id]['ftxEnter'] > 0:
                         cstart = self.threadData[prev_id]['start']
                         fstart = self.threadData[prev_id]['ftxEnter']
@@ -20176,7 +20179,7 @@ class ThreadAnalyzer(object):
                         btime = '%.6f' % btime
                         self.futexData.append(\
                             [next_id, time, core, opt, otype, btime, locks, '', ''])
-                    # save switching info by futex #
+                    # save block time by futex #
                     elif self.threadData[next_id]['ftxBlock'] > 0:
                         cstop = self.threadData[next_id]['ftxBlock']
                         btime = '%.6f' % (float(time) - cstop)
@@ -20807,7 +20810,7 @@ class ThreadAnalyzer(object):
                             if maskedOp == flist.index("FUTEX_LOCK_PI") or \
                                 maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
                                 td['ftxStat'] = 'L'
-                                td['ftxTryCnt'] += 1
+                                td['ftxLockCnt'] += 1
 
                                 # remove already unlocked futex #
                                 try:
@@ -20818,7 +20821,7 @@ class ThreadAnalyzer(object):
                             elif maskedOp == flist.index("FUTEX_WAIT") or \
                                 maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
                                 maskedOp == flist.index("FUTEX_WAIT_BITSET"):
-                                td['ftxTryCnt'] += 1
+                                td['ftxWaitCnt'] += 1
                                 td['ftxStat'] = 'W'
                             # try to unlock #
                             elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
@@ -20909,6 +20912,12 @@ class ThreadAnalyzer(object):
                             td['ftxWait'] += futexTime
                             td['ftxEnter'] = 0
 
+                            # update cpu time by futex #
+                            if td['start'] > lockEnter:
+                                ctime = float(time) - td['start']
+                                td['ftxCpuTime'] += ctime
+
+                            # handle lock object #
                             if (lockStat == 'L' or lockStat == 'U') and ret[0] == '0':
                                 # target object #
                                 try:
