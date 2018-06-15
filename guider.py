@@ -16733,9 +16733,9 @@ class ThreadAnalyzer(object):
             float(self.totalTime))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint((\
-            '{0:>16}({1:>5}) {2:>10} {3:>10} {4:>10} {5:>8} {6:>10} ' + \
-            '{7:>10} {8:>10} {9:>8} {10:>8} {11:>10} {12:>8} {13:>10}').\
-            format('Name', 'Tid', 'Elapsed', 'Cpu', 'Block', 'NrBlock',\
+            '{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} {6:>8} {7:>10} ' + \
+            '{8:>10} {9:>10} {10:>8} {11:>8} {12:>10} {13:>8} {14:>10}').\
+            format('Name', 'Tid', 'Pid', 'Elapsed', 'Cpu', 'Block', 'NrBlock',\
                 'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait', 'LBlock',\
                 'NrLBlock', 'LastStat'))
         SystemManager.pipePrint(twoLine)
@@ -16753,6 +16753,7 @@ class ThreadAnalyzer(object):
             else:
                 status = 'Wait'
 
+            pid = value['tgid']
             ftxWait = '%.3f' % float(value['ftxWait'])
             ftxCpuTime = '%.3f' % float(value['ftxCpuTime'])
             ftxMax = '%.3f' % float(value['ftxMax'])
@@ -16765,10 +16766,10 @@ class ThreadAnalyzer(object):
             ftxWaitCall = '{:,}'.format(value['ftxWaitCnt'])
 
             futexInfo = \
-                ('{0:>16}({1:>5}) {2:>10} {3:>10} {4:>10} ' + \
-                '{5:>8} {6:>10} {7:>10} {8:>10} {9:>8} ' + \
-                '{10:>8} {11:>10} {12:>8} {13:>10}').\
-                format(value['comm'], key, ftxWait, ftxCpuTime, ftxBlock,\
+                ('{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} ' + \
+                '{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} ' + \
+                '{11:>8} {12:>10} {13:>8} {14:>10}').\
+                format(value['comm'], key, pid, ftxWait, ftxCpuTime, ftxBlock,\
                 ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall,\
                 ftxWaitCall, ftxLBlock, value['ftxLSwitch'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
@@ -16781,9 +16782,9 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint('\n[Thread Futex Lock History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint((\
-                "{0:>12} {1:>16}{2:>7} {3:>4} {4:^24} " + \
+                "{0:>12} {1:>16}{2:>13} {3:>4} {4:^24} " + \
                 "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                format("Time", "Name", "(Tid)", "Core", "Operation",\
+                format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",\
                  "Type", "Elapsed", "Target", "Value", "Timer"))
             SystemManager.pipePrint(twoLine)
 
@@ -16799,7 +16800,7 @@ class ThreadAnalyzer(object):
                     time = '%.6f' % (atime - float(SystemManager.startTime))
 
                     comm = self.threadData[value[0]]['comm']
-                    tid = '(%5s)' % value[0]
+                    tid = '(%5s/%5s)' % (value[0], self.threadData[value[0]]['tgid'])
                     core = value[2]
 
                     try:
@@ -16826,7 +16827,7 @@ class ThreadAnalyzer(object):
                         elapsed = value[5]
 
                     SystemManager.pipePrint((\
-                        "{0:>12} {1:>16}{2:>7} {3:>4} {4:<24} " + \
+                        "{0:>12} {1:>16}{2:>13} {3:>4} {4:<24} " + \
                         "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
                         format(time, comm, tid, core, value[3],\
                         otype, elapsed, value[6], value[7], value[8]))
