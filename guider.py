@@ -11059,6 +11059,13 @@ class SystemManager(object):
                         "Fail to save data because it is not in recording mode")
                     sys.exit(0)
 
+                if SystemManager.findOption('F'):
+                    SystemManager.printFile = str(value)
+                    if len(SystemManager.printFile) == 0:
+                        SystemManager.printError("no option value with -o option")
+                        sys.exit(0)
+                    continue
+
                 SystemManager.outputFile = str(value)
 
                 if os.path.isdir(SystemManager.outputFile):
@@ -13893,8 +13900,9 @@ class ThreadAnalyzer(object):
                 'dReclaimWait': float(0), 'dReclaimStart': float(0), 'dReclaimCnt': int(0), \
                 'ftxLockCnt': int(0), 'ftxEnter': float(0), 'ftxWait': float(0), \
                 'ftxWaitCnt': int(0), 'ftxMax': float(0), 'ftxCpuTime': float(0), \
-                'ftxLock': float(0), 'ftxLockMax': float(0), 'ftxStat': '?', 'ftxLSwitch': int(0), \
-                'ftxLBlockTotal': float(0), 'ftxBlock': float(0), 'ftxLBlock': float(0), \
+                'ftxLock': float(0), 'ftxLockMax': float(0), 'ftxStat': '?', \
+                'ftxLSwitch': int(0), 'ftxBlockTotal': float(0), 'ftxLBlockTotal': float(0), \
+                'ftxBlock': float(0), 'ftxLBlock': float(0), 'ftxBlockCnt': int(0), \
                 'ftxEnt': None, 'lastStatus': 'N', 'offCnt': int(0), 'offTime': float(0), \
                 'nrPages': int(0), 'waitStartAsParent': float(0), 'reclaimedPages': int(0), \
                 'remainKmem': int(0), 'wasteKmem': int(0), 'kernelPages': int(0), \
@@ -14136,22 +14144,30 @@ class ThreadAnalyzer(object):
         # add lock time of jobs not finished yet to each threads #
         if SystemManager.lockEnable:
             for idx, item in self.threadData.items():
-                try:
+                if item['ftxEnter'] > 0:
                     # elapsed time #
-                    if item['ftxEnter'] > 0:
-                        wtime = float(self.finishTime) - item['ftxEnter']
-                        self.threadData[idx]['ftxWait'] += wtime
-                        if self.threadData[idx]['ftxMax'] < wtime:
-                            self.threadData[idx]['ftxMax'] = wtime
+                    wtime = float(self.finishTime) - item['ftxEnter']
+                    item['ftxWait'] += wtime
+                    if item['ftxMax'] < wtime:
+                        item['ftxMax'] = wtime
 
-                    # lock time #
-                    for obj, time in item['futexObj'].items():
-                        ltime = float(self.finishTime) - time
-                        self.threadData[idx]['ftxLock'] += ltime
-                        if self.threadData[idx]['ftxLockMax'] < ltime:
-                            self.threadData[idx]['ftxLockMax'] = ltime
-                except:
-                    pass
+                    # cpu time #
+                    if item['start'] > item['ftxEnter']:
+                        ctime = float(self.finishTime) - item['start']
+                        item['ftxCpuTime'] += ctime
+                    elif item['ftxBlock'] == 0 and item['ftxLBlock'] == 0:
+                        ctime = float(self.finishTime) - item['futexEnter']
+                        item['ftxCpuTime'] += ctime
+
+                if not 'futexObj' in item:
+                    continue
+
+                # lock time #
+                for obj, time in item['futexObj'].items():
+                    ltime = float(self.finishTime) - time
+                    item['ftxLock'] += ltime
+                    if item['ftxLockMax'] < ltime:
+                        item['ftxLockMax'] = ltime
 
         # add block waiting time of jobs not finished yet to each threads #
         if SystemManager.blockEnable:
@@ -16717,10 +16733,10 @@ class ThreadAnalyzer(object):
             float(self.totalTime))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint((\
-            '{0:>16}({1:>5}) {2:>12} {3:>12} {4:>12} ' + \
-            '{5:>12} {6:>12} {7:>10} {8:>10} {9:>12} {10:>10} {11:>10}').\
-                format('Name', 'Tid', 'Elapsed', 'CpuTime', 'CallMax',\
-                'Lock', 'LockMax', 'NrLock', 'NrWait', 'LBlock',\
+            '{0:>16}({1:>5}) {2:>10} {3:>10} {4:>10} {5:>8} {6:>10} ' + \
+            '{7:>10} {8:>10} {9:>8} {10:>8} {11:>10} {12:>8} {13:>10}').\
+            format('Name', 'Tid', 'Elapsed', 'Cpu', 'Block', 'NrBlock',\
+                'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait', 'LBlock',\
                 'NrLBlock', 'LastStat'))
         SystemManager.pipePrint(twoLine)
 
@@ -16742,16 +16758,19 @@ class ThreadAnalyzer(object):
             ftxMax = '%.3f' % float(value['ftxMax'])
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
+            ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
             ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
+            ftxBlockCall = '{:,}'.format(value['ftxBlockCnt'])
             ftxLockCall = '{:,}'.format(value['ftxLockCnt'])
             ftxWaitCall = '{:,}'.format(value['ftxWaitCnt'])
 
             futexInfo = \
-                ('{0:>16}({1:>5}) {2:>12} {3:>12} {4:>12} {5:>12} ' + \
-                '{6:>12} {7:>10} {8:>10} {9:>12} {10:>10} {11:>10}').\
-                format(value['comm'], key, ftxWait, ftxCpuTime,\
-                ftxMax, ftxLock, ftxLockMax, ftxLockCall, ftxWaitCall,\
-                ftxLBlock, value['ftxLSwitch'], status)
+                ('{0:>16}({1:>5}) {2:>10} {3:>10} {4:>10} ' + \
+                '{5:>8} {6:>10} {7:>10} {8:>10} {9:>8} ' + \
+                '{10:>8} {11:>10} {12:>8} {13:>10}').\
+                format(value['comm'], key, ftxWait, ftxCpuTime, ftxBlock,\
+                ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall,\
+                ftxWaitCall, ftxLBlock, value['ftxLSwitch'], status)
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
 
@@ -20138,6 +20157,7 @@ class ThreadAnalyzer(object):
                         stime = float(time) - tstart
                         self.threadData[prev_id]['ftxCpuTime'] += stime
                         self.threadData[prev_id]['ftxBlock'] = float(time)
+                        self.threadData[prev_id]['ftxBlockCnt'] += 1
 
                         opt = '{0:^24}'.format('BLOCK')
                         otype = '{0:<10}'.format('ENT')
@@ -20182,11 +20202,13 @@ class ThreadAnalyzer(object):
                     # save block time by futex #
                     elif self.threadData[next_id]['ftxBlock'] > 0:
                         cstop = self.threadData[next_id]['ftxBlock']
-                        btime = '%.6f' % (float(time) - cstop)
+                        btime = float(time) - cstop
+                        self.threadData[next_id]['ftxBlockTotal'] += btime
                         self.threadData[next_id]['ftxBlock'] = 0
 
                         opt = '{0:^24}'.format('BLOCK')
                         otype = '{0:>10}'.format('RET')
+                        btime = '%.6f' % btime
                         self.futexData.append(\
                             [next_id, time, core, opt, otype, btime, '', '', ''])
 
@@ -20915,6 +20937,9 @@ class ThreadAnalyzer(object):
                             # update cpu time by futex #
                             if td['start'] > lockEnter:
                                 ctime = float(time) - td['start']
+                                td['ftxCpuTime'] += ctime
+                            elif td['ftxBlock'] == 0 and td['ftxLBlock'] == 0:
+                                ctime = float(time) - lockEnter
                                 td['ftxCpuTime'] += ctime
 
                             # handle lock object #
