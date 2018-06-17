@@ -8530,6 +8530,37 @@ class SystemManager(object):
 
 
     @staticmethod
+    def writeSyscallCmd(enable):
+        scmd = ""
+        if enable:
+            sfilter = ""
+            pfilter = SystemManager.getPidFilter()
+            if len(SystemManager.syscallList) > 0:
+                sfilter = "("
+                for val in SystemManager.syscallList:
+                    sfilter += " id == %s ||" % val
+                sfilter = "%s )" % sfilter[:sfilter.rfind(" ||")]
+
+            if len(sfilter) > 0 and len(pfilter) > 0:
+                scmd = "(%s && %s)" % (sfilter, pfilter)
+            elif len(sfilter) == 0 and len(pfilter) == 0:
+                pass
+            elif len(sfilter) > 0:
+                scmd = "%s || ( id == %s )" % \
+                    (sfilter, ConfigManager.sysList.index("sys_execve"))
+            elif len(pfilter) > 0:
+                scmd = "(%s)" % pfilter
+            else:
+                pass
+        else:
+            scmd = "( id == %s )" % ConfigManager.sysList.index("sys_execve")
+
+        SystemManager.writeCmd('raw_syscalls/filter', scmd)
+        SystemManager.writeCmd('raw_syscalls/enable', '1')
+
+
+
+    @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
         try:
             import subprocess
@@ -8724,11 +8755,6 @@ class SystemManager(object):
             else:
                 disableStat += 'POWER '
 
-            if SystemManager.sysEnable:
-                enableStat += 'SYSCALL '
-            else:
-                disableStat += 'SYSCALL '
-
             if len(SystemManager.preemptGroup) > 0:
                 enableStat += 'PREEMPT '
             else:
@@ -8773,6 +8799,11 @@ class SystemManager(object):
             enableStat += 'PRINT '
         else:
             disableStat += 'PRINT '
+
+        if SystemManager.sysEnable:
+            enableStat += 'SYSCALL '
+        else:
+            disableStat += 'SYSCALL '
 
         if SystemManager.lockEnable:
             enableStat += 'LOCK '
@@ -9051,6 +9082,11 @@ class SystemManager(object):
                     disableStat += 'USER '
                 else:
                     enableStat += 'USER '
+
+                if SystemManager.sysEnable:
+                    enableStat += 'SYSCALL '
+                else:
+                    disableStat += 'SYSCALL '
 
                 if SystemManager.lockEnable:
                     enableStat += 'LOCK '
@@ -12692,7 +12728,7 @@ class SystemManager(object):
         SystemManager.writeKernelCmd()
         SystemManager.writeUserCmd()
 
-        # enable filelock events #
+        # enable flock events #
         if self.cmdList["filelock/locks_get_lock_context"]:
             SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
 
@@ -12713,11 +12749,6 @@ class SystemManager(object):
 
         #------------------------------ FUNCTION MODE ------------------------------#
         if SystemManager.isFunctionMode():
-            # check syscall tracing #
-            if SystemManager.sysEnable:
-                SystemManager.printError("Fail to trace syscall in function mode")
-                sys.exit(0)
-
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
                 # reset events #
@@ -12731,14 +12762,14 @@ class SystemManager(object):
                     sys.exit(0)
 
                 # apply filter #
-                if len(SystemManager.showGroup) > 0:
-                    for pid in SystemManager.showGroup:
-                        try:
-                            SystemManager.writeCmd('../set_ftrace_pid', str(int(pid)), True)
-                        except:
-                            SystemManager.printError(\
-                                "Fail to set pid %s filter for function graph tracing" % pid)
-                            sys.exit(0)
+                for pid in SystemManager.showGroup:
+                    try:
+                        pid = str(int(pid))
+                    except:
+                        SystemManager.printError(\
+                            "Fail to set pid %s filter for function graph tracing" % pid)
+                        sys.exit(0)
+                        SystemManager.writeCmd('../set_ftrace_pid', pid, True)
 
                 SystemManager.writeCmd('../trace_options', 'nofuncgraph-proc')
                 SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
@@ -12750,12 +12781,14 @@ class SystemManager(object):
                     SystemManager.writeCmd('../set_ftrace_filter', '')
                 else:
                     params = ' '.join(SystemManager.customCmd)
-                    SystemManager.printStatus("wait for setting function filter [ %s ]" % params)
+                    SystemManager.printStatus(\
+                        "wait for setting function filter [ %s ]" % params)
                     if SystemManager.writeCmd('../set_ftrace_filter', params) < 0:
                         SystemManager.printError("Fail to set function filter")
                         sys.exit(0)
                     else:
-                        SystemManager.printStatus("finished function filter [ %s ]" % params)
+                        SystemManager.printStatus(\
+                            "finished function filter [ %s ]" % params)
 
                 SystemManager.writeCmd('../tracing_on', '1')
 
@@ -12789,20 +12822,17 @@ class SystemManager(object):
             SystemManager.writeCmd('../trace_options', 'sym-addr')
             SystemManager.writeCmd('../options/stacktrace', '1')
 
-            # options for segmentation fault tracing #
-            sigDisabled = True
-            if SystemManager.customCmd is not None:
-                for evt in SystemManager.customCmd:
-                    if evt.startswith('signal'):
-                        sigDisabled = False
-                        break
-            if sigDisabled:
-                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
-                SystemManager.writeCmd('signal/filter', sigCmd)
-
             if SystemManager.disableAll:
                 return
 
+            # enable segmentation fault events #
+            customCmd = SystemManager.customCmd
+            if customCmd is None or \
+                True not in [True for evt in customCmd if evt.startswith('signal')]:
+                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
+                SystemManager.writeCmd('signal/filter', sigCmd)
+
+            # enable cpu events #
             if SystemManager.cpuEnable:
                 addr = SystemManager.getKerAddr('tick_sched_timer')
                 if addr is not None:
@@ -12813,6 +12843,7 @@ class SystemManager(object):
             else:
                 SystemManager.writeCmd('timer/hrtimer_start/enable', '0')
 
+            # enable page events #
             if SystemManager.memEnable:
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
                 if SystemManager.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
@@ -12825,23 +12856,36 @@ class SystemManager(object):
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '0') < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
 
-            if SystemManager.heapEnable:
-                mmapId = ConfigManager.getMmapId()
-
-                sysEnterCmd = "(id == %s || id == %s)" % \
-                    (mmapId, ConfigManager.sysList.index('sys_munmap'))
-                SystemManager.writeCmd('raw_syscalls/sys_enter/filter', sysEnterCmd)
-                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '1')
-
-                sysExitCmd = "(id == %s || id == %s)" % \
-                    (ConfigManager.sysList.index('sys_brk'), mmapId)
-
-                SystemManager.writeCmd('raw_syscalls/sys_exit/filter', sysExitCmd)
-                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
+            # enable all syscall events #
+            if SystemManager.sysEnable and len(SystemManager.syscallList) == 0:
+                pass
             else:
-                SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
-                SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '0')
+                # enable heap events #
+                if SystemManager.heapEnable:
+                    if SystemManager.arch == 'arm':
+                        mmapId = ConfigManager.sysList.index('sys_mmap2')
+                    else:
+                        mmapId = ConfigManager.sysList.index('sys_mmap')
 
+                    brkId = ConfigManager.sysList.index('sys_brk')
+
+                    SystemManager.syscallList.append(mmapId)
+                    SystemManager.syscallList.append(brkId)
+
+                    self.cmdList["raw_syscalls"] = True
+
+                # enable lock events #
+                if SystemManager.lockEnable:
+                    futexId = ConfigManager.sysList.index('sys_futex')
+
+                    SystemManager.syscallList.append(futexId)
+
+                    self.cmdList["raw_syscalls"] = True
+
+            # enable target systemcall events #
+            SystemManager.writeSyscallCmd(self.cmdList["raw_syscalls"])
+
+            # enable block events #
             if SystemManager.blockEnable:
                 blkCmd = cmd + " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
                 SystemManager.writeCmd('block/block_bio_queue/filter', blkCmd)
@@ -12865,7 +12909,8 @@ class SystemManager(object):
 
                 # apply filter #
                 for comm in SystemManager.showGroup:
-                    cmd += "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
+                    cmd += \
+                        "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
                     try:
                         pid = int(comm)
                         cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % (pid, pid)
@@ -12898,7 +12943,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('sched/sched_switch/filter', '0')
 
             if SystemManager.writeCmd('sched/sched_switch/enable', '1') < 0:
-                SystemManager.printError("sched event of ftrace is not enabled in kernel")
+                SystemManager.printError("Fail to enable sched events")
                 sys.exit(0)
 
         # build sched filter #
@@ -13051,31 +13096,7 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
         # enable systemcall events #
-        scmd = ""
-        if self.cmdList["raw_syscalls"]:
-            sfilter = ""
-            pfilter = SystemManager.getPidFilter()
-            if len(SystemManager.syscallList) > 0:
-                sfilter = "("
-                for val in SystemManager.syscallList:
-                    sfilter += " id == %s ||" % val
-                sfilter = "%s )" % sfilter[:sfilter.rfind(" ||")]
-
-            if len(sfilter) > 0 and len(pfilter) > 0:
-                scmd = "(%s && %s)" % (sfilter, pfilter)
-            elif len(sfilter) == 0 and len(pfilter) == 0:
-                pass
-            elif len(sfilter) > 0:
-                scmd = "%s || ( id == %s )" % \
-                    (sfilter, ConfigManager.sysList.index("sys_execve"))
-            elif len(pfilter) > 0:
-                scmd = "(%s)" % pfilter
-            else:
-                pass
-        else:
-            scmd = "( id == %s )" % ConfigManager.sysList.index("sys_execve")
-        SystemManager.writeCmd('raw_syscalls/filter', scmd)
-        SystemManager.writeCmd('raw_syscalls/enable', '1')
+        SystemManager.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
         # enable memory events #
         if self.cmdList["kmem/mm_page_alloc"]:
@@ -13266,7 +13287,8 @@ class SystemManager(object):
     def printSystemInfo(self):
         SystemManager.infoBufferPrint('\n\n[System General Info]')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemManager.infoBufferPrint(\
+            "{0:^20} {1:100}".format("TYPE", "Information"))
         SystemManager.infoBufferPrint(twoLine)
 
         try:
@@ -13280,17 +13302,22 @@ class SystemManager(object):
         except:
             pass
         try:
-            timeInfo = '%s %s' % (self.systemInfo['date'], self.systemInfo['time'])
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Time', timeInfo))
+            timeInfo = '%s %s' % \
+                (self.systemInfo['date'], self.systemInfo['time'])
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<100}".format('Time', timeInfo))
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('OS', self.systemInfo['osVer']))
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
+                format('OS', self.systemInfo['osVer']))
         except:
             pass
         try:
-            kernelInfo = '%s %s' % (self.systemInfo['osType'], self.systemInfo['kernelVer'])
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('Kernel', kernelInfo))
+            kernelInfo = '%s %s' % \
+                (self.systemInfo['osType'], self.systemInfo['kernelVer'])
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<100}".format('Kernel', kernelInfo))
         except:
             pass
         try:
@@ -13298,7 +13325,8 @@ class SystemManager(object):
             h, m = divmod(uptimeMin, 60)
             d, h = divmod(h, 24)
             RunningInfo = '%sd %sh %sm' % (d, h, m)
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
         except:
             pass
         try:
@@ -13306,11 +13334,13 @@ class SystemManager(object):
             m, s = divmod(runtime, 60)
             h, m = divmod(m, 60)
             runtimeInfo = '%sh %sm %ss' % (h, m, s)
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
                 str(int(float(self.loadData[0]) * 100)) + '%(1m)', \
                 str(int(float(self.loadData[1]) * 100)) + '%(5m)', \
                 str(int(float(self.loadData[2]) * 100)) + '%(15m)'))
@@ -13322,14 +13352,16 @@ class SystemManager(object):
         except:
             pass
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<10}".format('LastPid', self.loadData[4]))
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
         except:
             pass
         try:
             title = 'Cmdline'
             splitLen = SystemManager.lineLength - 21
             cmdlineList = \
-                [self.cmdlineData[i:i+splitLen] for i in xrange(0, len(self.cmdlineData), splitLen)]
+                [self.cmdlineData[i:i+splitLen] for i in \
+                xrange(0, len(self.cmdlineData), splitLen)]
             for string in cmdlineList:
                 SystemManager.infoBufferPrint("{0:20} {1:<100}".format(title, string))
                 title = ''
@@ -13346,14 +13378,17 @@ class SystemManager(object):
 
         SystemManager.infoBufferPrint('\n[System CPU Cache Info]')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint("{0:^20} {1:100}".format("Core", "Information"))
+        SystemManager.infoBufferPrint(\
+            "{0:^20} {1:100}".format("Core", "Information"))
         SystemManager.infoBufferPrint(twoLine)
 
         cnt = 0
         try:
-            for core, info in sorted(self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
+            for core, info in sorted(\
+                self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
                 try:
-                    SystemManager.infoBufferPrint("{0:^20} {1:<100}".format(core[3:], info))
+                    SystemManager.infoBufferPrint(\
+                        "{0:^20} {1:<100}".format(core[3:], info))
                     cnt += 1
                 except:
                     pass
@@ -13380,7 +13415,8 @@ class SystemManager(object):
 
         SystemManager.infoBufferPrint('\n[System CPU Info]')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint("{0:^20} {1:100}".format("TYPE", "Information"))
+        SystemManager.infoBufferPrint(\
+            "{0:^20} {1:100}".format("TYPE", "Information"))
         SystemManager.infoBufferPrint(twoLine)
 
         try:
@@ -20832,6 +20868,7 @@ class ThreadAnalyzer(object):
                             except:
                                 op = l['op']
 
+                            # check recursive entry caused by log loss #
                             if td['ftxEnter'] > 0:
                                 SystemManager.printWarning((\
                                     "Fail to find return of %s for thread %s at %s line\n"\
