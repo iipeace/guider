@@ -8566,7 +8566,8 @@ class SystemManager(object):
             import subprocess
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         syms = []
@@ -8680,7 +8681,8 @@ class SystemManager(object):
                 effectiveCmd.append(cmdFormat[0])
 
         if len(effectiveCmd) > 0:
-            SystemManager.printInfo("enabled custom events [ %s ]" % ', '.join(effectiveCmd))
+            SystemManager.printInfo(\
+                "enabled custom events [ %s ]" % ', '.join(effectiveCmd))
 
 
 
@@ -8692,7 +8694,8 @@ class SystemManager(object):
         if SystemManager.outputFile != None:
             return
 
-        if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
+        if SystemManager.isRecordMode() is False and \
+            SystemManager.isTopMode() is False:
             # common options #
             enableStat += SystemManager.arch.upper() + ' '
             if SystemManager.warningEnable:
@@ -8712,7 +8715,8 @@ class SystemManager(object):
 
             if SystemManager.customCmd is not None:
                 SystemManager.printInfo(\
-                    "selected custom events [ %s ]" % ', '.join(SystemManager.customCmd))
+                    "selected custom events [ %s ]" % \
+                    ', '.join(SystemManager.customCmd))
         # thread mode #
         else:
             if SystemManager.intervalEnable > 0:
@@ -8767,7 +8771,8 @@ class SystemManager(object):
 
             if SystemManager.customCmd is not None:
                 SystemManager.printInfo(\
-                    "selected custom events [ %s ]" % ', '.join(SystemManager.customCmd))
+                    "selected custom events [ %s ]" % \
+                    ', '.join(SystemManager.customCmd))
 
         # common options #
         if SystemManager.showAll:
@@ -8821,10 +8826,12 @@ class SystemManager(object):
 
         # print options #
         if enableStat != '':
-            SystemManager.printInfo("enabled analysis options [ %s]" % enableStat)
+            SystemManager.printInfo(\
+                "enabled analysis options [ %s]" % enableStat)
 
         if disableStat != '':
-            SystemManager.printInfo("disabled analysis options [ %s]" % disableStat)
+            SystemManager.printInfo(\
+                "disabled analysis options [ %s]" % disableStat)
 
 
 
@@ -8839,7 +8846,8 @@ class SystemManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printError("Fail to open %s to get uds list " % udsPath)
+            SystemManager.printError(\
+                "Fail to open %s to get uds list " % udsPath)
             return udsBuf
 
         udsList = []
@@ -8864,7 +8872,8 @@ class SystemManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printError("Fail to open %s to get udp list " % udpPath)
+            SystemManager.printError(\
+                "Fail to open %s to get udp list " % udpPath)
             return udpBuf
 
         udpList = []
@@ -8889,7 +8898,8 @@ class SystemManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printError("Fail to open %s to get tcp list " % tcpPath)
+            SystemManager.printError(\
+                "Fail to open %s to get tcp list " % tcpPath)
             return tcpBuf
 
         tcpList = []
@@ -9180,10 +9190,12 @@ class SystemManager(object):
 
         # print options #
         if enableStat != '':
-            SystemManager.printInfo("enabled recording options [ %s]" % enableStat)
+            SystemManager.printInfo(\
+                "enabled recording options [ %s]" % enableStat)
 
         if disableStat != '':
-            SystemManager.printInfo("disabled recording options [ %s]" % disableStat)
+            SystemManager.printInfo(\
+                "disabled recording options [ %s]" % disableStat)
 
 
 
@@ -9231,7 +9243,8 @@ class SystemManager(object):
                     SystemManager.fileForPrint.seek(0, 0)
                     SystemManager.procBuffer = \
                         SystemManager.fileForPrint.read().replace('\n\n', 'NEWSTAT\n\n')
-                    SystemManager.procBuffer = SystemManager.procBuffer.split('NEWSTAT')
+                    SystemManager.procBuffer = \
+                        SystemManager.procBuffer.split('NEWSTAT')
                     SystemManager.fileForPrint.seek(0, 0)
                     SystemManager.fileForPrint.truncate()
 
@@ -9253,7 +9266,8 @@ class SystemManager(object):
 
                 try:
                     fsize = \
-                        SystemManager.convertSize(int(os.path.getsize(SystemManager.inputFile)))
+                        SystemManager.convertSize(\
+                        int(os.path.getsize(SystemManager.inputFile)))
                 except:
                     fsize = '?'
                 SystemManager.printInfo(\
@@ -9296,7 +9310,8 @@ class SystemManager(object):
                 SystemManager.fileForPrint.seek(0, 0)
                 SystemManager.procBuffer = \
                     SystemManager.fileForPrint.read().replace('\n\n', 'NEWSTAT\n\n')
-                SystemManager.procBuffer = SystemManager.procBuffer.split('NEWSTAT')
+                SystemManager.procBuffer = \
+                    SystemManager.procBuffer.split('NEWSTAT')
                 SystemManager.fileForPrint.seek(0, 0)
                 SystemManager.fileForPrint.truncate()
 
@@ -9318,7 +9333,8 @@ class SystemManager(object):
 
             try:
                 fsize = \
-                    SystemManager.convertSize(int(os.path.getsize(SystemManager.inputFile)))
+                    SystemManager.convertSize(\
+                    int(os.path.getsize(SystemManager.inputFile)))
             except:
                 fsize = '?'
             SystemManager.printInfo(\
@@ -9406,9 +9422,11 @@ class SystemManager(object):
                                 'finish saving trace data into %s [%s] successfully' % \
                                 (output, fsize))
                 except:
-                    SystemManager.printWarning('Fail to save trace data to %s' % output)
+                    SystemManager.printWarning(\
+                        'Fail to save trace data to %s' % output)
             else:
-                SystemManager.printError('Fail to save trace data because output file is not set')
+                SystemManager.printError(\
+                    'Fail to save trace data because output file is not set')
                 sys.exit(0)
 
             # enable alarm handler #
@@ -9499,11 +9517,13 @@ class SystemManager(object):
             if SystemManager.cmdFd is None:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
-                    SystemManager.cmdFd.write(SystemManager.mountCmd + ' 2>/dev/null\n')
-                    SystemManager.cmdFd.write('echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
+                    SystemManager.cmdFd.write(\
+                        SystemManager.mountCmd + ' 2>/dev/null\n')
+                    SystemManager.cmdFd.write(\
+                        'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
-                    SystemManager.printError("Fail to open %s to write command" %\
-                            SystemManager.cmdEnable)
+                    SystemManager.printError(\
+                        "Fail to open %s to write command" % SystemManager.cmdEnable)
                     sys.exit(0)
             if SystemManager.cmdFd is not None:
                 try:
@@ -9593,7 +9613,8 @@ class SystemManager(object):
         SystemManager.bufferRows += newline
 
         if SystemManager.printFile != None and SystemManager.printStreamEnable:
-            string = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+            string = '\n'.join(\
+                [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
             print(string[:-1])
 
 
@@ -9714,27 +9735,29 @@ class SystemManager(object):
     @staticmethod
     def getMountInfo():
         # check whether there is mount info in saved buffer #
-        if SystemManager.systemInfoBuffer == '':
+        infoBuf = SystemManager.systemInfoBuffer
+
+        if infoBuf == '':
             return
-        mountPosStart = SystemManager.systemInfoBuffer.find('Disk Info')
+        mountPosStart = infoBuf.find('Disk Info')
         if mountPosStart == -1:
             return
-        mountPosStart = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart+1)
+        mountPosStart = infoBuf.find(twoLine, mountPosStart+1)
         if mountPosStart == -1:
             return
-        mountPosStart = SystemManager.systemInfoBuffer.find(twoLine, mountPosStart+1)
+        mountPosStart = infoBuf.find(twoLine, mountPosStart+1)
         if mountPosStart == -1:
             return
-        mountPosStart = SystemManager.systemInfoBuffer.find('\n', mountPosStart)
+        mountPosStart = infoBuf.find('\n', mountPosStart)
         if mountPosStart == -1:
             return
-        mountPosEnd = SystemManager.systemInfoBuffer.find(oneLine, mountPosStart)
+        mountPosEnd = infoBuf.find(oneLine, mountPosStart)
         if mountPosEnd == -1:
             return
 
         try:
             mountTable = []
-            tempTable = SystemManager.systemInfoBuffer[mountPosStart:mountPosEnd].split('\n')
+            tempTable = infoBuf[mountPosStart:mountPosEnd].split('\n')
             for idx, line in enumerate(tempTable):
                 if len(line.split()) == 2 or len(line.split()) == 3:
                     mountTable.append('%s %s' % (line, tempTable[idx+1]))
@@ -9766,14 +9789,16 @@ class SystemManager(object):
     @staticmethod
     def getProcTreeInfo():
         # check whether there is procTreeInfo in saved buffer #
-        if SystemManager.systemInfoBuffer == '':
+        infoBuf = SystemManager.systemInfoBuffer
+
+        if infoBuf == '':
             return
-        treePosStart = SystemManager.systemInfoBuffer.find('!!!!!')
+        treePosStart = infoBuf.find('!!!!!')
         if treePosStart == -1:
             return
 
         # check whether there is procTreeInfo in saved buffer #
-        procTree = SystemManager.systemInfoBuffer[treePosStart + len('!!!!!'):].split(',')
+        procTree = infoBuf[treePosStart + len('!!!!!'):].split(',')
         for pair in procTree:
             try:
                 ids = pair.split(':')
@@ -9784,44 +9809,44 @@ class SystemManager(object):
                 break
 
         # remove process tree info #
-        SystemManager.systemInfoBuffer = SystemManager.systemInfoBuffer[:treePosStart]
+        SystemManager.systemInfoBuffer = infoBuf[:treePosStart]
 
 
 
     @staticmethod
     def applyLaunchOption():
         # check whether there is launch option in saved buffer #
-        if SystemManager.systemInfoBuffer == '':
+        infoBuf = SystemManager.systemInfoBuffer
+
+        if infoBuf == '':
             return
-        launchPosStart = SystemManager.systemInfoBuffer.find('Launch')
+        launchPosStart = infoBuf .find('Launch')
         if launchPosStart == -1:
             return
-        launchPosEnd = SystemManager.systemInfoBuffer.find('\n', launchPosStart)
+        launchPosEnd = infoBuf.find('\n', launchPosStart)
         if launchPosEnd == -1:
             return
 
         # get launch option recorded #
-        SystemManager.launchBuffer = \
-            SystemManager.systemInfoBuffer[launchPosStart:launchPosEnd]
+        SystemManager.launchBuffer = infoBuf[launchPosStart:launchPosEnd]\
 
         # apply arch type #
         if SystemManager.archOption is None:
             try:
-                archPosStart = SystemManager.systemInfoBuffer.find('Arch')
-                archPosEnd = SystemManager.systemInfoBuffer.find('\n', archPosStart)
-                arch = SystemManager.systemInfoBuffer[archPosStart:archPosEnd].split()[1]
+                archPosStart = infoBuf.find('Arch')
+                archPosEnd = infoBuf.find('\n', archPosStart)
+                arch = infoBuf[archPosStart:archPosEnd].split()[1]
                 SystemManager.setArch(arch)
             except:
                 pass
 
         # add anlaysis option #
-        archPosStart = SystemManager.systemInfoBuffer.find('Arch')
-        archPosEnd = SystemManager.systemInfoBuffer.find('\n', archPosStart)
+        archPosStart = infoBuf.find('Arch')
+        archPosEnd = infoBuf.find('\n', archPosStart)
         if archPosStart >= 0 and archPosEnd >= 0:
             analOption = "{0:20} {1:<100}".format('Analysis', '# %s' % (' '.join(sys.argv)))
             SystemManager.systemInfoBuffer = '%s\n%s\n%s' % \
-                (SystemManager.systemInfoBuffer[:archPosEnd], analOption, \
-                SystemManager.systemInfoBuffer[archPosEnd+1:])
+                (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
@@ -10001,7 +10026,8 @@ class SystemManager(object):
 
     @staticmethod
     def infoBufferPrint(line):
-        SystemManager.systemInfoBuffer = '%s%s\n' % (SystemManager.systemInfoBuffer, line)
+        SystemManager.systemInfoBuffer = \
+            '%s%s\n' % (SystemManager.systemInfoBuffer, line)
 
 
 
@@ -10017,7 +10043,8 @@ class SystemManager(object):
             with open(SystemManager.inputFile, 'r') as fd:
                 textBuf = fd.read()
         except:
-            SystemManager.printError("Fail to read data from %s\n" % SystemManager.inputFile)
+            SystemManager.printError(\
+                "Fail to read data from %s\n" % SystemManager.inputFile)
             return
 
         # trim from process info in top mode #
@@ -10043,7 +10070,8 @@ class SystemManager(object):
             from PIL import Image, ImageFont, ImageDraw
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
             return
 
         try:
@@ -10052,7 +10080,8 @@ class SystemManager(object):
             imageType = 'jpg'
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printWarning("Fail to import python package: %s" % err.args[0])
+            SystemManager.printWarning(\
+                "Fail to import python package: %s" % err.args[0])
 
             try:
                 # load bmp plugin instead of jpeg #
@@ -10060,7 +10089,8 @@ class SystemManager(object):
                 imageType = 'bmp'
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                SystemManager.printError(\
+                    "Fail to import python package: %s" % err.args[0])
                 return
 
         if SystemManager.imagePath is None:
@@ -10075,14 +10105,16 @@ class SystemManager(object):
                 # load specific font #
                 imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
             except:
-                SystemManager.printError("Fail to load font from %s" % SystemManager.fontPath)
+                SystemManager.printError(\
+                    "Fail to load font from %s" % SystemManager.fontPath)
                 return
         else:
             try:
                 # load default font #
                 imageFont = ImageFont.load_default().font
             except:
-                SystemManager.printError("Fail to load default font, try to use -T option")
+                SystemManager.printError(\
+                    "Fail to load default font, try to use -T option")
                 return
 
         # get default font size and image length #
@@ -10103,9 +10135,11 @@ class SystemManager(object):
 
         # make new blink image #
         if imageType is 'jpg':
-            imageObject = Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
+            imageObject = \
+                Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
         elif imageType is 'bmp':
-            imageObject = Image.new("RGB", (900, imageSizeY), (255, 255, 255))
+            imageObject = \
+                Image.new("RGB", (900, imageSizeY), (255, 255, 255))
         else:
             SystemManager.printError("No output image type")
             return
@@ -10125,15 +10159,18 @@ class SystemManager(object):
             # save image as file #
             imageObject.save(SystemManager.imagePath)
         except:
-            SystemManager.printError("Fail to save image as %s\n" % SystemManager.imagePath)
+            SystemManager.printError(\
+                "Fail to save image as %s\n" % SystemManager.imagePath)
             return
 
         try:
             fsize = \
-                SystemManager.convertSize(int(os.path.getsize(SystemManager.imagePath)))
+                SystemManager.convertSize(\
+                int(os.path.getsize(SystemManager.imagePath)))
         except:
             fsize = '?'
-        SystemManager.printStatus("saved image into %s [%s] successfully" % \
+        SystemManager.printStatus(\
+            "saved image into %s [%s] successfully" % \
             (SystemManager.imagePath, fsize))
 
 
@@ -10183,8 +10220,10 @@ class SystemManager(object):
             return
 
         # pager initialization #
-        if SystemManager.pipeForPrint == None and SystemManager.selectMenu == None and \
-            SystemManager.printFile == None and SystemManager.printStreamEnable is False and \
+        if SystemManager.pipeForPrint == None and \
+            SystemManager.selectMenu == None and \
+            SystemManager.printFile == None and \
+            SystemManager.printStreamEnable is False and \
             SystemManager.isTopMode() is False:
             try:
                 if sys.platform.startswith('linux'):
@@ -10195,7 +10234,7 @@ class SystemManager(object):
                     pass
             except:
                 SystemManager.printError(\
-                    "Fail to find pager util, use -o option to save output into file\n")
+                    "Fail to find pager, use -o option to save output into file\n")
                 sys.exit(0)
 
         # pager output #
@@ -10217,10 +10256,12 @@ class SystemManager(object):
                 pass
 
             # analysis mode #
-            if SystemManager.isRecordMode() is False and SystemManager.isTopMode() is False:
+            if SystemManager.isRecordMode() is False and \
+                SystemManager.isTopMode() is False:
                 fileNamePos = SystemManager.inputFile.rfind(token)
                 if  fileNamePos >= 0:
-                    SystemManager.inputFile = SystemManager.inputFile[fileNamePos + 1:]
+                    SystemManager.inputFile = \
+                        SystemManager.inputFile[fileNamePos + 1:]
 
                 if os.path.isdir(SystemManager.printFile):
                     newInputFile = SystemManager.inputFile.replace('.dat', '.out')
@@ -10232,11 +10273,13 @@ class SystemManager(object):
                     SystemManager.inputFile = SystemManager.printFile
             else:
                 if os.path.isdir(SystemManager.printFile):
-                    SystemManager.inputFile = SystemManager.printFile + token + 'guider.out'
+                    SystemManager.inputFile = \
+                        SystemManager.printFile + token + 'guider.out'
                 else:
                     SystemManager.inputFile = SystemManager.printFile
 
-            SystemManager.inputFile = SystemManager.inputFile.replace(token * 2, token)
+            SystemManager.inputFile = \
+                SystemManager.inputFile.replace(token * 2, token)
 
             try:
                 # backup exist output file #
@@ -10246,7 +10289,8 @@ class SystemManager(object):
                     SystemManager.printInfo('%s is renamed to %s' % \
                         (SystemManager.inputFile, backupFile))
             except:
-                SystemManager.printWarning("Fail to backup %s" % SystemManager.inputFile)
+                SystemManager.printWarning(\
+                    "Fail to backup %s" % SystemManager.inputFile)
 
             try:
                 SystemManager.fileForPrint = open(SystemManager.inputFile, 'w+')
@@ -10254,9 +10298,9 @@ class SystemManager(object):
                 # print output file name #
                 if SystemManager.printFile != None:
                     SystemManager.printInfo(\
-                        "wait for writing statistics to %s" % (SystemManager.inputFile))
+                        "wait for writing statistics to %s" % SystemManager.inputFile)
             except:
-                SystemManager.printError("Fail to open %s\n" % (SystemManager.inputFile))
+                SystemManager.printError("Fail to open %s\n" % SystemManager.inputFile)
                 sys.exit(0)
 
         # file output #
@@ -10275,7 +10319,8 @@ class SystemManager(object):
             if SystemManager.ttyCols == 0:
                 line = '\n'.join([nline for nline in line.split('\n')])
             else:
-                line = '\n'.join([nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
+                line = '\n'.join(\
+                    [nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
             print(line)
 
 
@@ -10283,44 +10328,51 @@ class SystemManager(object):
     @staticmethod
     def printWarning(line, always=False):
         if SystemManager.warningEnable or always:
-            print('\n%s%s%s%s' % (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
+            print('\n%s%s%s%s' % \
+                (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printError(line):
-        print('\n%s%s%s%s\n' % (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
+        print('\n%s%s%s%s\n' % \
+            (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printInfo(line):
-        print('\n%s%s%s%s' % (ConfigManager.BOLD, '[Info] ', line, ConfigManager.ENDC))
+        print('\n%s%s%s%s' % \
+            (ConfigManager.BOLD, '[Info] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printGood(line):
-        print('\n%s%s%s%s' % (ConfigManager.OKGREEN, '[Info] ', line, ConfigManager.ENDC))
+        print('\n%s%s%s%s' % \
+            (ConfigManager.OKGREEN, '[Info] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printUnderline(line):
-        print('\n%s%s%s' % (ConfigManager.UNDERLINE, line, ConfigManager.ENDC))
+        print('\n%s%s%s' % \
+            (ConfigManager.UNDERLINE, line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def printStatus(line):
-        print('\n%s%s%s%s' % (ConfigManager.SPECIAL, '[Step] ', line, ConfigManager.ENDC))
+        print('\n%s%s%s%s' % \
+            (ConfigManager.SPECIAL, '[Step] ', line, ConfigManager.ENDC))
 
 
 
     @staticmethod
     def isEffectiveRequest(request):
         try:
-            if request.startswith('EVENT_') or ThreadAnalyzer.requestType.index(request):
+            if request.startswith('EVENT_') or \
+                ThreadAnalyzer.requestType.index(request):
                 pass
             else:
                 raise
@@ -10331,7 +10383,8 @@ class SystemManager(object):
                     SystemManager.jsonObject = json
                 except ImportError:
                     err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                    SystemManager.printError(\
+                        "Fail to import python package: %s" % err.args[0])
                     sys.exit(0)
 
             return True
@@ -10458,7 +10511,8 @@ class SystemManager(object):
 
         SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
         for seq in xrange(0, len(SystemManager.optionList)):
-            SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
+            SystemManager.optionList[seq] = \
+                SystemManager.optionList[seq].replace(" ", "")
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
@@ -10499,7 +10553,8 @@ class SystemManager(object):
 
                 if os.path.isdir(SystemManager.printFile) == False:
                     upDirPos = SystemManager.printFile.rfind('/')
-                    if upDirPos > 0 and os.path.isdir(SystemManager.printFile[:upDirPos]) is False:
+                    if upDirPos > 0 and \
+                        os.path.isdir(SystemManager.printFile[:upDirPos]) is False:
                         SystemManager.printError("wrong path with -o option")
                         sys.exit(0)
 
@@ -10538,7 +10593,8 @@ class SystemManager(object):
 
             elif option == 'p' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('i'):
-                    SystemManager.printError("wrong option with -p, -i option is already enabled")
+                    SystemManager.printError(\
+                        "wrong option with -p, -i option is already enabled")
                     sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
@@ -10587,7 +10643,8 @@ class SystemManager(object):
 
             elif option == 'E':
                 SystemManager.errorFile = value
-                SystemManager.printInfo("error log is wrote to %s" % SystemManager.errorFile)
+                SystemManager.printInfo(\
+                    "error log is wrote to %s" % SystemManager.errorFile)
 
             elif option == 'e':
                 options = value
@@ -10625,7 +10682,8 @@ class SystemManager(object):
                         SystemManager.blockEnable = True
                 if options.rfind('s') > -1:
                     if SystemManager.isRoot() is False:
-                        SystemManager.printError("Fail to get root permission to sample stack")
+                        SystemManager.printError(\
+                            "Fail to get root permission to sample stack")
                         sys.exit(0)
                     elif SystemManager.findOption('g') is False or \
                         SystemManager.getOption('g') is None:
@@ -10808,9 +10866,11 @@ class SystemManager(object):
                     sys.exit(0)
                 else:
                     networkObject.status = 'ALWAYS'
-                    SystemManager.addrListForPrint[ip + ':' + str(port)] = networkObject
+                    naddr = '%s:%s' % (ip, str(port))
+                    SystemManager.addrListForPrint[naddr] = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
+                SystemManager.printInfo(\
+                    "use %s:%d as remote address" % (ip, port))
 
             elif option == 'N' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
@@ -10838,7 +10898,8 @@ class SystemManager(object):
                 else:
                     networkObject.status = 'ALWAYS'
                     networkObject.request = service
-                    SystemManager.addrListForReport[ip + ':' + str(port)] = networkObject
+                    naddr = '%s:%s' % (ip, str(port))
+                    SystemManager.addrListForReport[naddr] = networkObject
 
                 SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
 
@@ -10856,9 +10917,11 @@ class SystemManager(object):
                         sys.exit(0)
 
                 if os.path.isdir(SystemManager.reportPath):
-                    SystemManager.reportPath = SystemManager.reportPath + '/guider.report'
+                    SystemManager.reportPath = \
+                        SystemManager.reportPath + '/guider.report'
 
-                SystemManager.reportPath = SystemManager.reportPath.replace('//', '/')
+                SystemManager.reportPath = \
+                    SystemManager.reportPath.replace('//', '/')
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
 
@@ -11003,7 +11066,8 @@ class SystemManager(object):
 
         SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
         for seq in xrange(0, len(SystemManager.optionList)):
-            SystemManager.optionList[seq] = SystemManager.optionList[seq].replace(" ", "")
+            SystemManager.optionList[seq] = \
+                SystemManager.optionList[seq].replace(" ", "")
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
@@ -11082,7 +11146,8 @@ class SystemManager(object):
                 SystemManager.showGroup = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.showGroup)
                 if len(SystemManager.showGroup) == 0:
-                    SystemManager.printError("Input value for filter with -g option")
+                    SystemManager.printError(\
+                        "Input value for filter with -g option")
                     sys.exit(0)
 
                 SystemManager.printInfo(\
@@ -11105,16 +11170,19 @@ class SystemManager(object):
                 SystemManager.outputFile = str(value)
 
                 if os.path.isdir(SystemManager.outputFile):
-                    SystemManager.outputFile = SystemManager.outputFile + '/guider.dat'
+                    SystemManager.outputFile = \
+                        '%s/guider.dat' % SystemManager.outputFile
                 else:
                     fpos = SystemManager.outputFile.rfind('/')
-                    if fpos <= 0 or os.path.isdir(SystemManager.outputFile[:fpos]):
+                    if fpos <= 0 or \
+                        os.path.isdir(SystemManager.outputFile[:fpos]):
                         continue
                     else:
                         SystemManager.printError("wrong option value with -s option")
                         sys.exit(0)
 
-                SystemManager.outputFile = SystemManager.outputFile.replace('//', '/')
+                SystemManager.outputFile = \
+                    SystemManager.outputFile.replace('//', '/')
 
             elif option == 'D':
                 SystemManager.depEnable = True
@@ -11656,6 +11724,7 @@ class SystemManager(object):
         printBuf = ''
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
+        gstatList = ConfigManager.statList
 
         SystemManager.updateUptime()
 
@@ -11686,18 +11755,19 @@ class SystemManager(object):
                     with open(statPath, 'r') as fd:
                         statList = fd.readlines()[0].split()
 
-                    commIndex = ConfigManager.statList.index("COMM")
+                    commIndex = gstatList.index("COMM")
                     if statList[commIndex][-1] != ')':
-                        idx = ConfigManager.statList.index("COMM") + 1
+                        idx = gstatList.index("COMM") + 1
                         while 1:
                             tmpStr = str(statList[idx])
-                            statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
+                            statList[commIndex] = \
+                                "%s %s" % (statList[commIndex], tmpStr)
                             statList.pop(idx)
                             if tmpStr.rfind(')') > -1:
                                 break
 
                     procStart = \
-                        float(statList[ConfigManager.statList.index("STARTTIME")]) / 100
+                        float(statList[gstatList.index("STARTTIME")]) / 100
                     runtime = int(SystemManager.uptime - procStart)
                 except:
                     pass
@@ -11771,7 +11841,8 @@ class SystemManager(object):
         elif ulist[0].upper() == 'AFFINITY' or \
             ulist[0].upper() == 'A':
             if len(ulist) > 2:
-                SystemManager.setaffinity(ulist[1], (' '.join(ulist[2:])).split(','))
+                SystemManager.setaffinity(\
+                    ulist[1], (' '.join(ulist[2:])).split(','))
         elif ulist[0].upper() == 'FILTER' or \
             ulist[0].upper() == 'F':
             if len(ulist) == 1:
@@ -11832,18 +11903,19 @@ class SystemManager(object):
         nrProc = 0
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
+        sigList = ConfigManager.sigList
 
         if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
                 try:
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
-                        "sent signal %s to %s process" % \
-                        (ConfigManager.sigList[nrSig], pid))
+                        "sent signal %s to %s process" % (sigList[nrSig], pid))
+
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because of permission" % \
-                        (ConfigManager.sigList[nrSig], pid))
+                        (sigList[nrSig], pid))
             return
 
         commLocation = sys.argv[0].rfind('/')
@@ -11892,25 +11964,25 @@ class SystemManager(object):
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
-                                (ConfigManager.sigList[nrSig], pid))
+                                (sigList[nrSig], pid))
                     elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo("sent signal %s to %s process" % \
-                                (ConfigManager.sigList[nrSig], pid))
+                                (sigList[nrSig], pid))
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
-                                (ConfigManager.sigList[nrSig], pid))
+                                (sigList[nrSig], pid))
                 else:
                     try:
                         os.kill(int(pid), nrSig)
                         SystemManager.printInfo("sent signal %s to %s process" % \
-                            (ConfigManager.sigList[nrSig], pid))
+                            (sigList[nrSig], pid))
                     except:
                         SystemManager.printError(\
                             "Fail to send signal %s to %s because of permission" % \
-                            (ConfigManager.sigList[nrSig], pid))
+                            (sigList[nrSig], pid))
 
                 nrProc += 1
 
@@ -16987,13 +17059,15 @@ class ThreadAnalyzer(object):
             for sysId, val in sorted(\
                 value['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
                 try:
-                    if val['count'] > 0:
-                        val['average'] = val['usage'] / val['count']
+                    if val['count'] == 0:
+                        continue
 
-                        syscallInfo += \
-                            "%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
-                            (ConfigManager.sysList[int(sysId)], sysId, val['usage'], \
-                             val['count'], val['min'], val['max'], val['average'])
+                    val['average'] = val['usage'] / val['count']
+                    syscall = ConfigManager.sysList[int(sysId)][4:]
+                    syscallInfo = \
+                        "%s%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
+                        (syscallInfo, syscall, sysId, val['usage'], val['count'], \
+                         val['min'], val['max'], val['average'])
                 except:
                     continue
 
