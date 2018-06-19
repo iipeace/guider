@@ -1292,7 +1292,7 @@ class FunctionAnalyzer(object):
     symStackIdxTable = [
         'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
         'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE', \
-        'LOCK_TRY', 'CUSTOM'
+        'LOCK_TRY', 'UNLOCK', 'CUSTOM'
         ]
 
 
@@ -1346,6 +1346,7 @@ class FunctionAnalyzer(object):
         self.blockWrEventCnt = 0
         self.blockWrUsageCnt = 0
         self.lockTryEventCnt = 0
+        self.unlockEventCnt = 0
         self.customCnt = 0
         self.customTotal = 0
 
@@ -1373,14 +1374,14 @@ class FunctionAnalyzer(object):
             'cachePages': int(0), 'kernelPages': int(0), 'heapSize': int(0), \
             'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
             'nrKnownFreePages': int(0), 'customCnt': int(0), 'nrRdBlocks': int(0), \
-            'nrLockTry': int(0), 'customTotal': int(0)}
+            'nrLockTry': int(0), 'nrUnlock': int(0),'customTotal': int(0)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), \
             'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
             'totalCnt': int(0), 'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), \
             'heapSize': int(0), 'unknownPageFreeCnt': int(0), 'src': '', 'customCnt': int(0), \
-            'customTotal': int(0), 'lockTryCnt': int(0)}
+            'customTotal': int(0), 'lockTryCnt': int(0), 'unlockCnt': int(0)}
 
         self.init_symData = \
             {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), \
@@ -1390,7 +1391,7 @@ class FunctionAnalyzer(object):
             'pagePair': None, 'pagePairCnt': int(0), 'pagePairTotal': float(0), \
             'pagePairMin': float(0), 'pagePairMax': float(0), 'pagePairAvr': float(0), \
             'pageRemainMin': float(0), 'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
-            'pageRemainTotal': float(0), 'lockTryCnt': int(0)}
+            'pageRemainTotal': float(0), 'lockTryCnt': int(0), 'unlockCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
@@ -2150,6 +2151,11 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]['lockTryCnt'] += eventCnt
                 self.kernelSymData[ksym]['lockTryCnt'] += eventCnt
 
+            # unlock event #
+            elif event == 'UNLOCK':
+                self.userSymData[sym]['unlockCnt'] += eventCnt
+                self.kernelSymData[ksym]['unlockCnt'] += eventCnt
+
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
                 self.userSymData[sym]['tickCnt'] += 1
@@ -2495,6 +2501,11 @@ class FunctionAnalyzer(object):
             self.posData[self.nowCtx['kernelLastPos']]['lockTryCnt'] += targetCnt
             self.posData[self.nowCtx['userLastPos']]['lockTryCnt'] += targetCnt
 
+        elif targetEvent == 'UNLOCK':
+            self.unlockEventCnt += 1
+            self.posData[self.nowCtx['kernelLastPos']]['unlockCnt'] += targetCnt
+            self.posData[self.nowCtx['userLastPos']]['unlockCnt'] += targetCnt
+
         elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
@@ -2689,6 +2700,8 @@ class FunctionAnalyzer(object):
                     self.posData[pos]['posCnt'] += 1
                 elif targetEvent == 'LOCK_TRY':
                     self.posData[pos]['lockTryCnt'] += 1
+                elif targetEvent == 'UNLOCK':
+                    self.posData[pos]['unlockCnt'] += 1
 
             self.nowCtx['userCallStack'].append(pos)
         # kernel mode #
@@ -3073,12 +3086,13 @@ class FunctionAnalyzer(object):
 
             return False
 
-        # heap increase start event #
+        # syscall / heap / lock events #
         elif isFixedEvent and func == "sys_enter:":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', args)
             if m is not None:
                 b = m.groupdict()
 
+                # heap increasement event #
                 if int(b['nr']) == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
@@ -3102,6 +3116,7 @@ class FunctionAnalyzer(object):
 
                     return False
 
+                # heap decreasement event #
                 elif int(b['nr']) == ConfigManager.sysList.index('sys_munmap'):
                     self.heapEnabled = True
 
@@ -3118,6 +3133,57 @@ class FunctionAnalyzer(object):
                     except:
                         pass
 
+                # lock event #
+                elif int(b['nr']) == ConfigManager.sysList.index('sys_futex'):
+                    n = re.match((\
+                        r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
+                        r'(?P<val>\S+), (?P<timer>\S+),'), b['args'])
+                    if n is not None:
+                        l = n.groupdict()
+
+                        FUTEX_CMD_MASK = ~(128|256)
+                        # FUTEX_PRIVATE_FLAG: 128, FUTEX_CLOCK_REALTIME: 256 #
+                        maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
+
+                        addr = l['uaddr'][1:]
+                        flist = ConfigManager.futexList
+
+                        try:
+                            op = flist[maskedOp]
+                        except:
+                            op = l['op']
+
+                        # try to lock #
+                        if maskedOp == flist.index("FUTEX_LOCK_PI") or \
+                            maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
+                            self.lockEnabled = True
+
+                            self.threadData[tid]['nrLockTry'] += 1
+
+                            self.saveEventParam('LOCK_TRY', 1, maskedOp)
+
+                            return False
+                        # wait #
+                        elif maskedOp == flist.index("FUTEX_WAIT") or \
+                            maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
+                            maskedOp == flist.index("FUTEX_WAIT_BITSET"):
+                            self.lockEnabled = True
+
+                            self.threadData[tid]['nrLockTry'] += 1
+
+                            self.saveEventParam('LOCK_TRY', 1, maskedOp)
+
+                            return False
+                        # try to unlock #
+                        elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
+                            self.lockEnabled = True
+
+                            self.threadData[tid]['nrUnlock'] += 1
+
+                            self.saveEventParam('UNLOCK', 1, 0)
+
+                            return False
+
                 else:
                     SystemManager.printWarning("Fail to recognize event %s at %d" % \
                             (func[:-1], SystemManager.dbgEventLine))
@@ -3126,12 +3192,13 @@ class FunctionAnalyzer(object):
 
             return False
 
-        # heap increase return event #
+        # syscall / heap events #
         elif isFixedEvent and func == "sys_exit:":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', args)
             if m is not None:
                 b = m.groupdict()
 
+                # heap increasement event #
                 if int(b['nr']) == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
@@ -3149,6 +3216,7 @@ class FunctionAnalyzer(object):
                     except:
                         pass
 
+                # heap decreasement event #
                 elif int(b['nr']) == ConfigManager.sysList.index('sys_brk'):
                     self.heapEnabled = True
 
@@ -3684,6 +3752,80 @@ class FunctionAnalyzer(object):
 
 
 
+    def makeKernelSymList(self, subStack, indentLen):
+        symbolStack = ''
+        stackIdx = 0
+        indentLen = len("\t" * 4 * 4) + 3
+        appliedIndentLen = indentLen
+
+        try:
+            for pos in subStack:
+                if self.posData[pos]['symbol'] == '':
+                    symbolSet = ' <- %s' % hex(int(pos, 16))
+                elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
+                    symbolSet = ' <- %s' % hex(int(pos, 16))
+                else:
+                    symbolSet = ' <- %s' % str(self.posData[pos]['symbol'])
+
+                lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
+                if symbolStack != '' and lpos > SystemManager.lineLength:
+                    stackIdx = len(symbolStack)
+                    symbolStack = '%s\n%s' % (symbolStack, ' ' * indentLen)
+                    appliedIndentLen = 0
+
+                symbolStack = '%s%s' % (symbolStack, symbolSet)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        return symbolStack
+
+
+
+    def makeUserSymList(self, subStack, indentLen):
+        symbolStack = ''
+        stackIdx = 0
+        appliedIndentLen = indentLen
+
+        if self.sort is 'sym':
+            for sym in subStack:
+                if sym is None or sym == '0':
+                    symbolSet = ' <- None'
+                elif self.userSymData[sym]['origBin'] == '??':
+                    symbolSet = ' <- %s' % sym
+                else:
+                    symbolSet = \
+                        ' <- %s [%s]' % (sym, self.userSymData[sym]['origBin'])
+
+                lpos = appliedIndentLen + \
+                    len(symbolStack[stackIdx:]) + len(symbolSet)
+                if symbolStack != '' and lpos > SystemManager.lineLength:
+                    stackIdx = len(symbolStack)
+                    symbolStack = \
+                        '%s\n%s' % (symbolStack, ' ' * indentLen)
+                    appliedIndentLen = 0
+
+                symbolStack += symbolSet
+        elif self.sort is 'pos':
+            for pos in subStack:
+                if pos is None:
+                    symbolStack += ' <- None'
+                # No symbol so that just print pos #
+                elif self.posData[pos]['symbol'] == '':
+                    symbolStack = '%s <- %s [%s]' % \
+                        (symbolStack, hex(int(pos, 16)), \
+                        self.posData[pos]['origBin'])
+                # Print symbol #
+                else:
+                    symbolStack = '%s <- %s [%s]' % \
+                        (symbolStack, self.posData[pos]['symbol'], \
+                        self.posData[pos]['origBin'])
+
+        return symbolStack
+
+
+
     def printCustomUsage(self):
         # no effective custom event #
         if self.customTotal == 0:
@@ -3737,42 +3879,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4) + 3
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
@@ -3817,32 +3925,11 @@ class FunctionAnalyzer(object):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4) + 3
-                    appliedIndentLen = indentLen
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except:
-                        continue
-
-                SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                SystemManager.pipePrint(\
+                    "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -3997,42 +4084,8 @@ class FunctionAnalyzer(object):
                         if cpuPer < 1 and SystemManager.showAll is False:
                             break
 
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
@@ -4109,32 +4162,8 @@ class FunctionAnalyzer(object):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
@@ -4196,42 +4225,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                         format(int(pageFreeCnt * 4), symbolStack))
@@ -4287,32 +4282,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     symbolStack = '\tNone'
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                     format(int(pageFreeCnt * 4), symbolStack))
@@ -4636,42 +4607,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 9)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".\
                         format(pageCnt * 4, userPageCnt * 4, \
@@ -4744,30 +4681,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     continue
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 9)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
                     userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
@@ -4843,41 +4758,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     continue
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    if self.sort is 'sym':
-                        for sym in subStack:
-                            if sym is None or sym == '0':
-                                symbolSet = ' <- None'
-                            elif self.userSymData[sym]['origBin'] == '??':
-                                symbolSet = ' <- ' + sym
-                            else:
-                                symbolSet = ' <- ' + sym + \
-                                    ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    elif self.sort is 'pos':
-                        for pos in subStack:
-                            if pos is None:
-                                symbolStack += ' <- None'
-                            # No symbol so that just print pos #
-                            elif self.posData[pos]['symbol'] == '':
-                                symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
-                            # Print symbol #
-                            else:
-                                symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                    ' [' + self.posData[pos]['origBin'] + ']'
+                    symbolStack = self.makeUserSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                     format(int(heapSize/ 1024), symbolStack))
@@ -5000,11 +4882,12 @@ class FunctionAnalyzer(object):
 
 
     def printLockUsage(self):
-        # no lock try event #
+        # no lock event #
         if self.lockEnabled is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+
         lockIndex = FunctionAnalyzer.symStackIdxTable.index('LOCK_TRY')
 
         if SystemManager.userEnable:
@@ -5049,42 +4932,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
                         format(lockTryCnt, symbolStack))
@@ -5139,30 +4988,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     symbolStack = '\tNone'
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
                     format(lockTryCnt, symbolStack))
@@ -5172,8 +4999,122 @@ class FunctionAnalyzer(object):
         if self.lockTryEventCnt == 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-        SystemManager.pipePrint('\n\n')
+        SystemManager.pipePrint('')
 
+
+
+        unlockIndex = FunctionAnalyzer.symStackIdxTable.index('UNLOCK')
+
+        if SystemManager.userEnable:
+            # Print unlock count in user space #
+            SystemManager.clearPrint()
+            SystemManager.pipePrint('[Function Unlock Info] [Cnt: %d] (USER)' % \
+                (self.unlockEventCnt))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userSymData.items(), key=lambda e: e[1]['unlockCnt'], reverse=True):
+
+                if value['unlockCnt'] == 0:
+                    break
+
+                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                    format(value['unlockCnt'], idx, \
+                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+
+                # Set target stack #
+                targetStack = []
+                if self.sort is 'sym':
+                    targetStack = value['symStack']
+                elif self.sort is 'pos':
+                    targetStack = value['stack']
+
+                # Sort by usage #
+                targetStack = sorted(targetStack, key=lambda x: x[unlockIndex], reverse=True)
+
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    unlockCnt = stack[unlockIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if unlockCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        indentLen = len("\t" * 4 * 4)
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
+
+                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                        format(unlockCnt, symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.unlockEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+            SystemManager.pipePrint('')
+
+        # Print unlock count in kernel space #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint('[Function Unlock Info] [Cnt: %d] (KERNEL)' % \
+            (self.unlockEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint(twoLine)
+
+        # Make exception list to remove a redundant part of stack #
+        '''
+        exceptList = {}
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+        '''
+
+        # Print unlock count of stacks #
+        for idx, value in sorted(\
+            self.kernelSymData.items(), key=lambda e: e[1]['unlockCnt'], reverse=True):
+
+            if value['unlockCnt'] == 0:
+                break
+
+            SystemManager.pipePrint("{0:8} |{1:^134}".format(value['unlockCnt'], idx))
+
+            # Sort stacks by usage #
+            value['stack'] = sorted(value['stack'], key=lambda x: x[unlockIndex], reverse=True)
+
+            # Print stacks by symbol #
+            for stack in value['stack']:
+                unlockCnt = stack[unlockIndex]
+                subStack = list(stack[subStackIndex])
+
+                if unlockCnt == 0:
+                    continue
+
+                if len(subStack) == 0:
+                    symbolStack = '\tNone'
+                else:
+                    indentLen = len("\t" * 4 * 4)
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
+
+                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    format(unlockCnt, symbolStack))
+
+            SystemManager.pipePrint(oneLine)
+
+        if self.unlockEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('\n\n')
 
 
 
@@ -5188,7 +5129,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print block write usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function Write Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -5227,42 +5169,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                         format(int(blockWrCnt * 0.5), symbolStack))
@@ -5318,30 +5226,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     symbolStack = '\tNone'
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                     format(int(blockWrCnt * 0.5), symbolStack))
@@ -5405,42 +5291,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        # Make stack info by symbol for print #
-                        symbolStack = ''
-                        stackIdx = 0
                         indentLen = len("\t" * 4 * 4)
-                        appliedIndentLen = indentLen
-
-                        if self.sort is 'sym':
-                            for sym in subStack:
-                                if sym is None or sym == '0':
-                                    symbolSet = ' <- None'
-                                elif self.userSymData[sym]['origBin'] == '??':
-                                    symbolSet = ' <- ' + sym
-                                else:
-                                    symbolSet = ' <- ' + sym + \
-                                        ' [' + self.userSymData[sym]['origBin'] + ']'
-
-                                lpos = appliedIndentLen + \
-                                    len(symbolStack[stackIdx:]) + len(symbolSet)
-                                if symbolStack != '' and lpos > SystemManager.lineLength:
-                                    stackIdx = len(symbolStack)
-                                    symbolStack += '\n' + ' ' * indentLen
-                                    appliedIndentLen = 0
-
-                                symbolStack += symbolSet
-                        elif self.sort is 'pos':
-                            for pos in subStack:
-                                if pos is None:
-                                    symbolStack += ' <- None'
-                                # No symbol so that just print pos #
-                                elif self.posData[pos]['symbol'] == '':
-                                    symbolStack += ' <- ' + hex(int(pos, 16)) + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
-                                # Print symbol #
-                                else:
-                                    symbolStack += ' <- ' + self.posData[pos]['symbol'] + \
-                                        ' [' + self.posData[pos]['origBin'] + ']'
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                         format(int(blockRdCnt * 0.5), symbolStack))
@@ -5493,30 +5345,8 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     symbolStack = '\tNone'
                 else:
-                    # Make stack info by symbol for print #
-                    symbolStack = ''
-                    stackIdx = 0
                     indentLen = len("\t" * 4 * 4)
-                    appliedIndentLen = indentLen
-
-                    try:
-                        for pos in subStack:
-                            if self.posData[pos]['symbol'] == '':
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
-                                symbolSet = ' <- ' + hex(int(pos, 16))
-                            else:
-                                symbolSet = ' <- ' + str(self.posData[pos]['symbol'])
-
-                            lpos = appliedIndentLen + len(symbolStack[stackIdx:]) + len(symbolSet)
-                            if symbolStack != '' and lpos > SystemManager.lineLength:
-                                stackIdx = len(symbolStack)
-                                symbolStack += '\n' + ' ' * indentLen
-                                appliedIndentLen = 0
-
-                            symbolStack += symbolSet
-                    except:
-                        continue
+                    symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
                     format(int(blockRdCnt * 0.5), symbolStack))
