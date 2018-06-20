@@ -78,6 +78,14 @@ class ConfigManager(object):
         BOLD = ''
         UNDERLINE = ''
 
+    # Define support architecture #
+    supportArch = {
+        'arm',
+        'aarch64',
+        'x86',
+        'x64'
+    }
+
     # Define state of process #
     procStatList = {
         'R': 'running',
@@ -1362,6 +1370,8 @@ class FunctionAnalyzer(object):
         self.kernelSymData = {}
         self.threadData = {}
         self.customCallData = []
+        self.lockCallData = []
+        self.sysCallData = []
         self.userCallData = []
         self.kernelCallData = []
         '''
@@ -2189,7 +2199,8 @@ class FunctionAnalyzer(object):
 
     def printIgnoreEvents(self):
         for idx, value in self.ignoreTable.items():
-            SystemManager.printWarning("Ignore %s event %d times" % (idx, value['ignCnt']))
+            SystemManager.printWarning(\
+                "Ignore %s event %d times" % (idx, value['ignCnt']))
 
 
 
@@ -2267,7 +2278,8 @@ class FunctionAnalyzer(object):
             import subprocess
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         # Recognize binary type #
@@ -2332,7 +2344,8 @@ class FunctionAnalyzer(object):
             while offset < listLen:
                 # Launch addr2line #
                 try:
-                    proc = subprocess.Popen(args + offsetList[offset:offset+maxArgLine-1], \
+                    workload = offsetList[offset:offset+maxArgLine-1]
+                    proc = subprocess.Popen(args + workload, \
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 except SystemExit:
                     sys.exit(0)
@@ -2355,7 +2368,8 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SystemManager.printWarning('No response of addr2line for %s' % binPath)
+                    SystemManager.printWarning(\
+                        'No response of addr2line for %s' % binPath)
                     continue
 
                 while 1:
@@ -2457,11 +2471,22 @@ class FunctionAnalyzer(object):
         # Save custom event stacks #
         if SystemManager.showAll and targetEvent == 'CUSTOM':
             self.customCallData.append(\
-                [targetArg[0], targetArg[1], self.userCallData[-1], self.kernelCallData[-1]])
+                [targetArg[0], targetArg[1], \
+                self.userCallData[-1], self.kernelCallData[-1]])
+
+        # Save lock event stacks #
+        if SystemManager.showAll and \
+            (targetEvent == 'LOCK_TRY' or targetEvent == 'UNLOCK'):
+            self.lockCallData.append(\
+                [targetArg[0], targetArg[1:], \
+                self.userCallData[-1], self.kernelCallData[-1]])
 
 
 
     def saveEventStack(self, targetEvent, targetCnt, targetArg, time):
+        kpos = self.nowCtx['kernelLastPos']
+        upos = self.nowCtx['userLastPos']
+
         if targetEvent == 'CPU_TICK':
             self.periodicEventCnt += 1
 
@@ -2469,8 +2494,8 @@ class FunctionAnalyzer(object):
             self.pageAllocEventCnt += 1
             self.pageAllocCnt += targetCnt
             self.pageUsageCnt += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['pageCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['pageCnt'] += targetCnt
+            self.posData[kpos]['pageCnt'] += targetCnt
+            self.posData[upos]['pageCnt'] += targetCnt
 
             pageType = targetArg[0]
             pfn = targetArg[1]
@@ -2487,45 +2512,45 @@ class FunctionAnalyzer(object):
         elif targetEvent == 'BLK_READ':
             self.blockRdEventCnt += 1
             self.blockRdUsageCnt += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['blockRdCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['blockRdCnt'] += targetCnt
+            self.posData[kpos]['blockRdCnt'] += targetCnt
+            self.posData[upos]['blockRdCnt'] += targetCnt
 
         elif targetEvent == 'BLK_WRITE':
             self.blockWrEventCnt += 1
             self.blockWrUsageCnt += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['blockWrCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['blockWrCnt'] += targetCnt
+            self.posData[kpos]['blockWrCnt'] += targetCnt
+            self.posData[upos]['blockWrCnt'] += targetCnt
 
         elif targetEvent == 'LOCK_TRY':
             self.lockTryEventCnt += 1
-            self.posData[self.nowCtx['kernelLastPos']]['lockTryCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['lockTryCnt'] += targetCnt
+            self.posData[kpos]['lockTryCnt'] += targetCnt
+            self.posData[upos]['lockTryCnt'] += targetCnt
 
         elif targetEvent == 'UNLOCK':
             self.unlockEventCnt += 1
-            self.posData[self.nowCtx['kernelLastPos']]['unlockCnt'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['unlockCnt'] += targetCnt
+            self.posData[kpos]['unlockCnt'] += targetCnt
+            self.posData[upos]['unlockCnt'] += targetCnt
 
         elif targetEvent == 'HEAP_EXPAND':
             self.heapExpEventCnt += 1
             self.heapExpSize += targetCnt
-            self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
+            self.posData[kpos]['heapSize'] += targetCnt
+            self.posData[upos]['heapSize'] += targetCnt
 
         elif targetEvent == 'HEAP_REDUCE':
-            self.posData[self.nowCtx['kernelLastPos']]['heapSize'] += targetCnt
-            self.posData[self.nowCtx['userLastPos']]['heapSize'] += targetCnt
+            self.posData[kpos]['heapSize'] += targetCnt
+            self.posData[upos]['heapSize'] += targetCnt
 
         elif targetEvent == 'CUSTOM':
             if targetCnt > 0:
                 self.customTotal += 1
                 self.customCnt += targetCnt
 
-                self.posData[self.nowCtx['kernelLastPos']]['customTotal'] += 1
-                self.posData[self.nowCtx['userLastPos']]['customTotal'] += 1
+                self.posData[kpos]['customTotal'] += 1
+                self.posData[upos]['customTotal'] += 1
 
-                self.posData[self.nowCtx['kernelLastPos']]['customCnt'] += targetCnt
-                self.posData[self.nowCtx['userLastPos']]['customCnt'] += targetCnt
+                self.posData[kpos]['customCnt'] += targetCnt
+                self.posData[upos]['customCnt'] += targetCnt
 
         else:
             pass
@@ -2550,35 +2575,38 @@ class FunctionAnalyzer(object):
                 self.nowCtx['kernelCallStack'] = []
                 self.nowCtx['userCallStack'] = []
 
-        self.saveFullStack(self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+        self.saveFullStack(\
+            self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
             self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
             targetEvent, targetCnt, targetArg)
 
 
 
     def saveCallStack(self):
+        nowCtx = self.nowCtx
+
         # stack of kernel thread #
-        if self.nowCtx['prevMode'] != self.nowCtx['curMode'] == 'kernel':
-            if len(self.nowCtx['userCallStack']) == 0 and \
-                len(self.nowCtx['kernelCallStack']) > 0:
+        if nowCtx['prevMode'] != nowCtx['curMode'] == 'kernel':
+            if len(nowCtx['userCallStack']) == 0 and \
+                len(nowCtx['kernelCallStack']) > 0:
                     # Set userLastPos to None #
                 self.nowCtx['userLastPos'] = '0'
                 self.nowCtx['userCallStack'].append('0')
-            if len(self.nowCtx['kernelCallStack']) == 0 and \
-                len(self.nowCtx['userCallStack']) > 0:
+            if len(nowCtx['kernelCallStack']) == 0 and \
+                len(nowCtx['userCallStack']) > 0:
                 # Set kernelLastPos to None #
                 self.nowCtx['kernelLastPos'] = '0'
                 self.nowCtx['kernelCallStack'].append('0')
 
         # complicated situation ;( #
-        elif self.nowCtx['prevMode'] == self.nowCtx['curMode']:
+        elif nowCtx['prevMode'] == nowCtx['curMode']:
             # previous user stack loss or nested interval #
-            if self.nowCtx['curMode'] is 'kernel':
+            if nowCtx['curMode'] is 'kernel':
                 # nested interval #
-                if self.nowCtx['nowEvent'] is 'CPU_TICK':
+                if nowCtx['nowEvent'] is 'CPU_TICK':
                 # Backup kernel stack #
-                    self.nowCtx['bakKernelLastPos'] = self.nowCtx['kernelLastPos']
-                    self.nowCtx['bakKernelCallStack'] = self.nowCtx['kernelCallStack']
+                    self.nowCtx['bakKernelLastPos'] = nowCtx['kernelLastPos']
+                    self.nowCtx['bakKernelCallStack'] = nowCtx['kernelCallStack']
 
                     # Initialize both stacks #
                     self.initStacks()
@@ -2588,7 +2616,7 @@ class FunctionAnalyzer(object):
                     self.nowCtx['userLastPos'] = '0'
                     self.nowCtx['userCallStack'].append('0')
             # nested interval #
-            elif self.nowCtx['curMode'] is 'user':
+            elif nowCtx['curMode'] is 'user':
                 '''
                 CORE/0 EVENT0
                 CORE/0 <kernel>
@@ -2605,14 +2633,14 @@ class FunctionAnalyzer(object):
                 self.swapEvents()
 
         # Save both stacks of previous event before starting to record new kernel stack #
-        if (len(self.nowCtx['userCallStack']) > 0 and self.nowCtx['userLastPos'] != '') and \
-            (len(self.nowCtx['kernelCallStack']) > 0 and self.nowCtx['kernelLastPos'] != ''):
+        if (len(nowCtx['userCallStack']) > 0 and nowCtx['userLastPos'] != '') and \
+            (len(nowCtx['kernelCallStack']) > 0 and nowCtx['kernelLastPos'] != ''):
                 # Remove pc in each stacks #
             del self.nowCtx['kernelCallStack'][0], \
                 self.nowCtx['userCallStack'][0]
 
             # Check whether there is nested event or not #
-            if self.nowCtx['nested'] > 0:
+            if nowCtx['nested'] > 0:
                 '''
                 CORE/0 EVENT0
                 CORE/0 <kernel>
@@ -2625,25 +2653,25 @@ class FunctionAnalyzer(object):
                 CORE/0 <kernel>
                 CORE/0 <user>
                 '''
-                targetEvent = self.nowCtx['nestedEvent']
-                targetCnt = self.nowCtx['nestedCnt']
-                targetArg = self.nowCtx['nestedArg']
+                targetEvent = nowCtx['nestedEvent']
+                targetCnt = nowCtx['nestedCnt']
+                targetArg = nowCtx['nestedArg']
 
                 # Swap nowEvent and savedEvent #
                 self.swapEvents()
             else:
-                targetEvent = self.nowCtx['savedEvent']
-                targetCnt = self.nowCtx['savedCnt']
-                targetArg = self.nowCtx['savedArg']
+                targetEvent = nowCtx['savedEvent']
+                targetCnt = nowCtx['savedCnt']
+                targetArg = nowCtx['savedArg']
 
             # Save full stack of previous event #
             self.saveEventStack(targetEvent, targetCnt, targetArg, self.finishTime)
 
             # Recover previous kernel stack after handling nested event #
-            if self.nowCtx['prevMode'] == self.nowCtx['curMode'] == 'user' and \
-                self.nowCtx['bakKernelLastPos'] != '0':
-                self.nowCtx['kernelLastPos'] = self.nowCtx['bakKernelLastPos']
-                self.nowCtx['kernelCallStack'] = self.nowCtx['bakKernelCallStack']
+            if nowCtx['prevMode'] == nowCtx['curMode'] == 'user' and \
+                nowCtx['bakKernelLastPos'] != '0':
+                self.nowCtx['kernelLastPos'] = nowCtx['bakKernelLastPos']
+                self.nowCtx['kernelCallStack'] = nowCtx['bakKernelCallStack']
                 self.nowCtx['bakKernelLastPos'] = '0'
                 self.nowCtx['bakKernelCallStack'] = []
             else:
@@ -2670,7 +2698,8 @@ class FunctionAnalyzer(object):
         # Register pos #
         try:
             self.posData[pos]
-            if path is not None and path[0] == '/' and path != self.posData[pos]['origBin']:
+            if path is not None and path[0] == '/' and \
+                path != self.posData[pos]['origBin']:
                 self.duplicatedPos += 1
                 '''
                 SystemManager.printWarning("duplicated address %s in both '%s' and '%s'" % \
@@ -2685,7 +2714,8 @@ class FunctionAnalyzer(object):
             if path is not None:
                 self.posData[pos]['origBin'] = path
                 self.posData[pos]['binary'] = SystemManager.rootPath + path
-                self.posData[pos]['binary'] = self.posData[pos]['binary'].replace('//', '/')
+                self.posData[pos]['binary'] = \
+                    self.posData[pos]['binary'].replace('//', '/')
 
                 # Set offset #
                 if offset is not None:
@@ -2722,7 +2752,8 @@ class FunctionAnalyzer(object):
 
         # wrong mode #
         else:
-            SystemManager.printWarning('wrong current mode %s' % self.nowCtx['curMode'])
+            SystemManager.printWarning(\
+                'wrong current mode %s' % self.nowCtx['curMode'])
 
         # Increase total call count #
         if self.nowEvent == 'CPU_TICK':
@@ -2754,7 +2785,8 @@ class FunctionAnalyzer(object):
 
             self.heapTable.pop(addr, None)
         except:
-            SystemManager.printWarning('Fail to free heap segment %s of %s(%s) at %s' % \
+            SystemManager.printWarning(\
+                'Fail to free heap segment %s of %s(%s) at %s' % \
                 (addr, self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
@@ -2764,7 +2796,8 @@ class FunctionAnalyzer(object):
             self.heapTable[addr] = dict(self.heapTable[tid + '-ready'])
             del self.heapTable[tid + '-ready']
         except:
-            SystemManager.printWarning('Fail to set address of heap segment %s of %s(%s) at %s' % \
+            SystemManager.printWarning(\
+                'Fail to set address of heap segment %s of %s(%s) at %s' % \
                 (addr, self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
 
 
@@ -2843,7 +2876,8 @@ class FunctionAnalyzer(object):
             self.saveCallStack()
 
         if self.duplicatedPos > 0:
-            SystemManager.printWarning("Found %d addresses duplicated" % self.duplicatedPos)
+            SystemManager.printWarning(\
+                "Found %d addresses duplicated" % self.duplicatedPos)
 
 
 
@@ -2955,7 +2989,8 @@ class FunctionAnalyzer(object):
 
         # cpu tick event #
         # toDo: find shorter periodic event for sampling #
-        if isFixedEvent and func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
+        if isFixedEvent and \
+            func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
             self.cpuEnabled = True
 
             self.saveEventParam('CPU_TICK', 1, 0)
@@ -3038,7 +3073,8 @@ class FunctionAnalyzer(object):
             return False
 
         # memory free event #
-        elif isFixedEvent and (func == "mm_page_free:" or func == "mm_page_free_direct:"):
+        elif isFixedEvent and \
+            (func == "mm_page_free:" or func == "mm_page_free_direct:"):
             m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
                 r'order=(?P<order>[0-9]+)', args)
             if m is not None:
@@ -3147,6 +3183,10 @@ class FunctionAnalyzer(object):
 
                         addr = l['uaddr'][1:]
                         flist = ConfigManager.futexList
+                        try:
+                            event = flist[maskedOp]
+                        except:
+                            event = 'LOCK'
 
                         try:
                             op = flist[maskedOp]
@@ -3160,7 +3200,8 @@ class FunctionAnalyzer(object):
 
                             self.threadData[tid]['nrLockTry'] += 1
 
-                            self.saveEventParam('LOCK_TRY', 1, maskedOp)
+                            self.saveEventParam(\
+                                'LOCK_TRY', 1, [event, addr, time, core, tid])
 
                             return False
                         # wait #
@@ -3171,7 +3212,8 @@ class FunctionAnalyzer(object):
 
                             self.threadData[tid]['nrLockTry'] += 1
 
-                            self.saveEventParam('LOCK_TRY', 1, maskedOp)
+                            self.saveEventParam(\
+                                'LOCK_TRY', 1, [event, addr, time, core, tid])
 
                             return False
                         # try to unlock #
@@ -3180,7 +3222,8 @@ class FunctionAnalyzer(object):
 
                             self.threadData[tid]['nrUnlock'] += 1
 
-                            self.saveEventParam('UNLOCK', 1, 0)
+                            self.saveEventParam(\
+                                'UNLOCK', 1, [event, addr, time, core, tid])
 
                             return False
 
@@ -3396,14 +3439,16 @@ class FunctionAnalyzer(object):
                 #self.printDbgInfo()
                 SystemManager.printWarning((\
                     "Fail to analyze stack data because of corruption (underflow) at %s line\n"\
-                    "\tso report results may differ from actual") % SystemManager.dbgEventLine, True)
+                    "\tso report results may differ from actual") % \
+                    SystemManager.dbgEventLine, True)
 
             return True
 
         # custom event #
         elif isFixedEvent is False:
             try:
-                if True in [True for event in self.customEventTable if event.find('/') == -1]:
+                if True in \
+                    [True for event in self.customEventTable if event.find('/') == -1]:
                     cond = self.customEventTable[func[:-1]] = None
                 else:
                     cond = self.customEventTable[func[:-1]]
@@ -3628,7 +3673,8 @@ class FunctionAnalyzer(object):
                 else:
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16))
-        SystemManager.printWarning("Fail to get the binary info of %s in mapping table" % addr)
+        SystemManager.printWarning(\
+            "Fail to get the binary info of %s in mapping table" % addr)
 
 
 
@@ -3696,7 +3742,8 @@ class FunctionAnalyzer(object):
 
             # get cpu usage #
             if self.totalTick > 0:
-                cpuPer = '%.1f%%' % (float(value['cpuTick']) / float(self.totalTick) * 100)
+                cpuPer = \
+                    '%.1f%%' % (float(value['cpuTick']) / float(self.totalTick) * 100)
             else:
                 cpuPer = '0.0%%'
 
@@ -3739,7 +3786,8 @@ class FunctionAnalyzer(object):
 
         # Exit because of no target #
         if len(self.target) == 0:
-            SystemManager.printWarning("No specific thread targeted, input tid with -g option")
+            SystemManager.printWarning(\
+                "No specific thread targeted, input tid with -g option")
 
         # Print resource usage of functions #
         self.printCpuUsage()
@@ -3755,7 +3803,6 @@ class FunctionAnalyzer(object):
     def makeKernelSymList(self, subStack, indentLen):
         symbolStack = ''
         stackIdx = 0
-        indentLen = len("\t" * 4 * 4) + 3
         appliedIndentLen = indentLen
 
         try:
@@ -3806,7 +3853,7 @@ class FunctionAnalyzer(object):
                         '%s\n%s' % (symbolStack, ' ' * indentLen)
                     appliedIndentLen = 0
 
-                symbolStack += symbolSet
+                symbolStack = '%s%s' % (symbolStack, symbolSet)
         elif self.sort is 'pos':
             for pos in subStack:
                 if pos is None:
@@ -3837,10 +3884,11 @@ class FunctionAnalyzer(object):
         # Make custom event list #
         customList = ', '.join(list(self.customEventTable.keys()))
 
+        # Print custom event in user space #
         if SystemManager.userEnable:
-            # Print custom usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
                 (customList, self.customTotal, self.customCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -3866,7 +3914,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[eventIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[eventIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -3882,15 +3931,17 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4) + 3
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                    SystemManager.pipePrint(\
+                        "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
             SystemManager.pipePrint('')
 
-        # Print custom usage in kernel space #
+        # Print custom event in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function %s Info] [Cnt: %d] [Total: %d] (KERNEL)' % \
+        SystemManager.pipePrint(\
+            '[Function %s Info] [Cnt: %d] [Total: %d] (KERNEL)' % \
             (customList, self.customTotal, self.customCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -3907,7 +3958,8 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint("{0:7}  |{1:^134}".format(value['customCnt'], idx))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[eventIndex], reverse=True)
+            value['stack'] = \
+                sorted(value['stack'], key=lambda x: x[eventIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -3938,7 +3990,8 @@ class FunctionAnalyzer(object):
         # Print custom call history #
         if SystemManager.showAll and len(self.customCallData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function %s History] [Cnt: %d] [Total: %d]' % \
+            SystemManager.pipePrint(\
+                '[Function %s History] [Cnt: %d] [Total: %d]' % \
                 (customList, self.customTotal, self.customCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -3975,13 +4028,15 @@ class FunctionAnalyzer(object):
                     nowLen += len(userCall)
                     for subcall in stack:
                         try:
-                            nextCall = ' <- %s[%s]' % \
-                                (self.posData[subcall]['symbol'], self.posData[subcall]['binary'])
+                            symbol = self.posData[subcall]['symbol']
+                            binary = self.posData[subcall]['binary']
+                            nextCall = ' <- %s[%s]' % (symbol, binary)
                             if SystemManager.lineLength > nowLen + len(nextCall):
                                 userCall = '%s%s' % (userCall, nextCall)
                                 nowLen += len(nextCall)
                             else:
-                                userCall = '%s\n%s %s' % (userCall, ' ' * indentLen, nextCall)
+                                userCall = '%s\n%s %s' % \
+                                    (userCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -4005,7 +4060,8 @@ class FunctionAnalyzer(object):
                                 kernelCall = '%s%s' % (kernelCall, nextCall)
                                 nowLen += len(nextCall)
                             else:
-                                kernelCall = '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
+                                kernelCall = \
+                                    '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -4014,9 +4070,12 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
-                SystemManager.pipePrint("{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
-                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                SystemManager.pipePrint(\
+                    "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
+                SystemManager.pipePrint(\
+                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+                SystemManager.pipePrint(\
+                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -4035,10 +4094,11 @@ class FunctionAnalyzer(object):
         if self.periodicContEventCnt > 0:
             self.periodicEventInterval /= self.periodicContEventCnt
 
+        # Print cpu usage in user space #
         if SystemManager.userEnable:
-            # Print cpu usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function CPU Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
@@ -4052,7 +4112,8 @@ class FunctionAnalyzer(object):
                 if value['tickCnt'] == 0:
                     break
 
-                cpuPer = round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
+                cpuPer = \
+                    round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
@@ -4087,7 +4148,8 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                    SystemManager.pipePrint(\
+                        "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -4098,7 +4160,8 @@ class FunctionAnalyzer(object):
 
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function CPU Tick Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+        SystemManager.pipePrint(\
+            '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
             (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
@@ -4126,7 +4189,8 @@ class FunctionAnalyzer(object):
             if value['tickCnt'] == 0:
                 break
 
-            cpuPer = round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
+            cpuPer = \
+                round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
             if cpuPer < 1 and SystemManager.showAll is False:
                 break
 
@@ -4165,7 +4229,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                SystemManager.pipePrint(\
+                    "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -4187,7 +4252,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             # Print memory reduce by page free in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Free-Only Page Info] [Size: %dKB] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function Free-Only-Page Info] [Size: %dKB] (USER)' % \
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -4212,7 +4278,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[pageFreeIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[pageFreeIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -4240,7 +4307,7 @@ class FunctionAnalyzer(object):
 
         # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Free-Only Page Info] [Size: %dKB] (KERNEL)' % \
+        SystemManager.pipePrint('[Function Free-Only-Page Info] [Size: %dKB] (KERNEL)' % \
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -4300,7 +4367,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc-Free Page Info] [Total: %dKB] (USER)' % \
+                '[Function Alloc-Free-Page Info] [Total: %dKB] (USER)' % \
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
@@ -4404,7 +4471,7 @@ class FunctionAnalyzer(object):
         # Print page alloc-free pair in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Alloc-Free Page Info] [Total: %dKB] (KERNEL)' % \
+            '[Function Alloc-Free-Page Info] [Total: %dKB] (KERNEL)' % \
             (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
@@ -4554,12 +4621,13 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc-Only Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                '[Function Alloc-Only-Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
                 (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
                 self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
+            SystemManager.pipePrint(\
+                "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
                 format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", "Binary"))
             SystemManager.pipePrint(twoLine)
 
@@ -4591,7 +4659,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[pageAllocIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[pageAllocIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -4623,8 +4692,9 @@ class FunctionAnalyzer(object):
 
         # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint(\
-            '[Function Alloc-Only Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+        SystemManager.pipePrint((\
+            '[Function Alloc-Only-Page Info]'
+            '[Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)') % \
             (self.pageUsageCnt * 4, self.pageAllocCnt * 4, self.pageAllocEventCnt, \
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
@@ -4684,7 +4754,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 9)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                SystemManager.pipePrint(\
+                    "\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
                     userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -4712,8 +4783,9 @@ class FunctionAnalyzer(object):
 
         # Print heap usage in user space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint(\
-            '[Function Not Freed Heap Alloc Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+        SystemManager.pipePrint((\
+            '[Function Alloc-Only-Heap Info]'
+            '[Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)') % \
             ((self.heapExpSize - self.heapRedSize) >> 10, \
             self.heapExpSize >> 10, self.heapExpEventCnt, \
             self.heapRedSize >> 10, self.heapRedEventCnt))
@@ -4729,9 +4801,10 @@ class FunctionAnalyzer(object):
             if value['heapSize'] == 0:
                 break
 
+            binary = self.posData[value['pos']]['origBin']
+            source = self.posData[value['pos']]['src']
             SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                format(int(value['heapSize'] >> 10), idx, \
-                self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                format(int(value['heapSize'] >> 10), idx, binary, source))
 
             if idx == value['pos']:
                 SystemManager.pipePrint(oneLine)
@@ -4745,7 +4818,8 @@ class FunctionAnalyzer(object):
                 targetStack = value['stack']
 
             # Sort by usage #
-            targetStack = sorted(targetStack, key=lambda x: x[heapExpIndex], reverse=True)
+            targetStack = \
+                sorted(targetStack, key=lambda x: x[heapExpIndex], reverse=True)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -4775,7 +4849,7 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.heapTable) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Not Freed Heap Alloc History] [Cnt: %d]' % len(self.heapTable))
+                '[Function Alloc-Only-Heap History] [Cnt: %d]' % len(self.heapTable))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -4807,7 +4881,8 @@ class FunctionAnalyzer(object):
                 indentLen = 32
                 nowLen = indentLen
                 try:
-                    userCall = ' %s[%s]' % (usersym, self.userSymData[usersym]['origBin'])
+                    userCall = ' %s[%s]' % \
+                        (usersym, self.userSymData[usersym]['origBin'])
                     nowLen += len(userCall)
 
                     # Set user stack list #
@@ -4825,12 +4900,14 @@ class FunctionAnalyzer(object):
 
                     for subcall in stack:
                         try:
-                            nextCall = ' <- %s[%s]' % (subcall, self.userSymData[subcall]['origBin'])
+                            nextCall = ' <- %s[%s]' % \
+                                (subcall, self.userSymData[subcall]['origBin'])
                             if SystemManager.lineLength > nowLen + len(nextCall):
                                 userCall = '%s%s' % (userCall, nextCall)
                                 nowLen += len(nextCall)
                             else:
-                                userCall = '%s\n%s %s' % (userCall, ' ' * indentLen, nextCall)
+                                userCall = '%s\n%s %s' % \
+                                    (userCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -4864,7 +4941,8 @@ class FunctionAnalyzer(object):
                                 kernelCall = '%s%s' % (kernelCall, nextCall)
                                 nowLen += len(nextCall)
                             else:
-                                kernelCall = '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
+                                kernelCall = '%s\n%s %s' % \
+                                    (kernelCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -4872,9 +4950,11 @@ class FunctionAnalyzer(object):
                     pass
 
                 if userCall != ' 0':
-                    SystemManager.pipePrint("{0:>32}|{1:<121}".format('[User] ', userCall))
+                    SystemManager.pipePrint(\
+                        "{0:>32}|{1:<121}".format('[User] ', userCall))
                 if kernelCall != ' 0':
-                    SystemManager.pipePrint("{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                    SystemManager.pipePrint(\
+                        "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -4883,17 +4963,17 @@ class FunctionAnalyzer(object):
 
     def printLockUsage(self):
         # no lock event #
-        if self.lockEnabled is False:
+        if self.lockEnabled is False or SystemManager.userEnable is False:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
-
         lockIndex = FunctionAnalyzer.symStackIdxTable.index('LOCK_TRY')
+        unlockIndex = FunctionAnalyzer.symStackIdxTable.index('UNLOCK')
 
+        # Print lock try in user space #
         if SystemManager.userEnable:
-            # Print lock try count in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Lock Try Info] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint('[Function Lock-Try Info] [Cnt: %d] (USER)' % \
                 (self.lockTryEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -4907,9 +4987,10 @@ class FunctionAnalyzer(object):
                 if value['lockTryCnt'] == 0:
                     break
 
+                binary = self.posData[value['pos']]['origBin']
+                source = self.posData[value['pos']]['src']
                 SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
-                    format(value['lockTryCnt'], idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    format(value['lockTryCnt'], idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -4919,7 +5000,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -4945,68 +5027,8 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print lock try count in kernel space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Lock Try Info] [Cnt: %d] (KERNEL)' % \
-            (self.lockTryEventCnt))
-
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SystemManager.pipePrint(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
-
-        # Print lock try count of stacks #
-        for idx, value in sorted(\
-            self.kernelSymData.items(), key=lambda e: e[1]['lockTryCnt'], reverse=True):
-
-            if value['lockTryCnt'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:8} |{1:^134}".format(value['lockTryCnt'], idx))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[lockIndex], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                lockTryCnt = stack[lockIndex]
-                subStack = list(stack[subStackIndex])
-
-                if lockTryCnt == 0:
-                    continue
-
-                if len(subStack) == 0:
-                    symbolStack = '\tNone'
-                else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
-
-                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
-                    format(lockTryCnt, symbolStack))
-
-            SystemManager.pipePrint(oneLine)
-
-        if self.lockTryEventCnt == 0:
-            SystemManager.pipePrint('\tNone\n%s' % oneLine)
-
-        SystemManager.pipePrint('')
-
-
-
-        unlockIndex = FunctionAnalyzer.symStackIdxTable.index('UNLOCK')
-
+        # Print unlock in user space #
         if SystemManager.userEnable:
-            # Print unlock count in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint('[Function Unlock Info] [Cnt: %d] (USER)' % \
                 (self.unlockEventCnt))
@@ -5022,9 +5044,10 @@ class FunctionAnalyzer(object):
                 if value['unlockCnt'] == 0:
                     break
 
+                binary = self.posData[value['pos']]['origBin']
+                source = self.posData[value['pos']]['src']
                 SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
-                    format(value['unlockCnt'], idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    format(value['unlockCnt'], idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -5034,7 +5057,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[unlockIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[unlockIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -5060,59 +5084,94 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print unlock count in kernel space #
-        SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Unlock Info] [Cnt: %d] (KERNEL)' % \
-            (self.unlockEventCnt))
+        # Print lock history #
+        if SystemManager.showAll and len(self.lockCallData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint(\
+                '[Function Lock History] [Lock: %d] [Unlock: %d]' % \
+                (self.lockTryEventCnt, self.unlockEventCnt))
 
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
-        SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
+                format("Event", "TARGET", "COMM", "TID", "CORE", "TIME"))
+            SystemManager.pipePrint(twoLine)
 
-        # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
+            # sort by time #
+            for call in self.lockCallData:
+                event = call[0]
+                target = call[1][0]
+                time = call[1][1]
+                core = call[1][2]
+                tid = call[1][3]
+                userstack = call[2]
+                kernelstack = call[3]
+
+                comm = self.threadData[tid]['comm']
+                title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
+                    format(event, target, comm, tid, core, time)
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+
+                # Make user call info #
+                indentLen = 32
+                nowLen = indentLen
                 try:
-                    exceptList[pos]
+                    last = userstack[0]
+                    stack = userstack[1]
+                    symbol = self.posData[last]['symbol']
+                    binary = self.posData[last]['binary']
+                    userCall = ' %s[%s]' % (symbol, binary)
+                    nowLen += len(userCall)
+                    for subcall in stack:
+                        try:
+                            symbol = self.posData[subcall]['symbol']
+                            binary = self.posData[subcall]['binary']
+                            nextCall = ' <- %s[%s]' % (symbol, binary)
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                userCall = '%s%s' % (userCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                userCall = '%s\n%s %s' % \
+                                    (userCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    exceptList[pos] = dict()
-        '''
+                    pass
 
-        # Print unlock count of stacks #
-        for idx, value in sorted(\
-            self.kernelSymData.items(), key=lambda e: e[1]['unlockCnt'], reverse=True):
+                # Make kernel call info #
+                indentLen = 32
+                nowLen = indentLen
+                try:
+                    last = kernelstack[0]
+                    stack = kernelstack[1]
+                    kernelCall = ' %s' % (self.posData[last]['symbol'])
+                    nowLen += len(kernelCall)
+                    for subcall in stack:
+                        try:
+                            symbol = self.posData[subcall]['symbol']
+                            nextCall = ' <- %s' % (symbol)
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                kernelCall = '%s%s' % (kernelCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                kernelCall = '%s\n%s %s' % \
+                                    (kernelCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
-            if value['unlockCnt'] == 0:
-                break
-
-            SystemManager.pipePrint("{0:8} |{1:^134}".format(value['unlockCnt'], idx))
-
-            # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[unlockIndex], reverse=True)
-
-            # Print stacks by symbol #
-            for stack in value['stack']:
-                unlockCnt = stack[unlockIndex]
-                subStack = list(stack[subStackIndex])
-
-                if unlockCnt == 0:
-                    continue
-
-                if len(subStack) == 0:
-                    symbolStack = '\tNone'
-                else:
-                    indentLen = len("\t" * 4 * 4)
-                    symbolStack = self.makeKernelSymList(subStack, indentLen)
-
-                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
-                    format(unlockCnt, symbolStack))
-
-            SystemManager.pipePrint(oneLine)
-
-        if self.unlockEventCnt == 0:
-            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+                SystemManager.pipePrint(\
+                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+                SystemManager.pipePrint(\
+                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
 
@@ -5126,11 +5185,11 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
 
+        # Print block write in user space #
         if SystemManager.userEnable:
-            # Print block write usage in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Write Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+                '[Function Write-Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -5144,9 +5203,10 @@ class FunctionAnalyzer(object):
                 if value['blockWrCnt'] == 0:
                     break
 
+                binary = self.posData[value['pos']]['origBin']
+                source = self.posData[value['pos']]['src']
                 SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['blockWrCnt'] * 0.5), idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    format(int(value['blockWrCnt'] * 0.5), idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -5156,7 +5216,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[blkWrIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[blkWrIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -5182,9 +5243,10 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print block write usage in kernel space #
+        # Print block write in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Write Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint(\
+            '[Function Write-Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -5213,7 +5275,8 @@ class FunctionAnalyzer(object):
                 format(int(value['blockWrCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[blkWrIndex], reverse=True)
+            value['stack'] = \
+                sorted(value['stack'], key=lambda x: x[blkWrIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -5249,10 +5312,11 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
 
+        # Print block read in user space #
         if SystemManager.userEnable:
-            # Print block read usage in user space #
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Read Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function Read-Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
                 (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -5266,9 +5330,10 @@ class FunctionAnalyzer(object):
                 if value['blockRdCnt'] == 0:
                     break
 
+                binary = self.posData[value['pos']]['origBin']
+                source = self.posData[value['pos']]['src']
                 SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['blockRdCnt'] * 0.5), idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    format(int(value['blockRdCnt'] * 0.5), idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -5278,7 +5343,8 @@ class FunctionAnalyzer(object):
                     targetStack = value['stack']
 
                 # Sort by usage #
-                targetStack = sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
+                targetStack = \
+                    sorted(targetStack, key=lambda x: x[blkRdIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -5301,9 +5367,10 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
-        # Print block read usage in kernel space #
+        # Print block read in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('[Function Read Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+        SystemManager.pipePrint(\
+            '[Function Read-Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
             (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
@@ -5332,7 +5399,8 @@ class FunctionAnalyzer(object):
                 format(int(value['blockRdCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
-            value['stack'] = sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
+            value['stack'] = \
+                sorted(value['stack'], key=lambda x: x[blkRdIndex], reverse=True)
 
             # Print stacks by symbol #
             for stack in value['stack']:
@@ -5397,7 +5465,8 @@ class FileAnalyzer(object):
                 from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
             except ImportError:
                 err = sys.exc_info()[1]
-                SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                SystemManager.printError(\
+                    "Fail to import python package: %s" % err.args[0])
                 sys.exit(0)
 
             try:
@@ -5484,8 +5553,9 @@ class FileAnalyzer(object):
         SystemManager.printInfoBuffer()
 
         # Print proccess list #
-        SystemManager.pipePrint(\
-            "[%s] [ Process : %d ] [ RAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
+        SystemManager.pipePrint((\
+            "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
+            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
             ('File Process Info', len(self.procData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^9}|{3:_^16}({4:_^5}) |".\
@@ -7238,8 +7308,9 @@ class SystemManager(object):
         elif arch == 'x64':
             ConfigManager.sysList = ConfigManager.sysList_x64
         else:
+            support = ' / '.join(ConfigManager.supportArch)
             SystemManager.printError(\
-                'Fail to set architecture to %s, only arm / aarch64 / x86 / x64 supported' % arch)
+                'Fail to set architecture to %s, only %s supported' % (arch, support))
             sys.exit(0)
 
         SystemManager.arch = arch
@@ -15811,6 +15882,8 @@ class ThreadAnalyzer(object):
                 try:
                     item['fd'].seek(0)
                     stack = item['fd'].read()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.stackTable.pop(idx, None)
                     continue
@@ -15818,14 +15891,16 @@ class ThreadAnalyzer(object):
                 try:
                     item['total'] += 1
                     item['stack'][stack] += 1
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     item['stack'][stack] = 1
 
-            # set 1ms as sampling rate #
-            time.sleep(0.001)
-
             if time.time() - start >= period:
                 return
+
+            # set 1ms as sampling rate #
+            time.sleep(0.001)
 
 
 
@@ -16315,11 +16390,14 @@ class ThreadAnalyzer(object):
         for key, value in sorted(\
             self.threadData.items(), key=lambda e: e[1]['readBlock'], reverse=True):
             if value['readBlock'] > 0:
-                value['readBlock'] = (value['readBlock'] * SystemManager.blockSize) >> 20
+                value['readBlock'] = \
+                    (value['readBlock'] * SystemManager.blockSize) >> 20
             if value['writeBlock'] > 0:
-                value['writeBlock'] = (value['writeBlock'] * SystemManager.blockSize) >> 20
+                value['writeBlock'] = \
+                    (value['writeBlock'] * SystemManager.blockSize) >> 20
             if value['awriteBlock'] > 0:
-                value['awriteBlock'] = (value['awriteBlock'] * SystemManager.pageSize) >> 20
+                value['awriteBlock'] = \
+                    (value['awriteBlock'] * SystemManager.pageSize) >> 20
 
         # print total information after sorting by time of cpu usage #
         count = 0
@@ -16411,11 +16489,13 @@ class ThreadAnalyzer(object):
             if SystemManager.sort == 'm':
                 breakCond = value['nrPages']
             elif SystemManager.sort == 'b':
-                breakCond = value['readBlock'] + value['writeBlock'] + value['awriteBlock']
+                breakCond = \
+                    value['readBlock'] + value['writeBlock'] + value['awriteBlock']
             else:
                 breakCond = usagePercent
 
-            if breakCond < 1 and SystemManager.showAll is False and SystemManager.showGroup == []:
+            if breakCond < 1 and SystemManager.showAll is False and \
+                SystemManager.showGroup == []:
                 break
 
             SystemManager.addPrint(\
@@ -17415,7 +17495,8 @@ class ThreadAnalyzer(object):
 
             # print timeline #
             if icount * SystemManager.intervalEnable <= float(self.totalTime):
-                timeLine += '%s%2d ' % (checkEvent, icount * SystemManager.intervalEnable)
+                timeLine += '%s%2d ' % \
+                    (checkEvent, icount * SystemManager.intervalEnable)
             else:
                 timeLine += '%s%.2f ' % (checkEvent, self.totalTime)
 
@@ -17440,7 +17521,8 @@ class ThreadAnalyzer(object):
                             self.threadData[key]['offCnt'] > 0:
                             raise
                         else:
-                            timeLine += '%3d ' % (100 - self.intervalData[icount][key]['cpuPer'])
+                            per = (100 - self.intervalData[icount][key]['cpuPer'])
+                            timeLine += '%3d ' % per
                     except:
                         timeLine += '%3s ' % '0'
 
@@ -17474,13 +17556,15 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             try:
-                timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalMem'] >> 8) + \
+                timeLine += '%3d ' % \
+                    ((self.intervalData[icount]['toTal']['totalMem'] >> 8) + \
                     (self.intervalData[icount]['toTal']['totalKmem'] >> 20))
             except:
                 timeLine += '%3d ' % (0)
 
         if SystemManager.memEnable:
-            SystemManager.addPrint("\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
+            SystemManager.addPrint(\
+                "\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
             if SystemManager.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
@@ -17500,7 +17584,8 @@ class ThreadAnalyzer(object):
                     timeLineLen += 4
 
                 try:
-                    timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBr'] * \
+                    timeLine += '%3d ' % \
+                        ((self.intervalData[icount]['toTal']['totalBr'] * \
                         SystemManager.blockSize) >> 20)
                     brtotal += self.intervalData[icount]['toTal']['totalBr']
                 except:
@@ -17527,7 +17612,8 @@ class ThreadAnalyzer(object):
                     timeLineLen += 4
 
                 try:
-                    timeLine += '%3d ' % ((self.intervalData[icount]['toTal']['totalBw'] * \
+                    timeLine += '%3d ' % \
+                        ((self.intervalData[icount]['toTal']['totalBw'] * \
                         SystemManager.blockSize) >> 20)
                     bwtotal += self.intervalData[icount]['toTal']['totalBw']
                 except:
@@ -17568,7 +17654,8 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("\n")
                 newLine = False
 
-            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+            SystemManager.addPrint(\
+                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
 
         # total user event usage on timeline #
         newLine = True
@@ -17601,7 +17688,8 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("\n")
                 newLine = False
 
-            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+            SystemManager.addPrint(\
+                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
 
         # total kernel event usage on timeline #
         newLine = True
@@ -17634,7 +17722,8 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("\n")
                 newLine = False
 
-            SystemManager.addPrint("%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+            SystemManager.addPrint(\
+                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
 
         # print buffered info #
         SystemManager.pipePrint("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
@@ -19159,7 +19248,8 @@ class ThreadAnalyzer(object):
             sortedList = sorted(SystemManager.procInstance.items(), \
                 key=lambda e: long(e[1]['stat'][ConfigManager.statList.index("RSS")]), reverse=True)
         except:
-            SystemManager.printWarning("Fail to get memory details because of sort error")
+            SystemManager.printWarning(\
+                "Fail to get memory details because of sort error")
             SystemManager.pipePrint("\tNone\n%s\n" % oneLine)
             return
 
@@ -23613,11 +23703,14 @@ class ThreadAnalyzer(object):
                     value['ttime'] = value['btime'] = value['cttime'] = 0
                     continue
 
-                value['majflt'] = nowData[self.majfltIdx] - prevData[self.majfltIdx]
-                value['utime'] = int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
+                value['majflt'] = \
+                    nowData[self.majfltIdx] - prevData[self.majfltIdx]
+                value['utime'] = \
+                    int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
                 if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
-                value['stime'] = int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
+                value['stime'] = \
+                    int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
                 if value['stime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
                 value['ttime'] = value['utime'] + value['stime']
@@ -23627,7 +23720,8 @@ class ThreadAnalyzer(object):
                 cstime = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
                 value['cttime'] = cutime + cstime
                 value['btime'] = long((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
-                if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['ttime'] + value['btime'] > 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
             except:
                 value['new'] = True
@@ -23647,7 +23741,8 @@ class ThreadAnalyzer(object):
                 cstime = int(nowData[self.cstimeIdx] / interval)
                 value['cttime'] = cutime + cstime
                 value['btime'] = long(nowData[self.btimeIdx] / interval)
-                if value['ttime'] + value['btime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['ttime'] + value['btime'] > 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
 
                 if value['io'] is not None:
@@ -24045,7 +24140,9 @@ class ThreadAnalyzer(object):
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
-            if SystemManager.memEnable or SystemManager.pssEnable or SystemManager.ussEnable:
+            if SystemManager.memEnable or \
+                SystemManager.pssEnable or \
+                SystemManager.ussEnable:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             try:
