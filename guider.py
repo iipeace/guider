@@ -2999,9 +2999,9 @@ class FunctionAnalyzer(object):
 
         # memory allocation event #
         elif isFixedEvent and func == "mm_page_alloc:":
-            m = re.match(\
-                r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
-                r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', args)
+            m = re.match((\
+                r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' \
+                r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), args)
             if m is not None:
                 d = m.groupdict()
 
@@ -3075,8 +3075,8 @@ class FunctionAnalyzer(object):
         # memory free event #
         elif isFixedEvent and \
             (func == "mm_page_free:" or func == "mm_page_free_direct:"):
-            m = re.match(r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' + \
-                r'order=(?P<order>[0-9]+)', args)
+            m = re.match((r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' \
+                r'order=(?P<order>[0-9]+)'), args)
             if m is not None:
                 d = m.groupdict()
 
@@ -3294,8 +3294,9 @@ class FunctionAnalyzer(object):
 
         # block request event #
         elif isFixedEvent and func == "block_bio_queue:":
-            m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', args)
+            m = re.match((\
+                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' \
+                r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), args)
             if m is not None:
                 b = m.groupdict()
 
@@ -3329,8 +3330,8 @@ class FunctionAnalyzer(object):
 
         # block write request event #
         elif isFixedEvent and func == "writeback_dirty_page:":
-            m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', args)
+            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), args)
             if m is not None:
                 b = m.groupdict()
                 self.bwriteEnabled = True
@@ -3347,8 +3348,8 @@ class FunctionAnalyzer(object):
 
         # block write request event #
         elif isFixedEvent and func == "wbc_writepage:":
-            m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', args)
+            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), args)
             if m is not None:
                 d = m.groupdict()
 
@@ -3367,8 +3368,8 @@ class FunctionAnalyzer(object):
 
         # segmentation fault generation event #
         elif isFixedEvent and func == "signal_generate:":
-            m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', args)
+            m = re.match((r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
+                r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), args)
             if m is not None:
                 b = m.groupdict()
 
@@ -3387,8 +3388,9 @@ class FunctionAnalyzer(object):
             return False
 
         elif isFixedEvent and func == "signal_deliver:":
-            m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)', args)
+            m = re.match((\
+                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' \
+                r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), args)
             if m is not None:
                 b = m.groupdict()
 
@@ -3475,11 +3477,19 @@ class FunctionAnalyzer(object):
     def parseEventLog(self, string, desc):
         # Filter for event #
         if SystemManager.tgidEnable:
-            m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
-                r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+            # record-tgid option #
+            m = re.match((\
+                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
+                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+            if m is None:
+                # print-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' \
+                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
         else:
-            m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
-                r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)', string)
+            m = re.match((\
+                r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
+                r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
 
         if m is not None:
             d = m.groupdict()
@@ -3501,11 +3511,15 @@ class FunctionAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = d['comm']
 
-            # Set pid of thread #
+            # set tgid #
             try:
-                self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
+                self.threadData[thread]['tgid'] = d['tgid']
             except:
-                pass
+                try:
+                    self.threadData[thread]['tgid'] = \
+                        SystemManager.savedProcTree[thread]
+                except:
+                    pass
 
             # increase event count #
             self.threadData[thread]['eventCnt'] += 1
@@ -3603,11 +3617,6 @@ class FunctionAnalyzer(object):
                 # Return False because no stack data with this event #
                 return False
 
-            # Save tgid(pid) #
-            if SystemManager.tgidEnable and \
-                self.threadData[thread]['tgid'] == '-----':
-                self.threadData[thread]['tgid'] = d['tgid']
-
             # apply filter #
             if SystemManager.isExceptTarget(thread, self.threadData):
                 return False
@@ -3619,7 +3628,8 @@ class FunctionAnalyzer(object):
         # Parse call stack #
         else:
             pos = string.find('=>  <')
-            m = re.match(r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] \<(?P<pos>.\S+)\>', string)
+            m = re.match(\
+                r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] \<(?P<pos>.\S+)\>', string)
 
             # exist path, offset, pos #
             if m is not None:
@@ -3653,8 +3663,9 @@ class FunctionAnalyzer(object):
 
 
     def parseMapLine(self, string):
-        m = re.match(r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' + \
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)', string)
+        m = re.match((\
+            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' \
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.\S+)'), string)
         if m is not None:
             d = m.groupdict()
             self.mapData.append(\
@@ -3781,6 +3792,9 @@ class FunctionAnalyzer(object):
                 value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
                 int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 0.5), \
                 value['nrLockTry'], value['customTotal']))
+
+        if targetCnt == 0:
+            SystemManager.pipePrint('\tNone')
 
         SystemManager.pipePrint("%s\n\n\n" % oneLine)
 
@@ -5558,19 +5572,25 @@ class FileAnalyzer(object):
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
             ('File Process Info', len(self.procData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^9}|{3:_^16}({4:_^5}) |".\
+        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
             format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
         SystemManager.pipePrint(twoLine)
 
-        procInfo = "{0:^16}({0:^5})|{1:8} |".format('', '', '')
+        procInfo = "{0:^16}({0:^5})|{1:12} |".format('', '', '')
         threadInfo = " {0:^16}({1:^5}) |".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SystemManager.lineLength
 
-        for pid, val in sorted(self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            printMsg = "{0:>16}({1:>5})|{2:>8} |".\
-                format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize >> 10)
+        for pid, val in sorted(\
+            self.procData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            try:
+                rsize = val['pageCnt'] * SystemManager.pageSize >> 10
+                rsize = "{:,}".format(rsize)
+            except:
+                pass
+
+            printMsg = "{0:>16}({1:>5})|{2:>12} |".format(val['comm'], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -5600,13 +5620,26 @@ class FileAnalyzer(object):
         for fileName, val in sorted(\
             self.fileData.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
             memSize = val['pageCnt'] * SystemManager.pageSize >> 10
+
             idx = val['totalSize'] + SystemManager.pageSize - 1
-            fileSize = (int(idx / SystemManager.pageSize) * SystemManager.pageSize) >> 10
+
+            fileSize = \
+                (int(idx / SystemManager.pageSize) * SystemManager.pageSize) >> 10
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
             else:
                 per = 0
+
+            try:
+                memSize = "{:,}".format(memSize)
+            except:
+                pass
+
+            try:
+                fileSize = "{:,}".format(fileSize)
+            except:
+                pass
 
             if val['isRep'] is False:
                 continue
@@ -6005,8 +6038,8 @@ class FileAnalyzer(object):
 
 
     def mergeMapLine(self, string, procMap):
-        m = re.match(r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' + \
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)', string)
+        m = re.match((r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' \
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)'), string)
         if m is not None:
             d = m.groupdict()
 
@@ -8504,8 +8537,9 @@ class SystemManager(object):
                 break
 
             # parse line to find offset of symbol #
-            m = re.match(\
-                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\(File Offset:\s*(?P<offset>\S*)\s*\)', line)
+            m = re.match((\
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
+                'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
             if m is not None:
                 d = m.groupdict()
                 if d['symbol'] == symbol:
@@ -9667,10 +9701,11 @@ class SystemManager(object):
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         for item in mountTable:
-            m = re.match(r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+' + \
-                r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+' + \
-                r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+(?P<freeSize>\S+)\s+' + \
-                r'(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)', item)
+            m = re.match((\
+                r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+' \
+                r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+' \
+                r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+(?P<freeSize>\S+)\s+' \
+                r'(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
             if m is not None:
                 d = m.groupdict()
                 mid = '%s:%s' % (d['maj'], d['min'])
@@ -11061,7 +11096,8 @@ class SystemManager(object):
                         "Fail to save data because it is not in recording mode")
                     sys.exit(0)
 
-                if SystemManager.findOption('F'):
+                if SystemManager.findOption('F') or \
+                    SystemManager.findOption('y'):
                     SystemManager.printFile = str(value)
                     if len(SystemManager.printFile) == 0:
                         SystemManager.printError("no option value with -o option")
@@ -12203,8 +12239,8 @@ class SystemManager(object):
     def saveResourceSnapshot(self, initialized=True):
         if initialized:
             # process info #
-            if SystemManager.isTopMode() is False:
-                self.saveProcInfo()
+            if SystemManager.tgidEnable is False:
+                self.saveProcTree()
 
             # resource info #
             self.saveSystemInfo()
@@ -12212,7 +12248,7 @@ class SystemManager(object):
             self.saveCpuCacheInfo()
             self.saveDevInfo()
 
-            # os info #
+            # os specific info #
             if self.saveWebOSInfo() is True:
                 pass
             else:
@@ -12228,7 +12264,7 @@ class SystemManager(object):
 
 
 
-    def saveProcInfo(self):
+    def saveProcTree(self):
         procTree = SystemManager.getProcTree()
 
         if procTree is not None:
@@ -12688,6 +12724,7 @@ class SystemManager(object):
         SystemManager.writeCmd('../trace_options', 'noirq-info')
         SystemManager.writeCmd('../trace_options', 'noannotate')
         SystemManager.writeCmd('../trace_options', 'print-tgid')
+        SystemManager.writeCmd('../trace_options', 'record-tgid')
         SystemManager.writeCmd('../current_tracer', 'nop')
 
         # start tracing #
@@ -13061,9 +13098,10 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.lockEnable:
-            nrFutex = ConfigManager.sysList.index("sys_futex")
-            if nrFutex not in SystemManager.syscallList:
-                SystemManager.syscallList.append(nrFutex)
+            if len(SystemManager.syscallList) > 0:
+                nrFutex = ConfigManager.sysList.index("sys_futex")
+                if nrFutex not in SystemManager.syscallList:
+                    SystemManager.syscallList.append(nrFutex)
         else:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
@@ -16434,8 +16472,10 @@ class ThreadAnalyzer(object):
                     "%5s|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
                     "%3s|%3s|%4.2f(%2d)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
-                        self.totalTime - value['usage'], str(round(float(usagePercent), 1)), \
-                        offTime, value['schedLatency'], '-', value['irq'], offCnt, '-', '-', '-', \
+                        self.totalTime - value['usage'], \
+                        str(round(float(usagePercent), 1)), \
+                        offTime, value['schedLatency'], '-', \
+                        value['irq'], offCnt, '-', '-', '-', \
                         value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
                         value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
                         (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
@@ -16499,13 +16539,16 @@ class ThreadAnalyzer(object):
                 break
 
             SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" + \
-                "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|%3d|%3d|%4.2f(%2d)|\n") % \
-                (value['comm'], key, value['tgid'], value['new'], value['die'], value['usage'], \
-                str(round(float(usagePercent), 1)), value['cpuWait'], value['schedLatency'], \
-                value['pri'], value['irq'], value['yield'], value['preempted'], value['preemption'], \
-                value['migrate'], value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
-                value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
+                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
+                "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
+                "%3d|%3d|%4.2f(%2d)|\n") % \
+                (value['comm'], key, value['tgid'], value['new'], value['die'], \
+                value['usage'], str(round(float(usagePercent), 1)), \
+                value['cpuWait'], value['schedLatency'], value['pri'], \
+                value['irq'], value['yield'], value['preempted'], value['preemption'], \
+                value['migrate'], value['ioRdWait'], value['readBlock'], \
+                value['readBlockCnt'], value['ioWrWait'], \
+                value['writeBlock'] + value['awriteBlock'], \
                 (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
                 value['userPages'] >> 8, value['cachePages'] >> 8, \
                 value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
@@ -16537,18 +16580,22 @@ class ThreadAnalyzer(object):
                 if float(self.preemptData[index][4]) == 0:
                     break
                 SystemManager.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n" \
-                    % (self.threadData[key]['comm'], key, '0', self.threadData[key]['new'], \
+                    % (self.threadData[key]['comm'], key, '0', \
+                    self.threadData[key]['new'], \
                     self.threadData[key]['die'], value['usage'], \
-                    str(round(float(value['usage']) / float(self.preemptData[index][4]) * 100, 1))))
-            SystemManager.pipePrint("%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
-                ('', 'PRT', tid, self.threadData[tid]['comm'], self.preemptData[index][4], count))
+                    '%.2f' % (value['usage'] / self.preemptData[index][4] * 100)))
+            SystemManager.pipePrint(\
+                "%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
+                ('', 'PRT', tid, self.threadData[tid]['comm'], \
+                self.preemptData[index][4], count))
             SystemManager.pipePrint(SystemManager.bufferString)
             SystemManager.pipePrint(oneLine)
 
         # print new thread information after sorting by new thread flags #
         count = 0
         SystemManager.clearPrint()
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['new'], reverse=True):
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['new'], reverse=True):
             if value['new'] == ' ' or SystemManager.selectMenu != None:
                 break
             count += 1
@@ -16576,7 +16623,8 @@ class ThreadAnalyzer(object):
         # print terminated thread information after sorting by die flags #
         count = 0
         SystemManager.clearPrint()
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['die'], reverse=True):
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['die'], reverse=True):
             if value['die'] == ' ' or SystemManager.selectMenu != None:
                 break
             count += 1
@@ -16951,7 +16999,8 @@ class ThreadAnalyzer(object):
             ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
-        for key, value in sorted(self.threadData.items(), key=lambda e: e[1]['comm']):
+        for key, value in sorted(\
+            self.threadData.items(), key=lambda e: e[1]['comm']):
             threadInfo = ''
             syscallInfo = ''
 
@@ -18163,7 +18212,8 @@ class ThreadAnalyzer(object):
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
             dirPos = SystemManager.inputFile.rfind('/')
             if dirPos >= 0:
-                graphPath = SystemManager.inputFile[:dirPos + 1] + 'guider_graph.png'
+                graphPath = \
+                    '%sguider_graph.png' % SystemManager.inputFile[:dirPos + 1]
                 savefig(graphPath, dpi=(200))
                 clf()
                 try:
@@ -18240,10 +18290,11 @@ class ThreadAnalyzer(object):
     def parseProcLine(index, procLine):
         # Get time info #
         if 'time' not in ThreadAnalyzer.procIntervalData[index]:
-            m = re.match(r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' + \
-                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' + \
-                r'\[Core:\s*(?P<nrCore>[0-9]+)\].+' + \
-                r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)', procLine)
+            m = re.match((\
+                r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
+                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
+                r'\[Core:\s*(?P<nrCore>[0-9]+)\].+' \
+                r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
                 d = m.groupdict()
                 ThreadAnalyzer.procIntervalData[index]['time'] = d['time']
@@ -18262,8 +18313,9 @@ class ThreadAnalyzer(object):
             tokenList[0].startswith('Total'):
 
             # CPU & BLOCK stat #
-            m = re.match(r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' + \
-                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)', tokenList[1])
+            m = re.match((\
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' \
+                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)'), tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
@@ -19223,6 +19275,8 @@ class ThreadAnalyzer(object):
         if SystemManager.procInstance is None:
             return
 
+        statList = ConfigManager.statList
+
         # set comm and pid size #
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
@@ -19241,12 +19295,12 @@ class ThreadAnalyzer(object):
 
         cnt = 1
         limitProcCnt = 6
-        commIdx = ConfigManager.statList.index("COMM")
-        ppidIdx = ConfigManager.statList.index("PPID")
+        commIdx = statList.index("COMM")
+        ppidIdx = statList.index("PPID")
 
         try:
             sortedList = sorted(SystemManager.procInstance.items(), \
-                key=lambda e: long(e[1]['stat'][ConfigManager.statList.index("RSS")]), reverse=True)
+                key=lambda e: long(e[1]['stat'][statList.index("RSS")]), reverse=True)
         except:
             SystemManager.printWarning(\
                 "Fail to get memory details because of sort error")
@@ -19419,15 +19473,28 @@ class ThreadAnalyzer(object):
                             SystemManager.systemInfoBuffer = ''.join(buf[start+1:end])
                         continue
 
-                m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)' + \
-                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', line)
+                # print-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)' \
+                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
                     return d['time']
 
-                m = re.match(r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' + \
-                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', line)
+                # record-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
+                    r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
+                if m is not None:
+                    d = m.groupdict()
+                    SystemManager.startTime = d['time']
+                    return d['time']
+
+                # no tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
+                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.tgidEnable = False
@@ -19466,7 +19533,7 @@ class ThreadAnalyzer(object):
                 targetTable[did][5][blkSize] = 1
 
         # apply filter #
-        if SystemManager.isExceptTarget(thread, self.threadData, comm):
+        if SystemManager.isExceptTarget(tid, self.threadData, comm):
             return
 
         # total block info #
@@ -19533,17 +19600,19 @@ class ThreadAnalyzer(object):
         if SystemManager.intervalEnable == 0:
             return
 
-        intervalCnt = float(SystemManager.intervalNow + SystemManager.intervalEnable)
+        intervalEnable = SystemManager.intervalEnable
+
+        intervalCnt = float(SystemManager.intervalNow + intervalEnable)
         elapsed = float(time) - float(SystemManager.startTime)
 
         if elapsed > intervalCnt or self.finishTime != '0':
-            SystemManager.intervalNow += SystemManager.intervalEnable
+            SystemManager.intervalNow += intervalEnable
 
             # check change of all threads #
             for key, value in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
-                index = int(SystemManager.intervalNow / SystemManager.intervalEnable) - 1
-                nextIndex = int(SystemManager.intervalNow / SystemManager.intervalEnable)
+                index = int(SystemManager.intervalNow / intervalEnable) - 1
+                nextIndex = int(SystemManager.intervalNow / intervalEnable)
 
                 try:
                     self.intervalData[index]
@@ -19676,7 +19745,7 @@ class ThreadAnalyzer(object):
                             pass
 
                 # first interval #
-                if SystemManager.intervalNow == SystemManager.intervalEnable:
+                if SystemManager.intervalNow == intervalEnable:
                     intervalThread['cpuUsage'] = float(self.threadData[key]['usage'])
                     intervalThread['preempted'] = float(self.threadData[key]['cpuWait'])
                     intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
@@ -19776,12 +19845,13 @@ class ThreadAnalyzer(object):
                             intervalThread['kernelEvent'][evt]['usage']
 
                 # fix cpu usage exceed this interval #
-                self.thisInterval = SystemManager.intervalEnable
-                if intervalThread['cpuUsage'] > SystemManager.intervalEnable or \
+                self.thisInterval = intervalEnable
+                if intervalThread['cpuUsage'] > intervalEnable or \
                     self.finishTime != '0':
                     # first interval #
                     if index == 0:
-                        self.thisInterval = float(time) - float(SystemManager.startTime)
+                        self.thisInterval = \
+                            float(time) - float(SystemManager.startTime)
                     # normal intervals #
                     elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
                         self.thisInterval = \
@@ -19793,14 +19863,15 @@ class ThreadAnalyzer(object):
                                 self.thisInterval = \
                                     float(time) - float(self.intervalData[idx][key]['firstLogTime'])
                                 break
-                        if self.thisInterval != SystemManager.intervalEnable:
-                            self.thisInterval = float(time) - float(SystemManager.startTime)
+                        if self.thisInterval != intervalEnable:
+                            self.thisInterval = \
+                                float(time) - float(SystemManager.startTime)
 
                     # recalculate previous intervals if no context switching since profile start #
                     remainTime = intervalThread['cpuUsage']
                     if intervalThread['cpuUsage'] > self.thisInterval:
                         for idx in xrange(\
-                            int(intervalThread['cpuUsage'] / SystemManager.intervalEnable), -1, -1):
+                            int(intervalThread['cpuUsage'] / intervalEnable), -1, -1):
                             try:
                                 self.intervalData[idx][key]
                             except:
@@ -19825,11 +19896,10 @@ class ThreadAnalyzer(object):
                                     self.intervalData[idx][longRunCoreId] = \
                                         dict(self.init_intervalData)
 
-                            if remainTime >= SystemManager.intervalEnable:
+                            if remainTime >= intervalEnable:
                                 remainTime = \
-                                    int(remainTime / SystemManager.intervalEnable) * \
-                                    SystemManager.intervalEnable
-                                prevIntervalData['cpuUsage'] = SystemManager.intervalEnable
+                                    int(remainTime / intervalEnable) * intervalEnable
+                                prevIntervalData['cpuUsage'] = intervalEnable
                                 prevIntervalData['cpuPer'] = 100
                             else:
                                 if prevIntervalData['cpuUsage'] > remainTime:
@@ -19837,24 +19907,25 @@ class ThreadAnalyzer(object):
                                 else:
                                     prevIntervalData['cpuUsage'] = remainTime
                                 prevIntervalData['cpuPer'] = \
-                                    remainTime / SystemManager.intervalEnable * 100
+                                    remainTime / intervalEnable * 100
 
-                            remainTime -= SystemManager.intervalEnable
+                            remainTime -= intervalEnable
 
                 # add remainter of cpu usage exceed interval in this interval to previous interval #
-                if SystemManager.intervalNow - SystemManager.intervalEnable > 0 and \
-                    self.thisInterval > SystemManager.intervalEnable:
-                    diff = self.thisInterval - SystemManager.intervalEnable
-                    if prevIntervalThread['cpuUsage'] + diff > SystemManager.intervalEnable:
-                        diff = SystemManager.intervalEnable - prevIntervalThread['cpuUsage']
+                if SystemManager.intervalNow - intervalEnable > 0 and \
+                    self.thisInterval > intervalEnable:
+                    diff = self.thisInterval - intervalEnable
+                    if prevIntervalThread['cpuUsage'] + diff > intervalEnable:
+                        diff = intervalEnable - prevIntervalThread['cpuUsage']
 
                     prevIntervalThread['cpuUsage'] += diff
                     prevIntervalThread['cpuPer'] = \
-                        prevIntervalThread['cpuUsage'] / SystemManager.intervalEnable * 100
+                        prevIntervalThread['cpuUsage'] / intervalEnable * 100
 
                 # calculate percentage of cpu usage of this thread in this interval #
                 if self.thisInterval > 0:
-                    intervalThread['cpuPer'] = intervalThread['cpuUsage'] / self.thisInterval * 100
+                    intervalThread['cpuPer'] = \
+                        intervalThread['cpuUsage'] / self.thisInterval * 100
                 else:
                     intervalThread['cpuPer'] = 0
 
@@ -19865,7 +19936,7 @@ class ThreadAnalyzer(object):
                     intervalThread['cpuPer'] = 0
 
                 # fix preempted time exceed this interval #
-                if intervalThread['preempted'] > SystemManager.intervalEnable:
+                if intervalThread['preempted'] > intervalEnable:
                     # recalculate previous intervals if no context switching since profile start #
                     remainTime = intervalThread['preempted']
                     if intervalThread['preempted'] > self.thisInterval:
@@ -19879,13 +19950,13 @@ class ThreadAnalyzer(object):
                             except:
                                 self.intervalData[idx - 1][key] = dict(self.init_intervalData)
 
-                            if remainTime >= SystemManager.intervalEnable:
+                            if remainTime >= intervalEnable:
                                 self.intervalData[idx - 1][key]['preempted'] = \
-                                    SystemManager.intervalEnable
+                                    intervalEnable
                             else:
                                 self.intervalData[idx - 1][key]['preempted'] += remainTime
 
-                            remainTime -= SystemManager.intervalEnable
+                            remainTime -= intervalEnable
                             if remainTime <= 0:
                                 break
 
@@ -19991,7 +20062,8 @@ class ThreadAnalyzer(object):
             self.markDataOld = self.markData
             self.consoleDataOld = self.consoleData
 
-            self.totalTimeOld = round(float(time) - float(SystemManager.startTime), 7)
+            self.totalTimeOld = \
+                round(float(time) - float(SystemManager.startTime), 7)
 
             self.initThreadData()
 
@@ -20009,11 +20081,19 @@ class ThreadAnalyzer(object):
         SystemManager.curLine += 1
 
         if SystemManager.tgidEnable:
-            m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
-                r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+            # record-tgid option #
+            m = re.match((\
+                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
+                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
+            if m is None:
+                # print-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' \
+                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
         else:
-            m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
-                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)', string)
+            m = re.match((\
+                r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
+                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
         if m is not None:
             d = m.groupdict()
             comm = d['comm']
@@ -20063,12 +20143,15 @@ class ThreadAnalyzer(object):
                 self.threadData[thread] = dict(self.init_threadData)
                 self.threadData[thread]['comm'] = comm
 
-            # set pid of thread #
+            # set tgid #
             try:
-                self.threadData[thread]['tgid'] = SystemManager.savedProcTree[thread]
+                self.threadData[thread]['tgid'] = d['tgid']
             except:
-                if SystemManager.tgidEnable:
-                    self.threadData[thread]['tgid'] = d['tgid']
+                try:
+                    self.threadData[thread]['tgid'] = \
+                        SystemManager.savedProcTree[thread]
+                except:
+                    pass
 
             # calculate usage of threads had been running longer than periodic interval #
             if SystemManager.intervalEnable > 0:
@@ -20085,7 +20168,7 @@ class ThreadAnalyzer(object):
                             continue
 
                         usage = float(time) - float(self.threadData[tid]['start'])
-                        allTime = float(self.finishTime) - float(SystemManager.startTime)
+                        allTime = float(time) - float(SystemManager.startTime)
                         if usage > allTime:
                             usage = allTime
 
@@ -20102,11 +20185,11 @@ class ThreadAnalyzer(object):
             self.processIntervalData(time)
 
             if func == "sched_switch":
-                m = re.match(\
-                    r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' + \
-                    r'prev_prio=(?P<prev_prio>\S+)\s+prev_state=(?P<prev_state>\S+)\s+==>\s+' + \
-                    r'next_comm=(?P<next_comm>.*)\s+next_pid=(?P<next_pid>[0-9]+)\s+' + \
-                    r'next_prio=(?P<next_prio>\S+)', etc)
+                m = re.match((\
+                    r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' \
+                    r'prev_prio=(?P<prev_prio>\S+)\s+prev_state=(?P<prev_state>\S+)\s+==>\s+' \
+                    r'next_comm=(?P<next_comm>.*)\s+next_pid=(?P<next_pid>[0-9]+)\s+' \
+                    r'next_prio=(?P<next_prio>\S+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20144,12 +20227,10 @@ class ThreadAnalyzer(object):
                         self.threadData[prev_id]
                     except:
                         self.threadData[prev_id] = dict(self.init_threadData)
-                        self.threadData[prev_id]['comm'] = prev_comm
                     try:
                         self.threadData[next_id]
                     except:
                         self.threadData[next_id] = dict(self.init_threadData)
-                        self.threadData[next_id]['comm'] = next_comm
                     try:
                         self.threadData[coreId]
                     except:
@@ -20158,6 +20239,10 @@ class ThreadAnalyzer(object):
 
                     if self.wakeupData['valid'] > 0 and self.wakeupData['tid'] == prev_id:
                         self.wakeupData['valid'] -= 1
+
+                    # update comm #
+                    self.threadData[prev_id]['comm'] = prev_comm
+                    self.threadData[next_id]['comm'] = next_comm
 
                     # update anonymous comm #
                     if self.threadData[prev_id]['comm'] == '<...>':
@@ -20360,7 +20445,8 @@ class ThreadAnalyzer(object):
                             self.threadData[next_id]['maxPreempted'] = preemptedTime
 
                         try:
-                            self.preemptData[SystemManager.preemptGroup.index(next_id)][0] = False
+                            nextIdx = SystemManager.preemptGroup.index(next_id)
+                            self.preemptData[nextIdx][0] = False
                         except:
                             pass
 
@@ -20456,9 +20542,11 @@ class ThreadAnalyzer(object):
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
                         # save softirq period #
-                        if diff > self.irqData[irqId]['max'] or self.irqData[irqId]['max'] <= 0:
+                        if diff > self.irqData[irqId]['max'] or \
+                            self.irqData[irqId]['max'] <= 0:
                             self.irqData[irqId]['max'] = diff
-                        if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
+                        if diff < self.irqData[irqId]['min'] or \
+                            self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
@@ -20560,9 +20648,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_migrate_task":
-                m = re.match(\
-                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' + \
-                    r'orig_cpu=(?P<orig_cpu>[0-9]+)\s+dest_cpu=(?P<dest_cpu>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' \
+                    r'orig_cpu=(?P<orig_cpu>[0-9]+)\s+dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20589,9 +20677,10 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_alloc":
-                m = re.match(\
-                    r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)\s+' + \
-                    r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
+                m = re.match((\
+                    r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' \
+                    r'order=(?P<order>[0-9]+)\s+' \
+                    r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20649,8 +20738,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_free" or func == "mm_page_free_direct":
-                m = re.match(\
-                    r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+order=(?P<order>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'
+                    r'\s+order=(?P<order>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20664,21 +20754,22 @@ class ThreadAnalyzer(object):
                         pfnv = pfn + cnt
 
                         try:
-                            self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
+                            owner = self.pageTable[pfnv]['tid']
+                            self.threadData[owner]['nrPages'] -= 1
                             self.threadData[coreId]['nrPages'] -= 1
 
-                            if thread != self.pageTable[pfnv]['tid']:
-                                self.threadData[self.pageTable[pfnv]['tid']]['reclaimedPages'] += 1
+                            if thread != owner:
+                                self.threadData[owner]['reclaimedPages'] += 1
                                 self.threadData[coreId]['reclaimedPages'] += 1
 
                             if self.pageTable[pfnv]['type'] is 'CACHE':
-                                self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
+                                self.threadData[owner]['cachePages'] -= 1
                                 self.threadData[coreId]['cachePages'] -= 1
                             elif self.pageTable[pfnv]['type'] is 'USER':
-                                self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
+                                self.threadData[owner]['userPages'] -= 1
                                 self.threadData[coreId]['userPages'] -= 1
                             elif self.pageTable[pfnv]['type'] is 'KERNEL':
-                                self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
+                                self.threadData[owner]['kernelPages'] -= 1
                                 self.threadData[coreId]['kernelPages'] -= 1
 
                             self.pageTable.pop(pfnv)
@@ -20690,8 +20781,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "mm_filemap_delete_from_page_cache":
-                m = re.match(r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' + \
-                    r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' \
+                    r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20700,16 +20792,18 @@ class ThreadAnalyzer(object):
                     pfn = int(d['pfn'])
 
                     try:
+                        owner = self.pageTable[pfn]['tid']
+
                         # attribute of page is changed to file #
                         if self.pageTable[pfn]['type'] is 'USER':
-                            self.threadData[self.pageTable[pfn]['tid']]['userPages'] -= 1
+                            self.threadData[owner]['userPages'] -= 1
                             self.threadData[coreId]['userPages'] -= 1
-                            self.threadData[self.pageTable[pfn]['tid']]['cachePages'] += 1
+                            self.threadData[owner]['cachePages'] += 1
                             self.threadData[coreId]['cachePages'] += 1
                         elif self.pageTable[pfn]['type'] is 'KERNEL':
-                            self.threadData[self.pageTable[pfn]['tid']]['kernelPages'] -= 1
+                            self.threadData[owner]['kernelPages'] -= 1
                             self.threadData[coreId]['kernelPages'] -= 1
-                            self.threadData[self.pageTable[pfn]['tid']]['cachePages'] += 1
+                            self.threadData[owner]['cachePages'] += 1
                             self.threadData[coreId]['cachePages'] += 1
 
                         self.pageTable[pfn]['type'] = 'CACHE'
@@ -20719,9 +20813,10 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "kmalloc":
-                m = re.match(\
-                    r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+bytes_req=(?P<req>[0-9]+)\s+' + \
-                    r'bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)', etc)
+                m = re.match((\
+                    r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+' \
+                    r'bytes_req=(?P<req>[0-9]+)\s+' \
+                    r'bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20783,8 +20878,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "sched_wakeup" or func == "sched_wakeup_new":
-                m = re.match(\
-                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+', etc)
+                m = re.match((\
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+' \
+                    r'prio=(?P<prio>[0-9]+)\s+'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -20806,7 +20902,8 @@ class ThreadAnalyzer(object):
                     elif self.wakeupData['valid'] > 0 and \
                         (self.wakeupData['from'] != self.wakeupData['tid'] or \
                         self.wakeupData['to'] != pid):
-                        if self.wakeupData['valid'] == 1 and self.wakeupData['corrupt'] == '0':
+                        if self.wakeupData['valid'] == 1 and \
+                            self.wakeupData['corrupt'] == '0':
                             try:
                                 kicker = self.threadData[self.wakeupData['tid']]['comm']
                             except:
@@ -21119,8 +21216,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "signal_generate":
-                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' + \
-                        r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
+                    r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21154,8 +21252,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "signal_deliver":
-                m = re.match(r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' + \
-                        r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)', etc)
+                m = re.match((\
+                    r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' \
+                    r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21175,8 +21274,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "block_bio_queue" or func == "block_bio_remap":
-                m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' + \
-                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' \
+                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21223,8 +21323,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "block_rq_complete":
-                m = re.match(r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)' + \
-                    r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)' \
+                    r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21357,8 +21458,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "writeback_dirty_page":
-                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                    r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)', etc)
+                m = re.match((\
+                    r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                    r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21377,8 +21479,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "wbc_writepage":
-                m = re.match(r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' + \
-                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)', etc)
+                m = re.match((\
+                    r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21495,8 +21598,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "task_rename":
-                m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' + \
-                    r'newcomm=(?P<newcomm>.*)\s+oom_score_adj', etc)
+                m = re.match((\
+                    r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' \
+                    r'newcomm=(?P<newcomm>.*)\s+oom_score_adj'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21655,8 +21759,9 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "module_put":
-                m = re.match(\
-                    r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+refcnt=(?P<refcnt>[0-9]+)', etc)
+                m = re.match((\
+                    r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
+                    r'refcnt=(?P<refcnt>[0-9]+)'), etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -21768,17 +21873,18 @@ class ThreadAnalyzer(object):
                 self.threadData[thread]['customEvent'][func]['count'] += 1
                 self.customEventInfo[func]['count'] += 1
 
+                # define eventObj #
+                eventObj = self.threadData[thread]['customEvent'][func]
+
                 # get interval #
                 interDiff = 0
-                if self.threadData[thread]['customEvent'][func]['start'] > 0:
-                    interDiff = float(time) - self.threadData[thread]['customEvent'][func]['start']
+                if eventObj['start'] > 0:
+                    interDiff = float(time) - eventObj['start']
 
                 # update period of thread #
-                if interDiff > self.threadData[thread]['customEvent'][func]['maxPeriod'] or \
-                    self.threadData[thread]['customEvent'][func]['maxPeriod'] == 0:
+                if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
                     self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
-                if interDiff < self.threadData[thread]['customEvent'][func]['minPeriod'] or \
-                    self.threadData[thread]['customEvent'][func]['minPeriod'] == 0:
+                if interDiff < eventObj['minPeriod'] or eventObj == 0:
                     self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
 
                 # update period of system #
@@ -21810,6 +21916,9 @@ class ThreadAnalyzer(object):
                     except:
                         self.userEventInfo[name] = dict(self.init_eventData)
 
+                    # define eventObj #
+                    eventObj = self.threadData[thread]['userEvent'][name]
+
                     if func == '%s_enter' % name:
                         # add data into list #
                         ntime = float(time) - float(SystemManager.startTime)
@@ -21817,19 +21926,16 @@ class ThreadAnalyzer(object):
 
                         # get interval #
                         interDiff = 0
-                        if self.threadData[thread]['userEvent'][name]['start'] > 0:
-                            interDiff = \
-                                float(time) - self.threadData[thread]['userEvent'][name]['start']
+                        if eventObj['start'] > 0:
+                            interDiff = float(time) - eventObj['start']
 
                         self.threadData[thread]['userEvent'][name]['count'] += 1
                         self.threadData[thread]['userEvent'][name]['start'] = float(time)
 
                         # update period of thread #
-                        if interDiff > self.threadData[thread]['userEvent'][name]['maxPeriod'] or \
-                            self.threadData[thread]['userEvent'][name]['maxPeriod'] == 0:
+                        if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
                             self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
-                        if interDiff < self.threadData[thread]['userEvent'][name]['minPeriod'] or \
-                            self.threadData[thread]['userEvent'][name]['minPeriod'] == 0:
+                        if interDiff < eventObj['minPeriod'] or eventObj['minPeriod'] == 0:
                             self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
 
                         self.userEventInfo[name]['count'] += 1
@@ -21851,17 +21957,15 @@ class ThreadAnalyzer(object):
 
                         # get usage #
                         usage = 0
-                        if self.threadData[thread]['userEvent'][name]['start'] > 0:
-                            usage = float(time) - self.threadData[thread]['userEvent'][name]['start']
+                        if eventObj['start'] > 0:
+                            usage = float(time) - eventObj['start']
                             self.threadData[thread]['userEvent'][name]['usage'] += usage
                             self.userEventInfo[name]['usage'] += usage
 
                             # update usage of thread #
-                            if usage > self.threadData[thread]['userEvent'][name]['max'] or \
-                                self.threadData[thread]['userEvent'][name]['max'] == 0:
+                            if usage > eventObj['max'] or eventObj['max'] == 0:
                                 self.threadData[thread]['userEvent'][name]['max'] = usage
-                            if usage < self.threadData[thread]['userEvent'][name]['min'] or \
-                                self.threadData[thread]['userEvent'][name]['min'] == 0:
+                            if usage < eventObj['min'] or eventObj['min'] == 0:
                                 self.threadData[thread]['userEvent'][name]['min'] = usage
 
                             # update usage of system #
@@ -21890,6 +21994,9 @@ class ThreadAnalyzer(object):
                     except:
                         self.kernelEventInfo[name] = dict(self.init_eventData)
 
+                    # define eventObj #
+                    eventObj = self.threadData[thread]['kernelEvent'][name]
+
                     if func == '%s_enter' % name:
                         # add data into list #
                         ntime = float(time) - float(SystemManager.startTime)
@@ -21916,19 +22023,16 @@ class ThreadAnalyzer(object):
                         if isSaved:
                             # get interval #
                             interDiff = 0
-                            if self.threadData[thread]['kernelEvent'][name]['start'] > 0:
-                                interDiff = float(time) - \
-                                    self.threadData[thread]['kernelEvent'][name]['start']
+                            if eventObj['start'] > 0:
+                                interDiff = float(time) - eventObj['start']
 
                             self.threadData[thread]['kernelEvent'][name]['count'] += 1
                             self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
 
                             # update period of thread #
-                            if interDiff > self.threadData[thread]['kernelEvent'][name]['maxPeriod'] or \
-                                self.threadData[thread]['kernelEvent'][name]['maxPeriod'] == 0:
+                            if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
                                 self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
-                            if interDiff < self.threadData[thread]['kernelEvent'][name]['minPeriod'] or \
-                                self.threadData[thread]['kernelEvent'][name]['minPeriod'] == 0:
+                            if interDiff < eventObj['minPeriod'] or eventObj['minPeriod'] == 0:
                                 self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
 
                             self.kernelEventInfo[name]['count'] += 1
@@ -21946,8 +22050,8 @@ class ThreadAnalyzer(object):
                         ntime = float(time) - float(SystemManager.startTime)
 
                         isSaved = True
-                        m = re.match(\
-                            (r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
+                        m = re.match((\
+                            r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
                             r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
                         if m is not None:
                             d = m.groupdict()
@@ -21955,8 +22059,9 @@ class ThreadAnalyzer(object):
                                 ['EXIT', name, d['addr'], comm, thread, ntime, d['caller'], \
                                 d['args'], d['caddr']])
                         else:
-                            m = re.match(\
-                                r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- (?P<name>.+)\)(?P<args>.*)', etc)
+                            m = re.match((\
+                                r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- '
+                                r'(?P<name>.+)\)(?P<args>.*)'), etc)
                             if m is not None:
                                 d = m.groupdict()
                                 self.kernelEventData.append(\
@@ -21970,18 +22075,15 @@ class ThreadAnalyzer(object):
                         if isSaved:
                             # get usage #
                             usage = 0
-                            if self.threadData[thread]['kernelEvent'][name]['start'] > 0:
-                                usage = float(time) - \
-                                    self.threadData[thread]['kernelEvent'][name]['start']
+                            if eventObj['start'] > 0:
+                                usage = float(time) - eventObj['start']
                                 self.threadData[thread]['kernelEvent'][name]['usage'] += usage
                                 self.kernelEventInfo[name]['usage'] += usage
 
                                 # update usage of thread #
-                                if usage > self.threadData[thread]['kernelEvent'][name]['max'] or \
-                                    self.threadData[thread]['kernelEvent'][name]['max'] == 0:
+                                if usage > eventObj['max'] or eventObj['max'] == 0:
                                     self.threadData[thread]['kernelEvent'][name]['max'] = usage
-                                if usage < self.threadData[thread]['kernelEvent'][name]['min'] or \
-                                    self.threadData[thread]['kernelEvent'][name]['min'] == 0:
+                                if usage < eventObj['min'] or eventObj['min'] == 0:
                                     self.threadData[thread]['kernelEvent'][name]['min'] = usage
 
                                 # update usage of system #
@@ -21994,11 +22096,19 @@ class ThreadAnalyzer(object):
         else:
             # handle modified type of event #
             if SystemManager.tgidEnable:
-                m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' + \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)', string)
+                # record-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
+                    r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
+                if m is None:
+                    # print-tgid option #
+                    m = re.match((\
+                        r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' \
+                        r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
             else:
-                m = re.match(r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' + \
-                    r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)', string)
+                m = re.match((\
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
 
             if m is not None:
                 d = m.groupdict()
