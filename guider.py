@@ -757,7 +757,8 @@ class NetworkManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
         if mode is 'server':
@@ -803,10 +804,12 @@ class NetworkManager(object):
 
     def send(self, message):
         if self.ip is None or self.port is None:
-            SystemManager.printError("Fail to use IP address for client because it is not set")
+            SystemManager.printError(\
+                "Fail to use IP address for client because it is not set")
             return False
         elif self.socket is None:
-            SystemManager.printError("Fail to use socket for client because it is not set")
+            SystemManager.printError(\
+                "Fail to use socket for client because it is not set")
             return False
 
         try:
@@ -821,17 +824,20 @@ class NetworkManager(object):
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                ("Fail to send data to %s:%d as server, " % (self.ip, self.port)) + str(err.args))
+                ("Fail to send data to %s:%d as server, " % \
+                (self.ip, self.port)) + str(err.args))
             return False
 
 
 
     def sendto(self, message, ip, port):
         if ip is None or port is None:
-            SystemManager.printError("Fail to use IP address for client because it is not set")
+            SystemManager.printError(\
+                "Fail to use IP address for client because it is not set")
             return False
         elif self.socket is None:
-            SystemManager.printError("Fail to use socket for client because it is not set")
+            SystemManager.printError(\
+                "Fail to use socket for client because it is not set")
             return False
 
         try:
@@ -840,17 +846,20 @@ class NetworkManager(object):
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                ("Fail to send data to %s:%d as client, " % (ip, port)) + str(err.args))
+                ("Fail to send data to %s:%d as client, " % \
+                (ip, port)) + str(err.args))
             return False
 
 
 
     def recv(self):
         if self.ip is None or self.port is None:
-            SystemManager.printError("Fail to use IP address for server because it is not set")
+            SystemManager.printError(\
+                "Fail to use IP address for server because it is not set")
             return False
         elif self.socket is None:
-            SystemManager.printError("Fail to use socket for client because it is not set")
+            SystemManager.printError(\
+                "Fail to use socket for client because it is not set")
             return False
 
         try:
@@ -878,7 +887,8 @@ class NetworkManager(object):
 
                 for line in ipList:
                     items = line.split()
-                    effectiveList[SystemManager.convertCIDR(items[1].split(':')[0])] = None
+                    ip = SystemManager.convertCIDR(items[1].split(':')[0])
+                    effectiveList[ip] = None
             except SystemExit:
                 sys.exit(0)
             except:
@@ -954,7 +964,8 @@ class NetworkManager(object):
 
             for line in ipList:
                 items = line.split()
-                effectiveList.append([items[0], SystemManager.convertCIDR(items[1])])
+                effectiveList.append(\
+                    [items[0], SystemManager.convertCIDR(items[1])])
 
             return effectiveList
         except SystemExit:
@@ -1049,11 +1060,13 @@ class PageAnalyzer(object):
     @staticmethod
     def getPageInfo(pid, vaddr):
         if SystemManager.isRoot() is False:
-            SystemManager.printError("Fail to get root permission analyze pages")
+            SystemManager.printError(\
+                "Fail to get root permission analyze pages")
             sys.exit(0)
         elif pid is False or vaddr is False:
             SystemManager.printError(\
-                "Fail to recognize input, input pid with -g option and address with -I option")
+                "Fail to recognize input, "
+                "input pid with -g option and address with -I option")
             sys.exit(0)
 
         vrange = vaddr.split('-')
@@ -1061,7 +1074,8 @@ class PageAnalyzer(object):
 
         if rangeCnt > 2:
             SystemManager.printError(\
-                "Fail to recognize address, input address such as 0x1234 or 0x1234-0x4444")
+                "Fail to recognize address, "
+                "input address such as 0x1234 or 0x1234-0x4444")
             sys.exit(0)
         else:
             try:
@@ -1077,7 +1091,8 @@ class PageAnalyzer(object):
                 sys.exit(0)
             except:
                 SystemManager.printError(\
-                    "Fail to recognize address, input address such as 0xabcd or 78901234")
+                    "Fail to recognize address, "
+                    "input address such as 0xabcd or 78901234")
                 sys.exit(0)
 
             try:
@@ -1095,13 +1110,15 @@ class PageAnalyzer(object):
 
                 if addrs > addre:
                     SystemManager.printError(\
-                        "Fail to recognize address, input bigger second address than first address")
+                        "Fail to recognize address, "
+                        "input bigger second address than first address")
                     sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
                 SystemManager.printError(\
-                    "Fail to recognize address, input address such as 0x1234-0x4444")
+                    "Fail to recognize address, "
+                    "input address such as 0x1234-0x4444")
                 sys.exit(0)
 
         print("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n%s" % \
@@ -1429,7 +1446,8 @@ class FunctionAnalyzer(object):
         try:
             logFd = open(logFile, 'r')
         except:
-            SystemManager.printError("Fail to open %s to create callstack information" % logFile)
+            SystemManager.printError(\
+                "Fail to open %s to create callstack information" % logFile)
             sys.exit(0)
 
         SystemManager.printStatus('start analyzing data... [ STOP(ctrl + c) ]')
@@ -1486,11 +1504,13 @@ class FunctionAnalyzer(object):
                     "No collected user stack data related to %s" % self.target, True)
 
         # Get symbols from call address #
-        SystemManager.printStatus('start resolving symbols... [ STOP(ctrl + c) ]')
+        SystemManager.printStatus(\
+            'start resolving symbols... [ STOP(ctrl + c) ]')
         self.getSymbols()
 
         # Merge callstacks by symbol and address #
-        SystemManager.printStatus('start summarizing functions... [ STOP(ctrl + c) ]')
+        SystemManager.printStatus(\
+            'start summarizing functions... [ STOP(ctrl + c) ]')
         self.mergeStacks()
 
 
@@ -1675,7 +1695,8 @@ class FunctionAnalyzer(object):
                                         allocCall = 'None'
 
                                 try:
-                                    freeCall = '%s [%s]' % (sym, self.userSymData[sym]['origBin'])
+                                    freeCall = '%s [%s]' % \
+                                        (sym, self.userSymData[sym]['origBin'])
                                     for usym in sval[subStackIndex][1:]:
                                         freeCall = '%s <- %s[%s]' % \
                                             (freeCall, usym, self.userSymData[sym]['origBin'])
@@ -2037,7 +2058,8 @@ class FunctionAnalyzer(object):
                         self.userSymData[tempSym]['stack'] = []
                         self.userSymData[tempSym]['symStack'] = []
                         self.userSymData[tempSym]['pos'] = addr
-                        self.userSymData[tempSym]['origBin'] = self.posData[addr]['origBin']
+                        self.userSymData[tempSym]['origBin'] = \
+                            self.posData[addr]['origBin']
 
                     tempSymStack.append(tempSym)
 
@@ -2215,7 +2237,8 @@ class FunctionAnalyzer(object):
         signal.signal(signal.SIGALRM, SystemManager.timerHandler)
 
         # Get symbols and source pos #
-        for idx, value in sorted(self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+        for idx, value in sorted(\
+            self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             curIdx += 1
 
             SystemManager.printProgress(curIdx, lastIdx)
@@ -2297,7 +2320,8 @@ class FunctionAnalyzer(object):
                     else:
                         for idx, value in sorted(\
                             self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
-                            if value['binary'] == binPath and value['offset'] == hex(int(addr, 16)):
+                            if value['binary'] == binPath and \
+                                value['offset'] == hex(int(addr, 16)):
                                 self.posData[idx]['symbol'] = 'NoFile'
                                 self.posData[idx]['src'] = 'NoFile'
                                 break
@@ -2326,7 +2350,8 @@ class FunctionAnalyzer(object):
         else:
             for path in SystemManager.addr2linePath:
                 if os.path.isfile(path) is False:
-                    SystemManager.printError("Fail to find %s to use addr2line" % path)
+                    SystemManager.printError(\
+                        "Fail to find %s to use addr2line" % path)
                     sys.exit(0)
 
         for path in SystemManager.addr2linePath:
