@@ -814,7 +814,8 @@ class NetworkManager(object):
 
         try:
             if SystemManager.addrAsServer is not None:
-                SystemManager.addrAsServer.socket.sendto(message, (self.ip, self.port))
+                SystemManager.addrAsServer.socket.sendto(\
+                    message, (self.ip, self.port))
             else:
                 self.socket.sendto(message, (self.ip, self.port))
 
@@ -972,7 +973,8 @@ class NetworkManager(object):
             sys.exit(0)
         except:
             SystemManager.printWarning(\
-                "Fail to open %s to read ip addresses with device info" % routePath)
+                "Fail to open %s to read ip addresses with device info" % \
+                routePath)
             return effectiveList
 
 
@@ -1127,7 +1129,8 @@ class PageAnalyzer(object):
         PageAnalyzer.printMemoryArea(pid, addrs, addre)
         print(twoLine)
 
-        print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9})\n{10}".\
+        print(("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
+            "{6:^8}|{7:^7}| {8}({9})\n{10}").\
             format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
@@ -1180,7 +1183,7 @@ class PageAnalyzer(object):
         # print menu #
         menuStr = ''
         menuList = ['AREA', 'PERM', 'INODE', 'DEV', 'OFFSET']
-        menuBuf = str(buf[0]).split()
+        menuBuf = str(buf[-1]).split()
         for idx, value in enumerate(menuBuf):
             if idx < 5:
                 text = menuList[idx]
@@ -1189,7 +1192,13 @@ class PageAnalyzer(object):
 
             value = ' ' * (len(value) - len(text) + 1)
             menuStr = '%s%s' % (menuStr, text + value)
-        print('%s\t%s\n%s' % (menuStr, 'PROPERTY', oneLine))
+        menuStr = '%s %s' % (menuStr, 'PROPERTY')
+        print('%s\n%s' % (menuStr, oneLine))
+
+        # set text position #
+        tstr = menuStr.split()
+        pstr = tstr[1]
+        pidx = menuStr.find(pstr)
 
         # print maps info #
         for line in buf:
@@ -1211,7 +1220,14 @@ class PageAnalyzer(object):
                 elif end < eoffset:
                     break
 
-                print(line[:-1])
+                try:
+                    target = line[:-1].split()
+                    space = ' ' * (pidx - len(target[0]))
+                    print('%s%s%s' % \
+                        (target[0], space, ' '.join(target[1:])))
+                except:
+                    pass
+
                 count += 1
 
                 if switch == 1 and end <= eoffset:
@@ -1501,7 +1517,8 @@ class FunctionAnalyzer(object):
                 SystemManager.printWarning("No collected user stack data", True)
             else:
                 SystemManager.printWarning(\
-                    "No collected user stack data related to %s" % self.target, True)
+                    "No collected user stack data related to %s" % \
+                    self.target, True)
 
         # Get symbols from call address #
         SystemManager.printStatus(\
@@ -1600,7 +1617,8 @@ class FunctionAnalyzer(object):
 
 
     def handlePageFree(\
-        self, sym, ksym, stackAddr, kstackAddr, pageFreeCnt, pageType, pfn, atime):
+        self, sym, ksym, stackAddr, kstackAddr, \
+        pageFreeCnt, pageType, pfn, atime):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
@@ -1664,67 +1682,71 @@ class FunctionAnalyzer(object):
 
                 # Find user stack allocated this page #
                 for val in targetStack:
-                    if id(val[subStackIndex]) == allocStackAddr:
-                        val[pageAllocIndex] -= 1
-                        val[argIndex][subStackPageInfoIdx] -= 1
+                    if id(val[subStackIndex]) != allocStackAddr:
+                        continue
 
-                        # Set user stack list to free this page #
-                        if self.sort is 'sym':
-                            subTargetStack = self.userSymData[sym]['symStack']
-                        elif self.sort is 'pos':
-                            subTargetStack = self.userSymData[sym]['stack']
+                    val[pageAllocIndex] -= 1
+                    val[argIndex][subStackPageInfoIdx] -= 1
 
-                        # Find user stack to free this page #
-                        for sval in subTargetStack:
-                            if id(sval[subStackIndex]) == stackAddr:
-                                if self.userSymData[allocSym]['pagePair'] is None:
-                                    self.userSymData[allocSym]['pagePair'] = {}
+                    # Set user stack list to free this page #
+                    if self.sort is 'sym':
+                        subTargetStack = self.userSymData[sym]['symStack']
+                    elif self.sort is 'pos':
+                        subTargetStack = self.userSymData[sym]['stack']
 
-                                allocCall = ''
-                                freeCall = ''
+                    # Find user stack to free this page #
+                    for sval in subTargetStack:
+                        if id(sval[subStackIndex]) != stackAddr:
+                            continue
 
-                                try:
-                                    allocCall = '%s [%s]' % \
-                                        (val[subStackIndex][0], \
-                                        self.userSymData[val[subStackIndex][0]]['origBin'])
-                                    for usym in val[subStackIndex][1:]:
-                                        allocCall = '%s <- %s [%s]' % \
-                                            (alocCall, usym, self.userSymData[sym]['origBin'])
-                                except:
-                                    if allocCall == '':
-                                        allocCall = 'None'
+                        if self.userSymData[allocSym]['pagePair'] is None:
+                            self.userSymData[allocSym]['pagePair'] = {}
 
-                                try:
-                                    freeCall = '%s [%s]' % \
-                                        (sym, self.userSymData[sym]['origBin'])
-                                    for usym in sval[subStackIndex][1:]:
-                                        freeCall = '%s <- %s[%s]' % \
-                                            (freeCall, usym, self.userSymData[sym]['origBin'])
-                                except:
-                                    if freeCall == '':
-                                        freeCall = 'None'
+                        allocCall = ''
+                        freeCall = ''
 
-                                pairId = '%s#%s' % (allocCall, freeCall)
+                        try:
+                            allocCall = '%s [%s]' % \
+                                (val[subStackIndex][0], \
+                                self.userSymData[val[subStackIndex][0]]['origBin'])
+                            for usym in val[subStackIndex][1:]:
+                                allocCall = '%s <- %s [%s]' % \
+                                    (alocCall, usym, self.userSymData[sym]['origBin'])
+                        except:
+                            if allocCall == '':
+                                allocCall = 'None'
 
-                                try:
-                                    self.userSymData[allocSym]['pagePair'][pairId]
-                                except:
-                                    self.userSymData[allocSym]['pagePair'][pairId] = \
-                                        dict(self.init_glueData)
+                        try:
+                            freeCall = '%s [%s]' % \
+                                (sym, self.userSymData[sym]['origBin'])
+                            for usym in sval[subStackIndex][1:]:
+                                freeCall = '%s <- %s[%s]' % \
+                                    (freeCall, usym, self.userSymData[sym]['origBin'])
+                        except:
+                            if freeCall == '':
+                                freeCall = 'None'
 
-                                self.userSymData[allocSym]['pagePairCnt'] += 1
-                                allocator = self.userSymData[allocSym]['pagePair'][pairId]
-                                allocator['size'] += 1
+                        pairId = '%s#%s' % (allocCall, freeCall)
 
-                                if allocator['valueList'] is None:
-                                    allocator['valueList'] = {}
-                                try:
-                                    allocator['valueList'][pageType] += 1
-                                except:
-                                    allocator['valueList'][pageType] = 1
+                        try:
+                            self.userSymData[allocSym]['pagePair'][pairId]
+                        except:
+                            self.userSymData[allocSym]['pagePair'][pairId] = \
+                                dict(self.init_glueData)
 
-                                break
+                        self.userSymData[allocSym]['pagePairCnt'] += 1
+                        allocator = self.userSymData[allocSym]['pagePair'][pairId]
+                        allocator['size'] += 1
+
+                        if allocator['valueList'] is None:
+                            allocator['valueList'] = {}
+                        try:
+                            allocator['valueList'][pageType] += 1
+                        except:
+                            allocator['valueList'][pageType] = 1
+
                         break
+                    break
 
                 # Set kernel stack list #
                 kernelTargetStack = self.kernelSymData[allocKernelSym]['stack']
@@ -1740,52 +1762,54 @@ class FunctionAnalyzer(object):
 
                         # Find kernel stack to free this page #
                         for sval in subTargetStack:
-                            if id(sval[subStackIndex]) == kstackAddr:
-                                if self.kernelSymData[allocKernelSym]['pagePair'] is None:
-                                    self.kernelSymData[allocKernelSym]['pagePair'] = {}
+                            if id(sval[subStackIndex]) != kstackAddr:
+                                continue
 
-                                allocCall = ''
-                                freeCall = ''
+                            if self.kernelSymData[allocKernelSym]['pagePair'] is None:
+                                self.kernelSymData[allocKernelSym]['pagePair'] = {}
 
-                                try:
-                                    allocCall = '%s' % \
-                                        self.posData[val[subStackIndex][0]]['symbol']
-                                    for addr in val[subStackIndex][1:]:
-                                        allocCall = '%s <- %s' % \
-                                            (allocCall, self.posData[addr]['symbol'])
-                                except:
-                                    if allocCall == '':
-                                        allocCall = 'None'
+                            allocCall = ''
+                            freeCall = ''
 
-                                try:
-                                    freeCall = '%s' % ksym
-                                    for addr in sval[subStackIndex]:
-                                        freeCall = '%s <- %s' % \
-                                            (freeCall, self.posData[addr]['symbol'])
-                                except:
-                                    if freeCall == '':
-                                        freeCall = 'None'
+                            try:
+                                allocCall = '%s' % \
+                                    self.posData[val[subStackIndex][0]]['symbol']
+                                for addr in val[subStackIndex][1:]:
+                                    allocCall = '%s <- %s' % \
+                                        (allocCall, self.posData[addr]['symbol'])
+                            except:
+                                if allocCall == '':
+                                    allocCall = 'None'
 
-                                pairId = '%s#%s' % (allocCall, freeCall)
+                            try:
+                                freeCall = '%s' % ksym
+                                for addr in sval[subStackIndex]:
+                                    freeCall = '%s <- %s' % \
+                                        (freeCall, self.posData[addr]['symbol'])
+                            except:
+                                if freeCall == '':
+                                    freeCall = 'None'
 
-                                try:
-                                    self.kernelSymData[allocKernelSym]['pagePair'][pairId]
-                                except:
-                                    self.kernelSymData[allocKernelSym]['pagePair'][pairId] = \
-                                        dict(self.init_glueData)
+                            pairId = '%s#%s' % (allocCall, freeCall)
 
-                                self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
-                                allocator = self.kernelSymData[allocKernelSym]['pagePair'][pairId]
-                                allocator['size'] += 1
+                            try:
+                                self.kernelSymData[allocKernelSym]['pagePair'][pairId]
+                            except:
+                                self.kernelSymData[allocKernelSym]['pagePair'][pairId] = \
+                                    dict(self.init_glueData)
 
-                                if allocator['valueList'] is None:
-                                    allocator['valueList'] = {}
-                                try:
-                                    allocator['valueList'][pageType] += 1
-                                except:
-                                    allocator['valueList'][pageType] = 1
+                            self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
+                            allocator = self.kernelSymData[allocKernelSym]['pagePair'][pairId]
+                            allocator['size'] += 1
 
-                                break
+                            if allocator['valueList'] is None:
+                                allocator['valueList'] = {}
+                            try:
+                                allocator['valueList'][pageType] += 1
+                            except:
+                                allocator['valueList'][pageType] = 1
+
+                            break
                         break
 
                 self.pageTable.pop(pfnv, None)
@@ -1824,7 +1848,8 @@ class FunctionAnalyzer(object):
 
 
     def handlePageAlloc(\
-        self, sym, ksym, stackAddr, kstackAddr, pageAllocCnt, pageType, pfn, atime):
+        self, sym, ksym, stackAddr, kstackAddr, pageAllocCnt, \
+        pageType, pfn, atime):
 
         subStackPageInfoIdx = 0
 
@@ -2483,7 +2508,8 @@ class FunctionAnalyzer(object):
 
 
     def saveFullStack(\
-        self, kernelPos, kernelStack, userPos, userStack, targetEvent, targetCnt, targetArg):
+        self, kernelPos, kernelStack, userPos, userStack, \
+        targetEvent, targetCnt, targetArg):
 
         # Save userstack #
         self.userCallData.append(\
@@ -6379,6 +6405,7 @@ class SystemManager(object):
     archOption = None
     mountPath = None
     mountCmd = None
+    debugfsPath = '/sys/kernel/debug'
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
     addr2linePath = None
@@ -9471,14 +9498,12 @@ class SystemManager(object):
 
         # record command to file #
         if SystemManager.cmdEnable is not False:
-            if SystemManager.cmdEnable == '':
-                SystemManager.printError("Fail to recognize path to write command")
-                sys.exit(0)
             if SystemManager.cmdFd is None:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
                     SystemManager.cmdFd.write(\
-                        SystemManager.mountCmd + ' 2>/dev/null\n')
+                        'mount -t debugfs nodev %s 2>/dev/null\n' % \
+                        SystemManager.debugfsPath)
                     SystemManager.cmdFd.write(\
                         'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
@@ -11184,6 +11209,10 @@ class SystemManager(object):
 
             elif option == 'C':
                 SystemManager.cmdEnable = str(value)
+                if len(value) == 0:
+                    SystemManager.printError(\
+                        "wrong option with -C, input path to make command script")
+                    sys.exit(0)
 
             elif option == 't':
                 SystemManager.sysEnable = True
@@ -12704,11 +12733,12 @@ class SystemManager(object):
 
         SystemManager.mountPath = self.getMountPath()
         if SystemManager.mountPath is None:
-            SystemManager.mountPath = "/sys/kernel/debug"
+            SystemManager.mountPath = "%s" % SystemManager.debugfsPath
             SystemManager.mountCmd =\
                 "mount -t debugfs nodev %s" % SystemManager.mountPath
             os.system(SystemManager.mountCmd)
-            SystemManager.mountPath = "%s/tracing/events/" % SystemManager.mountPath
+            SystemManager.mountPath = \
+                "%s/tracing/events/" % SystemManager.mountPath
 
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
