@@ -1412,7 +1412,7 @@ class FunctionAnalyzer(object):
         '''
 
         self.init_threadData = \
-            {'comm': '', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), \
+            {'comm': '?', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), \
             'die': False, 'new': False, 'nrPages': int(0), 'userPages': int(0), \
             'cachePages': int(0), 'kernelPages': int(0), 'heapSize': int(0), \
             'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
@@ -1546,12 +1546,9 @@ class FunctionAnalyzer(object):
         self.userSymData[sym]['heapSize'] += size
         self.kernelSymData[ksym]['heapSize'] += size
 
-        try:
-            self.heapTable[addr]['size'] = size
-        except:
-            self.heapTable[addr] = dict(self.init_heapSegData)
-            self.heapTable[addr]['size'] = size
+        self.heapTable.setdefault(addr, dict(self.init_heapSegData))
 
+        self.heapTable[addr]['size'] = size
         self.heapTable[addr]['sym'] = sym
         self.heapTable[addr]['ksym'] = ksym
         self.heapTable[addr]['subStackAddr'] = stackAddr
@@ -2844,8 +2841,8 @@ class FunctionAnalyzer(object):
 
     def setHeapSegAddr(self, tid, addr):
         try:
-            self.heapTable[addr] = dict(self.heapTable[tid + '-ready'])
-            del self.heapTable[tid + '-ready']
+            self.heapTable[addr] = dict(self.heapTable['%s-ready' % tid])
+            del self.heapTable['%s-ready' % tid]
         except:
             SystemManager.printWarning(\
                 'Fail to set address of heap segment %s of %s(%s) at %s' % \
@@ -4242,10 +4239,7 @@ class FunctionAnalyzer(object):
                     value['symbol'] == 'gic_handle_irq' or \
                     value['symbol'].find('hrtimer_') >= 0 or \
                     value['symbol'] == 'apic_timer_interrupt':
-                    try:
-                        exceptList[pos]
-                    except:
-                        exceptList[pos] = dict()
+                    exceptList.setdefault(pos, dict())
 
         # Print cpu usage of stacks #
         for idx, value in sorted(\
@@ -6769,6 +6763,23 @@ class SystemManager(object):
 
 
     @staticmethod
+    def strace(pid):
+        plist = ConfigManager.ptraceList
+
+        cmd = plist.index('PTRACE_ATTACH')
+        print SystemManager.ptrace(cmd, pid, 0, 0)
+
+        cmd = plist.index('PTRACE_SYSCALL')
+        print SystemManager.ptrace(cmd, pid, 0, 0)
+
+        ret = os.waitpid(pid, 0)
+        print ret
+
+        cmd = plist.index('PTRACE_PEEKUSR')
+
+
+
+    @staticmethod
     def ptrace(req, pid, addr, data):
         # check root permission #
         if SystemManager.isRoot() is False:
@@ -9276,7 +9287,8 @@ class SystemManager(object):
 
         SystemManager.repeatCount = 0
 
-        SystemManager.printStatus('ready to save and analyze... [ STOP(ctrl + c) ]')
+        SystemManager.printStatus(\
+            'ready to save and analyze... [ STOP(ctrl + c) ]')
 
 
 
@@ -13942,8 +13954,8 @@ class ThreadAnalyzer(object):
 
     reportData = {}
     lifecycleData = {}
-    procTotalData = {}
-    procIntervalData = []
+    procTotData = {}
+    procIntData = []
     procEventData = []
 
     # request type #
@@ -13974,12 +13986,12 @@ class ThreadAnalyzer(object):
         }
     }
 
-    init_procTotalData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
+    init_procTotData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
         'startIdx': int(0), 'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), \
         'memDiff': int(0), 'blk': int(0), 'minMem': int(0), 'maxMem': int(0), \
         'minVss': int(0), 'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
 
-    init_procIntervalData = \
+    init_procIntData = \
         {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), \
         'blk': int(0), 'blkrd': int(0), 'blkwr': int(0), 'die': False}
 
@@ -14013,7 +14025,7 @@ class ThreadAnalyzer(object):
                 'lastOff': float(0), 'maxPreempted': float(0), 'anonReclaimedPages': int(0), \
                 'lastIdleStatus': int(0), 'createdTime': float(0), 'tgid': '-'*5, \
                 'waitChild': float(0), 'waitParent': float(0), 'waitPid': int(0), \
-                'irqList': None, 'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
+                'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
                 'blkCore': int(0), 'lockWait': float(0), 'lockTime': float(0), 'lockCnt': int(0), \
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
                 'reqWrBlock': int(0), 'writeQueueCnt': int(0), 'writeBlockCnt': int(0), \
@@ -14024,7 +14036,7 @@ class ThreadAnalyzer(object):
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
                 'minPeriod': float(0), 'count': int(0)}
 
-            self.init_intervalData = {'time': float(0), 'firstLogTime': float(0), \
+            self.init_intData = {'time': float(0), 'firstLogTime': float(0), \
                 'totalUsage': float(0), 'cpuPer': float(0), 'totalMemUsage': int(0), \
                 'brUsage': int(0), 'totalBrUsage': int(0), 'irqUsage': float(0), \
                 'kmemUsage': int(0), 'totalKmemUsage': int(0), 'coreSchedCnt': int(0), \
@@ -14167,7 +14179,8 @@ class ThreadAnalyzer(object):
                 SystemManager.bufferSize = int(SystemManager.bufferSize) << 10
 
             if SystemManager.printFile is not None:
-                SystemManager.printStatus(r"start profiling... [ STOP(Ctrl + c), SAVE(Ctrl + \) ]")
+                SystemManager.printStatus(\
+                    r"start profiling... [ STOP(Ctrl + c), SAVE(Ctrl + \) ]")
 
             # file top mode #
             if SystemManager.fileTopEnable:
@@ -14210,13 +14223,10 @@ class ThreadAnalyzer(object):
 
         for idx, log in enumerate(lines):
             self.parse(log)
-            SystemManager.printProgress(SystemManager.curLine, SystemManager.totalLine)
+            SystemManager.printProgress(idx, SystemManager.totalLine)
 
             # save last job per core #
-            try:
-                self.lastJob[self.lastCore]
-            except:
-                self.lastJob[self.lastCore] = dict(self.init_lastJob)
+            self.lastJob.setdefault(self.lastCore, dict(self.init_lastJob))
 
             self.lastJob[self.lastCore]['job'] = self.lastEvent
             self.lastJob[self.lastCore]['time'] = self.finishTime
@@ -16800,10 +16810,7 @@ class ThreadAnalyzer(object):
                 comm = '?'
 
             if event is 'load':
-                try:
-                    moduleTable[module]
-                except:
-                    moduleTable[module] = dict(init_moduleData)
+                moduleTable.setdefault(module, dict(init_moduleData))
 
                 moduleTable[module]['startTime'] = time
                 moduleTable[module]['loadCnt'] += 1
@@ -17357,22 +17364,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]['customEvent']
+                            self.intData[icount][key]['customEvent']
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -17384,7 +17391,7 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        cnt = str(self.intervalData[icount][key]['customEvent'][idx]['count'])
+                        cnt = str(self.intData[icount][key]['customEvent'][idx]['count'])
 
                         timeLine += '%4s' % (newFlag + cnt + dieFlag)
 
@@ -17423,22 +17430,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]['userEvent']
+                            self.intData[icount][key]['userEvent']
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -17450,10 +17457,10 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        res = str(self.intervalData[icount][key]['userEvent'][idx]['count'])
+                        res = str(self.intData[icount][key]['userEvent'][idx]['count'])
 
                         '''
-                        res = str(self.intervalData[icount][key]['userEvent'][idx]['usage']) / \
+                        res = str(self.intData[icount][key]['userEvent'][idx]['usage']) / \
                             SystemManager.intervalEnable * 100
                         '''
 
@@ -17494,22 +17501,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]['kernelEvent']
+                            self.intData[icount][key]['kernelEvent']
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -17521,10 +17528,10 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        res = str(self.intervalData[icount][key]['kernelEvent'][idx]['count'])
+                        res = str(self.intData[icount][key]['kernelEvent'][idx]['count'])
 
                         '''
-                        res = str(self.intervalData[icount][key]['kernelEvent'][idx]['usage']) / \
+                        res = str(self.intData[icount][key]['kernelEvent'][idx]['usage']) / \
                             SystemManager.intervalEnable * 100
                         '''
 
@@ -17625,7 +17632,7 @@ class ThreadAnalyzer(object):
                             self.threadData[key]['offCnt'] > 0:
                             raise
                         else:
-                            per = (100 - self.intervalData[icount][key]['cpuPer'])
+                            per = (100 - self.intData[icount][key]['cpuPer'])
                             timeLine += '%3d ' % per
                     except:
                         timeLine += '%3s ' % '0'
@@ -17661,8 +17668,8 @@ class ThreadAnalyzer(object):
 
             try:
                 timeLine += '%3d ' % \
-                    ((self.intervalData[icount]['toTal']['totalMem'] >> 8) + \
-                    (self.intervalData[icount]['toTal']['totalKmem'] >> 20))
+                    ((self.intData[icount]['toTal']['totalMem'] >> 8) + \
+                    (self.intData[icount]['toTal']['totalKmem'] >> 20))
             except:
                 timeLine += '%3d ' % (0)
 
@@ -17689,9 +17696,9 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % \
-                        ((self.intervalData[icount]['toTal']['totalBr'] * \
+                        ((self.intData[icount]['toTal']['totalBr'] * \
                         SystemManager.blockSize) >> 20)
-                    brtotal += self.intervalData[icount]['toTal']['totalBr']
+                    brtotal += self.intData[icount]['toTal']['totalBr']
                 except:
                     timeLine += '%3d ' % (0)
 
@@ -17717,9 +17724,9 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % \
-                        ((self.intervalData[icount]['toTal']['totalBw'] * \
+                        ((self.intData[icount]['toTal']['totalBw'] * \
                         SystemManager.blockSize) >> 20)
-                    bwtotal += self.intervalData[icount]['toTal']['totalBw']
+                    bwtotal += self.intData[icount]['toTal']['totalBw']
                 except:
                     timeLine += '%3d ' % (0)
 
@@ -17750,7 +17757,7 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % \
-                        self.intervalData[icount]['toTal']['customEvent'][evt]['count']
+                        self.intData[icount]['toTal']['customEvent'][evt]['count']
                 except:
                     timeLine += '%3d ' % (0)
 
@@ -17778,11 +17785,11 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % \
-                        self.intervalData[icount]['toTal']['userEvent'][evt]['count']
+                        self.intData[icount]['toTal']['userEvent'][evt]['count']
 
                     '''
                     timeLine += '%3d ' % \
-                        (self.intervalData[icount]['toTal']['userEvent'][evt]['usage'] / \
+                        (self.intData[icount]['toTal']['userEvent'][evt]['usage'] / \
                         SystemManager.intervalEnable * 100)
                     '''
                 except:
@@ -17812,11 +17819,11 @@ class ThreadAnalyzer(object):
 
                 try:
                     timeLine += '%3d ' % \
-                        self.intervalData[icount]['toTal']['kernelEvent'][evt]['count']
+                        self.intData[icount]['toTal']['kernelEvent'][evt]['count']
 
                     '''
                     timeLine += '%3d ' % \
-                        (self.intervalData[icount]['toTal']['kernelEvent'][evt]['usage'] / \
+                        (self.intData[icount]['toTal']['kernelEvent'][evt]['usage'] / \
                         SystemManager.intervalEnable * 100)
                     '''
                 except:
@@ -17904,15 +17911,15 @@ class ThreadAnalyzer(object):
                         timeLineLen += 4
 
                     try:
-                        self.intervalData[icount][key]
+                        self.intData[icount][key]
                     except:
                         timeLine += '%3d ' % 0
                         continue
 
-                    nowVal = self.intervalData[icount][key]
+                    nowVal = self.intData[icount][key]
 
                     try:
-                        prevVal = self.intervalData[icount - 1][key]
+                        prevVal = self.intData[icount - 1][key]
                     except:
                         prevVal = nowVal
 
@@ -17928,11 +17935,11 @@ class ThreadAnalyzer(object):
                         except:
                             dieFlag = nowVal['die']
                     else:
-                        newFlag = self.intervalData[icount][key]['new']
-                        dieFlag = self.intervalData[icount][key]['die']
+                        newFlag = self.intData[icount][key]['new']
+                        dieFlag = self.intData[icount][key]['die']
 
                     # Do not use 100% because of output format #
-                    cpuPer = str(int(self.intervalData[icount][key]['cpuPer']))
+                    cpuPer = str(int(self.intData[icount][key]['cpuPer']))
                     if cpuPer == '100':
                         cpuPer = '99'
 
@@ -17988,11 +17995,12 @@ class ThreadAnalyzer(object):
 
             # draw cpu graph #
             ylabel('CPU(%)', fontsize=8)
+            totalLabel = cpuLabelList + cpuThrLabelList
             if SystemManager.matplotlibVersion >= 1.2:
-                legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1),\
+                legend(totalLabel, bbox_to_anchor=(1.12, 1),\
                     fontsize=3.5, loc='upper right')
             else:
-                legend(cpuLabelList + cpuThrLabelList, bbox_to_anchor=(1.12, 1), loc='upper right')
+                legend(totalLabel, bbox_to_anchor=(1.12, 1), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 7)
             xticks(fontsize = 5)
@@ -18029,22 +18037,22 @@ class ThreadAnalyzer(object):
                         timeLineLen += 4
 
                     try:
-                        self.intervalData[icount][key]
+                        self.intData[icount][key]
                     except:
                         timeLine += '%3d ' % 0
                         continue
 
-                    nowVal = self.intervalData[icount][key]
+                    nowVal = self.intData[icount][key]
 
                     try:
-                        prevVal = self.intervalData[icount - 1][key]
+                        prevVal = self.intData[icount - 1][key]
                     except:
                         prevVal = nowVal
 
                     if icount > 0:
                         try:
                             if nowVal['new'] != prevVal['new']:
-                                newFlag = self.intervalData[icount][key]['new']
+                                newFlag = self.intData[icount][key]['new']
                         except:
                             newFlag = nowVal['new']
                         try:
@@ -18057,8 +18065,8 @@ class ThreadAnalyzer(object):
                         dieFlag = nowVal['die']
 
                     # Do not use 100% because of output format #
-                    prtPer = \
-                        str(int(nowVal['preempted'] / float(SystemManager.intervalEnable) * 100))
+                    totalPrt = nowVal['preempted'] / float(SystemManager.intervalEnable)
+                    prtPer = str(int(totalPrt * 100))
                     if prtPer == '100':
                         prtPer = '99'
 
@@ -18096,22 +18104,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]
+                            self.intData[icount][key]
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -18123,8 +18131,8 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        memUsage = self.intervalData[icount][key]['memUsage'] >> 8
-                        kmemUsage = self.intervalData[icount][key]['kmemUsage'] >> 20
+                        memUsage = self.intData[icount][key]['memUsage'] >> 8
+                        kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
                         timeLine += '%4s' % (newFlag + str(memUsage + kmemUsage) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
@@ -18157,22 +18165,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]
+                            self.intData[icount][key]
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -18185,7 +18193,7 @@ class ThreadAnalyzer(object):
                             dieFlag = nowVal['die']
 
                         timeLine += '%4s' % (newFlag + \
-                            str(int((self.intervalData[icount][key]['brUsage'] * \
+                            str(int((self.intData[icount][key]['brUsage'] * \
                             SystemManager.blockSize) >> 20)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -18220,22 +18228,22 @@ class ThreadAnalyzer(object):
                             timeLineLen += 4
 
                         try:
-                            self.intervalData[icount][key]
+                            self.intData[icount][key]
                         except:
                             timeLine += '%3d ' % 0
                             continue
 
-                        nowVal = self.intervalData[icount][key]
+                        nowVal = self.intData[icount][key]
 
                         try:
-                            prevVal = self.intervalData[icount - 1][key]
+                            prevVal = self.intData[icount - 1][key]
                         except:
                             prevVal = nowVal
 
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intervalData[icount][key]['new']
+                                    newFlag = self.intData[icount][key]['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -18248,7 +18256,7 @@ class ThreadAnalyzer(object):
                             dieFlag = nowVal['die']
 
                         timeLine += '%4s' % (newFlag + \
-                            str(int((self.intervalData[icount][key]['bwUsage'] * \
+                            str(int((self.intData[icount][key]['bwUsage'] * \
                             SystemManager.blockSize) >> 20)) + dieFlag)
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -18344,7 +18352,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def parseProcLine(index, procLine):
         # Get time info #
-        if 'time' not in ThreadAnalyzer.procIntervalData[index]:
+        if 'time' not in ThreadAnalyzer.procIntData[index]:
             m = re.match((\
                 r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
                 r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
@@ -18352,19 +18360,19 @@ class ThreadAnalyzer(object):
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
                 d = m.groupdict()
-                ThreadAnalyzer.procIntervalData[index]['time'] = d['time']
-                ThreadAnalyzer.procIntervalData[index]['nrCtxt'] = d['nrCtxt']
-                ThreadAnalyzer.procIntervalData[index]['nrIrq'] = d['nrIrq']
-                ThreadAnalyzer.procIntervalData[index]['nrCore'] = d['nrCore']
-                ThreadAnalyzer.procIntervalData[index]['nrProc'] = d['nrProc']
-                ThreadAnalyzer.procIntervalData[index]['nrThread'] = d['nrThread']
+                ThreadAnalyzer.procIntData[index]['time'] = d['time']
+                ThreadAnalyzer.procIntData[index]['nrCtxt'] = d['nrCtxt']
+                ThreadAnalyzer.procIntData[index]['nrIrq'] = d['nrIrq']
+                ThreadAnalyzer.procIntData[index]['nrCore'] = d['nrCore']
+                ThreadAnalyzer.procIntData[index]['nrProc'] = d['nrProc']
+                ThreadAnalyzer.procIntData[index]['nrThread'] = d['nrThread']
             return
 
         # Split stats #
         tokenList = procLine.split('|')
 
         # Get total resource usage #
-        if 'total' not in ThreadAnalyzer.procIntervalData[index] and \
+        if 'total' not in ThreadAnalyzer.procIntData[index] and \
             tokenList[0].startswith('Total'):
 
             # CPU & BLOCK stat #
@@ -18374,19 +18382,19 @@ class ThreadAnalyzer(object):
             if m is not None:
                 d = m.groupdict()
 
-                ThreadAnalyzer.procTotalData['total']['cpu'] += int(d['cpu'])
+                ThreadAnalyzer.procTotData['total']['cpu'] += int(d['cpu'])
 
-                ThreadAnalyzer.procIntervalData[index]['total'] = \
-                    dict(ThreadAnalyzer.init_procIntervalData)
+                ThreadAnalyzer.procIntData[index]['total'] = \
+                    dict(ThreadAnalyzer.init_procIntData)
                 try:
-                    ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = int(d['cpu'])
+                    ThreadAnalyzer.procIntData[index]['total']['cpu'] = int(d['cpu'])
                 except:
-                    ThreadAnalyzer.procIntervalData[index]['total']['cpu'] = 0
+                    ThreadAnalyzer.procIntData[index]['total']['cpu'] = 0
 
                 try:
-                    ThreadAnalyzer.procIntervalData[index]['total']['blkwait'] = int(d['block'])
+                    ThreadAnalyzer.procIntData[index]['total']['blkwait'] = int(d['block'])
                 except:
-                    ThreadAnalyzer.procIntervalData[index]['total']['blkwait'] = 0
+                    ThreadAnalyzer.procIntData[index]['total']['blkwait'] = 0
             else:
                 return
 
@@ -18403,54 +18411,54 @@ class ThreadAnalyzer(object):
                 cacheMem = int(d['cache'])
                 kernelMem = int(d['kernel'])
 
-                if ThreadAnalyzer.procTotalData['total']['initMem'] == 0:
-                    ThreadAnalyzer.procTotalData['total']['initMem'] = freeMem
+                if ThreadAnalyzer.procTotData['total']['initMem'] == 0:
+                    ThreadAnalyzer.procTotData['total']['initMem'] = freeMem
 
-                ThreadAnalyzer.procTotalData['total']['lastMem'] = freeMem
+                ThreadAnalyzer.procTotData['total']['lastMem'] = freeMem
 
                 # set minimum free memory #
-                if ThreadAnalyzer.procTotalData['total']['minMem'] == 0 or \
-                    ThreadAnalyzer.procTotalData['total']['minMem'] > freeMem:
-                    ThreadAnalyzer.procTotalData['total']['minMem'] = freeMem
+                if ThreadAnalyzer.procTotData['total']['minMem'] == 0 or \
+                    ThreadAnalyzer.procTotData['total']['minMem'] > freeMem:
+                    ThreadAnalyzer.procTotData['total']['minMem'] = freeMem
                 # set maximum free memory #
-                if ThreadAnalyzer.procTotalData['total']['maxMem'] < freeMem:
-                    ThreadAnalyzer.procTotalData['total']['maxMem'] = freeMem
+                if ThreadAnalyzer.procTotData['total']['maxMem'] < freeMem:
+                    ThreadAnalyzer.procTotData['total']['maxMem'] = freeMem
 
-                ThreadAnalyzer.procIntervalData[index]['total']['mem'] = freeMem
-                ThreadAnalyzer.procIntervalData[index]['total']['memDiff'] = freeMemDiff
-                ThreadAnalyzer.procIntervalData[index]['total']['anonmem'] = anonMem
-                ThreadAnalyzer.procIntervalData[index]['total']['cachemem'] = cacheMem
-                ThreadAnalyzer.procIntervalData[index]['total']['kernelmem'] = kernelMem
+                ThreadAnalyzer.procIntData[index]['total']['mem'] = freeMem
+                ThreadAnalyzer.procIntData[index]['total']['memDiff'] = freeMemDiff
+                ThreadAnalyzer.procIntData[index]['total']['anonmem'] = anonMem
+                ThreadAnalyzer.procIntData[index]['total']['cachemem'] = cacheMem
+                ThreadAnalyzer.procIntData[index]['total']['kernelmem'] = kernelMem
             else:
                 return
 
             try:
-                ThreadAnalyzer.procIntervalData[index]['total']['blk'] = tokenList[5]
+                ThreadAnalyzer.procIntData[index]['total']['blk'] = tokenList[5]
             except:
-                ThreadAnalyzer.procIntervalData[index]['total']['blk'] = '-'
+                ThreadAnalyzer.procIntData[index]['total']['blk'] = '-'
 
             m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
             if m is not None:
                 d = m.groupdict()
 
-                ThreadAnalyzer.procIntervalData[index]['total']['swap'] = int(d['swap'])
+                ThreadAnalyzer.procIntData[index]['total']['swap'] = int(d['swap'])
             else:
                 return
 
             try:
-                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = tokenList[4].strip()
+                ThreadAnalyzer.procIntData[index]['total']['rclm'] = tokenList[4].strip()
             except:
-                ThreadAnalyzer.procIntervalData[index]['total']['rclm'] = '-'
+                ThreadAnalyzer.procIntData[index]['total']['rclm'] = '-'
 
             try:
-                ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = int(tokenList[6])
+                ThreadAnalyzer.procIntData[index]['total']['nrFlt'] = int(tokenList[6])
             except:
-                ThreadAnalyzer.procIntervalData[index]['total']['nrFlt'] = '-'
+                ThreadAnalyzer.procIntData[index]['total']['nrFlt'] = '-'
 
             try:
-                ThreadAnalyzer.procIntervalData[index]['total']['netIO'] = tokenList[11].strip()
+                ThreadAnalyzer.procIntData[index]['total']['netIO'] = tokenList[11].strip()
             except:
-                ThreadAnalyzer.procIntervalData[index]['total']['netIO'] = '-'
+                ThreadAnalyzer.procIntData[index]['total']['netIO'] = '-'
 
             return
 
@@ -18463,25 +18471,18 @@ class ThreadAnalyzer(object):
                 gpu = d['gpu'].strip()
                 usage = int(d['usage'])
 
-                try:
-                    ThreadAnalyzer.procIntervalData[index]['total']['gpu']
-                except:
-                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'] = dict()
+                ThreadAnalyzer.procIntData[index]['total'].setdefault('gpu', dict())
+                ThreadAnalyzer.procTotData['total'].setdefault('gpu', dict())
 
                 try:
-                    ThreadAnalyzer.procTotalData['total']['gpu']
+                    ThreadAnalyzer.procTotData['total']['gpu'][gpu] += usage
                 except:
-                    ThreadAnalyzer.procTotalData['total']['gpu'] = dict()
+                    ThreadAnalyzer.procTotData['total']['gpu'][gpu] = usage
 
                 try:
-                    ThreadAnalyzer.procTotalData['total']['gpu'][gpu] += usage
+                    ThreadAnalyzer.procIntData[index]['total']['gpu'][gpu] = usage
                 except:
-                    ThreadAnalyzer.procTotalData['total']['gpu'][gpu] = usage
-
-                try:
-                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'][gpu] = usage
-                except:
-                    ThreadAnalyzer.procIntervalData[index]['total']['gpu'][d['proc']] = 0
+                    ThreadAnalyzer.procIntData[index]['total']['gpu'][d['proc']] = 0
 
                 return
 
@@ -18506,11 +18507,11 @@ class ThreadAnalyzer(object):
                             ThreadAnalyzer.lifecycleData[comm[3:]] = [0, 1]
 
                         try:
-                            ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
+                            ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
                         except:
-                            ThreadAnalyzer.procIntervalData[index-1][pid] = \
-                                dict(ThreadAnalyzer.init_procIntervalData)
-                            ThreadAnalyzer.procIntervalData[index-1][pid]['die'] = True
+                            ThreadAnalyzer.procIntData[index-1][pid] = \
+                                dict(ThreadAnalyzer.init_procIntData)
+                            ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
                     elif comm[1] == '+':
                         try:
                             ThreadAnalyzer.lifecycleData[comm[3:]][0] += 1
@@ -18521,9 +18522,10 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            if pid not in ThreadAnalyzer.procTotalData:
-                ThreadAnalyzer.procTotalData[pid] = dict(ThreadAnalyzer.init_procTotalData)
-                ThreadAnalyzer.procTotalData[pid]['startIdx'] = index
+            if pid not in ThreadAnalyzer.procTotData:
+                ThreadAnalyzer.procTotData[pid] = \
+                    dict(ThreadAnalyzer.init_procTotData)
+                ThreadAnalyzer.procTotData[pid]['startIdx'] = index
 
             cpu = int(d['cpu'])
             blk = int(d['blk'])
@@ -18534,59 +18536,60 @@ class ThreadAnalyzer(object):
             except:
                 blkrd = blkwr = 0
 
-            ThreadAnalyzer.procTotalData[pid]['comm'] = d['comm']
-            ThreadAnalyzer.procTotalData[pid]['ppid'] = d['ppid']
-            ThreadAnalyzer.procTotalData[pid]['nrThreads'] = d['nrThreads']
-            ThreadAnalyzer.procTotalData[pid]['pri'] = d['pri']
+            ThreadAnalyzer.procTotData[pid]['comm'] = d['comm']
+            ThreadAnalyzer.procTotData[pid]['ppid'] = d['ppid']
+            ThreadAnalyzer.procTotData[pid]['nrThreads'] = d['nrThreads']
+            ThreadAnalyzer.procTotData[pid]['pri'] = d['pri']
 
-            ThreadAnalyzer.procTotalData[pid]['cpu'] += cpu
-            ThreadAnalyzer.procTotalData[pid]['blk'] += blk
-            ThreadAnalyzer.procTotalData[pid]['blkrd'] += blkrd
-            ThreadAnalyzer.procTotalData[pid]['blkwr'] += blkwr
+            ThreadAnalyzer.procTotData[pid]['cpu'] += cpu
+            ThreadAnalyzer.procTotData[pid]['blk'] += blk
+            ThreadAnalyzer.procTotData[pid]['blkrd'] += blkrd
+            ThreadAnalyzer.procTotData[pid]['blkwr'] += blkwr
 
             # set vss #
             vss = int(d['vss'])
-            if ThreadAnalyzer.procTotalData[pid]['minVss'] >= vss:
-                ThreadAnalyzer.procTotalData[pid]['minVss'] = vss
-            if ThreadAnalyzer.procTotalData[pid]['maxVss'] < vss:
-                ThreadAnalyzer.procTotalData[pid]['maxVss'] = vss
+            if ThreadAnalyzer.procTotData[pid]['minVss'] >= vss:
+                ThreadAnalyzer.procTotData[pid]['minVss'] = vss
+            if ThreadAnalyzer.procTotData[pid]['maxVss'] < vss:
+                ThreadAnalyzer.procTotData[pid]['maxVss'] = vss
 
             # set rss #
             rss = int(d['rss'])
-            if ThreadAnalyzer.procTotalData[pid]['minMem'] >= rss:
-                ThreadAnalyzer.procTotalData[pid]['minMem'] = rss
-            if ThreadAnalyzer.procTotalData[pid]['maxMem'] <= rss:
-                ThreadAnalyzer.procTotalData[pid]['maxMem'] = rss
+            if ThreadAnalyzer.procTotData[pid]['minMem'] >= rss:
+                ThreadAnalyzer.procTotData[pid]['minMem'] = rss
+            if ThreadAnalyzer.procTotData[pid]['maxMem'] <= rss:
+                ThreadAnalyzer.procTotData[pid]['maxMem'] = rss
 
             # set mem #
-            if ThreadAnalyzer.procTotalData[pid]['initMem'] == 0:
-                ThreadAnalyzer.procTotalData[pid]['initMem'] = rss
-                ThreadAnalyzer.procTotalData[pid]['lastMem'] = rss
+            if ThreadAnalyzer.procTotData[pid]['initMem'] == 0:
+                ThreadAnalyzer.procTotData[pid]['initMem'] = rss
+                ThreadAnalyzer.procTotData[pid]['lastMem'] = rss
 
-            if pid not in ThreadAnalyzer.procIntervalData[index]:
-                ThreadAnalyzer.procIntervalData[index][pid] = \
-                    dict(ThreadAnalyzer.init_procIntervalData)
-                ThreadAnalyzer.procIntervalData[index][pid]['cpu'] = cpu
-                ThreadAnalyzer.procIntervalData[index][pid]['vss'] = vss
-                ThreadAnalyzer.procIntervalData[index][pid]['blk'] = blk
-                ThreadAnalyzer.procIntervalData[index][pid]['blkrd'] = blkrd
-                ThreadAnalyzer.procIntervalData[index][pid]['blkwr'] = blkwr
-                ThreadAnalyzer.procIntervalData[index][pid]['mem'] = rss
-                ThreadAnalyzer.procIntervalData[index][pid]['memDiff'] = \
-                    rss - ThreadAnalyzer.procTotalData[pid]['lastMem']
-                ThreadAnalyzer.procTotalData[pid]['lastMem'] = rss
+            if pid not in ThreadAnalyzer.procIntData[index]:
+                ThreadAnalyzer.procIntData[index][pid] = \
+                    dict(ThreadAnalyzer.init_procIntData)
+                ThreadAnalyzer.procIntData[index][pid]['cpu'] = cpu
+                ThreadAnalyzer.procIntData[index][pid]['vss'] = vss
+                ThreadAnalyzer.procIntData[index][pid]['blk'] = blk
+                ThreadAnalyzer.procIntData[index][pid]['blkrd'] = blkrd
+                ThreadAnalyzer.procIntData[index][pid]['blkwr'] = blkwr
+                ThreadAnalyzer.procIntData[index][pid]['mem'] = rss
+                ThreadAnalyzer.procIntData[index][pid]['memDiff'] = \
+                    rss - ThreadAnalyzer.procTotData[pid]['lastMem']
+                ThreadAnalyzer.procTotData[pid]['lastMem'] = rss
 
 
 
     @staticmethod
     def summarizeIntervalUsage():
-        if 'total' not in ThreadAnalyzer.procTotalData:
-            ThreadAnalyzer.procTotalData['total'] = dict(ThreadAnalyzer.init_procTotalData)
+        if 'total' not in ThreadAnalyzer.procTotData:
+            ThreadAnalyzer.procTotData['total'] = \
+                dict(ThreadAnalyzer.init_procTotData)
 
         idx = 0
         for val in reversed(SystemManager.procBuffer):
-            if len(ThreadAnalyzer.procIntervalData) < idx + 1:
-                ThreadAnalyzer.procIntervalData.append({})
+            if len(ThreadAnalyzer.procIntData) < idx + 1:
+                ThreadAnalyzer.procIntData.append({})
 
             procData = val.split('\n')
 
@@ -18596,7 +18599,7 @@ class ThreadAnalyzer(object):
             idx += 1
 
         if idx > 0:
-            for pid, val in ThreadAnalyzer.procTotalData.items():
+            for pid, val in ThreadAnalyzer.procTotData.items():
                 val['cpu'] = int(val['cpu'] / idx)
                 val['memDiff'] = val['lastMem'] - val['initMem']
 
@@ -18655,11 +18658,11 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         pCnt = 0
-        for idx, val in list(enumerate(ThreadAnalyzer.procIntervalData)):
+        for idx, val in list(enumerate(ThreadAnalyzer.procIntData)):
             if idx == 0:
                 before = 'START'
             else:
-                before = ThreadAnalyzer.procIntervalData[idx - 1]['time']
+                before = ThreadAnalyzer.procIntData[idx - 1]['time']
 
             if 'total' not in val:
                 continue
@@ -18675,7 +18678,7 @@ class ThreadAnalyzer(object):
                 task, val['nrCore'], val['total']['netIO']))
             pCnt += 1
 
-        if len(ThreadAnalyzer.procIntervalData) == 0 or pCnt == 0:
+        if len(ThreadAnalyzer.procIntData) == 0 or pCnt == 0:
             SystemManager.pipePrint('\tNone\n')
 
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -18689,7 +18692,7 @@ class ThreadAnalyzer(object):
 
         # remove invalid events #
         try:
-            initTime = ThreadAnalyzer.procIntervalData[0]['time']
+            initTime = ThreadAnalyzer.procIntData[0]['time']
 
             eventList = list(ThreadAnalyzer.procEventData)
             for event in eventList:
@@ -18720,7 +18723,7 @@ class ThreadAnalyzer(object):
                     (float(ThreadAnalyzer.procEventData[idx+1][2]) - float(rtime))
             except:
                 diff = '%.2f' % \
-                    (float(ThreadAnalyzer.procIntervalData[-1]['time']) - float(rtime))
+                    (float(ThreadAnalyzer.procIntData[-1]['time']) - float(rtime))
             SystemManager.pipePrint(("{0:>12} | {1:>12} | {2:>12} | {3:1}\n").\
                 format(time, rtime, diff, name))
 
@@ -18747,7 +18750,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -18759,7 +18762,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total cpu usage #
-        value = ThreadAnalyzer.procTotalData['total']
+        value = ThreadAnalyzer.procTotData['total']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
             format('[CPU]', '-', '-', '-', '-', value['cpu'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -18767,13 +18770,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntervalData[idx]:
-                usage = ThreadAnalyzer.procIntervalData[idx]['total']['cpu']
+            if 'total' in ThreadAnalyzer.procIntData[idx]:
+                usage = ThreadAnalyzer.procIntData[idx]['total']['cpu']
             else:
                 usage = 0
 
@@ -18785,7 +18788,7 @@ class ThreadAnalyzer(object):
 
         # Print cpu usage of processes #
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['cpu'], reverse=True):
+            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['cpu'], reverse=True):
 
             if pid is 'total':
                 continue
@@ -18799,14 +18802,14 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(procInfo)
             total = 0
-            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntervalData[idx]:
-                    usage = ThreadAnalyzer.procIntervalData[idx][pid]['cpu']
-                    total += ThreadAnalyzer.procIntervalData[idx][pid]['cpu']
+                if pid in ThreadAnalyzer.procIntData[idx]:
+                    usage = ThreadAnalyzer.procIntData[idx][pid]['cpu']
+                    total += ThreadAnalyzer.procIntData[idx][pid]['cpu']
                 else:
                     usage = 0
 
@@ -18825,7 +18828,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def printGpuInterval():
         # Check gpu data #
-        if 'gpu' not in ThreadAnalyzer.procTotalData['total']:
+        if 'gpu' not in ThreadAnalyzer.procTotData['total']:
             return
 
         # Print title #
@@ -18840,7 +18843,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(gpuInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                 lineLen = len(gpuInfo)
@@ -18852,9 +18855,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print gpu usage #
-        for gpu, total in ThreadAnalyzer.procTotalData['total']['gpu'].items():
+        for gpu, total in ThreadAnalyzer.procTotData['total']['gpu'].items():
             try:
-                avg = total / len(ThreadAnalyzer.procIntervalData)
+                avg = total / len(ThreadAnalyzer.procIntData)
             except:
                 avg = 0
 
@@ -18865,13 +18868,13 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(gpuInfo)
             total = 0
-            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                     lineLen = len(gpuInfo)
 
                 try:
-                    usage = ThreadAnalyzer.procIntervalData[idx]['total']['gpu'][gpu]
+                    usage = ThreadAnalyzer.procIntData[idx]['total']['gpu'][gpu]
                     total += usage
                 except:
                     usage = 0
@@ -18903,7 +18906,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -18915,7 +18918,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
-        value = ThreadAnalyzer.procTotalData['total']
+        value = ThreadAnalyzer.procTotData['total']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -18923,13 +18926,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntervalData[idx]:
-                usage = ThreadAnalyzer.procIntervalData[idx]['total']['mem']
+            if 'total' in ThreadAnalyzer.procIntData[idx]:
+                usage = ThreadAnalyzer.procIntData[idx]['total']['mem']
             else:
                 usage = 0
 
@@ -18941,7 +18944,7 @@ class ThreadAnalyzer(object):
 
         # Print rss of processes #
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotalData.items(), \
+            ThreadAnalyzer.procTotData.items(), \
             key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], reverse=True):
 
             if pid is 'total' or value['maxMem'] == 0:
@@ -18957,21 +18960,21 @@ class ThreadAnalyzer(object):
             timeLine = ''
             minRss = maxRss = 0
             lineLen = len(procInfo)
-            intervalData = ThreadAnalyzer.procIntervalData
-            for idx in xrange(0,len(intervalData)):
+            intData = ThreadAnalyzer.procIntData
+            for idx in xrange(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
                 # process is shown #
-                if pid in intervalData[idx]:
-                    if intervalData[idx][pid]['die']:
+                if pid in intData[idx]:
+                    if intData[idx][pid]['die']:
                         try:
-                            usage = intervalData[idx][pid]['mem']
+                            usage = intData[idx][pid]['mem']
                         except:
                             prev = usage = 0
                     else:
-                        usage = intervalData[idx][pid]['mem']
+                        usage = intData[idx][pid]['mem']
                         if usage == 0 and prev > 0:
                             usage = prev
                         else:
@@ -18980,7 +18983,7 @@ class ThreadAnalyzer(object):
                 elif prev > 0:
                     try:
                         # process was terminated #
-                        if intervalData[idx-1][pid]['die']:
+                        if intData[idx-1][pid]['die']:
                             prev = usage = 0
                         # process is alive #
                         else:
@@ -19031,7 +19034,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -19043,7 +19046,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print total free memory #
-        value = ThreadAnalyzer.procTotalData['total']
+        value = ThreadAnalyzer.procTotData['total']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -19051,13 +19054,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntervalData[idx]:
-                usage = ThreadAnalyzer.procIntervalData[idx]['total']['mem']
+            if 'total' in ThreadAnalyzer.procIntData[idx]:
+                usage = ThreadAnalyzer.procIntData[idx]['total']['mem']
             else:
                 usage = 0
 
@@ -19069,7 +19072,7 @@ class ThreadAnalyzer(object):
 
         # Print vss of processes #
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotalData.items(), \
+            ThreadAnalyzer.procTotData.items(), \
             key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
 
             if pid is 'total' or value['maxVss'] == 0:
@@ -19085,21 +19088,21 @@ class ThreadAnalyzer(object):
             timeLine = ''
             minVss = maxVss = 0
             lineLen = len(procInfo)
-            intervalData = ThreadAnalyzer.procIntervalData
-            for idx in xrange(0,len(intervalData)):
+            intData = ThreadAnalyzer.procIntData
+            for idx in xrange(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
                 # process is shown #
-                if pid in intervalData[idx]:
-                    if intervalData[idx][pid]['die']:
+                if pid in intData[idx]:
+                    if intData[idx][pid]['die']:
                         try:
-                            usage = intervalData[idx][pid]['vss']
+                            usage = intData[idx][pid]['vss']
                         except:
                             prev = usage = 0
                     else:
-                        usage = intervalData[idx][pid]['vss']
+                        usage = intData[idx][pid]['vss']
                         if usage == 0 and prev > 0:
                             usage = prev
                         else:
@@ -19108,7 +19111,7 @@ class ThreadAnalyzer(object):
                 elif prev > 0:
                     try:
                         # process was terminated #
-                        if intervalData[idx-1][pid]['die']:
+                        if intData[idx-1][pid]['die']:
                             prev = usage = 0
                         # process is alive #
                         else:
@@ -19159,7 +19162,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntervalData) + 1):
+        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -19173,9 +19176,10 @@ class ThreadAnalyzer(object):
         # Print block usage of processes #
         itemCnt = 0
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotalData.items(), key=lambda e: e[1]['blk'], reverse=True):
+            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['blk'], reverse=True):
 
-            if pid is 'total' or value['blk'] == value['blkrd'] == value['blkwr'] == 0:
+            if pid is 'total' or \
+                value['blk'] == value['blkrd'] == value['blkwr'] == 0:
                 continue
 
             if SystemManager.blockEnable:
@@ -19191,13 +19195,13 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntervalData)):
+            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntervalData[idx]:
-                    target = ThreadAnalyzer.procIntervalData[idx][pid]
+                if pid in ThreadAnalyzer.procIntData[idx]:
+                    target = ThreadAnalyzer.procIntData[idx][pid]
                     if SystemManager.blockEnable:
                         usage = '%s/%s' % (target['blkrd'], target['blkwr'])
                     else:
@@ -19270,8 +19274,8 @@ class ThreadAnalyzer(object):
 
         # initialize parse buffer #
         ThreadAnalyzer.lifecycleData = {}
-        ThreadAnalyzer.procTotalData = {}
-        ThreadAnalyzer.procIntervalData = []
+        ThreadAnalyzer.procTotData = {}
+        ThreadAnalyzer.procIntData = []
 
 
 
@@ -19315,9 +19319,11 @@ class ThreadAnalyzer(object):
 
                 nrChild = len(childs)
                 if nrChild > 0:
-                    SystemManager.pipePrint('%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild))
+                    SystemManager.pipePrint(\
+                        '%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild))
                 else:
-                    SystemManager.pipePrint('%s- %s(%s)\n' % (indent, comm, pid))
+                    SystemManager.pipePrint(\
+                        '%s- %s(%s)\n' % (indent, comm, pid))
                 printTreeNodes(childs, depth + 1)
 
         # print process/thread tree #
@@ -19670,68 +19676,74 @@ class ThreadAnalyzer(object):
                 nextIndex = int(SystemManager.intervalNow / intervalEnable)
 
                 try:
-                    self.intervalData[index]
+                    self.intData[index]
                 except:
-                    self.intervalData.append({})
-                try:
-                    self.intervalData[index][key]
-                except:
-                    self.intervalData[index][key] = dict(self.init_intervalData)
+                    self.intData.append({})
 
                 try:
-                    self.intervalData[index]['toTal']
+                    self.intData[index]['toTal']
                 except:
-                    self.intervalData[index]['toTal'] = \
+                    self.intData[index]['toTal'] = \
                         {'totalBr': int(0), 'totalBw': int(0), \
                         'totalMem': int(0), 'totalKmem': int(0)}
 
                     # make total custom event list #
                     if len(SystemManager.customEventList) > 0:
-                        self.intervalData[index]['toTal']['customEvent'] = {}
+                        self.intData[index]['toTal']['customEvent'] = {}
                         for evt in SystemManager.customEventList:
-                            self.intervalData[index]['toTal']['customEvent'][evt] = \
+                            self.intData[index]['toTal']['customEvent'][evt] = \
                                 dict(self.init_eventData)
 
                     # make user event list #
                     if len(SystemManager.userEventList) > 0:
-                        self.intervalData[index]['toTal']['userEvent'] = {}
+                        self.intData[index]['toTal']['userEvent'] = {}
                         for evt in SystemManager.userEventList:
-                            self.intervalData[index]['toTal']['userEvent'][evt] = \
+                            self.intData[index]['toTal']['userEvent'][evt] = \
                                 dict(self.init_eventData)
 
                     # make kernel event list #
                     if len(SystemManager.kernelEventList) > 0:
-                        self.intervalData[index]['toTal']['kernelEvent'] = {}
+                        self.intData[index]['toTal']['kernelEvent'] = {}
                         for evt in SystemManager.kernelEventList:
-                            self.intervalData[index]['toTal']['kernelEvent'][evt] = \
+                            self.intData[index]['toTal']['kernelEvent'][evt] = \
                                 dict(self.init_eventData)
 
+                # set thread in this interval #
+                self.intData[index].setdefault(\
+                    key, dict(self.init_intData))
+
                 # define thread alias in this interval #
-                intervalThread = self.intervalData[index][key]
+                intervalThread = self.intData[index][key]
 
                 # save start time in this interval #
                 intervalThread['firstLogTime'] = float(time)
 
                 # make interval list #
                 try:
-                    self.intervalData[nextIndex]
+                    self.intData[nextIndex]
                 except:
-                    self.intervalData.append({})
-                try:
-                    self.intervalData[nextIndex][key]
-                except:
-                    self.intervalData[nextIndex][key] = dict(self.init_intervalData)
+                    self.intData.append({})
+
+                # set thread in next interval #
+                self.intData[nextIndex].setdefault(\
+                    key, dict(self.init_intData))
 
                 # save total usage in this interval #
-                intervalThread['totalUsage'] = float(self.threadData[key]['usage'])
-                intervalThread['totalPreempted'] = float(self.threadData[key]['cpuWait'])
-                intervalThread['totalCoreSchedCnt'] = int(self.threadData[key]['coreSchedCnt'])
-                intervalThread['totalBrUsage'] = int(self.threadData[key]['reqRdBlock'])
+                intervalThread['totalUsage'] = \
+                    float(self.threadData[key]['usage'])
+                intervalThread['totalPreempted'] = \
+                    float(self.threadData[key]['cpuWait'])
+                intervalThread['totalCoreSchedCnt'] = \
+                    int(self.threadData[key]['coreSchedCnt'])
+                intervalThread['totalBrUsage'] = \
+                    int(self.threadData[key]['reqRdBlock'])
                 intervalThread['totalBwUsage'] = \
                     int(self.threadData[key]['writeBlock']) + \
                     (int(self.threadData[key]['awriteBlock']) << 3)
-                intervalThread['totalMemUsage'] = int(self.threadData[key]['nrPages'])
-                intervalThread['totalKmemUsage'] = int(self.threadData[key]['remainKmem'])
+                intervalThread['totalMemUsage'] = \
+                    int(self.threadData[key]['nrPages'])
+                intervalThread['totalKmemUsage'] = \
+                    int(self.threadData[key]['remainKmem'])
 
                 # add core time not calculated yet in this interval #
                 for idx, val in self.lastTidPerCore.items():
@@ -19741,7 +19753,7 @@ class ThreadAnalyzer(object):
                         if self.threadData[coreId]['lastOff'] > 0:
                             diff = float(time) - self.threadData[coreId]['start']
                             self.threadData[coreId]['usage'] += diff
-                            self.intervalData[index][coreId]['totalUsage'] += diff
+                            self.intData[index][coreId]['totalUsage'] += diff
                             self.threadData[coreId]['start'] = float(time)
                         continue
 
@@ -19814,12 +19826,12 @@ class ThreadAnalyzer(object):
                 # later intervals #
                 else:
                     try:
-                        self.intervalData[index - 1][key]
+                        self.intData[index - 1][key]
                     except:
-                        self.intervalData[index - 1][key] = dict(self.init_intervalData)
+                        self.intData[index - 1][key] = dict(self.init_intData)
 
                     # define thread alias in previous interval #
-                    prevIntervalThread = self.intervalData[index - 1][key]
+                    prevIntervalThread = self.intData[index - 1][key]
 
                     # calculate resource usage in this interval #
                     intervalThread['cpuUsage'] += \
@@ -19848,7 +19860,7 @@ class ThreadAnalyzer(object):
                             intervalThread['customEvent'][evt]['count'] = \
                                 intervalThread['totalCustomEvent'][evt]['count']
 
-                        self.intervalData[index]['toTal']['customEvent'][evt]['count'] += \
+                        self.intData[index]['toTal']['customEvent'][evt]['count'] += \
                             intervalThread['customEvent'][evt]['count']
 
                 # calculate user event usage in this interval #
@@ -19869,10 +19881,10 @@ class ThreadAnalyzer(object):
                             intervalThread['userEvent'][evt]['usage'] = \
                                 intervalThread['totalUserEvent'][evt]['usage']
 
-                        self.intervalData[index]['toTal']['userEvent'][evt]['count'] += \
+                        self.intData[index]['toTal']['userEvent'][evt]['count'] += \
                             intervalThread['userEvent'][evt]['count']
 
-                        self.intervalData[index]['toTal']['userEvent'][evt]['usage'] += \
+                        self.intData[index]['toTal']['userEvent'][evt]['usage'] += \
                             intervalThread['userEvent'][evt]['usage']
 
                 # calculate kernel event usage in this interval #
@@ -19893,30 +19905,30 @@ class ThreadAnalyzer(object):
                             intervalThread['kernelEvent'][evt]['usage'] = \
                                 intervalThread['totalKernelEvent'][evt]['usage']
 
-                        self.intervalData[index]['toTal']['kernelEvent'][evt]['count'] += \
+                        self.intData[index]['toTal']['kernelEvent'][evt]['count'] += \
                             intervalThread['kernelEvent'][evt]['count']
 
-                        self.intervalData[index]['toTal']['kernelEvent'][evt]['usage'] += \
+                        self.intData[index]['toTal']['kernelEvent'][evt]['usage'] += \
                             intervalThread['kernelEvent'][evt]['usage']
 
                 # fix cpu usage exceed this interval #
                 self.thisInterval = intervalEnable
                 if intervalThread['cpuUsage'] > intervalEnable or \
                     self.finishTime != '0':
+                    ftime = float(self.intData[index - 1][key]['firstLogTime'])
+
                     # first interval #
                     if index == 0:
                         self.thisInterval = \
                             float(time) - float(SystemManager.startTime)
                     # normal intervals #
-                    elif float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
-                        self.thisInterval = \
-                            float(time) - float(self.intervalData[index - 1][key]['firstLogTime'])
+                    elif ftime > 0:
+                        self.thisInterval = float(time) -ftime
                     # long time running intervals #
                     else:
                         for idx in xrange(index - 1, -1, -1):
-                            if float(self.intervalData[index - 1][key]['firstLogTime']) > 0:
-                                self.thisInterval = \
-                                    float(time) - float(self.intervalData[idx][key]['firstLogTime'])
+                            if ftime > 0:
+                                self.thisInterval = float(time) -ftime
                                 break
                         if self.thisInterval != intervalEnable:
                             self.thisInterval = \
@@ -19928,28 +19940,28 @@ class ThreadAnalyzer(object):
                         for idx in xrange(\
                             int(intervalThread['cpuUsage'] / intervalEnable), -1, -1):
                             try:
-                                self.intervalData[idx][key]
+                                self.intData[idx][key]
                             except:
-                                if not idx in self.intervalData:
+                                if not idx in self.intData:
                                     continue
-                                self.intervalData[idx][key] = dict(self.init_intervalData)
+                                self.intData[idx][key] = dict(self.init_intData)
                             try:
-                                self.intervalData[idx - 1][key]
+                                self.intData[idx - 1][key]
                             except:
-                                if not idx - 1 in self.intervalData:
+                                if not idx - 1 in self.intData:
                                     continue
-                                self.intervalData[idx - 1][key] = dict(self.init_intervalData)
-                            prevIntervalData = self.intervalData[idx - 1][key]
+                                self.intData[idx - 1][key] = dict(self.init_intData)
+                            prevIntervalData = self.intData[idx - 1][key]
 
                             # make previous intervals of core there was no context switching #
                             longRunCore = self.threadData[key]['longRunCore']
                             if longRunCore >= 0:
                                 longRunCoreId = '0[%s]' % longRunCore
                                 try:
-                                    self.intervalData[idx][longRunCoreId]
+                                    self.intData[idx][longRunCoreId]
                                 except:
-                                    self.intervalData[idx][longRunCoreId] = \
-                                        dict(self.init_intervalData)
+                                    self.intData[idx][longRunCoreId] = \
+                                        dict(self.init_intData)
 
                             if remainTime >= intervalEnable:
                                 remainTime = \
@@ -19997,29 +20009,29 @@ class ThreadAnalyzer(object):
                     if intervalThread['preempted'] > self.thisInterval:
                         for idx in xrange(index + 1, -1, -1):
                             try:
-                                self.intervalData[idx][key]
+                                self.intData[idx][key]
                             except:
-                                self.intervalData[idx][key] = dict(self.init_intervalData)
+                                self.intData[idx][key] = dict(self.init_intData)
                             try:
-                                self.intervalData[idx - 1][key]
+                                self.intData[idx - 1][key]
                             except:
-                                self.intervalData[idx - 1][key] = dict(self.init_intervalData)
+                                self.intData[idx - 1][key] = dict(self.init_intData)
 
                             if remainTime >= intervalEnable:
-                                self.intervalData[idx - 1][key]['preempted'] = \
+                                self.intData[idx - 1][key]['preempted'] = \
                                     intervalEnable
                             else:
-                                self.intervalData[idx - 1][key]['preempted'] += remainTime
+                                self.intData[idx - 1][key]['preempted'] += remainTime
 
                             remainTime -= intervalEnable
                             if remainTime <= 0:
                                 break
 
                 # calculate total block usage in this interval #
-                self.intervalData[index]['toTal']['totalBr'] += \
-                    self.intervalData[index][key]['brUsage']
-                self.intervalData[index]['toTal']['totalBw'] += \
-                    self.intervalData[index][key]['bwUsage']
+                self.intData[index]['toTal']['totalBr'] += \
+                    self.intData[index][key]['brUsage']
+                self.intData[index]['toTal']['totalBw'] += \
+                    self.intData[index][key]['bwUsage']
 
                 """
                 calculate total memory usage in this interval \
@@ -20028,10 +20040,10 @@ class ThreadAnalyzer(object):
                 if key[0:2] == '0[':
                     continue
 
-                self.intervalData[index]['toTal']['totalMem'] += \
-                    self.intervalData[index][key]['memUsage']
-                self.intervalData[index]['toTal']['totalKmem'] += \
-                    self.intervalData[index][key]['kmemUsage']
+                self.intData[index]['toTal']['totalMem'] += \
+                    self.intData[index][key]['memUsage']
+                self.intData[index]['toTal']['totalKmem'] += \
+                    self.intData[index][key]['kmemUsage']
 
 
 
@@ -20044,7 +20056,7 @@ class ThreadAnalyzer(object):
         self.kmemTable = {}
         self.blockTable = [{}, {}, {}]
         self.moduleData = []
-        self.intervalData = []
+        self.intData = []
         self.depData = []
         self.sigData = []
         self.lockTable = {}
@@ -20103,7 +20115,7 @@ class ThreadAnalyzer(object):
             self.kmemTableOld = self.kmemTable
             self.blockTableOld = self.blockTable
             self.moduleDataOld = self.moduleData
-            self.intervalDataOld = self.intervalData
+            self.intDataOld = self.intData
             self.depDataOld = self.depData
             self.sigDataOld = self.sigData
             self.lockTableOld = self.lockTable
@@ -20189,13 +20201,11 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]
             except:
                 self.threadData[coreId] = dict(self.init_threadData)
-                self.threadData[coreId]['comm'] = "swapper/" + core
+                self.threadData[coreId]['comm'] = "swapper/%s" % core
 
             # make thread entity #
-            try:
-                self.threadData[thread]
-            except:
-                self.threadData[thread] = dict(self.init_threadData)
+            self.threadData.setdefault(thread, dict(self.init_threadData))
+            if comm[0] != '<':
                 self.threadData[thread]['comm'] = comm
 
             # set tgid #
@@ -20277,20 +20287,16 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['offTime'] += diff
                         self.threadData[coreId]['lastOff'] = 0
 
-                    # make list #
-                    try:
-                        self.threadData[prev_id]
-                    except:
-                        self.threadData[prev_id] = dict(self.init_threadData)
-                    try:
-                        self.threadData[next_id]
-                    except:
-                        self.threadData[next_id] = dict(self.init_threadData)
+                    # initialize thread data #
+                    self.threadData.setdefault(prev_id, dict(self.init_threadData))
+                    self.threadData.setdefault(next_id, dict(self.init_threadData))
+
+                    # initialize core data #
                     try:
                         self.threadData[coreId]
                     except:
                         self.threadData[coreId] = dict(self.init_threadData)
-                        self.threadData[coreId]['comm'] = 'swapper/' + core
+                        self.threadData[coreId]['comm'] = 'swapper/%s' % core
 
                     if self.wakeupData['valid'] > 0 and self.wakeupData['tid'] == prev_id:
                         self.wakeupData['valid'] -= 1
@@ -20523,22 +20529,14 @@ class ThreadAnalyzer(object):
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
                         self.irqData[irqId]['name'] = {}
-                        self.irqData[irqId]['name'][d['name']] = 0
-                    try:
-                        self.irqData[irqId]['name'][d['name']]
-                    except:
-                        self.irqData[irqId]['name'][d['name']] = 0
+
+                    self.irqData[irqId]['name'].setdefault(d['name'], 0)
 
                     # make per-thread irq list #
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'] = {}
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
-                        self.threadData[thread]['irqList'][irqId]['name'] = d['name']
+                    self.threadData[thread].setdefault('irqList', dict())
+                    self.threadData[thread]['irqList'].setdefault(\
+                        irqId, dict(self.init_irqData))
+                    self.threadData[thread]['irqList'][irqId]['name'] = d['name']
 
                     # save irq period per thread #
                     if self.threadData[thread]['irqList'][irqId]['start'] > 0:
@@ -20619,11 +20617,8 @@ class ThreadAnalyzer(object):
                     except:
                         self.irqData[irqId] = dict(self.init_irqData)
                         self.irqData[irqId]['name'] = {}
-                        self.irqData[irqId]['name'][d['action']] = 0
-                    try:
-                        self.irqData[irqId]['name'][d['action']]
-                    except:
-                        self.irqData[irqId]['name'][d['action']] = 0
+
+                    self.irqData[irqId]['name'].setdefault(d['action'], 0)
 
                     # make per-thread irq list #
                     try:
@@ -20711,11 +20706,8 @@ class ThreadAnalyzer(object):
 
                     pid = d['pid']
 
-                    try:
-                        self.threadData[pid]
-                    except:
-                        self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = d['comm']
+                    self.threadData.setdefault(pid, dict(self.init_threadData))
+                    self.threadData[pid]['comm'] = d['comm']
 
                     self.threadData[pid]['migrate'] += 1
 
@@ -20882,11 +20874,7 @@ class ThreadAnalyzer(object):
                     req = int(d['req'])
                     alloc = int(d['alloc'])
 
-                    try:
-                        self.kmemTable[ptr]
-                        # some allocated object is not freed #
-                    except:
-                        self.kmemTable[ptr] = dict(self.init_kmallocData)
+                    self.kmemTable.setdefault(ptr, dict(self.init_kmallocData))
 
                     self.kmemTable[ptr]['tid'] = thread
                     self.kmemTable[ptr]['caller'] = caller
@@ -20942,11 +20930,8 @@ class ThreadAnalyzer(object):
                     target_comm = d['comm']
                     pid = d['pid']
 
-                    try:
-                        self.threadData[pid]
-                    except:
-                        self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = target_comm
+                    self.threadData.setdefault(pid, dict(self.init_threadData))
+                    self.threadData[pid]['comm'] = target_comm
                     self.threadData[pid]['schedReady'] = float(time)
 
                     if self.wakeupData['tid'] == '0':
@@ -21566,11 +21551,8 @@ class ThreadAnalyzer(object):
 
             elif func == "mm_vmscan_kswapd_sleep":
                 for key, value in self.reclaimData.items():
-                    try:
-                        self.threadData[key]
-                    except:
-                        self.threadData[key] = dict(self.init_threadData)
-                        self.threadData[key]['comm'] = comm
+                    self.threadData.setdefault(key, dict(self.init_threadData))
+                    self.threadData[key]['comm'] = comm
 
                     self.threadData[key]['reclaimWait'] += float(time) - float(value['start'])
                     self.reclaimData.pop(key, None)
@@ -21916,14 +21898,10 @@ class ThreadAnalyzer(object):
                 if self.threadData[thread]['customEvent'] is None:
                     self.threadData[thread]['customEvent'] = {}
 
-                try:
-                    self.threadData[thread]['customEvent'][func]
-                except:
-                    self.threadData[thread]['customEvent'][func] = dict(self.init_eventData)
-                try:
-                    self.customEventInfo[func]
-                except:
-                    self.customEventInfo[func] = dict(self.init_eventData)
+                self.threadData[thread]['customEvent'].setdefault(\
+                    func, dict(self.init_eventData))
+
+                self.customEventInfo.setdefault(func, dict(self.init_eventData))
 
                 self.threadData[thread]['customEvent'][func]['count'] += 1
                 self.customEventInfo[func]['count'] += 1
@@ -21961,15 +21939,10 @@ class ThreadAnalyzer(object):
                     if self.threadData[thread]['userEvent'] is None:
                         self.threadData[thread]['userEvent'] = {}
 
-                    try:
-                        self.threadData[thread]['userEvent'][name]
-                    except:
-                        self.threadData[thread]['userEvent'][name] = dict(self.init_eventData)
+                    self.threadData[thread]['userEvent'].setdefault(\
+                        name, dict(self.init_eventData))
 
-                    try:
-                        self.userEventInfo[name]
-                    except:
-                        self.userEventInfo[name] = dict(self.init_eventData)
+                    self.userEventInfo.setdefault(name, dict(self.init_eventData))
 
                     # define eventObj #
                     eventObj = self.threadData[thread]['userEvent'][name]
@@ -22039,15 +22012,10 @@ class ThreadAnalyzer(object):
                     if self.threadData[thread]['kernelEvent'] is None:
                         self.threadData[thread]['kernelEvent'] = {}
 
-                    try:
-                        self.threadData[thread]['kernelEvent'][name]
-                    except:
-                        self.threadData[thread]['kernelEvent'][name] = dict(self.init_eventData)
+                    self.threadData[thread]['kernelEvent'].setdefault(\
+                        name, dict(self.init_eventData))
 
-                    try:
-                        self.kernelEventInfo[name]
-                    except:
-                        self.kernelEventInfo[name] = dict(self.init_eventData)
+                    self.kernelEventInfo.setdefault(name, dict(self.init_eventData))
 
                     # define eventObj #
                     eventObj = self.threadData[thread]['kernelEvent'][name]
@@ -24022,16 +23990,15 @@ class ThreadAnalyzer(object):
                     try:
                         self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
                     except:
-                        if 'wss' not in self.procData[idx]:
-                            self.procData[idx]['wss'] = dict()
+                        self.procData[idx].setdefault('wss', dict())
 
-                            # clear reference bits #
-                            try:
-                                path = '%s/%s/clear_refs' % (SystemManager.procPath, idx)
-                                with open(path, 'w') as fd:
-                                    fd.write('1')
-                            except:
-                                pass
+                        # clear reference bits #
+                        try:
+                            path = '%s/%s/clear_refs' % (SystemManager.procPath, idx)
+                            with open(path, 'w') as fd:
+                                fd.write('1')
+                        except:
+                            pass
 
                     # update WSS history #
                     try:
@@ -24226,10 +24193,7 @@ class ThreadAnalyzer(object):
 
                 # add task into stack trace list #
                 if SystemManager.stackEnable:
-                    try:
-                        self.stackTable[idx]
-                    except:
-                        self.stackTable[idx] = dict()
+                    self.stackTable.setdefault(idx, dict())
 
                     if not 'fd' in self.stackTable[idx]:
                         spath = '%s/%s/stack' % (SystemManager.procPath, idx)
@@ -24807,8 +24771,10 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to recognize address from server")
 
         # wrong request from client #
-        if SystemManager.addrOfServer == 'NONE' and data in ThreadAnalyzer.requestType:
-            SystemManager.printError("Fail to handle %s request from client" % data)
+        if SystemManager.addrOfServer == 'NONE' and \
+            data in ThreadAnalyzer.requestType:
+            SystemManager.printError(\
+                "Fail to handle %s request from client" % data)
             return
 
         # reply ACK to server #
@@ -24825,7 +24791,8 @@ class ThreadAnalyzer(object):
                     SystemManager.jsonObject = json
                 except ImportError:
                     err = sys.exc_info()[1]
-                    SystemManager.printError("Fail to import python package: %s" % err.args[0])
+                    SystemManager.printError(\
+                        "Fail to import python package: %s" % err.args[0])
                     sys.exit(0)
 
             # convert report data to dictionary type #
@@ -25397,7 +25364,8 @@ if __name__ == '__main__':
                 sys.exit(0)
             else:
                 SystemManager.pid = os.getpid()
-                SystemManager.printStatus("background running as process %s" % SystemManager.pid)
+                SystemManager.printStatus(\
+                    "background running as process %s" % SystemManager.pid)
 
         # wait for signal #
         if SystemManager.waitEnable:
@@ -25415,7 +25383,8 @@ if __name__ == '__main__':
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.outputFile is None:
-                SystemManager.printError("wrong option with -s, input also path to save data")
+                SystemManager.printError(\
+                    "wrong option with -s, input also path to save data")
                 sys.exit(0)
         else:
             SystemManager.repeatInterval = 0
@@ -25639,7 +25608,8 @@ if __name__ == '__main__':
                 sys.exit(0)
             else:
                 SystemManager.pid = os.getpid()
-                SystemManager.printStatus("background running as process %s" % SystemManager.pid)
+                SystemManager.printStatus(\
+                    "background running as process %s" % SystemManager.pid)
 
         # create ThreadAnalyzer using proc #
         ti = ThreadAnalyzer(None)
