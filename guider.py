@@ -356,6 +356,22 @@ class ConfigManager(object):
     # Set default syscall table to arm #
     sysList = sysList_arm
 
+    # Define systemcall register #
+    sysRegList = {
+        "powerpc": "gpr0",
+        "arm": "r7",
+        "x64": "orig_rax",
+        "x86": "orig_eax"
+        }
+
+    # Define return register #
+    retRegList = {
+        "powerpc": "result",
+        "arm": "r0",
+        "x64": "rax",
+        "x86": "eax"
+        }
+
     # Define signal #
     sigList = [
         'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
@@ -609,7 +625,10 @@ class ConfigManager(object):
         'PTRACE_CONT',
         'PTRACE_KILL',
         'PTRACE_SINGLESTEP',    #9#
-        '', '', '', '', '', '',
+        '', '',
+        'PTRACE_GETREGS',       #12#
+        'PTRACE_SETREGS',       #13#
+        '', '',
         'PTRACE_ATTACH',        #16#
         'PTRACE_DETACH',        #17#
         '', '', '', '', '', '',
@@ -716,7 +735,6 @@ class ConfigManager(object):
 
 
 
-
     @staticmethod
     def writeConfData(fd, line):
         if fd == None:
@@ -734,6 +752,8 @@ class ConfigManager(object):
 
     def __del__(self):
         pass
+
+
 
 
 
@@ -6392,6 +6412,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
 
     arch = 'arm'
+    wordSize = 4
     isLinux = True
     isAndroid = False
     isRootMode = None
@@ -6759,59 +6780,6 @@ class SystemManager(object):
             return '0x%X' % SystemManager.guiderObj.sched_getaffinity(pid)
         except:
             pass
-
-
-
-    @staticmethod
-    def strace(pid):
-        plist = ConfigManager.ptraceList
-
-        cmd = plist.index('PTRACE_ATTACH')
-        print SystemManager.ptrace(cmd, pid, 0, 0)
-
-        cmd = plist.index('PTRACE_SYSCALL')
-        print SystemManager.ptrace(cmd, pid, 0, 0)
-
-        ret = os.waitpid(pid, 0)
-        print ret
-
-        cmd = plist.index('PTRACE_PEEKUSR')
-
-
-
-    @staticmethod
-    def ptrace(req, pid, addr, data):
-        # check root permission #
-        if SystemManager.isRoot() is False:
-            SystemManager.printWarning(\
-                'Fail to get root permission to call ptrace')
-            return
-
-        try:
-            return SystemManager.guiderObj.ptrace(req, pid, addr, data)
-        except:
-            pass
-
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to call ptrace") % err.args[0])
-            return
-
-        try:
-            # load standard libc library #
-            if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-            return SystemManager.libcObj.ptrace(req, pid, addr, data)
-        except:
-            SystemManager.printWarning('Fail to call ptrace in libc')
 
 
 
@@ -7397,12 +7365,16 @@ class SystemManager(object):
         # set systemcall table #
         if arch == 'arm':
             ConfigManager.sysList = ConfigManager.sysList_arm
+            ConfigManager.wordSize = 4
         elif arch == 'aarch64':
             ConfigManager.sysList = ConfigManager.sysList_aarch64
+            ConfigManager.wordSize = 8
         elif arch == 'x86':
             ConfigManager.sysList = ConfigManager.sysList_x86
+            ConfigManager.wordSize = 4
         elif arch == 'x64':
             ConfigManager.sysList = ConfigManager.sysList_x64
+            ConfigManager.wordSize = 8
         else:
             support = ' / '.join(ConfigManager.supportArch)
             SystemManager.printError(\
@@ -13842,6 +13814,302 @@ class SystemManager(object):
                 (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) >> 10))
 
         SystemManager.infoBufferPrint(twoLine)
+
+
+
+
+
+class Debugger(object):
+    """ Debugger for ptrace """
+
+    pid = 0
+    arch = None
+    status = 'enter'
+    isRunning = True
+
+    def __init__(self, pid=None, isRunning=True):
+        self.pid = pid
+        self.isRunning = isRunning
+        self.arch = arch = SystemManager.getArch()
+
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, Structure, sizeof, addressof,\
+                c_ulong, c_int, c_uint, byref
+
+            class user_regs_struct(Structure):
+                def getdict(struct):
+                    return dict((field, getattr(struct, field)) \
+                        for field, _ in struct._fields_)
+
+                if arch == 'powerpc':
+                    _fields_ = (
+                        ("gpr0", c_ulong),
+                        ("gpr1", c_ulong),
+                        ("gpr2", c_ulong),
+                        ("gpr3", c_ulong),
+                        ("gpr4", c_ulong),
+                        ("gpr5", c_ulong),
+                        ("gpr6", c_ulong),
+                        ("gpr7", c_ulong),
+                        ("gpr8", c_ulong),
+                        ("gpr9", c_ulong),
+                        ("gpr10", c_ulong),
+                        ("gpr11", c_ulong),
+                        ("gpr12", c_ulong),
+                        ("gpr13", c_ulong),
+                        ("gpr14", c_ulong),
+                        ("gpr15", c_ulong),
+                        ("gpr16", c_ulong),
+                        ("gpr17", c_ulong),
+                        ("gpr18", c_ulong),
+                        ("gpr19", c_ulong),
+                        ("gpr20", c_ulong),
+                        ("gpr21", c_ulong),
+                        ("gpr22", c_ulong),
+                        ("gpr23", c_ulong),
+                        ("gpr24", c_ulong),
+                        ("gpr25", c_ulong),
+                        ("gpr26", c_ulong),
+                        ("gpr27", c_ulong),
+                        ("gpr28", c_ulong),
+                        ("gpr29", c_ulong),
+                        ("gpr30", c_ulong),
+                        ("gpr31", c_ulong),
+                        ("nip", c_ulong),
+                        ("msr", c_ulong),
+                        ("orig_gpr3", c_ulong),
+                        ("ctr", c_ulong),
+                        ("link", c_ulong),
+                        ("xer", c_ulong),
+                        ("ccr", c_ulong),
+                        ("mq", c_ulong),  # FIXME: ppc64 => softe
+                        ("trap", c_ulong),
+                        ("dar", c_ulong),
+                        ("dsisr", c_ulong),
+                        ("result", c_ulong),
+                    )
+
+                elif arch == 'arm':
+                    _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
+
+                elif arch == 'x64':
+                    _fields_ = (
+                        ("r15", c_ulong),
+                        ("r14", c_ulong),
+                        ("r13", c_ulong),
+                        ("r12", c_ulong),
+                        ("rbp", c_ulong),
+                        ("rbx", c_ulong),
+                        ("r11", c_ulong),
+                        ("r10", c_ulong),
+                        ("r9", c_ulong),
+                        ("r8", c_ulong),
+                        ("rax", c_ulong),
+                        ("rcx", c_ulong),
+                        ("rdx", c_ulong),
+                        ("rsi", c_ulong),
+                        ("rdi", c_ulong),
+                        ("orig_rax", c_ulong),
+                        ("rip", c_ulong),
+                        ("cs", c_ulong),
+                        ("eflags", c_ulong),
+                        ("rsp", c_ulong),
+                        ("ss", c_ulong),
+                        ("fs_base", c_ulong),
+                        ("gs_base", c_ulong),
+                        ("ds", c_ulong),
+                        ("es", c_ulong),
+                        ("fs", c_ulong),
+                        ("gs", c_ulong)
+                    )
+
+                elif arch == 'x86':
+                    _fields_ = (
+                        ("ebx", c_ulong),
+                        ("ecx", c_ulong),
+                        ("edx", c_ulong),
+                        ("esi", c_ulong),
+                        ("edi", c_ulong),
+                        ("ebp", c_ulong),
+                        ("eax", c_ulong),
+                        ("ds", c_ushort),
+                        ("__ds", c_ushort),
+                        ("es", c_ushort),
+                        ("__es", c_ushort),
+                        ("fs", c_ushort),
+                        ("__fs", c_ushort),
+                        ("gs", c_ushort),
+                        ("__gs", c_ushort),
+                        ("orig_eax", c_ulong),
+                        ("eip", c_ulong),
+                        ("cs", c_ushort),
+                        ("__cs", c_ushort),
+                        ("eflags", c_ulong),
+                        ("esp", c_ulong),
+                        ("ss", c_ushort),
+                        ("__ss", c_ushort),
+                    )
+
+            # set register variable #
+            self.regs = user_regs_struct()
+
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to call ptrace") % err.args[0])
+            return
+
+
+
+    def __del__(self):
+        pass
+
+
+
+    def setPid(self, pid):
+        self.pid = pid
+
+
+
+    def strace(self, pid=None):
+        if pid is None:
+            pid = self.pid
+
+        arch = SystemManager.getArch()
+        plist = ConfigManager.ptraceList
+        sysreg = ConfigManager.sysRegList[arch]
+        retreg = ConfigManager.retRegList[arch]
+        sigTrapIdx = ConfigManager.sigList.index('SIGTRAP')
+        sigStopIdx = ConfigManager.sigList.index('SIGSTOP')
+
+        if self.isRunning:
+            cmd = plist.index('PTRACE_ATTACH')
+            ret = self.ptrace(cmd, pid, 0, 0)
+
+        while 1:
+            cmd = plist.index('PTRACE_SYSCALL')
+            ret = self.ptrace(cmd, pid, 0, 0)
+
+            try:
+                ret = os.waitpid(pid, 0)
+                stat = Debugger.processStatus(ret[1])
+                if type(stat) is int:
+                    if stat == sigTrapIdx:
+                        pass
+                    elif stat == sigStopIdx:
+                        pass
+                    else:
+                        SystemManager.printWarning(\
+                            'Blocked thread %s because of %s' % \
+                            (pid, ConfigManager.sigList[stat]))
+                else:
+                    raise
+            except OSError:
+                SystemManager.printWarning('No thread %s to trace' % pid)
+                break
+            except KeyboardInterrupt:
+                sys.exit(0)
+            except:
+                SystemManager.printWarning('Terminated thread %s to trace' % pid)
+                break
+
+            regs = self.getRegs(pid)
+
+            if self.status is 'enter':
+                nrSyscall = regs[sysreg]
+                self.status = 'exit'
+                string = ConfigManager.sysList[nrSyscall]
+            else:
+                nrSyscall = regs[sysreg]
+                self.status= 'enter'
+                string = regs[retreg]
+
+            SystemManager.pipePrint('%s in %s' % (string, self.status))
+
+        if self.isRunning:
+            cmd = plist.index('PTRACE_DETACH')
+            ret = self.ptrace(cmd, pid, 0, 0)
+
+
+
+    @staticmethod
+    def processStatus(status):
+        ret = None
+
+        # Process exited?
+        if os.WIFEXITED(status):
+            code = os.WEXITSTATUS(status)
+            ret = False
+
+        # Process killed by a signal?
+        elif os.WIFSIGNALED(status):
+            signum = os.WTERMSIG(status)
+            ret = False
+
+        # Invalid process status?
+        elif not os.WIFSTOPPED(status):
+	    pass
+
+        else:
+            signum = os.WSTOPSIG(status)
+            ret = signum
+
+        '''
+        # Ptrace event?
+        elif HAS_PTRACE_EVENTS and WPTRACEEVENT(status):
+            event = WPTRACEEVENT(status)
+            event = self.ptraceEvent(event)
+        '''
+
+        return ret
+
+
+
+    def getRegs(self, pid=None):
+        if pid is None:
+            pid = self.pid
+
+        ctypes = SystemManager.ctypesObj
+        arch = SystemManager.getArch()
+
+        # set variables #
+        cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
+        wordSize = ConfigManager.wordSize
+        nrWords = ctypes.sizeof(self.regs) * wordSize
+
+        # get register set #
+        ret = self.ptrace(cmd, pid, 0, ctypes.addressof(self.regs))
+        if ret < 0:
+            raise
+        else:
+            return self.regs.getdict()
+
+
+
+    def ptrace(self, req, pid, addr, data):
+        if pid is None:
+            pid = self.pid
+
+        ctypes = SystemManager.ctypesObj
+
+        try:
+            return SystemManager.guiderObj.ptrace(req, pid, addr, data)
+        except:
+            pass
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    ctypes.cdll.LoadLibrary(SystemManager.libcPath)
+            return SystemManager.libcObj.ptrace(req, pid, addr, data)
+        except:
+            SystemManager.printWarning('Fail to call ptrace in libc')
 
 
 
