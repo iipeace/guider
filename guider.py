@@ -13976,6 +13976,28 @@ class Debugger(object):
 
 
 
+    def attach(self, pid=None):
+        if pid is None:
+            pid = self.pid
+
+        plist = ConfigManager.ptraceList
+
+        cmd = plist.index('PTRACE_ATTACH')
+        return self.ptrace(cmd, pid, 0, 0)
+
+
+
+    def detach(self, pid=None):
+        if pid is None:
+            pid = self.pid
+
+        plist = ConfigManager.ptraceList
+
+        cmd = plist.index('PTRACE_DETACH')
+        return self.ptrace(cmd, pid, 0, 0)
+
+
+
     def strace(self, pid=None):
         if pid is None:
             pid = self.pid
@@ -13988,8 +14010,7 @@ class Debugger(object):
         sigStopIdx = ConfigManager.sigList.index('SIGSTOP')
 
         if self.isRunning:
-            cmd = plist.index('PTRACE_ATTACH')
-            ret = self.ptrace(cmd, pid, 0, 0)
+            ret = self.attach(pid)
 
         while 1:
             cmd = plist.index('PTRACE_SYSCALL')
@@ -14032,8 +14053,7 @@ class Debugger(object):
             SystemManager.pipePrint('%s in %s' % (string, self.status))
 
         if self.isRunning:
-            cmd = plist.index('PTRACE_DETACH')
-            ret = self.ptrace(cmd, pid, 0, 0)
+            ret = self.detach(pid)
 
 
 
