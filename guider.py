@@ -14053,7 +14053,7 @@ class Debugger(object):
 
         # Invalid process status?
         elif not os.WIFSTOPPED(status):
-	    pass
+            pass
 
         else:
             signum = os.WSTOPSIG(status)
