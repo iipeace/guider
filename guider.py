@@ -7415,7 +7415,7 @@ class SystemManager(object):
                     nmSyscall = 'sys_%s' % val
                 nrSyscall = ConfigManager.sysList.index(nmSyscall)
             else:
-                raise
+                raise Exception()
 
             SystemManager.libcObj.syscall(nrSyscall)
         except:
@@ -7445,7 +7445,7 @@ class SystemManager(object):
                 nrType = ConfigManager.perfEventType.index('PERF_TYPE_SOFTWARE')
                 nrConfig = ConfigManager.perfEventSWType.index(econfig)
             else:
-                raise
+                raise Exception()
         except:
             SystemManager.printError(\
                 'Fail to recognize %s as perf event type' % econfig)
@@ -9342,7 +9342,7 @@ class SystemManager(object):
 
     @staticmethod
     def timerHandler(signum, frame):
-        raise
+        raise Exception()
 
 
 
@@ -10345,7 +10345,7 @@ class SystemManager(object):
                 ThreadAnalyzer.requestType.index(request):
                 pass
             else:
-                raise
+                raise Exception()
 
             if request.find('REPORT') >= 0 and SystemManager.jsonObject is None:
                 try:
@@ -10794,7 +10794,7 @@ class SystemManager(object):
                                 cols = int(term[1])
                             SystemManager.setTty(rows, cols)
                         else:
-                            raise
+                            raise Exception()
                 except:
                     SystemManager.printError(\
                         "wrong option value with -m option, "
@@ -10981,7 +10981,7 @@ class SystemManager(object):
                 try:
                     SystemManager.depth = int(value)
                     if SystemManager.depth < 0:
-                        raise
+                        raise Exception()
                 except:
                     SystemManager.printError(\
                         "wrong option value with -H option, "
@@ -11162,7 +11162,7 @@ class SystemManager(object):
                 try:
                     SystemManager.depth = int(value)
                     if SystemManager.depth < 0:
-                        raise
+                        raise Exception()
                 except:
                     SystemManager.printError(\
                         "wrong option value with -H option, "
@@ -11994,7 +11994,7 @@ class SystemManager(object):
 
                     # verify sched parameters #
                     if schedSet[3] != 'ALL':
-                        raise
+                        raise Exception()
                     policy = schedSet[0].upper()
                     ConfigManager.schedList.index(policy)
                     pri = int(schedSet[1])
@@ -12003,7 +12003,7 @@ class SystemManager(object):
                     # add sched item to list #
                     SystemManager.schedFilter.append([policy, pri, desc])
                 else:
-                    raise
+                    raise Exception()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -12056,7 +12056,7 @@ class SystemManager(object):
                 ret = SystemManager.guiderObj.sched_setscheduler(\
                     pid, argPolicy, argPriority)
             if ret != 0:
-                raise
+                raise Exception()
 
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
@@ -12067,7 +12067,7 @@ class SystemManager(object):
                     argPriority = pri
                     ret = SystemManager.guiderObj.setpriority(0, pid, argPriority)
                 if ret != 0:
-                    raise
+                    raise Exception()
 
             SystemManager.printInfo(\
                 'priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
@@ -12566,7 +12566,7 @@ class SystemManager(object):
                 if SystemManager.recordStatus:
                     continue
                 else:
-                    raise
+                    raise Exception()
             except:
                 # close pipe #
                 pd.close()
@@ -12851,7 +12851,7 @@ class SystemManager(object):
                 try:
                     cmd = "%s%s" % (cmd, SystemManager.getPidFilter())
                     if len(cmd) == 0:
-                        raise
+                        raise Exception()
                 except:
                     SystemManager.printError(\
                         "wrong tid %s" % SystemManager.showGroup)
@@ -13838,7 +13838,7 @@ class Debugger(object):
                 SystemManager.ctypesObj = ctypes
             ctypes = SystemManager.ctypesObj
             from ctypes import cdll, Structure, sizeof, addressof,\
-                c_ulong, c_int, c_uint, byref
+                c_ulong, c_int, c_uint, c_uint32, byref
 
             class user_regs_struct(Structure):
                 def getdict(struct):
@@ -13957,6 +13957,17 @@ class Debugger(object):
             # set register variable #
             self.regs = user_regs_struct()
 
+            # for ARCH_REGS_FOR_GETREGSET #
+            class iovec(Structure):
+                _fields_ = (
+                    ("iov_base", c_ulong),
+                    ("iov_len", c_uint32),
+                )
+
+            self.iovec = iovec(\
+                iov_base=ctypes.addressof(self.regs),\
+                iov_len=ctypes.sizeof(self.regs))
+
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
@@ -14012,6 +14023,10 @@ class Debugger(object):
         if self.isRunning:
             ret = self.attach(pid)
 
+        # set PTRACE_O_TRACESYSGOOD #
+        cmd = PTRACE_SETOPTIONS = 0x4200
+        ret = self.ptrace(cmd, pid, 0, 1)
+
         while 1:
             cmd = plist.index('PTRACE_SYSCALL')
             ret = self.ptrace(cmd, pid, 0, 0)
@@ -14022,6 +14037,8 @@ class Debugger(object):
                 if type(stat) is int:
                     if stat == sigTrapIdx:
                         pass
+                    elif stat == sigTrapIdx|0x80:
+                        pass
                     elif stat == sigStopIdx:
                         pass
                     else:
@@ -14029,7 +14046,7 @@ class Debugger(object):
                             'Blocked thread %s because of %s' % \
                             (pid, ConfigManager.sigList[stat]))
                 else:
-                    raise
+                    raise Exception()
             except OSError:
                 SystemManager.printWarning('No thread %s to trace' % pid)
                 break
@@ -14039,7 +14056,12 @@ class Debugger(object):
                 SystemManager.printWarning('Terminated thread %s to trace' % pid)
                 break
 
+            # get register set #
             regs = self.getRegs(pid)
+            if regs is None:
+                SystemManager.printError(\
+                    "Fail to trace syscall of thread %d" % pid)
+                return
 
             if self.status is 'enter':
                 nrSyscall = regs[sysreg]
@@ -14097,15 +14119,23 @@ class Debugger(object):
         ctypes = SystemManager.ctypesObj
         arch = SystemManager.getArch()
 
-        # set variables #
-        cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
+        # set register set size #
         wordSize = ConfigManager.wordSize
         nrWords = ctypes.sizeof(self.regs) * wordSize
 
         # get register set #
-        ret = self.ptrace(cmd, pid, 0, ctypes.addressof(self.regs))
+        if True:
+            cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
+            ret = self.ptrace(\
+                cmd, pid, 0, ctypes.addressof(self.regs))
+        else:
+            cmd = PTRACE_GETREGSET = 0x4204
+            NT_PRSTATUS = 1
+            ret = self.ptrace(\
+                cmd, pid, NT_PRSTATUS, ctypes.addressof(self.iovec))
+
         if ret < 0:
-            raise
+            return None
         else:
             return self.regs.getdict()
 
@@ -14900,7 +14930,7 @@ class ThreadAnalyzer(object):
                 try:
                     memStat = summaryList[3].split('/')
                     if len(memStat) != 3:
-                        raise
+                        raise Exception()
                     memFree.append(int(memStat[0]))
                     memAnon.append(int(memStat[1]))
                     memCache.append(int(memStat[2]))
@@ -14943,7 +14973,7 @@ class ThreadAnalyzer(object):
                 try:
                     netstat = summaryList[13].strip().split('/')
                     if netstat[0] == '-':
-                        raise
+                        raise Exception()
 
                     if netstat[0][-1] == 'M':
                         netRead.append(int(netstat[0][:-1]) << 10)
@@ -16165,7 +16195,7 @@ class ThreadAnalyzer(object):
 
                     size = int(size)
                     if size == 0:
-                        raise
+                        raise Exception()
                     else:
                         total += size
                         layoutList.append([target, int(size)])
@@ -16208,7 +16238,7 @@ class ThreadAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    raise
+                    raise Exception()
 
         # save to file #
         self.saveImage(logFile, 'graph')
@@ -17053,7 +17083,7 @@ class ThreadAnalyzer(object):
                 if 'bound' in confDict:
                     ThreadAnalyzer.reportBoundary = confDict['bound']
                 else:
-                    raise
+                    raise Exception()
             except:
                 SystemManager.printError("Fail to load configuration from %s" % \
                     SystemManager.sourceFile)
@@ -17229,7 +17259,7 @@ class ThreadAnalyzer(object):
 
                     try:
                         if icount == 0:
-                            raise
+                            raise Exception()
 
                         if self.futexData[icount-1][2] == value[2]:
                             core = ''
@@ -17918,7 +17948,7 @@ class ThreadAnalyzer(object):
                         # revise core usage in DVFS system #
                         if self.threadData[key]['coreSchedCnt'] == 0 and \
                             self.threadData[key]['offCnt'] > 0:
-                            raise
+                            raise Exception()
                         else:
                             per = (100 - self.intData[icount][key]['cpuPer'])
                             timeLine += '%3d ' % per
@@ -21057,7 +21087,7 @@ class ThreadAnalyzer(object):
                         try:
                             # this allocated page is not freed #
                             if self.pageTable[pfnv] == {}:
-                                raise
+                                raise Exception()
                             else:
                                 self.threadData[thread]['nrPages'] -= 1
                                 self.threadData[coreId]['nrPages'] -= 1
@@ -21464,7 +21494,7 @@ class ThreadAnalyzer(object):
 
                     try:
                         if SystemManager.depEnable is False:
-                            raise
+                            raise Exception()
                         elif nr == str(ConfigManager.sysList.index("sys_write")) and \
                             self.wakeupData['valid'] > 0:
                             self.wakeupData['valid'] -= 1
@@ -22549,7 +22579,7 @@ class ThreadAnalyzer(object):
                             addr = SystemManager.getSocketAddrList([obj])
                             if len(addr) > 0:
                                 path = '%s (%s)' % (path, addr[0])
-                                raise
+                                raise Exception()
                             uds = SystemManager.getSocketPathList([obj])
                             if len(uds) > 0:
                                 path = '%s (%s)' % (path, uds[0])
@@ -22984,7 +23014,7 @@ class ThreadAnalyzer(object):
                     relationList.insert(0, tmpId)
                     tmpId = procInstance[tmpId]['stat'][ppidIdx]
                     if tmpId == '0':
-                        raise
+                        raise Exception()
                 except:
                     return relationList
 
@@ -25483,7 +25513,7 @@ class ThreadAnalyzer(object):
         # print interrupts #
         try:
             if len(self.irqData) == 0:
-                raise
+                raise Exception()
 
             nrIrq = 0
             irqData = '%s [IRQ > ' % (' ' * nrIndent)
