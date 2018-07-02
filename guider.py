@@ -15733,7 +15733,12 @@ class Debugger(object):
 
 
     def setPid(self, pid):
+        if self.checkPid(pid) < 0:
+            SystemManager.printError('Fail to set pid %s' % pid)
+            return -1
+
         self.pid = pid
+        return 0
 
 
 
@@ -15748,6 +15753,9 @@ class Debugger(object):
 
 
     def attach(self, pid=None):
+        if pid is None:
+            pid = self.pid
+
         if self.checkPid(pid) < 0:
             SystemManager.printError('Fail to attach wrong thread %s' % pid)
             return -1
@@ -15764,9 +15772,11 @@ class Debugger(object):
 
 
 
-    def detach(self, pid=None):
-        if self.checkPid(pid) < 0:
-            SystemManager.printError('Fail to detach wrong thread %s' % pid)
+    def detach(self):
+        pid = self.pid
+
+        if self.isRunning is False:
+            SystemManager.printWarnning('No running thread %s' % pid)
             return -1
 
         plist = ConfigManager.ptraceList
@@ -15781,27 +15791,18 @@ class Debugger(object):
 
 
 
-    def checkPid(self, pid=None):
+    def checkPid(self, pid):
         if pid is None:
-            if self.pid is None or \
-                type(self.pid) is not int or \
-                self.pid <= 0:
-                return -1
-            else:
-                return 0
+            return -1
         elif type(pid) is not int or pid <= 0:
             return -1
         else:
-            self.pid = pid
             return 0
 
 
 
-    def strace(self, pid=None):
-        if self.checkPid(pid) < 0:
-            SystemManager.printError('Fail to trace syscall of thread %s' % pid)
-            return -1
-
+    def strace(self):
+        pid = self.pid
         arch = SystemManager.getArch()
         plist = ConfigManager.ptraceList
         sysreg = ConfigManager.sysRegList[arch]
