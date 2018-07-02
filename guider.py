@@ -6337,6 +6337,7 @@ class FileAnalyzer(object):
 
 class LogManager(object):
     """ Manager for error log """
+
     def __init__(self):
         self.terminal = sys.stderr
         self.notified = False
@@ -15561,11 +15562,25 @@ class Debugger(object):
         )),
     }
 
-    def __init__(self, pid=None, isRunning=True):
-        self.pid = pid
+
+
+    def __init__(self, pid=None, path=None):
         self.status = 'enter'
-        self.isRunning = isRunning
         self.arch = arch = SystemManager.getArch()
+
+        # running #
+        if self.checkPid(pid) >= 0:
+            self.pid = pid
+            self.attach()
+            self.isRunning = True
+        # execute #
+        elif path is not None:
+            self.execute(path)
+            self.isRunning = False
+        # ready #
+        else:
+            self.pid = None
+            self.isRunning = False
 
         try:
             if SystemManager.ctypesObj is None:
@@ -15722,31 +15737,70 @@ class Debugger(object):
 
 
 
+    def getPid(self):
+        return self.pid
+
+
+
+    def execute(self, path=None):
+        pass
+
+
+
     def attach(self, pid=None):
-        if pid is None:
-            pid = self.pid
+        if self.checkPid(pid) < 0:
+            SystemManager.printError('Fail to attach wrong thread %s' % pid)
+            return -1
 
         plist = ConfigManager.ptraceList
 
         cmd = plist.index('PTRACE_ATTACH')
-        return self.ptrace(cmd, pid, 0, 0)
+        ret = self.ptrace(cmd, 0, 0)
+        if ret <= 0:
+            SystemManager.printError('Fail to attach thread %s' % pid)
+            return -1
+        else:
+            return 0
 
 
 
     def detach(self, pid=None):
-        if pid is None:
-            pid = self.pid
+        if self.checkPid(pid) < 0:
+            SystemManager.printError('Fail to detach wrong thread %s' % pid)
+            return -1
 
         plist = ConfigManager.ptraceList
 
         cmd = plist.index('PTRACE_DETACH')
-        return self.ptrace(cmd, pid, 0, 0)
+        ret = self.ptrace(cmd, 0, 0)
+        if ret <= 0:
+            SystemManager.printError('Fail to detach thread %s' % pid)
+            return -1
+        else:
+            return 0
+
+
+
+    def checkPid(self, pid=None):
+        if pid is None:
+            if self.pid is None or \
+                type(self.pid) is not int or \
+                self.pid <= 0:
+                return -1
+            else:
+                return 0
+        elif type(pid) is not int or pid <= 0:
+            return -1
+        else:
+            self.pid = pid
+            return 0
 
 
 
     def strace(self, pid=None):
-        if pid is None:
-            pid = self.pid
+        if self.checkPid(pid) < 0:
+            SystemManager.printError('Fail to trace syscall of thread %s' % pid)
+            return -1
 
         arch = SystemManager.getArch()
         plist = ConfigManager.ptraceList
@@ -15755,16 +15809,13 @@ class Debugger(object):
         sigTrapIdx = ConfigManager.sigList.index('SIGTRAP')
         sigStopIdx = ConfigManager.sigList.index('SIGSTOP')
 
-        if self.isRunning:
-            ret = self.attach(pid)
-
         # set PTRACE_O_TRACESYSGOOD #
         cmd = PTRACE_SETOPTIONS = 0x4200
-        ret = self.ptrace(cmd, pid, 0, 1)
+        ret = self.ptrace(cmd, 0, 1)
 
         while 1:
             cmd = plist.index('PTRACE_SYSCALL')
-            ret = self.ptrace(cmd, pid, 0, 0)
+            ret = self.ptrace(cmd, 0, 0)
 
             try:
                 ret = os.waitpid(pid, 0)
@@ -15792,7 +15843,7 @@ class Debugger(object):
                 break
 
             # get register set #
-            regs = self.getRegs(pid)
+            regs = self.getRegs()
             if regs is None:
                 SystemManager.printError(\
                     "Fail to trace syscall of thread %d" % pid)
@@ -15809,9 +15860,6 @@ class Debugger(object):
                 string = regs[retreg]
 
             SystemManager.pipePrint('%s in %s' % (string, status))
-
-        if self.isRunning:
-            ret = self.detach(pid)
 
 
 
@@ -15848,10 +15896,8 @@ class Debugger(object):
 
 
 
-    def getRegs(self, pid=None):
-        if pid is None:
-            pid = self.pid
-
+    def getRegs(self):
+        pid = self.pid
         ctypes = SystemManager.ctypesObj
         arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
@@ -15861,12 +15907,12 @@ class Debugger(object):
         # get register set #
         if True:
             cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
-            ret = self.ptrace(cmd, pid, 0, ctypes.addressof(self.regs))
+            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
         else:
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
-            ret = self.ptrace(cmd, pid, NT_PRSTATUS, ctypes.addressof(self.iovec))
+            ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
 
         if ret < 0:
             return None
@@ -15875,9 +15921,8 @@ class Debugger(object):
 
 
 
-    def ptrace(self, req, pid, addr, data):
-        if pid is None:
-            pid = self.pid
+    def ptrace(self, req, addr, data):
+        pid = self.pid
 
         ctypes = SystemManager.ctypesObj
 
@@ -15906,6 +15951,8 @@ class EventAnalyzer(object):
     """ Analyzer for event profiling """
 
     eventData = {}
+
+
 
     def __init__(self):
         pass
@@ -25483,7 +25530,7 @@ class ThreadAnalyzer(object):
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            "Mem", "Diff", "User", "Cache", "Ker", "Swap", "Diff", "I/O",\
+            "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
             "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
             oneLine)), newline = 3)
 
