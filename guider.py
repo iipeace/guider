@@ -3608,7 +3608,8 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Calculate a total of cpu usage #
-            if d['func'] == "hrtimer_start:" and d['etc'].rfind('tick_sched_timer') > -1:
+            if d['func'] == "hrtimer_start:" and \
+                d['etc'].rfind('tick_sched_timer') > -1:
                 self.totalTick += 1
                 self.threadData[thread]['cpuTick'] += 1
 
@@ -3787,8 +3788,8 @@ class FunctionAnalyzer(object):
             "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
             "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
             format("Name", "Tid", "Pid", "PICK", "LIFE", \
-            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXP", \
-            "READ", "WRITE", "TRY", "EVENT"))
+            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXPAND", \
+            "READ", "WRITE", "TRY", "EVENTS"))
         SystemManager.pipePrint(twoLine)
 
         # set sort value #
@@ -8296,7 +8297,8 @@ class SystemManager(object):
 
                     rVal = rCmd.split('/')
                     if len(rVal) > 2:
-                        SystemManager.printError("wrong command '%s' with -K option" % rCmd)
+                        SystemManager.printError(\
+                            "wrong command '%s' with -K option" % rCmd)
                         sys.exit(0)
                     tVal = rVal[1]
 
@@ -8321,7 +8323,8 @@ class SystemManager(object):
             if sCmd != ' NONE':
                 pCmd = '%s %s' % (pCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', pCmd, append=True) < 0:
-                    SystemManager.printError("wrong command '%s' with -K option" % pCmd)
+                    SystemManager.printError(\
+                        "wrong command '%s' with -K option" % pCmd)
                     sys.exit(0)
 
             # make return commands #
@@ -8362,7 +8365,8 @@ class SystemManager(object):
             if sCmd != 'NONE':
                 rCmd = '%s %s' % (rCmd, sCmd)
                 if SystemManager.writeCmd('../kprobe_events', rCmd, append=True) < 0:
-                    SystemManager.printError("wrong command '%s' with -K option" % rCmd)
+                    SystemManager.printError(\
+                        "wrong command '%s' with -K option" % rCmd)
                     sys.exit(0)
 
         # apply filter #
@@ -8450,17 +8454,20 @@ class SystemManager(object):
                     try:
                         hex(long(addr, base=16)).rstrip('L')
                     except:
-                        SystemManager.printError("Fail to recognize address %s" % addr)
+                        SystemManager.printError(\
+                            "Fail to recognize address %s" % addr)
                         sys.exit(0)
 
                 for item in effectiveCmd:
                     if cmdFormat[0] == item[0]:
-                        SystemManager.printError("redundant user event name '%s'" % item[0])
+                        SystemManager.printError(\
+                            "redundant user event name '%s'" % item[0])
                         sys.exit(0)
 
                 effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
             else:
-                SystemManager.printError("wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+                SystemManager.printError(\
+                    "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
                 sys.exit(0)
 
         # print uprobe event list #
@@ -8475,12 +8482,14 @@ class SystemManager(object):
             # apply entry events #
             pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SystemManager.writeCmd('../uprobe_events', pCmd, append=True) < 0:
-                SystemManager.printError("wrong command '%s' with -U option" % pCmd)
+                SystemManager.printError(\
+                    "wrong command '%s' with -U option" % pCmd)
                 sys.exit(0)
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SystemManager.writeCmd('../uprobe_events', rCmd, append=True) < 0:
-                SystemManager.printError("wrong command '%s' with -U option" % rCmd)
+                SystemManager.printError(\
+                    "wrong command '%s' with -U option" % rCmd)
                 sys.exit(0)
 
         # apply filter #
@@ -8502,6 +8511,13 @@ class SystemManager(object):
     @staticmethod
     def writeSyscallCmd(enable):
         scmd = ""
+
+        if SystemManager.isFunctionMode() and \
+            SystemManager.heapEnable is False:
+            cmd = 'raw_syscalls/sys_enter/enable'
+        else:
+            cmd = 'raw_syscalls/enable'
+
         if enable:
             sfilter = ""
             pfilter = SystemManager.getPidFilter()
@@ -8513,8 +8529,6 @@ class SystemManager(object):
 
             if len(sfilter) > 0 and len(pfilter) > 0:
                 scmd = "(%s && %s)" % (sfilter, pfilter)
-            elif len(sfilter) == 0 and len(pfilter) == 0:
-                pass
             elif len(sfilter) > 0:
                 scmd = "%s || ( id == %s )" % \
                     (sfilter, ConfigManager.sysList.index("sys_execve"))
@@ -8526,7 +8540,7 @@ class SystemManager(object):
             scmd = "( id == %s )" % ConfigManager.sysList.index("sys_execve")
 
         SystemManager.writeCmd('raw_syscalls/filter', scmd)
-        SystemManager.writeCmd('raw_syscalls/enable', '1')
+        SystemManager.writeCmd(cmd, '1')
 
 
 
