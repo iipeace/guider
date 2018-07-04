@@ -10230,7 +10230,7 @@ class SystemManager(object):
         # pager output #
         if SystemManager.pipeForPrint != None:
             try:
-                SystemManager.pipeForPrint.write('%s%s' % (line, retstr))
+                SystemManager.pipeForPrint.write(line + retstr)
                 return
             except:
                 SystemManager.printError("Fail to print to pipe\n")
@@ -10297,7 +10297,7 @@ class SystemManager(object):
         if SystemManager.fileForPrint != None:
             try:
                 if SystemManager.isTopMode() is False:
-                    SystemManager.fileForPrint.write('%s%s' % (line, retstr))
+                    SystemManager.fileForPrint.write(line + retstr)
                 else:
                     SystemManager.fileForPrint.writelines(line)
             except:
@@ -10312,9 +10312,9 @@ class SystemManager(object):
                 line = '\n'.join(\
                     [nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
             if newline:
-                print(line)
+                sys.stdout.write(line + '\n')
             else:
-                print(line, end=' ')
+                sys.stdout.write(line)
 
 
 
