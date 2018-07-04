@@ -15823,6 +15823,30 @@ class Debugger(object):
 
 
 
+    def writeMem(self, cmd, addr, size, word):
+        wordSize = ConfigManager.wordSize
+
+        if addr % wordSize:
+            SystemManager.printError(\
+                "Fail to access %s memory because of unaligned address" % addr)
+
+        cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
+        ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+
+
+    def readMem(self, cmd, addr, size):
+        wordSize = ConfigManager.wordSize
+
+        if addr % wordSize:
+            SystemManager.printError(\
+                "Fail to access %s memory because of unaligned address" % addr)
+
+        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKDATA')
+        ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+
+
     def processSyscall(self):
         sysreg = self.sysreg
         retreg = self.retreg
