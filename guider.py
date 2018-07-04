@@ -10200,9 +10200,14 @@ class SystemManager(object):
 
 
     @staticmethod
-    def pipePrint(line):
+    def pipePrint(line, newline=True):
         if SystemManager.printEnable is False:
             return
+
+        if newline:
+            retstr = '\n'
+        else:
+            retstr = ''
 
         # pager initialization #
         if SystemManager.pipeForPrint == None and \
@@ -10225,7 +10230,7 @@ class SystemManager(object):
         # pager output #
         if SystemManager.pipeForPrint != None:
             try:
-                SystemManager.pipeForPrint.write(line + '\n')
+                SystemManager.pipeForPrint.write('%s%s' % (line, retstr))
                 return
             except:
                 SystemManager.printError("Fail to print to pipe\n")
@@ -10292,7 +10297,7 @@ class SystemManager(object):
         if SystemManager.fileForPrint != None:
             try:
                 if SystemManager.isTopMode() is False:
-                    SystemManager.fileForPrint.write('%s\n' % line)
+                    SystemManager.fileForPrint.write('%s%s' % (line, retstr))
                 else:
                     SystemManager.fileForPrint.writelines(line)
             except:
@@ -10306,7 +10311,10 @@ class SystemManager(object):
             else:
                 line = '\n'.join(\
                     [nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
-            print(line)
+            if newline:
+                print(line)
+            else:
+                print(line, end=' ')
 
 
 
@@ -15815,14 +15823,47 @@ class Debugger(object):
 
 
 
+    def processSyscall(self):
+        sysreg = self.sysreg
+        retreg = self.retreg
+        status = self.status
+        regs = self.regs.getdict()
+        nrSyscall = regs[sysreg]
+        name = ConfigManager.sysList[nrSyscall][4:]
+        proto = Debugger.SYSCALL_PROTOTYPES
+
+        if status is 'enter':
+            # set next status #
+            self.status = 'exit'
+
+            # parse arguments #
+            if name in proto:
+                self.rettype, formats = proto[name]
+                for value, format in zip(regs, formats):
+                    argtype, argname = format
+
+            SystemManager.pipePrint('%s()' % name, False)
+        else:
+            # set next status #
+            self.status = 'enter'
+
+            # set return value from register #
+            retval = regs[retreg]
+
+            SystemManager.pipePrint('= %s' % retval)
+
+
+
     def strace(self):
         pid = self.pid
+        regs = None
         arch = SystemManager.getArch()
         plist = ConfigManager.ptraceList
-        sysreg = ConfigManager.sysRegList[arch]
-        retreg = ConfigManager.retRegList[arch]
         sigTrapIdx = ConfigManager.sigList.index('SIGTRAP')
         sigStopIdx = ConfigManager.sigList.index('SIGSTOP')
+
+        self.sysreg = ConfigManager.sysRegList[arch]
+        self.retreg = ConfigManager.retRegList[arch]
 
         # set PTRACE_O_TRACESYSGOOD #
         cmd = PTRACE_SETOPTIONS = 0x4200
@@ -15848,33 +15889,22 @@ class Debugger(object):
                             (pid, ConfigManager.sigList[stat]))
                 else:
                     raise Exception()
+
+                # get register set #
+                regs = self.getRegs()
+                if regs is None:
+                    SystemManager.printError(\
+                        "Fail to trace syscall of thread %d" % pid)
+                    return
+
+                # process syscall #
+                self.processSyscall()
             except OSError:
                 SystemManager.printWarning('No thread %s to trace' % pid)
                 break
-            except KeyboardInterrupt:
-                sys.exit(0)
             except:
                 SystemManager.printWarning('Terminated thread %s to trace' % pid)
                 break
-
-            # get register set #
-            regs = self.getRegs()
-            if regs is None:
-                SystemManager.printError(\
-                    "Fail to trace syscall of thread %d" % pid)
-                return
-
-            status = self.status
-            if status is 'enter':
-                nrSyscall = regs[sysreg]
-                self.status = 'exit'
-                string = ConfigManager.sysList[nrSyscall]
-            else:
-                nrSyscall = regs[sysreg]
-                self.status= 'enter'
-                string = regs[retreg]
-
-            SystemManager.pipePrint('%s in %s' % (string, status))
 
 
 
@@ -15917,8 +15947,6 @@ class Debugger(object):
         arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
-        # set register set size #
-
         # get register set #
         if True:
             cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
@@ -15929,10 +15957,10 @@ class Debugger(object):
             nrWords = ctypes.sizeof(self.regs) * wordSize
             ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
 
-        if ret < 0:
+        if ret is None or ret < 0:
             return None
         else:
-            return self.regs.getdict()
+            return self.regs
 
 
 
