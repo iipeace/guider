@@ -6803,7 +6803,7 @@ class SystemManager(object):
                 import ctypes
                 SystemManager.ctypesObj = ctypes
             ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER
+            from ctypes import cdll, POINTER, c_char_p
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
@@ -6815,7 +6815,8 @@ class SystemManager(object):
             # load standard libc library #
             if SystemManager.libcObj is None:
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
-            SystemManager.libcObj.prctl(15, comm, 0, 0, 0)
+            SystemManager.libcObj.prctl(\
+                15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
         except:
             SystemManager.printWarning('Fail to set comm because of prctl error in libc')
 
