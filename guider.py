@@ -360,6 +360,7 @@ class ConfigManager(object):
     sysRegList = {
         "powerpc": "gpr0",
         "arm": "r7",
+        "aarch64": "r8",
         "x64": "orig_rax",
         "x86": "orig_eax"
         }
@@ -368,6 +369,7 @@ class ConfigManager(object):
     retRegList = {
         "powerpc": "result",
         "arm": "r0",
+        "aarch64": "r0",
         "x64": "rax",
         "x86": "eax"
         }
@@ -15589,20 +15591,7 @@ class Debugger(object):
     def __init__(self, pid=None, path=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
-
-        # running #
-        if self.checkPid(pid) >= 0:
-            self.pid = pid
-            self.attach()
-            self.isRunning = True
-        # execute #
-        elif path is not None:
-            self.execute(path)
-            self.isRunning = False
-        # ready #
-        else:
-            self.pid = None
-            self.isRunning = False
+        self.args = []
 
         try:
             if SystemManager.ctypesObj is None:
@@ -15668,6 +15657,9 @@ class Debugger(object):
                 elif arch == 'arm':
                     _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
 
+                elif arch == 'aarch64':
+                    _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
+
                 elif arch == 'x64':
                     _fields_ = (
                         ("r15", c_ulong),
@@ -15726,6 +15718,20 @@ class Debugger(object):
                         ("__ss", c_ushort),
                     )
 
+            # running #
+            if self.checkPid(pid) >= 0:
+                self.pid = pid
+                self.attach()
+                self.isRunning = True
+            # execute #
+            elif path is not None:
+                self.execute(path)
+                self.isRunning = False
+            # ready #
+            else:
+                self.pid = None
+                self.isRunning = False
+
             # set register variable #
             self.regs = user_regs_struct()
 
@@ -15745,12 +15751,31 @@ class Debugger(object):
             SystemManager.printWarning(\
                 ("Fail to import python package: %s "
                 "to call ptrace") % err.args[0])
-            return
+            sys.exit(0)
 
 
 
     def __del__(self):
         pass
+
+
+
+    def readArgValues(self):
+        arch = self.arch
+        regs = self.regs
+
+        if arch == 'x64':
+            return (regs.rdi, regs.rsi, regs.rdx, regs.r10, regs.r8, regs.r9)
+        elif arch == 'arm':
+            return (regs.r0, regs.r1, regs.r2, regs.r3, regs.r4, regs.r5, regs.r6)
+        elif arch == 'aarch64':
+            return (regs.r0, regs.r1, regs.r2, regs.r3, regs.r4, regs.r5, regs.r6, regs.r7)
+        elif arch == 'x86':
+            return (regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi, regs.ebp)
+        elif arch == 'powerpc':
+            return (regs.gpr3, regs.gpr4, regs.gpr5, regs.gpr6, regs.gpr7, regs.gpr8)
+        else:
+            return None
 
 
 
@@ -15786,7 +15811,7 @@ class Debugger(object):
 
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
-        if ret <= 0:
+        if ret < 0:
             SystemManager.printError('Fail to attach thread %s' % pid)
             return -1
         else:
@@ -15847,6 +15872,16 @@ class Debugger(object):
 
 
 
+    def addArg(self, type, name, value):
+        self.args.append([type, name, value])
+
+
+
+    def clearArgs(self):
+        self.args = []
+
+
+
     def processSyscall(self):
         sysreg = self.sysreg
         retreg = self.retreg
@@ -15856,17 +15891,35 @@ class Debugger(object):
         name = ConfigManager.sysList[nrSyscall][4:]
         proto = Debugger.SYSCALL_PROTOTYPES
 
+        # enter #
         if status is 'enter':
             # set next status #
             self.status = 'exit'
 
+            # get argument values from register #
+            regstr = self.readArgValues()
+
             # parse arguments #
             if name in proto:
                 self.rettype, formats = proto[name]
-                for value, format in zip(regs, formats):
+                for value, format in zip(regstr, formats):
                     argtype, argname = format
 
-            SystemManager.pipePrint('%s()' % name, False)
+                    # add argument #
+                    self.addArg(argtype, argname, value)
+
+            # pick values from argument list #
+            args = []
+            for idx, arg in enumerate(self.args):
+                if arg[0].endswith('*'):
+                    # convert pointer to values #
+                    args.append(str(hex(arg[2]).upper()).rstrip('L'))
+                else:
+                    args.append(str(arg[2]))
+
+            argText = ', '.join(args)
+            SystemManager.pipePrint('%s(%s) ' % (name, argText), False)
+        # exit #
         else:
             # set next status #
             self.status = 'enter'
@@ -15874,7 +15927,19 @@ class Debugger(object):
             # set return value from register #
             retval = regs[retreg]
 
-            SystemManager.pipePrint('= %s' % retval)
+            # convert unsigned long to long #
+            retval = (retval & 0xffffffffffffffff)
+            if retval & 0x8000000000000000:
+                retval = retval - 0x10000000000000000
+
+            if retval < 0:
+                err = '(%s)' % ConfigManager.errList[abs(retval+1)]
+            else:
+                err = ''
+
+            SystemManager.pipePrint('= %s %s' % (retval, err))
+
+            self.clearArgs()
 
 
 
