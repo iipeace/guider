@@ -6912,7 +6912,6 @@ class SystemManager(object):
             # check tgid #
             for item in tlist:
                 if item == tgid or \
-                    comm.find(item) >= 0 or \
                     SystemManager.isEffectiveTid(tgid, item):
                     exceptFlag = False
                     break
@@ -8769,9 +8768,9 @@ class SystemManager(object):
             disableStat += 'ALL '
 
         if SystemManager.groupProcEnable:
-            enableStat += 'PROCESS '
+            enableStat += 'PGROUP '
         else:
-            disableStat += 'PROCESS '
+            disableStat += 'PGROUP '
 
         if SystemManager.cpuEnable:
             enableStat += 'CPU '
@@ -9039,9 +9038,9 @@ class SystemManager(object):
                     disableStat += 'WSS '
 
                 if SystemManager.groupProcEnable:
-                    enableStat += 'GROUP '
+                    enableStat += 'PGROUP '
                 else:
-                    disableStat += 'GROUP '
+                    disableStat += 'PGROUP '
 
                 if SystemManager.reportEnable:
                     enableStat += 'REPORT '
@@ -9865,8 +9864,9 @@ class SystemManager(object):
                     "only specific threads including [%s] are shown" % \
                     ', '.join(SystemManager.showGroup))
             else:
-                SystemManager.printInfo(\
-                    "only specific threads that involved in process group including [%s] are shown" % \
+                SystemManager.printInfo((\
+                    "only specific threads that involved "
+                    "in process group including [%s] are shown") % \
                     ', '.join(SystemManager.showGroup))
 
         # apply dependency option #
@@ -10759,8 +10759,9 @@ class SystemManager(object):
                         SystemManager.rssEnable = True
                     else:
                         try:
-                            import json
-                            SystemManager.jsonObject = json
+                            if SystemManager.jsonObject is None:
+                                import json
+                                SystemManager.jsonObject = json
                             SystemManager.reportEnable = True
                         except ImportError:
                             err = sys.exc_info()[1]
@@ -16038,14 +16039,14 @@ class Debugger(object):
         wordSize = ConfigManager.wordSize
 
         # get register set #
-        if True:
-            cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
-            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
-        else:
+        if arch == 'aarch64':
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
             ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
+        else:
+            cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
+            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
         if ret is None or ret < 0:
             return None
@@ -16373,34 +16374,27 @@ class ThreadAnalyzer(object):
                 for idx, val in enumerate(SystemManager.showGroup):
                     if len(val) == 0:
                         SystemManager.showGroup.pop(idx)
-                    elif SystemManager.groupProcEnable:
-                        try:
-                            int(val)
-                        except:
-                            SystemManager.printError(\
-                                "wrong id %s, input only integer values for grouping" % val)
-                            sys.exit(0)
 
                 taskList = ', '.join(SystemManager.showGroup)
 
                 if SystemManager.fileTopEnable:
                     pass
-                elif SystemManager.groupProcEnable is False:
+                elif SystemManager.groupProcEnable:
+                    if SystemManager.processEnable is False:
+                        SystemManager.printInfo((\
+                            "only specific threads that are involved "
+                            "in process group including [ %s ] are shown") % taskList)
+                    else:
+                        SystemManager.printInfo((\
+                            "only specific processes that are involved "
+                            "in process group including [ %s ] are shown") % taskList)
+                else:
                     if SystemManager.processEnable is False:
                         SystemManager.printInfo(\
                             "only specific threads including [ %s ] are shown" % taskList)
                     else:
                         SystemManager.printInfo(\
                             "only specific processes including [ %s ] are shown" % taskList)
-                else:
-                    if SystemManager.processEnable is False:
-                        SystemManager.printInfo(\
-                            "only specific threads that are involved in process group including [ %s ] are shown" \
-                            % taskList)
-                    else:
-                        SystemManager.printInfo(\
-                            "only specific processes that are involved in process group including [ %s ] are shown" \
-                            % taskList)
 
             # set configuration from file #
             self.getConf()
@@ -24434,10 +24428,19 @@ class ThreadAnalyzer(object):
                             pass
                         elif idx in procFilter:
                             pass
+                        elif len([comm for comm in procFilter \
+                            if value['stat'][self.commIdx].find(comm) >= 0]) > 0:
+                            pass
                         else:
+                            ppid = self.procData[idx]['stat'][self.ppidIdx]
+                            glist = [comm for comm in procFilter \
+                                if ppid in self.procData and \
+                                self.procData[ppid]['stat'][self.commIdx].find(comm) >= 0]
+                            if len(glist) == 0:
+                                continue
+                    else:
+                        if value['mainID'] not in procFilter:
                             continue
-                    elif value['mainID'] not in procFilter:
-                        continue
                 else:
                     if idx in procFilter:
                         pass
@@ -26395,27 +26398,49 @@ class ThreadAnalyzer(object):
                 if SystemManager.groupProcEnable:
                     # process mode #
                     if SystemManager.processEnable:
+                        # check current pid #
                         if idx in SystemManager.showGroup:
                             pass
+                        # check current thread comm #
+                        elif len([comm for comm in SystemManager.showGroup \
+                            if value['stat'][self.commIdx].find(comm) >= 0]) > 0:
+                            pass
                         else:
-                            glist = [pid for pid in SystemManager.showGroup \
-                                if pid.isdigit() and \
-                                pid in self.procData and \
-                                self.procData[pid]['stat'][self.ppidIdx] == \
-                                value['stat'][self.ppidIdx]]
+                            # check current's parent comm #
+                            ppid = self.procData[idx]['stat'][self.ppidIdx]
+                            glist = [comm for comm in SystemManager.showGroup \
+                                if ppid in self.procData and \
+                                self.procData[ppid]['stat'][self.commIdx].find(comm) >= 0]
+
                             if len(glist) == 0:
-                                continue
+                                # check current's parent pid #
+                                glist = [pid for pid in SystemManager.showGroup \
+                                    if pid.isdigit() and \
+                                    pid in self.procData and \
+                                    self.procData[pid]['stat'][self.ppidIdx] == \
+                                    value['stat'][self.ppidIdx]]
+
+                                if len(glist) == 0:
+                                    continue
                     # thread mode #
                     else:
-                        glist = [tid for tid in SystemManager.showGroup \
-                            if tid.isdigit() and \
-                            tid in self.procData and \
-                            self.procData[tid]['mainID'] == value['mainID']]
+                        # check current process comm #
+                        pid = self.procData[idx]['mainID']
+                        glist = [comm for comm in SystemManager.showGroup \
+                            if pid in self.procData and \
+                            self.procData[pid]['stat'][self.commIdx].find(comm) >= 0]
 
-                        if len(glist) == 0 and \
-                            idx not in SystemManager.showGroup and \
-                            value['mainID'] not in SystemManager.showGroup:
-                            continue
+                        if len(glist) == 0:
+                            # check current's pid #
+                            glist = [tid for tid in SystemManager.showGroup \
+                                if tid.isdigit() and \
+                                tid in self.procData and \
+                                self.procData[tid]['mainID'] == value['mainID']]
+
+                            if len(glist) == 0 and \
+                                idx not in SystemManager.showGroup and \
+                                value['mainID'] not in SystemManager.showGroup:
+                                continue
                 # single mode #
                 else:
                     if idx in SystemManager.showGroup:
@@ -26684,9 +26709,12 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint("%s\n" % oneLine)
 
         # print unusual processes #
-        self.printSpecialProcess()
-        self.printNewProcess()
-        self.printDieProcess()
+        if self.printSpecialProcess() == -1:
+            return
+        if self.printNewProcess() == -1:
+            return
+        if self.printDieProcess() == -1:
+            return
 
 
 
@@ -26699,6 +26727,11 @@ class ThreadAnalyzer(object):
         for idx, value in sorted(\
             self.procData.items(), key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
             status = value['stat'][self.statIdx]
+            # cut by rows of terminal #
+            if SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                return -1
+
             if status != 'S' and status != 'R':
                 comm = ('[%s]%s' % (status, value['stat'][self.commIdx][1:-1]))[:16]
 
@@ -26758,11 +26791,6 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("%s\n" % oneLine)
                 break
 
-            # cut by rows of terminal #
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return
-
 
 
     def printNewProcess(self):
@@ -26772,6 +26800,11 @@ class ThreadAnalyzer(object):
 
         newCnt = 0
         for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
+            # cut by rows of terminal #
+            if SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                return -1
+
             if value['new']:
                 comm = ('%s%s' % ('[+]', value['stat'][self.commIdx][1:-1]))[:16]
 
@@ -26831,11 +26864,6 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint("%s\n" % oneLine)
                 break
 
-            # cut by rows of terminal #
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return
-
 
 
     def printDieProcess(self):
@@ -26846,6 +26874,10 @@ class ThreadAnalyzer(object):
         dieCnt = 0
         for idx, value in sorted(\
             self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
+            # cut by rows of terminal #
+            if SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                return -1
 
             if value['alive'] is False:
                 comm = ('%s%s' % ('[-]', value['stat'][self.commIdx][1:-1]))[:16]
@@ -26926,11 +26958,6 @@ class ThreadAnalyzer(object):
             else:
                 if dieCnt > 0:
                     SystemManager.addPrint("%s\n" % oneLine)
-                return
-
-            # cut by rows of terminal #
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 return
 
 
