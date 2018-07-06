@@ -3336,7 +3336,9 @@ class FunctionAnalyzer(object):
                     addr = int(b['ret'])
 
                     try:
-                        pid = SystemManager.savedProcTree[tid]
+                        pid = self.threadData[thread]['tgid']
+                        if pid == '-----':
+                            pid = SystemManager.savedProcTree[tid]
                         self.threadData[pid]
                     except:
                         pid = tid
@@ -6887,7 +6889,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def isExceptTarget(tid, tdata, comm=None):
+    def isExceptTarget(tid, tdata, comm=None, plist=[]):
         tlist = SystemManager.showGroup
         if tlist == []:
             return False
@@ -6909,23 +6911,23 @@ class SystemManager(object):
         elif SystemManager.groupProcEnable:
             tgid = tdata[tid]['tgid']
 
-            # check tgid #
-            for item in tlist:
-                if item == tgid or \
-                    SystemManager.isEffectiveTid(tgid, item):
-                    exceptFlag = False
-                    break
+            if str(tgid) in plist:
+                return False
 
-            # check tgid of other threads #
-            if exceptFlag:
-                for item in tlist:
-                    try:
-                        if tgid == tdata[item]['tgid'] or \
-                            tgid == SystemManager.savedProcTree[item]:
-                            exceptFlag = False
-                            break
-                    except:
-                        pass
+            for item in tlist:
+                try:
+                    # check tgid #
+                    if item == tgid or \
+                        SystemManager.isEffectiveTid(tgid, item):
+                        exceptFlag = False
+                        break
+                    # check tgid of other threads #
+                    elif tgid == tdata[item]['tgid'] or \
+                        tgid == SystemManager.savedProcTree[item]:
+                        exceptFlag = False
+                        break
+                except:
+                    pass
 
         return exceptFlag
 
@@ -7107,7 +7109,8 @@ class SystemManager(object):
                 print('    [convenience]')
                 print('        draw       [image]')
                 print('        event      [event]')
-                print('        filetop    [fds]')
+                print('        threadtop  [thread]')
+                print('        filetop    [file]')
 
                 print('\nOptions:')
                 print('    [record]')
@@ -11428,8 +11431,21 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isThreadTopMode():
+        if sys.argv[1] == 'threadtop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isTopMode():
         if sys.argv[1] == 'top':
+            return True
+        elif SystemManager.isFileTopMode():
+            return True
+        elif SystemManager.isThreadTopMode():
             return True
         else:
             return False
@@ -16561,13 +16577,21 @@ class ThreadAnalyzer(object):
 
         # apply filter #
         if SystemManager.showGroup != []:
-            for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1], reverse=False):
+            # make parent list #
+            plist = {}
+            if SystemManager.groupProcEnable:
+                for key, value in self.threadData.items():
+                    for item in SystemManager.showGroup:
+                        if value['comm'].find(item) >= 0:
+                            plist[value['tgid']] = 0
+
+            for key in [key for key in self.threadData.keys()]:
                 # except for core #
                 if key.startswith('0['):
                     continue
 
-                if SystemManager.isExceptTarget(key, self.threadData) is False:
+                if SystemManager.isExceptTarget(\
+                    key, self.threadData, plist=plist) is False:
                     continue
 
                 # remove thread #
@@ -22439,7 +22463,10 @@ class ThreadAnalyzer(object):
 
             # set tgid #
             try:
-                self.threadData[thread]['tgid'] = d['tgid']
+                if d['tgid'] != '-----':
+                    self.threadData[thread]['tgid'] = d['tgid']
+                else:
+                    raise Exception()
             except:
                 try:
                     self.threadData[thread]['tgid'] = \
@@ -24417,37 +24444,61 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: len(e[1]['fdList']), reverse=True)
 
+        # make parent list #
+        if SystemManager.groupProcEnable:
+            plist = {}
+            for idx, value in sortedProcData:
+                for item in SystemManager.showGroup:
+                    if value['stat'][self.commIdx].find(item) >= 0:
+                        plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
+                        break
+
         # print process info #
         procCnt = 0
         for idx, value in sortedProcData:
             # apply filter #
-            if procFilter != []:
+            exceptFlag = False
+            for item in procFilter:
+                exceptFlag = True
+                # group mode #
                 if SystemManager.groupProcEnable:
-                    if SystemManager.processEnable:
-                        if value['stat'][self.ppidIdx] in procFilter:
-                            pass
-                        elif idx in procFilter:
-                            pass
-                        elif len([comm for comm in procFilter \
-                            if value['stat'][self.commIdx].find(comm) >= 0]) > 0:
-                            pass
-                        else:
-                            ppid = self.procData[idx]['stat'][self.ppidIdx]
-                            glist = [comm for comm in procFilter \
-                                if ppid in self.procData and \
-                                self.procData[ppid]['stat'][self.commIdx].find(comm) >= 0]
-                            if len(glist) == 0:
-                                continue
-                    else:
-                        if value['mainID'] not in procFilter:
-                            continue
+                    ppid = self.procData[idx]['stat'][self.ppidIdx]
+
+                    # check current pid #
+                    if idx  == item:
+                        exceptFlag = False
+                        break
+                    # check current thread comm #
+                    elif value['stat'][self.commIdx].find(item) >= 0:
+                        exceptFlag = False
+                        break
+                    # check current's parent pid by comm #
+                    elif ppid in plist:
+                        exceptFlag = False
+                        break
+                    # check current's parent comm #
+                    elif ppid in self.procData and \
+                        self.procData[ppid]['stat'][self.commIdx].find(item) >= 0:
+                        exceptFlag = False
+                        break
+                    # check current's parent pid #
+                    elif item.isdigit() and \
+                        item in self.procData and \
+                        self.procData[item]['stat'][self.ppidIdx] == \
+                        value['stat'][self.ppidIdx]:
+                        exceptFlag = False
+                        break
+                # single mode #
                 else:
-                    if idx in procFilter:
-                        pass
-                    elif True in [value['stat'][self.commIdx].find(val) >= 0 for val in procFilter]:
-                        pass
-                    else:
-                        continue
+                    if idx == item:
+                        exceptFlag = False
+                        break
+                    elif value['stat'][self.commIdx].find(item) >= 0:
+                        exceptFlag = False
+                        break
+
+            if exceptFlag:
+                continue
 
             comm = value['stat'][self.commIdx][1:-1]
 
@@ -26388,82 +26439,104 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['ttime'], reverse=True)
 
+        # make parent list #
+        if SystemManager.groupProcEnable:
+            plist = {}
+            for idx, value in sortedProcData:
+                for item in SystemManager.showGroup:
+                    if value['stat'][self.commIdx].find(item) >= 0:
+                        if SystemManager.processEnable:
+                            plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
+                        else:
+                            plist[self.procData[idx]['mainID']] = 0
+                        break
+
         # print process usage #
         procCnt = 0
         needLine = False
         for idx, value in sortedProcData:
             # apply filter #
-            if SystemManager.showGroup != []:
+            exceptFlag = False
+            for item in SystemManager.showGroup:
+                exceptFlag = True
                 # group mode #
                 if SystemManager.groupProcEnable:
                     # process mode #
                     if SystemManager.processEnable:
+                        ppid = self.procData[idx]['stat'][self.ppidIdx]
+
                         # check current pid #
-                        if idx in SystemManager.showGroup:
-                            pass
+                        if idx  == item:
+                            exceptFlag = False
+                            break
                         # check current thread comm #
-                        elif len([comm for comm in SystemManager.showGroup \
-                            if value['stat'][self.commIdx].find(comm) >= 0]) > 0:
-                            pass
-                        else:
-                            # check current's parent comm #
-                            ppid = self.procData[idx]['stat'][self.ppidIdx]
-                            glist = [comm for comm in SystemManager.showGroup \
-                                if ppid in self.procData and \
-                                self.procData[ppid]['stat'][self.commIdx].find(comm) >= 0]
-
-                            if len(glist) == 0:
-                                # check current's parent pid #
-                                glist = [pid for pid in SystemManager.showGroup \
-                                    if pid.isdigit() and \
-                                    pid in self.procData and \
-                                    self.procData[pid]['stat'][self.ppidIdx] == \
-                                    value['stat'][self.ppidIdx]]
-
-                                if len(glist) == 0:
-                                    continue
+                        elif value['stat'][self.commIdx].find(item) >= 0:
+                            exceptFlag = False
+                            break
+                        # check current's parent pid by comm #
+                        elif ppid in plist:
+                            exceptFlag = False
+                            break
+                        # check current's parent comm #
+                        elif ppid in self.procData and \
+                            self.procData[ppid]['stat'][self.commIdx].find(item) >= 0:
+                            exceptFlag = False
+                            break
+                        # check current's parent pid #
+                        elif item.isdigit() and \
+                            item in self.procData and \
+                            self.procData[item]['stat'][self.ppidIdx] == \
+                            value['stat'][self.ppidIdx]:
+                            exceptFlag = False
+                            break
                     # thread mode #
                     else:
-                        # check current process comm #
                         pid = self.procData[idx]['mainID']
-                        glist = [comm for comm in SystemManager.showGroup \
-                            if pid in self.procData and \
-                            self.procData[pid]['stat'][self.commIdx].find(comm) >= 0]
 
-                        if len(glist) == 0:
-                            # check current's pid #
-                            glist = [tid for tid in SystemManager.showGroup \
-                                if tid.isdigit() and \
-                                tid in self.procData and \
-                                self.procData[tid]['mainID'] == value['mainID']]
-
-                            if len(glist) == 0 and \
-                                idx not in SystemManager.showGroup and \
-                                value['mainID'] not in SystemManager.showGroup:
-                                continue
+                        # check current process comm #
+                        if pid in self.procData and \
+                            self.procData[pid]['stat'][self.commIdx].find(item) >= 0:
+                            exceptFlag = False
+                            break
+                        # check current pid by comm #
+                        elif pid in plist:
+                            exceptFlag = False
+                            break
+                        # check current's pid #
+                        elif item.isdigit() and \
+                            item in self.procData and \
+                            self.procData[item]['mainID'] == value['mainID']:
+                            exceptFlag = False
+                            break
+                        elif idx == item or \
+                            value['mainID'] == item:
+                            exceptFlag = False
+                            break
                 # single mode #
                 else:
-                    if idx in SystemManager.showGroup:
-                        pass
-                    elif True in [value['stat'][self.commIdx].find(val) >= 0 \
-                        for val in SystemManager.showGroup]:
-                        pass
-                    else:
-                        continue
+                    if idx == item:
+                        exceptFlag = False
+                        break
+                    elif value['stat'][self.commIdx].find(item) >= 0:
+                        exceptFlag = False
+                        break
 
-                # add task into stack trace list #
-                if SystemManager.stackEnable:
-                    self.stackTable.setdefault(idx, dict())
+            if exceptFlag:
+                continue
 
-                    if not 'fd' in self.stackTable[idx]:
-                        spath = '%s/%s/stack' % (SystemManager.procPath, idx)
-                        try:
-                            self.stackTable[idx]['fd'] = open(spath, 'r')
-                            self.stackTable[idx]['stack'] = {}
-                            self.stackTable[idx]['total'] = 0
-                        except:
-                            SystemManager.printWarning("Fail to open %s" % spath)
-                            self.stackTable.pop(idx, None)
+            # add task into stack trace list #
+            if SystemManager.stackEnable:
+                self.stackTable.setdefault(idx, dict())
+
+                if not 'fd' in self.stackTable[idx]:
+                    spath = '%s/%s/stack' % (SystemManager.procPath, idx)
+                    try:
+                        self.stackTable[idx]['fd'] = open(spath, 'r')
+                        self.stackTable[idx]['stack'] = {}
+                        self.stackTable[idx]['total'] = 0
+                    except:
+                        SystemManager.printWarning("Fail to open %s" % spath)
+                        self.stackTable.pop(idx, None)
 
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
@@ -27819,8 +27892,8 @@ if __name__ == '__main__':
         ThreadAnalyzer(SystemManager.inputFile)
 
     # set tty setting automatically #
-    if (SystemManager.isTopMode() or SystemManager.isFileTopMode()) \
-        and SystemManager.ttyEnable is False:
+    if SystemManager.isTopMode() and \
+        SystemManager.ttyEnable is False:
         SystemManager.setTtyAuto(True, False)
 
     # import packages to draw graph #
@@ -27847,10 +27920,11 @@ if __name__ == '__main__':
         sys.exit(0)
 
     #------------------------------ REALTIME MODE ------------------------------#
-    if SystemManager.isTopMode() or SystemManager.isFileTopMode():
-        # handle filetope mode #
-        if SystemManager.isFileTopMode():
-            sys.argv[1] = 'top'
+    if SystemManager.isTopMode():
+        # set mode #
+        if SystemManager.isThreadTopMode():
+            SystemManager.processEnable = False
+        elif SystemManager.isFileTopMode():
             SystemManager.fileTopEnable = True
 
         # print record option #
