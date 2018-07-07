@@ -13812,7 +13812,7 @@ class SystemManager(object):
             (int(beforeInfo['MemTotal']) >> 10, int(beforeInfo['SwapTotal']) >> 10))
         SystemManager.infoBufferPrint("[ FREE ] %10s %10s" % \
             (int(beforeInfo['MemFree']) >> 10, int(beforeInfo['SwapFree']) >> 10))
-        SystemManager.infoBufferPrint("-" * SystemManager.lineLength)
+        SystemManager.infoBufferPrint(oneLine)
 
         memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
         swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
@@ -13839,7 +13839,7 @@ class SystemManager(object):
                 int(afterInfo['SReclaimable']) >> 10, int(afterInfo['SUnreclaim']) >> 10, \
                 int(afterInfo['Mlocked']) >> 10))
 
-        SystemManager.infoBufferPrint("-" * SystemManager.lineLength)
+        SystemManager.infoBufferPrint(oneLine)
 
         SystemManager.infoBufferPrint(\
             "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
@@ -16848,7 +16848,7 @@ class ThreadAnalyzer(object):
 
         for line in logBuf:
             finalLine += 1
-            summaryList = line.split('|')
+            summaryList = line.split('│')
             if len(summaryList) > nrStatistics:
                 try:
                     idx = int(summaryList[0])
@@ -16936,7 +16936,7 @@ class ThreadAnalyzer(object):
 
                 finalLine += 1
 
-                sline = line.split('|')
+                sline = line.split('│')
                 slen = len(sline)
 
                 if slen != 4:
@@ -16969,7 +16969,7 @@ class ThreadAnalyzer(object):
             if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                 break
 
-            sline = line.split('|')
+            sline = line.split('│')
             slen = len(sline)
 
             if slen == 3:
@@ -17015,7 +17015,7 @@ class ThreadAnalyzer(object):
                 if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                     break
 
-                sline = line.split('|')
+                sline = line.split('│')
                 slen = len(sline)
 
                 if slen == 3:
@@ -17042,7 +17042,7 @@ class ThreadAnalyzer(object):
                 if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                     break
 
-                sline = line.split('|')
+                sline = line.split('│')
                 slen = len(sline)
 
                 if slen == 3:
@@ -17092,7 +17092,7 @@ class ThreadAnalyzer(object):
                 if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                     break
 
-                sline = line.split('|')
+                sline = line.split('│')
                 slen = len(sline)
 
                 if slen == 3:
@@ -17146,7 +17146,7 @@ class ThreadAnalyzer(object):
 
             finalLine += 1
 
-            sline = line.split('|')
+            sline = line.split('│')
             slen = len(sline)
 
             if slen == 3:
@@ -17195,7 +17195,7 @@ class ThreadAnalyzer(object):
 
             finalLine += 1
 
-            sline = line.split('|')
+            sline = line.split('│')
             slen = len(sline)
 
             if slen == 13:
@@ -26092,7 +26092,7 @@ class ThreadAnalyzer(object):
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
-                        coreGraph = '#' * int(lenLine * totalUsage / 100)
+                        coreGraph = '|' * int(lenLine * totalUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
@@ -27595,8 +27595,8 @@ class ThreadAnalyzer(object):
 
 if __name__ == '__main__':
 
-    oneLine = "-" * SystemManager.lineLength
-    twoLine = "=" * SystemManager.lineLength
+    oneLine = "─" * SystemManager.lineLength
+    twoLine = "═" * SystemManager.lineLength
 
     # print logo #
     SystemManager.printRawTitle(big=True)
