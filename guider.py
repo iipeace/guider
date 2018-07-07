@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
 __copyright__ = "Copyright 2015-2018, guider"
@@ -1151,8 +1152,8 @@ class PageAnalyzer(object):
         PageAnalyzer.printMemoryArea(pid, addrs, addre)
         print(twoLine)
 
-        print(("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
-            "{6:^8}|{7:^7}| {8}({9})\n{10}").\
+        print(("{0:^16}│{1:^16}│{2:^9}│{3:^6}│{4:^6}│{5:^5}│"
+            "{6:^8}│{7:^7}│ {8}({9})\n{10}").\
             format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
@@ -1175,7 +1176,7 @@ class PageAnalyzer(object):
 
             sflags = PageAnalyzer.getFlagTypes(bflags)
 
-            print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9} )".format(\
+            print("{0:^16}│{1:^16}│{2:^9}│{3:^6}│{4:^6}│{5:^5}│{6:^8}│{7:^7}│ {8}({9} )".format(\
                 hex(addr), hex(pfn).rstrip('L'), isPresent, isSwapped, isFile,\
                 PageAnalyzer.get_pagecount(pfn), isSoftdirty, isExmapped, bflags, sflags)
             )
@@ -1266,7 +1267,7 @@ class PageAnalyzer(object):
 
         for idx, val in enumerate(PageAnalyzer.flagList):
             if ((int(flags, 16) & (1 << int(idx))) != 0):
-                sflags = "%s%s|" % (sflags, val[4:])
+                sflags = "%s%s│" % (sflags, val[4:])
 
         return sflags[:-1]
 
@@ -3779,18 +3780,18 @@ class FunctionAnalyzer(object):
              len(self.threadData), SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
+            "{0:_^46}│{1:_^7}│{2:_^54}│{3:_^8}│{4:_^18}│{5:_^6}│{6:_^8}│".\
             format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "LOCK", "CUSTOM"))
         SystemManager.pipePrint(\
-            (("{0:^16}|{1:^7}|{2:^7}|{3:^6}|{4:^6}|{5:^7}|"
-            "{6:^9}{7:^8}{8:^8}{9:^12}|{10:^8}|{11:^7}|{12:^8}|"
-            "{13:^8}|{14:^9}|{15:^6}|{16:^8}|")).\
+            (("{0:^16}│{1:^7}│{2:^7}│{3:^6}│{4:^6}│{5:^7}│"
+            "{6:^9}{7:^8}{8:^8}{9:^12}│{10:^8}│{11:^7}│{12:^8}│"
+            "{13:^8}│{14:^9}│{15:^6}│{16:^8}│")).\
             format(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", \
             " ", " ", " ", " ", " ", " ", " "))
         SystemManager.pipePrint(\
-            (("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^6}|{4:_^6}|"
-            "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
-            "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
+            (("{0:_^16}│{1:_^7}│{2:_^7}│{3:_^6}│{4:_^6}│"
+            "{5:_^7}│{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})│{10:_^8}│{11:_^7}│{12:_^8}│"
+            "{13:_^8}│{14:_^9}│{15:_^6}│{16:_^8}│")).\
             format("Name", "Tid", "Pid", "PICK", "LIFE", \
             "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXPAND", \
             "READ", "WRITE", "TRY", "EVENTS"))
@@ -3856,9 +3857,9 @@ class FunctionAnalyzer(object):
                 cpuPer = '-'
 
             SystemManager.pipePrint(\
-                (("{0:>16}|{1:>7}|{2:>7}|{3:^6}|{4:^6}|"
-                "{5:>7}|{6:8}K({7:7}K/{8:7}K/{9:7}K)|{10:6}K|{11:7}K|"
-                "{12:7}K|{13:7}K|{14:8}K|{15:6}|{16:8}|")).\
+                (("{0:>16}│{1:>7}│{2:>7}│{3:^6}│{4:^6}│"
+                "{5:>7}│{6:8}K({7:7}K/{8:7}K/{9:7}K)│{10:6}K│{11:7}K│"
+                "{12:7}K│{13:7}K│{14:8}K│{15:6}│{16:8}│")).\
                 format(value['comm'], idx, value['tgid'], targetMark, life, \
                 cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
                 value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
@@ -3979,7 +3980,7 @@ class FunctionAnalyzer(object):
                 (customList, self.customTotal, self.customCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -3990,7 +3991,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(value['customCnt'], idx, \
+                    "{0:7}  │{1:^47}│ {2:48}│ {3:37}".format(value['customCnt'], idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
                 # Set target stack #
@@ -4019,7 +4020,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint(\
-                        "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                        "\t\t +{0:7} │{1:32}".format(eventCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -4032,7 +4033,7 @@ class FunctionAnalyzer(object):
             (customList, self.customTotal, self.customCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint("{0:_^9}│{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Print custom usage of stacks #
@@ -4042,7 +4043,7 @@ class FunctionAnalyzer(object):
             if value['customCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}  |{1:^134}".format(value['customCnt'], idx))
+            SystemManager.pipePrint("{0:7}  │{1:^134}".format(value['customCnt'], idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -4068,7 +4069,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint(\
-                    "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                    "\t\t +{0:7} │{1:32}".format(eventCnt, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -4083,7 +4084,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
+                "{0:_^32}│{1:_^17}({2:_^7})│{3:_^8}│{4:_^17}│".\
                 format("Event", "COMM", "TID", "CORE", "TIME"))
             SystemManager.pipePrint(twoLine)
 
@@ -4097,9 +4098,9 @@ class FunctionAnalyzer(object):
                 userstack = call[2]
                 kernelstack = call[3]
 
-                title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
+                title = "{0:^32}│ {1:>16}({2:>7})│ {3:>6} │ {4:>15} │".\
                     format(event, self.threadData[tid]['comm'], tid, core, time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
 
                 # Make argument info #
                 argsInfo = ' %s' % args
@@ -4158,11 +4159,11 @@ class FunctionAnalyzer(object):
                     pass
 
                 SystemManager.pipePrint(\
-                    "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
+                    "{0:>32}│ {1:<121}".format('[Args] ', argsInfo.strip()))
                 SystemManager.pipePrint(\
-                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+                    "{0:>32}│{1:<121}".format('[User] ', userCall))
                 SystemManager.pipePrint(\
-                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                    "{0:>32}│{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -4189,7 +4190,7 @@ class FunctionAnalyzer(object):
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^96}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^96}".\
                 format("Usage", "Function", "Binary"))
             SystemManager.pipePrint(twoLine)
 
@@ -4204,7 +4205,7 @@ class FunctionAnalyzer(object):
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
-                SystemManager.pipePrint("{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
+                SystemManager.pipePrint("{0:7}% │{1:^47}│ {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
@@ -4236,7 +4237,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint(\
-                        "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                        "\t +{0:7}% │{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -4252,7 +4253,7 @@ class FunctionAnalyzer(object):
             (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint("{0:_^9}│{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -4278,7 +4279,7 @@ class FunctionAnalyzer(object):
             if cpuPer < 1 and SystemManager.showAll is False:
                 break
 
-            SystemManager.pipePrint("{0:7}% |{1:^134}".format(cpuPer, idx))
+            SystemManager.pipePrint("{0:7}% │{1:^134}".format(cpuPer, idx))
 
             # Sort stacks by usage #
             value['stack'].sort(reverse=True)
@@ -4314,7 +4315,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint(\
-                    "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                    "\t +{0:7}% │{1:32}".format(cpuPer, symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -4341,7 +4342,7 @@ class FunctionAnalyzer(object):
                 (self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Free", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -4350,7 +4351,7 @@ class FunctionAnalyzer(object):
                 if value['unknownPageFreeCnt'] == 0:
                     break
 
-                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
+                SystemManager.pipePrint("{0:7}K │{1:^47}│ {2:48}│ {3:37}".\
                     format(int(value['unknownPageFreeCnt'] * 4), idx, \
                     self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
 
@@ -4379,7 +4380,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                    SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                         format(int(pageFreeCnt * 4), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -4395,7 +4396,7 @@ class FunctionAnalyzer(object):
             (self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("FREE", "Function"))
+        SystemManager.pipePrint("{0:_^9}│{1:_^144}".format("FREE", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -4415,7 +4416,7 @@ class FunctionAnalyzer(object):
             if value['unknownPageFreeCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^144}".\
+            SystemManager.pipePrint("{0:7}K │{1:^144}".\
                 format(int(value['unknownPageFreeCnt'] * 4), idx))
 
             # Sort stacks by usage #
@@ -4436,7 +4437,7 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                     format(int(pageFreeCnt * 4), symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -4455,7 +4456,7 @@ class FunctionAnalyzer(object):
                 (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
+            SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})│{4:_^47}│{5:_^40}│{6:_^35}".\
                 format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", "Binary"))
             SystemManager.pipePrint(twoLine)
 
@@ -4483,7 +4484,7 @@ class FunctionAnalyzer(object):
                     (avrTime, value['pagePairMin'], value['pagePairMax'])
 
                 SystemManager.pipePrint(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
+                    "{0:6}K({1:6}/{2:6}/{3:6})│{4:^47}│{5:40}│ {6:1}".\
                     format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
                     typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
                     lifeTime, self.posData[value['pos']]['origBin']))
@@ -4506,7 +4507,7 @@ class FunctionAnalyzer(object):
                     # get user alloc and free call #
                     allocCall, freeCall = pairId.split('#')
 
-                    printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
+                    printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})│ ".\
                         format(' ', item['size'] * 4, userPages * 4, \
                         cachePages * 4, kernelPages * 4)
 
@@ -4522,7 +4523,7 @@ class FunctionAnalyzer(object):
 
                     SystemManager.pipePrint(printBuf)
 
-                    printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
+                    printBuf = "{0:5}{1:>30}│".format(' ', '[FREE]')
                     indentLen = len(printBuf)
                     appliedIndentLen = indentLen
 
@@ -4559,7 +4560,7 @@ class FunctionAnalyzer(object):
             (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})│{4:_^47}│{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.pipePrint(twoLine)
 
@@ -4599,7 +4600,7 @@ class FunctionAnalyzer(object):
                 (avrTime, value['pagePairMin'], value['pagePairMax'])
 
             SystemManager.pipePrint(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^75}".\
+                "{0:6}K({1:6}/{2:6}/{3:6})│{4:^47}│{5:^75}".\
                 format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
                 typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, lifeTime))
 
@@ -4621,7 +4622,7 @@ class FunctionAnalyzer(object):
                 # get kernel alloc and free call #
                 allocCall, freeCall = pairId.split('#')
 
-                printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
+                printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})│ ".\
                     format(' ', item['size'] * 4, userPages * 4, \
                     cachePages * 4, kernelPages * 4)
 
@@ -4637,7 +4638,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.pipePrint(printBuf)
 
-                printBuf = "{0:5}{1:>30}|".format(' ', '[FREE]')
+                printBuf = "{0:5}{1:>30}│".format(' ', '[FREE]')
                 indentLen = len(printBuf)
                 appliedIndentLen = indentLen
 
@@ -4711,7 +4712,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^40}|{6:_^35}".\
+                "{0:^7}({1:^6}/{2:^6}/{3:^6})│{4:_^47}│{5:_^40}│{6:_^35}".\
                 format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime", "Binary"))
             SystemManager.pipePrint(twoLine)
 
@@ -4730,7 +4731,7 @@ class FunctionAnalyzer(object):
                     (avrTime, value['pageRemainMin'], value['pageRemainMax'])
 
                 SystemManager.pipePrint(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
+                    "{0:6}K({1:6}/{2:6}/{3:6})│{4:^47}│{5:40}│ {6:1}".\
                     format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
                     value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
                     lifeTime, self.posData[value['pos']]['origBin']))
@@ -4763,7 +4764,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 9)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".\
+                    SystemManager.pipePrint("\t+ {0:6}K({1:6}/{2:6}/{3:6})│{4:32}".\
                         format(pageCnt * 4, userPageCnt * 4, \
                         cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
@@ -4783,7 +4784,7 @@ class FunctionAnalyzer(object):
             self.pageFreeCnt * 4, self.pageFreeEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+        SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})│{4:_^47}│{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.pipePrint(twoLine)
 
@@ -4814,7 +4815,7 @@ class FunctionAnalyzer(object):
                 (avrTime, value['pageRemainMin'], value['pageRemainMax'])
 
             SystemManager.pipePrint(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^76}".\
+                "{0:6}K({1:6}/{2:6}/{3:6})│{4:^47}│{5:^76}".\
                 format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
                 value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, lifeTime))
 
@@ -4839,7 +4840,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.pipePrint(\
-                    "\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(pageCnt * 4, \
+                    "\t+ {0:6}K({1:6}/{2:6}/{3:6})│{4:32}".format(pageCnt * 4, \
                     userPageCnt * 4, cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -4875,7 +4876,7 @@ class FunctionAnalyzer(object):
             self.heapRedSize >> 10, self.heapRedEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+        SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
             format("Usage", "Function", "Binary", "Source"))
         SystemManager.pipePrint(twoLine)
 
@@ -4887,7 +4888,7 @@ class FunctionAnalyzer(object):
 
             binary = self.posData[value['pos']]['origBin']
             source = self.posData[value['pos']]['src']
-            SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
+            SystemManager.pipePrint("{0:7}K │{1:^47}│ {2:48}│ {3:37}".\
                 format(int(value['heapSize'] >> 10), idx, binary, source))
 
             if idx == value['pos']:
@@ -4919,7 +4920,7 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                     format(int(heapSize/ 1024), symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -4937,7 +4938,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:_^32}|{1:_^12}|{2:_^12}|{3:_^12}|{4:_^17}({5:_^7})|{6:_^8}|{7:_^17}|".\
+                "{0:_^32}│{1:_^12}│{2:_^12}│{3:_^12}│{4:_^17}({5:_^7})│{6:_^8}│{7:_^17}│".\
                 format("VAddr", "Size", "Size(KB)", "Size(MB)", "COMM", "TID", "CORE", "TIME"))
             SystemManager.pipePrint(twoLine)
 
@@ -4956,10 +4957,10 @@ class FunctionAnalyzer(object):
                 kernelstack = segment[1]['ksubStackAddr']
 
                 title = \
-                    "{0:^32}| {1:>10} | {2:>10} | {3:>10} | {4:>16}({5:>7})| {6:>6} | {7:>15} |".\
+                    "{0:^32}│ {1:>10} │ {2:>10} │ {3:>10} │ {4:>16}({5:>7})│ {6:>6} │ {7:>15} │".\
                     format(addr, size, size >> 10, size >> 20, \
                     self.threadData[tid]['comm'], tid, int(core), time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
 
                 # Make user call info #
                 indentLen = 32
@@ -5035,10 +5036,10 @@ class FunctionAnalyzer(object):
 
                 if userCall != ' 0':
                     SystemManager.pipePrint(\
-                        "{0:>32}|{1:<121}".format('[User] ', userCall))
+                        "{0:>32}│{1:<121}".format('[User] ', userCall))
                 if kernelCall != ' 0':
                     SystemManager.pipePrint(\
-                        "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                        "{0:>32}│{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -5061,7 +5062,7 @@ class FunctionAnalyzer(object):
                 (self.lockTryEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -5073,7 +5074,7 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                SystemManager.pipePrint("{0:8} │{1:^47}│ {2:48}│ {3:37}".\
                     format(value['lockTryCnt'], idx, binary, source))
 
                 # Set target stack #
@@ -5101,7 +5102,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    SystemManager.pipePrint("\t+ {0:8} │{1:32}".\
                         format(lockTryCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -5118,7 +5119,7 @@ class FunctionAnalyzer(object):
                 (self.unlockEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -5130,7 +5131,7 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                SystemManager.pipePrint("{0:8} │{1:^47}│ {2:48}│ {3:37}".\
                     format(value['unlockCnt'], idx, binary, source))
 
                 # Set target stack #
@@ -5158,7 +5159,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    SystemManager.pipePrint("\t+ {0:8} │{1:32}".\
                         format(unlockCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -5177,7 +5178,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
-                "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
+                "{0:_^32}│{1:_^16}│{2:_^17}({3:_^7})│{4:_^8}│{5:_^17}│".\
                 format("Event", "TARGET", "COMM", "TID", "CORE", "TIME"))
             SystemManager.pipePrint(twoLine)
 
@@ -5192,9 +5193,9 @@ class FunctionAnalyzer(object):
                 kernelstack = call[3]
 
                 comm = self.threadData[tid]['comm']
-                title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
+                title = "{0:^32}│{1:^16}│{2:>16}({3:>7})│ {4:>6} │ {5:>15} │".\
                     format(event, target, comm, tid, core, time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
 
                 # Make user call info #
                 indentLen = 32
@@ -5252,9 +5253,9 @@ class FunctionAnalyzer(object):
                     pass
 
                 SystemManager.pipePrint(\
-                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+                    "{0:>32}│{1:<121}".format('[User] ', userCall))
                 SystemManager.pipePrint(\
-                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+                    "{0:>32}│{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
@@ -5277,7 +5278,7 @@ class FunctionAnalyzer(object):
                 (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -5289,7 +5290,7 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
+                SystemManager.pipePrint("{0:7}K │{1:^47}│ {2:48}│ {3:37}".\
                     format(int(value['blockWrCnt'] * 0.5), idx, binary, source))
 
                 # Set target stack #
@@ -5317,7 +5318,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                    SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                         format(int(blockWrCnt * 0.5), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -5334,7 +5335,7 @@ class FunctionAnalyzer(object):
             (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint("{0:_^9}│{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -5355,7 +5356,7 @@ class FunctionAnalyzer(object):
             if value['blockWrCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^134}".\
+            SystemManager.pipePrint("{0:7}K │{1:^134}".\
                 format(int(value['blockWrCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
@@ -5376,7 +5377,7 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                     format(int(blockWrCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -5404,7 +5405,7 @@ class FunctionAnalyzer(object):
                 (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            SystemManager.pipePrint("{0:_^9}│{1:_^47}│{2:_^49}│{3:_^46}".\
                 format("Usage", "Function", "Binary", "Source"))
             SystemManager.pipePrint(twoLine)
 
@@ -5416,7 +5417,7 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:7}K |{1:^47}| {2:48}| {3:37}".\
+                SystemManager.pipePrint("{0:7}K │{1:^47}│ {2:48}│ {3:37}".\
                     format(int(value['blockRdCnt'] * 0.5), idx, binary, source))
 
                 # Set target stack #
@@ -5444,7 +5445,7 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                    SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                         format(int(blockRdCnt * 0.5), symbolStack))
 
                 SystemManager.pipePrint(oneLine)
@@ -5458,7 +5459,7 @@ class FunctionAnalyzer(object):
             (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.pipePrint("{0:_^9}│{1:_^144}".format("Usage", "Function"))
         SystemManager.pipePrint(twoLine)
 
         # Make exception list to remove a redundant part of stack #
@@ -5479,7 +5480,7 @@ class FunctionAnalyzer(object):
             if value['blockRdCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}K |{1:^144}".\
+            SystemManager.pipePrint("{0:7}K │{1:^144}".\
                 format(int(value['blockRdCnt'] * 0.5), idx))
 
             # Sort stacks by usage #
@@ -5500,7 +5501,7 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
+                SystemManager.pipePrint("\t+ {0:7}K │{1:32}".\
                     format(int(blockRdCnt * 0.5), symbolStack))
 
             SystemManager.pipePrint(oneLine)
@@ -5642,12 +5643,12 @@ class FileAnalyzer(object):
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
             ('File Process Info', len(self.procData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
+        SystemManager.pipePrint("{0:_^16}({1:_^5})│{2:_^13}│{3:_^16}({4:_^5}) │".\
             format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
         SystemManager.pipePrint(twoLine)
 
-        procInfo = "{0:^16}({0:^5})|{1:12} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procInfo = "{0:^16}({0:^5})│{1:12} │".format('', '', '')
+        threadInfo = " {0:^16}({1:^5}) │".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SystemManager.lineLength
@@ -5660,17 +5661,17 @@ class FileAnalyzer(object):
             except:
                 pass
 
-            printMsg = "{0:>16}({1:>5})|{2:>12} |".format(val['comm'], pid, rsize)
+            printMsg = "{0:>16}({1:>5})│{2:>12} │".format(val['comm'], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = "{0:^16}({1:^5}) |".format(threadVal['comm'], tid)
+                threadInfo = "{0:^16}({1:^5}) │".format(threadVal['comm'], tid)
 
                 linePos += threadLength
 
                 if linePos > lineLength:
                     linePos = procLength + threadLength
-                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
+                    printMsg += "\n" + (' ' * (procLength - 1)) + '│'
 
                 printMsg += threadInfo
 
@@ -5683,7 +5684,7 @@ class FileAnalyzer(object):
             "[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
             ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
+        SystemManager.pipePrint("{0:_^12}│{1:_^10}│{2:_^6}│{3:_^123}".\
             format("RAM(KB)", "File(KB)", "%", "Library & Process"))
         SystemManager.pipePrint(twoLine)
 
@@ -5715,33 +5716,33 @@ class FileAnalyzer(object):
                 continue
             else:
                 SystemManager.pipePrint(\
-                    "{0:>11} |{1:>9} |{2:>5} | {3:1} [Proc: {4:1}] [Link: {5:1}]".\
+                    "{0:>11} │{1:>9} │{2:>5} │ {3:1} [Proc: {4:1}] [Link: {5:1}]".\
                     format(memSize, fileSize, per, fileName, len(val['pids']), val['hardLink']))
 
             # prepare for printing process list #
             pidInfo = ''
             lineLength = SystemManager.lineLength
-            pidLength = len(" %16s (%5s) |" % ('', ''))
-            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
+            pidLength = len(" %16s (%5s) │" % ('', ''))
+            indentLength = len("{0:>11} │{1:>9} │{2:>5} ".format('','',''))
             linePos = indentLength + pidLength
 
             # print hard-linked list #
             if val['hardLink'] > 1:
                 for fileLink, tmpVal in val['linkList'].items():
                     if fileName != fileLink:
-                        SystemManager.pipePrint((' ' * indentLength) + '| -> ' + fileLink)
+                        SystemManager.pipePrint((' ' * indentLength) + '│ -> ' + fileLink)
 
             # print process list #
             for pid, comm in val['pids'].items():
                 if linePos > lineLength:
                     linePos = indentLength + pidLength
-                    pidInfo += '\n' + (' ' * indentLength) + '|'
+                    pidInfo += '\n' + (' ' * indentLength) + '│'
 
-                pidInfo += " %16s (%5s) |" % (comm, pid)
+                pidInfo += " %16s (%5s) │" % (comm, pid)
 
                 linePos += pidLength
 
-            SystemManager.pipePrint((' ' * indentLength) + '|' + pidInfo)
+            SystemManager.pipePrint((' ' * indentLength) + '│' + pidInfo)
             SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n\n')
@@ -5797,29 +5798,29 @@ class FileAnalyzer(object):
             "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
             ('File Process Info', len(self.procList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
+        SystemManager.pipePrint("{0:_^16}({1:_^5})│{2:_^12}│{3:_^16}({4:_^5}) │".\
             format("Process", "Pid", "MaxRAM(KB)", "ThreadName", "Tid"))
         SystemManager.pipePrint(twoLine)
 
-        procInfo = "{0:_^16}({1:^5})|{2:11} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procInfo = "{0:_^16}({1:^5})│{2:11} │".format('', '', '')
+        threadInfo = " {0:^16}({1:^5}) │".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SystemManager.lineLength
 
         for pid, val in sorted(self.procList.items(), key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            printMsg = "{0:>16}({1:>5})|{2:>11} |".\
+            printMsg = "{0:>16}({1:>5})│{2:>11} │".\
                 format(val['comm'], pid, val['pageCnt'] * SystemManager.pageSize >> 10)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = "{0:>16}({1:>5}) |".format(threadVal['comm'], tid)
+                threadInfo = "{0:>16}({1:>5}) │".format(threadVal['comm'], tid)
 
                 linePos += threadLength
 
                 if linePos > lineLength:
                     linePos = procLength + threadLength
-                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
+                    printMsg += "\n" + (' ' * (procLength - 1)) + '│'
 
                 printMsg += threadInfo
 
@@ -5833,13 +5834,13 @@ class FileAnalyzer(object):
             ('File Usage Info', len(self.fileList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
 
-        printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format("InitRAM(KB)", "File(KB)", "%")
+        printMsg = "{0:_^11}│{1:_^8}│{2:_^3}│".format("InitRAM(KB)", "File(KB)", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in xrange(1, len(self.intervalFileData)):
-                printMsg += "{0:_^15}|".format(str(idx))
+                printMsg += "{0:_^15}│".format(str(idx))
 
-        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM(KB)", "%")
+        printMsg += "{0:_^11}│{1:_^3}│".format("LastRAM(KB)", "%")
 
         lineLength = SystemManager.lineLength
 
@@ -5876,7 +5877,7 @@ class FileAnalyzer(object):
             isRep = False
             for fileData in reversed(self.intervalFileData):
                 if fileName in fileData and fileData[fileName]['isRep']:
-                    printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
+                    printMsg = "{0:>10} │{1:>7} │{2:>3}│".format(memSize, fileSize, per)
                     isRep = True
                     break
 
@@ -5914,7 +5915,7 @@ class FileAnalyzer(object):
 
                     diffNew = diffNew * SystemManager.pageSize >> 10
                     diffDel = diffDel * SystemManager.pageSize >> 10
-                    printMsg += "+%6d/-%6d|" % (diffNew, diffDel)
+                    printMsg += "+%6d/-%6d│" % (diffNew, diffDel)
 
             totalMemSize = val['pageCnt'] * SystemManager.pageSize >> 10
 
@@ -5923,7 +5924,7 @@ class FileAnalyzer(object):
             else:
                 per = 0
 
-            printMsg += "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
+            printMsg += "{0:11}│{1:3}│ {2:1}".format(totalMemSize, per, fileName)
 
             SystemManager.pipePrint(printMsg)
 
@@ -10885,7 +10886,7 @@ class SystemManager(object):
                     reqList = ''
                     for req in ThreadAnalyzer.requestType:
                         if req.find('REPORT_') == 0:
-                            reqList += req + '|'
+                            reqList += req + '│'
 
                     SystemManager.printError(\
                         "wrong option value with -N option, input [%s]@IP:PORT in format" % \
@@ -10960,7 +10961,7 @@ class SystemManager(object):
                         SystemManager.isEffectiveRequest(service) is False:
                         reqList = ''
                         for req in ThreadAnalyzer.requestType:
-                            reqList += req + '|'
+                            reqList += req + '│'
 
                         SystemManager.printError(\
                             ("wrong option value with -X, "
@@ -18320,7 +18321,7 @@ class ThreadAnalyzer(object):
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
         if self.threadData[tid]['childList'] is not None:
-            threadName += " |%d|" % (len(self.threadData[tid]['childList']))
+            threadName += " │%d│" % (len(self.threadData[tid]['childList']))
         if self.threadData[tid]['waitChild'] > 0:
             threadName += " {%1.3f}" % (self.threadData[tid]['waitChild'])
         if self.threadData[tid]['waitParent'] > 0:
@@ -18439,7 +18440,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
-                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
+                    format(key, ' │ '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
@@ -18452,7 +18453,7 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
-                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
+                    format(key, ' │ '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
@@ -18720,13 +18721,13 @@ class ThreadAnalyzer(object):
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
 
-        SystemManager.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
+        SystemManager.pipePrint("{0:_^32}│{1:_^35}│{2:_^22}│{3:_^26}│{4:_^34}│".\
             format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
-        SystemManager.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
+        SystemManager.pipePrint("{0:^32}│{1:^35}│{2:^22}│{3:^26}│{4:^34}│".\
             format("", "", "", "", "", ""))
 
-        SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|" + \
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
+        SystemManager.pipePrint(("%16s(%5s/%5s)│%2s│%5s(%5s)│%5s│%6s│%3s│%5s│" + \
+            "%5s│%5s│%5s│%4s│%5s(%3s/%4s)│%5s(%3s)│%4s(%3s/%3s/%3s)│%3s│%3s│%4s(%2s)│") % \
             ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', 'IRQ', \
             'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'Write', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
@@ -18786,9 +18787,9 @@ class ThreadAnalyzer(object):
                     offCnt = '-'
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5s|%6.2f|%3s|%5.2f|" \
-                    "%5s|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
-                    "%3s|%3s|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)│%s%s│%5.2f(%5s)│%5s│%6.2f│%3s│%5.2f│" \
+                    "%5s│%5s│%5s│%4s│%5.2f(%3d/%4d)│%5.2f(%3s)│%4s(%3s/%3s/%3s)│" \
+                    "%3s│%3s│%4.2f(%2d)│\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
                         self.totalTime - value['usage'], \
                         str(round(float(usagePercent), 1)), \
@@ -18857,9 +18858,9 @@ class ThreadAnalyzer(object):
                 break
 
             SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                "%3d|%3d|%4.2f(%2d)|\n") % \
+                ("%16s(%5s/%5s)│%s%s│%5.2f(%5s)│%5.2f│%6.2f│%3s│%5.2f│" \
+                "%5d│%5s│%5s│%4s│%5.2f(%3d/%4d)│%5.2f(%3s)│%4d(%3d/%3d/%3d)│" \
+                "%3d│%3d│%4.2f(%2d)│\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], \
                 value['usage'], str(round(float(usagePercent), 1)), \
                 value['cpuWait'], value['schedLatency'], value['pri'], \
@@ -18897,7 +18898,7 @@ class ThreadAnalyzer(object):
                 count += 1
                 if float(self.preemptData[index][4]) == 0:
                     break
-                SystemManager.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n" \
+                SystemManager.addPrint("%16s(%5s/%5s)│%s%s│%5.2f(%5s)\n" \
                     % (self.threadData[key]['comm'], key, '0', \
                     self.threadData[key]['new'], \
                     self.threadData[key]['die'], value['usage'], \
@@ -18919,9 +18920,9 @@ class ThreadAnalyzer(object):
             count += 1
             if SystemManager.showAll:
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                    "%3d|%3d|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)│%s%s│%5.2f(%5s)│%5.2f│%6.2f│%3s│%5.2f│" \
+                    "%5d│%5s│%5s│%4s│%5.2f(%3d/%4d)│%5.2f(%3s)│%4d(%3d/%3d/%3d)│" \
+                    "%3d│%3d│%4.2f(%2d)│\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
@@ -18949,9 +18950,9 @@ class ThreadAnalyzer(object):
             usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
             if SystemManager.showAll:
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                    "%3d|%3d|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)│%s%s│%5.2f(%5s)│%5.2f│%6.2f│%3s│%5.2f│" \
+                    "%5d│%5s│%5s│%4s│%5.2f(%3d/%4d)│%5.2f(%3s)│%4d(%3d/%3d/%3d)│" \
+                    "%3d│%3d│%4.2f(%2d)│\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     value['usage'], str(round(float(usagePercent), 1)), \
                     value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
@@ -19047,7 +19048,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Module Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
+            "{0:_^6}│{1:_^6}│{2:_^16}│{3:_^16}({4:^5})│{5:_^6}│".\
             format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
         SystemManager.pipePrint(twoLine)
 
@@ -19070,7 +19071,7 @@ class ThreadAnalyzer(object):
 
             elif event is 'free':
                 SystemManager.pipePrint(\
-                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
+                    "{0:^6}│{1:6.3f}│{2:^16}│{3:>16}({4:>5})│{5:7}".\
                     format('FREE', float(time) - startTime, module, comm, tid, ''))
             elif event is 'put':
                 try:
@@ -19083,7 +19084,7 @@ class ThreadAnalyzer(object):
                 moduleTable[module]['startTime'] = 0
 
                 SystemManager.pipePrint(\
-                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
+                    "{0:^6}│{1:6.3f}│{2:^16}│{3:>16}({4:>5})│{5:7.3f}│".\
                     format('LOAD', float(time) - startTime, module, \
                     comm, tid, moduleTable[module]['elapsed']))
 
@@ -20622,7 +20623,7 @@ class ThreadAnalyzer(object):
             return
 
         # Split stats #
-        tokenList = procLine.split('|')
+        tokenList = procLine.split('│')
 
         # Get total resource usage #
         if 'total' not in ThreadAnalyzer.procIntData[index] and \
@@ -20741,8 +20742,8 @@ class ThreadAnalyzer(object):
 
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
-            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>[0-9]+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>[0-9]+)'
+            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\│\s*(?P<cpu>[0-9]+)'
+            r'\(.+\)\│\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\│\s*(?P<blk>[0-9]+)'
             r'\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if m is not None:
             d = m.groupdict()
@@ -20885,12 +20886,12 @@ class ThreadAnalyzer(object):
             (len(SystemManager.fileInstance), nrFile, nrEvent,\
             nrSocket, nrDevice, nrPipe, nrProc))
         SystemManager.pipePrint("%s\n" % twoLine)
-        SystemManager.pipePrint("{0:^5} | {1:^144} |\n".format('REF', 'FILE'))
+        SystemManager.pipePrint("{0:^5} │ {1:^144} │\n".format('REF', 'FILE'))
         SystemManager.pipePrint("%s\n" % oneLine)
 
         for filename, value in sorted(SystemManager.fileInstance.items(),\
             key=lambda e: int(e[1]), reverse=True):
-            SystemManager.pipePrint("{0:>5} | {1:<144} |\n".format(value, filename))
+            SystemManager.pipePrint("{0:>5} │ {1:<144} │\n".format(value, filename))
 
         if len(SystemManager.fileInstance) == 0:
             SystemManager.pipePrint('\tN/A\n')
@@ -20904,8 +20905,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
-            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
+        SystemManager.pipePrint(("{0:^5} │ {1:^27} │ {2:^3} │ {3:^18} │ {4:^7} │ {5:^3} │ " +\
+            "{6:^4} │ {7:^9} │ {8:^5} │ {9:^6} │ {10:^6} │ {11:^8} │ {12:^4} │ {13:^8} │\n").\
             format('IDX', 'Interval', 'CPU', 'Free/User/Cache', 'BlkRW', 'Blk',\
             'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % twoLine)
@@ -20922,8 +20923,8 @@ class ThreadAnalyzer(object):
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint((\
-                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | {5:^7} | {6:>3} | " +\
-                "{7:>4} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
+                "{0:>5} │ {1:>12} - {2:>12} │ {3:>3} │ {4:^18} │ {5:^7} │ {6:>3} │ " +\
+                "{7:>4} │ {8:^9} │ {9:>5} │ {10:>6} │ {11:>6} │ {12:>8} │ {13:^4} │ {14:^8} │\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
                 '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['cachemem']),\
                 val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
@@ -20963,7 +20964,7 @@ class ThreadAnalyzer(object):
         # Print title #
         SystemManager.pipePrint('\n[Top Event Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
-        SystemManager.pipePrint(("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").\
+        SystemManager.pipePrint(("{0:^12} │ {1:^12} │ {2:^12} │ {3:1}\n").\
             format('Timeline', 'Realtime', 'Duration', 'Event'))
         SystemManager.pipePrint("%s\n" % twoLine)
 
@@ -20977,7 +20978,7 @@ class ThreadAnalyzer(object):
             except:
                 diff = '%.2f' % \
                     (float(ThreadAnalyzer.procIntData[-1]['time']) - float(rtime))
-            SystemManager.pipePrint(("{0:>12} | {1:>12} | {2:>12} | {3:1}\n").\
+            SystemManager.pipePrint(("{0:>12} │ {1:>12} │ {2:>12} │ {3:1}\n").\
                 format(time, rtime, diff, name))
 
         SystemManager.pipePrint("%s\n" % oneLine)
@@ -20995,7 +20996,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│ {5:>5} │".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Avg", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21005,7 +21006,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
@@ -21016,7 +21017,7 @@ class ThreadAnalyzer(object):
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotData['total']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│ {5:>5} │".\
             format('[CPU]', '-', '-', '-', '-', value['cpu'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21025,7 +21026,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             if 'total' in ThreadAnalyzer.procIntData[idx]:
@@ -21046,7 +21047,7 @@ class ThreadAnalyzer(object):
             if pid is 'total':
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>5} │".\
                 format(value['comm'][:cl], pid, value['ppid'], value['nrThreads'], \
                 value['pri'], value['cpu'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -21057,7 +21058,7 @@ class ThreadAnalyzer(object):
             total = 0
             for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
-                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                     lineLen = len(procInfo)
 
                 if pid in ThreadAnalyzer.procIntData[idx]:
@@ -21089,7 +21090,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        gpuInfo = "{0:^16} | {1:^3} |".format('GPU', 'Avg')
+        gpuInfo = "{0:^16} │ {1:^3} │".format('GPU', 'Avg')
         gpuInfoLen = len(gpuInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -21098,7 +21099,7 @@ class ThreadAnalyzer(object):
         lineLen = len(gpuInfo)
         for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '│ ')
                 lineLen = len(gpuInfo)
 
             timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
@@ -21114,7 +21115,7 @@ class ThreadAnalyzer(object):
             except:
                 avg = 0
 
-            gpuInfo = "{0:>16} | {1:>3} |".format(gpu, avg)
+            gpuInfo = "{0:>16} │ {1:>3} │".format(gpu, avg)
             gpuInfoLen = len(gpuInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -21123,7 +21124,7 @@ class ThreadAnalyzer(object):
             total = 0
             for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
-                    timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
+                    timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '│ ')
                     lineLen = len(gpuInfo)
 
                 try:
@@ -21151,7 +21152,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│{5:>6} │".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21161,7 +21162,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
@@ -21172,7 +21173,7 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│{5:>6} │".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21181,7 +21182,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             if 'total' in ThreadAnalyzer.procIntData[idx]:
@@ -21203,7 +21204,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['maxMem'] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│{5:>6} │".\
                 format(value['comm'][:cl], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxMem'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -21216,7 +21217,7 @@ class ThreadAnalyzer(object):
             intData = ThreadAnalyzer.procIntData
             for idx in xrange(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
-                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                     lineLen = len(procInfo)
 
                 # process is shown #
@@ -21279,7 +21280,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│{5:>6} │".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21289,7 +21290,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
@@ -21300,7 +21301,7 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│{5:>6} │".\
             format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21309,7 +21310,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             if 'total' in ThreadAnalyzer.procIntData[idx]:
@@ -21331,7 +21332,7 @@ class ThreadAnalyzer(object):
             if pid is 'total' or value['maxVss'] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│{5:>6} │".\
                 format(value['comm'][:cl], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxVss'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -21344,7 +21345,7 @@ class ThreadAnalyzer(object):
             intData = ThreadAnalyzer.procIntData
             for idx in xrange(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
-                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                     lineLen = len(procInfo)
 
                 # process is shown #
@@ -21407,7 +21408,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})│ {5:>5} │".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Sum", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -21417,7 +21418,7 @@ class ThreadAnalyzer(object):
         lineLen = len(procInfo)
         for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                 lineLen = len(procInfo)
 
             timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
@@ -21440,7 +21441,7 @@ class ThreadAnalyzer(object):
             else:
                 bstat = value['blk']
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>5} │".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], bstat, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -21450,7 +21451,7 @@ class ThreadAnalyzer(object):
             lineLen = len(procInfo)
             for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
-                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '│ ')
                     lineLen = len(procInfo)
 
                 if pid in ThreadAnalyzer.procIntData[idx]:
@@ -21568,7 +21569,7 @@ class ThreadAnalyzer(object):
                     indent = '\n'
 
                 for idx in xrange(0, depth):
-                    indent = '%s%s|' % (indent, '     ')
+                    indent = '%s%s│' % (indent, '     ')
 
                 nrChild = len(childs)
                 if nrChild > 0:
@@ -21600,9 +21601,9 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        SystemManager.pipePrint(("{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
-            "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
-            "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
+        SystemManager.pipePrint(("{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) │ {3:^8} │ "
+            "{4:^5} │ {5:^6} │ {6:^6} │ {7:^6} │ {8:^6} │ {9:^6} │ {10:^10} │ "
+            "{11:^12} │ {12:^12} │ {13:^12} │\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
             'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCK(KB)', \
             'PDRT(KB)', 'SDRT(KB)', 'NOPM(KB)', twoLine, cl=cl, pd=pd))
@@ -21724,9 +21725,9 @@ class ThreadAnalyzer(object):
                     except:
                         none = 0
 
-                    procDetails = "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
-                        "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                        "{9:>12} | {10:>12} | {11:>12} |\n").\
+                    procDetails = "%s%s" % (procDetails, ("{0:>30} │ {1:>8} │ {2:>5} │ "
+                        "{3:>6} │ {4:>6} │ {5:>6} │ {6:>6} │ {7:>6} │ {8:>10} │ "
+                        "{9:>12} │ {10:>12} │ {11:>12} │\n").\
                         format(procInfo, idx, item['count'], \
                         vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
 
@@ -21738,9 +21739,9 @@ class ThreadAnalyzer(object):
                 procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
                         format(value['stat'][commIdx][1:-1][:cl], key, ppid, cl=cl, pd=pd)
 
-                SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
-                    "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                    "{9:>12} | {10:>12} | {11:>12} |\n{12}").\
+                SystemManager.pipePrint(("{0:>30} │ {1:>8} │ {2:>5} │ "
+                    "{3:>6} │ {4:>6} │ {5:>6} │ {6:>6} │ {7:>6} │ {8:>10} │ "
+                    "{9:>12} │ {10:>12} │ {11:>12} │\n{12}").\
                     format(procInfo, '[TOTAL]', totalCnt, \
                     totalVmem, totalRss, totalPss, totalSwap, totalHuge, totalLock, \
                     totalPdirty, totalSdirty, totalNone, procDetails))
@@ -24432,7 +24433,7 @@ class ThreadAnalyzer(object):
             (SystemManager.uptime, self.nrProcess, self.nrFd, len(self.fileData)))
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
+            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})│{5:^4}│{6:^107}│\n{7:1}\n").\
             format("PROC", "ID", "Pid", "Nr", "Pri", "FD", "PATH", oneLine), newline = 3)
 
         # set sort value #
@@ -24520,8 +24521,8 @@ class ThreadAnalyzer(object):
                     sorted(value['fdInfo'].items(), key=lambda e: int(e[1]), reverse=True)])
             else:
                 details = ' '
-            procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>4}|\t{1:<105}|'.format(len(value['fdList']), details))
+            procInfo = "%s│%s\n" % \
+                (procInfo, '{0:>4}│\t{1:<105}│'.format(len(value['fdList']), details))
 
             fdCnt = 0
             if SystemManager.sort != 'f':
@@ -24560,7 +24561,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.addPrint(\
-                        ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
+                        ("{0:>1}│{1:>4}│\t{2:<105}│\n").format(' ' * procInfoLen, fd, path))
 
                     fdCnt += 1
 
@@ -24584,7 +24585,7 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s│' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         SystemManager.topPrint()
@@ -25713,9 +25714,9 @@ class ThreadAnalyzer(object):
         # print system status menu #
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
-            (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
-            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            (("{0:^7}│{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})│"\
+            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})│{11:^6}({12:^4}/{13:^7})│"\
+            "{14:^9}│{15:^7}│{16:^7}│{17:^7}│{18:^8}│{19:^7}│{20:^8}│{21:^12}│\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
             "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
@@ -25759,9 +25760,9 @@ class ThreadAnalyzer(object):
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = \
-            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
-            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
-            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            ("{0:<7}│{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})│" \
+            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})│{11:^6}({12:^4}/{13:^7})│"
+            "{14:^9}│{15:^7}│{16:^7}│{17:^7}│{18:^8}│{19:^7}│{20:^8}│{21:^12}│\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
             freeMem, freeMemDiff, totalAnonMem, totalCacheMem, totalKernelMem, \
             swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
@@ -25911,7 +25912,7 @@ class ThreadAnalyzer(object):
                         return
 
                     if not int(idx) in self.prevCpuData:
-                        coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        coreStat = "{0:<7}│{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})│".\
                             format("Core/" + str(idx), '- %', '-', '-', '-', '-')
                         SystemManager.addPrint('%s\n' % coreStat)
                         continue
@@ -25945,7 +25946,7 @@ class ThreadAnalyzer(object):
                     if kerUsage > 100:
                         kerUsage = 100
 
-                    coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                    coreStat = "{0:<7}│{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})│".\
                         format("Core/%s" % idx, '%s %%' % totalUsage,\
                         userUsage, kerUsage, ioUsage, irqUsage)
 
@@ -26012,26 +26013,26 @@ class ThreadAnalyzer(object):
                     if minFreq is not None and maxFreq is not None:
                         coreFreq = '%s [%d-%d]' % \
                             (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
-                    coreFreq = '%20s|' % coreFreq
+                    coreFreq = '%20s│' % coreFreq
 
                     # merge core info #
                     try:
-                        coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
+                        coreFreq = '{0:^6} │ {1:>3} C │ {2:<1}'.\
                             format(cid, coreTempData[cid], coreFreq)
                     except:
                         try:
-                            coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
+                            coreFreq = '{0:^6} │ {1:>3} C │ {2:<1}'.\
                                 format(cid, coreTempData['CPU'], coreFreq)
                         except:
                             if cid is not None:
-                                coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
+                                coreFreq = '{0:^6} │ {1:>3} C │ {2:<1}'.\
                                     format(cid, '?', coreFreq)
                             else:
-                                coreFreq = '%3s C | %s' % ('?', coreFreq)
+                                coreFreq = '%3s C │ %s' % ('?', coreFreq)
 
                     # merge governor info #
                     try:
-                        coreFreq = '{0:^13} | {1:>1}'.format(gov, coreFreq)
+                        coreFreq = '{0:^13} │ {1:>1}'.format(gov, coreFreq)
                     except:
                         pass
 
@@ -26048,7 +26049,7 @@ class ThreadAnalyzer(object):
                     else:
                         coreGraph = ' ' * lenLine
 
-                    SystemManager.addPrint('%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
+                    SystemManager.addPrint('%s%s│ %s\n' % (coreStat, coreGraph, coreFreq))
                 except:
                     continue
 
@@ -26064,7 +26065,7 @@ class ThreadAnalyzer(object):
                         return
 
                     totalUsage = value['CUR_LOAD']
-                    coreStat = "{0:<23}({1:>5})|".format(idx[:23], '%s %%' % totalUsage)
+                    coreStat = "{0:<23}({1:>5})│".format(idx[:23], '%s %%' % totalUsage)
 
                     # set frequency info #
                     coreFreq = ''
@@ -26075,15 +26076,15 @@ class ThreadAnalyzer(object):
                     if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
                         value['MIN_FREQ'] > 0 and value['MAX_FREQ'] > 0:
                         coreFreq = '%s [%d-%d]' % (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
-                    coreFreq = '%20s|' % coreFreq
+                    coreFreq = '%20s│' % coreFreq
 
                     try:
-                        coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
+                        coreFreq = '%3s C │ %s' % (value['TEMP'], coreFreq)
                     except:
                         try:
-                            coreFreq = '%3s C | %s' % (coreTempData['GPU'], coreFreq)
+                            coreFreq = '%3s C │ %s' % (coreTempData['GPU'], coreFreq)
                         except:
-                            coreFreq = '%3s C | %s' % ('?', coreFreq)
+                            coreFreq = '%3s C │ %s' % ('?', coreFreq)
 
                     lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
@@ -26096,7 +26097,7 @@ class ThreadAnalyzer(object):
                     else:
                         coreGraph = ' ' * lenLine
 
-                    SystemManager.addPrint('%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
+                    SystemManager.addPrint('%s%s│ %s\n' % (coreStat, coreGraph, coreFreq))
                 except:
                     continue
 
@@ -26266,7 +26267,7 @@ class ThreadAnalyzer(object):
                     tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
                 mtype = '(%s)[%s]' % (item['count'], key)
-                memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+                memBuf.append([key, "{0:>39} │ {1:1}│\n".format(mtype, tmpstr)])
 
                 if SystemManager.wssEnable:
                     # get current WSS size #
@@ -26358,7 +26359,7 @@ class ThreadAnalyzer(object):
                         return -1
 
                     SystemManager.addPrint(\
-                        "{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+                        "{0:>38}% │ {1:1}\n".format(per, fullstack), newLine)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -26408,9 +26409,9 @@ class ThreadAnalyzer(object):
             mem = 'RSS'
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
+            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:^3}({6:^3}/{7:^3}/{8:^3})│ " \
+            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})│ {14:^3}({15:^4}/{16:^4}/{17:^5})│" \
+            "{18:^5}│{19:^6}│{20:^4}│{21:>9}│{22:^21}│\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
@@ -26691,9 +26692,9 @@ class ThreadAnalyzer(object):
 
             # print stats of a process #
             SystemManager.addPrint(\
-                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>3}({6:>3}/{7:>3}/{8:>3})│ " \
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})│ {14:>3}({15:>4}/{16:>4}/{17:>5})│" \
+                "{18:>5}│{19:>6}│{20:>4}│{21:>9}│{22:^21}│\n").\
                 format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
@@ -26707,7 +26708,7 @@ class ThreadAnalyzer(object):
                 perfData = SystemManager.collectProcPerfData(value['perfFds'])
                 perfString = SystemManager.getPerfString(perfData)
                 if len(perfString) > 0:
-                    SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
+                    SystemManager.addPrint("{0:>40}│ {1:1}\n".format(' ', perfString))
                     needLine = True
             except SystemExit:
                 sys.exit(0)
@@ -26753,7 +26754,7 @@ class ThreadAnalyzer(object):
                         return
 
                     SystemManager.addPrint(\
-                        "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
+                        "{0:>39} │  WSS: {1:1}\n".format(' ', tstr), newline)
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -26774,7 +26775,7 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s│' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
         elif needLine:
             pass
@@ -26847,9 +26848,9 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>3}({6:>3}/{7:>3}/{8:>3})│ " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})│ {14:>3}({15:>4}/{16:>4}/{17:>5})│" \
+                    "{18:>5}│{19:>6}│{20:>4}│{21:>9}│{22:^21}│\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
@@ -26920,9 +26921,9 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>3}({6:>3}/{7:>3}/{8:>3})│ " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})│ {14:>3}({15:>4}/{16:>4}/{17:>5})│" \
+                    "{18:>5}│{19:>6}│{20:>4}│{21:>9}│{22:^21}│\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
@@ -26994,9 +26995,9 @@ class ThreadAnalyzer(object):
 
                 # print terminated thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})│ {5:>3}({6:>3}/{7:>3}/{8:>3})│ " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})│ {14:>3}({15:>4}/{16:>4}/{17:>5})│" \
+                    "{18:>5}│{19:>6}│{20:>4}│{21:>9}│{22:^21}│\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
                     int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
