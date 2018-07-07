@@ -10173,11 +10173,19 @@ class SystemManager(object):
         if SystemManager.printFile is None:
             if SystemManager.printStreamEnable is False:
                 SystemManager.clearScreen()
-            SystemManager.pipePrint(SystemManager.bufferString.decode('utf-8'))
+            try:
+                buf = SystemManager.bufferString.decode('utf-8')
+            except:
+                buf = SystemManager.bufferString
+            SystemManager.pipePrint(buf)
             SystemManager.clearPrint()
         # pipe mode #
         elif SystemManager.pipeEnable:
-            SystemManager.pipePrint(SystemManager.bufferString.decode('utf-8'))
+            try:
+                buf = SystemManager.bufferString.decode('utf-8')
+            except:
+                buf = SystemManager.bufferString
+            SystemManager.pipePrint(buf)
             SystemManager.clearPrint()
         # buffered mode #
         else:
@@ -26037,8 +26045,14 @@ class ThreadAnalyzer(object):
 
                     # get length of string #
                     lenTotal = len(totalCoreStat)
-                    lenCore = len(coreStat.decode('utf-8'))
-                    lenFreq = len(coreFreq.decode('utf-8'))
+                    try:
+                        lenCore = len(coreStat.decode('utf-8'))
+                    except:
+                        lenCore = len(coreStat)
+                    try:
+                        lenFreq = len(coreFreq.decode('utf-8'))
+                    except:
+                        lenFreq = len(coreFreq)
                     lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
@@ -26086,8 +26100,14 @@ class ThreadAnalyzer(object):
                         except:
                             coreFreq = '%3s C │ %s' % ('?', coreFreq)
 
-                    lenCore = len(coreStat.decode('utf-8'))
-                    lenFreq = len(coreFreq.decode('utf-8'))
+                    try:
+                        lenCore = len(coreStat.decode('utf-8'))
+                    except:
+                        lenCore = len(coreStat)
+                    try:
+                        lenFreq = len(coreFreq.decode('utf-8'))
+                    except:
+                        lenFreq = len(coreFreq)
                     lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
