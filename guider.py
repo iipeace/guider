@@ -26043,7 +26043,7 @@ class ThreadAnalyzer(object):
 
                     # print graph of per-core usage #
                     if totalUsage > 0:
-                        coreGraph = '#' * int(lenLine * totalUsage / 100)
+                        coreGraph = '|' * int(lenLine * totalUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
