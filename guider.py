@@ -16335,7 +16335,7 @@ class ThreadAnalyzer(object):
                 'valid': int(0), 'from': '0', 'to': '0', 'corrupt': '0'}
 
             self.init_syscallInfo = {'usage': float(0), 'last': float(0), 'count': int(0), \
-                'max': float(0), 'min': float(0)}
+                'max': float(0), 'min': float(0), 'err': int(0)}
 
             self.init_pageData = {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
             self.init_lastJob = {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
@@ -19339,8 +19339,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "%16s(%5s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
-            ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Min", "Max", "Avg"))
+            "%16s(%5s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
+            ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Error", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
         for key, value in sorted(\
@@ -19368,9 +19368,9 @@ class ThreadAnalyzer(object):
                     val['average'] = val['usage'] / val['count']
                     syscall = ConfigManager.sysList[int(sysId)][4:]
                     syscallInfo = \
-                        "%s%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
+                        "%s%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
                         (syscallInfo, syscall, sysId, val['usage'], val['count'], \
-                         val['min'], val['max'], val['average'])
+                         val['err'], val['min'], val['max'], val['average'])
                 except:
                     continue
 
@@ -23526,6 +23526,9 @@ class ThreadAnalyzer(object):
                         if self.threadData[thread]['syscallInfo'][nr]['min'] <= 0 or \
                             self.threadData[thread]['syscallInfo'][nr]['min'] > diff:
                             self.threadData[thread]['syscallInfo'][nr]['min'] = diff
+
+                        if ret[0] == '-':
+                            self.threadData[thread]['syscallInfo'][nr]['err'] += 1
 
                     if len(SystemManager.syscallList) > 0:
                         try:
