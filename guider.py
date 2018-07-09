@@ -10343,7 +10343,7 @@ class SystemManager(object):
             newline = line.replace('-', '─')
             newline = newline.replace('=', '═')
             newline = newline.replace('|', '│')
-            return newline.decode(sys.stdin.encoding)
+            return newline.encode().decode(sys.stdin.encoding)
         except:
             SystemManager.supportExtAscii = False
             return line
