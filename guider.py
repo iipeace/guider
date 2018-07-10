@@ -18386,8 +18386,7 @@ class ThreadAnalyzer(object):
 
     def printComInfo(self):
         # print thread tree by creation #
-        if SystemManager.showAll and \
-            len(SystemManager.showGroup) == 0 and self.nrNewTask > 0:
+        if SystemManager.showAll and self.nrNewTask > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint((\
                 '\n[Thread Creation Info] [Alive: +] [Die: -] '
@@ -18398,7 +18397,7 @@ class ThreadAnalyzer(object):
             for key, value in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['waitChild'], reverse=True):
                 # print tree from root threads #
-                if value['childList'] is not None and value['new'] is ' ':
+                if value['childList'] is not None and value['new'] == ' ':
                     self.printCreationTree(key, 0)
             SystemManager.pipePrint(oneLine)
 
@@ -19339,8 +19338,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "%16s(%5s)\t%7s\t\t%5s\t\t%6s\t\t%6s\t\t%6s\t\t%8s\t\t%8s\t\t%8s" % \
-            ("Name", "Tid", "Syscall", "SysId", "Elapsed", "Count", "Error", "Min", "Max", "Avg"))
+            '{0:>16}({1:>5}) {2:>12}({3:>3}) {4:>12} {5:>12} {6:>12} {7:>12} {8:>12} {9:>12}'.format(\
+            "Name", "Tid", "Syscall", "ID", "Elapsed", "Count", "Error", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
         for key, value in sorted(\
@@ -19365,19 +19364,21 @@ class ThreadAnalyzer(object):
                     if val['count'] == 0:
                         continue
 
-                    val['average'] = val['usage'] / val['count']
+                    val['average'] = '%.6f' % (val['usage'] / val['count'])
                     syscall = ConfigManager.sysList[int(sysId)][4:]
                     syscallInfo = \
-                        "%s%31s\t\t%5s\t\t%6.3f\t\t%6d\t\t%6d\t\t%6.6f\t\t%6.6f\t\t%6.6f\n" % \
-                        (syscallInfo, syscall, sysId, val['usage'], val['count'], \
-                         val['err'], val['min'], val['max'], val['average'])
+                        ('{0:1} {1:>12}({2:>3}) {3:>12} '
+                        '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}').format(\
+                        ' ' * len(threadInfo), syscall, sysId, '%.6f' % val['usage'], \
+                        val['count'], val['err'], '%.6f' % val['min'], \
+                        '%.6f' % val['max'], val['average'])
                 except:
                     continue
 
             if syscallInfo != '':
                 outputCnt += 1
                 SystemManager.pipePrint(threadInfo)
-                SystemManager.pipePrint('%s\n%s' % (syscallInfo[:-1], oneLine))
+                SystemManager.pipePrint('%s\n%s' % (syscallInfo, oneLine))
 
         if outputCnt == 0:
             SystemManager.pipePrint('\tNone\n%s' % oneLine)
