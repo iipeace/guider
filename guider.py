@@ -19338,7 +19338,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            '{0:>16}({1:>5}) {2:>12}({3:>3}) {4:>12} {5:>12} {6:>12} {7:>12} {8:>12} {9:>12}'.format(\
+            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12} {5:>12} {6:>12} {7:>12} {8:>12} {9:>12}'.format(\
             "Name", "Tid", "Syscall", "ID", "Elapsed", "Count", "Error", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
@@ -19360,20 +19360,20 @@ class ThreadAnalyzer(object):
 
             for sysId, val in sorted(\
                 value['syscallInfo'].items(), key=lambda e: e[1]['usage'], reverse=True):
-                try:
-                    if val['count'] == 0:
-                        continue
+                if val['count'] == 0:
+                    continue
 
+                try:
                     val['average'] = '%.6f' % (val['usage'] / val['count'])
                     syscall = ConfigManager.sysList[int(sysId)][4:]
                     syscallInfo = \
-                        ('{0:1} {1:>12}({2:>3}) {3:>12} '
-                        '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}').format(\
-                        ' ' * len(threadInfo), syscall, sysId, '%.6f' % val['usage'], \
-                        val['count'], val['err'], '%.6f' % val['min'], \
-                        '%.6f' % val['max'], val['average'])
+                        ('{0:1} {1:>30}({2:>3}) {3:>12} '
+                        '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(\
+                        '%s%s' % (syscallInfo, ' ' * len(threadInfo)), syscall, \
+                        sysId, '%.6f' % val['usage'],val['count'], val['err'], \
+                        '%.6f' % val['min'], '%.6f' % val['max'], val['average'])
                 except:
-                    continue
+                    pass
 
             if syscallInfo != '':
                 outputCnt += 1
