@@ -784,7 +784,7 @@ class NetworkManager(object):
                 "Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
-        if mode is 'server':
+        if mode == 'server':
             try:
                 if ip is None:
                     self.ip = '0.0.0.0'
@@ -812,7 +812,7 @@ class NetworkManager(object):
                 SystemManager.printError("Fail to create socket as server")
                 return None
 
-        elif mode is 'client':
+        elif mode == 'client':
             try:
                 self.ip = ip
                 self.port = port
@@ -1581,9 +1581,9 @@ class FunctionAnalyzer(object):
         self.heapTable[addr]['tid'] = tid
 
         # Set user stack list #
-        if self.sort is 'sym':
+        if self.sort == 'sym':
             targetStack = self.userSymData[sym]['symStack']
-        elif self.sort is 'pos':
+        elif self.sort == 'pos':
             targetStack = self.userSymData[sym]['stack']
 
 
@@ -1610,9 +1610,9 @@ class FunctionAnalyzer(object):
             return
 
         # Set user stack list #
-        if self.sort is 'sym':
+        if self.sort == 'sym':
             targetStack = self.userSymData[sym]['symStack']
-        elif self.sort is 'pos':
+        elif self.sort == 'pos':
             targetStack = self.userSymData[sym]['stack']
 
         # Find user stack of symbol allocated this segment #
@@ -1662,15 +1662,15 @@ class FunctionAnalyzer(object):
                 self.userSymData[allocSym]['pageCnt'] -= 1
                 self.kernelSymData[allocKernelSym]['pageCnt'] -= 1
 
-                if pageType is 'USER':
+                if pageType == 'USER':
                     self.userSymData[allocSym]['userPageCnt'] -= 1
                     self.kernelSymData[allocKernelSym]['userPageCnt'] -= 1
                     subStackPageInfoIdx = 0
-                elif pageType is 'CACHE':
+                elif pageType == 'CACHE':
                     self.userSymData[allocSym]['cachePageCnt'] -= 1
                     self.kernelSymData[allocKernelSym]['cachePageCnt'] -= 1
                     subStackPageInfoIdx = 1
-                elif pageType is 'KERNEL':
+                elif pageType == 'KERNEL':
                     self.userSymData[allocSym]['kernelPageCnt'] -= 1
                     self.kernelSymData[allocKernelSym]['kernelPageCnt'] -= 1
                     subStackPageInfoIdx = 2
@@ -1695,9 +1695,9 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[allocKernelSym]['pagePairTotal'] += lifeTime
 
                 # Set user stack list #
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = self.userSymData[allocSym]['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = self.userSymData[allocSym]['stack']
 
                 # Find user stack allocated this page #
@@ -1709,9 +1709,9 @@ class FunctionAnalyzer(object):
                     val[argIndex][subStackPageInfoIdx] -= 1
 
                     # Set user stack list to free this page #
-                    if self.sort is 'sym':
+                    if self.sort == 'sym':
                         subTargetStack = self.userSymData[sym]['symStack']
-                    elif self.sort is 'pos':
+                    elif self.sort == 'pos':
                         subTargetStack = self.userSymData[sym]['stack']
 
                     # Find user stack to free this page #
@@ -1843,9 +1843,9 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[ksym]['unknownPageFreeCnt'] += 1
 
                 # Set user stack list #
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = self.userSymData[sym]['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = self.userSymData[sym]['stack']
 
                 # Find subStack allocated this page #
@@ -1895,9 +1895,9 @@ class FunctionAnalyzer(object):
             subStackPageInfoIdx = 2
 
         # Set user stack list #
-        if self.sort is 'sym':
+        if self.sort == 'sym':
             targetStack = self.userSymData[sym]['symStack']
-        elif self.sort is 'pos':
+        elif self.sort == 'pos':
             targetStack = self.userSymData[sym]['stack']
 
         # Find user stack of symbol allocated this page #
@@ -1950,9 +1950,9 @@ class FunctionAnalyzer(object):
                     subStackPageInfoIdx = 2
 
                 # Set user stack list #
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = self.userSymData[allocSym]['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = self.userSymData[allocSym]['stack']
 
                 # Find user stack of symbol allocated this page #
@@ -2075,7 +2075,7 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[ksym]['pos'] = kernelPos
 
             # Set target user stack #
-            if self.sort is 'sym':
+            if self.sort == 'sym':
                 tempSymStack = []
                 # Make temporary symbol stack to merge stacks by symbol #
                 for addr in stack:
@@ -2111,7 +2111,7 @@ class FunctionAnalyzer(object):
                 # Switch input stack to symbol stack #
                 stack = tempSymStack
                 targetStack = self.userSymData[sym]['symStack']
-            elif self.sort is 'pos':
+            elif self.sort == 'pos':
                 targetStack = self.userSymData[sym]['stack']
 
             # First user stack related to this symbol #
@@ -2248,7 +2248,7 @@ class FunctionAnalyzer(object):
                 self.kernelSymData[ksym]['customCnt'] += eventCnt
 
             # etc event #
-            elif event is 'IGNORE':
+            elif event == 'IGNORE':
                 try:
                     self.ignoreTable[arg]['ignCnt'] += 1
                 except:
@@ -2672,9 +2672,9 @@ class FunctionAnalyzer(object):
         # complicated situation ;( #
         elif nowCtx['prevMode'] == nowCtx['curMode']:
             # previous user stack loss or nested interval #
-            if nowCtx['curMode'] is 'kernel':
+            if nowCtx['curMode'] == 'kernel':
                 # nested interval #
-                if nowCtx['nowEvent'] is 'CPU_TICK':
+                if nowCtx['nowEvent'] == 'CPU_TICK':
                 # Backup kernel stack #
                     self.nowCtx['bakKernelLastPos'] = nowCtx['kernelLastPos']
                     self.nowCtx['bakKernelCallStack'] = nowCtx['kernelCallStack']
@@ -2687,7 +2687,7 @@ class FunctionAnalyzer(object):
                     self.nowCtx['userLastPos'] = '0'
                     self.nowCtx['userCallStack'].append('0')
             # nested interval #
-            elif nowCtx['curMode'] is 'user':
+            elif nowCtx['curMode'] == 'user':
                 '''
                 CORE/0 EVENT0
                 CORE/0 <kernel>
@@ -2780,7 +2780,7 @@ class FunctionAnalyzer(object):
             self.posData[pos] = dict(self.init_posData)
 
         # user mode #
-        if self.nowCtx['curMode'] is 'user':
+        if self.nowCtx['curMode'] == 'user':
             # Set path #
             if path is not None:
                 self.posData[pos]['origBin'] = path
@@ -2806,7 +2806,7 @@ class FunctionAnalyzer(object):
 
             self.nowCtx['userCallStack'].append(pos)
         # kernel mode #
-        elif self.nowCtx['curMode'] is 'kernel':
+        elif self.nowCtx['curMode'] == 'kernel':
             # Save pos #
             if len(self.nowCtx['kernelCallStack']) == 0:
                 self.nowCtx['kernelLastPos'] = pos
@@ -2985,7 +2985,7 @@ class FunctionAnalyzer(object):
                     return int(value)
                 except:
                     return 0
-            elif condOp is '>':
+            elif condOp == '>':
                 try:
                     if int(value) > int(condVal):
                         return int(value)
@@ -2993,7 +2993,7 @@ class FunctionAnalyzer(object):
                     pass
 
                 return 0
-            elif condOp is '<':
+            elif condOp == '<':
                 try:
                     if int(value) < int(condVal):
                         return int(value)
@@ -3001,7 +3001,7 @@ class FunctionAnalyzer(object):
                     pass
 
                 return 0
-            elif condOp is '==':
+            elif condOp == '==':
                 if value == condVal:
                     return 1
                 else:
@@ -3164,11 +3164,11 @@ class FunctionAnalyzer(object):
                         origPageType = self.pageTable[pfnv]['type']
                         self.threadData[self.pageTable[pfnv]['tid']]['nrPages'] -= 1
 
-                        if origPageType is 'CACHE':
+                        if origPageType == 'CACHE':
                             self.threadData[self.pageTable[pfnv]['tid']]['cachePages'] -= 1
-                        elif origPageType is 'USER':
+                        elif origPageType == 'USER':
                             self.threadData[self.pageTable[pfnv]['tid']]['userPages'] -= 1
-                        elif origPageType is 'KERNEL':
+                        elif origPageType == 'KERNEL':
                             self.threadData[self.pageTable[pfnv]['tid']]['kernelPages'] -= 1
 
                         self.threadData[tid]['nrKnownFreePages'] += 1
@@ -3923,7 +3923,7 @@ class FunctionAnalyzer(object):
         stackIdx = 0
         appliedIndentLen = indentLen
 
-        if self.sort is 'sym':
+        if self.sort == 'sym':
             for sym in subStack:
                 if sym is None or sym == '0':
                     symbolSet = ' <- None'
@@ -3942,7 +3942,7 @@ class FunctionAnalyzer(object):
                     appliedIndentLen = 0
 
                 symbolStack = '%s%s' % (symbolStack, symbolSet)
-        elif self.sort is 'pos':
+        elif self.sort == 'pos':
             for pos in subStack:
                 if pos is None:
                     symbolStack += ' <- None'
@@ -3996,9 +3996,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -4210,9 +4210,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -4357,9 +4357,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -4738,9 +4738,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -4897,9 +4897,9 @@ class FunctionAnalyzer(object):
 
             # Set target stack #
             targetStack = []
-            if self.sort is 'sym':
+            if self.sort == 'sym':
                 targetStack = value['symStack']
-            elif self.sort is 'pos':
+            elif self.sort == 'pos':
                 targetStack = value['stack']
 
             # Sort by usage #
@@ -4971,9 +4971,9 @@ class FunctionAnalyzer(object):
                     nowLen += len(userCall)
 
                     # Set user stack list #
-                    if self.sort is 'sym':
+                    if self.sort == 'sym':
                         targetStack = self.userSymData[usersym]['symStack']
-                    elif self.sort is 'pos':
+                    elif self.sort == 'pos':
                         targetStack = self.userSymData[usersym]['stack']
 
                     # Find user stack by addr #
@@ -5007,9 +5007,9 @@ class FunctionAnalyzer(object):
                     nowLen += len(kernelCall)
 
                     # Set kernel stack list #
-                    if self.sort is 'sym':
+                    if self.sort == 'sym':
                         targetStack = self.kernelSymData[kernelsym]['symStack']
-                    elif self.sort is 'pos':
+                    elif self.sort == 'pos':
                         targetStack = self.kernelSymData[kernelsym]['stack']
 
                     # Find kernel stack by addr #
@@ -5079,9 +5079,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -5136,9 +5136,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -5295,9 +5295,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -5422,9 +5422,9 @@ class FunctionAnalyzer(object):
 
                 # Set target stack #
                 targetStack = []
-                if self.sort is 'sym':
+                if self.sort == 'sym':
                     targetStack = value['symStack']
-                elif self.sort is 'pos':
+                elif self.sort == 'pos':
                     targetStack = value['stack']
 
                 # Sort by usage #
@@ -6400,6 +6400,7 @@ class SystemManager(object):
     ttyRows = 43
     ttyRowsMargin = 3
     ttyCols = 156
+    encoding = None
     supportExtAscii = True
     magicString = '@@@@@'
     procPath = '/proc'
@@ -7128,7 +7129,7 @@ class SystemManager(object):
                 print('        -d  [disable_optionsPerMode:belowCharacters]')
                 print('              [thread]   {c(pu)|a(ll)}')
                 print('              [function] {c(pu)|a(ll)|u(ser)}')
-                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
+                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)|e(ncoding)}')
                 print('        -s  [save_traceData:path]')
                 print('        -S  [sort:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
@@ -8955,12 +8956,12 @@ class SystemManager(object):
             else:
                 disableStat += 'FILE '
 
-                if SystemManager.processEnable is False:
-                    enableStat += 'THREAD '
-                    disableStat += 'PROCESS '
-                else:
+                if SystemManager.processEnable:
                     disableStat += 'THREAD '
                     enableStat += 'PROCESS '
+                else:
+                    enableStat += 'THREAD '
+                    disableStat += 'PROCESS '
 
                 if SystemManager.cpuEnable:
                     enableStat += 'CPU '
@@ -9001,6 +9002,11 @@ class SystemManager(object):
                     enableStat += 'NET '
                 else:
                     disableStat += 'NET '
+
+                if SystemManager.supportExtAscii != None:
+                    enableStat += 'ENCODE '
+                else:
+                    disableStat += 'ENCODE '
 
                 if SystemManager.wchanEnable:
                     enableStat += 'WCHAN '
@@ -10127,10 +10133,10 @@ class SystemManager(object):
         imagePosY = 1
 
         # make new blink image #
-        if imageType is 'jpg':
+        if imageType == 'jpg':
             imageObject = \
                 Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
-        elif imageType is 'bmp':
+        elif imageType == 'bmp':
             imageObject = \
                 Image.new("RGB", (900, imageSizeY), (255, 255, 255))
         else:
@@ -10343,10 +10349,16 @@ class SystemManager(object):
             newline = line.replace('-', '─')
             newline = newline.replace('=', '═')
             newline = newline.replace('|', '│')
-            if sys.version_info < (3, 0):
-                return newline.decode(sys.stdin.encoding)
-            else:
-                return newline
+
+            if sys.version_info < (3, 0) and SystemManager.encoding is None:
+                if sys.getdefaultencoding().lower().startswith('utf'):
+                    pass
+                else:
+                    reload(sys)
+                    sys.setdefaultencoding('utf-8')
+                    SystemManager.encoding = sys.getdefaultencoding()
+
+            return newline
         except:
             SystemManager.supportExtAscii = False
             return line
@@ -10656,6 +10668,8 @@ class SystemManager(object):
                     SystemManager.wchanEnable = False
                 if options.rfind('n') > -1:
                     SystemManager.netEnable = False
+                if options.rfind('e') > -1:
+                    SystemManager.supportExtAscii = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -15939,7 +15953,7 @@ class Debugger(object):
         proto = Debugger.SYSCALL_PROTOTYPES
 
         # enter #
-        if status is 'enter':
+        if status == 'enter':
             # set next status #
             self.status = 'exit'
 
@@ -18233,7 +18247,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.printFile is not None:
                 dirPath = os.path.dirname(SystemManager.printFile)
-                if dirPath is '':
+                if dirPath == '':
                     outputFile = SystemManager.printFile + '/' + os.path.basename(outputFile)
                 else:
                     outputFile = dirPath + '/' + os.path.basename(outputFile)
@@ -19090,17 +19104,17 @@ class ThreadAnalyzer(object):
             except:
                 comm = '?'
 
-            if event is 'load':
+            if event == 'load':
                 moduleTable.setdefault(module, dict(init_moduleData))
 
                 moduleTable[module]['startTime'] = time
                 moduleTable[module]['loadCnt'] += 1
 
-            elif event is 'free':
+            elif event == 'free':
                 SystemManager.pipePrint(\
                     "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
                     format('FREE', float(time) - startTime, module, comm, tid, ''))
-            elif event is 'put':
+            elif event == 'put':
                 try:
                     moduleTable[module]
                 except:
@@ -21073,7 +21087,7 @@ class ThreadAnalyzer(object):
         for pid, value in sorted(\
             ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['cpu'], reverse=True):
 
-            if pid is 'total':
+            if pid == 'total':
                 continue
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
@@ -21230,7 +21244,7 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.procTotData.items(), \
             key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], reverse=True):
 
-            if pid is 'total' or value['maxMem'] == 0:
+            if pid == 'total' or value['maxMem'] == 0:
                 continue
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
@@ -21358,7 +21372,7 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.procTotData.items(), \
             key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
 
-            if pid is 'total' or value['maxVss'] == 0:
+            if pid == 'total' or value['maxVss'] == 0:
                 continue
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
@@ -21461,7 +21475,7 @@ class ThreadAnalyzer(object):
         for pid, value in sorted(\
             ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['blk'], reverse=True):
 
-            if pid is 'total' or \
+            if pid == 'total' or \
                 value['blk'] == value['blkrd'] == value['blkwr'] == 0:
                 continue
 
@@ -23095,13 +23109,13 @@ class ThreadAnalyzer(object):
                                 self.threadData[owner]['reclaimedPages'] += 1
                                 self.threadData[coreId]['reclaimedPages'] += 1
 
-                            if self.pageTable[pfnv]['type'] is 'CACHE':
+                            if self.pageTable[pfnv]['type'] == 'CACHE':
                                 self.threadData[owner]['cachePages'] -= 1
                                 self.threadData[coreId]['cachePages'] -= 1
-                            elif self.pageTable[pfnv]['type'] is 'USER':
+                            elif self.pageTable[pfnv]['type'] == 'USER':
                                 self.threadData[owner]['userPages'] -= 1
                                 self.threadData[coreId]['userPages'] -= 1
-                            elif self.pageTable[pfnv]['type'] is 'KERNEL':
+                            elif self.pageTable[pfnv]['type'] == 'KERNEL':
                                 self.threadData[owner]['kernelPages'] -= 1
                                 self.threadData[coreId]['kernelPages'] -= 1
 
@@ -23128,12 +23142,12 @@ class ThreadAnalyzer(object):
                         owner = self.pageTable[pfn]['tid']
 
                         # attribute of page is changed to file #
-                        if self.pageTable[pfn]['type'] is 'USER':
+                        if self.pageTable[pfn]['type'] == 'USER':
                             self.threadData[owner]['userPages'] -= 1
                             self.threadData[coreId]['userPages'] -= 1
                             self.threadData[owner]['cachePages'] += 1
                             self.threadData[coreId]['cachePages'] += 1
-                        elif self.pageTable[pfn]['type'] is 'KERNEL':
+                        elif self.pageTable[pfn]['type'] == 'KERNEL':
                             self.threadData[owner]['kernelPages'] -= 1
                             self.threadData[coreId]['kernelPages'] -= 1
                             self.threadData[owner]['cachePages'] += 1
@@ -25381,9 +25395,9 @@ class ThreadAnalyzer(object):
             statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            commIndex = ConfigManager.statList.index("COMM")
+            commIndex = self.commIdx
             if statList[commIndex][-1] != ')':
-                idx = ConfigManager.statList.index("COMM") + 1
+                idx = commIndex + 1
                 while 1:
                     tmpStr = str(statList[idx])
                     statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
@@ -25535,6 +25549,62 @@ class ThreadAnalyzer(object):
 
             if nrRclm > nrReq:
                 return nrRclm
+
+
+
+    def controlCpuUsage(self, tid, per):
+        now = None
+        CLK_PRECISION = 1000000
+
+        def getCpuTime(self, tid):
+            # save stat data #
+            try:
+                statBuf = self.procData[tid]['statFd'].readlines()[0]
+            except:
+                try:
+                    statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
+                    self.procData[tid]['statFd'] = open(statPath, 'r')
+                    statBuf = self.procData[tid]['statFd'].readlines()[0]
+
+                    # fd resource is about to run out #
+                    if SystemManager.maxFd - 16 < self.procData[tid]['statFd'].fileno():
+                        self.procData[tid]['statFd'].close()
+                        self.procData[tid]['statFd'] = None
+                        self.reclaimFds()
+                except:
+                    SystemManager.printWarning('Fail to open %s' % statPath)
+                    self.procData.pop(tid, None)
+                    return
+
+            # convert string to list #
+            statList = statBuf.split()
+
+            # merge comm parts that splited by space #
+            commIndex = self.commIdx
+            if statList[commIndex][-1] != ')':
+                idx = commIndex + 1
+                while 1:
+                    tmpStr = str(statList[idx])
+                    statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
+                    statList.pop(idx)
+                    if tmpStr.rfind(')') > -1:
+                        break
+
+            return long(statList[self.utimeIdx]) + long(statList[self.stimeIdx])
+
+        while 1:
+            old = now
+            time.sleep(1)
+
+            now = getCpuTime(self, tid)
+            if old is None:
+                continue
+            elif now is None:
+                SystemManager.printError(\
+                    "Fail to get cpu time of %s thread" % tid)
+                sys.exit(0)
+
+            diff = now - old
 
 
 
