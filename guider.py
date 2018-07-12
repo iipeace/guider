@@ -25552,29 +25552,42 @@ class ThreadAnalyzer(object):
 
 
 
-    def controlCpuUsage(self, tid, per):
-        now = None
+    def limitCpuUsage(self, tid, per, isProcess=False):
         CLK_PRECISION = 1000000
+        MAX_BUCKET = CLK_PRECISION / 10000
+        SLEEP_SEC = 1 / MAX_BUCKET
+        NR_SIGSTOP = ConfigManager.sigList.index('SIGSTOP')
+        NR_SIGCONT = ConfigManager.sigList.index('SIGCONT')
+        STR_TID = str(tid)
 
-        def getCpuTime(self, tid):
-            # save stat data #
+        ticks = 0
+        elapsed = 0
+        nowTime = None
+        nowTick = None
+        running = True
+
+        def getThreadList(pid):
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            taskPath = "%s/task" % procPath
+
             try:
-                statBuf = self.procData[tid]['statFd'].readlines()[0]
+                return list(map(int, os.listdir(taskPath)))
             except:
-                try:
-                    statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
-                    self.procData[tid]['statFd'] = open(statPath, 'r')
-                    statBuf = self.procData[tid]['statFd'].readlines()[0]
+                pass
 
-                    # fd resource is about to run out #
-                    if SystemManager.maxFd - 16 < self.procData[tid]['statFd'].fileno():
-                        self.procData[tid]['statFd'].close()
-                        self.procData[tid]['statFd'] = None
-                        self.reclaimFds()
-                except:
-                    SystemManager.printWarning('Fail to open %s' % statPath)
-                    self.procData.pop(tid, None)
-                    return
+        def openStatFd(tid):
+            statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
+            try:
+                return open(statPath, 'r')
+            except:
+                return None
+
+        def getCpuTime(fd):
+            try:
+                fd.seek(0)
+                statBuf = fd.readlines()[0]
+            except:
+                return None
 
             # convert string to list #
             statList = statBuf.split()
@@ -25592,19 +25605,81 @@ class ThreadAnalyzer(object):
 
             return long(statList[self.utimeIdx]) + long(statList[self.stimeIdx])
 
-        while 1:
-            old = now
-            time.sleep(1)
-
-            now = getCpuTime(self, tid)
-            if old is None:
-                continue
-            elif now is None:
+        if isProcess:
+            threads = getThreadList(STR_TID)
+            if threads is None:
                 SystemManager.printError(\
-                    "Fail to get cpu time of %s thread" % tid)
-                sys.exit(0)
+                    "Fail to get thread list of %s process" % STR_TID)
+                return
 
-            diff = now - old
+            fd = openStatFd(STR_TID)
+            if fd is None:
+                SystemManager.printError(\
+                    "Fail to get stats of %s thread" % STR_TID)
+                return
+        else:
+            threads = [int(STR_TID)]
+            fd = openStatFd(STR_TID)
+            if fd is None:
+                SystemManager.printError(\
+                    "Fail to get stats of %s thread" % STR_TID)
+                return
+
+        try:
+            while 1:
+                # backup stats #
+                prevTime = nowTime
+                prevTick = nowTick
+
+                # get current time #
+                nowTime = time.time()
+
+                # get current tick #
+                nowTick = getCpuTime(fd)
+                if nowTick is None:
+                    SystemManager.printError(\
+                        "Fail to get cpu time of %s thread" % STR_TID)
+                    return
+
+                if prevTime is None:
+                    continue
+
+                # get used tick for interval #
+                diffTick = nowTick - prevTick
+                ticks += diffTick
+
+                # get interval time #
+                diffTime = nowTime - prevTime
+                elapsed += diffTime
+                if elapsed >= 1:
+                    elapsed = 0
+                    ticks = 0
+
+                    # update thread list in a process #
+                    if isProcess:
+                        threads = getThreadList(STR_TID)
+
+                    continue
+
+                limitTick = per * elapsed
+
+                # exceed limited tick #
+                if ticks > limitTick:
+                    if running:
+                        for INT_TID in threads:
+                            os.kill(INT_TID, NR_SIGSTOP)
+                        running = False
+                # continue #
+                else:
+                    if running is False:
+                        for INT_TID in threads:
+                            os.kill(INT_TID, NR_SIGCONT)
+                        running = True
+
+                time.sleep(SLEEP_SEC)
+        finally:
+            for INT_TID in threads:
+                os.kill(INT_TID, NR_SIGCONT)
 
 
 
@@ -28053,7 +28128,7 @@ if __name__ == '__main__':
                     "background running as process %s" % SystemManager.pid)
 
         # create ThreadAnalyzer using proc #
-        ti = ThreadAnalyzer(None)
+        ThreadAnalyzer(None)
 
         sys.exit(0)
 
