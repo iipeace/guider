@@ -2897,7 +2897,7 @@ class FunctionAnalyzer(object):
                 self.customEventTable[cmd[0]+'_enter'] = None
                 self.customEventTable[cmd[0]+'_exit'] = None
 
-        # start to parse logs #
+        # start parsing logs #
         for liter in lines:
             curIdx += 1
             SystemManager.logSize += len(liter)
@@ -7114,6 +7114,7 @@ class SystemManager(object):
                 print('        event      [event]')
                 print('        threadtop  [thread]')
                 print('        filetop    [file]')
+                print('        stacktop   [stack]')
 
                 print('\nOptions:')
                 print('    [record]')
@@ -10723,21 +10724,10 @@ class SystemManager(object):
                     else:
                         SystemManager.blockEnable = True
                 if options.rfind('s') > -1:
-                    if SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to sample stack")
-                        sys.exit(0)
-                    elif SystemManager.findOption('g') is False or \
-                        SystemManager.getOption('g') is None:
-                        SystemManager.printError(\
-                            "wrong option with -e + s, use also -g option to show stacks")
-                        sys.exit(0)
-                    elif os.path.isfile('%s/1/stack' % SystemManager.procPath) is False:
-                        SystemManager.printError(\
-                            "Fail to sample stack, please check kernel configuration")
-                        sys.exit(0)
-                    else:
+                    if SystemManager.checkStackTopCond():
                         SystemManager.stackEnable = True
+                    else:
+                        sys.exit(0)
                 if options.rfind('S') > -1:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -11465,6 +11455,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isStackTopMode():
+        if sys.argv[1] == 'stacktop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isFileTopMode():
         if sys.argv[1] == 'filetop':
             return True
@@ -11489,6 +11488,8 @@ class SystemManager(object):
         elif SystemManager.isFileTopMode():
             return True
         elif SystemManager.isThreadTopMode():
+            return True
+        elif SystemManager.isStackTopMode():
             return True
         else:
             return False
@@ -11520,6 +11521,26 @@ class SystemManager(object):
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def checkStackTopCond():
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to sample stack")
+            return False
+        elif SystemManager.findOption('g') is False or \
+            SystemManager.getOption('g') is None:
+            SystemManager.printError(\
+                "wrong option with -e + s, use also -g option to show stacks")
+            return False
+        elif os.path.isfile('%s/self/stack' % SystemManager.procPath) is False:
+            SystemManager.printError(\
+                "Fail to sample stack, please check kernel configuration")
+            return False
+        else:
+            return True
 
 
 
@@ -11926,6 +11947,143 @@ class SystemManager(object):
 
         SystemManager.pipePrint("[ Input ENTER to continue ]")
         sys.stdin.readline()
+
+
+
+    @staticmethod
+    def limitCpuUsage(tid, per, isProcess=False):
+        CLK_PRECISION = 1000000
+        MAX_BUCKET = CLK_PRECISION / 10000
+        SLEEP_SEC = 1 / float(MAX_BUCKET)
+        NR_SIGSTOP = ConfigManager.sigList.index('SIGSTOP')
+        NR_SIGCONT = ConfigManager.sigList.index('SIGCONT')
+        STR_TID = str(tid)
+        COMM_IDX = ConfigManager.statList.index("COMM")
+        UTIME_IDX = ConfigManager.statList.index("UTIME")
+        STIME_IDX = ConfigManager.statList.index("STIME")
+
+        ticks = 0
+        elapsed = 0
+        nowTime = None
+        nowTick = None
+        running = True
+
+        def getThreadList(pid):
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+            taskPath = "%s/task" % procPath
+
+            try:
+                return list(map(int, os.listdir(taskPath)))
+            except:
+                pass
+
+        def openStatFd(tid):
+            statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
+            try:
+                return open(statPath, 'r')
+            except:
+                return None
+
+        def getCpuTime(fd):
+            try:
+                fd.seek(0)
+                statBuf = fd.readlines()[0]
+            except:
+                return None
+
+            # convert string to list #
+            statList = statBuf.split()
+
+            # merge comm parts that splited by space #
+            if statList[COMM_IDX][-1] != ')':
+                idx = COMM_IDX + 1
+                while 1:
+                    tmpStr = str(statList[idx])
+                    statList[COMM_IDX] = "%s %s" % (statList[COMM_IDX], tmpStr)
+                    statList.pop(idx)
+                    if tmpStr.rfind(')') > -1:
+                        break
+
+            return long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
+
+        if isProcess:
+            threads = getThreadList(STR_TID)
+            if threads is None:
+                SystemManager.printError(\
+                    "Fail to get thread list of %s process" % STR_TID)
+                return
+
+            fd = openStatFd(STR_TID)
+            if fd is None:
+                SystemManager.printError(\
+                    "Fail to get stats of %s thread" % STR_TID)
+                return
+        else:
+            threads = [int(STR_TID)]
+            fd = openStatFd(STR_TID)
+            if fd is None:
+                SystemManager.printError(\
+                    "Fail to get stats of %s thread" % STR_TID)
+                return
+
+        try:
+            while 1:
+                # backup stats #
+                prevTime = nowTime
+                prevTick = nowTick
+
+                # get current time #
+                nowTime = time.time()
+
+                # get current tick #
+                nowTick = getCpuTime(fd)
+                if nowTick is None:
+                    SystemManager.printError(\
+                        "Fail to get cpu time of %s thread" % STR_TID)
+                    return
+
+                if prevTime is None:
+                    continue
+
+                # get used tick for interval #
+                diffTick = nowTick - prevTick
+                ticks += diffTick
+
+                # get interval time #
+                diffTime = nowTime - prevTime
+                elapsed += diffTime
+                if elapsed >= 1:
+                    elapsed = 0
+                    ticks = 0
+
+                    # update thread list in a process #
+                    if isProcess:
+                        threads = getThreadList(STR_TID)
+
+                    continue
+
+                limitTick = per * elapsed
+                print elapsed
+
+                # exceed limited tick #
+                if ticks > limitTick:
+                    if running:
+                        for INT_TID in threads:
+                            os.kill(INT_TID, NR_SIGSTOP)
+                        running = False
+                # continue #
+                else:
+                    if running is False:
+                        for INT_TID in threads:
+                            os.kill(INT_TID, NR_SIGCONT)
+                        running = True
+
+                time.sleep(SLEEP_SEC)
+        except:
+            pass
+        finally:
+            for INT_TID in threads:
+                os.kill(INT_TID, NR_SIGCONT)
 
 
 
@@ -25552,137 +25710,6 @@ class ThreadAnalyzer(object):
 
 
 
-    def limitCpuUsage(self, tid, per, isProcess=False):
-        CLK_PRECISION = 1000000
-        MAX_BUCKET = CLK_PRECISION / 10000
-        SLEEP_SEC = 1 / MAX_BUCKET
-        NR_SIGSTOP = ConfigManager.sigList.index('SIGSTOP')
-        NR_SIGCONT = ConfigManager.sigList.index('SIGCONT')
-        STR_TID = str(tid)
-
-        ticks = 0
-        elapsed = 0
-        nowTime = None
-        nowTick = None
-        running = True
-
-        def getThreadList(pid):
-            procPath = "%s/%s" % (SystemManager.procPath, pid)
-            taskPath = "%s/task" % procPath
-
-            try:
-                return list(map(int, os.listdir(taskPath)))
-            except:
-                pass
-
-        def openStatFd(tid):
-            statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
-            try:
-                return open(statPath, 'r')
-            except:
-                return None
-
-        def getCpuTime(fd):
-            try:
-                fd.seek(0)
-                statBuf = fd.readlines()[0]
-            except:
-                return None
-
-            # convert string to list #
-            statList = statBuf.split()
-
-            # merge comm parts that splited by space #
-            commIndex = self.commIdx
-            if statList[commIndex][-1] != ')':
-                idx = commIndex + 1
-                while 1:
-                    tmpStr = str(statList[idx])
-                    statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
-                    statList.pop(idx)
-                    if tmpStr.rfind(')') > -1:
-                        break
-
-            return long(statList[self.utimeIdx]) + long(statList[self.stimeIdx])
-
-        if isProcess:
-            threads = getThreadList(STR_TID)
-            if threads is None:
-                SystemManager.printError(\
-                    "Fail to get thread list of %s process" % STR_TID)
-                return
-
-            fd = openStatFd(STR_TID)
-            if fd is None:
-                SystemManager.printError(\
-                    "Fail to get stats of %s thread" % STR_TID)
-                return
-        else:
-            threads = [int(STR_TID)]
-            fd = openStatFd(STR_TID)
-            if fd is None:
-                SystemManager.printError(\
-                    "Fail to get stats of %s thread" % STR_TID)
-                return
-
-        try:
-            while 1:
-                # backup stats #
-                prevTime = nowTime
-                prevTick = nowTick
-
-                # get current time #
-                nowTime = time.time()
-
-                # get current tick #
-                nowTick = getCpuTime(fd)
-                if nowTick is None:
-                    SystemManager.printError(\
-                        "Fail to get cpu time of %s thread" % STR_TID)
-                    return
-
-                if prevTime is None:
-                    continue
-
-                # get used tick for interval #
-                diffTick = nowTick - prevTick
-                ticks += diffTick
-
-                # get interval time #
-                diffTime = nowTime - prevTime
-                elapsed += diffTime
-                if elapsed >= 1:
-                    elapsed = 0
-                    ticks = 0
-
-                    # update thread list in a process #
-                    if isProcess:
-                        threads = getThreadList(STR_TID)
-
-                    continue
-
-                limitTick = per * elapsed
-
-                # exceed limited tick #
-                if ticks > limitTick:
-                    if running:
-                        for INT_TID in threads:
-                            os.kill(INT_TID, NR_SIGSTOP)
-                        running = False
-                # continue #
-                else:
-                    if running is False:
-                        for INT_TID in threads:
-                            os.kill(INT_TID, NR_SIGCONT)
-                        running = True
-
-                time.sleep(SLEEP_SEC)
-        finally:
-            for INT_TID in threads:
-                os.kill(INT_TID, NR_SIGCONT)
-
-
-
     def printSystemUsage(self):
         # total memory #
         try:
@@ -28101,11 +28128,17 @@ if __name__ == '__main__':
 
     #------------------------------ REALTIME MODE ------------------------------#
     if SystemManager.isTopMode():
-        # set mode #
+        # select top mode #
         if SystemManager.isThreadTopMode():
             SystemManager.processEnable = False
         elif SystemManager.isFileTopMode():
             SystemManager.fileTopEnable = True
+        elif SystemManager.isStackTopMode():
+            if SystemManager.checkStackTopCond():
+                SystemManager.processEnable = False
+                SystemManager.stackEnable = True
+            else:
+                sys.exit(0)
 
         # print record option #
         SystemManager.printRecordOption()
