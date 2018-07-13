@@ -12063,7 +12063,6 @@ class SystemManager(object):
                     continue
 
                 limitTick = per * elapsed
-                print elapsed
 
                 # exceed limited tick #
                 if ticks > limitTick:
