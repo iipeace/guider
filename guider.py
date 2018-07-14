@@ -7108,6 +7108,8 @@ class SystemManager(object):
                 print('        record -F  [file]')
                 print('        mem        [page]')
                 print('    [control]')
+                print('        kill|cpulimit [proc]')
+                print('    [communication]')
                 print('        list|start|stop|send|kill [proc]')
                 print('    [convenience]')
                 print('        draw       [image]')
