@@ -7118,7 +7118,7 @@ class SystemManager(object):
 
                 print('\nOptions:')
                 print('    [record]')
-                print('        -e  [enable_optionsPerMode:belowCharacters]')
+                print('        -e  [enable_optionsPerMode - belowCharacters]')
                 print('              [function] {m(em)|b(lock)|h(eap)|l(ock)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
                     '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|'\
@@ -7127,52 +7127,52 @@ class SystemManager(object):
                     '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|a(ffinity)|'\
                     '\n                          g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
-                print('        -d  [disable_optionsPerMode:belowCharacters]')
+                print('        -d  [disable_optionsPerMode - belowCharacters]')
                 print('              [thread]   {c(pu)|a(ll)}')
                 print('              [function] {c(pu)|a(ll)|u(ser)}')
                 print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)|e(ncoding)}')
-                print('        -s  [save_traceData:path]')
-                print('        -S  [sort:c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
+                print('        -s  [save_traceData - path]')
+                print('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
                 print('        -W  [wait_forSignal]')
-                print('        -b  [set_bufferSize:kb]')
+                print('        -b  [set_bufferSize - kb]')
                 print('        -D  [trace_threadDependency]')
-                print('        -t  [trace_syscall:syscalls]')
+                print('        -t  [trace_syscall - syscalls]')
                 print('        -T  [set_fontPath]')
-                print('        -j  [set_reportPath:path]')
-                print('        -U  [set_userEvent:name:func|addr:file]')
-                print('        -K  [set_kernelEvent:name:func|addr{:%reg/argtype:rettype}]')
-                print('        -C  [set_commandScriptPath:file]')
-                print('        -w  [set_customRecordCommand:BEFORE|AFTER|STOP:file{:value}]')
-                print('        -x  [set_addressForLocalServer:{ip:port}]')
-                print('        -X  [set_requestToRemoteServer:{req@ip:port}]')
-                print('        -N  [set_addressForReport:req@ip:port]')
-                print('        -n  [set_addressForPrint:ip:port]')
-                print('        -M  [set_objdumpPath:file]')
-                print('        -k  [set_killList:comms|tids]')
+                print('        -j  [set_reportPath - path]')
+                print('        -U  [set_userEvent - name:func|addr:file]')
+                print('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
+                print('        -C  [set_commandScriptPath - file]')
+                print('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
+                print('        -x  [set_addressForLocalServer - {ip:port}]')
+                print('        -X  [set_requestToRemoteServer - {req@ip:port}]')
+                print('        -N  [set_addressForReport - req@ip:port]')
+                print('        -n  [set_addressForPrint - ip:port]')
+                print('        -M  [set_objdumpPath - file]')
+                print('        -k  [set_killList - comms|tids]')
                 print('    [analysis]')
-                print('        -o  [save_outputData:path]')
-                print('        -O  [set_coreFilter:cores]')
+                print('        -o  [save_outputData - path]')
+                print('        -O  [set_coreFilter - cores]')
                 print('        -P  [group_perProcessBasis]')
-                print('        -p  [show_preemptInfo:tids]')
-                print('        -l  [set_addr2linePath:files]')
-                print('        -r  [set_targetRootPath:dir]')
-                print('        -I  [set_inputValue:file|addr]')
+                print('        -p  [show_preemptInfo - tids]')
+                print('        -l  [set_addr2linePath - files]')
+                print('        -r  [set_targetRootPath - dir]')
+                print('        -I  [set_inputValue - file|addr]')
                 print('        -q  [configure_taskList]')
                 print('        -Z  [convert_textToImage]')
-                print('        -L  [set_graphLayout:CPU|MEM|IO{:proportion}]')
-                print('        -m  [set_terminalSize:{rows:cols}]')
+                print('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
+                print('        -m  [set_terminalSize - {rows:cols}]')
                 print('    [common]')
                 print('        -a  [show_allInfo]')
                 print('        -Q  [print_allRowsInaStream]')
-                print('        -i  [set_interval:sec]')
-                print('        -R  [set_repeatCount:{interval,}count]')
-                print('        -g  [set_filter:comms|tids{:files}]')
-                print('        -A  [set_arch:arm|aarch64|x86|x64]')
-                print('        -c  [set_customEvent:event:filter]')
-                print('        -E  [set_errorLogPath:file]')
+                print('        -i  [set_interval - sec]')
+                print('        -R  [set_repeatCount - {interval,}count]')
+                print('        -g  [set_filter - comms|tids{:files}]')
+                print('        -A  [set_arch - arm|aarch64|x86|x64]')
+                print('        -c  [set_customEvent - event:filter]')
+                print('        -E  [set_errorLogPath - file]')
                 print('        -H  [set_functionDepth]')
-                print('        -Y  [set_schedPriority:policy:prio{:pid:ALL}]')
+                print('        -Y  [set_schedPriority - policy:prio{:pid:ALL}]')
                 print('        -v  [verbose]')
             else:
                 print('\nHelp:')
@@ -7337,6 +7337,10 @@ class SystemManager(object):
             print('        # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
             print('    - update priority of tasks continuously')
             print('        # %s record -Y r:90:task:ALL' % cmd)
+            print('    - limit cpu usage of specific processes')
+            print('        # %s cpulimit 1234:40, 5678:10' % cmd)
+            print('    - limit cpu usage of specific threads')
+            print('        # %s cpulimit 1234:40, 5678:10 -e t' % cmd)
 
             sys.exit(0)
 
@@ -10693,6 +10697,8 @@ class SystemManager(object):
                 options = value
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
+                if options.rfind('t') > -1:
+                    SystemManager.processEnable = False
 
                 # no more options except for top mode #
                 if SystemManager.isTopMode() is False:
@@ -10708,8 +10714,6 @@ class SystemManager(object):
                     SystemManager.cpuEnable = True
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
-                if options.rfind('t') > -1:
-                    SystemManager.processEnable = False
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
                 if options.rfind('b') > -1:
@@ -11455,6 +11459,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isCpuLimitMode():
+        if sys.argv[1] == 'cpulimit':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if sys.argv[1] == 'stacktop':
             return True
@@ -11490,6 +11503,15 @@ class SystemManager(object):
         elif SystemManager.isThreadTopMode():
             return True
         elif SystemManager.isStackTopMode():
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLimitMode():
+        if SystemManager.isCpuLimitMode():
             return True
         else:
             return False
@@ -11951,22 +11973,48 @@ class SystemManager(object):
 
 
     @staticmethod
-    def limitCpuUsage(tid, per, isProcess=False):
+    def getCpuLimitInfo(limitInfo):
+        if len(limitInfo) == 0:
+            SystemManager.printError(\
+                "Fail to get task info to limit cpu, "
+                "input {tid:percentage} with -g option")
+            sys.exit(0)
+
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to limit cpu of tasks")
+            sys.exit(0)
+
+        limitList = {}
+        try:
+            for item in limitInfo:
+                (tid,per) = item.split(':')
+                limitList[tid] = int(per)
+        except:
+            SystemManager.printError(\
+                "Fail to get task info to limit cpu, "
+                "input {tid:percentage} with -g option")
+            sys.exit(0)
+
+        return limitList
+
+
+
+    @staticmethod
+    def doCpuLimit(limitInfo, isProcess=False):
         CLK_PRECISION = 1000000
         MAX_BUCKET = CLK_PRECISION / 10000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
         NR_SIGSTOP = ConfigManager.sigList.index('SIGSTOP')
         NR_SIGCONT = ConfigManager.sigList.index('SIGCONT')
-        STR_TID = str(tid)
         COMM_IDX = ConfigManager.statList.index("COMM")
         UTIME_IDX = ConfigManager.statList.index("UTIME")
         STIME_IDX = ConfigManager.statList.index("STIME")
+        NR_TARGET = len(limitInfo)
 
-        ticks = 0
         elapsed = 0
         nowTime = None
-        nowTick = None
-        running = True
+        taskList = {}
 
         def getThreadList(pid):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
@@ -11984,7 +12032,7 @@ class SystemManager(object):
             except:
                 return None
 
-        def getCpuTime(fd):
+        def getTaskStat(fd):
             try:
                 fd.seek(0)
                 statBuf = fd.readlines()[0]
@@ -12004,85 +12052,120 @@ class SystemManager(object):
                     if tmpStr.rfind(')') > -1:
                         break
 
-            return long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
+            comm = statList[COMM_IDX][1:-1]
+            cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
+            return (comm, cputime)
 
-        if isProcess:
-            threads = getThreadList(STR_TID)
-            if threads is None:
-                SystemManager.printError(\
-                    "Fail to get thread list of %s process" % STR_TID)
-                return
+        # initialize task list #
+        for task, per in limitInfo.items():
+            taskList[task] = \
+                {'per': per, 'nowTick': 0, 'prevTick': 0, \
+                'ticks': 0, 'running': True}
 
-            fd = openStatFd(STR_TID)
-            if fd is None:
-                SystemManager.printError(\
-                    "Fail to get stats of %s thread" % STR_TID)
-                return
-        else:
-            threads = [int(STR_TID)]
-            fd = openStatFd(STR_TID)
-            if fd is None:
-                SystemManager.printError(\
-                    "Fail to get stats of %s thread" % STR_TID)
-                return
+            if isProcess:
+                taskList[task]['group'] = getThreadList(task)
+                if taskList[task]['group'] is None:
+                    SystemManager.printError(\
+                        "Fail to get thread list of '%s' process" % task)
+                    return
+
+                taskList[task]['fd'] = openStatFd(task)
+                if taskList[task]['fd'] is None:
+                    SystemManager.printError(\
+                        "Fail to get stats of %s thread" % task)
+                    return
+            else:
+                taskList[task]['group'] = [int(task)]
+                taskList[task]['fd'] = openStatFd(task)
+                if taskList[task]['fd'] is None:
+                    SystemManager.printError(\
+                        "Fail to get stats of %s thread" % task)
+                    return
 
         try:
             while 1:
-                # backup stats #
+                # backup time #
                 prevTime = nowTime
-                prevTick = nowTick
 
                 # get current time #
                 nowTime = time.time()
 
-                # get current tick #
-                nowTick = getCpuTime(fd)
-                if nowTick is None:
+                for tid in list(taskList.keys()):
+                    val = taskList[tid]
+                    val['prevTick'] = val['nowTick']
+
+                    # get current tick #
+                    stat = getTaskStat(val['fd'])
+                    if stat is None:
+                        SystemManager.printError(\
+                            "Fail to get cpu time of %s thread" % tid)
+                        taskList.pop(tid, None)
+                    else:
+                        val['comm'], val['nowTick'] = stat
+
+                if len(taskList) == 0:
                     SystemManager.printError(\
-                        "Fail to get cpu time of %s thread" % STR_TID)
+                        "Fail to find task to limit cpu")
                     return
 
                 if prevTime is None:
                     continue
 
-                # get used tick for interval #
-                diffTick = nowTick - prevTick
-                ticks += diffTick
+                for tid, val in taskList.items():
+                    # get used tick for interval #
+                    diffTick = val['nowTick'] - val['prevTick']
+                    val['ticks'] += diffTick
 
                 # get interval time #
                 diffTime = nowTime - prevTime
                 elapsed += diffTime
                 if elapsed >= 1:
                     elapsed = 0
-                    ticks = 0
 
-                    # update thread list in a process #
-                    if isProcess:
-                        threads = getThreadList(STR_TID)
+                    for tid, val in taskList.items():
+                        # update thread list in a process #
+                        if isProcess:
+                            taskList[tid]['group'] = getThreadList(tid)
+                            if taskList[tid]['group'] is None:
+                                continue
 
+                            tasktype = 'process'
+                        else:
+                            tasktype = 'thread'
+
+                        SystemManager.printInfo(\
+                            "limited cpu usage of %s(%s) %s to %s%%" % \
+                            (val['comm'], tid, tasktype, val['ticks']))
+
+                        val['ticks'] = 0
                     continue
 
-                limitTick = per * elapsed
+                for tid, val in taskList.items():
+                    limitTick = val['per'] * elapsed
 
-                # exceed limited tick #
-                if ticks > limitTick:
-                    if running:
-                        for INT_TID in threads:
-                            os.kill(INT_TID, NR_SIGSTOP)
-                        running = False
-                # continue #
-                else:
-                    if running is False:
-                        for INT_TID in threads:
-                            os.kill(INT_TID, NR_SIGCONT)
-                        running = True
+                    # exceed limited tick #
+                    if val['ticks'] > limitTick:
+                        if val['running']:
+                            for tid in val['group']:
+                                os.kill(tid, NR_SIGSTOP)
+                            val['running'] = False
+                    # continue #
+                    else:
+                        if val['running'] is False:
+                            for tid in val['group']:
+                                os.kill(tid, NR_SIGCONT)
+                            val['running'] = True
 
                 time.sleep(SLEEP_SEC)
         except:
             pass
         finally:
-            for INT_TID in threads:
-                os.kill(INT_TID, NR_SIGCONT)
+            for task, val in taskList.items():
+                for tid in val['group']:
+                    try:
+                        os.kill(tid, NR_SIGCONT)
+                    except:
+                        pass
 
 
 
@@ -13039,7 +13122,7 @@ class SystemManager(object):
                 SystemManager.writeCmd('signal/signal_generate/filter', genFilter)
             SystemManager.writeCmd('signal/enable', '1')
 
-        #------------------------------ FUNCTION MODE ------------------------------#
+        #-------------------- FUNCTION MODE --------------------#
         if SystemManager.isFunctionMode():
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
@@ -13193,7 +13276,7 @@ class SystemManager(object):
 
             return
 
-        #------------------------------ THREAD MODE ------------------------------#
+        #-------------------- THREAD MODE --------------------#
         # enable sched events #
         if self.cmdList["sched/sched_switch"]:
             if len(SystemManager.showGroup) > 0:
@@ -17587,7 +17670,7 @@ class ThreadAnalyzer(object):
         memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
         swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile):
 
-        #============================== define part ==============================#
+        #==================== define part ====================#
 
         def drawEvent(timeline, eventList):
             for tm, evts in enumerate(eventList):
@@ -17658,7 +17741,7 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
 
-            #------------------------------ GPU usage ------------------------------#
+            #-------------------- GPU usage --------------------#
             for gpu, stat in gpuUsage.items():
                 stat = list(map(int, stat.split()))
                 try:
@@ -17677,7 +17760,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
-            #------------------------------ CPU usage ------------------------------#
+            #-------------------- CPU usage --------------------#
             ymax = 0
             for idx, item in enumerate(blkWait):
                 blkWait[idx] += cpuUsage[idx]
@@ -18284,7 +18367,7 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        #============================== body part ==============================#
+        #==================== body part ====================#
 
         # initialize list that count the number of process using resource more than 1% #
         effectProcList = [0] * len(timeline)
@@ -27874,6 +27957,24 @@ if __name__ == '__main__':
     if SystemManager.isLinux:
         SystemManager()
 
+    #-------------------- LIMIT MODE --------------------#
+    if SystemManager.isLimitMode():
+        # parse options #
+        SystemManager.parseAnalOption()
+
+        # change priority of process #
+        if SystemManager.prio is None:
+            SystemManager.setPriority(SystemManager.pid, 'C', -20)
+
+        if SystemManager.isCpuLimitMode():
+            limitInfo = SystemManager.getCpuLimitInfo(\
+                SystemManager.showGroup)
+            SystemManager.doCpuLimit(\
+                limitInfo, SystemManager.processEnable)
+
+        sys.exit(0)
+
+    #-------------------- EVENT MODE --------------------#
     if SystemManager.isEventMode():
         # set Signal #
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
@@ -27883,13 +27984,13 @@ if __name__ == '__main__':
         SystemManager.handleEventInput()
         sys.exit(0)
 
-    #============================== record part ==============================#
+    #==================== record part ====================#
     if SystemManager.isRecordMode():
         # update record status #
         SystemManager.recordStatus = True
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
 
-        # set this process to RT priority #
+        # change priority of process #
         if SystemManager.prio is None:
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
@@ -27936,7 +28037,7 @@ if __name__ == '__main__':
         SystemManager.printStatus(\
             r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
 
-        #------------------------------ SYSTEM MODE ------------------------------#
+        #-------------------- SYSTEM MODE --------------------#
         if SystemManager.isSystemMode():
             # parse all options and make output file path #
             SystemManager.parseAnalOption()
@@ -27959,7 +28060,7 @@ if __name__ == '__main__':
 
             sys.exit(0)
 
-        #------------------------------ FILE MODE ------------------------------#
+        #-------------------- FILE MODE --------------------#
         if SystemManager.isFileMode():
             # check permission #
             if SystemManager.isRoot() is False:
@@ -27991,7 +28092,7 @@ if __name__ == '__main__':
 
             sys.exit(0)
 
-        #------------------------------ THREAD & FUNCTION MODE ------------------------------#
+        #-------------------- THREAD & FUNCTION MODE --------------------
         # register exit handler #
         atexit.register(SystemManager.runRecordStopCmd)
 
@@ -28067,7 +28168,7 @@ if __name__ == '__main__':
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
 
-    #============================== analysis part ==============================#
+    #==================== analysis part ====================#
     # register exit handler #
     atexit.register(SystemManager.closeAllForPrint)
 
@@ -28125,7 +28226,7 @@ if __name__ == '__main__':
         SystemManager.makeLogImage()
         sys.exit(0)
 
-    #------------------------------ REALTIME MODE ------------------------------#
+    #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
         # select top mode #
         if SystemManager.isThreadTopMode():
@@ -28180,14 +28281,14 @@ if __name__ == '__main__':
     # print analysis option #
     SystemManager.printAnalOption()
 
-    #------------------------------ FUNCTION MODE ------------------------------#
+    #-------------------- FUNCTION MODE --------------------#
     if SystemManager.isFunctionMode():
         # create FunctionAnalyzer #
         fi = FunctionAnalyzer(SystemManager.inputFile)
 
         # print Function Info #
         fi.printUsage()
-    #------------------------------- THREAD MODE -------------------------------#
+    #-------------------- THREAD MODE --------------------#
     else:
         # create ThreadAnalyzer #
         ti = ThreadAnalyzer(SystemManager.inputFile)
