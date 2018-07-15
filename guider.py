@@ -7108,7 +7108,7 @@ class SystemManager(object):
                 print('        record -F  [file]')
                 print('        mem        [page]')
                 print('    [control]')
-                print('        kill|cpulimit [proc]')
+                print('        kill|setsched|cpulimit [proc]')
                 print('    [communication]')
                 print('        list|start|stop|send|kill [proc]')
                 print('    [convenience]')
@@ -7174,7 +7174,7 @@ class SystemManager(object):
                 print('        -c  [set_customEvent - event:filter]')
                 print('        -E  [set_errorLogPath - file]')
                 print('        -H  [set_functionDepth]')
-                print('        -Y  [set_schedPriority - policy:prio{:pid:ALL}]')
+                print('        -Y  [set_schedPriority - policy:prio{:pid:CONT}]')
                 print('        -v  [verbose]')
             else:
                 print('\nHelp:')
@@ -7335,10 +7335,12 @@ class SystemManager(object):
             print('    - send specific signals to specific processes running')
             print('        # %s send -9 1234, 4567' % cmd)
             print('        # %s kill -9 1234, 4567' % cmd)
-            print('    - change priority of tasks')
-            print('        # %s record -Y c:-19, r:90:1217, i:0:1209' % cmd)
+            print('    - change priority of task')
+            print('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
+            print('    - change priority of tasks in a group')
+            print('        # %s setsched c:-19, r:90:1217 -P' % cmd)
             print('    - update priority of tasks continuously')
-            print('        # %s record -Y r:90:task:ALL' % cmd)
+            print('        # %s top -Y r:90:task:ALL' % cmd)
             print('    - limit cpu usage of specific processes')
             print('        # %s cpulimit 1234:40, 5678:10' % cmd)
             print('    - limit cpu usage of specific threads')
@@ -11461,6 +11463,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isSetSchedMode():
+        if sys.argv[1] == 'setsched':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isCpuLimitMode():
         if sys.argv[1] == 'cpulimit':
             return True
@@ -12295,7 +12306,16 @@ class SystemManager(object):
 
 
     @staticmethod
-    def parsePriorityOption(value):
+    def parsePriorityOption(value, isProcess=False):
+        def getThreadList(tid):
+            procPath = "%s/%s" % (SystemManager.procPath, tid)
+            taskPath = "%s/task" % procPath
+
+            try:
+                return list(map(int, os.listdir(taskPath)))
+            except:
+                pass
+
         schedGroup = value.split(',')
         SystemManager.removeEmptyValue(schedGroup)
         for item in schedGroup:
@@ -12303,17 +12323,40 @@ class SystemManager(object):
             try:
                 if len(schedSet) == 2:
                     SystemManager.prio = int(schedSet[1])
-                    SystemManager.setPriority(\
-                        SystemManager.pid, schedSet[0], SystemManager.prio)
+
+                    if isProcess:
+                        threadList = getThreadList(SystemManager.pid)
+                        if threadList is None:
+                            SystemManager.printError(\
+                                "Fail to get thread list of %d task" % \
+                                SystemManager.pid)
+                            sys.exit(0)
+                    else:
+                        threadList = [SystemManager.pid]
+
+                    for tid in threadList:
+                        SystemManager.setPriority(\
+                            tid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
                             "Fail to get root permission to set priority of other thread")
                         sys.exit(0)
 
+                    if isProcess:
+                        threadList = getThreadList(schedSet[2])
+                        if threadList is None:
+                            SystemManager.printError(\
+                                "Fail to get thread list of %d task" % \
+                                schedSet[2])
+                            sys.exit(0)
+                    else:
+                        threadList = [int(schedSet[2])]
+
                     # change priority of a thread #
-                    SystemManager.setPriority(\
-                        int(schedSet[2]), schedSet[0], int(schedSet[1]))
+                    for tid in threadList:
+                        SystemManager.setPriority(\
+                            tid, schedSet[0], int(schedSet[1]))
                 elif len(schedSet) == 4:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -12321,15 +12364,25 @@ class SystemManager(object):
                         sys.exit(0)
 
                     # verify sched parameters #
-                    if schedSet[3] != 'ALL':
+                    if schedSet[3] != 'CONT':
                         raise Exception()
                     policy = schedSet[0].upper()
                     ConfigManager.schedList.index(policy)
                     pri = int(schedSet[1])
-                    desc = schedSet[2]
+
+                    if isProcess:
+                        threadList = getThreadList(schedSet[2])
+                        if threadList is None:
+                            SystemManager.printError(\
+                                "Fail to get thread list of %d task" % \
+                                schedSet[2])
+                            sys.exit(0)
+                    else:
+                        threadList = [int(schedSet[2])]
 
                     # add sched item to list #
-                    SystemManager.schedFilter.append([policy, pri, desc])
+                    for tid in threadList:
+                        SystemManager.schedFilter.append([policy, pri, tid])
                 else:
                     raise Exception()
             except SystemExit:
@@ -12384,6 +12437,9 @@ class SystemManager(object):
                 ret = SystemManager.guiderObj.sched_setscheduler(\
                     pid, argPolicy, argPriority)
             if ret != 0:
+                SystemManager.printError(\
+                    "Fail to set priority of %d as %s(%s)" % \
+                    (pid, pri, upolicy))
                 raise Exception()
 
             # set nice value #
@@ -12395,6 +12451,9 @@ class SystemManager(object):
                     argPriority = pri
                     ret = SystemManager.guiderObj.setpriority(0, pid, argPriority)
                 if ret != 0:
+                    SystemManager.printError(\
+                        "Fail to set priority of %d as %s(%s)" % \
+                        (pid, pri, upolicy))
                     raise Exception()
 
             SystemManager.printInfo(\
@@ -25659,7 +25718,8 @@ class ThreadAnalyzer(object):
         # change sched priority #
         for item in SystemManager.schedFilter:
             try:
-                if tid in self.prevProcData and 'schedChanged' in self.prevProcData[tid]:
+                if tid in self.prevProcData and \
+                    'schedChanged' in self.prevProcData[tid]:
                     pass
                 elif self.procData[tid]['stat'][self.commIdx].find(item[2]) >= 0 or tid == item[2]:
                     # change priority of a thread #
@@ -27973,6 +28033,27 @@ if __name__ == '__main__':
                 SystemManager.showGroup)
             SystemManager.doCpuLimit(\
                 limitInfo, SystemManager.processEnable)
+
+        sys.exit(0)
+
+    #-------------------- SETSCHED MODE --------------------#
+    if SystemManager.isSetSchedMode():
+        # parse options #
+        value = ' '.join(sys.argv[2:])
+        if len(value) == 0:
+            SystemManager.printError(\
+                ("wrong option value to set priority, "
+                "input POLICY:PRIORITY:PID in format"))
+        elif value.find(' -P') >= 0:
+            isProcess = True
+            value = value.replace(' -P', '')
+        elif value.find('-P ') >= 0:
+            isProcess = True
+            value = value.replace('-P ', '')
+        else:
+            isProcess = False
+
+        SystemManager.parsePriorityOption(value, isProcess)
 
         sys.exit(0)
 
