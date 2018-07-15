@@ -12328,7 +12328,7 @@ class SystemManager(object):
                         threadList = getThreadList(SystemManager.pid)
                         if threadList is None:
                             SystemManager.printError(\
-                                "Fail to get thread list of %d task" % \
+                                "Fail to get thread list of %s task" % \
                                 SystemManager.pid)
                             sys.exit(0)
                     else:
@@ -12340,14 +12340,14 @@ class SystemManager(object):
                 elif len(schedSet) == 3:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
-                            "Fail to get root permission to set priority of other thread")
+                            "Fail to get root permission to set priority")
                         sys.exit(0)
 
                     if isProcess:
                         threadList = getThreadList(schedSet[2])
                         if threadList is None:
                             SystemManager.printError(\
-                                "Fail to get thread list of %d task" % \
+                                "Fail to get thread list of %s task" % \
                                 schedSet[2])
                             sys.exit(0)
                     else:
@@ -12360,7 +12360,7 @@ class SystemManager(object):
                 elif len(schedSet) == 4:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
-                            "Fail to get root permission to set priority of other thread")
+                            "Fail to get root permission to set priority")
                         sys.exit(0)
 
                     # verify sched parameters #
@@ -12374,7 +12374,7 @@ class SystemManager(object):
                         threadList = getThreadList(schedSet[2])
                         if threadList is None:
                             SystemManager.printError(\
-                                "Fail to get thread list of %d task" % \
+                                "Fail to get thread list of %s task" % \
                                 schedSet[2])
                             sys.exit(0)
                     else:
@@ -12413,8 +12413,10 @@ class SystemManager(object):
 
         try:
             # load standard libc library #
-            if SystemManager.guiderObj is None and SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+            if SystemManager.guiderObj is None and \
+                SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
 
             upolicy = policy.upper()
 
@@ -12446,10 +12448,12 @@ class SystemManager(object):
             if upolicy == 'C' or upolicy == 'B':
                 if SystemManager.guiderObj is None:
                     argPriority = ctypes.c_int(pri)
-                    ret = SystemManager.libcObj.setpriority(0, pid, argPriority)
+                    ret = SystemManager.libcObj.setpriority(\
+                        0, pid, argPriority)
                 else:
                     argPriority = pri
-                    ret = SystemManager.guiderObj.setpriority(0, pid, argPriority)
+                    ret = SystemManager.guiderObj.setpriority(\
+                        0, pid, argPriority)
                 if ret != 0:
                     SystemManager.printError(\
                         "Fail to set priority of %d as %s(%s)" % \
@@ -12457,13 +12461,15 @@ class SystemManager(object):
                     raise Exception()
 
             SystemManager.printInfo(\
-                'priority of %d task is changed to %d(%s)' % (pid, pri, upolicy))
+                'priority of %d task is changed to %d(%s)' % \
+                (pid, pri, upolicy))
         except:
             err = ''
             if SystemManager.isRoot() is False:
                 err = ', it needs root permission to make priority higher'
             SystemManager.printWarning(\
-                'Fail to set priority of %s as %s(%s)%s' % (pid, pri, policy, err))
+                'Fail to set priority of %s as %s(%s)%s' % \
+                (pid, pri, policy, err))
             return
 
 
