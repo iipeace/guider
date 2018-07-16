@@ -6844,18 +6844,51 @@ class SystemManager(object):
         sizeTB = sizeGB << 10
 
         try:
-            if size > sizeTB:
+            if size >= sizeTB:
                 return '%dT' % (size >> 40)
-            elif size > sizeGB:
+            elif size >= sizeGB:
                 return '%dG' % (size >> 30)
-            elif size > sizeMB:
+            elif size >= sizeMB:
                 return '%dM' % (size >> 20)
-            elif size > sizeKB:
+            elif size >= sizeKB:
                 return '%dK' % (size >> 10)
             else:
                 return '%d' % (size)
         except:
-            return None
+            return '?'
+
+
+
+    @staticmethod
+    def convertTime(time):
+        def convertHour(size):
+            sizeK = 1000
+            sizeM = sizeK * 1000
+            sizeG = sizeM * 1000
+            sizeT = sizeG * 1000
+
+            try:
+                if size >= sizeT:
+                    return '%dT' % (size / sizeT)
+                elif size >= sizeG:
+                    return '%dG' % (size / sizeG)
+                elif size >= sizeM:
+                    return '%dM' % (size / sizeM)
+                elif size >= sizeK:
+                    return '%dK' % (size / sizeK)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+
+        try:
+            m, s = divmod(time, 60)
+            h, m = divmod(m, 60)
+            ctime = "%3s:%2d:%2d" % (convertHour(h), m, s)
+        except:
+            ctime = "%3s:%2s:%2s" % ('?', '?', '?')
+
+        return ctime
 
 
 
@@ -26940,12 +26973,7 @@ class ThreadAnalyzer(object):
             else:
                 schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-            try:
-                m, s = divmod(value['runtime'], 60)
-                h, m = divmod(m, 60)
-                lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
-            except:
-                lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
+            lifeTime = SystemManager.convertTime(value['runtime'])
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
@@ -27178,13 +27206,8 @@ class ThreadAnalyzer(object):
                 else:
                     schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-                try:
-                    runtime = value['runtime'] + SystemManager.uptimeDiff
-                    m, s = divmod(runtime, 60)
-                    h, m = divmod(m, 60)
-                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
-                except:
-                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
+                runtime = value['runtime'] + SystemManager.uptimeDiff
+                lifeTime = SystemManager.convertTime(runtime)
 
                 try:
                     vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
@@ -27251,13 +27274,8 @@ class ThreadAnalyzer(object):
                 else:
                     schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-                try:
-                    runtime = value['runtime'] + SystemManager.uptimeDiff
-                    m, s = divmod(runtime, 60)
-                    h, m = divmod(m, 60)
-                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
-                except:
-                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
+                runtime = value['runtime'] + SystemManager.uptimeDiff
+                lifeTime = SystemManager.convertTime(runtime)
 
                 try:
                     vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
@@ -27325,13 +27343,8 @@ class ThreadAnalyzer(object):
                 else:
                     schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
-                try:
-                    runtime = value['runtime'] + SystemManager.uptimeDiff
-                    m, s = divmod(runtime, 60)
-                    h, m = divmod(m, 60)
-                    lifeTime = "%3s:%2d:%2d" % (SystemManager.convertSize(h), m, s)
-                except:
-                    lifeTime = "%3s:%2s:%2s" % ('?', '?', '?')
+                runtime = value['runtime'] + SystemManager.uptimeDiff
+                lifeTime = SystemManager.convertTime(runtime)
 
                 try:
                     vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
