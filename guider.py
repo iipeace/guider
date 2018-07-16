@@ -12179,9 +12179,11 @@ class SystemManager(object):
                         else:
                             tasktype = 'thread'
 
-                        SystemManager.printInfo(\
-                            "limited cpu usage of %s(%s) %s to %s%%" % \
-                            (val['comm'], tid, tasktype, val['ticks']))
+                        SystemManager.printInfo((\
+                            "limited cpu usage of %s(%s) %s to %s%%, "
+                            "it used %s%%") % \
+                            (val['comm'], tid, tasktype, \
+                            val['per'], val['ticks']))
 
                         val['ticks'] = 0
                     continue
