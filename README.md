@@ -4,7 +4,7 @@
 [![license](http://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/iipeace/guider/master/LICENSE)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-introduction
+intro
 =======
 <pre><code>
                 _      _
@@ -23,8 +23,8 @@ You can analyze your performance issues effectively with this tool.
 Guider pursues characteristics as bellow.
 >1. Easy to use: just run without any setting and package installation
 >2. Measure correctly: count, time in from us, size in from byte
->3. Integrate features: show as much information as possible
->4. Provides all functions for experiment and analysis 
+>3. Provides all features: enough functions for experiment and analysis
+>4. Report in detail: show as much information as possible
 
 
 Output
