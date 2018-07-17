@@ -26,6 +26,8 @@ Guider pursues characteristics as bellow.
 >3. Provides all features: enough functions for experiment and analysis
 >4. Report in detail: show as much information as possible
 
+The features of Guider are as follows.
+![guider_mindmap](https://user-images.githubusercontent.com/15862689/42793164-d69a8f1e-89b3-11e8-974f-eb89998fc601.png)
 
 Output
 =======
