@@ -16970,7 +16970,7 @@ class ThreadAnalyzer(object):
                         if value['comm'].find(item) >= 0:
                             plist[value['tgid']] = 0
 
-            for key in [key for key in self.threadData.keys()]:
+            for key in list(self.threadData.keys()):
                 # except for core #
                 if key.startswith('0['):
                     continue
@@ -18619,7 +18619,9 @@ class ThreadAnalyzer(object):
         start = time.time()
 
         while 1:
-            for idx, item in self.stackTable.items():
+            for idx in list(self.stackTable.keys()):
+                item = self.stackTable[idx]
+
                 try:
                     item['fd'].seek(0)
                     stack = item['fd'].read()
@@ -19956,7 +19958,8 @@ class ThreadAnalyzer(object):
 
         # sort threads by read size #
         for tid, data in sorted(\
-                self.blockTable[2].items(), key=lambda e:e[1][0], reverse=True):
+            self.blockTable[2].items(), \
+            key=lambda e:sorted(e[1][0]), reverse=True):
             tcnt = 0
             comm = self.threadData[tid]['comm']
             cid = '%s(%s)' % (comm, tid)
