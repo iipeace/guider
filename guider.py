@@ -8338,7 +8338,9 @@ class SystemManager(object):
                 # parse argument option #
                 for rCmd in cmd[2].split('.'):
                     # check absolute argument #
-                    if rCmd[0] == '#':
+                    if len(rCmd) == 0:
+                        pass
+                    elif rCmd[0] == '#':
                         sCmd = '%s %s' % (sCmd, rCmd[1:])
                         continue
                     elif len(rCmd.split('/')) == 1:
@@ -8346,7 +8348,9 @@ class SystemManager(object):
                         continue
 
                     rVal = rCmd.split('/')
-                    if len(rVal) > 2:
+                    if len(rVal) < 2:
+                        continue
+                    elif len(rVal) > 2:
                         SystemManager.printError(\
                             "wrong command '%s' with -K option" % rCmd)
                         sys.exit(0)
@@ -8360,7 +8364,8 @@ class SystemManager(object):
                             break
 
                     # make entry command #
-                    tVal = '%s%s%s:%s' % ('+0(' * wCnt, rVal[0], ')' * wCnt, tVal[wCnt:])
+                    tVal = '%s%s%s:%s' % \
+                        ('+0(' * wCnt, rVal[0], ')' * wCnt, tVal[wCnt:])
 
                     # add argument command to entry command #
                     sCmd = '%s %s' % (sCmd, tVal)
@@ -8372,7 +8377,8 @@ class SystemManager(object):
             # apply entry command #
             if sCmd != ' NONE':
                 pCmd = '%s %s' % (pCmd, sCmd)
-                if SystemManager.writeCmd('../kprobe_events', pCmd, append=True) < 0:
+                if SystemManager.writeCmd(\
+                        '../kprobe_events', pCmd, append=True) < 0:
                     SystemManager.printError(\
                         "wrong command '%s' with -K option" % pCmd)
                     sys.exit(0)
@@ -8390,7 +8396,8 @@ class SystemManager(object):
                 else:
                     rVal = tCmd.split('/')
                     if len(rVal) > 2:
-                        SystemManager.printError("wrong command '%s' with -K option" % tCmd)
+                        SystemManager.printError(\
+                            "wrong command '%s' with -K option" % tCmd)
                         sys.exit(0)
                     tVal = rVal[0]
 
@@ -8403,7 +8410,8 @@ class SystemManager(object):
 
                     if tCmd != 'NONE':
                         # make return command #
-                        sCmd = '%s%s%s:%s' % ('+0(' * wCnt, '$retval', ')' * wCnt, tVal[wCnt:])
+                        sCmd = '%s%s%s:%s' % \
+                            ('+0(' * wCnt, '$retval', ')' * wCnt, tVal[wCnt:])
                     else:
                         sCmd = 'NONE'
             except SystemExit:
@@ -8414,7 +8422,8 @@ class SystemManager(object):
             # apply return command #
             if sCmd != 'NONE':
                 rCmd = '%s %s' % (rCmd, sCmd)
-                if SystemManager.writeCmd('../kprobe_events', rCmd, append=True) < 0:
+                if SystemManager.writeCmd(\
+                    '../kprobe_events', rCmd, append=True) < 0:
                     SystemManager.printError(\
                         "wrong command '%s' with -K option" % rCmd)
                     sys.exit(0)
@@ -8445,7 +8454,8 @@ class SystemManager(object):
             SystemManager.printError(\
                 "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
             sys.exit(0)
-        elif os.path.isfile(SystemManager.mountPath + '../uprobe_events') is False:
+        elif os.path.isfile(\
+            SystemManager.mountPath + '../uprobe_events') is False:
             SystemManager.printError(\
                 "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT option in kernel")
             sys.exit(0)
@@ -8466,7 +8476,8 @@ class SystemManager(object):
 
                 # check binary file #
                 if os.path.isfile(cmdFormat[2]) is False:
-                    SystemManager.printError("Fail to find '%s' binary" % cmdFormat[2])
+                    SystemManager.printError(\
+                        "Fail to find '%s' binary" % cmdFormat[2])
                     sys.exit(0)
 
                 # symbol input #
@@ -8478,7 +8489,8 @@ class SystemManager(object):
                             SystemManager.printWarning((\
                                 "Fail to recognize objdump path for user event tracing\n"
                                 "\tso just use %s as default objdump path\n"
-                                "\tif it is wrong then use -M option") % objdumpPath[0], True)
+                                "\tif it is wrong then use -M option") % \
+                                    objdumpPath[0], True)
                             SystemManager.objdumpPath = objdumpPath[0]
                         else:
                             SystemManager.printError((\
@@ -8487,7 +8499,8 @@ class SystemManager(object):
                             sys.exit(0)
                     # symbol input with objdump #
                     elif os.path.isfile(SystemManager.objdumpPath) is False:
-                        SystemManager.printError("Fail to find %s to use objdump" % \
+                        SystemManager.printError(\
+                            "Fail to find %s to use objdump" % \
                             SystemManager.objdumpPath)
                         sys.exit(0)
 
@@ -8637,9 +8650,10 @@ class SystemManager(object):
                 break
 
             # parse line to find offset of symbol #
+            line = str(line)
             m = re.match((\
                 r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
-                'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
+                r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
             if m is not None:
                 d = m.groupdict()
                 if d['symbol'] == symbol:
@@ -9562,7 +9576,8 @@ class SystemManager(object):
                         'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
                     SystemManager.printError(\
-                        "Fail to open %s to write command" % SystemManager.cmdEnable)
+                        "Fail to open %s to write command" % \
+                        SystemManager.cmdEnable)
                     sys.exit(0)
             if SystemManager.cmdFd is not None:
                 try:
