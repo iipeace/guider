@@ -6,6 +6,7 @@
 
 introduction
 =======
+<pre><code>
                 _      _
    __ _  _   _ (_)  __| |   
   / _` || | | || | / _` | / _ \| '__|   
@@ -13,14 +14,17 @@ introduction
   \__, | \__,_||_| \__,_| \___||_|   
    |___/   
 
+</pre></code>
+
 Do you struggle to improve system performance or to find root cause that makes system abnormal?   
 Guider is made to measure amount of system resource usage and to trace system behavior.   
 You can analyze your performance issues effectively with this tool.   
 
-Guider pursues three characteristics as bellow.
->1. easy to use: just run without installation or setting
->2. measure correctly: time in ms, size in MB
->3. integrate features: show as much information as possible
+Guider pursues characteristics as bellow.
+>1. Easy to use: just run without any setting and package installation
+>2. Measure correctly: count, time in from us, size in from byte
+>3. Integrate features: show as much information as possible
+>4. Provides all functions for experiment and analysis 
 
 
 Output
