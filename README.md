@@ -186,7 +186,7 @@ Output
 
 >>>
            
-    # ./guider.py top -e P -g yes
+    # ./guider.py perftop -g yes
 
     [Top Info] [Time: 7181955.420] [Interval: 1.0] [Ctxt: 121] [Life: +0/─0] [IRQ: 1947] [Core: 24] [Task: 317/424] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
     ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -723,6 +723,7 @@ Modes
     threadtop  [thread]
     filetop    [file]
     stacktop   [stack]
+    perftop    [PMU]
 ```
 
 

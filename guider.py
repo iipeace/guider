@@ -7150,6 +7150,7 @@ class SystemManager(object):
                 print('        threadtop  [thread]')
                 print('        filetop    [file]')
                 print('        stacktop   [stack]')
+                print('        perftop    [stack]')
 
                 print('\nOptions:')
                 print('    [record]')
@@ -8242,7 +8243,7 @@ class SystemManager(object):
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sCacheMiss: %s(%d%%) / ' % \
+            perfbuf = '%sCM : %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
         except:
             pass
@@ -8252,7 +8253,7 @@ class SystemManager(object):
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBranchMiss: %s(%d%%) / ' % \
+            perfbuf = '%sBM : %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
         except:
             pass
@@ -10832,22 +10833,10 @@ class SystemManager(object):
                     SystemManager.wssEnable = True
                     SystemManager.sort = 'm'
                 if options.rfind('P') > -1:
-                    if SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to use PMU")
-                        sys.exit(0)
-                    elif SystemManager.findOption('g') is False:
-                        SystemManager.printError(\
-                            "wrong option with -e + P, "
-                            "use also -g option to show performance stat")
-                        sys.exit(0)
-                    elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
-                        SystemManager.procPath) is False:
-                        SystemManager.printError(\
-                            "Fail to use PMU, please check kernel configuration")
-                        sys.exit(0)
-                    else:
+                    if SystemManager.checkPerfTopCond():
                         SystemManager.perfGroupEnable = True
+                    else:
+                        sys.exit(0)
                 if options.rfind('r') > -1:
                     if SystemManager.isDrawMode():
                         SystemManager.rssEnable = True
@@ -11531,6 +11520,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isPerfTopMode():
+        if sys.argv[1] == 'perftop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if sys.argv[1] == 'stacktop':
             return True
@@ -11566,6 +11564,8 @@ class SystemManager(object):
         elif SystemManager.isThreadTopMode():
             return True
         elif SystemManager.isStackTopMode():
+            return True
+        elif SystemManager.isPerfTopMode():
             return True
         else:
             return False
@@ -11606,6 +11606,27 @@ class SystemManager(object):
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def checkPerfTopCond():
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to use PMU")
+            return False
+        elif SystemManager.findOption('g') is False:
+            SystemManager.printError(\
+                "wrong option with -e + P, "
+                "use also -g option to show performance stat")
+            return False
+        elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
+            SystemManager.procPath) is False:
+            SystemManager.printError(\
+                "Fail to use PMU, please check kernel configuration")
+            return False
+        else:
+            return True
 
 
 
@@ -28361,6 +28382,11 @@ if __name__ == '__main__':
             if SystemManager.checkStackTopCond():
                 SystemManager.processEnable = False
                 SystemManager.stackEnable = True
+            else:
+                sys.exit(0)
+        elif SystemManager.isPerfTopMode():
+            if SystemManager.checkPerfTopCond():
+                SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
 
