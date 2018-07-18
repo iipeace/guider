@@ -6845,13 +6845,13 @@ class SystemManager(object):
 
         try:
             if size >= sizeTB:
-                return '%dT' % (size >> 40)
+                return '%.1fT' % ((size >> 30) / 1000)
             elif size >= sizeGB:
-                return '%dG' % (size >> 30)
+                return '%.1fG' % ((size >> 20) / 1000)
             elif size >= sizeMB:
-                return '%dM' % (size >> 20)
+                return '%.1fM' % ((size >> 10) / 1000)
             elif size >= sizeKB:
-                return '%dK' % (size >> 10)
+                return '%.1fK' % (size / 1000)
             else:
                 return '%d' % (size)
         except:
@@ -9557,7 +9557,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeCmd(path, val, append = False):
+    def writeCmd(path, val, append=False):
         # set file open permission #
         if append:
             perm = 'a+'
@@ -9590,6 +9590,8 @@ class SystemManager(object):
         # open for applying command #
         try:
             target = '%s%s' % (SystemManager.mountPath, path)
+            if append:
+                print(target)
             fd = open(target, perm)
         except:
             fpos = path.rfind('/')
@@ -9662,7 +9664,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def addPrint(string, newline = 1):
+    def addPrint(string, newline=1):
         SystemManager.bufferString = "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
@@ -9674,7 +9676,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def delPrint(newline = 1):
+    def delPrint(newline=1):
         try:
             target = SystemManager.bufferString
             start = target.rfind('\n')
@@ -11828,7 +11830,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def broadcastEvent(event, pids = []):
+    def broadcastEvent(event, pids=[]):
         # convert event name #
         if event.startswith('EVENT_') is False:
             event = 'EVENT_%s' % event
@@ -14018,7 +14020,7 @@ class SystemManager(object):
         SystemManager.infoBufferPrint('\n[System Disk Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
-            "{0:^16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:>40}". \
+            "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:>40}". \
             format("DEV", "NUM", "READ", "WRITE", \
             "TOTAL", "FREE", "USAGE", "AVL", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
@@ -14108,7 +14110,7 @@ class SystemManager(object):
             SystemManager.infoBufferPrint("{0:<16}".format(key))
 
             diskInfo = \
-                "{0:<16} {1:>7} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:<20}".\
+                "{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:<20}".\
                 format(' ', '%s:%s' % (major, minor), readSize, writeSize, \
                 total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
 
@@ -14144,7 +14146,7 @@ class SystemManager(object):
                 totalInfo['use'] = '?%'
 
             SystemManager.infoBufferPrint(\
-                "{0:^16}\n{1:^24} {2:>6} {3:>6} {4:>6} {5:>6} {6:>6} {7:>5} {8:>8} {9:<20}".\
+                "{0:^16}\n{1:^24} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:<20}".\
                 format(oneLine, 'TOTAL', totalInfo['read'], totalInfo['write'], \
                 totalInfo['total'], totalInfo['free'], totalInfo['use'], \
                 totalInfo['favail'], ' ', ' '))
@@ -24831,7 +24833,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printFileStat(self, procFilter = [], fileFilter = []):
+    def printFileStat(self, procFilter=[], fileFilter=[]):
         SystemManager.updateUptime()
 
         SystemManager.addPrint(\
