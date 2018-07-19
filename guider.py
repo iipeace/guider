@@ -7035,9 +7035,10 @@ class SystemManager(object):
             option == 'p' or option == 'q' or option == 'Q' or \
             option == 'r' or option == 'R' or option == 'S' or \
             option == 's' or option == 'T' or option == 't' or \
-            option == 'u' or option == 'U' or option == 'w' or \
-            option == 'W' or option == 'x' or option == 'X' or \
-            option == 'Y' or option == 'y' or option == 'Z':
+            option == 'u' or option == 'U' or option == 'v' or \
+            option == 'w' or option == 'W' or option == 'x' or \
+            option == 'X' or option == 'Y' or option == 'y' or \
+            option == 'Z':
             return True
         else:
             return False
@@ -26164,6 +26165,9 @@ class ThreadAnalyzer(object):
         # background reclaim #
         try:
             bgReclaim = 0
+            if 'pgsteal_kswapd' in self.vmData:
+                bgReclaim += \
+                    self.vmData['pgsteal_kswapd'] - self.prevVmData['pgsteal_kswapd']
             if 'pgsteal_kswapd_normal' in self.vmData:
                 bgReclaim += \
                     self.vmData['pgsteal_kswapd_normal'] - self.prevVmData['pgsteal_kswapd_normal']
@@ -26194,6 +26198,9 @@ class ThreadAnalyzer(object):
         # direct reclaim #
         try:
             drReclaim = 0
+            if 'pgsteal_direct' in self.vmData:
+                drReclaim += \
+                    self.vmData['pgsteal_direct'] - self.prevVmData['pgsteal_direct']
             if 'pgsteal_direct_normal' in self.vmData:
                 drReclaim += \
                     self.vmData['pgsteal_direct_normal'] - self.prevVmData['pgsteal_direct_normal']
