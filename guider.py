@@ -6837,6 +6837,38 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getDigitSize(value):
+        sizeKB = 1024
+        sizeMB = sizeKB << 10
+        sizeGB = sizeMB << 10
+        sizeTB = sizeGB << 10
+
+        if value.isdigit():
+            return long(value)
+
+        try:
+            if value.upper().endswith('K'):
+                return long(value[:-1]) * sizeKB
+            if value.upper().endswith('KB'):
+                return long(value[:-2]) * sizeKB
+            if value.upper().endswith('M'):
+                return long(value[:-1]) * sizeMB
+            if value.upper().endswith('MB'):
+                return long(value[:-2]) * sizeMB
+            if value.upper().endswith('G'):
+                return long(value[:-1]) * sizeGB
+            if value.upper().endswith('GB'):
+                return long(value[:-2]) * sizeGB
+            if value.upper().endswith('T'):
+                return long(value[:-1]) * sizeTB
+            if value.upper().endswith('TB'):
+                return long(value[:-2]) * sizeTB
+        except:
+            return False
+
+
+
+    @staticmethod
     def convertSize(size):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -7183,6 +7215,8 @@ class SystemManager(object):
                 print('        record -f  [function]')
                 print('        record -F  [file]')
                 print('        mem        [page]')
+                print('    [test]')
+                print('        alloctest')
                 print('    [control]')
                 print('        kill|setsched|cpulimit [proc]')
                 print('    [communication]')
@@ -11549,6 +11583,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isAllocTestMode():
+        if sys.argv[1] == 'alloctest':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSetSchedMode():
         if sys.argv[1] == 'setsched':
             return True
@@ -12150,6 +12193,19 @@ class SystemManager(object):
             sys.exit(0)
 
         return limitList
+
+
+
+    @staticmethod
+    def runBackgroundMode():
+        pid = os.fork()
+
+        if pid > 0:
+            sys.exit(0)
+        else:
+            SystemManager.pid = os.getpid()
+            SystemManager.printStatus(\
+                "background running as process %s" % SystemManager.pid)
 
 
 
@@ -28167,6 +28223,36 @@ if __name__ == '__main__':
 
         sys.exit(0)
 
+    #-------------------- ALLOCTEST MODE --------------------#
+    if SystemManager.isAllocTestMode():
+        # parse options #
+        if len(sys.argv) != 3:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input size to allocate memory"))
+            sys.exit(0)
+
+        value = sys.argv[2]
+        size = SystemManager.getDigitSize(value)
+        if size is False:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input size to allocate memory"))
+            sys.exit(0)
+
+        buffer = bytearray(size)
+
+        SystemManager.printInfo(\
+            'allocated %s of physical memory' % \
+            SystemManager.convertSize(size))
+
+        # set Signal #
+        signal.signal(signal.SIGINT, SystemManager.exitHandler)
+        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+        signal.pause()
+
+        sys.exit(0)
+
     #-------------------- SETSCHED MODE --------------------#
     if SystemManager.isSetSchedMode():
         # parse options #
@@ -28175,12 +28261,10 @@ if __name__ == '__main__':
             SystemManager.printError(\
                 ("wrong option value to set priority, "
                 "input POLICY:PRIORITY:PID in format"))
-        elif value.find(' -P') >= 0:
+        elif value.find('-P') >= 0:
             isProcess = True
-            value = value.replace(' -P', '')
-        elif value.find('-P ') >= 0:
-            isProcess = True
-            value = value.replace('-P ', '')
+            value = value.replace('-P', '')
+            value = value.replace(' ', '')
         else:
             isProcess = False
 
@@ -28475,14 +28559,7 @@ if __name__ == '__main__':
 
         # run in background #
         if SystemManager.backgroundEnable:
-            pid = os.fork()
-
-            if pid > 0:
-                sys.exit(0)
-            else:
-                SystemManager.pid = os.getpid()
-                SystemManager.printStatus(\
-                    "background running as process %s" % SystemManager.pid)
+            SystemManager.runBackgroundMode()
 
         # create ThreadAnalyzer using proc #
         ThreadAnalyzer(None)
