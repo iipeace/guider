@@ -202,7 +202,7 @@ Output
 
 >>>
            
-    # ./guider.py top -e m
+    # ./guider.py memtop
 
     [Top Info] [Time: 7176233.650] [Interval: 1.0] [Ctxt: 289] [Life: +2/─2] [IRQ: 1397] [Core: 24] [Task: 323/430] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 127M / Inst: 121M / IPC: 0.95 / CacheMiss: 280K(23%) / BranchMiss: 437K(1%) / Clock: 22G / MinFlt: 714 / MajFlt: 0]
@@ -423,7 +423,7 @@ Output
        
 >>>
        
-    # ./guider.py record -e l
+    # ./guider.py record -e L
 
     [Thread Futex Lock Info] [ Elapsed : 1.225 ] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -724,6 +724,7 @@ Modes
     filetop    [file]
     stacktop   [stack]
     perftop    [PMU]
+    memtop     [memory]
 ```
 
 
@@ -736,7 +737,7 @@ Options
 [record]
     -e  [enable_optionsPerMode - belowCharacters]
           [function] {m(em)|b(lock)|h(eap)|l(ock)|p(ipe)|g(raph)}
-          [thread]   {m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|
+          [thread]   {m(em)|b(lock)|i(rq)|L(ock)|n(et)|p(ipe)|
                       P(ower)|r(eset)|g(raph)}
           [top]      {t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|
                       P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|a(ffinity)|
@@ -805,7 +806,7 @@ Examples
     - record specific systemcalls of specific threads
         # ./guider.py record -s . -t sys_read, write -g 1234
     - record lock events of threads
-        # ./guider.py record -s . -e l
+        # ./guider.py record -s . -e L
     - record specific user function events
         # ./guider.py record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)
     - record specific kernel function events
