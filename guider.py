@@ -6970,6 +6970,49 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isEffectiveEnableOption(options):
+        if options.rfind('i') >= 0 or options.rfind('m')>= 0  or \
+            options.rfind('n') >= 0 or options.rfind('h') >= 0 or \
+            options.rfind('b') >= 0 or options.rfind('p') >= 0 or \
+            options.rfind('P') >= 0 or options.rfind('r') >= 0 or \
+            options.rfind('g') >= 0 or options.rfind('L') >= 0 or \
+            options.rfind('t') >= 0 or options.rfind('v') >= 0 or \
+            options.rfind('l') >= 0 or options.rfind('G') >= 0 or \
+            options.rfind('c') >= 0 or options.rfind('s') >= 0 or \
+            options.rfind('S') >= 0 or options.rfind('u') >= 0 or \
+            options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
+            options.rfind('f') >= 0 or options.rfind('R') >= 0 or \
+            options.rfind('w') >= 0 or options.rfind('r') >= 0 :
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isEffectiveOption(option):
+        if option == 'a' or option == 'A' or option == 'b' or \
+            option == 'c' or option == 'C' or option == 'd' or \
+            option == 'D' or option == 'e' or option == 'E' or \
+            option == 'f' or option == 'F' or option == 'g' or \
+            option == 'H' or option == 'i' or option == 'I' or \
+            option == 'j' or option == 'k' or option == 'K' or \
+            option == 'L' or option == 'l' or option == 'm' or \
+            option == 'M' or option == 'n' or option == 'N' or \
+            option == 'o' or option == 'O' or option == 'P' or \
+            option == 'p' or option == 'q' or option == 'Q' or \
+            option == 'r' or option == 'R' or option == 'S' or \
+            option == 's' or option == 'T' or option == 't' or \
+            option == 'u' or option == 'U' or option == 'w' or \
+            option == 'W' or option == 'x' or option == 'X' or \
+            option == 'Y' or option == 'y' or option == 'Z':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isEffectiveTid(tid, cond):
         try:
             tid = int(tid)
@@ -7150,12 +7193,13 @@ class SystemManager(object):
                 print('        threadtop  [thread]')
                 print('        filetop    [file]')
                 print('        stacktop   [stack]')
-                print('        perftop    [stack]')
+                print('        perftop    [PMU]')
+                print('        memtop     [memory]')
 
                 print('\nOptions:')
                 print('    [record]')
                 print('        -e  [enable_optionsPerMode - belowCharacters]')
-                print('              [function] {m(em)|b(lock)|h(eap)|l(ock)|p(ipe)|g(raph)}')
+                print('              [function] {m(em)|b(lock)|h(eap)|L(ock)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
                     '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
@@ -7242,7 +7286,7 @@ class SystemManager(object):
             print('    - record specific systemcalls of specific threads')
             print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
             print('    - record lock events of threads')
-            print('        # %s record -s . -e l' % cmd)
+            print('        # %s record -s . -e L' % cmd)
             print('    - record specific user function events')
             print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
             print('    - record specific kernel function events')
@@ -8243,7 +8287,7 @@ class SystemManager(object):
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sCM : %s(%d%%) / ' % \
+            perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
         except:
             pass
@@ -8253,14 +8297,14 @@ class SystemManager(object):
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBM : %s(%d%%) / ' % \
+            perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
                 (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
         except:
             pass
 
         # CPU stats #
         try:
-            perfbuf = '%sClock: %s / ' % \
+            perfbuf = '%sClk: %s / ' % \
                 (perfbuf, SystemManager.convertSize(value['PERF_COUNT_SW_CPU_CLOCK']))
         except:
             pass
@@ -9979,7 +10023,7 @@ class SystemManager(object):
                 SystemManager.powerEnable = True
             if filterList.find('h') > -1:
                 SystemManager.heapEnable = True
-            if filterList.find('l') > -1:
+            if filterList.find('L') > -1:
                 SystemManager.lockEnable = True
             if filterList.find('i') > -1:
                 SystemManager.irqEnable = True
@@ -10814,11 +10858,10 @@ class SystemManager(object):
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
                 if options.rfind('m') > -1:
-                    if SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to analyze memory details")
+                    if SystemManager.checkMemTopCond():
+                        SystemManager.memEnable = True
+                    else:
                         sys.exit(0)
-                    SystemManager.memEnable = True
                 if options.rfind('w') > -1:
                     if SystemManager.findOption('g') is False:
                         SystemManager.printError(\
@@ -10851,6 +10894,10 @@ class SystemManager(object):
                             SystemManager.printError(\
                                 "Fail to import python package: %s" % err.args[0])
                             sys.exit(0)
+                if SystemManager.isEffectiveEnableOption(options) is False:
+                    SystemManager.printError(\
+                        "unrecognized option -%s for enable" % options)
+                    sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
                 # Handle error about record option #
@@ -11128,10 +11175,8 @@ class SystemManager(object):
                         "wrong option value with -R, input values bigger than 0")
                     sys.exit(0)
 
-            elif option == 'W' or option == 'y' or option == 's' or \
-                option == 'w' or option == 't' or option == 'C' or \
-                option == 'v' or option == 'm' or option == 'F' or \
-                option == 'U' or option == 'K':
+            # Ignore options #
+            elif SystemManager.isEffectiveOption(option):
                 continue
 
             else:
@@ -11219,8 +11264,12 @@ class SystemManager(object):
                     SystemManager.resetEnable = True
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
-                if options.rfind('l') > -1:
+                if options.rfind('L') > -1:
                     SystemManager.lockEnable = True
+                if SystemManager.isEffectiveEnableOption(options) is False:
+                    SystemManager.printError(\
+                        "unrecognized option -%s for enable" % options)
+                    sys.exit(0)
 
             elif option == 'g':
                 SystemManager.showGroup = value.split(',')
@@ -11398,10 +11447,8 @@ class SystemManager(object):
                     SystemManager.disableAll = True
 
             # Ignore options #
-            elif option == 'i' or option == 'a' or option == 'v' or \
-                option == 'g' or option == 'p' or option == 'S' or \
-                option == 'P' or option == 'T' or option == 'Q':
-                continue
+            elif SystemManager.isEffectiveOption(option):
+                    continue
 
             else:
                 SystemManager.printError(\
@@ -11529,6 +11576,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isMemTopMode():
+        if sys.argv[1] == 'memtop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if sys.argv[1] == 'stacktop':
             return True
@@ -11566,6 +11622,8 @@ class SystemManager(object):
         elif SystemManager.isStackTopMode():
             return True
         elif SystemManager.isPerfTopMode():
+            return True
+        elif SystemManager.isMemTopMode():
             return True
         else:
             return False
@@ -11624,6 +11682,17 @@ class SystemManager(object):
             SystemManager.procPath) is False:
             SystemManager.printError(\
                 "Fail to use PMU, please check kernel configuration")
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
+    def checkMemTopCond():
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to analyze memory details")
             return False
         else:
             return True
@@ -28387,6 +28456,11 @@ if __name__ == '__main__':
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
                 SystemManager.perfGroupEnable = True
+            else:
+                sys.exit(0)
+        elif SystemManager.isMemTopMode():
+            if SystemManager.checkMemTopCond():
+                SystemManager.memEnable = True
             else:
                 sys.exit(0)
 
