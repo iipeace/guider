@@ -6869,6 +6869,19 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getMemStat(pid):
+        try:
+            statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
+            fd = open(statmPath, 'r')
+            statmList = fd.readlines()[0].split()
+            return statmList
+        except:
+            SystemManager.printWarning('Fail to open %s' % statmPath)
+            return
+
+
+
+    @staticmethod
     def convertSize(size):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -6877,13 +6890,13 @@ class SystemManager(object):
 
         try:
             if size >= sizeTB:
-                return '%.1fT' % ((size >> 30) / 1000)
+                return '%.1fT' % ((size >> 30) / 1024)
             elif size >= sizeGB:
-                return '%.1fG' % ((size >> 20) / 1000)
+                return '%.1fG' % ((size >> 20) / 1024)
             elif size >= sizeMB:
-                return '%.1fM' % ((size >> 10) / 1000)
+                return '%.1fM' % ((size >> 10) / 1024)
             elif size >= sizeKB:
-                return '%.1fK' % (size / 1000)
+                return '%.1fK' % (size / 1024)
             else:
                 return '%d' % (size)
         except:
@@ -9671,8 +9684,9 @@ class SystemManager(object):
         try:
             target = '%s%s' % (SystemManager.mountPath, path)
             if append:
-                print(target)
-            fd = open(target, perm)
+                fd = os.open(target, os.O_RDWR|os.O_CREAT|os.O_APPEND)
+            else:
+                fd = open(target, perm)
         except:
             fpos = path.rfind('/')
             try:
@@ -9694,11 +9708,17 @@ class SystemManager(object):
 
         # apply command #
         try:
-            fd.write(val)
+            if append:
+                os.write(fd, bytes(val.encode()))
+            else:
+                fd.write(val)
 
             # ignore some close exceptions #
             try:
-                fd.close()
+                if append:
+                    os.close(fd)
+                else:
+                    fd.close()
             except:
                 pass
 
@@ -12207,6 +12227,72 @@ class SystemManager(object):
             SystemManager.pid = os.getpid()
             SystemManager.printStatus(\
                 "background running as process %s" % SystemManager.pid)
+
+
+
+    @staticmethod
+    def doSetSched():
+        # parse options #
+        value = ' '.join(sys.argv[2:])
+        if len(value) == 0:
+            SystemManager.printError(\
+                ("wrong option value to set priority, "
+                "input POLICY:PRIORITY:PID in format"))
+        elif value.find('-P') >= 0:
+            isProcess = True
+            value = value.replace('-P', '')
+            value = value.replace(' ', '')
+        else:
+            isProcess = False
+
+        SystemManager.parsePriorityOption(value, isProcess)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doAllocTest():
+        # parse options #
+        if len(sys.argv) != 3:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input size to allocate memory"))
+            sys.exit(0)
+
+        value = sys.argv[2]
+        size = SystemManager.getDigitSize(value)
+        if size is False:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input size to allocate memory"))
+            sys.exit(0)
+
+        # get self memory usage #
+        mlist = SystemManager.getMemStat('self')
+        if mlist is None:
+            SystemManager.printError(\
+                "Fail to get memory size of guider")
+            sys.exit(0)
+
+        rssIdx = ConfigManager.statmList.index("RSS")
+        rssSize = long(mlist[rssIdx]) << 12
+
+        # allocate memory #
+        buffer = bytearray(size)
+
+        SystemManager.printInfo((\
+            'allocated %s of physical memory, '
+            'additionally used %s of physical memory for running') % \
+            (SystemManager.convertSize(len(buffer)), \
+            SystemManager.convertSize(rssSize)))
+
+        # set Signal #
+        signal.signal(signal.SIGINT, SystemManager.exitHandler)
+        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+        signal.pause()
+
+        sys.exit(0)
 
 
 
@@ -28232,52 +28318,11 @@ if __name__ == '__main__':
 
     #-------------------- ALLOCTEST MODE --------------------#
     if SystemManager.isAllocTestMode():
-        # parse options #
-        if len(sys.argv) != 3:
-            SystemManager.printError(\
-                ("wrong option value to test memory allocation, "
-                "input size to allocate memory"))
-            sys.exit(0)
-
-        value = sys.argv[2]
-        size = SystemManager.getDigitSize(value)
-        if size is False:
-            SystemManager.printError(\
-                ("wrong option value to test memory allocation, "
-                "input size to allocate memory"))
-            sys.exit(0)
-
-        buffer = bytearray(size)
-
-        SystemManager.printInfo(\
-            'allocated %s of physical memory' % \
-            SystemManager.convertSize(size))
-
-        # set Signal #
-        signal.signal(signal.SIGINT, SystemManager.exitHandler)
-        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
-        signal.pause()
-
-        sys.exit(0)
+        SystemManager.doAllocTest()
 
     #-------------------- SETSCHED MODE --------------------#
     if SystemManager.isSetSchedMode():
-        # parse options #
-        value = ' '.join(sys.argv[2:])
-        if len(value) == 0:
-            SystemManager.printError(\
-                ("wrong option value to set priority, "
-                "input POLICY:PRIORITY:PID in format"))
-        elif value.find('-P') >= 0:
-            isProcess = True
-            value = value.replace('-P', '')
-            value = value.replace(' ', '')
-        else:
-            isProcess = False
-
-        SystemManager.parsePriorityOption(value, isProcess)
-
-        sys.exit(0)
+        SystemManager.doSetSched()
 
     #-------------------- EVENT MODE --------------------#
     if SystemManager.isEventMode():
