@@ -44,9 +44,11 @@ endif
 
 CC = gcc 
 RM = rm -f
+MV = mv -f
 INSTALL = install
 SED = sed
 
+MODULE = guider
 TARGET_BIN = guider
 TARGET_LIB = guidermodule.so
 
@@ -73,6 +75,7 @@ all: $(TARGET_PYC) $(OBJS) $(TARGET_LIB)
 
 $(TARGET_PYC): $(TARGET_PY)
 	$(QUIET_PCC)$(PCC) $(PFLAGS) $^
+	$(Q)$(MV) __pycache__/$(MODULE)*.pyc $(CURDIR)/$(MODULE).pyc
 
 $(OBJS): $(SRCS)
 	$(QUIET_CC)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $^

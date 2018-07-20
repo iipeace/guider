@@ -28159,37 +28159,36 @@ class ThreadAnalyzer(object):
             self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
         # print interrupts #
-        try:
-            if len(self.irqData) == 0:
-                raise Exception()
-
+        if len(self.irqData) > 0:
             nrIrq = 0
             irqData = '%s [IRQ > ' % (' ' * nrIndent)
             lenIrq = len(irqData)
-            for irq, cnt in sorted(self.irqData.items(), key=lambda e:0 \
-                if not e[0] in self.prevIrqData \
+
+            for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
+                self.irqData[e[0]] if not e[0] in self.prevIrqData \
                 else e[1] - self.prevIrqData[e[0]], reverse=True):
-                try:
+
+                if not irq in self.prevIrqData:
+                    irqDiff = cnt
+                else:
                     irqDiff = cnt - self.prevIrqData[irq]
-                    if irqDiff <= 0:
-                        continue
 
-                    nrIrq += 1
-                    newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
-                    lenNewIrq = len(newIrq)
+                if irqDiff <= 0:
+                    break
 
-                    if lenIrq + lenNewIrq >= len(oneLine):
-                        irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
-                        lenIrq = nrIndent
+                nrIrq += 1
+                newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
+                lenNewIrq = len(newIrq)
 
-                    irqData = '%s%s' % (irqData, newIrq)
-                    lenIrq += lenNewIrq
-                except:
-                    pass
+                if lenIrq + lenNewIrq >= len(oneLine):
+                    irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
+                    lenIrq = nrIndent
+
+                irqData = '%s%s' % (irqData, newIrq)
+                lenIrq += lenNewIrq
+
             if nrIrq > 0:
                 SystemManager.addPrint("{0:<1}]\n".format(irqData[:-2]))
-        except:
-            pass
 
         # print PMU stat #
         if len(SystemManager.perfEventData) > 0:
