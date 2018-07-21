@@ -75,7 +75,7 @@ all: $(TARGET_PYC) $(OBJS) $(TARGET_LIB)
 
 $(TARGET_PYC): $(TARGET_PY)
 	$(QUIET_PCC)$(PCC) $(PFLAGS) $^
-	$(Q)$(MV) __pycache__/$(MODULE)*.pyc $(CURDIR)/$(MODULE).pyc
+	$(Q)-$(MV) __pycache__/$(MODULE)*.pyc $(CURDIR)/$(MODULE).pyc
 
 $(OBJS): $(SRCS)
 	$(QUIET_CC)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $^
