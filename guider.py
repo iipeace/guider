@@ -1498,11 +1498,11 @@ class FunctionAnalyzer(object):
         SystemManager.saveAndQuit(lines)
 
         # Check target thread setting #
-        if len(SystemManager.showGroup) == 0:
-            SystemManager.showGroup.insert(0, '')
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.filterGroup.insert(0, '')
             self.target = []
         else:
-            self.target = SystemManager.showGroup
+            self.target = SystemManager.filterGroup
 
         # Check root path #
         if SystemManager.rootPath is None and SystemManager.userEnable:
@@ -1520,7 +1520,7 @@ class FunctionAnalyzer(object):
 
         # Parse logs #
         SystemManager.totalLine = len(lines)
-        self.parseLogs(lines, SystemManager.showGroup)
+        self.parseLogs(lines, SystemManager.filterGroup)
 
         # Check whether data of target thread is collected or nothing #
         if len(self.userCallData) == 0 and \
@@ -5538,8 +5538,8 @@ class FileAnalyzer(object):
             'linkList': None}
 
         # handle no target case #
-        if len(SystemManager.showGroup) == 0:
-            SystemManager.showGroup.insert(0, '')
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.filterGroup.insert(0, '')
 
         if SystemManager.guiderObj is None:
             try:
@@ -5945,7 +5945,7 @@ class FileAnalyzer(object):
             SystemManager.printError('Fail to open %s' % (SystemManager.procPath))
             sys.exit(0)
 
-        # scan comms include words in SystemManager.showGroup #
+        # scan comms include words in SystemManager.filterGroup #
         for pid in pids:
             try:
                 int(pid)
@@ -6000,7 +6000,7 @@ class FileAnalyzer(object):
                     continue
 
                 # save process info #
-                for val in SystemManager.showGroup:
+                for val in SystemManager.filterGroup:
                     if comm.rfind(val) > -1 or tid == val:
                         # access procData #
                         try:
@@ -6585,7 +6585,7 @@ class SystemManager(object):
     savedProcTree = {}
     savedMountTree = {}
     preemptGroup = []
-    showGroup = []
+    filterGroup = []
     schedFilter = []
     killFilter = []
     syscallList = []
@@ -6941,7 +6941,7 @@ class SystemManager(object):
     def getPidFilter():
         if SystemManager.pidFilter is None:
             cmd = ""
-            for cond in SystemManager.showGroup:
+            for cond in SystemManager.filterGroup:
                 try:
                     cmd += "common_pid == %s || " % int(cond)
                 except:
@@ -6971,7 +6971,7 @@ class SystemManager(object):
 
     @staticmethod
     def isExceptTarget(tid, tdata, comm=None, plist=[]):
-        tlist = SystemManager.showGroup
+        tlist = SystemManager.filterGroup
         if tlist == []:
             return False
 
@@ -8522,7 +8522,7 @@ class SystemManager(object):
                     sys.exit(0)
 
         # apply filter #
-        if SystemManager.showGroup != []:
+        if SystemManager.filterGroup != []:
             cmd = SystemManager.getPidFilter()
             if cmd != '':
                 SystemManager.writeCmd("kprobes/filter", cmd)
@@ -8649,7 +8649,7 @@ class SystemManager(object):
                 sys.exit(0)
 
         # apply filter #
-        if SystemManager.showGroup != []:
+        if SystemManager.filterGroup != []:
             cmd = SystemManager.getPidFilter()
             if cmd != '':
                 SystemManager.writeCmd("uprobes/filter", cmd)
@@ -8778,7 +8778,7 @@ class SystemManager(object):
         if SystemManager.customCmd is None:
             return
 
-        if SystemManager.showGroup == []:
+        if SystemManager.filterGroup == []:
             pidFilter = 'common_pid != 0'
         else:
             pidFilter = SystemManager.getPidFilter()
@@ -10021,23 +10021,23 @@ class SystemManager(object):
         if SystemManager.isThreadMode() and launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
-            SystemManager.showGroup = filterList.split(',')
-            SystemManager.removeEmptyValue(SystemManager.showGroup)
+            SystemManager.filterGroup = filterList.split(',')
+            SystemManager.removeEmptyValue(SystemManager.filterGroup)
             SystemManager.printInfo(\
                 "only specific threads including [%s] were recorded" % \
-                ', '.join(SystemManager.showGroup))
+                ', '.join(SystemManager.filterGroup))
 
         # check filter list #
-        if len(SystemManager.showGroup) > 0:
+        if len(SystemManager.filterGroup) > 0:
             if SystemManager.groupProcEnable is False:
                 SystemManager.printInfo(\
                     "only specific threads including [%s] are shown" % \
-                    ', '.join(SystemManager.showGroup))
+                    ', '.join(SystemManager.filterGroup))
             else:
                 SystemManager.printInfo((\
                     "only specific threads that involved "
                     "in process group including [%s] are shown") % \
-                    ', '.join(SystemManager.showGroup))
+                    ', '.join(SystemManager.filterGroup))
 
         # apply dependency option #
         launchPosStart = SystemManager.launchBuffer.find(' -D')
@@ -10835,8 +10835,8 @@ class SystemManager(object):
                 SystemManager.removeEmptyValue(SystemManager.customCmd)
 
             elif option == 'g':
-                SystemManager.showGroup = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.showGroup)
+                SystemManager.filterGroup = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.filterGroup)
 
             elif option == 'A':
                 SystemManager.archOption = value
@@ -11327,16 +11327,16 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'g':
-                SystemManager.showGroup = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.showGroup)
-                if len(SystemManager.showGroup) == 0:
+                SystemManager.filterGroup = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.filterGroup)
+                if len(SystemManager.filterGroup) == 0:
                     SystemManager.printError(\
                         "Input value for filter with -g option")
                     sys.exit(0)
 
                 SystemManager.printInfo(\
                     "only specific threads including [%s] are recorded" % \
-                    ', '.join(SystemManager.showGroup))
+                    ', '.join(SystemManager.filterGroup))
 
             elif option == 's':
                 if SystemManager.isRecordMode() is False:
@@ -12130,14 +12130,27 @@ class SystemManager(object):
 
 
     @staticmethod
+    def doUserInput(selectObject):
+        if SystemManager.printFile is None and selectObject != None and \
+            selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+            sys.stdout.write('\b' * SystemManager.ttyCols)
+            SystemManager.pipePrint(\
+                "[ Input command... ( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
+
+            # flush buffered enter key #
+            sys.stdin.readline()
+
+            sys.stdout.write('=> ')
+            sys.stdout.flush()
+
+            # process user input #
+            SystemManager.procUserInput(sys.stdin.readline())
+
+
+
+    @staticmethod
     def procUserInput(uinput):
-        ulist = uinput.split()
-        if len(ulist) == 0:
-            return
-
-        if ulist[0].upper() == 'HELP' or \
-            ulist[0].upper() == 'H':
-
+        def printHelp():
             SystemManager.pipePrint("")
 
             SystemManager.pipePrint("[Filter]   {COMM|PID}")
@@ -12151,26 +12164,40 @@ class SystemManager(object):
 
             SystemManager.pipePrint("[Affinity] {MASK} {PID}")
             SystemManager.pipePrint("  exam) a f 123, 456\n")
+
+        ulist = uinput.split()
+        if len(ulist) == 0:
+            return
+
+        if ulist[0].upper() == 'HELP' or \
+            ulist[0].upper() == 'H':
+            printHelp()
         elif ulist[0].upper() == 'KILL' or \
             ulist[0].upper() == 'K':
             if len(ulist) > 1:
                 SystemManager.sendSignalArgs(ulist[1:])
+            else:
+                printHelp()
         elif ulist[0].upper() == 'SCHED' or \
             ulist[0].upper() == 'S':
             if len(ulist) > 1:
                 SystemManager.parsePriorityOption((' '.join(ulist[1:])))
+            else:
+                printHelp()
         elif ulist[0].upper() == 'AFFINITY' or \
             ulist[0].upper() == 'A':
             if len(ulist) > 2:
                 SystemManager.setaffinity(\
                     ulist[1], (' '.join(ulist[2:])).split(','))
+            else:
+                printHelp()
         elif ulist[0].upper() == 'FILTER' or \
             ulist[0].upper() == 'F':
             if len(ulist) == 1:
-                SystemManager.showGroup = []
+                SystemManager.filterGroup = []
             else:
-                SystemManager.showGroup = (' '.join(ulist[1:])).split(',')
-            SystemManager.removeEmptyValue(SystemManager.showGroup)
+                SystemManager.filterGroup = (' '.join(ulist[1:])).split(',')
+            SystemManager.removeEmptyValue(SystemManager.filterGroup)
 
             if SystemManager.isThreadMode():
                 mode = 'threads'
@@ -12179,7 +12206,7 @@ class SystemManager(object):
 
             SystemManager.printInfo(\
                 "only specific %s including [ %s ] are shown" % \
-                (mode, ', '.join(SystemManager.showGroup)))
+                (mode, ', '.join(SystemManager.filterGroup)))
         elif ulist[0].upper() == 'QUIT' or \
             ulist[0].upper() == 'Q':
             sys.exit(0)
@@ -13467,7 +13494,7 @@ class SystemManager(object):
         if self.cmdList["sched/sched_process_exit"]:
             SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
         if self.cmdList["signal"]:
-            if SystemManager.showGroup != []:
+            if SystemManager.filterGroup != []:
                 commonFilter  = SystemManager.getPidFilter()
                 genFilter = commonFilter.replace("common_", "")
                 SystemManager.writeCmd('signal/signal_deliver/filter', commonFilter)
@@ -13489,7 +13516,7 @@ class SystemManager(object):
                     sys.exit(0)
 
                 # apply filter #
-                for pid in SystemManager.showGroup:
+                for pid in SystemManager.filterGroup:
                     try:
                         pid = str(int(pid))
                     except:
@@ -13525,14 +13552,14 @@ class SystemManager(object):
             cmd = ""
 
             # make filter for function mode #
-            if SystemManager.showGroup != []:
+            if SystemManager.filterGroup != []:
                 try:
                     cmd = "%s%s" % (cmd, SystemManager.getPidFilter())
                     if len(cmd) == 0:
                         raise Exception()
                 except:
                     SystemManager.printError(\
-                        "wrong tid %s" % SystemManager.showGroup)
+                        "wrong tid %s" % SystemManager.filterGroup)
                     sys.exit(0)
 
             # trace except for swapper threads #
@@ -13631,11 +13658,11 @@ class SystemManager(object):
         #-------------------- THREAD MODE --------------------#
         # enable sched events #
         if self.cmdList["sched/sched_switch"]:
-            if len(SystemManager.showGroup) > 0:
+            if len(SystemManager.filterGroup) > 0:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
 
                 # apply filter #
-                for comm in SystemManager.showGroup:
+                for comm in SystemManager.filterGroup:
                     cmd += \
                         "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % (comm, comm)
                     try:
@@ -13664,7 +13691,7 @@ class SystemManager(object):
                 cmd = cmd[0:cmd.rfind("||")]
                 if SystemManager.writeCmd('sched/sched_switch/filter', cmd) < 0:
                     SystemManager.printError(\
-                        "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                        "Fail to set filter [ %s ]" % ' '.join(SystemManager.filterGroup))
                     sys.exit(0)
             else:
                 SystemManager.writeCmd('sched/sched_switch/filter', '0')
@@ -13674,11 +13701,11 @@ class SystemManager(object):
                 sys.exit(0)
 
         # build sched filter #
-        if len(SystemManager.showGroup) > 0:
+        if len(SystemManager.filterGroup) > 0:
             cmd = ""
 
             # apply filter #
-            for comm in SystemManager.showGroup:
+            for comm in SystemManager.filterGroup:
                 cmd += "comm == \"*%s*\" || " % (comm)
                 try:
                     pid = int(comm)
@@ -13706,7 +13733,7 @@ class SystemManager(object):
         if self.cmdList["sched/sched_wakeup"]:
             if SystemManager.writeCmd('sched/sched_wakeup/filter', cmd) < 0:
                 SystemManager.printError(\
-                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.filterGroup))
                 sys.exit(0)
 
             SystemManager.writeCmd('sched/sched_wakeup/enable', '1')
@@ -13714,7 +13741,7 @@ class SystemManager(object):
         if self.cmdList["sched/sched_wakeup_new"]:
             if SystemManager.writeCmd('sched/sched_wakeup_new/filter', cmd) < 0:
                 SystemManager.printError(\
-                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.filterGroup))
                 sys.exit(0)
 
             SystemManager.writeCmd('sched/sched_wakeup_new/enable', '1')
@@ -13722,7 +13749,7 @@ class SystemManager(object):
         if self.cmdList["sched/sched_migrate_task"]:
             if SystemManager.writeCmd('sched/sched_migrate_task/filter', cmd) < 0:
                 SystemManager.printError(\
-                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.filterGroup))
                 sys.exit(0)
 
             SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
@@ -13730,7 +13757,7 @@ class SystemManager(object):
         if self.cmdList["sched/sched_process_wait"]:
             if SystemManager.writeCmd('sched/sched_process_wait/filter', cmd) < 0:
                 SystemManager.printError(\
-                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.showGroup))
+                    "Fail to set filter [ %s ]" % ' '.join(SystemManager.filterGroup))
                 sys.exit(0)
 
             SystemManager.writeCmd('sched/sched_process_wait/enable', '1')
@@ -17021,12 +17048,12 @@ class ThreadAnalyzer(object):
                 SystemManager.intervalEnable = 1
 
             # remove wrong filter #
-            if len(SystemManager.showGroup) > 0:
-                for idx, val in enumerate(SystemManager.showGroup):
+            if len(SystemManager.filterGroup) > 0:
+                for idx, val in enumerate(SystemManager.filterGroup):
                     if len(val) == 0:
-                        SystemManager.showGroup.pop(idx)
+                        SystemManager.filterGroup.pop(idx)
 
-                taskList = ', '.join(SystemManager.showGroup)
+                taskList = ', '.join(SystemManager.filterGroup)
 
                 if SystemManager.fileTopEnable:
                     pass
@@ -17211,12 +17238,12 @@ class ThreadAnalyzer(object):
             round(float(self.finishTime) - float(SystemManager.startTime), 7)
 
         # apply filter #
-        if SystemManager.showGroup != []:
+        if SystemManager.filterGroup != []:
             # make parent list #
             plist = {}
             if SystemManager.groupProcEnable:
                 for key, value in self.threadData.items():
-                    for item in SystemManager.showGroup:
+                    for item in SystemManager.filterGroup:
                         if value['comm'].find(item) >= 0:
                             plist[value['tgid']] = 0
 
@@ -17243,6 +17270,33 @@ class ThreadAnalyzer(object):
 
 
     def runFileTop(self):
+        def getFilter():
+            procFilter = []
+            fileFilter = []
+
+            if SystemManager.filterGroup != []:
+                newFilter = ','.join(SystemManager.filterGroup)
+                newFilter = newFilter.split(':')
+
+                for pval in newFilter[0].split(','):
+                    if pval != '':
+                        procFilter.append(pval)
+                if len(procFilter) > 0:
+                    plist = ', '.join(procFilter)
+                    SystemManager.printInfo(\
+                        "only specific processes including [ %s ] are shown" % plist)
+
+                if len(newFilter) > 1:
+                    for fval in newFilter[1].split(','):
+                        if fval != '':
+                            fileFilter.append(fval)
+                if len(fileFilter) > 0:
+                    flist = ', '.join(fileFilter)
+                    SystemManager.printInfo(\
+                        "only specific files including [ %s ] are shown" % flist)
+
+            return [procFilter, fileFilter]
+
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
                 "Fail to get root permission to analyze opened files")
@@ -17262,45 +17316,14 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning(\
                     "Fail to import python package: %s" % err.args[0])
 
-        # set proc and file filter #
-        procFilter = []
-        fileFilter = []
-        if SystemManager.showGroup != []:
-            newFilter = ','.join(SystemManager.showGroup)
-            newFilter = newFilter.split(':')
-
-            for pval in newFilter[0].split(','):
-                if pval != '':
-                    procFilter.append(pval)
-            if len(procFilter) > 0:
-                plist = ', '.join(procFilter)
-                SystemManager.printInfo(\
-                    "only specific processes including [ %s ] are shown" % plist)
-
-            if len(newFilter) > 1:
-                for fval in newFilter[1].split(','):
-                    if fval != '':
-                        fileFilter.append(fval)
-            if len(fileFilter) > 0:
-                flist = ', '.join(fileFilter)
-                SystemManager.printInfo(\
-                    "only specific files including [ %s ] are shown" % flist)
+        prevFilter = []
 
         # wait a minute to show options #
         time.sleep(1)
 
         while 1:
             # pause and resume by enter key #
-            if SystemManager.printFile is None and selectObject != None and \
-                selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                sys.stdout.write('\b' * SystemManager.ttyCols)
-                SystemManager.pipePrint("[ Input ENTER to continue ]")
-
-                # flush buffered enter key #
-                sys.stdin.readline()
-
-                # wait for enter key #
-                sys.stdin.readline()
+            SystemManager.doUserInput(selectObject)
 
             # collect file stats as soon as possible #
             self.saveFileStat()
@@ -17311,8 +17334,13 @@ class ThreadAnalyzer(object):
             # update terminal size #
             SystemManager.updateTty()
 
+            # update proc and file filter #
+            if prevFilter != SystemManager.filterGroup:
+                nowFilter = getFilter()
+                prevFilter = SystemManager.filterGroup
+
             # print system status #
-            self.printFileStat(procFilter, fileFilter)
+            self.printFileStat(nowFilter)
 
             # check repeat count #
             if SystemManager.countEnable:
@@ -17375,19 +17403,7 @@ class ThreadAnalyzer(object):
                 continue
 
             # pause and resume by enter key #
-            if SystemManager.printFile is None and selectObject != None and \
-                selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                sys.stdout.write('\b' * SystemManager.ttyCols)
-                SystemManager.pipePrint(\
-                    "[ Input command... ( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
-
-                # flush buffered enter key #
-                sys.stdin.readline()
-
-                sys.stdout.write('=> ')
-
-                # process user input #
-                SystemManager.procUserInput(sys.stdin.readline())
+            SystemManager.doUserInput(selectObject)
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
@@ -17612,9 +17628,9 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     comm = d['comm'].strip()
 
-                    if SystemManager.showGroup != []:
+                    if SystemManager.filterGroup != []:
                         found = False
-                        for idx in SystemManager.showGroup:
+                        for idx in SystemManager.filterGroup:
                             if comm.find(idx) > -1 or d['pid'] == idx:
                                 found = True
                                 break
@@ -17685,9 +17701,9 @@ class ThreadAnalyzer(object):
                         d = m.groupdict()
                         comm = d['comm'].strip().replace('^', '')
 
-                        if SystemManager.showGroup != []:
+                        if SystemManager.filterGroup != []:
                             found = False
-                            for idx in SystemManager.showGroup:
+                            for idx in SystemManager.filterGroup:
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
@@ -17735,9 +17751,9 @@ class ThreadAnalyzer(object):
                         d = m.groupdict()
                         comm = d['comm'].strip().replace('^', '')
 
-                        if SystemManager.showGroup != []:
+                        if SystemManager.filterGroup != []:
                             found = False
-                            for idx in SystemManager.showGroup:
+                            for idx in SystemManager.filterGroup:
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
@@ -17789,9 +17805,9 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     comm = d['comm'].strip()
 
-                    if SystemManager.showGroup != []:
+                    if SystemManager.filterGroup != []:
                         found = False
-                        for idx in SystemManager.showGroup:
+                        for idx in SystemManager.filterGroup:
                             if comm.find(idx) > -1 or d['pid'] == idx:
                                 found = True
                                 break
@@ -19154,7 +19170,7 @@ class ThreadAnalyzer(object):
             cnt = 0
             for val in self.customEventData:
                 skipFlag = False
-                for fval in SystemManager.showGroup:
+                for fval in SystemManager.filterGroup:
                     if SystemManager.isEffectiveTid(val[2], fval) or \
                         val[1].find(fval) >= 0:
                         skipFlag = False
@@ -19226,7 +19242,7 @@ class ThreadAnalyzer(object):
                 elapsed = '-'
 
                 skipFlag = False
-                for fval in SystemManager.showGroup:
+                for fval in SystemManager.filterGroup:
                     if SystemManager.isEffectiveTid(val[3], fval) or val[2].find(fval) >= 0:
                         skipFlag = False
                         break
@@ -19306,7 +19322,7 @@ class ThreadAnalyzer(object):
                 elapsed = '-'
 
                 skipFlag = False
-                for fval in SystemManager.showGroup:
+                for fval in SystemManager.filterGroup:
                     if SystemManager.isEffectiveTid(val[4], fval) or val[3].find(fval) >= 0:
                         skipFlag = False
                         break
@@ -19489,7 +19505,7 @@ class ThreadAnalyzer(object):
                 breakCond = usagePercent
 
             if breakCond < 1 and SystemManager.showAll is False and \
-                SystemManager.showGroup == []:
+                SystemManager.filterGroup == []:
                 break
 
             SystemManager.addPrint(\
@@ -22262,9 +22278,9 @@ class ThreadAnalyzer(object):
 
         for key, value in sortedList:
             # check filter #
-            if SystemManager.showGroup != []:
+            if SystemManager.filterGroup != []:
                 skip = True
-                for item in SystemManager.showGroup:
+                for item in SystemManager.filterGroup:
                     if key == item or value['stat'][commIdx].find(item) >= 0:
                         skip = False
                         break
@@ -25066,7 +25082,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printFileStat(self, procFilter=[], fileFilter=[]):
+    def printFileStat(self, nowFilter):
         SystemManager.updateUptime()
 
         SystemManager.addPrint(\
@@ -25086,11 +25102,13 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: len(e[1]['fdList']), reverse=True)
 
+        procFilter, fileFilter = nowFilter
+
         # make parent list #
         if SystemManager.groupProcEnable:
             plist = {}
             for idx, value in sortedProcData:
-                for item in SystemManager.showGroup:
+                for item in procFilter:
                     if value['stat'][self.commIdx].find(item) >= 0:
                         plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
                         break
@@ -25102,6 +25120,8 @@ class ThreadAnalyzer(object):
             exceptFlag = False
             for item in procFilter:
                 exceptFlag = True
+                comm = value['stat'][self.commIdx][1:-1]
+
                 # group mode #
                 if SystemManager.groupProcEnable:
                     ppid = self.procData[idx]['stat'][self.ppidIdx]
@@ -25111,7 +25131,7 @@ class ThreadAnalyzer(object):
                         exceptFlag = False
                         break
                     # check current thread comm #
-                    elif value['stat'][self.commIdx].find(item) >= 0:
+                    elif comm >= 0:
                         exceptFlag = False
                         break
                     # check current's parent pid by comm #
@@ -25135,7 +25155,7 @@ class ThreadAnalyzer(object):
                     if idx == item:
                         exceptFlag = False
                         break
-                    elif value['stat'][self.commIdx].find(item) >= 0:
+                    elif comm.find(item) >= 0:
                         exceptFlag = False
                         break
 
@@ -25167,8 +25187,8 @@ class ThreadAnalyzer(object):
 
             fdCnt = 0
             if SystemManager.sort != 'f':
-                for fd, path in sorted(\
-                    value['fdList'].items(), key=lambda e: int(e[0]), reverse=True):
+                for fd, path in sorted(value['fdList'].items(),\
+                    key=lambda e: int(e[0]), reverse=True):
                     # cut by rows of terminal #
                     if SystemManager.checkCutCond():
                         break
@@ -26066,7 +26086,7 @@ class ThreadAnalyzer(object):
 
         # init perf event #
         if SystemManager.perfGroupEnable:
-            if len(SystemManager.showGroup) == 0:
+            if len(SystemManager.filterGroup) == 0:
                 SystemManager.printError(\
                     "wrong option with -e + P, "
                     "use also -g option with values to show performance stat")
@@ -26074,19 +26094,19 @@ class ThreadAnalyzer(object):
 
             if SystemManager.groupProcEnable:
                 if SystemManager.processEnable:
-                    if self.procData[tid]['stat'][self.ppidIdx] in SystemManager.showGroup:
+                    if self.procData[tid]['stat'][self.ppidIdx] in SystemManager.filterGroup:
                         pass
-                    elif tid in SystemManager.showGroup:
+                    elif tid in SystemManager.filterGroup:
                         pass
                     else:
                         return
-                elif self.procData[tid]['mainID'] not in SystemManager.showGroup:
+                elif self.procData[tid]['mainID'] not in SystemManager.filterGroup:
                     return
             else:
-                if tid in SystemManager.showGroup:
+                if tid in SystemManager.filterGroup:
                     pass
                 elif True in [self.procData[tid]['stat'][self.commIdx].find(val) >= 0 \
-                    for val in SystemManager.showGroup]:
+                    for val in SystemManager.filterGroup]:
                     pass
                 else:
                     return
@@ -27094,7 +27114,7 @@ class ThreadAnalyzer(object):
         if SystemManager.groupProcEnable:
             plist = {}
             for idx, value in sortedProcData:
-                for item in SystemManager.showGroup:
+                for item in SystemManager.filterGroup:
                     if value['stat'][self.commIdx].find(item) >= 0:
                         if SystemManager.processEnable:
                             plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
@@ -27108,7 +27128,7 @@ class ThreadAnalyzer(object):
         for idx, value in sortedProcData:
             # apply filter #
             exceptFlag = False
-            for item in SystemManager.showGroup:
+            for item in SystemManager.filterGroup:
                 exceptFlag = True
                 # group mode #
                 if SystemManager.groupProcEnable:
@@ -27211,7 +27231,7 @@ class ThreadAnalyzer(object):
                 targetValue = value['runtime']
 
             # check limit #
-            if SystemManager.showGroup == [] and \
+            if SystemManager.filterGroup == [] and \
                 SystemManager.showAll is False and \
                 targetValue == 0:
                 break
@@ -28309,7 +28329,7 @@ if __name__ == '__main__':
 
         if SystemManager.isCpuLimitMode():
             limitInfo = SystemManager.getCpuLimitInfo(\
-                SystemManager.showGroup)
+                SystemManager.filterGroup)
             SystemManager.doCpuLimit(\
                 limitInfo, SystemManager.processEnable)
 
