@@ -25140,7 +25140,8 @@ class ThreadAnalyzer(object):
                         break
                     # check current's parent comm #
                     elif ppid in self.procData and \
-                        self.procData[ppid]['stat'][self.commIdx].find(item) >= 0:
+                            self.procData[ppid]['stat'][self.commIdx][1:-1].\
+                            find(item) >= 0:
                         exceptFlag = False
                         break
                     # check current's parent pid #
