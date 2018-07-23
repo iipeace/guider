@@ -17343,6 +17343,8 @@ class ThreadAnalyzer(object):
             if prevFilter != SystemManager.filterGroup:
                 nowFilter = getFilter()
                 prevFilter = SystemManager.filterGroup
+            else:
+                nowFilter = getFilter()
 
             # print system status #
             self.printFileStat(nowFilter)
