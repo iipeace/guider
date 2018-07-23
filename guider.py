@@ -7247,18 +7247,21 @@ class SystemManager(object):
                 print('\nOptions:')
                 print('    [record]')
                 print('        -e  [enable_optionsPerMode - belowCharacters]')
-                print('              [function] {m(em)|b(lock)|h(eap)|L(ock)|p(ipe)|g(raph)}')
+                print('              [common]   {m(em)|b(lock)|e(ncoding)}')
+                print('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
                 print('              [thread]   '\
-                    '{m(em)|b(lock)|i(rq)|l(ock)|n(et)|p(ipe)|'\
+                    '{i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
                 print('              [top]      '\
-                    '{t(hread)|b(lock)|wf(c)|s(tack)|m(em)|w(ss)|'\
-                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|I(mage)|a(ffinity)|'\
-                    '\n                          g(raph)|r(eport)|R(file)|r(ss)|v(ss)|l(leak)}')
+                    '{t(hread)|wf(c)|s(tack)|w(ss)|'\
+                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
+                    '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
+                    '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 print('        -d  [disable_optionsPerMode - belowCharacters]')
+                print('              [common]   {e(ncoding)}')
                 print('              [thread]   {c(pu)|a(ll)}')
                 print('              [function] {c(pu)|a(ll)|u(ser)}')
-                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)|e(ncoding)}')
+                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
                 print('        -s  [save_traceData - path]')
                 print('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 print('        -u  [run_inBackground]')
@@ -10912,6 +10915,8 @@ class SystemManager(object):
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
+                if options.rfind('e') > -1:
+                    SystemManager.supportExtAscii = True
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
                         SystemManager.memEnable = True
@@ -23495,6 +23500,10 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['irq'] += diff
                         self.irqData[irqId]['usage'] += diff
 
+                        # add cpu usage of this thread to core usage #
+                        if coreId != thread:
+                            self.threadData[coreId]['irq'] += diff
+
                         # save softirq period per thread #
                         if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
                             self.threadData[thread]['irqList'][irqId]['max'] <= 0:
@@ -23502,6 +23511,8 @@ class ThreadAnalyzer(object):
                         if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
                             self.threadData[thread]['irqList'][irqId]['min'] <= 0:
                             self.threadData[thread]['irqList'][irqId]['min'] = diff
+
+                        self.threadData[thread]['irqList'][irqId]['start'] = 0
 
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
@@ -23512,6 +23523,8 @@ class ThreadAnalyzer(object):
                         if diff < self.irqData[irqId]['min'] or \
                             self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
+
+                        self.irqData[irqId]['start'] = 0
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -23590,6 +23603,10 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['irq'] += diff
                         self.irqData[irqId]['usage'] += diff
 
+                        # add cpu usage of this thread to core usage #
+                        if coreId != thread:
+                            self.threadData[coreId]['irq'] += diff
+
                         # save softirq period per thread #
                         if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
                             self.threadData[thread]['irqList'][irqId]['max'] <= 0:
@@ -23598,6 +23615,8 @@ class ThreadAnalyzer(object):
                             self.threadData[thread]['irqList'][irqId]['min'] <= 0:
                             self.threadData[thread]['irqList'][irqId]['min'] = diff
 
+                        self.threadData[thread]['irqList'][irqId]['start'] = 0
+
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
                         # save softirq period #
@@ -23605,6 +23624,8 @@ class ThreadAnalyzer(object):
                             self.irqData[irqId]['max'] = diff
                         if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
+
+                        self.irqData[irqId]['start'] = 0
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
@@ -26400,32 +26421,81 @@ class ThreadAnalyzer(object):
         nrSoftIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
 
         # get total cpu usage #
+        nrCore = SystemManager.nrCore
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
-        userUsage = int(((nowData['user'] - prevData['user'] + nowData['nice'] - prevData['nice']) \
-            / SystemManager.nrCore) / interval)
-        kerUsage = int(((nowData['system'] - prevData['system']) / SystemManager.nrCore) / interval)
-        irqUsage = int(((nowData['irq'] - prevData['irq'] + nowData['softirq'] - prevData['softirq']) \
-            / SystemManager.nrCore) / interval)
-        idleUsage = int(((nowData['idle'] - prevData['idle']) / SystemManager.nrCore) / interval)
+        # initialize accumulated cpu values #
+        userUsage = kerUsage = ioUsage = irqUsage = idleUsage = 0
+        coreStats = dict()
 
-        ioUsage = 0
-        for idx, value in self.cpuData.items():
+        for idx, value in sorted(self.cpuData.items(),\
+            key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
             try:
-                ioUsage += (self.cpuData[int(idx)]['iowait'] - self.prevCpuData[int(idx)]['iowait'])
+                nowData = self.cpuData[int(idx)]
+
+                if not int(idx) in self.prevCpuData:
+                    coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
+                        format("Core/" + str(idx), '- %', '-', '-', '-', '-')
+                    SystemManager.addPrint('%s\n' % coreStat)
+                    continue
+
+                prevData = self.prevCpuData[int(idx)]
+
+                coreStats[idx] = dict()
+
+                #-------------------- SIMPLE STAT --------------------#
+                userStat = nowData['user'] - prevData['user']
+                niceStat = nowData['nice'] - prevData['nice']
+                userCoreUsage = long((userStat + niceStat) / interval)
+
+                kerCoreUsage = long((nowData['system'] - prevData['system']) / interval)
+
+                irqStat = nowData['irq'] - prevData['irq']
+                softirqStat = nowData['softirq'] - prevData['softirq']
+                irqCoreUsage = long((irqStat + softirqStat) / interval)
+
+                ioCoreUsage = long((nowData['iowait'] - prevData['iowait']) / interval)
+
+                idleCoreUsage = long((nowData['idle'] - prevData['idle']) / interval)
+
+                #-------------------- REVISED STAT --------------------#
+                # get scale factor #
+                totalStat = \
+                    userCoreUsage + kerCoreUsage + \
+                    ioCoreUsage + irqCoreUsage + idleCoreUsage
+                scale = 100 / float(totalStat)
+
+                # get cpu stats #
+                coreStats[idx]['user'] = long(userCoreUsage * scale)
+                userUsage += coreStats[idx]['user']
+                coreStats[idx]['kernel'] = long(kerCoreUsage * scale)
+                kerUsage += coreStats[idx]['kernel']
+                coreStats[idx]['io'] = long(ioCoreUsage * scale)
+                ioUsage += coreStats[idx]['io']
+                coreStats[idx]['irq'] = long(irqCoreUsage * scale)
+                irqUsage += coreStats[idx]['irq']
+                coreStats[idx]['idle'] = long(idleCoreUsage * scale)
+                idleUsage += coreStats[idx]['idle']
             except:
                 pass
-        ioUsage = int((ioUsage / SystemManager.nrCore) / interval)
 
-        #totalUsage = int(userUsage + kerUsage + irqUsage)
-        if idleUsage <= 100:
+        # divide usage by the number of cores #
+        userUsage = long(userUsage / nrCore)
+        kerUsage = long(kerUsage / nrCore)
+        ioUsage = long(ioUsage / nrCore)
+        irqUsage = long(irqUsage / nrCore)
+        idleUsage = long(idleUsage / nrCore)
+
+        # get total usage #
+        if idleUsage < 100:
             totalUsage = 100 - idleUsage
         else:
             totalUsage = 0
 
         # get network usage #
-        (netIn, netOut) = self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
+        (netIn, netOut) = \
+            self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = \
@@ -26456,7 +26526,7 @@ class ThreadAnalyzer(object):
             self.reportData['cpu']['user'] = userUsage
             self.reportData['cpu']['kernel'] = kerUsage
             self.reportData['cpu']['irq'] = irqUsage
-            self.reportData['cpu']['nrCore'] = SystemManager.nrCore
+            self.reportData['cpu']['nrCore'] = nrCore
 
             self.reportData['mem'] = {}
             self.reportData['mem']['total'] = totalMem
@@ -26574,40 +26644,24 @@ class ThreadAnalyzer(object):
             for idx, value in sorted(self.cpuData.items(),\
                 key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
                 try:
-                    nowData = self.cpuData[int(idx)]
+                    int(idx)
 
                     if SystemManager.checkCutCond():
                         SystemManager.addPrint('---more---')
                         return
 
-                    if not int(idx) in self.prevCpuData:
-                        coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
-                            format("Core/" + str(idx), '- %', '-', '-', '-', '-')
-                        SystemManager.addPrint('%s\n' % coreStat)
-                        continue
+                    # get cpu stats #
+                    userUsage = coreStats[idx]['user']
+                    kerUsage = coreStats[idx]['kernel']
+                    ioUsage = coreStats[idx]['io']
+                    irqUsage = coreStats[idx]['irq']
+                    idleUsage = coreStats[idx]['idle']
 
-                    prevData = self.prevCpuData[int(idx)]
-
-                    userUsage = int((nowData['user'] - prevData['user'] + \
-                        nowData['nice'] - prevData['nice']) / interval)
-                    kerUsage = int((nowData['system'] - prevData['system']) / interval)
-                    ioUsage = int((nowData['iowait'] - prevData['iowait']) / interval)
-                    irqUsage = int((nowData['irq'] - prevData['irq'] + \
-                        nowData['softirq'] - prevData['softirq']) / interval)
-                    idleUsage = int((nowData['idle'] - prevData['idle']) / interval)
-
-                    if idleUsage <= 100:
+                    # get total usage #
+                    if idleUsage < 100:
                         totalUsage = 100 - idleUsage
                     else:
                         totalUsage = 0
-
-                    '''
-                    totalUsage = userUsage + kerUsage + irqUsage
-
-                    # limit total core usage #
-                    if totalUsage > 100:
-                        totalUsage = 100
-                    '''
 
                     # limit total core usage in each modes #
                     if userUsage > 100:
@@ -28275,6 +28329,10 @@ if __name__ == '__main__':
     # set pid #
     SystemManager.getMaxPid()
     SystemManager.pid = os.getpid()
+
+    # set extended ascii suppport #
+    if 'tty' in os.ttyname(sys.stdout.fileno()):
+        SystemManager.supportExtAscii = False
 
     # print backgroud process list #
     if SystemManager.isListMode():
