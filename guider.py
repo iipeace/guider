@@ -6739,7 +6739,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setaffinity(mask, pids):
+    def setAffinity(mask, pids):
         # check root permission #
         if not (len(pids) == 1 and SystemManager.pid == int(pids[0])) and \
             SystemManager.isRoot() is False:
@@ -6767,9 +6767,39 @@ class SystemManager(object):
             try:
                 ret = SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
             except:
-                SystemManager.printError(\
-                    'Fail to call sched_setaffinity in guiderLib')
+                pass
+
+            # try to load ctypes package #
+            try:
+                if SystemManager.ctypesObj is None:
+                    import ctypes
+                    SystemManager.ctypesObj = ctypes
+                ctypes = SystemManager.ctypesObj
+                from ctypes import cdll, POINTER, c_int, c_size_t, byref
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printWarning(\
+                    ("Fail to import python package: %s "
+                    "to set cpu affinity of tasks") % err.args[0])
                 return
+
+            try:
+                # load standard libc library #
+                if SystemManager.libcObj is None:
+                    SystemManager.libcObj = \
+                        cdll.LoadLibrary(SystemManager.libcPath)
+
+                nrCore = SystemManager.getNrCore()
+
+                SystemManager.libcObj.sched_setaffinity.argtypes = \
+                    [c_int, c_size_t, POINTER(c_int)]
+
+                ret = SystemManager.libcObj.sched_setaffinity(\
+                    int(pid), int(nrCore/8+1), \
+                    byref(c_int(((0x00000001 << nrCore) - 1) & mask)))
+            except:
+                SystemManager.printWarning(\
+                    "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
 
             if ret >= 0:
                 SystemManager.printInfo(\
@@ -6781,14 +6811,48 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getaffinity(pid):
+    def getAffinity(pid):
         try:
-            if SystemManager.guiderObj is None:
-                return None
-
             return '0x%X' % SystemManager.guiderObj.sched_getaffinity(pid)
         except:
             pass
+
+        # try to load ctypes package #
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, Structure, c_int, c_ulong, POINTER
+
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to get cpu affinity of tasks") % err.args[0])
+            return
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+
+            SystemManager.libcObj.sched_getaffinity.argtypes = \
+                [c_int, c_ulong, POINTER(ctypes.c_ulong)]
+
+            cpuset = c_ulong(0)
+
+            ret = SystemManager.libcObj.sched_getaffinity(\
+                int(pid), ctypes.sizeof(ctypes.c_ulong), cpuset)
+
+            if ret >= 0:
+                return hex(cpuset.value)
+            else:
+                raise Exception()
+        except:
+            SystemManager.printWarning(\
+                "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
 
 
 
@@ -12192,7 +12256,7 @@ class SystemManager(object):
         elif ulist[0].upper() == 'AFFINITY' or \
             ulist[0].upper() == 'A':
             if len(ulist) > 2:
-                SystemManager.setaffinity(\
+                SystemManager.setAffinity(\
                     ulist[1], (' '.join(ulist[2:])).split(','))
             else:
                 printHelp()
@@ -12259,6 +12323,38 @@ class SystemManager(object):
             SystemManager.pid = os.getpid()
             SystemManager.printStatus(\
                 "background running as process %s" % SystemManager.pid)
+
+
+
+    @staticmethod
+    def getNrCore():
+        if SystemManager.nrCore > 0:
+            return SystemManager.nrCore
+
+        try:
+            cpuBuf = None
+            SystemManager.statFd.seek(0)
+            cpuBuf = SystemManager.statFd.readlines()
+        except:
+            try:
+                cpuPath = "%s/stat" % SystemManager.procPath
+                SystemManager.statFd = open(cpuPath, 'r')
+                cpuBuf = SystemManager.statFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % cpuPath)
+
+        nrCore = 0
+        if cpuBuf is not None:
+            for line in cpuBuf:
+                statList = line.split()
+                cpuId = statList[0]
+                if cpuId != 'cpu' and cpuId.startswith('cpu'):
+                    nrCore += 1
+
+            # set the number of core #
+            SystemManager.nrCore = nrCore
+
+        return nrCore
 
 
 
@@ -27395,7 +27491,7 @@ class ThreadAnalyzer(object):
                     etc = ''
             elif SystemManager.affinityEnable:
                 try:
-                    etc = SystemManager.getaffinity(int(idx))
+                    etc = SystemManager.getAffinity(int(idx))
                 except:
                     etc = ''
             else:
