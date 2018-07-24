@@ -7367,17 +7367,17 @@ class SystemManager(object):
             print('    $ %s draw /var/log/guider.out' % cmd)
             print('    $ %s -h' % cmd)
 
-            # register exit handler #
-            atexit.register(SystemManager.closeAllForPrint)
-
-            pipePrint = SystemManager.pipePrint
-
-            SystemManager.printRawTitle(False, True, True)
-
             if len(sys.argv) > 1 and \
                 (sys.argv[1] == '-h' or \
                 sys.argv[1] == '--help' or \
                 SystemManager.findOption('h')):
+
+                # register exit handler #
+                atexit.register(SystemManager.closeAllForPrint)
+
+                pipePrint = SystemManager.pipePrint
+
+                SystemManager.printRawTitle(False, True, True)
 
                 pipePrint('\nMode:')
                 pipePrint('    [analysis]')
