@@ -6739,7 +6739,88 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setAffinity(mask, pids):
+    def doSetAffinity():
+        SystemManager.warningEnable = True
+
+        # parse options #
+        value = ' '.join(sys.argv[2:])
+        if len(value) == 0:
+            SystemManager.printError(\
+                "Fail to set cpu affinity of task, "
+                "input {mask:tids} in format")
+            sys.exit(0)
+        elif value.find('-P') >= 0:
+            isProcess = True
+            value = value.replace('-P', '').replace(' ', '')
+        else:
+            isProcess = False
+
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to limit cpu of tasks")
+            sys.exit(0)
+
+        try:
+            value = value.split(':')
+            mask = value[0]
+            tids = value[1]
+            tids = list(map(int, tids.split(',')))
+
+            SystemManager.setAffinity(mask, tids, isProcess)
+
+            sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printError(\
+                "Fail to set cpu affinity of task, "
+                "input {mask:tids} in format")
+            sys.exit(0)
+
+
+
+    @staticmethod
+    def doGetAffinity():
+        SystemManager.warningEnable = True
+
+        # parse options #
+        value = ' '.join(sys.argv[2:])
+        if len(value) == 0:
+            SystemManager.printError(\
+                "Fail to get cpu affinity of task, "
+                "input tids in format")
+            sys.exit(0)
+
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to limit cpu of tasks")
+            sys.exit(0)
+
+        try:
+            tids = list(map(int, value.split(',')))
+
+            for tid in tids:
+                mask = SystemManager.getAffinity(tid)
+                if mask is None:
+                    SystemManager.printError(\
+                        "Fail to get cpu affinity of %s task" % tid)
+                else:
+                    SystemManager.printInfo(\
+                        'affinity of %s task is %s' % (tid, mask))
+
+            sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printError(\
+                "Fail to get cpu affinity of task, "
+                "input tids in format")
+            sys.exit(0)
+
+
+
+    @staticmethod
+    def setAffinity(mask, pids, isProcess=False):
         # check root permission #
         if not (len(pids) == 1 and SystemManager.pid == int(pids[0])) and \
             SystemManager.isRoot() is False:
@@ -6764,49 +6845,55 @@ class SystemManager(object):
             return
 
         for pid in pids:
-            try:
-                ret = SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
-            except:
-                pass
-
-            # try to load ctypes package #
-            try:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from ctypes import cdll, POINTER, c_int, c_size_t, byref
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    ("Fail to import python package: %s "
-                    "to set cpu affinity of tasks") % err.args[0])
-                return
-
-            try:
-                # load standard libc library #
-                if SystemManager.libcObj is None:
-                    SystemManager.libcObj = \
-                        cdll.LoadLibrary(SystemManager.libcPath)
-
-                nrCore = SystemManager.getNrCore()
-
-                SystemManager.libcObj.sched_setaffinity.argtypes = \
-                    [c_int, c_size_t, POINTER(c_int)]
-
-                ret = SystemManager.libcObj.sched_setaffinity(\
-                    int(pid), int(nrCore/8+1), \
-                    byref(c_int(((0x00000001 << nrCore) - 1) & mask)))
-            except:
-                SystemManager.printWarning(\
-                    "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
-
-            if ret >= 0:
-                SystemManager.printInfo(\
-                    'affinity of %s task is changed to 0x%X' % (pid, mask))
+            if isProcess:
+                threadList = SystemManager.getThreadList(pid)
             else:
-                SystemManager.printError(\
-                    'Fail to set affinity of %s as 0x%X' % (pid, mask))
+                threadList = [pid]
+
+            for pid in threadList:
+                try:
+                    ret = SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
+                except:
+                    pass
+
+                # try to load ctypes package #
+                try:
+                    if SystemManager.ctypesObj is None:
+                        import ctypes
+                        SystemManager.ctypesObj = ctypes
+                    ctypes = SystemManager.ctypesObj
+                    from ctypes import cdll, POINTER, c_int, c_size_t, byref
+                except ImportError:
+                    err = sys.exc_info()[1]
+                    SystemManager.printWarning(\
+                        ("Fail to import python package: %s "
+                        "to set cpu affinity of tasks") % err.args[0])
+                    return
+
+                try:
+                    # load standard libc library #
+                    if SystemManager.libcObj is None:
+                        SystemManager.libcObj = \
+                            cdll.LoadLibrary(SystemManager.libcPath)
+
+                    nrCore = SystemManager.getNrCore()
+
+                    SystemManager.libcObj.sched_setaffinity.argtypes = \
+                        [c_int, c_size_t, POINTER(c_int)]
+
+                    ret = SystemManager.libcObj.sched_setaffinity(\
+                        int(pid), int(nrCore/8+1), \
+                        byref(c_int(((0x00000001 << nrCore) - 1) & mask)))
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
+
+                if ret >= 0:
+                    SystemManager.printInfo(\
+                        'affinity of %s task is changed to 0x%X' % (pid, mask))
+                else:
+                    SystemManager.printError(\
+                        'Fail to set affinity of %s as 0x%X' % (pid, mask))
 
 
 
@@ -6847,12 +6934,12 @@ class SystemManager(object):
                 int(pid), ctypes.sizeof(ctypes.c_ulong), cpuset)
 
             if ret >= 0:
-                return hex(cpuset.value)
+                return hex(cpuset.value).rstrip('L')
             else:
                 raise Exception()
         except:
             SystemManager.printWarning(\
-                "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
+                "Fail to get cpu affinity of tasks because of sched_getaffinity fail")
 
 
 
@@ -7280,95 +7367,102 @@ class SystemManager(object):
             print('    $ %s draw /var/log/guider.out' % cmd)
             print('    $ %s -h' % cmd)
 
+            # register exit handler #
+            atexit.register(SystemManager.closeAllForPrint)
+
+            pipePrint = SystemManager.pipePrint
+
+            SystemManager.printRawTitle(False, True, True)
+
             if len(sys.argv) > 1 and \
                 (sys.argv[1] == '-h' or \
                 sys.argv[1] == '--help' or \
                 SystemManager.findOption('h')):
 
-                print('\nMode:')
-                print('    [analysis]')
-                print('        top        [realtime]')
-                print('        record     [thread]')
-                print('        record -y  [system]')
-                print('        record -f  [function]')
-                print('        record -F  [file]')
-                print('        mem        [page]')
-                print('    [test]')
-                print('        alloctest')
-                print('    [control]')
-                print('        kill|setsched|cpulimit [proc]')
-                print('    [communication]')
-                print('        list|start|stop|send|kill [proc]')
-                print('    [convenience]')
-                print('        draw       [image]')
-                print('        event      [event]')
-                print('        threadtop  [thread]')
-                print('        filetop    [file]')
-                print('        stacktop   [stack]')
-                print('        perftop    [PMU]')
-                print('        memtop     [memory]')
+                pipePrint('\nMode:')
+                pipePrint('    [analysis]')
+                pipePrint('        top        [realtime]')
+                pipePrint('        record     [thread]')
+                pipePrint('        record -y  [system]')
+                pipePrint('        record -f  [function]')
+                pipePrint('        record -F  [file]')
+                pipePrint('        mem        [page]')
+                pipePrint('    [test]')
+                pipePrint('        alloctest')
+                pipePrint('    [control]')
+                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
+                pipePrint('    [communication]')
+                pipePrint('        list|start|stop|send|kill [proc]')
+                pipePrint('    [convenience]')
+                pipePrint('        draw       [image]')
+                pipePrint('        event      [event]')
+                pipePrint('        threadtop  [thread]')
+                pipePrint('        filetop    [file]')
+                pipePrint('        stacktop   [stack]')
+                pipePrint('        perftop    [PMU]')
+                pipePrint('        memtop     [memory]')
 
-                print('\nOptions:')
-                print('    [record]')
-                print('        -e  [enable_optionsPerMode - belowCharacters]')
-                print('              [common]   {m(em)|b(lock)|e(ncoding)}')
-                print('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
-                print('              [thread]   '\
+                pipePrint('\nOptions:')
+                pipePrint('    [record]')
+                pipePrint('        -e  [enable_optionsPerMode - belowCharacters]')
+                pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
+                pipePrint('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
+                pipePrint('              [thread]   '\
                     '{i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
-                print('              [top]      '\
-                    '{t(hread)|wf(c)|s(tack)|w(ss)|'\
+                pipePrint('              [top]      '\
+                    '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
-                print('        -d  [disable_optionsPerMode - belowCharacters]')
-                print('              [common]   {e(ncoding)}')
-                print('              [thread]   {c(pu)|a(ll)}')
-                print('              [function] {c(pu)|a(ll)|u(ser)}')
-                print('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
-                print('        -s  [save_traceData - path]')
-                print('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
-                print('        -u  [run_inBackground]')
-                print('        -W  [wait_forSignal]')
-                print('        -b  [set_bufferSize - kb]')
-                print('        -D  [trace_threadDependency]')
-                print('        -t  [trace_syscall - syscalls]')
-                print('        -T  [set_fontPath]')
-                print('        -j  [set_reportPath - path]')
-                print('        -U  [set_userEvent - name:func|addr:file]')
-                print('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
-                print('        -C  [set_commandScriptPath - file]')
-                print('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
-                print('        -x  [set_addressForLocalServer - {ip:port}]')
-                print('        -X  [set_requestToRemoteServer - {req@ip:port}]')
-                print('        -N  [set_addressForReport - req@ip:port]')
-                print('        -n  [set_addressForPrint - ip:port]')
-                print('        -M  [set_objdumpPath - file]')
-                print('        -k  [set_killList - comms|tids]')
-                print('    [analysis]')
-                print('        -o  [save_outputData - path]')
-                print('        -O  [set_coreFilter - cores]')
-                print('        -P  [group_perProcessBasis]')
-                print('        -p  [show_preemptInfo - tids]')
-                print('        -l  [set_addr2linePath - files]')
-                print('        -r  [set_targetRootPath - dir]')
-                print('        -I  [set_inputValue - file|addr]')
-                print('        -q  [configure_taskList]')
-                print('        -Z  [convert_textToImage]')
-                print('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
-                print('        -m  [set_terminalSize - {rows:cols}]')
-                print('    [common]')
-                print('        -a  [show_allInfo]')
-                print('        -Q  [print_allRowsInaStream]')
-                print('        -i  [set_interval - sec]')
-                print('        -R  [set_repeatCount - {interval,}count]')
-                print('        -g  [set_filter - comms|tids{:files}]')
-                print('        -A  [set_arch - arm|aarch64|x86|x64]')
-                print('        -c  [set_customEvent - event:filter]')
-                print('        -E  [set_errorLogPath - file]')
-                print('        -H  [set_functionDepth]')
-                print('        -Y  [set_schedPriority - policy:prio{:pid:CONT}]')
-                print('        -v  [verbose]')
+                pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
+                pipePrint('              [common]   {e(ncoding)}')
+                pipePrint('              [thread]   {c(pu)|a(ll)}')
+                pipePrint('              [function] {c(pu)|a(ll)|u(ser)}')
+                pipePrint('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
+                pipePrint('        -s  [save_traceData - path]')
+                pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
+                pipePrint('        -u  [run_inBackground]')
+                pipePrint('        -W  [wait_forSignal]')
+                pipePrint('        -b  [set_bufferSize - kb]')
+                pipePrint('        -D  [trace_threadDependency]')
+                pipePrint('        -t  [trace_syscall - syscalls]')
+                pipePrint('        -T  [set_fontPath]')
+                pipePrint('        -j  [set_reportPath - path]')
+                pipePrint('        -U  [set_userEvent - name:func|addr:file]')
+                pipePrint('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
+                pipePrint('        -C  [set_commandScriptPath - file]')
+                pipePrint('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
+                pipePrint('        -x  [set_addressForLocalServer - {ip:port}]')
+                pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
+                pipePrint('        -N  [set_addressForReport - req@ip:port]')
+                pipePrint('        -n  [set_addressForPrint - ip:port]')
+                pipePrint('        -M  [set_objdumpPath - file]')
+                pipePrint('        -k  [set_killList - comms|tids]')
+                pipePrint('    [analysis]')
+                pipePrint('        -o  [save_outputData - path]')
+                pipePrint('        -O  [set_coreFilter - cores]')
+                pipePrint('        -P  [group_perProcessBasis]')
+                pipePrint('        -p  [show_preemptInfo - tids]')
+                pipePrint('        -l  [set_addr2linePath - files]')
+                pipePrint('        -r  [set_targetRootPath - dir]')
+                pipePrint('        -I  [set_inputValue - file|addr]')
+                pipePrint('        -q  [configure_taskList]')
+                pipePrint('        -Z  [convert_textToImage]')
+                pipePrint('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
+                pipePrint('        -m  [set_terminalSize - {rows:cols}]')
+                pipePrint('    [common]')
+                pipePrint('        -a  [show_allInfo]')
+                pipePrint('        -Q  [print_allRowsInaStream]')
+                pipePrint('        -i  [set_interval - sec]')
+                pipePrint('        -R  [set_repeatCount - {interval,}count]')
+                pipePrint('        -g  [set_filter - comms|tids{:files}]')
+                pipePrint('        -A  [set_arch - arm|aarch64|x86|x64]')
+                pipePrint('        -c  [set_customEvent - event:filter]')
+                pipePrint('        -E  [set_errorLogPath - file]')
+                pipePrint('        -H  [set_functionDepth]')
+                pipePrint('        -Y  [set_schedPriority - policy:prio{:pid:CONT}]')
+                pipePrint('        -v  [verbose]')
             else:
                 print('\nHelp:')
                 print('    # %s -h | --help' % cmd)
@@ -7391,153 +7485,161 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
-            print('[thread mode examples]')
-            print('    - record cpu usage of threads')
-            print('        # %s record -s .' % cmd)
-            print('    - record specific resource usage of threads in background')
-            print('        # %s record -s . -e m b i -u' % cmd)
-            print('    - record specific resource usage excluding cpu of threads in background')
-            print('        # %s record -s . -e m b i -d c -u' % cmd)
-            print('    - record specific systemcalls of specific threads')
-            print('        # %s record -s . -t sys_read, write -g 1234' % cmd)
-            print('    - record lock events of threads')
-            print('        # %s record -s . -e L' % cmd)
-            print('    - record specific user function events')
-            print('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
-            print('    - record specific kernel function events')
-            print('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
-            print('    - record specific kernel function events with register values')
-            print('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
-            print('    - record specific kernel function events with return value')
-            print('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
-            print('    - excute special commands before recording')
-            print('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            print('    - analyze data by expressing all possible information')
-            print('        # %s guider.dat -o . -a -i' % cmd)
-            print('    - analyze data on specific interval')
-            print('        # %s guider.dat -o . -R 3' % cmd)
-            print('    - analyze data including preemption info of specific threads')
-            print('        # %s guider.dat -o . -p 1234, 4567' % cmd)
-            print('    - analyze specific threads that are involved in the specific processes')
-            print('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
-            print('    - draw graph and chart in image file')
-            print('        # %s draw guider.dat' % cmd)
+            # register exit handler #
+            atexit.register(SystemManager.closeAllForPrint)
 
-            print('\n[function mode examples]')
-            print('    - record cpu usage of functions in all threads')
-            print('        # %s record -f -s .' % cmd)
-            print('    - record cpu usage of specific functions having tid bigger than 1024 in all threads')
-            print('        # %s record -f -s . -g 1024\<' % cmd)
-            print('    - record specific events of functions of all threads in kernel level')
-            print('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
-            print('    - record resource usage of functions of specific threads')
-            print('        # %s record -f -s . -e m b h -g 1234' % cmd)
-            print('    - excute special commands before recording')
-            print('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            print('    - analyze function data for all')
-            print('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-            print('    - analyze function data for only lower than 3 levels')
-            print('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
-            print('    - record segmentation fault event of all threads')
-            print('        # %s record -f -s . -K segflt:bad_area -ep' % cmd)
-            print('    - record blocking event except for cpu usage of all threads')
-            print('        # %s record -f -s . -dc -K block:schedule' % cmd)
+            pipePrint = SystemManager.pipePrint
 
-            print('\n[top mode examples]')
-            print('    - show resource usage of processes in real-time')
-            print('        # %s top' % cmd)
-            print('    - show resource usage of processes with fixed terminal size in real-time')
-            print('        # %s top -m' % cmd)
-            print('    - show files opened via processes in real-time')
-            print('        # %s top -e f' % cmd)
-            print('    - show specific files opened via specific processes in real-time')
-            print('        # %s top -e f -g init, lightdm : home, var' % cmd)
-            print('    - show performance stats of specific processes in real-time')
-            print('        # %s top -e P -g init, lightdm' % cmd)
-            print('    - show resource usage of processes by sorting memory in real-time')
-            print('        # %s top -S m' % cmd)
-            print('    - show resource usage of processes by sorting file in real-time')
-            print('        # %s top -S f' % cmd)
-            print('    - show resource usage of processes only 5 times in real-time')
-            print('        # %s top -R 5' % cmd)
-            print('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
-            print('        # %s top -R 3, 5' % cmd)
-            print('    - show resource usage including block of threads per 2 sec interval in real-time')
-            print('        # %s top -e t b -i 2 -a' % cmd)
-            print('    - show resource usage of specific processes/threads involved in specific process group in real-time')
-            print('        # %s top -g 1234,4567 -P' % cmd)
-            print('    - record resource usage of processes and write to specific file in real-time')
-            print('        # %s top -o . -e p' % cmd)
-            print('    - record and print resource usage of processes')
-            print('        # %s top -o . -Q' % cmd)
-            print('    - record resource usage of processes and write to specific file in background')
-            print('        # %s top -o . -u' % cmd)
-            print('    - record resource usage of processes, system status and write to specific file in background')
-            print('        # %s top -o . -e r -j . -u' % cmd)
-            print('    - record resource usage of processes, system status and write to specific file if some events occur')
-            print('        # %s top -o . -e r R' % cmd)
-            print('    - record resource usage of processes, system status and write to specific image')
-            print('        # %s top -o . -e r I' % cmd)
-            print('    - record resource usage of processes and write to specific file when specific conditions met')
-            print('        # %s top -o . -e R' % cmd)
-            print('    - excute special commands every interval')
-            print('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
-            print('    - trace memory working set for specific processes')
-            print('        # %s top -e w -g chrome' % cmd)
-            print('    - draw graph and chart in image file')
-            print('        # %s draw guider.out' % cmd)
-            print('        # %s top -I guider.out -e g' % cmd)
-            print('    - draw graph and chart for specific process group in image file')
-            print('        # %s draw guider.out -g chrome' % cmd)
-            print('        # %s top -I guider.out -e g -g chrome' % cmd)
-            print('    - draw cpu and memory graphs of specific processes in image file propotionally')
-            print('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
-            print('    - draw VSS graph and chart for specific processes in image file')
-            print('        # %s draw guider.out -g chrome -e v' % cmd)
-            print('    - report system status to specific server')
-            print('        # %s top -n 192.168.0.5:5555' % cmd)
-            print('    - report system status to specific server if only some events occur')
-            print('        # %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
-            print('    - report system status to specific clients that asked it')
-            print('        # %s top -x 5555' % cmd)
-            print('    - receive report data from server')
-            print('        # %s top -x 5555 -X' % cmd)
-            print('    - set configuration file path')
-            print('        # %s top -I guider.json' % cmd)
+            SystemManager.printRawTitle(False, True, True)
 
-            print('\n[file mode examples]')
-            print('    - record memory usage of files mapped to processes')
-            print('        # %s record -F -o .' % cmd)
-            print('    - record memory usage of files mapped to processes each intervals')
-            print('        # %s record -F -i' % cmd)
+            pipePrint('')
+            pipePrint('[thread mode examples]')
+            pipePrint('    - record cpu usage of threads')
+            pipePrint('        # %s record -s .' % cmd)
+            pipePrint('    - record specific resource usage of threads in background')
+            pipePrint('        # %s record -s . -e m b i -u' % cmd)
+            pipePrint('    - record specific resource usage excluding cpu of threads in background')
+            pipePrint('        # %s record -s . -e m b i -d c -u' % cmd)
+            pipePrint('    - record specific systemcalls of specific threads')
+            pipePrint('        # %s record -s . -t sys_read, write -g 1234' % cmd)
+            pipePrint('    - record lock events of threads')
+            pipePrint('        # %s record -s . -e L' % cmd)
+            pipePrint('    - record specific user function events')
+            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
+            pipePrint('    - record specific kernel function events')
+            pipePrint('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
+            pipePrint('    - record specific kernel function events with register values')
+            pipePrint('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
+            pipePrint('    - record specific kernel function events with return value')
+            pipePrint('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
+            pipePrint('    - excute special commands before recording')
+            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+            pipePrint('    - analyze data by expressing all possible information')
+            pipePrint('        # %s guider.dat -o . -a -i' % cmd)
+            pipePrint('    - analyze data on specific interval')
+            pipePrint('        # %s guider.dat -o . -R 3' % cmd)
+            pipePrint('    - analyze data including preemption info of specific threads')
+            pipePrint('        # %s guider.dat -o . -p 1234, 4567' % cmd)
+            pipePrint('    - analyze specific threads that are involved in the specific processes')
+            pipePrint('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
+            pipePrint('    - draw graph and chart in image file')
+            pipePrint('        # %s draw guider.dat' % cmd)
 
-            print('\n[etc examples]')
-            print('    - check property of specific pages')
-            print('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
-            print('    - convert a text fle to a image file')
-            print('        # %s guider.out -Z' % cmd)
-            print('    - wait for signal')
-            print('        # %s record|top -W' % cmd)
-            print('    - show guider processes running')
-            print('        # %s list' % cmd)
-            print('    - send noty signal to guider processes running')
-            print('        # %s send' % cmd)
-            print('        # %s kill ' % cmd)
-            print('    - send stop signal to guider processes running')
-            print('        # %s stop' % cmd)
-            print('    - send specific signals to specific processes running')
-            print('        # %s send -9 1234, 4567' % cmd)
-            print('        # %s kill -9 1234, 4567' % cmd)
-            print('    - change priority of task')
-            print('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
-            print('    - change priority of tasks in a group')
-            print('        # %s setsched c:-19, r:90:1217 -P' % cmd)
-            print('    - update priority of tasks continuously')
-            print('        # %s top -Y r:90:task:ALL' % cmd)
-            print('    - limit cpu usage of specific processes')
-            print('        # %s cpulimit 1234:40, 5678:10' % cmd)
-            print('    - limit cpu usage of specific threads')
-            print('        # %s cpulimit 1234:40, 5678:10 -e t' % cmd)
+            pipePrint('\n[function mode examples]')
+            pipePrint('    - record cpu usage of functions in all threads')
+            pipePrint('        # %s record -f -s .' % cmd)
+            pipePrint('    - record cpu usage of specific functions having tid bigger than 1024 in all threads')
+            pipePrint('        # %s record -f -s . -g 1024\<' % cmd)
+            pipePrint('    - record specific events of functions of all threads in kernel level')
+            pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
+            pipePrint('    - record resource usage of functions of specific threads')
+            pipePrint('        # %s record -f -s . -e m b h -g 1234' % cmd)
+            pipePrint('    - excute special commands before recording')
+            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+            pipePrint('    - analyze function data for all')
+            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+            pipePrint('    - analyze function data for only lower than 3 levels')
+            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
+            pipePrint('    - record segmentation fault event of all threads')
+            pipePrint('        # %s record -f -s . -K segflt:bad_area -ep' % cmd)
+            pipePrint('    - record blocking event except for cpu usage of all threads')
+            pipePrint('        # %s record -f -s . -dc -K block:schedule' % cmd)
+
+            pipePrint('\n[top mode examples]')
+            pipePrint('    - show resource usage of processes in real-time')
+            pipePrint('        # %s top' % cmd)
+            pipePrint('    - show resource usage of processes with fixed terminal size in real-time')
+            pipePrint('        # %s top -m' % cmd)
+            pipePrint('    - show files opened via processes in real-time')
+            pipePrint('        # %s top -e f' % cmd)
+            pipePrint('    - show specific files opened via specific processes in real-time')
+            pipePrint('        # %s top -e f -g init, lightdm : home, var' % cmd)
+            pipePrint('    - show performance stats of specific processes in real-time')
+            pipePrint('        # %s top -e P -g init, lightdm' % cmd)
+            pipePrint('    - show resource usage of processes by sorting memory in real-time')
+            pipePrint('        # %s top -S m' % cmd)
+            pipePrint('    - show resource usage of processes by sorting file in real-time')
+            pipePrint('        # %s top -S f' % cmd)
+            pipePrint('    - show resource usage of processes only 5 times in real-time')
+            pipePrint('        # %s top -R 5' % cmd)
+            pipePrint('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
+            pipePrint('        # %s top -R 3, 5' % cmd)
+            pipePrint('    - show resource usage including block of threads per 2 sec interval in real-time')
+            pipePrint('        # %s top -e t b -i 2 -a' % cmd)
+            pipePrint('    - show resource usage of specific processes/threads involved in specific process group in real-time')
+            pipePrint('        # %s top -g 1234,4567 -P' % cmd)
+            pipePrint('    - record resource usage of processes and write to specific file in real-time')
+            pipePrint('        # %s top -o . -e p' % cmd)
+            pipePrint('    - record and print resource usage of processes')
+            pipePrint('        # %s top -o . -Q' % cmd)
+            pipePrint('    - record resource usage of processes and write to specific file in background')
+            pipePrint('        # %s top -o . -u' % cmd)
+            pipePrint('    - record resource usage of processes, system status and write to specific file in background')
+            pipePrint('        # %s top -o . -e r -j . -u' % cmd)
+            pipePrint('    - record resource usage of processes, system status and write to specific file if some events occur')
+            pipePrint('        # %s top -o . -e r R' % cmd)
+            pipePrint('    - record resource usage of processes, system status and write to specific image')
+            pipePrint('        # %s top -o . -e r I' % cmd)
+            pipePrint('    - record resource usage of processes and write to specific file when specific conditions met')
+            pipePrint('        # %s top -o . -e R' % cmd)
+            pipePrint('    - excute special commands every interval')
+            pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
+            pipePrint('    - trace memory working set for specific processes')
+            pipePrint('        # %s top -e w -g chrome' % cmd)
+            pipePrint('    - draw graph and chart in image file')
+            pipePrint('        # %s draw guider.out' % cmd)
+            pipePrint('        # %s top -I guider.out -e g' % cmd)
+            pipePrint('    - draw graph and chart for specific process group in image file')
+            pipePrint('        # %s draw guider.out -g chrome' % cmd)
+            pipePrint('        # %s top -I guider.out -e g -g chrome' % cmd)
+            pipePrint('    - draw cpu and memory graphs of specific processes in image file propotionally')
+            pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
+            pipePrint('    - draw VSS graph and chart for specific processes in image file')
+            pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
+            pipePrint('    - report system status to specific server')
+            pipePrint('        # %s top -n 192.168.0.5:5555' % cmd)
+            pipePrint('    - report system status to specific server if only some events occur')
+            pipePrint('        # %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
+            pipePrint('    - report system status to specific clients that asked it')
+            pipePrint('        # %s top -x 5555' % cmd)
+            pipePrint('    - receive report data from server')
+            pipePrint('        # %s top -x 5555 -X' % cmd)
+            pipePrint('    - set configuration file path')
+            pipePrint('        # %s top -I guider.json' % cmd)
+
+            pipePrint('\n[file mode examples]')
+            pipePrint('    - record memory usage of files mapped to processes')
+            pipePrint('        # %s record -F -o .' % cmd)
+            pipePrint('    - record memory usage of files mapped to processes each intervals')
+            pipePrint('        # %s record -F -i' % cmd)
+
+            pipePrint('\n[etc examples]')
+            pipePrint('    - check property of specific pages')
+            pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
+            pipePrint('    - convert a text fle to a image file')
+            pipePrint('        # %s guider.out -Z' % cmd)
+            pipePrint('    - wait for signal')
+            pipePrint('        # %s record|top -W' % cmd)
+            pipePrint('    - show guider processes running')
+            pipePrint('        # %s list' % cmd)
+            pipePrint('    - send noty signal to guider processes running')
+            pipePrint('        # %s send' % cmd)
+            pipePrint('        # %s kill ' % cmd)
+            pipePrint('    - send stop signal to guider processes running')
+            pipePrint('        # %s stop' % cmd)
+            pipePrint('    - send specific signals to specific processes running')
+            pipePrint('        # %s send -9 1234, 4567' % cmd)
+            pipePrint('        # %s kill -9 1234, 4567' % cmd)
+            pipePrint('    - change priority of task')
+            pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
+            pipePrint('    - change priority of tasks in a group')
+            pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
+            pipePrint('    - update priority of tasks continuously')
+            pipePrint('        # %s top -Y r:90:task:ALL' % cmd)
+            pipePrint('    - limit cpu usage of specific processes')
+            pipePrint('        # %s cpulimit 1234:40, 5678:10' % cmd)
+            pipePrint('    - limit cpu usage of specific threads')
+            pipePrint('        # %s cpulimit 1234:40, 5678:10 -e t' % cmd)
 
             sys.exit(0)
 
@@ -9869,9 +9971,12 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRawTitle(absolute=False, big=False):
+    def printRawTitle(absolute=False, big=False, pager=False):
         if big:
-            print(ConfigManager.logo)
+            if pager:
+                SystemManager.pipePrint(ConfigManager.logo)
+            else:
+                print(ConfigManager.logo)
         else:
             title = "/ g.u.i.d.e.r \tver.%s /" % __version__
             underline = '_' * (len(title))
@@ -10572,7 +10677,7 @@ class SystemManager(object):
             return line
 
         try:
-            newline = line.replace('-', '─')
+            newline = line.replace('-------', '───────')
             newline = newline.replace('=', '═')
             newline = newline.replace('|', '│')
 
@@ -10967,7 +11072,7 @@ class SystemManager(object):
                         sys.exit(0)
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
-                if options.rfind('c') > -1:
+                if options.rfind('C') > -1:
                     SystemManager.wfcEnable = True
                 if options.rfind('a') > -1:
                     SystemManager.affinityEnable = True
@@ -11691,6 +11796,24 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isSetAffinityMode():
+        if sys.argv[1] == 'setaffinity':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isGetAffinityMode():
+        if sys.argv[1] == 'getaffinity':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isCpuLimitMode():
         if sys.argv[1] == 'cpulimit':
             return True
@@ -12360,6 +12483,8 @@ class SystemManager(object):
 
     @staticmethod
     def doSetSched():
+        SystemManager.warningEnable = True
+
         # parse options #
         value = ' '.join(sys.argv[2:])
         if len(value) == 0:
@@ -12368,8 +12493,7 @@ class SystemManager(object):
                 "input POLICY:PRIORITY:PID in format"))
         elif value.find('-P') >= 0:
             isProcess = True
-            value = value.replace('-P', '')
-            value = value.replace(' ', '')
+            value = value.replace('-P', '').replace(' ', '')
         else:
             isProcess = False
 
@@ -12719,16 +12843,18 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getThreadList(tid):
+        procPath = "%s/%s" % (SystemManager.procPath, tid)
+        taskPath = "%s/task" % procPath
+
+        try:
+            return list(map(int, os.listdir(taskPath)))
+        except:
+            pass
+
+
+    @staticmethod
     def parsePriorityOption(value, isProcess=False):
-        def getThreadList(tid):
-            procPath = "%s/%s" % (SystemManager.procPath, tid)
-            taskPath = "%s/task" % procPath
-
-            try:
-                return list(map(int, os.listdir(taskPath)))
-            except:
-                pass
-
         schedGroup = value.split(',')
         SystemManager.removeEmptyValue(schedGroup)
         for item in schedGroup:
@@ -12738,7 +12864,7 @@ class SystemManager(object):
                     SystemManager.prio = int(schedSet[1])
 
                     if isProcess:
-                        threadList = getThreadList(SystemManager.pid)
+                        threadList = SystemManager.getThreadList(SystemManager.pid)
                         if threadList is None:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
@@ -12757,7 +12883,7 @@ class SystemManager(object):
                         sys.exit(0)
 
                     if isProcess:
-                        threadList = getThreadList(schedSet[2])
+                        threadList = SystemManager.getThreadList(schedSet[2])
                         if threadList is None:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
@@ -12784,7 +12910,7 @@ class SystemManager(object):
                     pri = int(schedSet[1])
 
                     if isProcess:
-                        threadList = getThreadList(schedSet[2])
+                        threadList = SystemManager.getThreadList(schedSet[2])
                         if threadList is None:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
@@ -28499,6 +28625,12 @@ if __name__ == '__main__':
     #-------------------- SETSCHED MODE --------------------#
     if SystemManager.isSetSchedMode():
         SystemManager.doSetSched()
+
+    #-------------------- AFFINITY MODE --------------------#
+    if SystemManager.isSetAffinityMode():
+        SystemManager.doSetAffinity()
+    elif SystemManager.isGetAffinityMode():
+        SystemManager.doGetAffinity()
 
     #-------------------- EVENT MODE --------------------#
     if SystemManager.isEventMode():
