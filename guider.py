@@ -6883,8 +6883,8 @@ class SystemManager(object):
                         [c_int, c_ulong, POINTER(c_ulong)]
 
                     ret = SystemManager.libcObj.sched_setaffinity(\
-                        int(pid), ctypes.sizeof(ctypes.c_ulong) * nrCore, \
-                        byref(c_ulong(((0x00000001 << nrCore) - 1) & mask)))
+                        int(pid), nrCore, \
+                        byref(c_ulong(((0x1 << nrCore) - 1) & mask)))
                 except:
                     SystemManager.printWarning(\
                         "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
