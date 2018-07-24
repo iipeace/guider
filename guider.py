@@ -6852,7 +6852,8 @@ class SystemManager(object):
 
             for pid in threadList:
                 try:
-                    ret = SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
+                    ret = \
+                        SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
                 except:
                     pass
 
@@ -6862,7 +6863,7 @@ class SystemManager(object):
                         import ctypes
                         SystemManager.ctypesObj = ctypes
                     ctypes = SystemManager.ctypesObj
-                    from ctypes import cdll, POINTER, c_int, c_size_t, byref
+                    from ctypes import cdll, POINTER, c_int, c_ulong, byref
                 except ImportError:
                     err = sys.exc_info()[1]
                     SystemManager.printWarning(\
@@ -6879,11 +6880,11 @@ class SystemManager(object):
                     nrCore = SystemManager.getNrCore()
 
                     SystemManager.libcObj.sched_setaffinity.argtypes = \
-                        [c_int, c_size_t, POINTER(c_int)]
+                        [c_int, c_ulong, POINTER(c_ulong)]
 
                     ret = SystemManager.libcObj.sched_setaffinity(\
-                        int(pid), int(nrCore/8+1), \
-                        byref(c_int(((0x00000001 << nrCore) - 1) & mask)))
+                        int(pid), ctypes.sizeof(ctypes.c_ulong) * nrCore, \
+                        byref(c_ulong(((0x00000001 << nrCore) - 1) & mask)))
                 except:
                     SystemManager.printWarning(\
                         "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
@@ -6910,7 +6911,7 @@ class SystemManager(object):
                 import ctypes
                 SystemManager.ctypesObj = ctypes
             ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, Structure, c_int, c_ulong, POINTER
+            from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         except ImportError:
             err = sys.exc_info()[1]
@@ -6925,13 +6926,15 @@ class SystemManager(object):
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
+            nrCore = SystemManager.getNrCore()
+
             SystemManager.libcObj.sched_getaffinity.argtypes = \
                 [c_int, c_ulong, POINTER(ctypes.c_ulong)]
 
             cpuset = c_ulong(0)
 
             ret = SystemManager.libcObj.sched_getaffinity(\
-                int(pid), ctypes.sizeof(ctypes.c_ulong), cpuset)
+                int(pid), sizeof(c_ulong) * nrCore, ctypes.pointer(cpuset))
 
             if ret >= 0:
                 return hex(cpuset.value).rstrip('L')
