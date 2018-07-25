@@ -6590,6 +6590,8 @@ class SystemManager(object):
     filterGroup = []
     schedFilter = []
     schedAllFilter = []
+    affinityFilter = []
+    affinityAllFilter = []
     killFilter = []
     syscallList = []
     perCoreList = []
@@ -6742,7 +6744,56 @@ class SystemManager(object):
 
 
     @staticmethod
+    def parseAffinityOption(value, isProcess=False):
+        if len(value) == 0:
+            SystemManager.printError(\
+                ("wrong option value %s with -z, "
+                "input {mask:tids} in format"))
+            sys.exit(0)
+
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to set cpu affinity of tasks")
+            sys.exit(0)
+
+        try:
+            value = value.split(':')
+
+            if len(value) == 2:
+                mask = value[0]
+                tids = value[1]
+
+                if tids == 'ALL':
+                    SystemManager.affinityAllFilter.append(mask)
+                else:
+                    tids = list(map(int, tids.split(',')))
+
+                    SystemManager.setAffinity(mask, tids, isProcess)
+            elif len(value) == 3 and value[2] == 'CONT':
+                mask = value[0]
+                tids = value[1]
+
+                # check tid type #
+                list(map(int, tids.split(',')))
+
+                SystemManager.affinityFilter.append([mask, tids])
+            else:
+                raise Exception()
+
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printError(\
+                "Fail to set cpu affinity of task, "
+                "input {mask:tids} in format")
+            sys.exit(0)
+
+
+
+    @staticmethod
     def doSetAffinity():
+        isProcess = False
         SystemManager.warningEnable = True
 
         # parse options #
@@ -6755,30 +6806,15 @@ class SystemManager(object):
         elif value.find('-P') >= 0:
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
-        else:
-            isProcess = False
 
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
-                "Fail to get root permission to limit cpu of tasks")
+                "Fail to get root permission to set cpu affinity of tasks")
             sys.exit(0)
 
-        try:
-            value = value.split(':')
-            mask = value[0]
-            tids = value[1]
-            tids = list(map(int, tids.split(',')))
+        SystemManager.parseAffinityOption(value, isProcess)
 
-            SystemManager.setAffinity(mask, tids, isProcess)
-
-            sys.exit(0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SystemManager.printError(\
-                "Fail to set cpu affinity of task, "
-                "input {mask:tids} in format")
-            sys.exit(0)
+        sys.exit(0)
 
 
 
@@ -6796,7 +6832,7 @@ class SystemManager(object):
 
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
-                "Fail to get root permission to limit cpu of tasks")
+                "Fail to get root permission to get cpu affinity of tasks")
             sys.exit(0)
 
         try:
@@ -6825,8 +6861,11 @@ class SystemManager(object):
     @staticmethod
     def setAffinity(mask, pids, isProcess=False):
         # check root permission #
-        if not (len(pids) == 1 and SystemManager.pid == int(pids[0])) and \
-            SystemManager.isRoot() is False:
+        if len(pids) == 1 and \
+            str(pids[0]).isdigit() and \
+            SystemManager.pid == int(pids[0]):
+            pass
+        elif SystemManager.isRoot() is False:
             SystemManager.printError(\
                 "Fail to get root permission to set affinity of other thread")
             return
@@ -6835,7 +6874,10 @@ class SystemManager(object):
         if type(pids) is int or type(pids) is long:
             pids = list(pids)
         elif type(pids) is list:
-            pass
+            for pid in pids:
+                if str(pid).isdigit() is False:
+                    SystemManager.printError('Fail to recognize pid %s' % pid)
+                    return
         else:
             SystemManager.printError('Fail to recognize pid type')
             return
@@ -6889,6 +6931,7 @@ class SystemManager(object):
                         int(pid), nrCore, \
                         byref(c_ulong(((0x1 << nrCore) - 1) & mask)))
                 except:
+                    ret = -1
                     SystemManager.printWarning(\
                         "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
 
@@ -7467,7 +7510,8 @@ class SystemManager(object):
                 pipePrint('        -c  [set_customEvent - event:filter]')
                 pipePrint('        -E  [set_errorLogPath - file]')
                 pipePrint('        -H  [set_functionDepth]')
-                pipePrint('        -Y  [set_schedPriority - policy:prio{:pid|ALL:CONT}]')
+                pipePrint('        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]')
+                pipePrint('        -Y  [set_schedPriority - policy:prio{:tid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
             else:
                 print('\nHelp:')
@@ -7640,8 +7684,14 @@ class SystemManager(object):
             pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
             pipePrint('    - change priority of tasks in a group')
             pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
+            pipePrint('    - update priority of all tasks shown')
+            pipePrint('        # %s top -Y r:90:ALL' % cmd)
             pipePrint('    - update priority of tasks continuously')
-            pipePrint('        # %s top -Y r:90:task:CONT' % cmd)
+            pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
+            pipePrint('    - update cpu affinity of all tasks shown')
+            pipePrint('        # %s top -z f:ALL' % cmd)
+            pipePrint('    - update cpu affinity of tasks continuously')
+            pipePrint('        # %s top -z f:1234:CONT' % cmd)
             pipePrint('    - limit cpu usage of specific processes')
             pipePrint('        # %s cpulimit 1234:40, 5678:10' % cmd)
             pipePrint('    - limit cpu usage of specific threads')
@@ -10986,6 +11036,9 @@ class SystemManager(object):
                 if SystemManager.prio is None:
                     SystemManager.parsePriorityOption(value)
 
+            elif option == 'z':
+                SystemManager.parseAffinityOption(value)
+
             elif option == 'k':
                 SystemManager.killFilter = str(value).split(',')
 
@@ -11460,6 +11513,9 @@ class SystemManager(object):
 
             elif option == 'Y':
                 SystemManager.parsePriorityOption(value)
+
+            elif option == 'z':
+                SystemManager.parseAffinityOption(value)
 
             elif option == 'f':
                 SystemManager.functionEnable = True
@@ -12489,6 +12545,7 @@ class SystemManager(object):
 
     @staticmethod
     def doSetSched():
+        isProcess = False
         SystemManager.warningEnable = True
 
         # parse options #
@@ -12497,11 +12554,10 @@ class SystemManager(object):
             SystemManager.printError(\
                 ("wrong option value to set priority, "
                 "input POLICY:PRIORITY:PID in format"))
+            sys.exit(0)
         elif value.find('-P') >= 0:
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
-        else:
-            isProcess = False
 
         SystemManager.parsePriorityOption(value, isProcess)
 
@@ -26331,21 +26387,19 @@ class ThreadAnalyzer(object):
 
         # change sched priority #
         for item in SystemManager.schedFilter:
-            try:
-                if tid in self.prevProcData and \
-                    'schedChanged' in self.prevProcData[tid]:
-                    pass
-                elif self.procData[tid]['stat'][self.commIdx].find(item[2]) >= 0 or tid == item[2]:
-                    # change priority of a thread #
-                    SystemManager.setPriority(int(tid), item[0], item[1])
+            target = str(item[2])
+            if tid == target:
+                SystemManager.setPriority(int(tid), item[0], item[1])
 
-                self.procData[tid]['schedChanged'] = True
-            except:
-                pass
+        # change cpu affinity #
+        for item in SystemManager.affinityFilter:
+            if tid == item[1]:
+                SystemManager.setAffinity(item[0], [item[1]])
 
         # kill processes #
         for item in SystemManager.killFilter:
-            if self.procData[tid]['stat'][self.commIdx].find(item) >= 0 or tid == item:
+            if tid == item or \
+                self.procData[tid]['stat'][self.commIdx].find(item) >= 0:
                 os.kill(int(tid), signal.SIGKILL)
 
         # save io data #
@@ -27559,6 +27613,10 @@ class ThreadAnalyzer(object):
             for item in SystemManager.schedAllFilter:
                 SystemManager.setPriority(\
                     int(idx), item[0], int(item[1]))
+
+            # set affinity of this task #
+            for item in SystemManager.affinityAllFilter:
+                SystemManager.setAffinity(item, [int(idx)])
 
             # add task into stack trace list #
             if SystemManager.stackEnable:
