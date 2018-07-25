@@ -6589,6 +6589,7 @@ class SystemManager(object):
     preemptGroup = []
     filterGroup = []
     schedFilter = []
+    schedAllFilter = []
     killFilter = []
     syscallList = []
     perCoreList = []
@@ -7466,7 +7467,7 @@ class SystemManager(object):
                 pipePrint('        -c  [set_customEvent - event:filter]')
                 pipePrint('        -E  [set_errorLogPath - file]')
                 pipePrint('        -H  [set_functionDepth]')
-                pipePrint('        -Y  [set_schedPriority - policy:prio{:pid:CONT}]')
+                pipePrint('        -Y  [set_schedPriority - policy:prio{:pid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
             else:
                 print('\nHelp:')
@@ -7640,7 +7641,7 @@ class SystemManager(object):
             pipePrint('    - change priority of tasks in a group')
             pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
             pipePrint('    - update priority of tasks continuously')
-            pipePrint('        # %s top -Y r:90:task:ALL' % cmd)
+            pipePrint('        # %s top -Y r:90:task:CONT' % cmd)
             pipePrint('    - limit cpu usage of specific processes')
             pipePrint('        # %s cpulimit 1234:40, 5678:10' % cmd)
             pipePrint('    - limit cpu usage of specific threads')
@@ -12860,6 +12861,18 @@ class SystemManager(object):
 
     @staticmethod
     def parsePriorityOption(value, isProcess=False):
+        if len(value) == 0:
+            SystemManager.printError(\
+                ("wrong option value %s with -Y, "
+                "input POLICY:PRIORITY:PID in format") % value)
+            sys.exit(0)
+
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to set priority")
+            sys.exit(0)
+
         schedGroup = value.split(',')
         SystemManager.removeEmptyValue(schedGroup)
         for item in schedGroup:
@@ -12869,7 +12882,8 @@ class SystemManager(object):
                     SystemManager.prio = int(schedSet[1])
 
                     if isProcess:
-                        threadList = SystemManager.getThreadList(SystemManager.pid)
+                        threadList = \
+                            SystemManager.getThreadList(SystemManager.pid)
                         if threadList is None:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
@@ -12882,10 +12896,10 @@ class SystemManager(object):
                         SystemManager.setPriority(\
                             tid, schedSet[0], SystemManager.prio)
                 elif len(schedSet) == 3:
-                    if SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to set priority")
-                        sys.exit(0)
+                    if schedSet[2] == 'ALL':
+                        SystemManager.schedAllFilter.append(\
+                            [schedSet[0], schedSet[1]])
+                        continue
 
                     if isProcess:
                         threadList = SystemManager.getThreadList(schedSet[2])
@@ -12902,14 +12916,10 @@ class SystemManager(object):
                         SystemManager.setPriority(\
                             tid, schedSet[0], int(schedSet[1]))
                 elif len(schedSet) == 4:
-                    if SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to set priority")
-                        sys.exit(0)
-
                     # verify sched parameters #
                     if schedSet[3] != 'CONT':
                         raise Exception()
+
                     policy = schedSet[0].upper()
                     ConfigManager.schedList.index(policy)
                     pri = int(schedSet[1])
@@ -27544,6 +27554,11 @@ class ThreadAnalyzer(object):
 
             if exceptFlag:
                 continue
+
+            # set priority of this task #
+            for item in SystemManager.schedAllFilter:
+                SystemManager.setPriority(\
+                    int(idx), item[0], int(item[1]))
 
             # add task into stack trace list #
             if SystemManager.stackEnable:
