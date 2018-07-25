@@ -6484,6 +6484,7 @@ class SystemManager(object):
     uptimeDiff = 0
     netstat = ''
     prevNetstat = ''
+    loadavg = ''
     netInIndex = -1
 
     printStreamEnable = False
@@ -6525,6 +6526,7 @@ class SystemManager(object):
     swapFd = None
     uptimeFd = None
     netstatFd = None
+    loadavgFd = None
     cmdFd = None
 
     irqEnable = False
@@ -7419,10 +7421,10 @@ class SystemManager(object):
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
-                pipePrint('              [common]   {e(ncoding)}')
-                pipePrint('              [thread]   {c(pu)|a(ll)}')
-                pipePrint('              [function] {c(pu)|a(ll)|u(ser)}')
-                pipePrint('              [top]      {c(pu)|p(rint)|P(erf)|W(chan)|n(net)}')
+                pipePrint('              [common]   {c(pu)|e(ncoding)}')
+                pipePrint('              [thread]   {a(ll)}')
+                pipePrint('              [function] {a(ll)|u(ser)}')
+                pipePrint('              [top]      {p(rint)|P(erf)|W(chan)|n(net)}')
                 pipePrint('        -s  [save_traceData - path]')
                 pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 pipePrint('        -u  [run_inBackground]')
@@ -25794,6 +25796,19 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % netstatPath)
 
+        # save loadavg #
+        try:
+            SystemManager.loadavgFd.seek(0)
+            SystemManager.loadavg = SystemManager.loadavgFd.readlines()[0]
+        except:
+            try:
+                loadavgPath = "%s/%s" % (SystemManager.procPath, 'loadavg')
+                SystemManager.loadavgFd = open(loadavgPath, 'r')
+                SystemManager.loadavg = SystemManager.loadavgFd.readlines()[0]
+            except:
+                SystemManager.printWarning('Fail to open %s' % loadavgPath)
+
+
         SystemManager.updateUptime()
 
         # collect perf data #
@@ -28449,15 +28464,23 @@ class ThreadAnalyzer(object):
         nrIndent = len('[Top Info]')
 
         nrNewThreads = \
-            self.cpuData['processes']['processes'] - self.prevCpuData['processes']['processes']
+            self.cpuData['processes']['processes'] - \
+            self.prevCpuData['processes']['processes']
+
+        try:
+            loadavg = '/'.join(SystemManager.loadavg.split()[:3])
+        except:
+            loadavg = '?'
+
         SystemManager.addPrint(\
-            ("[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] [Life: +%d/-%d] " \
-            "[IRQ: %d] [Core: %d] [Task: %d/%d] [RAM: %d] [Swap: %d] (Unit: %%/MB/NR)\n") % \
+            ("[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] " \
+            "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
+            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
-            SystemManager.nrCore, self.nrProcess, self.nrThread, \
+            SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
             self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
         # print interrupts #
