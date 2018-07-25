@@ -17538,8 +17538,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package on foreground #
+        selectObject = None
         if SystemManager.printFile is None:
-            selectObject = None
             try:
                 import select
                 selectObject = select
@@ -17608,8 +17608,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package on foreground #
+        selectObject = None
         if SystemManager.printFile is None:
-            selectObject = None
             try:
                 import select
                 selectObject = select
@@ -20700,8 +20700,10 @@ class ThreadAnalyzer(object):
             SystemManager.blockEnable):
             return
 
+        intervalEnable = SystemManager.intervalEnable
+
         SystemManager.pipePrint(\
-            '\n[Thread Interval Info] (Unit: %s Sec)' % SystemManager.intervalEnable)
+            '\n[Thread Interval Info] (Unit: %s Sec)' % intervalEnable)
         SystemManager.pipePrint(twoLine)
 
         # graph list #
@@ -20718,15 +20720,15 @@ class ThreadAnalyzer(object):
         maxLineLen = SystemManager.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SystemManager.startTime)
-        lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 2
+        lval = int(float(self.totalTime) / intervalEnable) + 2
         for icount in xrange(1, lval):
             checkEvent = ' '
             cnt = icount - 1
 
             # check suspend event #
             for val in self.suspendData:
-                if startTime + cnt * SystemManager.intervalEnable < float(val[0]) < \
-                    startTime + ((cnt + 1) * SystemManager.intervalEnable):
+                if startTime + cnt * intervalEnable < float(val[0]) < \
+                    startTime + ((cnt + 1) * intervalEnable):
                     if val[1] == 'S':
                         checkEvent = '!'
                     elif val[1] == 'F':
@@ -20736,8 +20738,8 @@ class ThreadAnalyzer(object):
 
             # check mark event #
             for val in self.markData:
-                if startTime + cnt * SystemManager.intervalEnable < float(val) < \
-                    startTime + ((cnt + 1) * SystemManager.intervalEnable):
+                if startTime + cnt * intervalEnable < float(val) < \
+                    startTime + ((cnt + 1) * intervalEnable):
                     checkEvent = 'v'
 
             if timeLineLen + 4 > maxLineLen:
@@ -20747,9 +20749,9 @@ class ThreadAnalyzer(object):
                 timeLineLen += 4
 
             # print timeline #
-            if icount * SystemManager.intervalEnable <= float(self.totalTime):
+            if icount * intervalEnable <= float(self.totalTime):
                 timeLine += '%s%2d ' % \
-                    (checkEvent, icount * SystemManager.intervalEnable)
+                    (checkEvent, icount * intervalEnable)
             else:
                 timeLine += '%s%.2f ' % (checkEvent, self.totalTime)
 
@@ -20766,7 +20768,7 @@ class ThreadAnalyzer(object):
             if key[0:2] == '0[':
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                lval = int(float(self.totalTime) / intervalEnable) + 1
                 for icount in xrange(0, lval):
                     try:
                         # revise core usage in DVFS system #
@@ -20800,7 +20802,7 @@ class ThreadAnalyzer(object):
         # total memory usage on timeline #
         timeLine = ''
         timeLineLen = titleLineLen
-        lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+        lval = int(float(self.totalTime) / intervalEnable) + 1
         for icount in xrange(0, lval):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20828,7 +20830,7 @@ class ThreadAnalyzer(object):
             brtotal = 0
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+            lval = int(float(self.totalTime) / intervalEnable) + 1
             for icount in xrange(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20846,7 +20848,8 @@ class ThreadAnalyzer(object):
 
             if brtotal > 0:
                 SystemManager.addPrint(\
-                    "\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + timeLine + '\n')
+                    "\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + \
+                    timeLine + '\n')
                 if SystemManager.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
                     ioUsageList.append(timeLineData)
@@ -20856,7 +20859,7 @@ class ThreadAnalyzer(object):
             bwtotal = 0
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+            lval = int(float(self.totalTime) / intervalEnable) + 1
             for icount in xrange(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20885,11 +20888,12 @@ class ThreadAnalyzer(object):
         # total custom event usage on timeline #
         newLine = True
         for evt, value in sorted(\
-            self.customEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            self.customEventInfo.items(), key=lambda e: e[1]['count'], \
+            reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+            lval = int(float(self.totalTime) / intervalEnable) + 1
             for icount in xrange(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20913,11 +20917,12 @@ class ThreadAnalyzer(object):
         # total user event usage on timeline #
         newLine = True
         for evt, value in sorted(\
-            self.userEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            self.userEventInfo.items(), key=lambda e: e[1]['count'], \
+            reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+            lval = int(float(self.totalTime) / intervalEnable) + 1
             for icount in xrange(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20932,7 +20937,7 @@ class ThreadAnalyzer(object):
                     '''
                     timeLine += '%3d ' % \
                         (self.intData[icount]['toTal']['userEvent'][evt]['usage'] / \
-                        SystemManager.intervalEnable * 100)
+                        intervalEnable * 100)
                     '''
                 except:
                     timeLine += '%3d ' % (0)
@@ -20947,11 +20952,12 @@ class ThreadAnalyzer(object):
         # total kernel event usage on timeline #
         newLine = True
         for evt, value in sorted(\
-            self.kernelEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+            self.kernelEventInfo.items(), key=lambda e: e[1]['count'], \
+            reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+            lval = int(float(self.totalTime) / intervalEnable) + 1
             for icount in xrange(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -20966,7 +20972,7 @@ class ThreadAnalyzer(object):
                     '''
                     timeLine += '%3d ' % \
                         (self.intData[icount]['toTal']['kernelEvent'][evt]['usage'] / \
-                        SystemManager.intervalEnable * 100)
+                        intervalEnable * 100)
                     '''
                 except:
                     timeLine += '%3d ' % (0)
@@ -21002,9 +21008,9 @@ class ThreadAnalyzer(object):
                 else:
                     color = 'green'
 
-                plot(range(SystemManager.intervalEnable,\
-                    (timelen+1)*SystemManager.intervalEnable,\
-                    SystemManager.intervalEnable), item, '-', c=color)
+                plot(range(intervalEnable,\
+                    (timelen+1)*intervalEnable,\
+                    intervalEnable), item, '-', c=color)
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
@@ -21041,7 +21047,8 @@ class ThreadAnalyzer(object):
             if key[0:2] != '0[':
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                lval = \
+                    int(float(self.totalTime) / intervalEnable) + 1
                 for icount in xrange(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
@@ -21111,18 +21118,18 @@ class ThreadAnalyzer(object):
 
             # cpu total usage #
             for item in cpuUsageList:
-                plot(range(SystemManager.intervalEnable,\
-                    (timelen+1)*SystemManager.intervalEnable,\
-                    SystemManager.intervalEnable), item, '.-',\
+                plot(range(intervalEnable,\
+                    (timelen+1)*intervalEnable,\
+                    intervalEnable), item, '.-',\
                     linewidth=3, solid_capstyle='round')
 
             # cpu usage of threads #
             for idx, item in enumerate(cpuThrUsageList):
                 maxIdx = item.index(max(item))
 
-                color = plot(range(SystemManager.intervalEnable,\
-                    (timelen+1)*SystemManager.intervalEnable,\
-                    SystemManager.intervalEnable), item, '-')[0].get_color()
+                color = plot(range(intervalEnable,\
+                    (timelen+1)*intervalEnable,\
+                    intervalEnable), item, '-')[0].get_color()
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
@@ -21148,8 +21155,8 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 5)
             ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
+            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', \
+                edgecolor='k').subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         if SystemManager.cpuEnable:
             SystemManager.pipePrint("%s# %s\n" % ('', 'CPU(%)'))
@@ -21167,7 +21174,7 @@ class ThreadAnalyzer(object):
             elif key[0:2] != '0[':
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                lval = int(float(self.totalTime) / intervalEnable) + 1
                 for icount in xrange(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
@@ -21207,7 +21214,7 @@ class ThreadAnalyzer(object):
                         dieFlag = nowVal['die']
 
                     # Do not use 100% because of output format #
-                    totalPrt = nowVal['preempted'] / float(SystemManager.intervalEnable)
+                    totalPrt = nowVal['preempted'] / float(intervalEnable)
                     prtPer = str(int(totalPrt * 100))
                     if prtPer == '100':
                         prtPer = '99'
@@ -21226,7 +21233,8 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.memEnable:
             for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['nrPages'], reverse=True):
+                self.threadData.items(), key=lambda e: e[1]['nrPages'], \
+                reverse=True):
 
                 if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
                     SystemManager.showAll == False:
@@ -21234,7 +21242,8 @@ class ThreadAnalyzer(object):
                 elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = \
+                        int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -21295,7 +21304,7 @@ class ThreadAnalyzer(object):
                 elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -21358,7 +21367,7 @@ class ThreadAnalyzer(object):
                 elif key[0:2] != '0[':
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -21793,10 +21802,13 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        SystemManager.pipePrint(("{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " +\
-            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | {12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Free/User/Cache', 'BlkRW', 'Blk',\
-            'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
+        SystemManager.pipePrint((\
+            "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " \
+            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | " \
+            "{12:^4} | {13:^8} |\n").\
+            format('IDX', 'Interval', 'CPU', 'Free/User/Cache', \
+                'BlkRW', 'Blk', 'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', \
+                'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % twoLine)
 
         pCnt = 0
@@ -21811,13 +21823,16 @@ class ThreadAnalyzer(object):
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint((\
-                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | {5:^7} | {6:>3} | " +\
-                "{7:>4} | {8:^9} | {9:>5} | {10:>6} | {11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
+                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | " \
+                "{5:^7} | {6:>3} | {7:>4} | {8:^9} | {9:>5} | {10:>6} | " \
+                "{11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
-                '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], val['total']['cachemem']),\
-                val['total']['blk'], val['total']['blkwait'], val['total']['swap'], \
-                val['total']['rclm'], val['total']['nrFlt'], val['nrCtxt'], val['nrIrq'], \
-                task, val['nrCore'], val['total']['netIO']))
+                '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], \
+                val['total']['cachemem']), val['total']['blk'], \
+                val['total']['blkwait'], val['total']['swap'], \
+                val['total']['rclm'], val['total']['nrFlt'], \
+                val['nrCtxt'], val['nrIrq'], task, \
+                val['nrCore'], val['total']['netIO']))
             pCnt += 1
 
         if len(ThreadAnalyzer.procIntData) == 0 or pCnt == 0:
@@ -21930,14 +21945,16 @@ class ThreadAnalyzer(object):
 
         # Print cpu usage of processes #
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['cpu'], reverse=True):
+            ThreadAnalyzer.procTotData.items(), \
+            key=lambda e: e[1]['cpu'], reverse=True):
 
             if pid == 'total':
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
-                format(value['comm'][:cl], pid, value['ppid'], value['nrThreads'], \
-                value['pri'], value['cpu'], cl=cl, pd=pd)
+            procInfo = \
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+                format(value['comm'][:cl], pid, value['ppid'], \
+                value['nrThreads'], value['pri'], value['cpu'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -22087,7 +22104,8 @@ class ThreadAnalyzer(object):
         # Print rss of processes #
         for pid, value in sorted(\
             ThreadAnalyzer.procTotData.items(), \
-            key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], reverse=True):
+            key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], \
+            reverse=True):
 
             if pid == 'total' or value['maxMem'] == 0:
                 continue
@@ -22215,7 +22233,8 @@ class ThreadAnalyzer(object):
         # Print vss of processes #
         for pid, value in sorted(\
             ThreadAnalyzer.procTotData.items(), \
-            key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
+            key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
+            reverse=True):
 
             if pid == 'total' or value['maxVss'] == 0:
                 continue
@@ -22318,7 +22337,8 @@ class ThreadAnalyzer(object):
         # Print block usage of processes #
         itemCnt = 0
         for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['blk'], reverse=True):
+            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['blk'], \
+            reverse=True):
 
             if pid == 'total' or \
                 value['blk'] == value['blkrd'] == value['blkwr'] == 0:
@@ -22503,7 +22523,8 @@ class ThreadAnalyzer(object):
 
         try:
             sortedList = sorted(SystemManager.procInstance.items(), \
-                key=lambda e: long(e[1]['stat'][statList.index("RSS")]), reverse=True)
+                key=lambda e: long(e[1]['stat'][statList.index("RSS")]), \
+                reverse=True)
         except:
             SystemManager.printWarning(\
                 "Fail to get memory details because of sort error")
@@ -22613,7 +22634,8 @@ class ThreadAnalyzer(object):
                     except:
                         none = 0
 
-                    procDetails = "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
+                    procDetails = \
+                        "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
                         "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
                         "{9:>12} | {10:>12} | {11:>12} |\n").\
                         format(procInfo, idx, item['count'], \
@@ -22625,14 +22647,16 @@ class ThreadAnalyzer(object):
                     ppid = value['mainID']
 
                 procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
-                        format(value['stat'][commIdx][1:-1][:cl], key, ppid, cl=cl, pd=pd)
+                    format(value['stat'][commIdx][1:-1][:cl], \
+                    key, ppid, cl=cl, pd=pd)
 
                 SystemManager.pipePrint(("{0:>30} | {1:>8} | {2:>5} | "
                     "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
                     "{9:>12} | {10:>12} | {11:>12} |\n{12}").\
                     format(procInfo, '[TOTAL]', totalCnt, \
-                    totalVmem, totalRss, totalPss, totalSwap, totalHuge, totalLock, \
-                    totalPdirty, totalSdirty, totalNone, procDetails))
+                    totalVmem, totalRss, totalPss, totalSwap, \
+                    totalHuge, totalLock, totalPdirty, totalSdirty, \
+                    totalNone, procDetails))
 
                 SystemManager.pipePrint('%s\n' % oneLine)
 
@@ -22673,7 +22697,8 @@ class ThreadAnalyzer(object):
                             start = idx
                         elif end == -1:
                             end = idx
-                            SystemManager.systemInfoBuffer = ''.join(buf[start+1:end])
+                            SystemManager.systemInfoBuffer = \
+                                ''.join(buf[start+1:end])
                         continue
 
                 # print-tgid option #
@@ -23568,7 +23593,7 @@ class ThreadAnalyzer(object):
                                 (prev_comm, prev_id, SystemManager.curLine))
 
                     if diff > int(SystemManager.intervalEnable):
-                        self.threadData[prev_id]['longRunCore'] = core
+                        self.threadData[prev_id]['longRunCore'] = int(core)
 
                     # update core info #
                     self.threadData[coreId]['coreSchedCnt'] += 1
@@ -23639,7 +23664,8 @@ class ThreadAnalyzer(object):
                     # set sched status of next thread #
                     elif self.threadData[next_id]['lastStatus'] == 'P':
                         preemptedTime = \
-                            self.threadData[next_id]['start'] - self.threadData[next_id]['stop']
+                            self.threadData[next_id]['start'] - \
+                            self.threadData[next_id]['stop']
                         if preemptedTime >=0:
                             self.threadData[next_id]['cpuWait'] += preemptedTime
                         else:
@@ -26537,28 +26563,36 @@ class ThreadAnalyzer(object):
             bgReclaim = 0
             if 'pgsteal_kswapd' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd'] - self.prevVmData['pgsteal_kswapd']
+                    self.vmData['pgsteal_kswapd'] - \
+                    self.prevVmData['pgsteal_kswapd']
             if 'pgsteal_kswapd_normal' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd_normal'] - self.prevVmData['pgsteal_kswapd_normal']
+                    self.vmData['pgsteal_kswapd_normal'] - \
+                    self.prevVmData['pgsteal_kswapd_normal']
             if 'pgsteal_kswapd_high' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd_high'] - self.prevVmData['pgsteal_kswapd_high']
+                    self.vmData['pgsteal_kswapd_high'] - \
+                    self.prevVmData['pgsteal_kswapd_high']
             if 'pgsteal_kswapd_dma' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd_dma'] - self.prevVmData['pgsteal_kswapd_dma']
+                    self.vmData['pgsteal_kswapd_dma'] - \
+                    self.prevVmData['pgsteal_kswapd_dma']
             if 'pgsteal_kswapd_dma32' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd_dma32'] - self.prevVmData['pgsteal_kswapd_dma32']
+                    self.vmData['pgsteal_kswapd_dma32'] - \
+                    self.prevVmData['pgsteal_kswapd_dma32']
             if 'pgsteal_kswapd_movable' in self.vmData:
                 bgReclaim += \
-                    self.vmData['pgsteal_kswapd_movable'] - self.prevVmData['pgsteal_kswapd_movable']
+                    self.vmData['pgsteal_kswapd_movable'] - \
+                    self.prevVmData['pgsteal_kswapd_movable']
 
             # convert to MB #
             #bgReclaim = bgReclaim >> 8
 
             try:
-                nrBgReclaim = self.vmData['pageoutrun'] - self.prevVmData['pageoutrun']
+                nrBgReclaim = \
+                    self.vmData['pageoutrun'] - \
+                    self.prevVmData['pageoutrun']
             except:
                 nrBgReclaim = 0
         except:
@@ -26570,28 +26604,36 @@ class ThreadAnalyzer(object):
             drReclaim = 0
             if 'pgsteal_direct' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct'] - self.prevVmData['pgsteal_direct']
+                    self.vmData['pgsteal_direct'] - \
+                    self.prevVmData['pgsteal_direct']
             if 'pgsteal_direct_normal' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct_normal'] - self.prevVmData['pgsteal_direct_normal']
+                    self.vmData['pgsteal_direct_normal'] - \
+                    self.prevVmData['pgsteal_direct_normal']
             if 'pgsteal_direct_high' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct_high'] - self.prevVmData['pgsteal_direct_high']
+                    self.vmData['pgsteal_direct_high'] - \
+                    self.prevVmData['pgsteal_direct_high']
             if 'pgsteal_direct_dma' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct_dma'] - self.prevVmData['pgsteal_direct_dma']
+                    self.vmData['pgsteal_direct_dma'] - \
+                    self.prevVmData['pgsteal_direct_dma']
             if 'pgsteal_direct_dma32' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct_dma32'] - self.prevVmData['pgsteal_direct_dma32']
+                    self.vmData['pgsteal_direct_dma32'] - \
+                    self.prevVmData['pgsteal_direct_dma32']
             if 'pgsteal_direct_movable' in self.vmData:
                 drReclaim += \
-                    self.vmData['pgsteal_direct_movable'] - self.prevVmData['pgsteal_direct_movable']
+                    self.vmData['pgsteal_direct_movable'] - \
+                    self.prevVmData['pgsteal_direct_movable']
 
             # convert to MB #
             #drReclaim = drReclaim >> 8
 
             try:
-                nrDrReclaim = self.vmData['allocstall'] - self.prevVmData['allocstall']
+                nrDrReclaim = \
+                    self.vmData['allocstall'] - \
+                    self.prevVmData['allocstall']
             except:
                 nrDrReclaim = 0
         except:
@@ -26647,20 +26689,27 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
             (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"\
-            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|"\
+            "{11:^6}({12:^4}/{13:^7})|{14:^9}|{15:^7}|{16:^7}|"\
+            "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
-            "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", "NrDrt", "Network")),\
-            oneLine)), newline = 3)
+            "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", \
+            "NrDrt", "Network")), oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
             return
 
-        ctxSwc = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
-        nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
-        nrSoftIrq = self.cpuData['softirq']['softirq'] - self.prevCpuData['softirq']['softirq']
+        ctxSwc = \
+            self.cpuData['ctxt']['ctxt'] - \
+            self.prevCpuData['ctxt']['ctxt']
+        nrIrq = \
+            self.cpuData['intr']['intr'] - \
+            self.prevCpuData['intr']['intr']
+        nrSoftIrq = \
+            self.cpuData['softirq']['softirq'] - \
+            self.prevCpuData['softirq']['softirq']
 
         # get total cpu usage #
         nrCore = SystemManager.nrCore
@@ -26691,15 +26740,18 @@ class ThreadAnalyzer(object):
                 niceStat = nowData['nice'] - prevData['nice']
                 userCoreUsage = long((userStat + niceStat) / interval)
 
-                kerCoreUsage = long((nowData['system'] - prevData['system']) / interval)
+                kerCoreUsage = \
+                    long((nowData['system'] - prevData['system']) / interval)
 
                 irqStat = nowData['irq'] - prevData['irq']
                 softirqStat = nowData['softirq'] - prevData['softirq']
                 irqCoreUsage = long((irqStat + softirqStat) / interval)
 
-                ioCoreUsage = long((nowData['iowait'] - prevData['iowait']) / interval)
+                ioCoreUsage = \
+                    long((nowData['iowait'] - prevData['iowait']) / interval)
 
-                idleCoreUsage = long((nowData['idle'] - prevData['idle']) / interval)
+                idleCoreUsage = \
+                    long((nowData['idle'] - prevData['idle']) / interval)
 
                 #-------------------- REVISED STAT --------------------#
                 # get scale factor #
@@ -26737,7 +26789,8 @@ class ThreadAnalyzer(object):
 
         # get network usage #
         (netIn, netOut) = \
-            self.getNetworkUsage(SystemManager.prevNetstat, SystemManager.netstat)
+            self.getNetworkUsage(\
+            SystemManager.prevNetstat, SystemManager.netstat)
         netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
         totalCoreStat = \
@@ -28468,7 +28521,10 @@ class ThreadAnalyzer(object):
             self.prevCpuData['processes']['processes']
 
         try:
-            loadavg = '/'.join(SystemManager.loadavg.split()[:3])
+            loadlist = SystemManager.loadavg.split()[:3]
+            for idx, load in enumerate(loadlist):
+                loadlist[idx] = str('%.1f' % float(load))
+            loadavg = '/'.join(loadlist)
         except:
             loadavg = '?'
 
