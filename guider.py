@@ -1444,7 +1444,8 @@ class FunctionAnalyzer(object):
             'eventCnt': int(0), 'nrWrBlocks': int(0), 'customCnt': int(0), \
             'nrUnknownFreePages': int(0), 'nrKnownFreePages': int(0), \
             'nrRdBlocks': int(0), 'nrLockTry': int(0), 'nrUnlock': int(0), \
-            'customTotal': int(0), 'nrSyscall': int(0), 'syscallTable': None}
+            'customTotal': int(0), 'nrSyscall': int(0), 'syscallTable': None, \
+            'lastNrSyscall': int(-1)}
 
         self.init_posData = \
             {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), \
@@ -3250,6 +3251,10 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
+                nr = b['nr']
+
+                self.threadData[tid]['lastNrSyscall'] = int(nr)
+
                 # syscall event #
                 if SystemManager.sysEnable:
                     self.sysEnabled = True
@@ -3387,12 +3392,19 @@ class FunctionAnalyzer(object):
 
         # syscall / heap events #
         elif isFixedEvent and func == "sys_exit:":
-            m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', args)
+            m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', args)
             if m is not None:
                 b = m.groupdict()
 
+                nr = int(b['nr'])
+
+                # handle wrong syscall number #
+                if nr < 0:
+                    if td['lastNrSyscall'] >= 0:
+                        nr = td['lastNrSyscall']
+
                 # heap increasement event #
-                if int(b['nr']) == ConfigManager.getMmapId():
+                if nr == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
                     addr = int(b['ret'])
@@ -3411,7 +3423,7 @@ class FunctionAnalyzer(object):
                         pass
 
                 # heap decreasement event #
-                elif int(b['nr']) == ConfigManager.sysList.index('sys_brk'):
+                elif nr == ConfigManager.sysList.index('sys_brk'):
                     self.heapEnabled = True
 
                     addr = int(b['ret'])
@@ -17635,7 +17647,8 @@ class ThreadAnalyzer(object):
                 'tryLockCnt': int(0), 'lastLockTime': float(0), 'lastLockWait': float(0), \
                 'reqWrBlock': int(0), 'writeQueueCnt': int(0), 'writeBlockCnt': int(0), \
                 'writeStart': float(0), 'ioWrWait': float(0), 'awriteBlock': int(0), \
-                'awriteBlockCnt': int(0), 'schedLatency': float(0), 'schedReady': float(0)}
+                'awriteBlockCnt': int(0), 'schedLatency': float(0), \
+                'schedReady': float(0), 'lastNrSyscall': int(-1)}
 
             self.init_irqData = {'name': None, 'usage': float(0), 'start': float(0), \
                 'max': float(0), 'min': float(0), 'maxPeriod': float(0), \
@@ -24717,6 +24730,7 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['syscallInfo'][nr] = \
                             dict(self.init_syscallInfo)
 
+                    self.threadData[thread]['lastNrSyscall'] = int(nr)
                     self.threadData[thread]['syscallInfo'][nr]['last'] = float(time)
 
                     if len(SystemManager.syscallList) > 0:
@@ -24736,7 +24750,7 @@ class ThreadAnalyzer(object):
                         "Fail to recognize '%s' event" % func)
 
             elif func == "sys_exit":
-                m = re.match(r'^\s*NR (?P<nr>[0-9]+) = (?P<ret>.+)', etc)
+                m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -24747,6 +24761,11 @@ class ThreadAnalyzer(object):
                     # apply filter #
                     if SystemManager.isExceptTarget(thread, self.threadData):
                         return
+
+                    # handle wrong syscall number #
+                    if int(nr) < 0:
+                        if td['lastNrSyscall'] >= 0:
+                            nr = str(td['lastNrSyscall'])
 
                     # update futex lock stat #
                     if nr == str(ConfigManager.sysList.index("sys_futex")):
