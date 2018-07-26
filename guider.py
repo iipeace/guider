@@ -6,7 +6,7 @@ __copyright__ = "Copyright 2015-2018, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.9.1"
+__version__ = "3.9.2"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -1093,6 +1093,10 @@ class PageAnalyzer(object):
                 "Fail to recognize input, "
                 "input pid with -g option and address with -I option")
             sys.exit(0)
+        elif vaddr is None:
+            PageAnalyzer.printMemoryArea(pid)
+            SystemManager.printError("Fail to recognize address, use -I option")
+            sys.exit(0)
 
         vrange = vaddr.split('-')
         rangeCnt = len(vrange)
@@ -1100,7 +1104,7 @@ class PageAnalyzer(object):
         if rangeCnt > 2:
             SystemManager.printError(\
                 "Fail to recognize address, "
-                "input address such as 0x1234 or 0x1234-0x4444")
+                "input address such as 102400 or 0x1234a-0x123ff")
             sys.exit(0)
         else:
             try:
@@ -1146,13 +1150,13 @@ class PageAnalyzer(object):
                     "input address such as 0x1234-0x4444")
                 sys.exit(0)
 
-        print("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n%s" % \
-            (pid, vaddr, "kernel/Documentation/vm/pagemap.txt", twoLine))
+        SystemManager.pipePrint("\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n" % \
+            (pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
 
         PageAnalyzer.printMemoryArea(pid, addrs, addre)
-        print(twoLine)
+        SystemManager.pipePrint(twoLine)
 
-        print(("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
+        SystemManager.pipePrint(("{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
             "{6:^8}|{7:^7}| {8}({9})\n{10}").\
             format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
@@ -1176,11 +1180,13 @@ class PageAnalyzer(object):
 
             sflags = PageAnalyzer.getFlagTypes(bflags)
 
-            print("{0:^16}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|{6:^8}|{7:^7}| {8}({9} )".format(\
-                hex(addr), hex(pfn).rstrip('L'), isPresent, isSwapped, isFile,\
-                PageAnalyzer.get_pagecount(pfn), isSoftdirty, isExmapped, bflags, sflags)
-            )
-        print("%s\n" % oneLine)
+            SystemManager.pipePrint((\
+                "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"\
+                "{6:^8}|{7:^7}| {8}({9} )").format(\
+                hex(addr), hex(pfn).rstrip('L'), isPresent,\
+                isSwapped, isFile,PageAnalyzer.get_pagecount(pfn),\
+                isSoftdirty, isExmapped, bflags, sflags))
+        SystemManager.pipePrint("%s\n" % oneLine)
 
 
 
@@ -1209,14 +1215,18 @@ class PageAnalyzer(object):
         menuBuf = str(buf[-1]).split()
         for idx, value in enumerate(menuBuf):
             if idx < 5:
-                text = menuList[idx]
+                if idx == 0:
+                    text = '{0:^38}'.format(menuList[idx])
+                else:
+                    text = menuList[idx]
             else:
                 break
 
             value = ' ' * (len(value) - len(text) + 1)
-            menuStr = '%s%s' % (menuStr, text + value)
+            menuStr = '%s%s%s' % (menuStr, text, value)
+
         menuStr = '%s %s' % (menuStr, 'PROPERTY')
-        print('%s\n%s' % (menuStr, oneLine))
+        SystemManager.pipePrint('%s\n%s\n%s' % (twoLine, menuStr, oneLine))
 
         # set text position #
         tstr = menuStr.split()
@@ -1225,14 +1235,12 @@ class PageAnalyzer(object):
 
         # print maps info #
         for line in buf:
+            tmplist = line.split()
+            soffset, eoffset = tmplist[0].split('-')
+
             if start == end == all:
-                print(line[:-1])
-                count += 1
+                switch = 0
             elif line.find('-') >= 0:
-                tmplist = line.split()
-
-                soffset, eoffset = tmplist[0].split('-')
-
                 soffset = hex(long(soffset, base=16)).rstrip('L')
                 eoffset = hex(long(eoffset, base=16)).rstrip('L')
 
@@ -1243,21 +1251,27 @@ class PageAnalyzer(object):
                 elif end < eoffset:
                     break
 
-                try:
-                    target = line[:-1].split()
-                    space = ' ' * (pidx - len(target[0]))
-                    print('%s%s%s' % \
-                        (target[0], space, ' '.join(target[1:])))
-                except:
-                    pass
+            try:
+                target = line[:-1].split()
 
-                count += 1
+                if soffset.startswith('0x') is False:
+                    soffset = '0x%s' % soffset
 
-                if switch == 1 and end <= eoffset:
-                    break
+                if eoffset.startswith('0x') is False:
+                    eoffset = '0x%s' % eoffset
+
+                SystemManager.pipePrint('%18s-%18s %s' % \
+                    (soffset, eoffset, ' '.join(target[1:])))
+            except:
+                pass
+
+            count += 1
+
+            if switch == 1 and end <= eoffset:
+                break
 
         if count == 0:
-            print('No involved memory area')
+            SystemManager.pipePrint('No involved memory area')
 
 
 
@@ -1277,7 +1291,13 @@ class PageAnalyzer(object):
     def read_entry(path, offset, size=8):
         with open(path, 'rb') as f:
             f.seek(offset, 0)
-            return struct.unpack('Q', f.read(size))[0]
+            try:
+                return struct.unpack('Q', f.read(size))[0]
+            except:
+                SystemManager.printError(\
+                    "Fail to read %s byte from %s of %s" % \
+                    (size, offset, path))
+                sys.exit(0)
 
 
 
@@ -7762,9 +7782,6 @@ class SystemManager(object):
                 sys.argv[1] == '--help' or \
                 SystemManager.findOption('h')):
 
-                # register exit handler #
-                atexit.register(SystemManager.closeAllForPrint)
-
                 pipePrint = SystemManager.pipePrint
 
                 SystemManager.printRawTitle(False, True, True)
@@ -7875,9 +7892,6 @@ class SystemManager(object):
 
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
-
-            # register exit handler #
-            atexit.register(SystemManager.closeAllForPrint)
 
             pipePrint = SystemManager.pipePrint
 
@@ -11103,6 +11117,7 @@ class SystemManager(object):
 
     @staticmethod
     def printError(line):
+        SystemManager.closeAllForPrint()
         print('\n%s%s%s%s\n' % \
             (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
 
@@ -14632,7 +14647,8 @@ class SystemManager(object):
     @staticmethod
     def runRecordStopCmd():
         if (SystemManager.isRecordMode() and \
-            (SystemManager.isThreadMode() or SystemManager.isFunctionMode())) is False:
+            (SystemManager.isThreadMode() or \
+            SystemManager.isFunctionMode())) is False:
             return
 
         # write signal command #
@@ -29093,6 +29109,9 @@ if __name__ == '__main__':
     oneLine = "-" * SystemManager.lineLength
     twoLine = "=" * SystemManager.lineLength
 
+    # register exit handler #
+    atexit.register(SystemManager.closeAllForPrint)
+
     # print logo #
     SystemManager.printRawTitle(big=True)
 
@@ -29122,8 +29141,11 @@ if __name__ == '__main__':
     SystemManager.pid = os.getpid()
 
     # set extended ascii suppport #
-    if 'tty' in os.ttyname(sys.stdout.fileno()):
-        SystemManager.supportExtAscii = False
+    try:
+        if 'tty' in os.ttyname(sys.stdout.fileno()):
+            SystemManager.supportExtAscii = False
+    except:
+        pass
 
     # print backgroud process list #
     if SystemManager.isListMode():
@@ -29153,9 +29175,6 @@ if __name__ == '__main__':
 
         if pid is None:
             SystemManager.printError("Fail to recognize pid, use -g option")
-        elif addr is None:
-            PageAnalyzer.printMemoryArea(pid)
-            SystemManager.printError("Fail to recognize address, use -I option")
         else:
             PageAnalyzer.getPageInfo(pid, addr)
 
@@ -29304,9 +29323,6 @@ if __name__ == '__main__':
 
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
-
-            # register exit handler #
-            atexit.register(SystemManager.closeAllForPrint)
 
             if SystemManager.intervalEnable == 0:
                 # print total file usage per process #
