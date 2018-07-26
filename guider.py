@@ -1356,7 +1356,7 @@ class FunctionAnalyzer(object):
     symStackIdxTable = [
         'CPU_TICK', 'STACK', 'PAGE_ALLOC', 'PAGE_FREE', 'BLK_READ', \
         'ARGUMENT', 'HEAP_EXPAND', 'HEAP_REDUCE', 'IGNORE', 'BLK_WRITE', \
-        'LOCK_TRY', 'UNLOCK', 'CUSTOM'
+        'LOCK_TRY', 'UNLOCK', 'SYSCALL', 'CUSTOM'
         ]
 
 
@@ -1369,6 +1369,7 @@ class FunctionAnalyzer(object):
         self.bwriteEnabled = False
         self.sigEnabled = False
         self.lockEnabled = False
+        self.sysEnabled = False
 
         self.sort = 'sym'
 
@@ -1413,6 +1414,7 @@ class FunctionAnalyzer(object):
         self.unlockEventCnt = 0
         self.customCnt = 0
         self.customTotal = 0
+        self.syscallCnt = 0
 
         self.customEventTable = {}
         self.ignoreTable = {}
@@ -1425,6 +1427,7 @@ class FunctionAnalyzer(object):
         self.userSymData = {}
         self.kernelSymData = {}
         self.threadData = {}
+        self.syscallTable = {}
         self.customCallData = []
         self.lockCallData = []
         self.sysCallData = []
@@ -1438,26 +1441,32 @@ class FunctionAnalyzer(object):
             {'comm': '?', 'tgid': '-'*5, 'target': False, 'cpuTick': int(0), \
             'die': False, 'new': False, 'nrPages': int(0), 'userPages': int(0), \
             'cachePages': int(0), 'kernelPages': int(0), 'heapSize': int(0), \
-            'eventCnt': int(0), 'nrWrBlocks': int(0), 'nrUnknownFreePages': int(0), \
-            'nrKnownFreePages': int(0), 'customCnt': int(0), 'nrRdBlocks': int(0), \
-            'nrLockTry': int(0), 'nrUnlock': int(0),'customTotal': int(0)}
+            'eventCnt': int(0), 'nrWrBlocks': int(0), 'customCnt': int(0), \
+            'nrUnknownFreePages': int(0), 'nrKnownFreePages': int(0), \
+            'nrRdBlocks': int(0), 'nrLockTry': int(0), 'nrUnlock': int(0), \
+            'customTotal': int(0), 'nrSyscall': int(0), 'syscallTable': None}
 
         self.init_posData = \
-            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), 'posCnt': int(0), \
-            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
-            'totalCnt': int(0), 'blockRdCnt': int(0), 'blockWrCnt': int(0), 'pageCnt': int(0), \
-            'heapSize': int(0), 'unknownPageFreeCnt': int(0), 'src': '', 'customCnt': int(0), \
-            'customTotal': int(0), 'lockTryCnt': int(0), 'unlockCnt': int(0)}
+            {'symbol': '', 'binary': '', 'origBin': '', 'offset': hex(0), \
+            'posCnt': int(0), 'userPageCnt': int(0), 'cachePageCnt': int(0), \
+            'kernelPageCnt': int(0), 'totalCnt': int(0), 'blockRdCnt': int(0), \
+            'blockWrCnt': int(0), 'pageCnt': int(0), 'heapSize': int(0), \
+            'unknownPageFreeCnt': int(0), 'src': '', 'customCnt': int(0), \
+            'customTotal': int(0), 'lockTryCnt': int(0), 'unlockCnt': int(0), \
+            'syscallCnt': int(0)}
 
         self.init_symData = \
             {'pos': '', 'origBin': '', 'tickCnt': int(0), 'blockRdCnt': int(0), \
-            'pageCnt': int(0), 'unknownPageFreeCnt': int(0), 'stack': None, 'symStack': None, \
-            'userPageCnt': int(0), 'cachePageCnt': int(0), 'kernelPageCnt': int(0), \
-            'heapSize': int(0), 'blockWrCnt': int(0), 'customCnt': int(0), 'customTotal': int(0), \
-            'pagePair': None, 'pagePairCnt': int(0), 'pagePairTotal': float(0), \
-            'pagePairMin': float(0), 'pagePairMax': float(0), 'pagePairAvr': float(0), \
-            'pageRemainMin': float(0), 'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
-            'pageRemainTotal': float(0), 'lockTryCnt': int(0), 'unlockCnt': int(0)}
+            'pageCnt': int(0), 'unknownPageFreeCnt': int(0), 'stack': None, \
+            'symStack': None, 'userPageCnt': int(0), 'cachePageCnt': int(0), \
+            'kernelPageCnt': int(0), 'heapSize': int(0), 'blockWrCnt': int(0), \
+            'customCnt': int(0), 'customTotal': int(0), 'pagePair': None, \
+            'pagePairCnt': int(0), 'pagePairTotal': float(0), \
+            'pagePairMin': float(0), 'pagePairMax': float(0), \
+            'pagePairAvr': float(0), 'pageRemainMin': float(0), \
+            'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
+            'pageRemainTotal': float(0), 'lockTryCnt': int(0), \
+            'unlockCnt': int(0), 'syscallCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, 'nested': int(0), \
@@ -2238,6 +2247,11 @@ class FunctionAnalyzer(object):
                 self.userSymData[sym]['tickCnt'] += 1
                 self.kernelSymData[ksym]['tickCnt'] += 1
 
+            # syscall event #
+            elif event == 'SYSCALL':
+                self.userSymData[sym]['syscallCnt'] += 1
+                self.kernelSymData[ksym]['syscallCnt'] += 1
+
             # periodic event such as cpu tick #
             elif event == 'CUSTOM':
                 if eventCnt > 0:
@@ -2552,12 +2566,19 @@ class FunctionAnalyzer(object):
                 [targetArg[0], targetArg[1:], \
                 self.userCallData[-1], self.kernelCallData[-1]])
 
+        # Save syscall event stacks #
+        if SystemManager.showAll and targetEvent == 'SYSCALL':
+            self.sysCallData.append(\
+                [targetArg[0], targetArg[1:], \
+                self.userCallData[-1], self.kernelCallData[-1]])
+
 
 
     def saveEventStack(self, targetEvent, targetCnt, targetArg, time):
         kpos = self.nowCtx['kernelLastPos']
         upos = self.nowCtx['userLastPos']
 
+        # save count data #
         if targetEvent == 'CPU_TICK':
             self.periodicEventCnt += 1
 
@@ -2612,6 +2633,18 @@ class FunctionAnalyzer(object):
             self.posData[kpos]['heapSize'] += targetCnt
             self.posData[upos]['heapSize'] += targetCnt
 
+        elif targetEvent == 'SYSCALL':
+            nrSyscall = targetArg[0]
+            self.syscallCnt += 1
+
+            try:
+                self.syscallTable[nrSyscall] += 0
+            except:
+                self.syscallTable[nrSyscall] = 1
+
+            self.posData[kpos]['syscallCnt'] += targetCnt
+            self.posData[upos]['syscallCnt'] += targetCnt
+
         elif targetEvent == 'CUSTOM':
             if targetCnt > 0:
                 self.customTotal += 1
@@ -2646,6 +2679,7 @@ class FunctionAnalyzer(object):
                 self.nowCtx['kernelCallStack'] = []
                 self.nowCtx['userCallStack'] = []
 
+        # save both stacks #
         self.saveFullStack(\
             self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
             self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
@@ -2736,7 +2770,8 @@ class FunctionAnalyzer(object):
                 targetArg = nowCtx['savedArg']
 
             # Save full stack of previous event #
-            self.saveEventStack(targetEvent, targetCnt, targetArg, self.finishTime)
+            self.saveEventStack(\
+                targetEvent, targetCnt, targetArg, self.finishTime)
 
             # Recover previous kernel stack after handling nested event #
             if nowCtx['prevMode'] == nowCtx['curMode'] == 'user' and \
@@ -2773,7 +2808,8 @@ class FunctionAnalyzer(object):
                 path != self.posData[pos]['origBin']:
                 self.duplicatedPos += 1
                 '''
-                SystemManager.printWarning("duplicated address %s in both '%s' and '%s'" % \
+                SystemManager.printWarning(\
+                    "duplicated address %s in both '%s' and '%s'" % \
                     (pos, path, self.posData[pos]['origBin']))
                 '''
         except:
@@ -2813,6 +2849,11 @@ class FunctionAnalyzer(object):
 
                 if targetEvent == 'CPU_TICK':
                     self.posData[pos]['posCnt'] += 1
+                elif targetEvent == 'LOCK_TRY':
+                    self.posData[pos]['lockTryCnt'] += 1
+                elif targetEvent == 'UNLOCK':
+                    self.posData[pos]['unlockCnt'] += 1
+
             # Skip pos because it is usercall or no symbol #
             elif SystemManager.showAll is False and path is None:
                 return
@@ -3014,6 +3055,7 @@ class FunctionAnalyzer(object):
 
 
     def saveEventParam(self, event, count, arg):
+        # save context #
         self.nowCtx['nestedEvent'] = self.nowCtx['savedEvent']
         self.nowCtx['savedEvent'] = self.nowCtx['nowEvent']
         self.nowCtx['nowEvent'] = event
@@ -3031,8 +3073,10 @@ class FunctionAnalyzer(object):
         if self.nowCtx['nested'] > 2:
             #self.printDbgInfo()
             SystemManager.printWarning((\
-                "Fail to analyze stack data because of corruption (overflowflow) at %s line\n"\
-                "\tso report results may differ from actual") % SystemManager.dbgEventLine, True)
+                "Fail to analyze stack data "\
+                "because of corruption (overflowflow) at %s line\n"\
+                "\tso report results may differ from actual") % \
+                SystemManager.dbgEventLine, True)
 
 
 
@@ -3040,12 +3084,18 @@ class FunctionAnalyzer(object):
         data = self.nowCtx
 
         print('[%s]' % self.lastCore, \
-            '(now) %s/%s/%s' %(data['nowEvent'], data['nowCnt'], data['nowArg']), \
-            '(saved) %s/%s/%s' %(data['savedEvent'], data['savedCnt'], data['savedArg']), \
-            '(nested) %s/%s/%s' %(data['nestedEvent'], data['nestedCnt'], data['nestedArg']), \
-            '(user) %s/%s' % (data['userLastPos'], len(data['userCallStack'])), \
-            '(kernel) %s/%s' % (data['kernelLastPos'], len(data['kernelCallStack'])), \
-            '(backup) %s/%s' % (data['bakKernelLastPos'], len(data['bakKernelCallStack'])), \
+            '(now) %s/%s/%s' % \
+                (data['nowEvent'], data['nowCnt'], data['nowArg']), \
+            '(saved) %s/%s/%s' % \
+                (data['savedEvent'], data['savedCnt'], data['savedArg']), \
+            '(nested) %s/%s/%s' % \
+                (data['nestedEvent'], data['nestedCnt'], data['nestedArg']), \
+            '(user) %s/%s' % \
+                (data['userLastPos'], len(data['userCallStack'])), \
+            '(kernel) %s/%s' % \
+                (data['kernelLastPos'], len(data['kernelCallStack'])), \
+            '(backup) %s/%s' % \
+                (data['bakKernelLastPos'], len(data['bakKernelCallStack'])), \
             'at %s' % SystemManager.dbgEventLine)
 
 
@@ -3053,7 +3103,8 @@ class FunctionAnalyzer(object):
     def parseEventInfo(self, tid, func, args, time, core):
         if len(self.customEventTable) > 0 and \
             (func[:-1] in self.customEventTable or \
-            True in [True for event in self.customEventTable if event.find('/') == -1]):
+            True in \
+            [True for event in self.customEventTable if event.find('/') == -1]):
             isFixedEvent = False
         else:
             isFixedEvent = True
@@ -3199,8 +3250,34 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
+                # syscall event #
+                if SystemManager.sysEnable:
+                    self.sysEnabled = True
+
+                    nrSyscall = int(b['nr'])
+                    syscallList = SystemManager.syscallList
+
+                    if len(syscallList) == 0 or nrSyscall in syscallList:
+                        args = b['args'][1:-1]
+
+                        self.threadData[tid]['nrSyscall'] += 1
+
+                        # set syscall table #
+                        if self.threadData[tid]['syscallTable'] == None:
+                            self.threadData[tid]['syscallTable'] = {}
+
+                        try:
+                            self.threadData[tid]['syscallTable'][nrSyscall] += 1
+                        except:
+                            self.threadData[tid]['syscallTable'][nrSyscall] = 1
+
+                        self.saveEventParam(\
+                            'SYSCALL', 1, [nrSyscall, args, time, core, tid])
+
+                        return False
+
                 # heap increasement event #
-                if int(b['nr']) == ConfigManager.getMmapId():
+                elif int(b['nr']) == ConfigManager.getMmapId():
                     self.heapEnabled = True
 
                     try:
@@ -3234,7 +3311,8 @@ class FunctionAnalyzer(object):
                         # remove heap segment #
                         self.freeHeapSeg(addr)
 
-                        self.saveEventParam('HEAP_REDUCE', size, [addr, time, core, tid])
+                        self.saveEventParam(\
+                            'HEAP_REDUCE', size, [addr, time, core, tid])
 
                         return False
                     except:
@@ -3299,8 +3377,9 @@ class FunctionAnalyzer(object):
                             return False
 
                 else:
-                    SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                            (func[:-1], SystemManager.dbgEventLine))
+                    SystemManager.printWarning(\
+                        "Fail to recognize event %s at %d" % \
+                        (func[:-1], SystemManager.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -3324,7 +3403,8 @@ class FunctionAnalyzer(object):
                     try:
                         size = self.heapTable[addr]['size']
 
-                        self.saveEventParam('HEAP_EXPAND', size, [addr, time, core, tid])
+                        self.saveEventParam(\
+                            'HEAP_EXPAND', size, [addr, time, core, tid])
 
                         return False
                     except:
@@ -3352,14 +3432,16 @@ class FunctionAnalyzer(object):
 
                             self.threadData[pid]['heapSize'] += size
 
-                            self.saveEventParam('HEAP_EXPAND', size, [addr, time, core, tid])
+                            self.saveEventParam(\
+                                'HEAP_EXPAND', size, [addr, time, core, tid])
 
                             return False
                     except:
                         self.threadData[pid]['lastBrk'] = addr
 
-            SystemManager.printWarning("Fail to recognize event %s at %d" % \
-                    (func[:-1], SystemManager.dbgEventLine))
+            SystemManager.printWarning(\
+                "Fail to recognize event %s at %d" % \
+                (func[:-1], SystemManager.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -3513,7 +3595,8 @@ class FunctionAnalyzer(object):
             if self.nowCtx['nested'] < 0:
                 #self.printDbgInfo()
                 SystemManager.printWarning((\
-                    "Fail to analyze stack data because of corruption (underflow) at %s line\n"\
+                    "Fail to analyze stack data "
+                    "because of corruption (underflow) at %s line\n"\
                     "\tso report results may differ from actual") % \
                     SystemManager.dbgEventLine, True)
 
@@ -3533,7 +3616,8 @@ class FunctionAnalyzer(object):
                 if customCnt > 0:
                     self.threadData[tid]['customTotal'] += customCnt
 
-                self.saveEventParam('CUSTOM', customCnt, [func[:-1], [args, time, core, tid]])
+                self.saveEventParam(\
+                    'CUSTOM', customCnt, [func[:-1], [args, time, core, tid]])
             except:
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -3697,7 +3781,8 @@ class FunctionAnalyzer(object):
             else:
                 self.threadData[thread]['target'] = True
 
-            return self.parseEventInfo(thread, d['func'], d['etc'], d['time'], d['core'])
+            return self.parseEventInfo(\
+                thread, d['func'], d['etc'], d['time'], d['core'])
 
         # Parse call stack #
         else:
@@ -3763,6 +3848,61 @@ class FunctionAnalyzer(object):
 
 
 
+    def printSyscallSummary(self):
+        # no effective syscall event #
+        if self.syscallCnt == 0:
+            return
+
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Syscall Info] [Cnt: %d]' % self.syscallCnt)
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12}'.format(\
+            "Name", "Tid", "Syscall", "ID", "Count"))
+        SystemManager.pipePrint(twoLine)
+
+        outputCnt = 0
+        for key, value in sorted(\
+            self.threadData.items(), \
+            key=lambda e: e[1]['nrSyscall'], reverse=True):
+            threadInfo = ''
+            syscallInfo = ''
+
+            if key[0:2] == '0[':
+                continue
+
+            try:
+                if len(value['syscallTable']) > 0:
+                    threadInfo = "%16s(%5s)" % (value['comm'], key)
+                else:
+                    continue
+            except:
+                continue
+
+            for sysId, val in sorted(\
+                value['syscallTable'].items(), key=lambda e: e[1], reverse=True):
+                if val == 0:
+                    continue
+
+                syscall = ConfigManager.sysList[sysId][4:]
+                syscallInfo = \
+                    ('{0:1} {1:>30}({2:>3}) {3:>12}\n').format(\
+                    '%s%s' % (syscallInfo, ' ' * len(threadInfo)), \
+                    syscall, sysId, val)
+
+            if syscallInfo != '':
+                outputCnt += 1
+                SystemManager.pipePrint(threadInfo)
+                SystemManager.pipePrint('%s\n%s' % (syscallInfo, oneLine))
+
+        if outputCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+
+
     def printUsage(self):
         targetCnt = 0
         self.totalTime = float(self.finishTime) - float(SystemManager.startTime)
@@ -3804,6 +3944,12 @@ class FunctionAnalyzer(object):
         elif SystemManager.sort == 'b':
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['nrRdBlocks'], reverse=True)
+        elif SystemManager.sort == 'L':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['nrLockTry'], reverse=True)
+        elif SystemManager.sort == 'h':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['heapSize'], reverse=True)
         else:
             # set cpu usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
@@ -3822,13 +3968,15 @@ class FunctionAnalyzer(object):
             if value['target']:
                 targetCnt += 1
                 if targetCnt == 2:
-                    SystemManager.printWarning("Multiple target threads are selected")
+                    SystemManager.printWarning(\
+                        "Multiple target threads are selected")
                 targetMark = '*'
 
             # get cpu usage #
             if self.totalTick > 0:
                 cpuPer = \
-                    '%.1f%%' % (float(value['cpuTick']) / float(self.totalTick) * 100)
+                    '%.1f%%' % \
+                    (float(value['cpuTick']) / float(self.totalTick) * 100)
             else:
                 cpuPer = '0.0%%'
 
@@ -3861,11 +4009,12 @@ class FunctionAnalyzer(object):
                 "{5:>7}|{6:8}K({7:7}K/{8:7}K/{9:7}K)|{10:6}K|{11:7}K|"
                 "{12:7}K|{13:7}K|{14:8}K|{15:6}|{16:8}|")).\
                 format(value['comm'], idx, value['tgid'], targetMark, life, \
-                cpuPer, value['nrPages'] * 4, value['userPages'] * 4, value['cachePages'] * 4, \
-                value['kernelPages'] * 4, value['nrKnownFreePages'] * 4, \
-                value['nrUnknownFreePages'] * 4, value['heapSize'] >> 10, \
-                int(value['nrRdBlocks'] * 0.5), int(value['nrWrBlocks'] * 0.5), \
-                value['nrLockTry'], value['customTotal']))
+                cpuPer, value['nrPages'] * 4, value['userPages'] * 4, \
+                value['cachePages'] * 4,  value['kernelPages'] * 4, \
+                value['nrKnownFreePages'] * 4, value['nrUnknownFreePages'] * 4, \
+                value['heapSize'] >> 10, int(value['nrRdBlocks'] * 0.5), \
+                int(value['nrWrBlocks'] * 0.5), value['nrLockTry'], \
+                value['customTotal']))
 
         if targetCnt == 0:
             SystemManager.pipePrint('\tNone')
@@ -3877,6 +4026,9 @@ class FunctionAnalyzer(object):
             SystemManager.printWarning(\
                 "No specific thread targeted, input tid with -g option")
 
+        # Print syscall usage of threads #
+        self.printSyscallSummary()
+
         # Print resource usage of functions #
         self.printCpuUsage()
         self.printMemUsage()
@@ -3884,6 +4036,7 @@ class FunctionAnalyzer(object):
         self.printBlockRdUsage()
         self.printBlockWrUsage()
         self.printLockUsage()
+        self.printSyscallUsage()
         self.printCustomUsage()
 
 
@@ -3897,7 +4050,8 @@ class FunctionAnalyzer(object):
             for pos in subStack:
                 if self.posData[pos]['symbol'] == '':
                     symbolSet = ' <- %s' % hex(int(pos, 16))
-                elif self.posData[pos]['symbol'] == None and SystemManager.showAll:
+                elif self.posData[pos]['symbol'] == None and \
+                    SystemManager.showAll:
                     symbolSet = ' <- %s' % hex(int(pos, 16))
                 else:
                     symbolSet = ' <- %s' % str(self.posData[pos]['symbol'])
@@ -3961,6 +4115,173 @@ class FunctionAnalyzer(object):
 
 
 
+    def printSyscallUsage(self):
+        # no effective syscall event #
+        if self.syscallCnt == 0:
+            return
+
+        subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
+        eventIndex = FunctionAnalyzer.symStackIdxTable.index('SYSCALL')
+
+        # Make syscall event list #
+        sysList = ConfigManager.sysList
+        syscallList = \
+            [sysList[syscall][4:] for syscall in self.syscallTable.keys()]
+        syscallList = ', '.join(list(syscallList))
+
+        # Print custom event in user space #
+        if SystemManager.userEnable:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint(\
+                '[Function Syscall Info] [Cnt: %d] (USER)' % self.syscallCnt)
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+                format("Usage", "Function", "Binary", "Source"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userSymData.items(), \
+                key=lambda e: e[1]['syscallCnt'], reverse=True):
+
+                if value['syscallCnt'] == 0:
+                    break
+
+                SystemManager.pipePrint(\
+                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
+                    value['syscallCnt'], idx, \
+                    self.posData[value['pos']]['origBin'], \
+                    self.posData[value['pos']]['src']))
+
+                # Set target stack #
+                targetStack = []
+                if self.sort == 'sym':
+                    targetStack = value['symStack']
+                elif self.sort == 'pos':
+                    targetStack = value['stack']
+
+                # Sort by usage #
+                targetStack = \
+                    sorted(targetStack, \
+                    key=lambda x: x[eventIndex], reverse=True)
+
+                # Merge and Print symbols in stack #
+                for stack in targetStack:
+                    eventCnt = stack[eventIndex]
+                    subStack = list(stack[subStackIndex])
+
+                    if eventCnt == 0:
+                        break
+
+                    if len(subStack) == 0:
+                        continue
+                    else:
+                        indentLen = len("\t" * 4 * 4) + 3
+                        symbolStack = self.makeUserSymList(subStack, indentLen)
+
+                    SystemManager.pipePrint(\
+                        "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+
+                SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
+
+        # Print syscall history #
+        if SystemManager.showAll and len(self.sysCallData) > 0:
+            SystemManager.clearPrint()
+            SystemManager.pipePrint(\
+                '[Function %s History] [Cnt: %d]' % \
+                (syscallList, self.syscallCnt))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
+                format("Event", "COMM", "TID", "CORE", "TIME"))
+            SystemManager.pipePrint(twoLine)
+
+            # sort by time #
+            for call in self.sysCallData:
+                event = ConfigManager.sysList[call[0]][4:]
+                args = call[1][1]
+                time = call[1][1]
+                core = call[1][2]
+                tid = call[1][3]
+                userstack = call[2]
+                kernelstack = call[3]
+
+                title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
+                    format(event, self.threadData[tid]['comm'], tid, core, time)
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
+
+                # Make argument info #
+                argsInfo = ' %s' % args
+
+                # Make user call info #
+                indentLen = 32
+                nowLen = indentLen
+                try:
+                    last = call[2][0]
+                    stack = call[2][1]
+                    userCall = ' %s[%s]' % \
+                        (self.posData[last]['symbol'], \
+                        self.posData[last]['binary'])
+                    nowLen += len(userCall)
+                    for subcall in stack:
+                        try:
+                            symbol = self.posData[subcall]['symbol']
+                            binary = self.posData[subcall]['binary']
+                            nextCall = ' <- %s[%s]' % (symbol, binary)
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                userCall = '%s%s' % (userCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                userCall = '%s\n%s %s' % \
+                                    (userCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # Make kernel call info #
+                indentLen = 32
+                nowLen = indentLen
+                try:
+                    last = call[3][0]
+                    stack = call[3][1]
+                    kernelCall = ' %s' % (self.posData[last]['symbol'])
+                    nowLen += len(kernelCall)
+                    for subcall in stack:
+                        try:
+                            nextCall = \
+                                ' <- %s' % (self.posData[subcall]['symbol'])
+                            if SystemManager.lineLength > nowLen + len(nextCall):
+                                kernelCall = '%s%s' % (kernelCall, nextCall)
+                                nowLen += len(nextCall)
+                            else:
+                                kernelCall = \
+                                    '%s\n%s %s' % \
+                                    (kernelCall, ' ' * indentLen, nextCall)
+                                nowLen = indentLen + len(nextCall)
+                        except:
+                            pass
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                SystemManager.pipePrint(\
+                    "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
+                SystemManager.pipePrint(\
+                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+                SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n')
+
+
+
     def printCustomUsage(self):
         # no effective custom event #
         if self.customTotal == 0:
@@ -3985,14 +4306,17 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint(twoLine)
 
             for idx, value in sorted(\
-                self.userSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
+                self.userSymData.items(), \
+                key=lambda e: e[1]['customCnt'], reverse=True):
 
                 if value['customCnt'] == 0:
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(value['customCnt'], idx, \
-                    self.posData[value['pos']]['origBin'], self.posData[value['pos']]['src']))
+                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
+                    value['customCnt'], idx, \
+                    self.posData[value['pos']]['origBin'], \
+                    self.posData[value['pos']]['src']))
 
                 # Set target stack #
                 targetStack = []
@@ -4003,7 +4327,8 @@ class FunctionAnalyzer(object):
 
                 # Sort by usage #
                 targetStack = \
-                    sorted(targetStack, key=lambda x: x[eventIndex], reverse=True)
+                    sorted(targetStack, \
+                    key=lambda x: x[eventIndex], reverse=True)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -4038,12 +4363,14 @@ class FunctionAnalyzer(object):
 
         # Print custom usage of stacks #
         for idx, value in sorted(\
-            self.kernelSymData.items(), key=lambda e: e[1]['customCnt'], reverse=True):
+            self.kernelSymData.items(), \
+            key=lambda e: e[1]['customCnt'], reverse=True):
 
             if value['customCnt'] == 0:
                 break
 
-            SystemManager.pipePrint("{0:7}  |{1:^134}".format(value['customCnt'], idx))
+            SystemManager.pipePrint(\
+                "{0:7}  |{1:^134}".format(value['customCnt'], idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -4100,7 +4427,7 @@ class FunctionAnalyzer(object):
 
                 title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
                     format(event, self.threadData[tid]['comm'], tid, core, time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
 
                 # Make argument info #
                 argsInfo = ' %s' % args
@@ -4143,13 +4470,15 @@ class FunctionAnalyzer(object):
                     nowLen += len(kernelCall)
                     for subcall in stack:
                         try:
-                            nextCall = ' <- %s' % (self.posData[subcall]['symbol'])
+                            nextCall = \
+                                ' <- %s' % (self.posData[subcall]['symbol'])
                             if SystemManager.lineLength > nowLen + len(nextCall):
                                 kernelCall = '%s%s' % (kernelCall, nextCall)
                                 nowLen += len(nextCall)
                             else:
                                 kernelCall = \
-                                    '%s\n%s %s' % (kernelCall, ' ' * indentLen, nextCall)
+                                    '%s\n%s %s' % \
+                                    (kernelCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -4960,7 +5289,7 @@ class FunctionAnalyzer(object):
                     "{0:^32}| {1:>10} | {2:>10} | {3:>10} | {4:>16}({5:>7})| {6:>6} | {7:>15} |".\
                     format(addr, size, size >> 10, size >> 20, \
                     self.threadData[tid]['comm'], tid, int(core), time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
 
                 # Make user call info #
                 indentLen = 32
@@ -5195,7 +5524,7 @@ class FunctionAnalyzer(object):
                 comm = self.threadData[tid]['comm']
                 title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
                     format(event, target, comm, tid, core, time)
-                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '─'))
+                SystemManager.pipePrint('%s\n%s' % (title, len(title) * '-'))
 
                 # Make user call info #
                 indentLen = 32
@@ -10979,9 +11308,10 @@ class SystemManager(object):
                     sys.exit(0)
 
                 if os.path.isdir(SystemManager.printFile) == False:
+                    outputPath = SystemManager.printFile
                     upDirPos = SystemManager.printFile.rfind('/')
                     if upDirPos > 0 and \
-                        os.path.isdir(SystemManager.printFile[:upDirPos]) is False:
+                        os.path.isdir(outputPath[:upDirPos]) is False:
                         SystemManager.printError("wrong path with -o option")
                         sys.exit(0)
 
@@ -10998,7 +11328,8 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'w' and SystemManager.isTopMode():
-                SystemManager.rcmdList = SystemManager.parseCustomRecordCmd(value)
+                SystemManager.rcmdList = \
+                    SystemManager.parseCustomRecordCmd(value)
 
             elif option == 'a':
                 SystemManager.showAll = True
@@ -11012,8 +11343,9 @@ class SystemManager(object):
 
             elif option == 'P':
                 if SystemManager.findOption('g') is False:
-                    SystemManager.printError(\
-                        "wrong option with -P, use -g option to group threads as process")
+                    SystemManager.printError((\
+                        "wrong option with -P, "
+                        "use -g option to group threads as process"))
                     sys.exit(0)
 
                 SystemManager.groupProcEnable = True
@@ -11028,8 +11360,9 @@ class SystemManager(object):
                     SystemManager.removeEmptyValue(SystemManager.preemptGroup)
 
                     if len(SystemManager.preemptGroup) == 0:
-                        SystemManager.printError(\
-                            "No specific thread targeted, input tid with -p option")
+                        SystemManager.printError((\
+                            "No specific thread targeted, "
+                            "input tid with -p option"))
                         sys.exit(0)
 
             elif option == 'Y':
@@ -11103,12 +11436,14 @@ class SystemManager(object):
                     SystemManager.irqEnable = True
                 if options.rfind('b') > -1:
                     if SystemManager.isRoot() is False:
+                        procPath = SystemManager.procPath
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
-                    elif os.path.isfile('%s/1/io' % SystemManager.procPath) is False:
-                        SystemManager.printError(\
-                            "Fail to use bio event, please check kernel configuration")
+                    elif os.path.isfile('%s/1/io' % procPath) is False:
+                        SystemManager.printError((\
+                            "Fail to use bio event, "
+                            "please check kernel configuration"))
                         sys.exit(0)
                     else:
                         SystemManager.blockEnable = True
@@ -11209,7 +11544,8 @@ class SystemManager(object):
                 SystemManager.perCoreList = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.perCoreList)
                 if len(SystemManager.perCoreList) == 0:
-                    SystemManager.printError("Input value for filter with -O option")
+                    SystemManager.printError(\
+                        "Input value for filter with -O option")
                     sys.exit(0)
 
                 for item in SystemManager.perCoreList:
@@ -11222,6 +11558,35 @@ class SystemManager(object):
                 SystemManager.printInfo(\
                     "only specific cores including [%s] are shown" % \
                     ', '.join(SystemManager.perCoreList))
+
+            elif option == 't' and SystemManager.isRecordMode() is False:
+                SystemManager.syscallList = value.split(',')
+                SystemManager.removeEmptyValue(SystemManager.syscallList)
+                enabledSyscall = []
+
+                for val in SystemManager.syscallList:
+                    try:
+                        if val[0:4] == 'sys_':
+                            nrSyscall = ConfigManager.sysList.index(val)
+                        else:
+                            nrSyscall = \
+                                ConfigManager.sysList.index('sys_%s' % val)
+
+                        enabledSyscall.append(ConfigManager.sysList[nrSyscall])
+                        sidx = SystemManager.syscallList.index(val)
+                        SystemManager.syscallList[sidx] = nrSyscall
+                    except:
+                        SystemManager.printError(\
+                            "No %s syscall in %s ABI" % (val, SystemManager.arch))
+                        SystemManager.syscallList.remove(val)
+                        sys.exit(0)
+
+                if len(enabledSyscall) == 0:
+                    SystemManager.printInfo("enabled syscall list [ ALL ]")
+                else:
+                    SystemManager.printInfo(\
+                        "enabled syscall list [ %s ]" % \
+                        ', '.join(enabledSyscall))
 
             elif option == 'm':
                 try:
@@ -11252,7 +11617,8 @@ class SystemManager(object):
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
 
-                        SystemManager.printInfo("set buffer size to %sKB" % bsize)
+                        SystemManager.printInfo(\
+                            "set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, "
@@ -11272,8 +11638,9 @@ class SystemManager(object):
                 (serve, ip, port) = ret
 
                 if ip is None or port is None:
-                    SystemManager.printError( \
-                        "wrong option value with -n option, input IP:PORT in format")
+                    SystemManager.printError((\
+                        "wrong option value with -n option, "
+                        "input IP:PORT in format"))
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -11302,8 +11669,9 @@ class SystemManager(object):
                         if req.find('REPORT_') == 0:
                             reqList += req + '|'
 
-                    SystemManager.printError(\
-                        "wrong option value with -N option, input [%s]@IP:PORT in format" % \
+                    SystemManager.printError((\
+                        "wrong option value with -N option, "
+                        "input [%s]@IP:PORT in format") % \
                         reqList[:-1])
                     sys.exit(0)
 
@@ -11316,7 +11684,8 @@ class SystemManager(object):
                     naddr = '%s:%s' % (ip, str(port))
                     SystemManager.addrListForReport[naddr] = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
+                SystemManager.printInfo(\
+                    "use %s:%d as remote address" % (ip, port))
 
             elif option == 'j' and SystemManager.isTopMode():
                 SystemManager.reportPath = value
@@ -11325,9 +11694,10 @@ class SystemManager(object):
                     sys.exit(0)
 
                 if os.path.isdir(SystemManager.reportPath) == False:
+                    reportPath = SystemManager.reportPath
                     upDirPos = SystemManager.reportPath.rfind('/')
                     if upDirPos > 0 and \
-                        os.path.isdir(SystemManager.reportPath[:upDirPos]) is False:
+                        os.path.isdir(reportPath[:upDirPos]) is False:
                         SystemManager.printError("wrong path with -j option")
                         sys.exit(0)
 
@@ -11379,7 +11749,8 @@ class SystemManager(object):
 
                         SystemManager.printError(\
                             ("wrong option value with -X, "
-                            "input [%s]@IP:PORT as remote address") % reqList[:-1])
+                            "input [%s]@IP:PORT as remote address") % \
+                                reqList[:-1])
                         sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -11389,7 +11760,8 @@ class SystemManager(object):
                     networkObject.request = service
                     SystemManager.addrOfServer = networkObject
 
-                SystemManager.printInfo("use %s:%d as remote address" % (ip, port))
+                SystemManager.printInfo(\
+                    "use %s:%d as remote address" % (ip, port))
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -11413,7 +11785,8 @@ class SystemManager(object):
                         SystemManager.printInfo("sorted by FILE")
                         SystemManager.fileTopEnable = True
                     else:
-                        SystemManager.printError("wrong option value with -S option")
+                        SystemManager.printError(\
+                            "wrong option value with -S option")
                         sys.exit(0)
 
             elif option == 'u':
@@ -11454,11 +11827,13 @@ class SystemManager(object):
                             "wrong option value with -R, input a integer value")
                         sys.exit(0)
                 else:
-                    SystemManager.printError(\
-                        "wrong option value with -R, input INTERVAL,REPEAT in format")
+                    SystemManager.printError((\
+                        "wrong option value with -R, "
+                        "input INTERVAL,REPEAT in format"))
                     sys.exit(0)
 
-                if SystemManager.intervalEnable < 1 or SystemManager.repeatCount < 1:
+                if SystemManager.intervalEnable < 1 or \
+                    SystemManager.repeatCount < 1:
                     SystemManager.printError(\
                         "wrong option value with -R, input values bigger than 0")
                     sys.exit(0)
@@ -11497,7 +11872,8 @@ class SystemManager(object):
                     if bsize > 0:
                         SystemManager.bufferSize = str(value)
 
-                        SystemManager.printInfo("set buffer size to %sKB" % bsize)
+                        SystemManager.printInfo(\
+                            "set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, "
@@ -11599,7 +11975,8 @@ class SystemManager(object):
                         os.path.isdir(SystemManager.outputFile[:fpos]):
                         continue
                     else:
-                        SystemManager.printError("wrong option value with -s option")
+                        SystemManager.printError(\
+                            "wrong option value with -s option")
                         sys.exit(0)
 
                 SystemManager.outputFile = \
@@ -11623,7 +12000,8 @@ class SystemManager(object):
                 SystemManager.waitEnable = True
 
             elif option == 'w':
-                SystemManager.rcmdList = SystemManager.parseCustomRecordCmd(value)
+                SystemManager.rcmdList = \
+                    SystemManager.parseCustomRecordCmd(value)
 
             elif option == 'U':
                 SystemManager.ueventEnable = True
@@ -11644,8 +12022,9 @@ class SystemManager(object):
             elif option == 'C':
                 SystemManager.cmdEnable = str(value)
                 if len(value) == 0:
-                    SystemManager.printError(\
-                        "wrong option with -C, input path to make command script")
+                    SystemManager.printError((\
+                        "wrong option with -C, "
+                        "input path to make command script"))
                     sys.exit(0)
 
             elif option == 't':
@@ -11659,7 +12038,8 @@ class SystemManager(object):
                         if val[0:4] == 'sys_':
                             nrSyscall = ConfigManager.sysList.index(val)
                         else:
-                            nrSyscall = ConfigManager.sysList.index('sys_%s' % val)
+                            nrSyscall = \
+                                ConfigManager.sysList.index('sys_%s' % val)
 
                         enabledSyscall.append(ConfigManager.sysList[nrSyscall])
                         sidx = SystemManager.syscallList.index(val)
@@ -11674,7 +12054,8 @@ class SystemManager(object):
                     SystemManager.printInfo("enabled syscall list [ ALL ]")
                 else:
                     SystemManager.printInfo(\
-                        "enabled syscall list [ %s ]" % ', '.join(enabledSyscall))
+                        "enabled syscall list [ %s ]" % \
+                        ', '.join(enabledSyscall))
 
             elif option == 'R':
                 repeatParams = value.split(',')
@@ -11695,13 +12076,16 @@ class SystemManager(object):
                             "wrong option value with -R, input a integer value")
                         sys.exit(0)
                 else:
-                    SystemManager.printError(\
-                        "wrong option value with -R, input INTERVAL,REPEAT in format")
+                    SystemManager.printError((\
+                        "wrong option value with -R, "
+                        "input INTERVAL,REPEAT in format"))
                     sys.exit(0)
 
-                if SystemManager.repeatInterval < 1 or SystemManager.repeatCount < 1:
-                    SystemManager.printError(\
-                        "wrong option value with -R, input values bigger than 0")
+                if SystemManager.repeatInterval < 1 or \
+                    SystemManager.repeatCount < 1:
+                    SystemManager.printError((\
+                        "wrong option value with -R, "
+                        "input values bigger than 0"))
                     sys.exit(0)
 
             elif option == 'o':
@@ -12251,7 +12635,8 @@ class SystemManager(object):
                     print("\nno running process in background\n")
                 else:
                     SystemManager.printWarning(\
-                        "Failed to find running %s process to send event" % __module__)
+                        "Failed to find running %s process to send event" % \
+                        __module__)
                 return []
 
         # get socket inode address list of guider processes #
@@ -12285,8 +12670,9 @@ class SystemManager(object):
                         "sent event '%s' to %s:%s address of %s process" % \
                         (event, ip, port, pid))
                 except:
-                    SystemManager.printWarning(\
-                        "Failed to send event '%s' to %s:%s address of %s process" % \
+                    SystemManager.printWarning((\
+                        "Failed to send event '%s' "
+                        "to %s:%s address of %s process") % \
                         (event, ip, port, pid))
 
         return pids
@@ -12388,8 +12774,9 @@ class SystemManager(object):
         if SystemManager.printFile is None and selectObject != None and \
             selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
             sys.stdout.write('\b' * SystemManager.ttyCols)
-            SystemManager.pipePrint(\
-                "[ Input command... ( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
+            SystemManager.pipePrint((\
+                "[ Input command... "
+                "( Help / Filter / Kill / Sched / Affinity / Quit ) ]"))
 
             # flush buffered enter key #
             sys.stdin.readline()
@@ -13909,8 +14296,14 @@ class SystemManager(object):
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
 
             # enable all syscall events #
-            if SystemManager.sysEnable and len(SystemManager.syscallList) == 0:
-                pass
+            if SystemManager.sysEnable:
+                if SystemManager.heapEnable or \
+                    SystemManager.lockEnable:
+                    SystemManager.printError(\
+                        "Fail to enable syscall events with other events")
+                    sys.exit(0)
+                elif len(SystemManager.syscallList) == 0:
+                    pass
             else:
                 # enable heap events #
                 if SystemManager.heapEnable:
