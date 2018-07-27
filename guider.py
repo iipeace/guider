@@ -7105,6 +7105,47 @@ class SystemManager(object):
 
 
     @staticmethod
+    def parseKillOption(value):
+        if len(value) == 0:
+            SystemManager.printError(\
+                ("wrong option value %s with -k, "
+                "input {tids} in format"))
+            sys.exit(0)
+
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to kill tasks")
+            sys.exit(0)
+
+        try:
+            value = value.split(':')
+
+            if len(value) == 1:
+                tids = value[0]
+
+                for tid in list(map(int, tids.split(','))):
+                    try:
+                        os.kill(int(tid), signal.SIGKILL)
+                    except:
+                        pass
+            elif len(value) == 2 and value[1] == 'CONT':
+                tids = value[0]
+
+                SystemManager.killFilter.append(tids)
+            else:
+                raise Exception()
+
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printError(\
+                "Fail to kill tasks, input {tids} in format")
+            sys.exit(0)
+
+
+
+    @staticmethod
     def parseAffinityOption(value, isProcess=False):
         if len(value) == 0:
             SystemManager.printError(\
@@ -7845,7 +7886,6 @@ class SystemManager(object):
                 pipePrint('        -N  [set_addressForReport - req@ip:port]')
                 pipePrint('        -n  [set_addressForPrint - ip:port]')
                 pipePrint('        -M  [set_objdumpPath - file]')
-                pipePrint('        -k  [set_killList - comms|tids]')
                 pipePrint('    [analysis]')
                 pipePrint('        -o  [save_outputData - path]')
                 pipePrint('        -O  [set_coreFilter - cores]')
@@ -7868,6 +7908,7 @@ class SystemManager(object):
                 pipePrint('        -c  [set_customEvent - event:filter]')
                 pipePrint('        -E  [set_errorLogPath - file]')
                 pipePrint('        -H  [set_functionDepth]')
+                pipePrint('        -k  [set_killList - comms|tids{:CONT}]')
                 pipePrint('        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]')
                 pipePrint('        -Y  [set_schedPriority - policy:prio{:tid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
@@ -11400,7 +11441,7 @@ class SystemManager(object):
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'k':
-                SystemManager.killFilter = str(value).split(',')
+                SystemManager.parseKillOption(value)
 
             elif option == 'd':
                 options = value
