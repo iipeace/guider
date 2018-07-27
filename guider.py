@@ -4613,8 +4613,8 @@ class FunctionAnalyzer(object):
                 if value['tickCnt'] == 0:
                     break
 
-                cpuPer = '.1f' % \
-                    float(value['tickCnt']) / float(self.periodicEventCnt) * 100
+                cpuPer = \
+                    round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
@@ -4643,8 +4643,8 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
-                        cpuPer = '%.1f' % \
-                            float(cpuCnt) / float(value['tickCnt']) * 100
+                        cpuPer = \
+                            round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
                         if cpuPer < 1 and SystemManager.showAll is False:
                             break
 
@@ -4690,8 +4690,8 @@ class FunctionAnalyzer(object):
             if value['tickCnt'] == 0:
                 break
 
-            cpuPer = '.1f' % \
-                float(value['tickCnt']) / float(self.periodicEventCnt) * 100
+            cpuPer = \
+                round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
             if cpuPer < 1 and SystemManager.showAll is False:
                 break
 
@@ -4708,8 +4708,8 @@ class FunctionAnalyzer(object):
                 if cpuCnt == 0:
                     break
                 else:
-                    cpuPer = '.1f' % \
-                        float(cpuCnt) / float(value['tickCnt']) * 100
+                    cpuPer = \
+                        round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
                     if cpuPer < 1 and SystemManager.showAll is False:
                         break
 
@@ -6804,7 +6804,7 @@ class FileAnalyzer(object):
                     self.profSuccessCnt += 1
 
                     # fd resource is about to run out #
-                    if SystemManager.maxFd - 16 < fd:
+                    if SystemManager.maxFd-16 < fd:
                         val['fd'].close()
                         val['fd'] = None
                 except:
@@ -26182,7 +26182,9 @@ class ThreadAnalyzer(object):
 
 
     def compareThreadData(self):
-        for key, value in sorted(ti.threadData.items(), key=lambda e: e[1]['usage'], reverse=True):
+        for key, value in sorted(ti.threadData.items(), \
+            key=lambda e: e[1]['usage'], reverse=True):
+
             newPercent = round(float(value['usage']) / float(ti.totalTime), 7) * 100
 
             try:
@@ -26297,11 +26299,13 @@ class ThreadAnalyzer(object):
 
             if 'fdInfo' in value:
                 details = '   '.join(["%s: %s" % (fd,path) for fd, path in \
-                    sorted(value['fdInfo'].items(), key=lambda e: int(e[1]), reverse=True)])
+                    sorted(value['fdInfo'].items(), \
+                    key=lambda e: int(e[1]), reverse=True)])
             else:
                 details = ' '
             procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>4}|\t{1:<105}|'.format(len(value['fdList']), details))
+                (procInfo, '{0:>4}|\t{1:<105}|'.format(\
+                len(value['fdList']), details))
 
             fdCnt = 0
             if SystemManager.sort != 'f':
@@ -26340,7 +26344,8 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.addPrint(\
-                        ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(' ' * procInfoLen, fd, path))
+                        ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(\
+                        ' ' * procInfoLen, fd, path))
 
                     fdCnt += 1
 
@@ -26380,7 +26385,8 @@ class ThreadAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printError('Fail to open %s' % SystemManager.procPath)
+            SystemManager.printError(\
+                'Fail to open %s' % SystemManager.procPath)
             sys.exit(0)
 
         # remove self info #
@@ -26690,7 +26696,8 @@ class ThreadAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printError('Fail to open %s directory' % SystemManager.procPath)
+            SystemManager.printError(\
+                'Fail to open %s directory' % SystemManager.procPath)
             sys.exit(0)
 
         # save proc instance #
@@ -26720,7 +26727,8 @@ class ThreadAnalyzer(object):
 
                 # calculate number of threads #
                 if pid in self.procData:
-                    self.nrThread += int(self.procData[pid]['stat'][self.nrthreadIdx])
+                    self.nrThread += \
+                        int(self.procData[pid]['stat'][self.nrthreadIdx])
 
                 continue
 
@@ -26929,12 +26937,12 @@ class ThreadAnalyzer(object):
         except:
             try:
                 wchanPath = "%s/wchan" % path
-                self.procData[tid]['wchanFd'] = open(wchanPath, 'r')
-                wchanBuf = self.procData[tid]['wchanFd'].readlines()
+                wchanFd = self.procData[tid]['wchanFd'] = open(wchanPath, 'r')
+                wchanBuf = wchanFd.readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd - 16 < self.procData[tid]['wchanFd'].fileno():
-                    self.procData[tid]['wchanFd'].close()
+                if SystemManager.maxFd-16 < wchanFd.fileno():
+                    wchanFd.close()
                     self.procData[tid]['wchanFd'] = None
                     self.reclaimFds()
             except:
@@ -26995,19 +27003,23 @@ class ThreadAnalyzer(object):
 
                 # save target device load #
                 with open('%s/load' % cand, 'r') as fd:
-                    self.gpuData[target]['CUR_LOAD'] = int(fd.readline()[:-1]) / 10
+                    self.gpuData[target]['CUR_LOAD'] = \
+                        int(fd.readline()[:-1]) / 10
 
                 # save current clock of target device #
                 with open('%s/devfreq/%s/cur_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['CUR_FREQ'] = int(fd.readline()[:-1]) / 1000000
+                    self.gpuData[target]['CUR_FREQ'] = \
+                        int(fd.readline()[:-1]) / 1000000
 
                 # save min clock of target device #
                 with open('%s/devfreq/%s/min_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['MIN_FREQ'] = int(fd.readline()[:-1]) / 1000000
+                    self.gpuData[target]['MIN_FREQ'] = \
+                        int(fd.readline()[:-1]) / 1000000
 
                 # save max clock of target device #
                 with open('%s/devfreq/%s/max_freq' % (cand, target), 'r') as fd:
-                    self.gpuData[target]['MAX_FREQ'] = int(fd.readline()[:-1]) / 1000000
+                    self.gpuData[target]['MAX_FREQ'] = \
+                        int(fd.readline()[:-1]) / 1000000
             except:
                 pass
 
@@ -27022,12 +27034,12 @@ class ThreadAnalyzer(object):
         except:
             try:
                 schedPath = "%s/%s" % (path, 'schedstat')
-                self.procData[tid]['schedFd'] = open(schedPath, 'r')
-                schedBuf = self.procData[tid]['schedFd'].readlines()
+                schedFd = self.procData[tid]['schedFd'] = open(schedPath, 'r')
+                schedBuf = schedFd.readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd - 16 < self.procData[tid]['schedFd'].fileno():
-                    self.procData[tid]['schedFd'].close()
+                if SystemManager.maxFd-16 < schedFd.fileno():
+                    schedFd.close()
                     self.procData[tid]['schedFd'] = None
                     self.reclaimFds()
             except:
@@ -27053,12 +27065,12 @@ class ThreadAnalyzer(object):
         except:
             try:
                 statusPath = "%s/status" % path
-                self.procData[tid]['statusFd'] = open(statusPath, 'r')
-                statusBuf = self.procData[tid]['statusFd'].readlines()
+                statusFd = self.procData[tid]['statusFd'] = open(statusPath, 'r')
+                statusBuf = statusFd.readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd - 16 < self.procData[tid]['statusFd'].fileno():
-                    self.procData[tid]['statusFd'].close()
+                if SystemManager.maxFd-16 < statusFd.fileno():
+                    statusFd.close()
                     self.procData[tid]['statusFd'] = None
                     self.reclaimFds()
             except:
@@ -27090,7 +27102,7 @@ class ThreadAnalyzer(object):
                 statmBuf = self.procData[tid]['statmFd'].readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd - 16 < self.procData[tid]['statmFd'].fileno():
+                if SystemManager.maxFd-16 < self.procData[tid]['statmFd'].fileno():
                     self.procData[tid]['statmFd'].close()
                     self.procData[tid]['statmFd'] = None
                     self.reclaimFds()
@@ -27120,7 +27132,7 @@ class ThreadAnalyzer(object):
                     self.prevProcData[tid]['alive'] = True
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd - 16 < self.procData[tid]['statFd'].fileno():
+                if SystemManager.maxFd-16 < self.procData[tid]['statFd'].fileno():
                     self.procData[tid]['statFd'].close()
                     self.procData[tid]['statFd'] = None
                     self.reclaimFds()
@@ -27187,15 +27199,15 @@ class ThreadAnalyzer(object):
             except:
                 try:
                     ioPath = "%s/%s" % (path, 'io')
-                    self.procData[tid]['ioFd'] = open(ioPath, 'r')
-                    ioBuf = self.procData[tid]['ioFd'].readlines()
+                    ioFd = self.procData[tid]['ioFd'] = open(ioPath, 'r')
+                    ioBuf = ioFd.readlines()
 
                     if tid in self.prevProcData:
                         self.prevProcData[tid]['alive'] = True
 
                     # fd resource is about to run out #
-                    if SystemManager.maxFd - 16 < self.procData[tid]['ioFd'].fileno():
-                        self.procData[tid]['ioFd'].close()
+                    if SystemManager.maxFd-16 < ioFd.fileno():
+                        ioFd.close()
                         self.procData[tid]['ioFd'] = None
                         self.reclaimFds()
                 except:
@@ -27221,29 +27233,33 @@ class ThreadAnalyzer(object):
                     "use also -g option with values to show performance stat")
                 sys.exit(0)
 
+            filterGroup = SystemManager.filterGroup
+
             if SystemManager.groupProcEnable:
                 if SystemManager.processEnable:
-                    if self.procData[tid]['stat'][self.ppidIdx] in SystemManager.filterGroup:
+                    if self.procData[tid]['stat'][self.ppidIdx] in filterGroup:
                         pass
-                    elif tid in SystemManager.filterGroup:
+                    elif tid in filterGroup:
                         pass
                     else:
                         return
-                elif self.procData[tid]['mainID'] not in SystemManager.filterGroup:
+                elif self.procData[tid]['mainID'] not in filterGroup:
                     return
             else:
-                if tid in SystemManager.filterGroup:
+                if tid in filterGroup:
                     pass
                 elif True in [self.procData[tid]['stat'][self.commIdx].find(val) >= 0 \
-                    for val in SystemManager.filterGroup]:
+                    for val in filterGroup]:
                     pass
                 else:
                     return
 
             try:
-                self.procData[tid]['perfFds'] = self.prevProcData[tid]['perfFds']
+                self.procData[tid]['perfFds'] = \
+                    self.prevProcData[tid]['perfFds']
             except:
-                self.procData[tid]['perfFds'] = SystemManager.initProcPerfEvents(int(tid))
+                self.procData[tid]['perfFds'] = \
+                    SystemManager.initProcPerfEvents(int(tid))
 
 
 
@@ -27318,7 +27334,8 @@ class ThreadAnalyzer(object):
             actAnonMem = self.vmData['nr_active_anon'] >> 8
             inactAnonMem = self.vmData['nr_inactive_anon'] >> 8
             totalAnonMem = self.vmData['nr_anon_pages'] >> 8
-            anonMemDiff = (self.vmData['nr_anon_pages'] - self.prevVmData['nr_anon_pages']) >> 8
+            anonMemDiff = (self.vmData['nr_anon_pages'] - \
+                self.prevVmData['nr_anon_pages']) >> 8
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = 0
             SystemManager.printWarning("Fail to get anonMem")
@@ -27328,7 +27345,8 @@ class ThreadAnalyzer(object):
             actFileMem = self.vmData['nr_active_file'] >> 8
             inactFileMem = self.vmData['nr_inactive_file'] >> 8
             totalFileMem = self.vmData['nr_file_pages'] >> 8
-            fileMemDiff = (self.vmData['nr_file_pages'] - self.prevVmData['nr_file_pages']) >> 8
+            fileMemDiff = (self.vmData['nr_file_pages'] - \
+                self.prevVmData['nr_file_pages']) >> 8
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
             SystemManager.printWarning("Fail to get fileMem")
@@ -27338,9 +27356,11 @@ class ThreadAnalyzer(object):
             nrDirty = self.vmData['nr_dirty']
             '''
             dirtyRatio = \
-                int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_threshold'])) * 100)
+                int((self.vmData['nr_dirty'] / \
+                float(self.vmData['nr_dirty_threshold'])) * 100)
             dirtyBgRatio = \
-                int((self.vmData['nr_dirty'] / float(self.vmData['nr_dirty_background_threshold'])) * 100)
+                int((self.vmData['nr_dirty'] / \
+                float(self.vmData['nr_dirty_background_threshold'])) * 100)
             '''
         except:
             nrDirty = 0
@@ -27351,14 +27371,18 @@ class ThreadAnalyzer(object):
             slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
             slabUnReclm = self.vmData['nr_slab_unreclaimable'] >> 8
             slabReclmDiff = \
-                self.vmData['nr_slab_reclaimable'] - self.prevVmData['nr_slab_reclaimable']
+                self.vmData['nr_slab_reclaimable'] - \
+                self.prevVmData['nr_slab_reclaimable']
             slabUnReclmDiff = \
-                self.vmData['nr_slab_unreclaimable'] - self.prevVmData['nr_slab_unreclaimable']
+                self.vmData['nr_slab_unreclaimable'] - \
+                self.prevVmData['nr_slab_unreclaimable']
             totalSlabMem = \
-                (self.vmData['nr_slab_reclaimable'] + self.vmData['nr_slab_unreclaimable']) >> 8
+                (self.vmData['nr_slab_reclaimable'] + \
+                self.vmData['nr_slab_unreclaimable']) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
         except:
-            slabReclm = slabUnReclm = slabReclmDiff = slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
+            slabReclm = slabUnReclm = slabReclmDiff = \
+                slabUnReclmDiff = totalSlabMem = slabMemDiff = 0
             SystemManager.printWarning("Fail to get slabMem")
 
         totalCacheMem = totalFileMem + totalSlabMem
@@ -27380,8 +27404,10 @@ class ThreadAnalyzer(object):
 
         # paged in/out from/to disk #
         try:
-            pgInMemDiff = (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
-            pgOutMemDiff = (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
+            pgInMemDiff = \
+                (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
+            pgOutMemDiff = \
+                (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
         except:
             pgInMemDiff = pgOutMemDiff = 0
             SystemManager.printWarning("Fail to get pgMem")
@@ -27390,9 +27416,12 @@ class ThreadAnalyzer(object):
         try:
             swapTotal = self.vmData['swapTotal'] >> 10
             swapUsage = self.vmData['swapUsed'] >> 10
-            swapUsageDiff = (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) >> 10
-            swapInMem = (self.vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
-            swapOutMem = (self.vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
+            swapUsageDiff = \
+                (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) >> 10
+            swapInMem = \
+                (self.vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
+            swapOutMem = \
+                (self.vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
         except:
             swapTotal = swapUsage = swapUsageDiff = swapInMem = swapOutMem = 0
             SystemManager.printWarning("Fail to get swapMem")
@@ -27636,10 +27665,12 @@ class ThreadAnalyzer(object):
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
-            format("Total", '%d %%' % totalUsage, userUsage, kerUsage, ioUsage, irqUsage, \
-            freeMem, freeMemDiff, totalAnonMem, totalCacheMem, totalKernelMem, \
-            swapUsage, swapUsageDiff, '%s/%s' % (swapInMem, swapOutMem), \
-            '%s/%s' % (bgReclaim, drReclaim), '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
+            format("Total", '%d %%' % totalUsage, userUsage, kerUsage, \
+            ioUsage, irqUsage, freeMem, freeMemDiff, totalAnonMem, \
+            totalCacheMem, totalKernelMem, swapUsage, swapUsageDiff, \
+            '%s/%s' % (swapInMem, swapOutMem), \
+            '%s/%s' % (bgReclaim, drReclaim), \
+            '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
 
         SystemManager.addPrint(totalCoreStat)
@@ -27923,7 +27954,8 @@ class ThreadAnalyzer(object):
                         return
 
                     totalUsage = value['CUR_LOAD']
-                    coreStat = "{0:<23}({1:>5})|".format(idx[:23], '%s %%' % totalUsage)
+                    coreStat = "{0:<23}({1:>5})|".format(\
+                        idx[:23], '%s %%' % totalUsage)
 
                     # set frequency info #
                     coreFreq = ''
@@ -28011,13 +28043,16 @@ class ThreadAnalyzer(object):
                     int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
                 value['majflt'] = nowData[self.majfltIdx]
                 value['utime'] = int(nowData[self.utimeIdx] / interval)
-                if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['utime'] > 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
                 value['stime'] = int(nowData[self.stimeIdx] / interval)
-                if value['stime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['stime'] > 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
                 value['ttime'] = value['utime'] + value['stime']
-                if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['ttime'] > 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
                 cutime = int(nowData[self.cutimeIdx] / interval)
                 cstime = int(nowData[self.cstimeIdx] / interval)
@@ -28052,27 +28087,31 @@ class ThreadAnalyzer(object):
 
                 try:
                     prop = 'Size:'
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%4sM / " % \
+                        (tmpstr, prop.upper(), item[prop] >> 10)
                 except:
                     tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Rss:'
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%4sM / " % \
+                        (tmpstr, prop.upper(), item[prop] >> 10)
                     rss += item[prop]
                 except:
                     tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Pss:'
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%4sM / " % \
+                        (tmpstr, prop.upper(), item[prop] >> 10)
                     pss += item[prop]
                 except:
                     tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Swap:'
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%4sM / " % \
+                        (tmpstr, prop.upper(), item[prop] >> 10)
                 except:
                     tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
 
@@ -28131,7 +28170,8 @@ class ThreadAnalyzer(object):
                 if SystemManager.wssEnable:
                     # get current WSS size #
                     try:
-                        wss =  SystemManager.convertSize(item['Referenced:'] << 10)
+                        wss =  SystemManager.convertSize(\
+                            item['Referenced:'] << 10)
                     except:
                         wss =  0
 
@@ -28143,7 +28183,8 @@ class ThreadAnalyzer(object):
 
                         # clear reference bits #
                         try:
-                            path = '%s/%s/clear_refs' % (SystemManager.procPath, idx)
+                            path = '%s/%s/clear_refs' % \
+                                (SystemManager.procPath, idx)
                             with open(path, 'w') as fd:
                                 fd.write('1')
                         except:
@@ -28152,7 +28193,8 @@ class ThreadAnalyzer(object):
                     # update WSS history #
                     try:
                         history = self.procData[idx]['wss'][key]
-                        self.procData[idx]['wss'][key] = '%s -> %5s' % (history, wss)
+                        self.procData[idx]['wss'][key] = \
+                            '%s -> %5s' % (history, wss)
                     except:
                         self.procData[idx]['wss'][key] = '[%5s]' % wss
 
@@ -28176,7 +28218,8 @@ class ThreadAnalyzer(object):
             initIndent = 42
 
             try:
-                for stack, cnt in sorted(self.stackTable[idx]['stack'].items(), \
+                for stack, cnt in sorted(\
+                    self.stackTable[idx]['stack'].items(), \
                     key=lambda e: e[1], reverse=True):
 
                     line = ''
@@ -28268,8 +28311,10 @@ class ThreadAnalyzer(object):
             mem = 'RSS'
 
         SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^3}({6:^3}/{7:^3}/{8:^3})| " \
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| {14:^3}({15:^4}/{16:^4}/{17:^5})|" \
+            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+            "{5:^3}({6:^3}/{7:^3}/{8:^3})| " \
+            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
+            "{14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
@@ -28555,8 +28600,10 @@ class ThreadAnalyzer(object):
 
             # print stats of a process #
             SystemManager.addPrint(\
-                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+                "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
+                "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                 ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
@@ -28571,7 +28618,8 @@ class ThreadAnalyzer(object):
                 perfData = SystemManager.collectProcPerfData(value['perfFds'])
                 perfString = SystemManager.getPerfString(perfData)
                 if len(perfString) > 0:
-                    SystemManager.addPrint("{0:>40}| {1:1}\n".format(' ', perfString))
+                    SystemManager.addPrint(\
+                        "{0:>40}| {1:1}\n".format(' ', perfString))
                     needLine = True
             except SystemExit:
                 sys.exit(0)
@@ -28662,7 +28710,9 @@ class ThreadAnalyzer(object):
 
         procCnt = 0
         for idx, value in sorted(\
-            self.procData.items(), key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
+            self.procData.items(), \
+            key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
+
             status = value['stat'][self.statIdx]
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
@@ -28706,12 +28756,15 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
+                    int(value['ttime']), int(value['utime']), \
+                    int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
@@ -28731,7 +28784,9 @@ class ThreadAnalyzer(object):
         cl = 26-(SystemManager.pidDigit*2)
 
         newCnt = 0
-        for idx, value in sorted(self.procData.items(), key=lambda e: e[1]['new'], reverse=True):
+        for idx, value in sorted(self.procData.items(), \
+            key=lambda e: e[1]['new'], reverse=True):
+
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
@@ -28774,12 +28829,15 @@ class ThreadAnalyzer(object):
 
                 # print new thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
+                    int(value['ttime']), int(value['utime']), \
+                    int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
@@ -28800,7 +28858,9 @@ class ThreadAnalyzer(object):
 
         dieCnt = 0
         for idx, value in sorted(\
-            self.prevProcData.items(), key=lambda e: e[1]['alive'], reverse=False):
+            self.prevProcData.items(), \
+            key=lambda e: e[1]['alive'], reverse=False):
+
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
@@ -28843,12 +28903,15 @@ class ThreadAnalyzer(object):
 
                 # print terminated thread information #
                 SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>3}({6:>3}/{7:>3}/{8:>3})| " \
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| {14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
                     ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
-                    int(value['ttime']), int(value['utime']), int(value['stime']), '-', \
+                    int(value['ttime']), int(value['utime']), \
+                    int(value['stime']), '-', \
                     long(value['stat'][self.vsizeIdx]) >> 20, \
                     long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
@@ -28895,7 +28958,9 @@ class ThreadAnalyzer(object):
             for event, proc in reportStat['event'].items():
                 printBuf += '[event] (%s)\n' % (event)
 
-                for rank, stat in sorted(proc.items(), key=lambda e: int(e[0]), reverse=False):
+                for rank, stat in sorted(\
+                    proc.items(), key=lambda e: int(e[0]), reverse=False):
+
                     printBuf += '[%s] ' % (rank)
 
                     for item, val in stat.items():
@@ -28923,7 +28988,8 @@ class ThreadAnalyzer(object):
 
     def replyService(self, ip, port):
         if SystemManager.addrOfServer is None:
-            SystemManager.printError("Fail to use server because it is not initialized")
+            SystemManager.printError(\
+                "Fail to use server because it is not initialized")
             return
 
         # send reply message to server #
@@ -29016,7 +29082,9 @@ class ThreadAnalyzer(object):
 
 
     def requestService(self):
-        if SystemManager.addrOfServer is None or SystemManager.addrAsServer is None:
+        if SystemManager.addrOfServer is None or \
+            SystemManager.addrAsServer is None:
+
             SystemManager.addrOfServer = None
             return
 
@@ -29034,7 +29102,8 @@ class ThreadAnalyzer(object):
                 # check event #
                 if SystemManager.addrOfServer.request.startswith('EVENT_'):
                     SystemManager.printStatus(\
-                        "requested %s to server" % SystemManager.addrOfServer.request)
+                        "requested %s to server" % \
+                        SystemManager.addrOfServer.request)
                     sys.exit(0)
 
                 SystemManager.printStatus(\
@@ -29073,7 +29142,8 @@ class ThreadAnalyzer(object):
                     ip = ret[1][0]
                     port = ret[1][1]
                 except:
-                    SystemManager.printWarning("Fail to get address of client from message")
+                    SystemManager.printWarning(\
+                        "Fail to get address of client from message")
                     continue
 
                 networkObject = NetworkManager('client', ip, port)
@@ -29091,7 +29161,8 @@ class ThreadAnalyzer(object):
                         rtime = SystemManager.uptime
 
                     # append event to list #
-                    ThreadAnalyzer.procEventData.append([SystemManager.uptime, event, rtime])
+                    ThreadAnalyzer.procEventData.append(\
+                        [SystemManager.uptime, event, rtime])
 
                     SystemManager.printInfo(\
                         "added event '%s' from %s:%d" % (event, ip, port))
@@ -29143,7 +29214,8 @@ class ThreadAnalyzer(object):
                             "Fail to find %s:%d as remote address" % (ip, port))
                 # wrong request or just data from server #
                 else:
-                    SystemManager.printError("Fail to request wrong service %s" % message)
+                    SystemManager.printError(\
+                        "Fail to request wrong service %s" % message)
 
 
 
@@ -29160,9 +29232,11 @@ class ThreadAnalyzer(object):
             self.reportData['event']['IMAGE_CREATED'] = SystemManager.imagePath
             SystemManager.imagePath = None
 
+        rb = ThreadAnalyzer.reportBoundary
+
         # analyze cpu status #
         if 'cpu' in self.reportData:
-            if ThreadAnalyzer.reportBoundary['cpu']['total'] < self.reportData['cpu']['total']:
+            if rb['cpu']['total'] < self.reportData['cpu']['total']:
                 self.reportData['event']['CPU_INTENSIVE'] = {}
 
                 rank = 1
@@ -29185,7 +29259,7 @@ class ThreadAnalyzer(object):
 
         # analyze memory status #
         if 'mem' in self.reportData:
-            if ThreadAnalyzer.reportBoundary['mem']['free'] > self.reportData['mem']['free']:
+            if rb['mem']['free'] > self.reportData['mem']['free']:
                 self.reportData['event']['MEM_PRESSURE'] = {}
 
                 rank = 1
@@ -29225,9 +29299,10 @@ class ThreadAnalyzer(object):
         # analyze swap status #
         if 'swap' in self.reportData and self.reportData['swap']['total'] > 0:
             swapUsagePer = \
-                int(self.reportData['swap']['usage'] / float(self.reportData['swap']['total']) * 100)
+                int(self.reportData['swap']['usage'] / \
+                float(self.reportData['swap']['total']) * 100)
 
-            if ThreadAnalyzer.reportBoundary['swap']['usage'] < swapUsagePer:
+            if rb['swap']['usage'] < swapUsagePer:
                 self.reportData['event']['SWAP_PRESSURE'] = {}
 
                 rank = 1
@@ -29266,7 +29341,7 @@ class ThreadAnalyzer(object):
 
         # analyze block status #
         if 'block' in self.reportData:
-            if ThreadAnalyzer.reportBoundary['block']['ioWait'] < self.reportData['block']['ioWait']:
+            if rb['block']['ioWait'] < self.reportData['block']['ioWait']:
                 self.reportData['event']['IO_INTENSIVE'] = {}
 
                 rank = 1
@@ -29323,11 +29398,13 @@ class ThreadAnalyzer(object):
                 os.rename(SystemManager.inputFile, filePath)
 
                 try:
-                    fsize = SystemManager.convertSize(int(os.path.getsize(filePath)))
+                    fsize = SystemManager.convertSize(\
+                        int(os.path.getsize(filePath)))
                 except:
                     fsize = '?'
-                SystemManager.printStatus(\
-                    "finish saving results based monitoring by event into %s [%s] successfully" % \
+                SystemManager.printStatus((\
+                    "finish saving results based monitoring "
+                    "by event into %s [%s] successfully") % \
                     (filePath, fsize))
             except SystemExit:
                 sys.exit(0)
@@ -29338,7 +29415,8 @@ class ThreadAnalyzer(object):
         # convert dict data to json data #
         jsonObj = SystemManager.makeJsonString(self.reportData)
         if jsonObj is None:
-            SystemManager.printWarning("Fail to convert report data to json type")
+            SystemManager.printWarning(\
+                "Fail to convert report data to json type")
             return
 
         # report system status to file #
@@ -29602,13 +29680,15 @@ if __name__ == '__main__':
 
         # wait for signal #
         if SystemManager.waitEnable:
-            SystemManager.printStatus("wait for user input... [ START(ctrl + c) ]")
+            SystemManager.printStatus(\
+                "wait for user input... [ START(ctrl + c) ]")
             signal.signal(signal.SIGINT, SystemManager.defaultHandler)
             signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
         # set signal #
-        if (SystemManager.repeatCount > 0 and SystemManager.repeatInterval > 0) and \
+        if SystemManager.repeatCount > 0 and \
+            SystemManager.repeatInterval > 0 and \
             (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
             signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
@@ -29697,7 +29777,8 @@ if __name__ == '__main__':
             if SystemManager.pipeEnable:
                 if SystemManager.outputFile is not None:
                     SystemManager.copyPipeToFile(\
-                        '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
+                        '%s%s' % (SystemManager.inputFile, '_pipe'), \
+                        SystemManager.outputFile)
                 else:
                     SystemManager.printError(\
                         "wrong option with -e + p, use also -s option to save data")
@@ -29725,7 +29806,8 @@ if __name__ == '__main__':
         if SystemManager.pipeEnable:
             if SystemManager.outputFile is not None:
                 SystemManager.copyPipeToFile(\
-                    '%s%s' % (SystemManager.inputFile, '_pipe'), SystemManager.outputFile)
+                    '%s%s' % (SystemManager.inputFile, '_pipe'), \
+                    SystemManager.outputFile)
             else:
                 SystemManager.printError(\
                     "wrong option with -e + p, use also -s option to save data")
@@ -29799,13 +29881,15 @@ if __name__ == '__main__':
                 float('.'.join(matplotlib.__version__.split('.')[:2]))
             matplotlib.use('Agg')
             from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, pie, axis,\
-                subplots_adjust, legend, figure, savefig, clf, ticklabel_format, suptitle,\
-                grid, yticks, xticks, locator_params, subplot2grid, ylim, xlim, tick_params
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
+                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
+                ticklabel_format, suptitle, grid, yticks, xticks, \
+                locator_params, subplot2grid, ylim, xlim, tick_params
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError("Fail to import python package: %s" % err.args[0])
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
             sys.exit(0)
 
     # convert txt to image #
