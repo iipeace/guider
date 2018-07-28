@@ -3163,10 +3163,16 @@ class FunctionAnalyzer(object):
 
 
     def parseEventInfo(self, tid, func, args, time, core):
+        # check core filter #
+        if len(SystemManager.perCoreList) > 0 and \
+            int(core) not in SystemManager.perCoreList:
+            self.saveEventParam('IGNORE', 0, func[:-1])
+            return False
+
+        # check fixed event list #
         if len(self.customEventTable) > 0 and \
             (func[:-1] in self.customEventTable or \
-            True in \
-            [True for event in self.customEventTable if event.find('/') == -1]):
+            True in [True for event in self.customEventTable if event.find('/') == -1]):
             isFixedEvent = False
         else:
             isFixedEvent = True
@@ -3773,8 +3779,13 @@ class FunctionAnalyzer(object):
             # set context of current core #
             self.nowCtx = self.coreCtx[self.lastCore]
 
+            # Check core filter #
+            if len(SystemManager.perCoreList) > 0 and \
+                int(d['core']) not in SystemManager.perCoreList:
+                pass
+
             # Calculate a total of cpu usage #
-            if d['func'] == "hrtimer_start:" and \
+            elif d['func'] == "hrtimer_start:" and \
                 d['etc'].rfind('tick_sched_timer') > -1:
                 self.totalTick += 1
                 self.threadData[thread]['cpuTick'] += 1
@@ -11789,6 +11800,9 @@ class SystemManager(object):
                     "only specific cores including [%s] are shown" % \
                     ', '.join(SystemManager.perCoreList))
 
+                SystemManager.perCoreList = \
+                    list(map(int, SystemManager.perCoreList))
+
             elif option == 't' and SystemManager.isRecordMode() is False:
                 SystemManager.syscallList = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.syscallList)
@@ -12561,6 +12575,51 @@ class SystemManager(object):
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def checkCmdMode():
+        # LIMIT MODE #
+        if SystemManager.isLimitMode():
+            # parse options #
+            SystemManager.parseAnalOption()
+
+            # change priority of process #
+            if SystemManager.prio is None:
+                SystemManager.setPriority(SystemManager.pid, 'C', -20)
+
+            if SystemManager.isCpuLimitMode():
+                limitInfo = SystemManager.getCpuLimitInfo(\
+                    SystemManager.filterGroup)
+                SystemManager.doCpuLimit(\
+                    limitInfo, SystemManager.processEnable)
+
+            sys.exit(0)
+
+        # ALLOCTEST MODE #
+        if SystemManager.isAllocTestMode():
+            SystemManager.doAllocTest()
+
+        # SETSCHED MODE #
+        if SystemManager.isSetSchedMode():
+            SystemManager.doSetSched()
+
+        # AFFINITY MODE #
+        if SystemManager.isSetAffinityMode():
+            SystemManager.doSetAffinity()
+        elif SystemManager.isGetAffinityMode():
+            SystemManager.doGetAffinity()
+
+        # EVENT MODE #
+        if SystemManager.isEventMode():
+            # set Signal #
+            signal.signal(signal.SIGINT, SystemManager.exitHandler)
+            signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+
+            # handle events #
+            SystemManager.handleEventInput()
+            sys.exit(0)
 
 
 
@@ -20439,6 +20498,10 @@ class ThreadAnalyzer(object):
         # initialize swapper thread per core #
         for n in xrange(0, SystemManager.maxCore + 1):
             try:
+                if len(SystemManager.perCoreList) > 0 and \
+                    n not in SystemManager.perCoreList:
+                        continue
+
                 coreId = '0[%s]' % n
                 self.threadData[coreId]
             except:
@@ -24180,8 +24243,9 @@ class ThreadAnalyzer(object):
             SystemManager.logSize += len(string)
 
             if len(SystemManager.perCoreList) > 0 and \
-                core not in SystemManager.perCoreList and \
-                (func != "console" or func != "tracing_mark_write"):
+                int(core) not in SystemManager.perCoreList and \
+                (func != "console" and \
+                func != "tracing_mark_write"):
                 return
             elif SystemManager.countEnable and \
                 SystemManager.repeatCount * SystemManager.intervalEnable <= \
@@ -29618,46 +29682,8 @@ if __name__ == '__main__':
     if SystemManager.isLinux:
         SystemManager()
 
-    #-------------------- LIMIT MODE --------------------#
-    if SystemManager.isLimitMode():
-        # parse options #
-        SystemManager.parseAnalOption()
-
-        # change priority of process #
-        if SystemManager.prio is None:
-            SystemManager.setPriority(SystemManager.pid, 'C', -20)
-
-        if SystemManager.isCpuLimitMode():
-            limitInfo = SystemManager.getCpuLimitInfo(\
-                SystemManager.filterGroup)
-            SystemManager.doCpuLimit(\
-                limitInfo, SystemManager.processEnable)
-
-        sys.exit(0)
-
-    #-------------------- ALLOCTEST MODE --------------------#
-    if SystemManager.isAllocTestMode():
-        SystemManager.doAllocTest()
-
-    #-------------------- SETSCHED MODE --------------------#
-    if SystemManager.isSetSchedMode():
-        SystemManager.doSetSched()
-
-    #-------------------- AFFINITY MODE --------------------#
-    if SystemManager.isSetAffinityMode():
-        SystemManager.doSetAffinity()
-    elif SystemManager.isGetAffinityMode():
-        SystemManager.doGetAffinity()
-
-    #-------------------- EVENT MODE --------------------#
-    if SystemManager.isEventMode():
-        # set Signal #
-        signal.signal(signal.SIGINT, SystemManager.exitHandler)
-        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
-
-        # handle events #
-        SystemManager.handleEventInput()
-        sys.exit(0)
+    # check commands #
+    SystemManager.checkCmdMode()
 
     #==================== record part ====================#
     if SystemManager.isRecordMode():
