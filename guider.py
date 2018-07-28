@@ -8075,9 +8075,9 @@ class SystemManager(object):
             pipePrint('    - record cpu usage of threads')
             pipePrint('        # %s record -s .' % cmd)
             pipePrint('    - record specific resource usage of threads in background')
-            pipePrint('        # %s record -s . -e m b i -u' % cmd)
+            pipePrint('        # %s record -s . -e m, b, i -u' % cmd)
             pipePrint('    - record specific resource usage excluding cpu of threads in background')
-            pipePrint('        # %s record -s . -e m b i -d c -u' % cmd)
+            pipePrint('        # %s record -s . -e m, b, i -d c -u' % cmd)
             pipePrint('    - record specific systemcalls of specific threads')
             pipePrint('        # %s record -s . -t sys_read, write -g 1234' % cmd)
             pipePrint('    - record lock events of threads')
@@ -8111,7 +8111,7 @@ class SystemManager(object):
             pipePrint('    - record specific events of functions of all threads in kernel level')
             pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
             pipePrint('    - record resource usage of functions of specific threads')
-            pipePrint('        # %s record -f -s . -e m b h -g 1234' % cmd)
+            pipePrint('        # %s record -f -s . -e m, b, h -g 1234' % cmd)
             pipePrint('    - excute special commands before recording')
             pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
             pipePrint('    - analyze function data for all')
@@ -8119,9 +8119,9 @@ class SystemManager(object):
             pipePrint('    - analyze function data for only lower than 3 levels')
             pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
             pipePrint('    - record segmentation fault event of all threads')
-            pipePrint('        # %s record -f -s . -K segflt:bad_area -ep' % cmd)
+            pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
             pipePrint('    - record blocking event except for cpu usage of all threads')
-            pipePrint('        # %s record -f -s . -dc -K block:schedule' % cmd)
+            pipePrint('        # %s record -f -s . -d c -K block:schedule' % cmd)
 
             pipePrint('\n[top mode examples]')
             pipePrint('    - show resource usage of processes in real-time')
@@ -8143,7 +8143,7 @@ class SystemManager(object):
             pipePrint('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
             pipePrint('        # %s top -R 3, 5' % cmd)
             pipePrint('    - show resource usage including block of threads per 2 sec interval in real-time')
-            pipePrint('        # %s top -e t b -i 2 -a' % cmd)
+            pipePrint('        # %s top -e t, b -i 2 -a' % cmd)
             pipePrint('    - show resource usage of specific processes/threads involved in specific process group in real-time')
             pipePrint('        # %s top -g 1234,4567 -P' % cmd)
             pipePrint('    - record resource usage of processes and write to specific file in real-time')
@@ -8155,9 +8155,9 @@ class SystemManager(object):
             pipePrint('    - record resource usage of processes, system status and write to specific file in background')
             pipePrint('        # %s top -o . -e r -j . -u' % cmd)
             pipePrint('    - record resource usage of processes, system status and write to specific file if some events occur')
-            pipePrint('        # %s top -o . -e r R' % cmd)
+            pipePrint('        # %s top -o . -e r, R' % cmd)
             pipePrint('    - record resource usage of processes, system status and write to specific image')
-            pipePrint('        # %s top -o . -e r I' % cmd)
+            pipePrint('        # %s top -o . -e r, I' % cmd)
             pipePrint('    - record resource usage of processes and write to specific file when specific conditions met')
             pipePrint('        # %s top -o . -e R' % cmd)
             pipePrint('    - excute special commands every interval')
@@ -8177,7 +8177,7 @@ class SystemManager(object):
             pipePrint('    - report system status to specific server')
             pipePrint('        # %s top -n 192.168.0.5:5555' % cmd)
             pipePrint('    - report system status to specific server if only some events occur')
-            pipePrint('        # %s top -er -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
+            pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
             pipePrint('    - report system status to specific clients that asked it')
             pipePrint('        # %s top -x 5555' % cmd)
             pipePrint('    - receive report data from server')
@@ -8221,9 +8221,9 @@ class SystemManager(object):
             pipePrint('    - update cpu affinity of tasks continuously')
             pipePrint('        # %s top -z f:1234:CONT' % cmd)
             pipePrint('    - limit cpu usage of specific processes')
-            pipePrint('        # %s cpulimit 1234:40, 5678:10' % cmd)
+            pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
             pipePrint('    - limit cpu usage of specific threads')
-            pipePrint('        # %s cpulimit 1234:40, 5678:10 -e t' % cmd)
+            pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
 
             sys.exit(0)
 
@@ -13254,8 +13254,14 @@ class SystemManager(object):
             except:
                 pass
 
-        def openStatFd(tid):
-            statPath = "%s/%s/stat" % (SystemManager.procPath, tid)
+        def openStatFd(tid, isProcess):
+            if isProcess:
+                statPath = "%s/%s/stat" % \
+                    (SystemManager.procPath, tid)
+            else:
+                statPath = "%s/%s/task/%s/stat" % \
+                    (SystemManager.procPath, tid, tid)
+
             try:
                 return open(statPath, 'r')
             except:
@@ -13298,14 +13304,14 @@ class SystemManager(object):
                         "Fail to get thread list of '%s' process" % task)
                     return
 
-                taskList[task]['fd'] = openStatFd(task)
+                taskList[task]['fd'] = openStatFd(task, isProcess)
                 if taskList[task]['fd'] is None:
                     SystemManager.printError(\
                         "Fail to get stats of %s thread" % task)
                     return
             else:
                 taskList[task]['group'] = [int(task)]
-                taskList[task]['fd'] = openStatFd(task)
+                taskList[task]['fd'] = openStatFd(task, isProcess)
                 if taskList[task]['fd'] is None:
                     SystemManager.printError(\
                         "Fail to get stats of %s thread" % task)

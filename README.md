@@ -33,7 +33,7 @@ Output
 =======
     # ./guider.py top -a
 
-    [Top Info] [Time: 7140056.120] [Interval: 1.0] [Ctxt: 52687] [Life: +0/─0] [IRQ: 12517] [Core: 24] [Task: 326/433] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
+    [Top Info] [Time: 71406.120] [Interval: 1.0] [Ctxt: 52687] [Life: +0/-0] [IRQ: 12517] [Core: 24] [Task: 326/433] [Load: 0.2/0.4/0.5] [RAM: 63876] [Swap: 65491]
                [Cycle: 2G / Inst: 6G / IPC: 2.45 / CacheMiss: 77K(6%) / BranchMiss: 857K(0%) / Clock: 22G / MinFlt: 4 / MajFlt: 0]
     ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
       ID   │ CPU (Usr/Ker/Blk/IRQ)│ Mem (Diff/ User/Cache/Kern)│ Swap (Diff/  I/O  )│NrPgRclm │ BlkRW │ NrFlt │ NrBlk │ NrSIRQ │ NrMlk │ NrDrt  │  Network   │
@@ -800,9 +800,9 @@ Examples
     - record cpu usage of threads
         # ./guider.py record -s .
     - record specific resource usage of threads in background
-        # ./guider.py record -s . -e m b i -u
+        # ./guider.py record -s . -e m, b, i -u
     - record specific resource usage excluding cpu of threads in background
-        # ./guider.py record -s . -e m b i -d c -u
+        # ./guider.py record -s . -e m, b i -d c -u
     - record specific systemcalls of specific threads
         # ./guider.py record -s . -t sys_read, write -g 1234
     - record lock events of threads
@@ -836,7 +836,7 @@ Examples
     - record specific events of functions of all threads in kernel level
         # ./guider.py record -f -s . -d u -c sched/sched_switch
     - record resource usage of functions of specific threads
-        # ./guider.py record -f -s . -e m b h -g 1234
+        # ./guider.py record -f -s . -e m, b, h -g 1234
     - excute special commands before recording
         # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
     - analyze function data for all
@@ -844,7 +844,7 @@ Examples
     - analyze function data for only lower than 3 levels
         # ./guider.py guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3
     - record segmentation fault event of all threads
-        # ./guider.py record -f -s . -K segflt:bad_area -ep
+        # ./guider.py record -f -s . -K segflt:bad_area -e p
     - record blocking event except for cpu usage of all threads
         # ./guider.py record -f -s . -dc -K block:schedule
 
@@ -868,7 +868,7 @@ Examples
     - show resource usage of processes only 5 times per 3 sec interval in real-time
         # ./guider.py top -R 3, 5
     - show resource usage including block of threads per 2 sec interval in real-time
-        # ./guider.py top -e t b -i 2 -a
+        # ./guider.py top -e t, b -i 2 -a
     - show resource usage of specific processes/threads involved in specific process group in real-time
         # ./guider.py top -g 1234,4567 -P
     - record resource usage of processes and write to specific file in real-time
@@ -880,9 +880,9 @@ Examples
     - record resource usage of processes, system status and write to specific file in background
         # ./guider.py top -o . -e r -j . -u
     - record resource usage of processes, system status and write to specific file if some events occur
-        # ./guider.py top -o . -e r R
+        # ./guider.py top -o . -e r, R
     - record resource usage of processes, system status and write to specific image
-        # ./guider.py top -o . -e r I
+        # ./guider.py top -o . -e r, I
     - record resource usage of processes and write to specific file when specific conditions met
         # ./guider.py top -o . -e R
     - excute special commands every interval
@@ -902,7 +902,7 @@ Examples
     - report system status to specific server
         # ./guider.py top -n 192.168.0.5:5555
     - report system status to specific server if only some events occur
-        # ./guider.py top -er -N REPORT_ALWAYS@192.168.0.5:5555
+        # ./guider.py top -e r -N REPORT_ALWAYS@192.168.0.5:5555
     - report system status to specific clients that asked it
         # ./guider.py top -x 5555
     - receive report data from server
@@ -940,7 +940,7 @@ Examples
     - update priority of tasks continuously
         # ./guider.py top -Y r:90:task:ALL
     - limit cpu usage of specific processes
-        # ./guider.py cpulimit 1234:40, 5678:10
+        # ./guider.py cpulimit -g 1234:40, 5678:10
     - limit cpu usage of specific threads
-        # ./guider.py cpulimit 1234:40, 5678:10 -e t
+        # ./guider.py cpulimit -g 1234:40, 5678:10 -e t
 ```
