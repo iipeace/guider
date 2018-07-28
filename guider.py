@@ -3136,7 +3136,7 @@ class FunctionAnalyzer(object):
             #self.printDbgInfo()
             SystemManager.printWarning((\
                 "Fail to analyze stack data "\
-                "because of corruption (overflowflow) at %s line\n"\
+                "because of corruption (overflow) at %s line\n"\
                 "\tso report results may differ from actual") % \
                 SystemManager.dbgEventLine, True)
 
@@ -3165,7 +3165,8 @@ class FunctionAnalyzer(object):
     def parseEventInfo(self, tid, func, args, time, core):
         # check core filter #
         if len(SystemManager.perCoreList) > 0 and \
-            int(core) not in SystemManager.perCoreList:
+            int(core) not in SystemManager.perCoreList and \
+            func[0] != '<':
             self.saveEventParam('IGNORE', 0, func[:-1])
             return False
 
@@ -3781,7 +3782,9 @@ class FunctionAnalyzer(object):
 
             # Check core filter #
             if len(SystemManager.perCoreList) > 0 and \
-                int(d['core']) not in SystemManager.perCoreList:
+                int(d['core']) not in SystemManager.perCoreList and \
+                d['func'].startswith("tracing_mark_write") is False and \
+                d['func'] != '0:':
                 pass
 
             # Calculate a total of cpu usage #
