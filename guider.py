@@ -7270,9 +7270,10 @@ class SystemManager(object):
                 for tid in list(map(int, tids.split(','))):
                     try:
                         os.kill(int(tid), signal.SIGKILL)
-                    except ProcessLookupError:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % tid)
+                    except (OSError, IOError) as e:
+                        if e.errno == errno.ESRCH:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % tid)
                     except:
                         pass
             elif len(value) == 2 and value[1] == 'CONT':
@@ -8051,7 +8052,7 @@ class SystemManager(object):
                 pipePrint('        -a  [show_allInfo]')
                 pipePrint('        -Q  [print_allRowsInaStream]')
                 pipePrint('        -i  [set_interval - sec]')
-                pipePrint('        -R  [set_repeatCount - {interval,}count]')
+                pipePrint('        -R  [set_repeatCount - {interval:}count]')
                 pipePrint('        -g  [set_filter - comms|tids{:files}]')
                 pipePrint('        -A  [set_arch - arm|aarch64|x86|x64]')
                 pipePrint('        -c  [set_customEvent - event:filter]')
@@ -12059,7 +12060,7 @@ class SystemManager(object):
             elif option == 'R':
                 SystemManager.countEnable = True
 
-                repeatParams = value.split(',')
+                repeatParams = value.split(':')
                 if len(repeatParams) == 2:
                     try:
                         SystemManager.intervalEnable = int(repeatParams[0])
@@ -12310,7 +12311,7 @@ class SystemManager(object):
                         ', '.join(enabledSyscall))
 
             elif option == 'R':
-                repeatParams = value.split(',')
+                repeatParams = value.split(':')
                 if len(repeatParams) == 2:
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
@@ -12321,8 +12322,8 @@ class SystemManager(object):
                         sys.exit(0)
                 elif len(repeatParams) == 1:
                     try:
-                        SystemManager.repeatCount = int(repeatParams[0])
-                        SystemManager.repeatInterval = 1
+                        SystemManager.repeatInterval = int(repeatParams[0])
+                        SystemManager.repeatCount = 1
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input a integer value")
@@ -12330,7 +12331,7 @@ class SystemManager(object):
                 else:
                     SystemManager.printError((\
                         "wrong option value with -R, "
-                        "input INTERVAL,REPEAT in format"))
+                        "input INTERVAL:REPEAT in format"))
                     sys.exit(0)
 
                 if SystemManager.repeatInterval < 1 or \
@@ -13454,9 +13455,10 @@ class SystemManager(object):
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, NR_SIGSTOP)
-                                except ProcessLookupError:
-                                    SystemManager.printError(\
-                                        "Fail to find %s process" % tid)
+                                except (OSError, IOError) as e:
+                                    if e.errno == errno.ESRCH:
+                                        SystemManager.printError(\
+                                            "Fail to find %s process" % tid)
                                 except:
                                     pass
                             val['running'] = False
@@ -13466,9 +13468,10 @@ class SystemManager(object):
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, NR_SIGCONT)
-                                except ProcessLookupError:
-                                    SystemManager.printError(\
-                                        "Fail to find %s process" % tid)
+                                except (OSError, IOError) as e:
+                                    if e.errno == errno.ESRCH:
+                                        SystemManager.printError(\
+                                            "Fail to find %s process" % tid)
                                 except:
                                     pass
                             val['running'] = True
@@ -13481,9 +13484,10 @@ class SystemManager(object):
                 for tid in val['group']:
                     try:
                         os.kill(tid, NR_SIGCONT)
-                    except ProcessLookupError:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % tid)
+                    except (OSError, IOError) as e:
+                        if e.errno == errno.ESRCH:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % tid)
                     except:
                         pass
 
@@ -13532,9 +13536,10 @@ class SystemManager(object):
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % (sigList[nrSig], pid))
-                except ProcessLookupError:
-                    SystemManager.printError(\
-                        "Fail to find %s process" % pid)
+                except (OSError, IOError) as e:
+                    if e.errno == errno.ESRCH:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % pid)
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because of permission" % \
@@ -13584,9 +13589,10 @@ class SystemManager(object):
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo(\
                                 "started %s process to profile" % pid)
-                        except ProcessLookupError:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % pid)
+                        except (OSError, IOError) as e:
+                            if e.errno == errno.ESRCH:
+                                SystemManager.printError(\
+                                    "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
@@ -13597,9 +13603,10 @@ class SystemManager(object):
                             SystemManager.printInfo(\
                                 "sent signal %s to %s process" % \
                                 (sigList[nrSig], pid))
-                        except ProcessLookupError:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % pid)
+                        except (OSError, IOError) as e:
+                            if e.errno == errno.ESRCH:
+                                SystemManager.printError(\
+                                    "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
@@ -13610,9 +13617,10 @@ class SystemManager(object):
                         SystemManager.printInfo(\
                             "sent signal %s to %s process" % \
                             (sigList[nrSig], pid))
-                    except ProcessLookupError:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % pid)
+                    except (OSError, IOError) as e:
+                        if e.errno == errno.ESRCH:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % pid)
                     except:
                         SystemManager.printError(\
                             "Fail to send signal %s to %s because of permission" % \
@@ -18456,9 +18464,10 @@ class ThreadAnalyzer(object):
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
                     try:
                         os.kill(SystemManager.pid, signal.SIGINT)
-                    except ProcessLookupError:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % SystemManager.pid)
+                    except (OSError, IOError) as e:
+                        if e.errno == errno.ESRCH:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % SystemManager.pid)
                     except:
                         pass
 
@@ -18538,13 +18547,7 @@ class ThreadAnalyzer(object):
             # check repeat count #
             if SystemManager.countEnable:
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    try:
-                        os.kill(SystemManager.pid, signal.SIGINT)
-                    except ProcessLookupError:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % SystemManager.pid)
-                    except:
-                        pass
+                    os.kill(SystemManager.pid, signal.SIGINT)
                 SystemManager.progressCnt += 1
 
             # reset system status #
