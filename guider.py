@@ -7270,6 +7270,9 @@ class SystemManager(object):
                 for tid in list(map(int, tids.split(','))):
                     try:
                         os.kill(int(tid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % tid)
                     except:
                         pass
             elif len(value) == 2 and value[1] == 'CONT':
@@ -12978,7 +12981,6 @@ class SystemManager(object):
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
-        compLen = len(__module__)
         gstatList = ConfigManager.statList
 
         SystemManager.updateUptime()
@@ -13002,7 +13004,13 @@ class SystemManager(object):
             except:
                 continue
 
-            if comm[0:compLen] == __module__:
+            try:
+                cmdFd = open(procPath + '/cmdline', 'r')
+                cmdline = cmdFd.readline().replace("\x00", " ")
+            except:
+                continue
+
+            if comm.startswith(__module__):
                 runtime = '?'
 
                 try:
@@ -13043,10 +13051,8 @@ class SystemManager(object):
                     network = ''
 
                 try:
-                    cmdFd = open(procPath + '/cmdline', 'r')
-                    cmdline = cmdFd.readline().replace("\x00", " ")
-                    printBuf = '%s%6s\t%10s\t%s %s\n' % \
-                        (printBuf, pid, runtime, cmdline, network)
+                    printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
+                        (printBuf, pid, comm, runtime, cmdline, network)
                 except:
                     continue
 
@@ -13057,7 +13063,7 @@ class SystemManager(object):
         else:
             print('\n[Running Process]')
             print(twoLine)
-            print('%6s\t%10s\t%s' % ("PID", "RUNTIME", "COMMAND"))
+            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
             print(oneLine)
             print(printBuf + "%s\n" % oneLine)
 
@@ -13446,13 +13452,25 @@ class SystemManager(object):
                     if val['ticks'] > limitTick:
                         if val['running']:
                             for tid in val['group']:
-                                os.kill(tid, NR_SIGSTOP)
+                                try:
+                                    os.kill(tid, NR_SIGSTOP)
+                                except ProcessLookupError:
+                                    SystemManager.printError(\
+                                        "Fail to find %s process" % tid)
+                                except:
+                                    pass
                             val['running'] = False
                     # continue #
                     else:
                         if val['running'] is False:
                             for tid in val['group']:
-                                os.kill(tid, NR_SIGCONT)
+                                try:
+                                    os.kill(tid, NR_SIGCONT)
+                                except ProcessLookupError:
+                                    SystemManager.printError(\
+                                        "Fail to find %s process" % tid)
+                                except:
+                                    pass
                             val['running'] = True
 
                 time.sleep(SLEEP_SEC)
@@ -13463,6 +13481,9 @@ class SystemManager(object):
                 for tid in val['group']:
                     try:
                         os.kill(tid, NR_SIGCONT)
+                    except ProcessLookupError:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % tid)
                     except:
                         pass
 
@@ -13511,7 +13532,9 @@ class SystemManager(object):
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % (sigList[nrSig], pid))
-
+                except ProcessLookupError:
+                    SystemManager.printError(\
+                        "Fail to find %s process" % pid)
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because of permission" % \
@@ -13561,6 +13584,9 @@ class SystemManager(object):
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo(\
                                 "started %s process to profile" % pid)
+                        except ProcessLookupError:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
@@ -13571,6 +13597,9 @@ class SystemManager(object):
                             SystemManager.printInfo(\
                                 "sent signal %s to %s process" % \
                                 (sigList[nrSig], pid))
+                        except ProcessLookupError:
+                            SystemManager.printError(\
+                                "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because of permission" % \
@@ -13581,6 +13610,9 @@ class SystemManager(object):
                         SystemManager.printInfo(\
                             "sent signal %s to %s process" % \
                             (sigList[nrSig], pid))
+                    except ProcessLookupError:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % pid)
                     except:
                         SystemManager.printError(\
                             "Fail to send signal %s to %s because of permission" % \
@@ -14390,6 +14422,7 @@ class SystemManager(object):
         self.cmdList["module/module_load"] = True
         self.cmdList["module/module_free"] = True
         self.cmdList["module/module_put"] = True
+        self.cmdList["module/module_get"] = True
 
 
 
@@ -14910,6 +14943,8 @@ class SystemManager(object):
             SystemManager.writeCmd('module/module_free/enable', '1')
         if self.cmdList["module/module_put"]:
             SystemManager.writeCmd('module/module_put/enable', '1')
+        if self.cmdList["module/module_get"]:
+            SystemManager.writeCmd('module/module_get/enable', '1')
 
         # enable power events #
         if SystemManager.powerEnable:
@@ -18419,7 +18454,13 @@ class ThreadAnalyzer(object):
             if SystemManager.countEnable:
                 SystemManager.progressCnt += 1
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    os.kill(SystemManager.pid, signal.SIGINT)
+                    try:
+                        os.kill(SystemManager.pid, signal.SIGINT)
+                    except ProcessLookupError:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % SystemManager.pid)
+                    except:
+                        pass
 
             # reset system status #
             del self.prevProcData
@@ -18497,7 +18538,13 @@ class ThreadAnalyzer(object):
             # check repeat count #
             if SystemManager.countEnable:
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    os.kill(SystemManager.pid, signal.SIGINT)
+                    try:
+                        os.kill(SystemManager.pid, signal.SIGINT)
+                    except ProcessLookupError:
+                        SystemManager.printError(\
+                            "Fail to find %s process" % SystemManager.pid)
+                    except:
+                        pass
                 SystemManager.progressCnt += 1
 
             # reset system status #
@@ -19940,11 +19987,12 @@ class ThreadAnalyzer(object):
             # build output file name #
             outputFile = logFile
 
+            # check path including slash #
             dirPos = logFile.rfind('/')
             if dirPos < 0:
                 expandPos = logFile.rfind('.')
                 if expandPos < 0:
-                    outputFile = 'guider.png'
+                    outputFile = '%s_%s.png' % (logFile, itype)
                 else:
                     outputFile = '%s_%s.png' % (outputFile[:expandPos], itype)
             else:
@@ -20813,64 +20861,126 @@ class ThreadAnalyzer(object):
         if len(self.moduleData) <= 0:
             return
 
-        eventCnt = 0
-        for val in self.moduleData:
-            event = val[0]
-            if event == 'load' or event == 'free':
-                eventCnt += 1
-        if eventCnt == 0:
-            return
-
         moduleTable = {}
         init_moduleData = \
-            {'startTime': float(0), 'loadCnt': int(0), 'elapsed': float(0)}
-        startTime = float(SystemManager.startTime)
+            {'startTime': float(0), 'loadCnt': int(0),\
+            'elapsed': float(0), 'freeCnt': int(0), 'refCnt': int(0),\
+            'getCnt': int(0), 'putCnt': int(0)}
 
+        # print module history #
         SystemManager.clearPrint()
-        SystemManager.pipePrint('\n[Thread Module Info]')
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint(\
-            "{0:_^6}|{1:_^6}|{2:_^16}|{3:_^16}({4:^5})|{5:_^6}|".\
-            format("Type", "Time", "Module", "Thread Name", "Tid", "Elapsed"))
-        SystemManager.pipePrint(twoLine)
+        SystemManager.addPrint('\n[Thread Module History]\n')
+        SystemManager.addPrint('%s\n' % twoLine)
+        SystemManager.addPrint(\
+            "{3:>16} ({4:^5})|{0:^6}|{1:^12}|{2:^16}|{5:^12}|{6:^8}|\n".\
+            format("Type", "Time", "Module", "Comm", "Tid", "Elapsed", "RefCnt"))
+        SystemManager.addPrint('%s\n' % twoLine)
 
+        printCnt = 0
         for val in self.moduleData:
             event = val[0]
             tid = val[1]
             time = val[2]
             module = val[3]
 
+            current = float(time) - float(SystemManager.startTime)
+
             try:
                 comm = self.threadData[tid]['comm']
             except:
                 comm = '?'
 
-            if event == 'load':
-                moduleTable.setdefault(module, dict(init_moduleData))
+            moduleTable.setdefault(module, dict(init_moduleData))
 
+            startTime = float(moduleTable[module]['startTime'])
+
+            # module probe #
+            if event == 'load':
                 moduleTable[module]['startTime'] = time
                 moduleTable[module]['loadCnt'] += 1
 
+                moduleTable[module]['refCnt'] = 1
+                refCnt = moduleTable[module]['refCnt']
+
+                SystemManager.addPrint(\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    format('LOAD', current, module, comm, tid, '', refCnt))
+                printCnt += 1
+
+            # module remove #
             elif event == 'free':
-                SystemManager.pipePrint(\
-                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7}".\
-                    format('FREE', float(time) - startTime, module, comm, tid, ''))
+                if startTime > 0:
+                    lifetime = '%.6f' % (float(time) - startTime)
+                else:
+                    lifetime = ''
+
+                moduleTable[module]['freeCnt'] += 1
+                moduleTable[module]['refCnt'] = 0
+                refCnt = moduleTable[module]['refCnt']
+
+                SystemManager.addPrint(\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    format('FREE', current, module, comm, tid, lifetime, refCnt))
+                printCnt += 1
+
+            # module refcount increase #
+            elif event == 'get':
+                moduleTable[module]['getCnt'] += 1
+                moduleTable[module]['refCnt'] = val[4]
+                refCnt = moduleTable[module]['refCnt']
+
+                SystemManager.addPrint(\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    format('GET', current, module, comm, tid, '', refCnt))
+                printCnt += 1
+
+            # module refcount decrease #
             elif event == 'put':
-                try:
-                    moduleTable[module]
-                except:
-                    continue
+                moduleTable[module]['putCnt'] += 1
+                moduleTable[module]['refCnt'] = val[4]
+                refCnt = moduleTable[module]['refCnt']
 
-                moduleTable[module]['elapsed'] += \
-                    (float(time) - float(moduleTable[module]['startTime']))
-                moduleTable[module]['startTime'] = 0
+                if startTime > 0:
+                    elapsed = float(time) - startTime
+                    moduleTable[module]['elapsed'] += elapsed
+                    moduleTable[module]['startTime'] = 0
+                    elapsed = '%.6f' % elapsed
+                else:
+                    elapsed = ''
 
-                SystemManager.pipePrint(\
-                    "{0:^6}|{1:6.3f}|{2:^16}|{3:>16}({4:>5})|{5:7.3f}|".\
-                    format('LOAD', float(time) - startTime, module, \
-                    comm, tid, moduleTable[module]['elapsed']))
+                SystemManager.addPrint(\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    format('PUT', current, module, comm, tid, elapsed, refCnt))
+                printCnt += 1
 
-        SystemManager.pipePrint(oneLine)
+        if printCnt == 0:
+            SystemManager.addPrint("\tNone\n%s\n" % oneLine)
+        else:
+            SystemManager.addPrint('%s\n' % oneLine)
+
+        # print module info #
+        SystemManager.pipePrint('\n[Thread Module Info]')
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            "{0:^16}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|".\
+            format("Module", "LoadCnt", "LoadTime", "FreeCnt", "GetCnt", "PutCnt"))
+        SystemManager.pipePrint(twoLine)
+
+        printCnt = 0
+        for module, value in moduleTable.items():
+            elapsed = '%.6f' % value['elapsed']
+            SystemManager.pipePrint(\
+                "{0:^16}|{1:^10}|{2:>12}|{3:^10}|{4:^10}|{5:^10}|".\
+                format(module, value['loadCnt'], elapsed, \
+                value['freeCnt'], value['getCnt'], value['putCnt']))
+            printCnt += 1
+
+        if printCnt == 0:
+            SystemManager.pipePrint("\tNone\n%s" % oneLine)
+        else:
+            SystemManager.pipePrint('%s' % oneLine)
+
+        SystemManager.pipePrint(SystemManager.bufferString)
 
 
 
@@ -21313,7 +21423,7 @@ class ThreadAnalyzer(object):
                     SystemManager.pipePrint('')
 
                 SystemManager.pipePrint(\
-                    "{0:>23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
                     format(cid, opt, num, size, seqString, filesystem, dev))
 
                 opt = ''
@@ -21323,7 +21433,7 @@ class ThreadAnalyzer(object):
                     start = SystemManager.convertSize(optSize)
                     end = SystemManager.convertSize((optSize << 1) - 1024)
                     SystemManager.pipePrint(\
-                        "{0:^23} {1:^8} {2:^5} {3:>16} {4:>23} {5:^12} {6:^20}".\
+                        "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
                         format('', '', '', '[%5s - %5s]' % (start, end),\
                         format(cnt, ','), '', '', ''))
 
@@ -21337,9 +21447,9 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n[Thread Block Info] (Unit: KB/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
             format('ID', 'OPT', 'NrDev', 'TOTAL', 'SEQUENTIAL(    %)', 'FS', 'PATH'))
-        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>16} {4:>23} {5:^12} {6:^20}".\
+        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
             format('', '', '', '[ACCESS]', 'COUNT', '', ''))
         SystemManager.pipePrint(twoLine)
 
@@ -25913,6 +26023,20 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
+            elif func == "module_get":
+                m = re.match((\
+                    r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
+                    r'refcnt=(?P<refcnt>[0-9]+)'), etc)
+                if m is not None:
+                    d = m.groupdict()
+
+                    module = d['module']
+                    refcnt = int(d['refcnt'])
+
+                    self.moduleData.append(['get', thread, time, module, refcnt])
+                else:
+                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+
             elif func == "cpu_idle":
                 m = re.match(r'^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
                 if m is not None:
@@ -27260,7 +27384,12 @@ class ThreadAnalyzer(object):
         for item in SystemManager.killFilter:
             if tid == item or \
                 self.procData[tid]['stat'][self.commIdx].find(item) >= 0:
-                os.kill(int(tid), signal.SIGKILL)
+                try:
+                    os.kill(int(tid), signal.SIGKILL)
+                    SystemManager.printInfo(\
+                        "sent KILL signal to %s process" %  tid)
+                except:
+                    pass
 
         # save io data #
         if SystemManager.blockEnable:
