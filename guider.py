@@ -18462,14 +18462,7 @@ class ThreadAnalyzer(object):
             if SystemManager.countEnable:
                 SystemManager.progressCnt += 1
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    try:
-                        os.kill(SystemManager.pid, signal.SIGINT)
-                    except (OSError, IOError) as e:
-                        if e.errno == errno.ESRCH:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % SystemManager.pid)
-                    except:
-                        pass
+                    os.kill(SystemManager.pid, signal.SIGINT)
 
             # reset system status #
             del self.prevProcData
@@ -20554,7 +20547,7 @@ class ThreadAnalyzer(object):
             try:
                 if len(SystemManager.perCoreList) > 0 and \
                     n not in SystemManager.perCoreList:
-                        continue
+                    continue
 
                 coreId = '0[%s]' % n
                 self.threadData[coreId]
