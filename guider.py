@@ -27,6 +27,7 @@ try:
     import imp
     import atexit
     import struct
+    import errno
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -763,7 +764,7 @@ class ConfigManager(object):
 class NetworkManager(object):
     """ Manager for remote communication """
 
-    def __init__(self, mode, ip, port):
+    def __init__(self, mode, ip, port, blocking=True):
         self.ip = None
         self.port = None
         self.socket = None
@@ -805,11 +806,15 @@ class NetworkManager(object):
                     self.socket.bind((self.ip, self.port))
 
                 self.port = self.socket.getsockname()[1]
-                self.socket.setblocking(0)
+
+                if blocking is False:
+                    self.socket.setblocking(0)
             except:
+                SystemManager.printError(\
+                    "Fail to create socket with %s:%s as server" % \
+                    (self.ip, self.port))
                 self.ip = None
                 self.port = None
-                SystemManager.printError("Fail to create socket as server")
                 return None
 
         elif mode == 'client':
@@ -817,10 +822,15 @@ class NetworkManager(object):
                 self.ip = ip
                 self.port = port
                 self.socket = socket(AF_INET, SOCK_DGRAM)
+
+                if blocking is False:
+                    self.socket.setblocking(0)
             except:
+                SystemManager.printError(\
+                    "Fail to create socket with %s:%s as client" % \
+                    (self.ip, self.port))
                 self.ip = None
                 self.port = None
-                SystemManager.printError("Fail to create socket as client")
                 return None
 
 
@@ -836,11 +846,11 @@ class NetworkManager(object):
             return False
 
         try:
-            if SystemManager.addrAsServer is not None:
-                SystemManager.addrAsServer.socket.sendto(\
-                    message, (self.ip, self.port))
+            if SystemManager.localServObj is not None:
+                SystemManager.localServObj.socket.sendto(\
+                    message.encode(), (self.ip, self.port))
             else:
-                self.socket.sendto(message, (self.ip, self.port))
+                self.socket.sendto(message.encode(), (self.ip, self.port))
 
             if self.status is not 'ALWAYS':
                 self.status = 'SENT'
@@ -848,8 +858,8 @@ class NetworkManager(object):
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                ("Fail to send data to %s:%d as server, " % \
-                (self.ip, self.port)) + str(err.args))
+                "Fail to send data to %s:%d as server because %s" % \
+                (self.ip, self.port, ' '.join(err.args)))
             return False
 
 
@@ -870,8 +880,8 @@ class NetworkManager(object):
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                ("Fail to send data to %s:%d as client, " % \
-                (ip, port)) + str(err.args))
+                "Fail to send data to %s:%d as client because %s" % \
+                (self.ip, self.port, ' '.join(err.args)))
             return False
 
 
@@ -6952,6 +6962,8 @@ class SystemManager(object):
     customCmd = None
     userCmd = None
     kernelCmd = None
+    udpListCache = None
+    tcpListCache = None
     customEventList = []
     userEventList = []
     kernelEventList = []
@@ -6966,8 +6978,8 @@ class SystemManager(object):
     libcPath = 'libc.so.6'
     matplotlibVersion = 0
 
-    addrAsServer = None
-    addrOfServer = None
+    localServObj = None
+    remoteServObj = None
     addrListForPrint = {}
     addrListForReport = {}
     jsonObject = None
@@ -7051,6 +7063,8 @@ class SystemManager(object):
     netEnable = False
     stackEnable = False
     wchanEnable = True
+    sigHandlerEnable = True
+    tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
     blockEnable = False
@@ -7323,10 +7337,13 @@ class SystemManager(object):
                 mask = value[0]
                 tids = value[1]
 
-                # check tid type #
-                list(map(int, tids.split(',')))
+                if tids == 'ALL':
+                    SystemManager.affinityFilter.append([mask, 'ALL'])
+                else:
+                    # check tid type #
+                    list(map(int, tids.split(',')))
 
-                SystemManager.affinityFilter.append([mask, tids])
+                    SystemManager.affinityFilter.append([mask, tids])
             else:
                 raise Exception()
 
@@ -7528,8 +7545,9 @@ class SystemManager(object):
 
             cpuset = c_ulong(0)
 
+            size = int(1024 / (sizeof(c_ulong) * 8))
             ret = SystemManager.libcObj.sched_getaffinity(\
-                int(pid), sizeof(c_ulong) * nrCore, ctypes.pointer(cpuset))
+                int(pid), size, ctypes.pointer(cpuset))
 
             if ret >= 0:
                 return hex(cpuset.value).rstrip('L')
@@ -7777,7 +7795,8 @@ class SystemManager(object):
             options.rfind('S') >= 0 or options.rfind('u') >= 0 or \
             options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
             options.rfind('f') >= 0 or options.rfind('R') >= 0 or \
-            options.rfind('w') >= 0 or options.rfind('r') >= 0 :
+            options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
+            options.rfind('r') >= 0 :
             return True
         else:
             return False
@@ -8012,6 +8031,7 @@ class SystemManager(object):
                     '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
+                    '\n                          a(ffinity)|W(chan)|h(andler)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
@@ -9786,6 +9806,9 @@ class SystemManager(object):
 
     @staticmethod
     def getUdpList():
+        if SystemManager.udpListCache != None:
+            return SystemManager.udpListCache
+
         udpBuf = []
         udpPath = '%s/net/udp' % SystemManager.procPath
 
@@ -9806,12 +9829,17 @@ class SystemManager(object):
         # remove title #
         udpList.pop(0)
 
+        SystemManager.udpListCache = udpList
+
         return udpList
 
 
 
     @staticmethod
     def getTcpList():
+        if SystemManager.tdpListCache != None:
+            return SystemManager.tdpListCache
+
         tcpBuf = []
         tcpPath = '%s/net/tcp' % SystemManager.procPath
 
@@ -9831,6 +9859,8 @@ class SystemManager(object):
 
         # remove title #
         tcpList.pop(0)
+
+        SystemManager.tdpListCache = tdpList
 
         return tcpList
 
@@ -9942,6 +9972,11 @@ class SystemManager(object):
                     enableStat += 'WCHAN '
                 else:
                     disableStat += 'WCHAN '
+
+                if SystemManager.sigHandlerEnable:
+                    enableStat += 'SIGNAL '
+                else:
+                    disableStat += 'SIGNAL '
 
                 if SystemManager.wfcEnable:
                     enableStat += 'WFC '
@@ -11635,8 +11670,6 @@ class SystemManager(object):
                     SystemManager.rootPath = '/'
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
-                if options.rfind('W') > -1:
-                    SystemManager.wchanEnable = False
                 if options.rfind('n') > -1:
                     SystemManager.netEnable = False
                 if options.rfind('e') > -1:
@@ -11719,6 +11752,15 @@ class SystemManager(object):
                 if options.rfind('a') > -1:
                     SystemManager.affinityEnable = True
                     SystemManager.wchanEnable = False
+                    SystemManager.sigHandlerEnable = False
+                if options.rfind('W') > -1:
+                    SystemManager.wchanEnable = True
+                    SystemManager.affinityEnable = False
+                    SystemManager.sigHandlerEnable = False
+                if options.rfind('h') > -1:
+                    SystemManager.sigHandlerEnable = True
+                    SystemManager.wchanEnable = False
+                    SystemManager.affinityEnable = False
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
@@ -11974,7 +12016,7 @@ class SystemManager(object):
 
                 # receive mode #
                 if len(value) == 0:
-                    SystemManager.addrOfServer = 'NONE'
+                    SystemManager.remoteServObj = 'NONE'
                     continue
                 # request mode #
                 else:
@@ -12009,7 +12051,7 @@ class SystemManager(object):
                     sys.exit(0)
                 else:
                     networkObject.request = service
-                    SystemManager.addrOfServer = networkObject
+                    SystemManager.remoteServObj = networkObject
 
                 SystemManager.printInfo(\
                     "use %s:%d as remote address" % (ip, port))
@@ -12451,6 +12493,24 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isServerMode():
+        if sys.argv[1] == 'server':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isClientMode():
+        if sys.argv[1] == 'client':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isListMode():
         if sys.argv[1] == 'list':
             return True
@@ -12587,6 +12647,53 @@ class SystemManager(object):
 
     @staticmethod
     def checkCmdMode():
+        # LIST MODE #
+        if SystemManager.isListMode():
+            SystemManager.printBackgroundProcs()
+            sys.exit(0)
+
+        # SERVER MODE #
+        if SystemManager.isServerMode():
+            SystemManager.runServerMode()
+
+        # CLIENT MODE #
+        if SystemManager.isClientMode():
+            SystemManager.runClientMode()
+
+        # START / STOP MODE #
+        if SystemManager.isStartMode() or SystemManager.isStopMode():
+            # make list of arguments #
+            if len(sys.argv) > 2:
+                argList = sys.argv[2:]
+            else:
+                argList = None
+
+            SystemManager.sendSignalProcs(signal.SIGINT, argList)
+            sys.exit(0)
+
+        # SEND MODE #
+        if SystemManager.isSendMode():
+            # make list of arguments #
+            if len(sys.argv) > 2:
+                argList = sys.argv[2:]
+            else:
+                argList = None
+
+            SystemManager.sendSignalArgs(argList)
+            sys.exit(0)
+
+        # PAGE MODE #
+        if SystemManager.isMemMode():
+            pid = SystemManager.getOption('g')
+            addr = SystemManager.getOption('I')
+
+            if pid is None:
+                SystemManager.printError("Fail to recognize pid, use -g option")
+            else:
+                PageAnalyzer.getPageInfo(pid, addr)
+
+            sys.exit(0)
+
         # LIMIT MODE #
         if SystemManager.isLimitMode():
             # parse options #
@@ -12620,12 +12727,9 @@ class SystemManager(object):
 
         # EVENT MODE #
         if SystemManager.isEventMode():
-            # set Signal #
-            signal.signal(signal.SIGINT, SystemManager.exitHandler)
-            signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
-
             # handle events #
             SystemManager.handleEventInput()
+
             sys.exit(0)
 
 
@@ -12880,8 +12984,8 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setServerNetwork(ip, port, force=False):
-        if SystemManager.addrAsServer is not None and force is False:
+    def setServerNetwork(ip, port, force=False, blocking=False):
+        if SystemManager.localServObj is not None and force is False:
             SystemManager.printWarning(\
                 "Fail to set server network because it is already set")
             return
@@ -12889,13 +12993,13 @@ class SystemManager(object):
         if ip is None:
             ip = NetworkManager.getPublicIp()
 
-        networkObject = NetworkManager('server', ip, port)
+        networkObject = NetworkManager('server', ip, port, blocking)
         if networkObject.ip is None:
             sys.exit(0)
 
-        SystemManager.addrAsServer = networkObject
+        SystemManager.localServObj = networkObject
         SystemManager.printInfo("use %s:%d as local address" % \
-            (SystemManager.addrAsServer.ip, SystemManager.addrAsServer.port))
+            (SystemManager.localServObj.ip, SystemManager.localServObj.port))
 
 
 
@@ -13200,6 +13304,83 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setDefaultSignal():
+        signal.signal(signal.SIGINT, SystemManager.exitHandler)
+        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+
+
+
+    @staticmethod
+    def runServerMode():
+        # get address value #
+        addr = SystemManager.getOption('x')
+
+        # parse address value #
+        if addr is not False:
+            ret = SystemManager.parseAddr(addr)
+            (serve, ip, port) = ret
+        else:
+            ip = port = None
+
+        # set address #
+        SystemManager.setServerNetwork(ip, port, force=True, blocking=True)
+
+        SystemManager.printStatus(\
+            "server running as process %s" % SystemManager.pid)
+
+        while 1:
+            # get message from clients #
+            ret = SystemManager.localServObj.recv()
+
+            print(ret)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def runClientMode():
+        # get server address value #
+        addr = SystemManager.getOption('x')
+
+        # parse server address value #
+        if addr is not False:
+            ret = SystemManager.parseAddr(addr)
+
+            (serve, ip, port) = ret
+
+            if serve == ip == port == None:
+                SystemManager.printError((\
+                    "wrong option value %s with -x, "
+                    "Input {address:port} in format"
+                    ) % addr)
+                sys.exit(0)
+        else:
+            SystemManager.printError(\
+                "no option value, Input {address:port} in format with -x")
+            sys.exit(0)
+
+        networkObject = NetworkManager('client', ip, port)
+        if networkObject.ip is None:
+            SystemManager.printError(\
+                "Fail to set network address")
+            sys.exit(0)
+
+        # set address #
+        SystemManager.printStatus(\
+            "client running as process %s" % SystemManager.pid)
+
+        while 1:
+            # get message from clients #
+            ret = networkObject.send('Hello'.encode())
+            print(ret)
+            time.sleep(1)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def getNrCore():
         if SystemManager.nrCore > 0:
             return SystemManager.nrCore
@@ -13289,9 +13470,6 @@ class SystemManager(object):
             (SystemManager.convertSize(len(buffer)), \
             SystemManager.convertSize(rssSize)))
 
-        # set Signal #
-        signal.signal(signal.SIGINT, SystemManager.exitHandler)
-        signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.pause()
 
         sys.exit(0)
@@ -18088,7 +18266,7 @@ class ThreadAnalyzer(object):
                 'stime': float(0), 'preempted': long(0), 'taskPath': None, \
                 'mainID': '', 'btime': float(0), 'read': long(0), \
                 'write': long(0), 'maps': None, 'status': None, \
-                'statm': None, 'yield': long(0)}
+                'statm': None, 'yield': long(0), 'procComm': ''}
 
             self.init_cpuData = \
                 {'user': long(0), 'system': long(0), 'nice': long(0), \
@@ -18458,6 +18636,10 @@ class ThreadAnalyzer(object):
             # print system status #
             self.printFileStat(nowFilter)
 
+            # flush socket cache #
+            SystemManager.udpListCache = \
+                SystemManager.tcpListCache = None
+
             # check repeat count #
             if SystemManager.countEnable:
                 SystemManager.progressCnt += 1
@@ -18509,9 +18691,9 @@ class ThreadAnalyzer(object):
 
         # run loop #
         while 1:
-            if SystemManager.addrOfServer is not None:
+            if SystemManager.remoteServObj is not None:
                 # receive response from server #
-                ret = SystemManager.addrAsServer.recv()
+                ret = SystemManager.localServObj.recv()
 
                 # handle response from server #
                 self.handleServerResponse(ret)
@@ -19266,31 +19448,41 @@ class ThreadAnalyzer(object):
                     ymax = blkWait[idx]
 
             plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
-            labelList.append('[ CPU + I/O ]')
+            labelList.append('[ TOTAL CPU + IO ]')
+            try:
+                avgUsage = int(sum(blkWait) / len(blkWait))
+            except:
+                avgUsage = 0
             maxUsage = max(blkWait)
             maxIdx = blkWait.index(maxUsage)
             for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
                 if idx != 0 and blkWait[idx] == blkWait[idx-1]:
                     continue
-                text(timeline[idx], blkWait[maxIdx], '%d%%' % maxUsage,\
+                text(timeline[idx], blkWait[maxIdx], \
+                        'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='pink', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
-            labelList.append('[ CPU Only ]')
+            labelList.append('[ TOTAL CPU Only ]')
+            try:
+                avgUsage = int(sum(cpuUsage) / len(cpuUsage))
+            except:
+                avgUsage = 0
             maxUsage = max(cpuUsage)
             maxIdx = cpuUsage.index(maxUsage)
             for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
                 if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
                     continue
-                text(timeline[idx], cpuUsage[maxIdx], '%d%%' % maxUsage,\
+                text(timeline[idx], cpuUsage[maxIdx], \
+                        'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='red', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             # CPU usage of processes #
             for idx, item in sorted(\
                 cpuProcUsage.items(), \
-                key=lambda e: e[1]['average'], reverse=True):
+                key=lambda e: e[1]['average'], reverse=False):
 
                 if SystemManager.cpuEnable is False:
                     break
@@ -19298,6 +19490,11 @@ class ThreadAnalyzer(object):
                 usage = item['usage'].split()
                 usage = list(map(int, usage))
                 cpuUsage = list(usage)
+
+                try:
+                    avgUsage = int(sum(cpuUsage) / len(cpuUsage))
+                except:
+                    avgUsage = 0
 
                 if SystemManager.blockEnable is False:
                     # merge cpu usage and wait time of processes #
@@ -19333,8 +19530,8 @@ class ThreadAnalyzer(object):
                     maxBlkPer = str(blkUsage[maxIdx])
                 else:
                     maxBlkPer = '0'
-                maxPer = '[%s+%s]' % (maxCpuPer, maxBlkPer)
-                ilabel = '%s%s' % (idx, maxPer)
+                maxPer = '[max:%s+%s/avg:%s]' % (maxCpuPer, maxBlkPer, avgUsage)
+                ilabel = '%s %s' % (idx, maxPer)
                 text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
                         fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
@@ -19859,14 +20056,16 @@ class ThreadAnalyzer(object):
 
             # convert tick type to integer #
             try:
-                ytick = map(int, yticks()[0])
+                ytickOrig = list(map(int, yticks()[0]))
+                ytick = ytickOrig
                 for idx, val in enumerate(ytick):
                     if val < 0:
-                        ytick.pop(idx)
-                yticks(ytick, fontsize=5)
+                        ytickOrig.pop(idx)
+                yticks(ytickOrig, fontsize=5)
             except:
                 pass
 
+            yticks(fontsize = 5)
             xticks(fontsize = 4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
@@ -19997,7 +20196,8 @@ class ThreadAnalyzer(object):
 
                 expandPos = fileName.rfind('.')
                 if expandPos < 0:
-                    outputFile = '%sguider_%s.png' % (dirPath, itype)
+                    outputFile = '%s%s_%s.png' % \
+                        (dirPath, fileName, itype)
                 else:
                     outputFile = '%s%s_%s.png' % \
                         (dirPath, fileName[:expandPos], itype)
@@ -22437,21 +22637,7 @@ class ThreadAnalyzer(object):
         # save graph #
         if SystemManager.graphEnable and\
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
-            dirPos = SystemManager.inputFile.rfind('/')
-            if dirPos >= 0:
-                graphPath = \
-                    '%sguider_graph.png' % SystemManager.inputFile[:dirPos + 1]
-                savefig(graphPath, dpi=(200))
-                clf()
-                try:
-                    fsize = \
-                        SystemManager.convertSize(int(os.path.getsize(graphPath)))
-                except:
-                    fsize = '?'
-                SystemManager.printStatus(\
-                    "write resource graph into %s [%s]" % (graphPath, fsize))
-            else:
-                SystemManager.printWarning("Fail to draw graph because of exception")
+            self.saveImage(SystemManager.inputFile, 'graph')
 
 
 
@@ -26497,7 +26683,7 @@ class ThreadAnalyzer(object):
             else:
                 details = ' '
             procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>4}|\t{1:<105}|'.format(\
+                (procInfo, '{0:>4}| {1:<106}|'.format(\
                 len(value['fdList']), details))
 
             fdCnt = 0
@@ -26537,7 +26723,7 @@ class ThreadAnalyzer(object):
                         pass
 
                     SystemManager.addPrint(\
-                        ("{0:>1}|{1:>4}|\t{2:<105}|\n").format(\
+                        ("{0:>1}|{1:>4}| {2:<106}|\n").format(\
                         ' ' * procInfoLen, fd, path))
 
                     fdCnt += 1
@@ -26706,7 +26892,7 @@ class ThreadAnalyzer(object):
             for line in irqBuf:
                 irqList = line.split()
                 try:
-                    irqSum = sum(map(long, irqList[1:cpuCnt]))
+                    irqSum = sum(list(map(long, irqList[1:cpuCnt])))
                     if irqSum > 0:
                         self.irqData[irqList[0][:-1]] = irqSum
                 except:
@@ -27373,6 +27559,8 @@ class ThreadAnalyzer(object):
 
         # change cpu affinity #
         for item in SystemManager.affinityFilter:
+            if item[1] == 'ALL':
+                SystemManager.setAffinity(item[0], [tid])
             if tid == item[1]:
                 SystemManager.setAffinity(item[0], [item[1]])
 
@@ -28496,8 +28684,12 @@ class ThreadAnalyzer(object):
 
         if SystemManager.wchanEnable:
             etc = 'WaitChannel'
+        elif SystemManager.tgnameEnable:
+            etc = 'Group'
         elif SystemManager.affinityEnable:
             etc = 'Affinity'
+        elif SystemManager.sigHandlerEnable:
+            etc = 'SignalHandler'
         else:
             etc = 'SignalHandler'
 
@@ -28777,12 +28969,18 @@ class ThreadAnalyzer(object):
                     etc = value['wchan'][:21]
                 except:
                     etc = ''
+            elif SystemManager.tgnameEnable:
+                try:
+                    pgid = self.procData[idx]['mainID']
+                    etc = self.procData[pgid]['stat'][self.commIdx][1:-1]
+                except:
+                    etc = ''
             elif SystemManager.affinityEnable:
                 try:
                     etc = SystemManager.getAffinity(int(idx))
                 except:
                     etc = ''
-            else:
+            elif SystemManager.sigHandlerEnable or True:
                 try:
                     etc = value['status']['SigCgt'].lstrip('0')
                 except:
@@ -29185,14 +29383,14 @@ class ThreadAnalyzer(object):
 
 
     def replyService(self, ip, port):
-        if SystemManager.addrOfServer is None:
+        if SystemManager.remoteServObj is None:
             SystemManager.printError(\
                 "Fail to use server because it is not initialized")
             return
 
         # send reply message to server #
         message = 'ACK'
-        SystemManager.addrAsServer.sendto(message, ip, port)
+        SystemManager.localServObj.sendto(message.encode(), ip, port)
 
 
 
@@ -29219,7 +29417,7 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to recognize address from server")
 
         # wrong request from client #
-        if SystemManager.addrOfServer == 'NONE' and \
+        if SystemManager.remoteServObj == 'NONE' and \
             data in ThreadAnalyzer.requestType:
             SystemManager.printError(\
                 "Fail to handle %s request from client" % data)
@@ -29280,54 +29478,54 @@ class ThreadAnalyzer(object):
 
 
     def requestService(self):
-        if SystemManager.addrOfServer is None or \
-            SystemManager.addrAsServer is None:
+        if SystemManager.remoteServObj is None or \
+            SystemManager.localServObj is None:
 
-            SystemManager.addrOfServer = None
+            SystemManager.remoteServObj = None
             return
 
         try:
             # set non-block socket #
-            SystemManager.addrAsServer.socket.setblocking(1)
+            SystemManager.localServObj.socket.setblocking(1)
 
-            if SystemManager.addrOfServer != 'NONE':
+            if SystemManager.remoteServObj != 'NONE':
                 # send request to server #
-                SystemManager.addrAsServer.sendto(\
-                    SystemManager.addrOfServer.request, \
-                    SystemManager.addrOfServer.ip, \
-                    SystemManager.addrOfServer.port)
+                SystemManager.localServObj.sendto(\
+                    SystemManager.remoteServObj.request.encode(), \
+                    SystemManager.remoteServObj.ip, \
+                    SystemManager.remoteServObj.port)
 
                 # check event #
-                if SystemManager.addrOfServer.request.startswith('EVENT_'):
+                if SystemManager.remoteServObj.request.startswith('EVENT_'):
                     SystemManager.printStatus(\
                         "requested %s to server" % \
-                        SystemManager.addrOfServer.request)
+                        SystemManager.remoteServObj.request)
                     sys.exit(0)
 
                 SystemManager.printStatus(\
                     "wait for response of %s registration from server" % \
-                    SystemManager.addrOfServer.request)
+                    SystemManager.remoteServObj.request)
             else:
                 SystemManager.printStatus("wait for input from server")
         except SystemExit:
             sys.exit(0)
         except:
             SystemManager.printError(\
-                "Fail to send request '%s'" % SystemManager.addrOfServer.request)
+                "Fail to send request '%s'" % SystemManager.remoteServObj.request)
 
 
 
     def checkServer(self):
-        if SystemManager.addrAsServer is None:
+        if SystemManager.localServObj is None:
             return
 
         while 1:
             # get message from clients #
-            ret = SystemManager.addrAsServer.recv()
+            ret = SystemManager.localServObj.recv()
 
             # verify request type #
             if ret is False:
-                SystemManager.addrAsServer = None
+                SystemManager.localServObj = None
                 return
             elif ret is None:
                 return
@@ -29770,45 +29968,15 @@ if __name__ == '__main__':
     except:
         pass
 
-    # print backgroud process list #
-    if SystemManager.isListMode():
-        SystemManager.printBackgroundProcs()
-        sys.exit(0)
-
-    # make list for arguments #
-    if len(sys.argv) > 2:
-        argList = sys.argv[2:]
-    else:
-        argList = None
-
-    # send start / stop signal to background process #
-    if SystemManager.isStartMode() or SystemManager.isStopMode():
-        SystemManager.sendSignalProcs(signal.SIGINT, argList)
-        sys.exit(0)
-
-    # send event signal to background process #
-    if SystemManager.isSendMode():
-        SystemManager.sendSignalArgs(argList)
-        sys.exit(0)
-
-    # check page properties #
-    if SystemManager.isMemMode():
-        pid = SystemManager.getOption('g')
-        addr = SystemManager.getOption('I')
-
-        if pid is None:
-            SystemManager.printError("Fail to recognize pid, use -g option")
-        else:
-            PageAnalyzer.getPageInfo(pid, addr)
-
-        sys.exit(0)
-
     # set arch #
     SystemManager.setArch(SystemManager.getArch())
 
     # save system info first #
     if SystemManager.isLinux:
         SystemManager()
+
+    # set default signal #
+    SystemManager.setDefaultSignal()
 
     # check commands #
     SystemManager.checkCmdMode()
@@ -29842,8 +30010,6 @@ if __name__ == '__main__':
         if SystemManager.waitEnable:
             SystemManager.printStatus(\
                 "wait for user input... [ START(ctrl + c) ]")
-            signal.signal(signal.SIGINT, SystemManager.defaultHandler)
-            signal.signal(signal.SIGQUIT, SystemManager.defaultHandler)
             signal.pause()
 
         # set signal #
@@ -29949,9 +30115,9 @@ if __name__ == '__main__':
             initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
             # wait for timer #
-            signal.pause()
+            time.sleep(SystemManager.repeatInterval)
 
-            if SystemManager.repeatCount == SystemManager.progressCnt:
+            if SystemManager.repeatCount <= SystemManager.progressCnt:
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
@@ -30010,7 +30176,7 @@ if __name__ == '__main__':
         else:
             SystemManager.graphEnable = True
 
-        if ThreadAnalyzer.getInitTime(sys.argv[2]) > 0:
+        if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
             SystemManager.intervalEnable = 1
             SystemManager.printFile = '.'
@@ -30018,6 +30184,11 @@ if __name__ == '__main__':
         else:
             sys.argv[1] = 'top'
             SystemManager.sourceFile = sys.argv[2]
+
+    # set default expand option in threadtop mode #
+    if SystemManager.isThreadTopMode():
+        SystemManager.tgnameEnable = True
+        SystemManager.wchanEnable = False
 
     # parse analysis option #
     SystemManager.parseAnalOption()
