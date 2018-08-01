@@ -764,13 +764,14 @@ class ConfigManager(object):
 class NetworkManager(object):
     """ Manager for remote communication """
 
-    def __init__(self, mode, ip, port, blocking=True):
+    def __init__(self, mode, ip, port, blocking=True, tcp=False):
         self.ip = None
         self.port = None
         self.socket = None
         self.request = None
         self.status = None
         self.ignore = 0
+        self.fileno = -1
 
         try:
             if SystemManager.socketObj is None:
@@ -792,7 +793,12 @@ class NetworkManager(object):
                 else:
                     self.ip = ip
 
-                self.socket = socket(AF_INET, SOCK_DGRAM)
+                if tcp:
+                    self.socket = socket(AF_INET, SOCK_STREAM)
+                else:
+                    self.socket = socket(AF_INET, SOCK_DGRAM)
+
+                self.fileno = self.socket.fileno()
 
                 if port is None:
                     try:
@@ -821,7 +827,13 @@ class NetworkManager(object):
             try:
                 self.ip = ip
                 self.port = port
-                self.socket = socket(AF_INET, SOCK_DGRAM)
+
+                if tcp:
+                    self.socket = socket(AF_INET, SOCK_STREAM)
+                else:
+                    self.socket = socket(AF_INET, SOCK_DGRAM)
+
+                self.fileno = self.socket.fileno()
 
                 if blocking is False:
                     self.socket.setblocking(0)
@@ -835,6 +847,41 @@ class NetworkManager(object):
 
 
 
+    def listen(self, nrQueue=5):
+        return self.socket.listen(nrQueue)
+
+
+
+    def accept(self):
+        return self.socket.accept()
+
+
+
+    def write(self, message):
+        self.send(message)
+
+
+
+    def close(self):
+        self.socket.close()
+
+
+
+    def flush(self):
+        pass
+
+
+
+    def timeout(self, time=3):
+        self.socket.settimeout(time)
+
+
+
+    def connect(self, addr):
+        self.socket.connect(addr)
+
+
+
     def send(self, message):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
@@ -845,12 +892,16 @@ class NetworkManager(object):
                 "Fail to use socket for client because it is not set")
             return False
 
+        # encode message #
+        if type(message) is str:
+            message = message.encode()
+
         try:
             if SystemManager.localServObj is not None:
                 SystemManager.localServObj.socket.sendto(\
-                    message.encode(), (self.ip, self.port))
+                    message, (self.ip, self.port))
             else:
-                self.socket.sendto(message.encode(), (self.ip, self.port))
+                self.socket.sendto(message, (self.ip, self.port))
 
             if self.status is not 'ALWAYS':
                 self.status = 'SENT'
@@ -859,7 +910,7 @@ class NetworkManager(object):
             err = sys.exc_info()[1]
             SystemManager.printError(\
                 "Fail to send data to %s:%d as server because %s" % \
-                (self.ip, self.port, ' '.join(err.args)))
+                (self.ip, self.port, ' '.join(list(map(str, err.args)))))
             return False
 
 
@@ -874,6 +925,10 @@ class NetworkManager(object):
                 "Fail to use socket for client because it is not set")
             return False
 
+        # encode message #
+        if type(message) is str:
+            message = message.encode()
+
         try:
             self.socket.sendto(message, (ip, port))
             return True
@@ -881,12 +936,35 @@ class NetworkManager(object):
             err = sys.exc_info()[1]
             SystemManager.printError(\
                 "Fail to send data to %s:%d as client because %s" % \
-                (self.ip, self.port, ' '.join(err.args)))
+                (self.ip, self.port, ' '.join(list(map(str, err.args)))))
             return False
 
 
 
-    def recv(self):
+    def recv(self, size=None):
+        if self.ip is None or self.port is None:
+            SystemManager.printError(\
+                "Fail to use IP address for server because it is not set")
+            return False
+        elif self.socket is None:
+            SystemManager.printError(\
+                "Fail to use socket for client because it is not set")
+            return False
+
+        if size is None:
+            try:
+                return self.socket.recv()
+            except:
+                pass
+        else:
+            try:
+                return self.socket.recv(size)
+            except:
+                pass
+
+
+
+    def recvfrom(self):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
@@ -8053,8 +8131,7 @@ class SystemManager(object):
                 pipePrint('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
                 pipePrint('        -x  [set_addressForLocalServer - {ip:port}]')
                 pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
-                pipePrint('        -N  [set_addressForReport - req@ip:port]')
-                pipePrint('        -n  [set_addressForPrint - ip:port]')
+                pipePrint('        -N  [set_reportToRemoteServer - req@ip:port]')
                 pipePrint('        -M  [set_objdumpPath - file]')
                 pipePrint('    [analysis]')
                 pipePrint('        -o  [save_outputData - path]')
@@ -8213,8 +8290,6 @@ class SystemManager(object):
             pipePrint('    - draw VSS graph and chart for specific processes in image file')
             pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
             pipePrint('    - report system status to specific server')
-            pipePrint('        # %s top -n 192.168.0.5:5555' % cmd)
-            pipePrint('    - report system status to specific server if only some events occur')
             pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
             pipePrint('    - report system status to specific clients that asked it')
             pipePrint('        # %s top -x 5555' % cmd)
@@ -9837,8 +9912,8 @@ class SystemManager(object):
 
     @staticmethod
     def getTcpList():
-        if SystemManager.tdpListCache != None:
-            return SystemManager.tdpListCache
+        if SystemManager.tcpListCache != None:
+            return SystemManager.tcpListCache
 
         tcpBuf = []
         tcpPath = '%s/net/tcp' % SystemManager.procPath
@@ -9860,7 +9935,7 @@ class SystemManager(object):
         # remove title #
         tcpList.pop(0)
 
-        SystemManager.tdpListCache = tdpList
+        SystemManager.tcpListCache = tcpList
 
         return tcpList
 
@@ -10320,6 +10395,7 @@ class SystemManager(object):
     @staticmethod
     def exitHandler(signum, frame):
         SystemManager.printError('Terminated by user\n')
+        signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
 
 
@@ -11443,8 +11519,8 @@ class SystemManager(object):
         # get request and address #
         cmdList = value.split('@')
         if len(cmdList) >= 2:
-            service = value[0]
-            addr = value[1]
+            service = cmdList[0]
+            addr = cmdList[1]
         else:
             addr = value
 
@@ -11925,47 +12001,18 @@ class SystemManager(object):
                             "input number in integer format")
                     sys.exit(0)
 
-            elif option == 'n' and SystemManager.isTopMode():
-                ret = SystemManager.parseAddr(value)
-
-                (serve, ip, port) = ret
-
-                if ip is None or port is None:
-                    SystemManager.printError((\
-                        "wrong option value with -n option, "
-                        "input IP:PORT in format"))
-                    sys.exit(0)
-
-                networkObject = NetworkManager('client', ip, port)
-                if networkObject.ip is None:
-                    sys.exit(0)
-                else:
-                    networkObject.status = 'ALWAYS'
-                    naddr = '%s:%s' % (ip, str(port))
-                    SystemManager.addrListForPrint[naddr] = networkObject
-
-                SystemManager.printInfo(\
-                    "use %s:%d as remote address" % (ip, port))
-
             elif option == 'N' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
-                # enable report option #
-                SystemManager.reportEnable = True
+                (service, ip, port) = ret
 
-                (serve, ip, port) = ret
-
-                if ip is None or port is None or \
+                if service is None or ip is None or port is None or \
                     SystemManager.isEffectiveRequest(service) is False:
-                    reqList = ''
-                    for req in ThreadAnalyzer.requestType:
-                        if req.find('REPORT_') == 0:
-                            reqList += req + '|'
-
                     SystemManager.printError((\
                         "wrong option value with -N option, "
                         "input [%s]@IP:PORT in format") % \
-                        reqList[:-1])
+                            '|'.join(ThreadAnalyzer.requestType))
+
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
@@ -11975,7 +12022,17 @@ class SystemManager(object):
                     networkObject.status = 'ALWAYS'
                     networkObject.request = service
                     naddr = '%s:%s' % (ip, str(port))
-                    SystemManager.addrListForReport[naddr] = networkObject
+
+                    if service == 'PRINT':
+                        SystemManager.addrListForPrint[naddr] = networkObject
+                    elif service.startswith('REPORT_'):
+                        SystemManager.reportEnable = True
+                        SystemManager.addrListForReport[naddr] = networkObject
+                    else:
+                        SystemManager.printError((\
+                            "wrong option value with -N option, "
+                            "input [%s]@IP:PORT in format") % \
+                                '|'.join(ThreadAnalyzer.requestType))
 
                 SystemManager.printInfo(\
                     "use %s:%d as remote address" % (ip, port))
@@ -12006,7 +12063,7 @@ class SystemManager(object):
             elif option == 'x' and SystemManager.isTopMode():
                 ret = SystemManager.parseAddr(value)
 
-                (serve, ip, port) = ret
+                (service, ip, port) = ret
 
                 SystemManager.setServerNetwork(ip, port)
 
@@ -12024,7 +12081,7 @@ class SystemManager(object):
 
                     (service, ip, port) = ret
 
-                    # PRINT as default #
+                    # set PRINT as default #
                     if service is None:
                         service = 'PRINT'
 
@@ -13043,9 +13100,8 @@ class SystemManager(object):
 
         # get socket inode address list of guider processes #
         for pid in pids:
-            objs = SystemManager.getProcSocketObjs(pid)
-
             # get udp port list of guider processes #
+            objs = SystemManager.getProcSocketObjs(pid)
             addrs = SystemManager.getSocketAddrList(objs)
 
             for addr in addrs:
@@ -13312,13 +13368,82 @@ class SystemManager(object):
 
     @staticmethod
     def runServerMode():
+        def handleRequest(netObj, connMan, req):
+            # unmarshalling #
+            if type(req) is tuple:
+                try:
+                    message = req[0].decode()
+                except:
+                    message = req[0]
+
+                if type(message) is not str:
+                    return
+
+                try:
+                    ip = req[1][0]
+                    port = req[1][1]
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to get address of client from message")
+                    return
+
+                SystemManager.printInfo(\
+                    "received %s request from %s:%s" % \
+                    (message, ip, port))
+            else:
+                SystemManager.printError(\
+                    "received wrong request %s" % ret)
+
+            # get request and value #
+            try:
+                request, value = message.split(':', 1)
+            except:
+                request = value = None
+
+            # handle request #
+            if request == 'DOWNLOAD':
+                # send tcp server info #
+                message = '%s|%s:%s:%s' % \
+                    (request, value, connMan.ip, connMan.port)
+                netObj.sendto(message, ip, port)
+
+                # get connection #
+                try:
+                    connMan.listen()
+                    sender, addr = connMan.accept()
+                except:
+                    SystemManager.printWarning(\
+                        'Failed to connect to client because of no response', True)
+                    return
+
+                # transfer file #
+                try:
+                    with open(value,'rb') as fd:
+                        buf = fd.read(1024)
+                        while (buf):
+                           sender.send(buf)
+                           buf = fd.read(1024)
+                except:
+                    pass
+
+                sender.close()
+
+            else:
+                SystemManager.printError(\
+                    'Fail to recognize %s request' % request)
+                return
+
+        # get address value #
+        if SystemManager.findOption('u'):
+            SystemManager.runBackgroundMode()
+
         # get address value #
         addr = SystemManager.getOption('x')
 
         # parse address value #
-        if addr is not False:
+        if addr is not None and addr is not False:
             ret = SystemManager.parseAddr(addr)
-            (serve, ip, port) = ret
+            (service, ip, port) = ret
         else:
             ip = port = None
 
@@ -13328,11 +13453,18 @@ class SystemManager(object):
         SystemManager.printStatus(\
             "server running as process %s" % SystemManager.pid)
 
-        while 1:
-            # get message from clients #
-            ret = SystemManager.localServObj.recv()
+        # create tcp socket object #
+        connMan = NetworkManager('server', ip, 0, tcp=True)
+        connMan.timeout()
 
-            print(ret)
+        while 1:
+            # get request from clients #
+            req = SystemManager.localServObj.recvfrom()
+
+            if req is None:
+                sys.exit(0)
+
+            handleRequest(SystemManager.localServObj, connMan, req)
 
         sys.exit(0)
 
@@ -13340,41 +13472,138 @@ class SystemManager(object):
 
     @staticmethod
     def runClientMode():
+        def getUserInput():
+            sys.stdout.write('Input request to server\n=> ')
+            sys.stdout.flush()
+
+            return(sys.stdin.readline()[:-1])
+
+        def printError():
+            SystemManager.printError(\
+                "no running server or wrong option value with -x, "
+                "Input {address:port} in format")
+
+        def handleRequest(netObj, req):
+            # unmarshalling #
+            if type(req) is tuple:
+                try:
+                    message = req[0].decode()
+                except:
+                    message = req[0]
+
+                if type(message) is not str:
+                    return
+
+                try:
+                    ip = req[1][0]
+                    port = req[1][1]
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to get address of client from message")
+                    return
+
+                SystemManager.printInfo(\
+                    "received %s request from %s:%s" % \
+                    (message, ip, port))
+
+                try:
+                    req, addr = message.split(':', 1)
+                except:
+                    req = addr = None
+
+                if req.startswith('DOWNLOAD'):
+                    path = req.split('|', 1)[1]
+                    addr = addr.split(':')
+
+                    targetIp = addr[0]
+                    targetPort = int(addr[1])
+
+                    # create tcp socket object #
+                    receiver = NetworkManager(\
+                        'client', netObj.ip, 0, blocking=True, tcp=True)
+
+                    # get connection #
+                    try:
+                        receiver.timeout()
+                        receiver.connect((targetIp, targetPort))
+                    except:
+                        SystemManager.printWarning((\
+                            'Failed to connect to client '
+                            'because of no response'), True)
+
+                    # save file #
+                    try:
+                        with open('testfile', 'wb') as fd:
+                            buf = receiver.recv(1024)
+                            while buf:
+                                buf = receiver.recv(1024)
+                                fd.write(buf)
+                    except:
+                        pass
+
+                    receiver.close()
+
+                else:
+                    SystemManager.printError(\
+                        'Fail to recognize %s request' % req)
+                    return
+
+            else:
+                SystemManager.printError(\
+                    "received wrong reply %s" % req)
+                return
+
         # get server address value #
         addr = SystemManager.getOption('x')
 
+        if addr is None:
+            pids = SystemManager.getProcPids(__module__)
+            if len(pids) == 1:
+                objs = SystemManager.getProcSocketObjs(pids[0])
+                addrs = SystemManager.getSocketAddrList(objs)
+                addr = addrs[0]
+            elif len(pids) > 1:
+                SystemManager.printError(\
+                    "Found multiple running guider processes")
+                printError()
+                sys.exit(0)
+            else:
+                printError()
+                sys.exit(0)
+
         # parse server address value #
-        if addr is not False:
+        if addr is not None and addr is not False:
             ret = SystemManager.parseAddr(addr)
 
-            (serve, ip, port) = ret
+            (service, ip, port) = ret
 
-            if serve == ip == port == None:
-                SystemManager.printError((\
-                    "wrong option value %s with -x, "
-                    "Input {address:port} in format"
-                    ) % addr)
+            if service == ip == port == None:
+                printError()
                 sys.exit(0)
         else:
-            SystemManager.printError(\
-                "no option value, Input {address:port} in format with -x")
+            printError()
             sys.exit(0)
 
+        # create client object #
         networkObject = NetworkManager('client', ip, port)
         if networkObject.ip is None:
             SystemManager.printError(\
                 "Fail to set network address")
             sys.exit(0)
 
+        # set timeout #
+        networkObject.timeout()
+
         # set address #
         SystemManager.printStatus(\
             "client running as process %s" % SystemManager.pid)
 
         while 1:
-            # get message from clients #
-            ret = networkObject.send('Hello'.encode())
-            print(ret)
-            time.sleep(1)
+            networkObject.send(getUserInput())
+
+            reply = networkObject.recvfrom()
+
+            handleRequest(networkObject, reply)
 
         sys.exit(0)
 
@@ -18693,7 +18922,7 @@ class ThreadAnalyzer(object):
         while 1:
             if SystemManager.remoteServObj is not None:
                 # receive response from server #
-                ret = SystemManager.localServObj.recv()
+                ret = SystemManager.localServObj.recvfrom()
 
                 # handle response from server #
                 self.handleServerResponse(ret)
@@ -28117,8 +28346,8 @@ class ThreadAnalyzer(object):
             self.reportData['task']['nrCtx'] = ctxSwc
 
             self.reportData['net'] = {}
-            self.reportData['net']['netInput'] = netIn
-            self.reportData['net']['netOutput'] = netOut
+            self.reportData['net']['input'] = netIn
+            self.reportData['net']['output'] = netOut
 
         # get temperature #
         if SystemManager.gpuEnable:
@@ -29390,7 +29619,7 @@ class ThreadAnalyzer(object):
 
         # send reply message to server #
         message = 'ACK'
-        SystemManager.localServObj.sendto(message.encode(), ip, port)
+        SystemManager.localServObj.sendto(message, ip, port)
 
 
 
@@ -29404,6 +29633,12 @@ class ThreadAnalyzer(object):
             addr = packet[1]
         else:
             return
+
+        if type(data) is bytes:
+            try:
+                data = data.decode()
+            except:
+                pass
 
         if type(data) is not str:
             SystemManager.printError("Fail to recognize data from server")
@@ -29460,7 +29695,8 @@ class ThreadAnalyzer(object):
         else:
             # realtime mode #
             if SystemManager.printFile is None:
-                SystemManager.clearScreen()
+                if SystemManager.printStreamEnable is False:
+                    SystemManager.clearScreen()
                 SystemManager.pipePrint(data)
                 SystemManager.clearPrint()
             # buffered mode #
@@ -29491,7 +29727,7 @@ class ThreadAnalyzer(object):
             if SystemManager.remoteServObj != 'NONE':
                 # send request to server #
                 SystemManager.localServObj.sendto(\
-                    SystemManager.remoteServObj.request.encode(), \
+                    SystemManager.remoteServObj.request, \
                     SystemManager.remoteServObj.ip, \
                     SystemManager.remoteServObj.port)
 
@@ -29521,7 +29757,7 @@ class ThreadAnalyzer(object):
 
         while 1:
             # get message from clients #
-            ret = SystemManager.localServObj.recv()
+            ret = SystemManager.localServObj.recvfrom()
 
             # verify request type #
             if ret is False:
@@ -29531,8 +29767,14 @@ class ThreadAnalyzer(object):
                 return
 
             # handle request #
-            if type(ret) is tuple and type(ret[0]) is str:
-                message = ret[0]
+            if type(ret) is tuple:
+                try:
+                    message = ret[0].decode()
+                except:
+                    message = ret[0]
+
+                if type(message) is not str:
+                    return
 
                 try:
                     ip = ret[1][0]
@@ -29566,8 +29808,10 @@ class ThreadAnalyzer(object):
                     networkObject.send(message)
                     del networkObject
                     continue
+
                 elif message == 'LOG':
                     pass
+
                 elif message == 'PRINT':
                     index = ip + ':' + str(port)
                     if not index in SystemManager.addrListForPrint:
@@ -29577,6 +29821,7 @@ class ThreadAnalyzer(object):
                     else:
                         SystemManager.printWarning(\
                             "Duplicated %s:%d as remote address" % (ip, port))
+
                 elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                     if SystemManager.reportEnable is False:
                         SystemManager.printWarning(\
@@ -29597,6 +29842,7 @@ class ThreadAnalyzer(object):
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
                             "updated %s:%d as remote address for REPORT" % (ip, port))
+
                 elif message == 'ACK':
                     index = ip + ':' + str(port)
                     if index in SystemManager.addrListForPrint:
@@ -29608,10 +29854,11 @@ class ThreadAnalyzer(object):
                     else:
                         SystemManager.printWarning(\
                             "Fail to find %s:%d as remote address" % (ip, port))
+
                 # wrong request or just data from server #
                 else:
                     SystemManager.printError(\
-                        "Fail to request wrong service %s" % message)
+                        "Fail to recognize request from client")
 
 
 
@@ -29907,7 +30154,8 @@ class ThreadAnalyzer(object):
 
         # send packet to remote server #
         if len(SystemManager.addrListForPrint) > 0:
-            for addr, cli in SystemManager.addrListForPrint.items():
+            addrListForPrint = dict(SystemManager.addrListForPrint)
+            for addr, cli in addrListForPrint.items():
                 if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printInfo(\
                         "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
