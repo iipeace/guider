@@ -882,6 +882,170 @@ class NetworkManager(object):
 
 
 
+    def handleServerRequest(self, req):
+        # import select package #
+        try:
+            if SystemManager.selectObject == None:
+                import select
+                SystemManager.selectObject = select
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                "Fail to import python package: %s" % err.args[0])
+
+        # unmarshalling #
+        if type(req) is tuple:
+            try:
+                message = req[0].decode()
+            except:
+                message = req[0]
+
+            try:
+                ip = req[1][0]
+                port = req[1][1]
+            except:
+                SystemManager.printWarning(\
+                    "Fail to get address of client from message")
+                return
+
+            SystemManager.printWarning(\
+                "received '%s' request from %s:%s" % \
+                (message, ip, port))
+
+            try:
+                req, addr = message.split(':', 1)
+            except:
+                req = addr = None
+
+            # handle request #
+            if req == None:
+                SystemManager.printError(\
+                    'Fail to recognize request')
+                return
+
+            elif req.upper().startswith('DOWNLOAD'):
+                path = req.split('|', 1)[1]
+                path = path.split(',')
+                origPath = path[0].strip()
+                targetPath = path[1].strip()
+
+                addr = addr.split(':')
+                targetIp = addr[0]
+                targetPort = int(addr[1])
+
+                # create tcp socket object #
+                receiver = NetworkManager(\
+                    'client', self.ip, 0, blocking=True, tcp=True)
+
+                # get connection #
+                try:
+                    receiver.timeout()
+                    receiver.connect((targetIp, targetPort))
+                except:
+                    SystemManager.printWarning((\
+                        'Failed to connect to client '
+                        'because of no response'), True)
+
+                # save file #
+                try:
+                    dirPos = targetPath.rfind('/')
+                    if dirPos >= 0 and \
+                        os.path.isdir(targetPath[:dirPos]) is False:
+                        os.makedirs(targetPath[:dirPos])
+
+                    with open(targetPath, 'wb') as fd:
+                        while 1:
+                            SystemManager.selectObject.select(\
+                                [receiver.socket], [], [], 3)
+
+                            buf = receiver.recv(1024)
+                            if buf:
+                                fd.write(buf)
+                            else:
+                                break
+
+                    SystemManager.printInfo(\
+                        "%s [%s] is transfered successfully\n" % \
+                        (targetPath, \
+                        SystemManager.convertSize(os.path.getsize(targetPath))))
+                except:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError(\
+                        'Fail to save %s from server to %s because %s' % \
+                        (origPath, targetPath, \
+                        ' '.join(list(map(str, err.args)))))
+
+                receiver.close()
+
+            elif req.upper().startswith('UPLOAD'):
+                path = req.split('|', 1)[1]
+                path = path.split(',')
+                origPath = path[0].strip()
+                targetPath = path[1].strip()
+
+                addr = addr.split(':')
+                targetIp = addr[0]
+                targetPort = int(addr[1])
+
+                if os.path.isfile(origPath) is False:
+                    SystemManager.printError(\
+                        'Failed to find %s to transfer' % origPath)
+                    return
+
+                # create tcp socket object #
+                sender = NetworkManager(\
+                    'client', self.ip, 0, blocking=True, tcp=True)
+
+                # get connection #
+                try:
+                    sender.timeout()
+                    sender.connect((targetIp, targetPort))
+                except:
+                    SystemManager.printWarning((\
+                        'Failed to connect to client '
+                        'because of no response'), True)
+
+                # transfer file #
+                try:
+                    with open(origPath,'rb') as fd:
+                        buf = fd.read(1024)
+                        while (buf):
+                           sender.send(buf)
+                           buf = fd.read(1024)
+
+                    SystemManager.printInfo(\
+                        "%s is transfered to %s successfully" % \
+                        (origPath, ':'.join(list(map(str, addr)))))
+                except:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError(\
+                        "Fail to transfer %s to %s because %s" % \
+                        (origPath, ':'.join(list(map(str, addr))), \
+                        ' '.join(list(map(str, err.args)))))
+
+                sender.close()
+
+            elif req.startswith('ERROR'):
+                SystemManager.printError(req.split('|', 1)[1])
+                return
+
+            else:
+                SystemManager.printError(\
+                    'Fail to recognize %s request' % req)
+                return
+
+        elif req == None:
+            SystemManager.printError(\
+                "no response from server")
+            return
+
+        else:
+            SystemManager.printError(\
+                "received wrong reply %s" % req)
+            return
+
+
+
     def send(self, message):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
@@ -2418,6 +2582,26 @@ class FunctionAnalyzer(object):
 
 
 
+    def getBinFromServer(self, localObj, remoteObj, src, des):
+        if remoteObj == None or remoteObj == 'NONE':
+            SystemManager.printError(\
+                "wrong remote address with -X, "
+                "input {ip:port} in format")
+            sys.exit(0)
+
+        req = 'DOWNLOAD:%s,%s' % (src, des)
+
+        # set timeout #
+        localObj.timeout()
+
+        localObj.sendto(req, remoteObj.ip, remoteObj.port)
+
+        reply = localObj.recvfrom()
+
+        localObj.handleServerRequest(reply)
+
+
+
     def getSymbols(self):
         binPath = ''
         offsetList = []
@@ -2466,6 +2650,14 @@ class FunctionAnalyzer(object):
 
                 # Set new binPath to find symbol from address #
                 binPath = value['binary']
+
+                # Get binary from server #
+                if os.path.isfile(binPath) is False and \
+                    SystemManager.remoteServObj != None:
+                    self.getBinFromServer(\
+                        SystemManager.localServObj, \
+                        SystemManager.remoteServObj, \
+                        value['origBin'], binPath)
             # add address to offsetList #
             else:
                 # not relocatable binary #
@@ -7061,6 +7253,7 @@ class SystemManager(object):
     addrListForPrint = {}
     addrListForReport = {}
     jsonObject = None
+    selectObject = None
 
     tgidEnable = True
     binEnable = False
@@ -8159,6 +8352,9 @@ class SystemManager(object):
                 pipePrint('        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]')
                 pipePrint('        -Y  [set_schedPriority - policy:prio{:tid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
+
+                SystemManager.closeAllForPrint()
+
             else:
                 print('\nHelp:')
                 print('    # %s -h | --help' % cmd)
@@ -8231,6 +8427,8 @@ class SystemManager(object):
             pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
             pipePrint('    - analyze function data for all')
             pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+            pipePrint('    - analyze function data for all with remote server support')
+            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
             pipePrint('    - analyze function data for only lower than 3 levels')
             pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
             pipePrint('    - record segmentation fault event of all threads')
@@ -8337,6 +8535,8 @@ class SystemManager(object):
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
             pipePrint('    - limit cpu usage of specific threads')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
+
+            SystemManager.closeAllForPrint()
 
             sys.exit(0)
 
@@ -12060,14 +12260,14 @@ class SystemManager(object):
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
 
-            elif option == 'x' and SystemManager.isTopMode():
+            elif option == 'x':
                 ret = SystemManager.parseAddr(value)
 
                 (service, ip, port) = ret
 
                 SystemManager.setServerNetwork(ip, port)
 
-            elif option == 'X' and SystemManager.isTopMode():
+            elif option == 'X':
                 if SystemManager.findOption('x') is False:
                     SystemManager.setServerNetwork(None, None)
 
@@ -12075,6 +12275,7 @@ class SystemManager(object):
                 if len(value) == 0:
                     SystemManager.remoteServObj = 'NONE'
                     continue
+
                 # request mode #
                 else:
                     ret = SystemManager.parseAddr(value)
@@ -12090,6 +12291,15 @@ class SystemManager(object):
 
                     if port is None:
                         port = 5555
+
+                    if SystemManager.localServObj != None and \
+                        SystemManager.localServObj.ip == ip and \
+                        SystemManager.localServObj.port == port:
+                        SystemManager.printError((\
+                            "wrong option value with -X, "
+                            "local address and remote address are same "
+                            "with %s:%s") % (ip, port))
+                        sys.exit(0)
 
                     if ip is None or port is None or \
                         SystemManager.isEffectiveRequest(service) is False:
@@ -12956,7 +13166,7 @@ class SystemManager(object):
                     ip, port = udp[addrIdx].split(':')
                     # convert ip address and port #
                     ip = SystemManager.convertCIDR(ip)
-                    portList["%s:%s" % (ip, int(port, base=16))] = None
+                    portList["UDP:%s:%s" % (ip, int(port, base=16))] = None
             except:
                 pass
 
@@ -12967,7 +13177,7 @@ class SystemManager(object):
                     ip, port = tcp[addrIdx].split(':')
                     # convert ip address and port #
                     ip = SystemManager.convertCIDR(ip)
-                    portList["%s:%s" % (ip, int(port, base=16))] = None
+                    portList["TCP:%s:%s" % (ip, int(port, base=16))] = None
             except:
                 pass
 
@@ -13106,7 +13316,7 @@ class SystemManager(object):
 
             for addr in addrs:
                 try:
-                    ip, port = addr.split(':')
+                    attr, ip, port = addr.split(':')
                 except:
                     SystemManager.printWarning(\
                         "Failed to use %s as remote address" % (addr))
@@ -13231,9 +13441,10 @@ class SystemManager(object):
 
 
     @staticmethod
-    def doUserInput(selectObject):
-        if SystemManager.printFile is None and selectObject != None and \
-            selectObject.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+    def doUserInput():
+        if SystemManager.printFile is None and SystemManager.selectObject != None and \
+            SystemManager.selectObject.select(\
+            [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
             sys.stdout.write('\b' * SystemManager.ttyCols)
             SystemManager.pipePrint((\
                 "[ Input command... "
@@ -13368,6 +13579,10 @@ class SystemManager(object):
 
     @staticmethod
     def runServerMode():
+        def sendErrMsg(netObj, ip, port, message):
+            message = 'ERROR|%s:%s:%s' % (message, ip, port)
+            netObj.sendto(message, ip, port)
+
         def handleRequest(netObj, connMan, req):
             # unmarshalling #
             if type(req) is tuple:
@@ -13375,9 +13590,6 @@ class SystemManager(object):
                     message = req[0].decode()
                 except:
                     message = req[0]
-
-                if type(message) is not str:
-                    return
 
                 try:
                     ip = req[1][0]
@@ -13388,7 +13600,7 @@ class SystemManager(object):
                     return
 
                 SystemManager.printInfo(\
-                    "received %s request from %s:%s" % \
+                    "received request %s from %s:%s" % \
                     (message, ip, port))
             else:
                 SystemManager.printError(\
@@ -13401,7 +13613,28 @@ class SystemManager(object):
                 request = value = None
 
             # handle request #
-            if request == 'DOWNLOAD':
+            if request == None:
+                SystemManager.printWarning(\
+                    'Fail to recognize request', True)
+
+            elif request.upper() == 'DOWNLOAD':
+                try:
+                    src, des = value.split(',')
+                except:
+                    SystemManager.printWarning(\
+                        'Failed to recognize paths', True)
+                    sendErrMsg(netObj, ip, port, \
+                        "wrong format of paths, use {src, des} in format")
+                    return
+
+                targetPath = src.strip()
+                if os.path.isfile(targetPath) is False:
+                    SystemManager.printWarning(\
+                        'Failed to find %s to transfer' % targetPath, True)
+                    sendErrMsg(netObj, ip, port, \
+                        "wrong path %s" % targetPath)
+                    return
+
                 # send tcp server info #
                 message = '%s|%s:%s:%s' % \
                     (request, value, connMan.ip, connMan.port)
@@ -13418,20 +13651,92 @@ class SystemManager(object):
 
                 # transfer file #
                 try:
-                    with open(value,'rb') as fd:
+                    with open(targetPath,'rb') as fd:
                         buf = fd.read(1024)
                         while (buf):
                            sender.send(buf)
                            buf = fd.read(1024)
+
+                    SystemManager.printInfo(\
+                        "%s [%s] is transfered to %s successfully" % \
+                        (targetPath, \
+                        SystemManager.convertSize(os.path.getsize(targetPath)), \
+                        ':'.join(list(map(str, addr)))))
                 except:
-                    pass
+                    err = sys.exc_info()[1]
+                    SystemManager.printError(\
+                        "Fail to transfer %s to %s because %s" % \
+                        (targetPath, ':'.join(list(map(str, addr))), \
+                        ' '.join(list(map(str, err.args)))))
 
                 sender.close()
 
+            elif request.upper() == 'UPLOAD':
+                try:
+                    src, des = value.split(',')
+                except:
+                    SystemManager.printWarning(\
+                        'Failed to recognize paths', True)
+                    sendErrMsg(netObj, ip, port, \
+                        "wrong format of paths, use {src, des} in format")
+                    return
+
+                # send tcp server info #
+                message = '%s|%s:%s:%s' % \
+                    (request, value, connMan.ip, connMan.port)
+                netObj.sendto(message, ip, port)
+
+                # get connection #
+                try:
+                    connMan.listen()
+                    receiver, addr = connMan.accept()
+                except:
+                    SystemManager.printWarning(\
+                        'Failed to connect to client because of no response', True)
+                    return
+
+                # save file #
+                try:
+                    origPath = src.strip()
+                    targetPath = des.strip()
+                    with open(targetPath, 'wb') as fd:
+                        while 1:
+                            SystemManager.selectObject.select(\
+                                [receiver], [], [], 3)
+
+                            buf = receiver.recv(1024)
+                            if buf:
+                                fd.write(buf)
+                            else:
+                                break
+
+                    SystemManager.printInfo(\
+                        "%s is transfered successfully\n" % targetPath)
+                except:
+                    err = sys.exc_info()[1]
+                    SystemManager.printError(\
+                        'Fail to save %s from server to %s because %s' % \
+                        (origPath, targetPath, \
+                        ' '.join(list(map(str, err.args)))))
+
+                receiver.close()
+
             else:
-                SystemManager.printError(\
-                    'Fail to recognize %s request' % request)
+                SystemManager.printWarning(\
+                    'Fail to recognize request %s' % message, True)
+                sendErrMsg(netObj, ip, port, \
+                    "No support request %s" % message)
                 return
+
+        # import select package #
+        try:
+            if SystemManager.selectObject == None:
+                import select
+                SystemManager.selectObject = select
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                "Fail to import python package: %s" % err.args[0])
 
         # get address value #
         if SystemManager.findOption('u'):
@@ -13446,6 +13751,10 @@ class SystemManager(object):
             (service, ip, port) = ret
         else:
             ip = port = None
+
+        # get public IP #
+        if ip is None:
+            ip = NetworkManager.getPublicIp()
 
         # set address #
         SystemManager.setServerNetwork(ip, port, force=True, blocking=True)
@@ -13472,7 +13781,16 @@ class SystemManager(object):
 
     @staticmethod
     def runClientMode():
+        def printMenu():
+            sys.stdout.write(\
+                '\n[Client Mode Commands]\n'
+                '- DOWNLOAD:RemotePath:LocalPath\n'
+                '- UPLOAD:LocalPath:RemotePath\n'
+                '\n'
+            )
+
         def getUserInput():
+            printMenu()
             sys.stdout.write('Input request to server\n=> ')
             sys.stdout.flush()
 
@@ -13483,80 +13801,10 @@ class SystemManager(object):
                 "no running server or wrong option value with -x, "
                 "Input {address:port} in format")
 
-        def handleRequest(netObj, req):
-            # unmarshalling #
-            if type(req) is tuple:
-                try:
-                    message = req[0].decode()
-                except:
-                    message = req[0]
-
-                if type(message) is not str:
-                    return
-
-                try:
-                    ip = req[1][0]
-                    port = req[1][1]
-                except:
-                    SystemManager.printWarning(\
-                        "Fail to get address of client from message")
-                    return
-
-                SystemManager.printInfo(\
-                    "received %s request from %s:%s" % \
-                    (message, ip, port))
-
-                try:
-                    req, addr = message.split(':', 1)
-                except:
-                    req = addr = None
-
-                if req.startswith('DOWNLOAD'):
-                    path = req.split('|', 1)[1]
-                    addr = addr.split(':')
-
-                    targetIp = addr[0]
-                    targetPort = int(addr[1])
-
-                    # create tcp socket object #
-                    receiver = NetworkManager(\
-                        'client', netObj.ip, 0, blocking=True, tcp=True)
-
-                    # get connection #
-                    try:
-                        receiver.timeout()
-                        receiver.connect((targetIp, targetPort))
-                    except:
-                        SystemManager.printWarning((\
-                            'Failed to connect to client '
-                            'because of no response'), True)
-
-                    # save file #
-                    try:
-                        with open('testfile', 'wb') as fd:
-                            buf = receiver.recv(1024)
-                            while buf:
-                                buf = receiver.recv(1024)
-                                fd.write(buf)
-                    except:
-                        pass
-
-                    receiver.close()
-
-                else:
-                    SystemManager.printError(\
-                        'Fail to recognize %s request' % req)
-                    return
-
-            else:
-                SystemManager.printError(\
-                    "received wrong reply %s" % req)
-                return
-
         # get server address value #
         addr = SystemManager.getOption('x')
 
-        if addr is None:
+        if addr is None or addr is False:
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 1:
                 objs = SystemManager.getProcSocketObjs(pids[0])
@@ -13573,7 +13821,7 @@ class SystemManager(object):
 
         # parse server address value #
         if addr is not None and addr is not False:
-            ret = SystemManager.parseAddr(addr)
+            ret = SystemManager.parseAddr(addr.split(':', 1)[1])
 
             (service, ip, port) = ret
 
@@ -13603,7 +13851,7 @@ class SystemManager(object):
 
             reply = networkObject.recvfrom()
 
-            handleRequest(networkObject, reply)
+            networkObject.handleServerRequest(reply)
 
         sys.exit(0)
 
@@ -14773,7 +15021,7 @@ class SystemManager(object):
                 SystemManager.pipeForPrint = None
             except:
                 return
-        elif SystemManager.fileForPrint is not None:
+        if SystemManager.fileForPrint is not None:
             try:
                 fsize = SystemManager.convertSize(\
                     int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
@@ -14827,8 +15075,10 @@ class SystemManager(object):
         self.cmdList["power/cpu_idle"] = SystemManager.powerEnable
         self.cmdList["power/cpu_frequency"] = SystemManager.powerEnable # toDo #
         self.cmdList["power/suspend_resume"] = SystemManager.powerEnable
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = True
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = True
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
+            SystemManager.memEnable
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = \
+            SystemManager.memEnable
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
         self.cmdList["task"] = True
@@ -18830,8 +19080,9 @@ class ThreadAnalyzer(object):
         selectObject = None
         if SystemManager.printFile is None:
             try:
-                import select
-                selectObject = select
+                if SystemManager.selectObject == None:
+                    import select
+                    SystemManager.selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
                 SystemManager.printWarning(\
@@ -18844,7 +19095,7 @@ class ThreadAnalyzer(object):
 
         while 1:
             # pause and resume by enter key #
-            SystemManager.doUserInput(selectObject)
+            SystemManager.doUserInput()
 
             # collect file stats as soon as possible #
             self.saveFileStat()
@@ -18904,8 +19155,9 @@ class ThreadAnalyzer(object):
         selectObject = None
         if SystemManager.printFile is None:
             try:
-                import select
-                selectObject = select
+                if SystemManager.selectObject == None:
+                    import select
+                    SystemManager.selectObject = select
             except ImportError:
                 err = sys.exc_info()[1]
                 SystemManager.printWarning(\
@@ -18930,7 +19182,7 @@ class ThreadAnalyzer(object):
                 continue
 
             # pause and resume by enter key #
-            SystemManager.doUserInput(selectObject)
+            SystemManager.doUserInput()
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
@@ -21025,28 +21277,79 @@ class ThreadAnalyzer(object):
                     value['offTime'] += float(self.finishTime) - value['lastOff']
 
                 if SystemManager.powerEnable:
-                    offTime = str(round(float(value['offTime']), 2))
-                    offCnt = str(value['offCnt'])
+                    prtTime = offTime = '%5.2f' % value['offTime']
+                    pri = offCnt = str(value['offCnt'])
                 else:
-                    offTime = '-'
-                    offCnt = '-'
+                    prtTime = offTime = '-'
+                    pri = offCnt = '-'
+
+                if SystemManager.cpuEnable:
+                    cpuTime = '%5.2f' % (self.totalTime - value['usage'])
+                    cpuPer = '%5.1f' % usagePercent
+                    schedLatency = '%5.2f' % value['schedLatency']
+                    yieldCnt = '%5d' % value['yield']
+                    preemptedCnt = '%5d' % value['preempted']
+                    preemptionCnt = '%5d' % value['preemption']
+                    migrateCnt = '%4d' % value['migrate']
+                else:
+                    cpuTime = '-'
+                    cpuPer = '-'
+                    schedLatency = '-'
+                    yieldCnt = '-'
+                    preemptedCnt = '-'
+                    preemptionCnt = '-'
+                    migrateCnt = '-'
+
+                if SystemManager.irqEnable:
+                    irqTime = '%5.2f' % value['irq']
+                else:
+                    irqTime = '-'
+
+                if SystemManager.blockEnable:
+                    ioRdWait = '%5.2f' % value['ioRdWait']
+                    readBlock = '%3d' % value['readBlock']
+                    readBlockCnt = '%4d' % value['readBlockCnt']
+                    ioWrWait = '%5.2f' % value['ioWrWait']
+                    writeBlock = '%3d' % \
+                        (value['writeBlock'] + value['awriteBlock'])
+                else:
+                    ioRdWait = '-'
+                    readBlock = '-'
+                    readBlockCnt = '-'
+                    ioWrWait = '-'
+                    writeBlock = '-'
+
+                if SystemManager.memEnable:
+                    usedMem = '%4d' % \
+                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                    userMem = '%3d' % (value['userPages'] >> 8)
+                    cacheMem = '%3d' % (value['cachePages'] >> 8)
+                    kernelMem = '%3d' % \
+                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
+                else:
+                    usedMem = '-'
+                    userMem = '-'
+                    cacheMem = '-'
+                    kernelMem = '-'
+                    reclaimedMem = '-'
+                    wastedMem = '-'
+                    dreclaimedTime = '-'
+                    dreclaimedCnt = '-'
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5s|%6.2f|%3s|%5.2f|" \
-                    "%5s|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4s(%3s/%3s/%3s)|" \
-                    "%3s|%3s|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    "%3s|%3s|%4s(%2s)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
-                        self.totalTime - value['usage'], \
-                        str(round(float(usagePercent), 1)), \
-                        offTime, value['schedLatency'], '-', \
-                        value['irq'], offCnt, '-', '-', '-', \
-                        value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
-                        value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
-                        (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
-                        value['userPages'] >> 8, value['cachePages'] >> 8, \
-                        value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
-                        (value['reclaimedPages'] >> 8), value['wasteKmem'] >> 20, \
-                        value['dReclaimWait'], value['dReclaimCnt']))
+                        cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                        yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                        ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                        usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                        wastedMem, dreclaimedTime, dreclaimedCnt))
                 count += 1
             else:
                 # convert priority #
@@ -21102,22 +21405,77 @@ class ThreadAnalyzer(object):
                 SystemManager.filterGroup == []:
                 break
 
+            if SystemManager.cpuEnable:
+                cpuTime = '%5.2f' % value['usage']
+                cpuPer = '%5.1f' % usagePercent
+                prtTime = '%5.2f' % value['cpuWait']
+                schedLatency = '%5.2f' % value['schedLatency']
+                pri = value['pri']
+                yieldCnt = '%5d' % value['yield']
+                preemptedCnt = '%5d' % value['preempted']
+                preemptionCnt = '%5d' % value['preemption']
+                migrateCnt = '%4d' % value['migrate']
+            else:
+                cpuTime = '-'
+                cpuPer = '-'
+                prtTime = '-'
+                schedLatency = '-'
+                pri = '-'
+                yieldCnt = '-'
+                preemptedCnt = '-'
+                preemptionCnt = '-'
+                migrateCnt = '-'
+
+            if SystemManager.irqEnable:
+                irqTime = '%5.2f' % value['irq']
+            else:
+                irqTime = '-'
+
+            if SystemManager.blockEnable:
+                ioRdWait = '%5.2f' % value['ioRdWait']
+                readBlock = '%3d' % value['readBlock']
+                readBlockCnt = '%4d' % value['readBlockCnt']
+                ioWrWait = '%5.2f' % value['ioWrWait']
+                writeBlock = '%3d' % \
+                    (value['writeBlock'] + value['awriteBlock'])
+            else:
+                ioRdWait = '-'
+                readBlock = '-'
+                readBlockCnt = '-'
+                ioWrWait = '-'
+                writeBlock = '-'
+
+            if SystemManager.memEnable:
+                usedMem = '%4d' % \
+                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                userMem = '%3d' % (value['userPages'] >> 8)
+                cacheMem = '%3d' % (value['cachePages'] >> 8)
+                kernelMem = '%3d' % \
+                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                dreclaimedCnt = '%2d' % value['dReclaimCnt']
+            else:
+                usedMem = '-'
+                userMem = '-'
+                cacheMem = '-'
+                kernelMem = '-'
+                reclaimedMem = '-'
+                wastedMem = '-'
+                dreclaimedTime = '-'
+                dreclaimedCnt = '-'
+
             SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                "%3d|%3d|%4.2f(%2d)|\n") % \
+                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                "%3s|%3s|%4s(%2s)|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], \
-                value['usage'], str(round(float(usagePercent), 1)), \
-                value['cpuWait'], value['schedLatency'], value['pri'], \
-                value['irq'], value['yield'], value['preempted'], value['preemption'], \
-                value['migrate'], value['ioRdWait'], value['readBlock'], \
-                value['readBlockCnt'], value['ioWrWait'], \
-                value['writeBlock'] + value['awriteBlock'], \
-                (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
-                value['userPages'] >> 8, value['cachePages'] >> 8, \
-                value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
-                value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
-                value['dReclaimWait'], value['dReclaimCnt']))
+                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                wastedMem, dreclaimedTime, dreclaimedCnt))
 
             count += 1
 
@@ -21166,23 +21524,86 @@ class ThreadAnalyzer(object):
 
             if value['new'] == ' ' or SystemManager.selectMenu != None:
                 break
+
             count += 1
+
+            usagePercent = \
+                round(float(value['usage']) / float(self.totalTime), 7) * 100
+
             if SystemManager.showAll:
+
+                if SystemManager.cpuEnable:
+                    cpuTime = '%5.2f' % value['usage']
+                    cpuPer = '%5.1f' % usagePercent
+                    prtTime = '%5.2f' % value['cpuWait']
+                    schedLatency = '%5.2f' % value['schedLatency']
+                    pri = value['pri']
+                    yieldCnt = '%5d' % value['yield']
+                    preemptedCnt = '%5d' % value['preempted']
+                    preemptionCnt = '%5d' % value['preemption']
+                    migrateCnt = '%4d' % value['migrate']
+                else:
+                    cpuTime = '-'
+                    cpuPer = '-'
+                    prtTime = '-'
+                    schedLatency = '-'
+                    pri = '-'
+                    yieldCnt = '-'
+                    preemptedCnt = '-'
+                    preemptionCnt = '-'
+                    migrateCnt = '-'
+
+                if SystemManager.irqEnable:
+                    irqTime = '%5.2f' % value['irq']
+                else:
+                    irqTime = '-'
+
+                if SystemManager.blockEnable:
+                    ioRdWait = '%5.2f' % value['ioRdWait']
+                    readBlock = '%3d' % value['readBlock']
+                    readBlockCnt = '%4d' % value['readBlockCnt']
+                    ioWrWait = '%5.2f' % value['ioWrWait']
+                    writeBlock = '%3d' % \
+                        (value['writeBlock'] + value['awriteBlock'])
+                else:
+                    ioRdWait = '-'
+                    readBlock = '-'
+                    readBlockCnt = '-'
+                    ioWrWait = '-'
+                    writeBlock = '-'
+
+                if SystemManager.memEnable:
+                    usedMem = '%4d' % \
+                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                    userMem = '%3d' % (value['userPages'] >> 8)
+                    cacheMem = '%3d' % (value['cachePages'] >> 8)
+                    kernelMem = '%3d' % \
+                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
+                else:
+                    usedMem = '-'
+                    userMem = '-'
+                    cacheMem = '-'
+                    kernelMem = '-'
+                    reclaimedMem = '-'
+                    wastedMem = '-'
+                    dreclaimedTime = '-'
+                    dreclaimedCnt = '-'
+
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                    "%3d|%3d|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    "%3s|%3s|%4s(%2s)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                    value['usage'], str(round(float(usagePercent), 1)), \
-                    value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
-                    value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
-                    value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
-                    (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
-                    value['userPages'] >> 8, value['cachePages'] >> 8, \
-                    value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
-                    value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
-                    value['dReclaimWait'], value['dReclaimCnt']))
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                    wastedMem, dreclaimedTime, dreclaimedCnt))
+
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'New', count))
             SystemManager.pipePrint(SystemManager.bufferString)
@@ -21197,24 +21618,86 @@ class ThreadAnalyzer(object):
 
             if value['die'] == ' ' or SystemManager.selectMenu != None:
                 break
+
             count += 1
-            usagePercent = round(float(value['usage']) / float(self.totalTime), 7) * 100
+
+            usagePercent = \
+                round(float(value['usage']) / float(self.totalTime), 7) * 100
+
             if SystemManager.showAll:
+
+                if SystemManager.cpuEnable:
+                    cpuTime = '%5.2f' % value['usage']
+                    cpuPer = '%5.1f' % usagePercent
+                    prtTime = '%5.2f' % value['cpuWait']
+                    schedLatency = '%5.2f' % value['schedLatency']
+                    pri = value['pri']
+                    yieldCnt = '%5d' % value['yield']
+                    preemptedCnt = '%5d' % value['preempted']
+                    preemptionCnt = '%5d' % value['preemption']
+                    migrateCnt = '%4d' % value['migrate']
+                else:
+                    cpuTime = '-'
+                    cpuPer = '-'
+                    prtTime = '-'
+                    schedLatency = '-'
+                    pri = '-'
+                    yieldCnt = '-'
+                    preemptedCnt = '-'
+                    preemptionCnt = '-'
+                    migrateCnt = '-'
+
+                if SystemManager.irqEnable:
+                    irqTime = '%5.2f' % value['irq']
+                else:
+                    irqTime = '-'
+
+                if SystemManager.blockEnable:
+                    ioRdWait = '%5.2f' % value['ioRdWait']
+                    readBlock = '%3d' % value['readBlock']
+                    readBlockCnt = '%4d' % value['readBlockCnt']
+                    ioWrWait = '%5.2f' % value['ioWrWait']
+                    writeBlock = '%3d' % \
+                        (value['writeBlock'] + value['awriteBlock'])
+                else:
+                    ioRdWait = '-'
+                    readBlock = '-'
+                    readBlockCnt = '-'
+                    ioWrWait = '-'
+                    writeBlock = '-'
+
+                if SystemManager.memEnable:
+                    usedMem = '%4d' % \
+                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                    userMem = '%3d' % (value['userPages'] >> 8)
+                    cacheMem = '%3d' % (value['cachePages'] >> 8)
+                    kernelMem = '%3d' % \
+                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
+                else:
+                    usedMem = '-'
+                    userMem = '-'
+                    cacheMem = '-'
+                    kernelMem = '-'
+                    reclaimedMem = '-'
+                    wastedMem = '-'
+                    dreclaimedTime = '-'
+                    dreclaimedCnt = '-'
+
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5.2f(%5s)|%5.2f|%6.2f|%3s|%5.2f|" \
-                    "%5d|%5s|%5s|%4s|%5.2f(%3d/%4d)|%5.2f(%3s)|%4d(%3d/%3d/%3d)|" \
-                    "%3d|%3d|%4.2f(%2d)|\n") % \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    "%3s|%3s|%4s(%2s)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                    value['usage'], str(round(float(usagePercent), 1)), \
-                    value['cpuWait'], value['schedLatency'], value['pri'], value['irq'], \
-                    value['yield'], value['preempted'], value['preemption'], value['migrate'], \
-                    value['ioRdWait'], value['readBlock'], value['readBlockCnt'], \
-                    value['ioWrWait'], value['writeBlock'] + value['awriteBlock'], \
-                    (value['nrPages'] >> 8) + (value['remainKmem'] >> 20), \
-                    value['userPages'] >> 8, value['cachePages'] >> 8, \
-                    value['kernelPages'] >> 8 + (value['remainKmem'] >> 20), \
-                    value['reclaimedPages'] >> 8, value['wasteKmem'] >> 20, \
-                    value['dReclaimWait'], value['dReclaimCnt']))
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                    wastedMem, dreclaimedTime, dreclaimedCnt))
+
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
             SystemManager.pipePrint(SystemManager.bufferString)
@@ -25050,7 +25533,9 @@ class ThreadAnalyzer(object):
                     # set sched status #
                     if d['prev_state'][0] == 'R':
                         self.threadData[prev_id]['preempted'] += 1
+                        self.threadData[coreId]['preempted'] += 1
                         self.threadData[next_id]['preemption'] += 1
+                        self.threadData[coreId]['preemption'] += 1
                         self.threadData[prev_id]['lastStatus'] = 'P'
 
                         if SystemManager.preemptGroup != None:
@@ -25072,6 +25557,7 @@ class ThreadAnalyzer(object):
                                 self.preemptData[index][3] = core
                     elif d['prev_state'][0] == 'S':
                         self.threadData[prev_id]['yield'] += 1
+                        self.threadData[coreId]['yield'] += 1
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = 'S'
                     else:
@@ -25326,6 +25812,7 @@ class ThreadAnalyzer(object):
                     self.threadData[pid]['comm'] = d['comm']
 
                     self.threadData[pid]['migrate'] += 1
+                    self.threadData[coreId]['migrate'] += 1
 
                     # update core data for preempted info #
                     if SystemManager.preemptGroup != None:
@@ -30187,6 +30674,7 @@ if __name__ == '__main__':
     # print options #
     SystemManager.printOptions()
 
+    # set default io #
     SystemManager.inputFile = sys.argv[1]
     SystemManager.outputFile = None
 
