@@ -4375,21 +4375,60 @@ class FunctionAnalyzer(object):
             if value['die']:
                 life = '%sD' % life
 
-            # remove percentage if no tick #
-            if float(value['cpuTick']) == 0:
+            if self.cpuEnabled:
+                # remove percentage if no tick #
+                if float(value['cpuTick']) == 0:
+                    cpuPer = '-'
+                else:
+                    cpuPer = cpuPer
+            else:
                 cpuPer = '-'
+
+            if self.memEnabled:
+                allocMem = '%dK' % (value['nrPages'] * 4)
+                userMem = '%dK' % (value['userPages'] * 4)
+                cacheMem = '%dK' % (value['cachePages'] * 4)
+                kernelMem = '%dK' % (value['kernelPages'] * 4)
+                knownFreeMem = '%dK' % (value['nrKnownFreePages'] * 4)
+                unknownFreeMem = '%dK' % (value['nrUnknownFreePages'] * 4)
+                heapMem = '%dK' % (value['heapSize'] >> 10)
+            else:
+                allocMem = '-'
+                userMem = '-'
+                cacheMem = '-'
+                kernelMem = '-'
+                knownFreeMem = '-'
+                unknownFreeMem = '-'
+                heapMem = '-'
+
+            if self.breadEnabled:
+                readBlock = '%dK' % int(value['nrRdBlocks'] * 0.5)
+            else:
+                readBlock = '-'
+
+            if self.bwriteEnabled:
+                writeBlock = '%dK' % int(value['nrWrBlocks'] * 0.5)
+            else:
+                writeBlock = '-'
+
+            if self.lockEnabled:
+                nrLock = value['nrLockTry']
+            else:
+                nrLock = '-'
+
+            if self.customTotal > 0:
+                nrCustom = value['customTotal']
+            else:
+                nrCustom = '-'
 
             SystemManager.pipePrint(\
                 (("{0:>16}|{1:>7}|{2:>7}|{3:^6}|{4:^6}|"
-                "{5:>7}|{6:8}K({7:7}K/{8:7}K/{9:7}K)|{10:6}K|{11:7}K|"
-                "{12:7}K|{13:7}K|{14:8}K|{15:6}|{16:8}|")).\
+                "{5:>7}|{6:>9}({7:>8}/{8:>8}/{9:>8})|{10:>7}|{11:>8}|"
+                "{12:>8}|{13:>8}|{14:>9}|{15:>6}|{16:>8}|")).\
                 format(value['comm'], idx, value['tgid'], targetMark, life, \
-                cpuPer, value['nrPages'] * 4, value['userPages'] * 4, \
-                value['cachePages'] * 4,  value['kernelPages'] * 4, \
-                value['nrKnownFreePages'] * 4, value['nrUnknownFreePages'] * 4, \
-                value['heapSize'] >> 10, int(value['nrRdBlocks'] * 0.5), \
-                int(value['nrWrBlocks'] * 0.5), value['nrLockTry'], \
-                value['customTotal']))
+                cpuPer, allocMem, userMem, cacheMem,  kernelMem, \
+                knownFreeMem, unknownFreeMem, heapMem, \
+                readBlock, writeBlock, nrLock, nrCustom))
 
         if targetCnt == 0:
             SystemManager.pipePrint('\tNone')
