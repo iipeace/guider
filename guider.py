@@ -765,6 +765,7 @@ class NetworkManager(object):
     """ Manager for remote communication """
 
     def __init__(self, mode, ip, port, blocking=True, tcp=False):
+        self.mode = mode
         self.ip = None
         self.port = None
         self.socket = None
@@ -858,7 +859,7 @@ class NetworkManager(object):
 
 
     def write(self, message):
-        self.send(message)
+        self.send(message, write=True)
 
 
 
@@ -883,6 +884,148 @@ class NetworkManager(object):
 
 
     def handleServerRequest(self, req):
+        def getConn(ip, targetIp, targetPort):
+            # create tcp socket object #
+            netObj = NetworkManager(\
+                'client', self.ip, 0, blocking=True, tcp=True)
+
+            # get connection #
+            try:
+                netObj.timeout()
+                netObj.connect((targetIp, targetPort))
+                return netObj
+            except:
+                SystemManager.printWarning((\
+                    'Failed to connect to client '
+                    'because of no response'), True)
+                return
+
+        def doDownload(req, addr):
+            # parse path #
+            path = req.split('|', 1)[1]
+            path = path.split(',')
+            origPath = path[0].strip()
+            targetPath = path[1].strip()
+
+            # parse addr #
+            addr = addr.split(':')
+            targetIp = addr[0]
+            targetPort = int(addr[1])
+
+            # get connection #
+            receiver = getConn(self.ip, targetIp, targetPort)
+            if receiver == None:
+                return
+
+            # save file #
+            try:
+                dirPos = targetPath.rfind('/')
+                if dirPos >= 0 and \
+                    os.path.isdir(targetPath[:dirPos]) is False:
+                    os.makedirs(targetPath[:dirPos])
+
+                with open(targetPath, 'wb') as fd:
+                    while 1:
+                        SystemManager.selectObject.select(\
+                            [receiver.socket], [], [], 3)
+
+                        buf = receiver.recv(1024)
+                        if buf:
+                            fd.write(buf)
+                        else:
+                            break
+
+                SystemManager.printInfo(\
+                    "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
+                    (targetPath, \
+                    SystemManager.convertSize(os.path.getsize(targetPath)),
+                    targetIp, targetPort, origPath))
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    'Fail to download %s from %s:%s:%s because %s' % \
+                    (origPath, targetIp, targetPort, targetPath, \
+                    ' '.join(list(map(str, err.args)))))
+
+            receiver.close()
+
+        def doUpload(req, addr):
+            # parse path #
+            path = req.split('|', 1)[1]
+            path = path.split(',')
+            origPath = path[0].strip()
+            targetPath = path[1].strip()
+
+            # parse addr #
+            addr = addr.split(':')
+            targetIp = addr[0]
+            targetPort = int(addr[1])
+
+            # check file #
+            if os.path.isfile(origPath) is False:
+                SystemManager.printError(\
+                    'Failed to find %s to transfer' % origPath)
+                return
+
+            # get connection #
+            sender = getConn(self.ip, targetIp, targetPort)
+            if sender == None:
+                return
+
+            # transfer file #
+            try:
+                with open(origPath,'rb') as fd:
+                    buf = fd.read(1024)
+                    while (buf):
+                       sender.send(buf)
+                       buf = fd.read(1024)
+
+                SystemManager.printInfo(\
+                    "%s [%s] is uploaded to %s:%s successfully\n" % \
+                    (origPath, \
+                    SystemManager.convertSize(os.path.getsize(origPath)), \
+                    ':'.join(list(map(str, addr))), targetPath))
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to upload %s to %s:%s because %s" % \
+                    (origPath, ':'.join(list(map(str, addr))), \
+                    ' '.join(list(map(str, err.args))), targetPath))
+
+            sender.close()
+
+        def doRun(req, addr):
+            # parse command #
+            command = req.split('|', 1)[1]
+
+            # parse addr #
+            addr = addr.split(':')
+            targetIp = addr[0]
+            targetPort = int(addr[1])
+
+            SystemManager.printInfo(\
+                "%s is executed from %s\n" % \
+                (command, ':'.join(list(map(str, addr)))))
+
+            # get connection #
+            conn = getConn(self.ip, targetIp, targetPort)
+            if conn == None:
+                return
+
+            # run mainloop #
+            while 1:
+                [readSock, writeSock, errorSock] = \
+                    SystemManager.selectObject.select(\
+                    [conn.socket], [], [])
+
+                output = conn.recv(1024)
+                if not output:
+                    break
+
+                print(output.decode())
+
+
+
         # import select package #
         try:
             if SystemManager.selectObject == None:
@@ -892,6 +1035,7 @@ class NetworkManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 "Fail to import python package: %s" % err.args[0])
+            sys.exit(0)
 
         # unmarshalling #
         if type(req) is tuple:
@@ -921,118 +1065,24 @@ class NetworkManager(object):
             if req == None:
                 SystemManager.printError(\
                     'Fail to recognize request')
-                return
 
             elif req.upper().startswith('DOWNLOAD'):
-                path = req.split('|', 1)[1]
-                path = path.split(',')
-                origPath = path[0].strip()
-                targetPath = path[1].strip()
-
-                addr = addr.split(':')
-                targetIp = addr[0]
-                targetPort = int(addr[1])
-
-                # create tcp socket object #
-                receiver = NetworkManager(\
-                    'client', self.ip, 0, blocking=True, tcp=True)
-
-                # get connection #
-                try:
-                    receiver.timeout()
-                    receiver.connect((targetIp, targetPort))
-                except:
-                    SystemManager.printWarning((\
-                        'Failed to connect to client '
-                        'because of no response'), True)
-
-                # save file #
-                try:
-                    dirPos = targetPath.rfind('/')
-                    if dirPos >= 0 and \
-                        os.path.isdir(targetPath[:dirPos]) is False:
-                        os.makedirs(targetPath[:dirPos])
-
-                    with open(targetPath, 'wb') as fd:
-                        while 1:
-                            SystemManager.selectObject.select(\
-                                [receiver.socket], [], [], 3)
-
-                            buf = receiver.recv(1024)
-                            if buf:
-                                fd.write(buf)
-                            else:
-                                break
-
-                    SystemManager.printInfo(\
-                        "%s [%s] is transfered successfully\n" % \
-                        (targetPath, \
-                        SystemManager.convertSize(os.path.getsize(targetPath))))
-                except:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        'Fail to save %s from server to %s because %s' % \
-                        (origPath, targetPath, \
-                        ' '.join(list(map(str, err.args)))))
-
-                receiver.close()
+                doDownload(req, addr)
 
             elif req.upper().startswith('UPLOAD'):
-                path = req.split('|', 1)[1]
-                path = path.split(',')
-                origPath = path[0].strip()
-                targetPath = path[1].strip()
+                doUpload(req, addr)
 
-                addr = addr.split(':')
-                targetIp = addr[0]
-                targetPort = int(addr[1])
-
-                if os.path.isfile(origPath) is False:
-                    SystemManager.printError(\
-                        'Failed to find %s to transfer' % origPath)
-                    return
-
-                # create tcp socket object #
-                sender = NetworkManager(\
-                    'client', self.ip, 0, blocking=True, tcp=True)
-
-                # get connection #
-                try:
-                    sender.timeout()
-                    sender.connect((targetIp, targetPort))
-                except:
-                    SystemManager.printWarning((\
-                        'Failed to connect to client '
-                        'because of no response'), True)
-
-                # transfer file #
-                try:
-                    with open(origPath,'rb') as fd:
-                        buf = fd.read(1024)
-                        while (buf):
-                           sender.send(buf)
-                           buf = fd.read(1024)
-
-                    SystemManager.printInfo(\
-                        "%s is transfered to %s successfully" % \
-                        (origPath, ':'.join(list(map(str, addr)))))
-                except:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        "Fail to transfer %s to %s because %s" % \
-                        (origPath, ':'.join(list(map(str, addr))), \
-                        ' '.join(list(map(str, err.args)))))
-
-                sender.close()
+            elif req.upper().startswith('RUN'):
+                doRun(req, addr)
 
             elif req.startswith('ERROR'):
                 SystemManager.printError(req.split('|', 1)[1])
-                return
 
             else:
                 SystemManager.printError(\
                     'Fail to recognize %s request' % req)
-                return
+
+            return
 
         elif req == None:
             SystemManager.printError(\
@@ -1046,7 +1096,7 @@ class NetworkManager(object):
 
 
 
-    def send(self, message):
+    def send(self, message, write=False):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for client because it is not set")
@@ -1061,7 +1111,7 @@ class NetworkManager(object):
             message = message.encode()
 
         try:
-            if SystemManager.localServObj is not None:
+            if write is False and SystemManager.localServObj is not None:
                 SystemManager.localServObj.socket.sendto(\
                     message, (self.ip, self.port))
             else:
@@ -2683,7 +2733,10 @@ class FunctionAnalyzer(object):
 
     def getSymbolInfo(self, binPath, offsetList):
         try:
-            import subprocess
+            if SystemManager.subprocessObject == None:
+                import subprocess
+                SystemManager.subprocessObject = subprocess
+            subprocess = SystemManager.subprocessObject
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError(\
@@ -7253,6 +7306,7 @@ class SystemManager(object):
     mountPath = None
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
+    pythonPath = sys.executable
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
     addr2linePath = None
@@ -7293,6 +7347,7 @@ class SystemManager(object):
     addrListForReport = {}
     jsonObject = None
     selectObject = None
+    subprocessObject = None
 
     tgidEnable = True
     binEnable = False
@@ -9816,7 +9871,10 @@ class SystemManager(object):
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
         try:
-            import subprocess
+            if SystemManager.subprocessObject == None:
+                import subprocess
+                SystemManager.subprocessObject = subprocess
+            subprocess = SystemManager.subprocessObject
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printError(\
@@ -13622,6 +13680,192 @@ class SystemManager(object):
             message = 'ERROR|%s:%s:%s' % (message, ip, port)
             netObj.sendto(message, ip, port)
 
+        def doDownload(netObj, connMan, ip, port, value):
+            try:
+                src, des = value.split(',')
+            except:
+                SystemManager.printWarning(\
+                    'Failed to recognize paths', True)
+                sendErrMsg(netObj, ip, port, \
+                    "wrong format of paths, use {src, des} in format")
+                return
+
+            targetPath = src.strip()
+            if os.path.isfile(targetPath) is False:
+                SystemManager.printWarning(\
+                    'Failed to find %s to transfer' % targetPath, True)
+                sendErrMsg(netObj, ip, port, \
+                    "wrong path %s" % targetPath)
+                return
+
+            remotePath = des.strip()
+
+            # send tcp server info #
+            message = 'DOWNLOAD|%s:%s:%s' % \
+                (value, connMan.ip, connMan.port)
+            netObj.sendto(message, ip, port)
+
+            # get connection #
+            try:
+                connMan.listen()
+                sender, addr = connMan.accept()
+            except:
+                SystemManager.printWarning(\
+                    'Failed to connect to client because of no response', True)
+                return
+
+            # transfer file #
+            try:
+                with open(targetPath,'rb') as fd:
+                    buf = fd.read(1024)
+                    while (buf):
+                       sender.send(buf)
+                       buf = fd.read(1024)
+
+                SystemManager.printInfo(\
+                    "%s [%s] is uploaded to %s:%s successfully" % \
+                    (targetPath, \
+                    SystemManager.convertSize(os.path.getsize(targetPath)), \
+                    ':'.join(list(map(str, addr))), remotePath))
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to upload %s to %s:%s because %s" % \
+                    (targetPath, ':'.join(list(map(str, addr))), \
+                    ' '.join(list(map(str, err.args))), remotePath))
+
+            sender.close()
+
+        def doUpload(netObj, connMan, ip, port, value):
+            try:
+                src, des = value.split(',')
+            except:
+                SystemManager.printWarning(\
+                    'Failed to recognize paths', True)
+                sendErrMsg(netObj, ip, port, \
+                    "wrong format of paths, use {src, des} in format")
+                return
+
+            # send tcp server info #
+            message = 'UPLOAD|%s:%s:%s' % \
+                (value, connMan.ip, connMan.port)
+            netObj.sendto(message, ip, port)
+
+            # get connection #
+            try:
+                connMan.listen()
+                receiver, addr = connMan.accept()
+            except:
+                SystemManager.printWarning(\
+                    'Failed to connect to client because of no response', True)
+                return
+
+            # save file #
+            try:
+                origPath = src.strip()
+                targetPath = des.strip()
+                with open(targetPath, 'wb') as fd:
+                    while 1:
+                        SystemManager.selectObject.select(\
+                            [receiver], [], [], 3)
+
+                        buf = receiver.recv(1024)
+                        if buf:
+                            fd.write(buf)
+                        else:
+                            break
+
+                SystemManager.printInfo(\
+                    "%s [%s] is downloaded from %s:%s successfully" % \
+                    (targetPath, \
+                    SystemManager.convertSize(os.path.getsize(targetPath)), \
+                    ':'.join(list(map(str, addr))), origPath))
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    'Fail to download %s from %s:%s because %s' % \
+                    (origPath, \
+                    ':'.join(list(map(str, addr))), targetPath, \
+                    ' '.join(list(map(str, err.args)))))
+
+            receiver.close()
+
+        def doRun(netObj, connMan, ip, port, value):
+            # send tcp server info #
+            message = 'RUN|%s:%s:%s' % \
+                (value, connMan.ip, connMan.port)
+            netObj.sendto(message, ip, port)
+
+            # get connection #
+            try:
+                connMan.listen()
+                sock, addr = connMan.accept()
+            except:
+                SystemManager.printWarning(\
+                    'Failed to connect to client because of no response', True)
+                return
+
+            try:
+                if SystemManager.subprocessObject == None:
+                    import subprocess
+                    SystemManager.subprocessObject = subprocess
+                subprocess = SystemManager.subprocessObject
+            except ImportError:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to import python package: %s" % err.args[0])
+                sys.exit(0)
+
+            # run command #
+            try:
+                # create socket for stream #
+                pipeObj = NetworkManager(\
+                    'client', addr[0], addr[1], blocking=True, tcp=True)
+                pipeObj.socket.close()
+                pipeObj.socket = sock
+
+                # copy environment variables #
+                myEnv = os.environ.copy()
+                myEnv["REMOTERUN"] = "True"
+
+                # create process to communicate #
+                procObj = subprocess.Popen(\
+                    value, shell=True, stdout=subprocess.PIPE, \
+                    stderr=subprocess.PIPE, env=myEnv)
+
+                SystemManager.printInfo(\
+                    "'%s' command is executed for %s" % \
+                    (value, ':'.join(list(map(str, addr)))))
+
+                # run mainloop #
+                while 1:
+                    # read from process #
+                    try:
+                        output = procObj.stdout.read()
+                        if output:
+                            pipeObj.write(output)
+                    except:
+                        break
+
+                    # check process status #
+                    if procObj.poll() == None:
+                        time.sleep(0.1)
+                    else:
+                        break
+
+                SystemManager.printInfo(\
+                    "'%s' command is terminated for %s" % \
+                    (value, ':'.join(list(map(str, addr)))))
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to execute '%s' from %s because %s" % \
+                    (value, ':'.join(list(map(str, addr))), \
+                    ' '.join(list(map(str, err.args)))))
+
+            sock.close()
+
+
         def handleRequest(netObj, connMan, req):
             # unmarshalling #
             if type(req) is tuple:
@@ -13639,11 +13883,11 @@ class SystemManager(object):
                     return
 
                 SystemManager.printInfo(\
-                    "received request %s from %s:%s" % \
+                    "received request '%s' from %s:%s" % \
                     (message, ip, port))
             else:
                 SystemManager.printError(\
-                    "received wrong request %s" % ret)
+                    "received wrong request '%s'" % ret)
 
             # get request and value #
             try:
@@ -13657,115 +13901,25 @@ class SystemManager(object):
                     'Fail to recognize request', True)
 
             elif request.upper() == 'DOWNLOAD':
-                try:
-                    src, des = value.split(',')
-                except:
-                    SystemManager.printWarning(\
-                        'Failed to recognize paths', True)
-                    sendErrMsg(netObj, ip, port, \
-                        "wrong format of paths, use {src, des} in format")
-                    return
-
-                targetPath = src.strip()
-                if os.path.isfile(targetPath) is False:
-                    SystemManager.printWarning(\
-                        'Failed to find %s to transfer' % targetPath, True)
-                    sendErrMsg(netObj, ip, port, \
-                        "wrong path %s" % targetPath)
-                    return
-
-                # send tcp server info #
-                message = '%s|%s:%s:%s' % \
-                    (request, value, connMan.ip, connMan.port)
-                netObj.sendto(message, ip, port)
-
-                # get connection #
-                try:
-                    connMan.listen()
-                    sender, addr = connMan.accept()
-                except:
-                    SystemManager.printWarning(\
-                        'Failed to connect to client because of no response', True)
-                    return
-
-                # transfer file #
-                try:
-                    with open(targetPath,'rb') as fd:
-                        buf = fd.read(1024)
-                        while (buf):
-                           sender.send(buf)
-                           buf = fd.read(1024)
-
-                    SystemManager.printInfo(\
-                        "%s [%s] is transfered to %s successfully" % \
-                        (targetPath, \
-                        SystemManager.convertSize(os.path.getsize(targetPath)), \
-                        ':'.join(list(map(str, addr)))))
-                except:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        "Fail to transfer %s to %s because %s" % \
-                        (targetPath, ':'.join(list(map(str, addr))), \
-                        ' '.join(list(map(str, err.args)))))
-
-                sender.close()
+                doDownload(netObj, connMan, ip, port, value)
 
             elif request.upper() == 'UPLOAD':
-                try:
-                    src, des = value.split(',')
-                except:
-                    SystemManager.printWarning(\
-                        'Failed to recognize paths', True)
-                    sendErrMsg(netObj, ip, port, \
-                        "wrong format of paths, use {src, des} in format")
-                    return
+                doUpload(netObj, connMan, ip, port, value)
 
-                # send tcp server info #
-                message = '%s|%s:%s:%s' % \
-                    (request, value, connMan.ip, connMan.port)
-                netObj.sendto(message, ip, port)
-
-                # get connection #
-                try:
-                    connMan.listen()
-                    receiver, addr = connMan.accept()
-                except:
-                    SystemManager.printWarning(\
-                        'Failed to connect to client because of no response', True)
-                    return
-
-                # save file #
-                try:
-                    origPath = src.strip()
-                    targetPath = des.strip()
-                    with open(targetPath, 'wb') as fd:
-                        while 1:
-                            SystemManager.selectObject.select(\
-                                [receiver], [], [], 3)
-
-                            buf = receiver.recv(1024)
-                            if buf:
-                                fd.write(buf)
-                            else:
-                                break
-
-                    SystemManager.printInfo(\
-                        "%s is transfered successfully\n" % targetPath)
-                except:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        'Fail to save %s from server to %s because %s' % \
-                        (origPath, targetPath, \
-                        ' '.join(list(map(str, err.args)))))
-
-                receiver.close()
+            elif request.upper() == 'RUN':
+                doRun(netObj, connMan, ip, port, value)
 
             else:
                 SystemManager.printWarning(\
-                    'Fail to recognize request %s' % message, True)
+                    "Fail to recognize request '%s'" % message, True)
                 sendErrMsg(netObj, ip, port, \
                     "No support request %s" % message)
                 return
+
+
+
+        # start server mode #
+        SystemManager.printInfo("SERVER MODE")
 
         # import select package #
         try:
@@ -13776,6 +13930,7 @@ class SystemManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 "Fail to import python package: %s" % err.args[0])
+            sys.exit(0)
 
         # get address value #
         if SystemManager.findOption('u'):
@@ -13805,13 +13960,15 @@ class SystemManager(object):
         connMan = NetworkManager('server', ip, 0, tcp=True)
         connMan.timeout()
 
+        # run mainloop #
         while 1:
-            # get request from clients #
+            # receive request from client #
             req = SystemManager.localServObj.recvfrom()
 
             if req is None:
                 sys.exit(0)
 
+            # handle request from client #
             handleRequest(SystemManager.localServObj, connMan, req)
 
         sys.exit(0)
@@ -13825,6 +13982,7 @@ class SystemManager(object):
                 '\n[Client Mode Commands]\n'
                 '- DOWNLOAD:RemotePath:LocalPath\n'
                 '- UPLOAD:LocalPath:RemotePath\n'
+                '- RUN:Command\n'
                 '\n'
             )
 
@@ -13837,18 +13995,25 @@ class SystemManager(object):
 
         def printError():
             SystemManager.printError(\
-                "no running server or wrong option value with -x, "
+                "no running server or wrong option value with -X, "
                 "Input {address:port} in format")
 
-        # get server address value #
-        addr = SystemManager.getOption('x')
 
+
+        # start clinent mode #
+        SystemManager.printInfo("CLIENT MODE")
+
+        # get server address value #
+        addr = SystemManager.getOption('X')
+
+        # search address of local guider process #
         if addr is None or addr is False:
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 1:
                 objs = SystemManager.getProcSocketObjs(pids[0])
                 addrs = SystemManager.getSocketAddrList(objs)
                 addr = addrs[0]
+                addr = addr[addr.find(':')+1:]
             elif len(pids) > 1:
                 SystemManager.printError(\
                     "Found multiple running guider processes")
@@ -13859,15 +14024,21 @@ class SystemManager(object):
                 sys.exit(0)
 
         # parse server address value #
-        if addr is not None and addr is not False:
-            ret = SystemManager.parseAddr(addr.split(':', 1)[1])
+        saddr = addr.split(':')
 
-            (service, ip, port) = ret
-
-            if service == ip == port == None:
-                printError()
-                sys.exit(0)
+        if len(saddr) == 1:
+            defaultPort = 5555
+            saddr = '%s:%s' % (addr, defaultPort)
+        elif len(saddr) == 2:
+            saddr = addr
         else:
+            printError()
+
+        ret = SystemManager.parseAddr(saddr)
+
+        (service, ip, port) = ret
+
+        if service == ip == port == None:
             printError()
             sys.exit(0)
 
@@ -13885,11 +14056,15 @@ class SystemManager(object):
         SystemManager.printStatus(\
             "client running as process %s" % SystemManager.pid)
 
+        # run mainloop #
         while 1:
+            # send request to server #
             networkObject.send(getUserInput())
 
+            # receive reply from server #
             reply = networkObject.recvfrom()
 
+            # handle reply from server #
             networkObject.handleServerRequest(reply)
 
         sys.exit(0)
@@ -30738,7 +30913,8 @@ if __name__ == '__main__':
 
     # set extended ascii suppport #
     try:
-        if 'tty' in os.ttyname(sys.stdout.fileno()):
+        if "REMOTERUN" in os.environ or \
+            'tty' in os.ttyname(sys.stdout.fileno()):
             SystemManager.supportExtAscii = False
     except:
         pass
