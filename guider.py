@@ -13845,7 +13845,7 @@ class SystemManager(object):
                 while 1:
                     # read from process #
                     try:
-                        output = procObj.stdout.readline()[:-1]
+                        output = b''.join(procObj.stdout.readlines())
                         if output:
                             ret = pipeObj.write(output)
                             if ret is False:
@@ -13870,7 +13870,7 @@ class SystemManager(object):
                     ' '.join(list(map(str, err.args)))))
             finally:
                 if procObj != None and procObj.poll() == None:
-                    procObj.terminate()
+                    procObj.kill()
                     procObj.wait()
 
         def handleRequest(netObj, connMan, req):
@@ -14065,8 +14065,12 @@ class SystemManager(object):
 
         # run mainloop #
         while 1:
+            uinput = getUserInput()
+            if len(uinput) == 0:
+                continue
+
             # send request to server #
-            networkObject.send(getUserInput())
+            networkObject.send(uinput)
 
             # receive reply from server #
             reply = networkObject.recvfrom()
