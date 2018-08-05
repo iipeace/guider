@@ -23,7 +23,7 @@ You can analyze your performance issues effectively with this tool.
 Guider pursues characteristics as bellow.
 >1. Easy to use: just run without any setting and package installation
 >2. Measure correctly: count, time in from us, size in from byte
->3. Provides all features: enough functions for experiment and analysis
+>3. Provide all features: enough functions for experiment and analysis
 >4. Report in detail: show as much information as possible
 
 The features of Guider are as follows.
