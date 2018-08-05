@@ -13845,7 +13845,7 @@ class SystemManager(object):
                 while 1:
                     # read from process #
                     try:
-                        output = procObj.stdout.read(128)
+                        output = procObj.stdout.readline()[:-1]
                         if output:
                             ret = pipeObj.write(output)
                             if ret is False:
@@ -13855,7 +13855,7 @@ class SystemManager(object):
 
                     # check process status #
                     if procObj.poll() == None:
-                        time.sleep(0.1)
+                        pass
                     else:
                         break
 

@@ -4,7 +4,7 @@
 [![license](http://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/iipeace/guider/master/LICENSE)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-intro
+Intro
 =======
 <pre><code>
                 _      _
@@ -27,11 +27,11 @@ Guider pursues characteristics as bellow.
 >4. Report in detail: show as much information as possible
 
 It usually supports all platforms based on the Linux kernel as shown below.
-- webOS
 - Android
+- distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
+- webOS
 - ccOS
 - Tizen
-- distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
 - Windows (only for drawing, reporting, networking)
 
 The features of Guider are as follows.
