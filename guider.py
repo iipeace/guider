@@ -859,12 +859,12 @@ class NetworkManager(object):
 
 
     def write(self, message):
-        self.send(message, write=True)
+        return self.send(message, write=True)
 
 
 
     def close(self):
-        self.socket.close()
+        return self.socket.close()
 
 
 
@@ -900,7 +900,7 @@ class NetworkManager(object):
                     'because of no response'), True)
                 return
 
-        def doDownload(req, addr):
+        def onDownload(req, addr):
             # parse path #
             path = req.split('|', 1)[1]
             path = path.split(',')
@@ -949,7 +949,7 @@ class NetworkManager(object):
 
             receiver.close()
 
-        def doUpload(req, addr):
+        def onUpload(req, addr):
             # parse path #
             path = req.split('|', 1)[1]
             path = path.split(',')
@@ -994,7 +994,7 @@ class NetworkManager(object):
 
             sender.close()
 
-        def doRun(req, addr):
+        def onRun(req, addr):
             # parse command #
             command = req.split('|', 1)[1]
 
@@ -1067,13 +1067,13 @@ class NetworkManager(object):
                     'Fail to recognize request')
 
             elif req.upper().startswith('DOWNLOAD'):
-                doDownload(req, addr)
+                onDownload(req, addr)
 
             elif req.upper().startswith('UPLOAD'):
-                doUpload(req, addr)
+                onUpload(req, addr)
 
             elif req.upper().startswith('RUN'):
-                doRun(req, addr)
+                onRun(req, addr)
 
             elif req.startswith('ERROR'):
                 SystemManager.printError(req.split('|', 1)[1])
@@ -1343,7 +1343,10 @@ class NetworkManager(object):
 
 
     def __del__(self):
-        pass
+        try:
+            self.socket.close()
+        except:
+            pass
 
 
 
@@ -13680,7 +13683,7 @@ class SystemManager(object):
             message = 'ERROR|%s:%s:%s' % (message, ip, port)
             netObj.sendto(message, ip, port)
 
-        def doDownload(netObj, connMan, ip, port, value):
+        def onDownload(netObj, connMan, ip, port, value):
             try:
                 src, des = value.split(',')
             except:
@@ -13736,7 +13739,7 @@ class SystemManager(object):
 
             sender.close()
 
-        def doUpload(netObj, connMan, ip, port, value):
+        def onUpload(netObj, connMan, ip, port, value):
             try:
                 src, des = value.split(',')
             except:
@@ -13790,7 +13793,7 @@ class SystemManager(object):
 
             receiver.close()
 
-        def doRun(netObj, connMan, ip, port, value):
+        def onRun(netObj, connMan, ip, port, value):
             # send tcp server info #
             message = 'RUN|%s:%s:%s' % \
                 (value, connMan.ip, connMan.port)
@@ -13829,6 +13832,7 @@ class SystemManager(object):
                 myEnv["REMOTERUN"] = "True"
 
                 # create process to communicate #
+                procObj = None
                 procObj = subprocess.Popen(\
                     value, shell=True, stdout=subprocess.PIPE, \
                     stderr=subprocess.PIPE, env=myEnv)
@@ -13841,9 +13845,11 @@ class SystemManager(object):
                 while 1:
                     # read from process #
                     try:
-                        output = procObj.stdout.read()
+                        output = procObj.stdout.read(128)
                         if output:
-                            pipeObj.write(output)
+                            ret = pipeObj.write(output)
+                            if ret is False:
+                                break
                     except:
                         break
 
@@ -13862,9 +13868,10 @@ class SystemManager(object):
                     "Fail to execute '%s' from %s because %s" % \
                     (value, ':'.join(list(map(str, addr))), \
                     ' '.join(list(map(str, err.args)))))
-
-            sock.close()
-
+            finally:
+                if procObj != None and procObj.poll() == None:
+                    procObj.terminate()
+                    procObj.wait()
 
         def handleRequest(netObj, connMan, req):
             # unmarshalling #
@@ -13901,13 +13908,13 @@ class SystemManager(object):
                     'Fail to recognize request', True)
 
             elif request.upper() == 'DOWNLOAD':
-                doDownload(netObj, connMan, ip, port, value)
+                onDownload(netObj, connMan, ip, port, value)
 
             elif request.upper() == 'UPLOAD':
-                doUpload(netObj, connMan, ip, port, value)
+                onUpload(netObj, connMan, ip, port, value)
 
             elif request.upper() == 'RUN':
-                doRun(netObj, connMan, ip, port, value)
+                onRun(netObj, connMan, ip, port, value)
 
             else:
                 SystemManager.printWarning(\
