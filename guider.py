@@ -858,6 +858,11 @@ class NetworkManager(object):
 
 
 
+    def bind(self, ip, port):
+        return self.socket.bind((ip, port))
+
+
+
     def write(self, message):
         return self.send(message, write=True)
 
@@ -14091,6 +14096,46 @@ class SystemManager(object):
         # set address #
         SystemManager.printStatus(\
             "client running as process %s" % SystemManager.pid)
+
+        # get local address value #
+        caddr = SystemManager.getOption('x')
+
+        try:
+            if caddr is None or caddr is False:
+                ip = NetworkManager.getPublicIp()
+                port = 0
+
+                networkObject.bind(ip, port)
+
+                ip, port = networkObject.socket.getsockname()
+            else:
+                # parse server address value #
+                caddr = caddr.split(':')
+
+                if len(caddr) == 1:
+                    ip = caddr[0]
+                    port = 0
+
+                    networkObject.bind(ip, port)
+
+                    ip, port = networkObject.socket.getsockname()
+                elif len(caddr) == 2:
+                    ip, port = caddr
+                    port = int(port)
+
+                    networkObject.bind(ip, port)
+
+                    ip, port = networkObject.socket.getsockname()
+                else:
+                    raise Exception()
+        except:
+            SystemManager.printError(\
+                "wrong option value with -x, "
+                "Input {address:port} in format")
+            sys.exit(0)
+
+        SystemManager.printInfo(\
+            "use %s:%s as local address" % (ip, port))
 
         # run mainloop #
         while 1:
