@@ -4229,10 +4229,11 @@ class FunctionAnalyzer(object):
 
             # no user stack tracing supported #
             elif string.find('??') > -1:
-                if SystemManager.userEnable:
-                    SystemManager.userEnable = False
-                    SystemManager.printWarning(\
-                        "enable CONFIG_USER_STACKTRACE_SUPPORT option in target kernel", True)
+                if SystemManager.userEnable and SystemManager.userEnableWarn:
+                    SystemManager.printWarning((\
+                        "enable CONFIG_USER_STACKTRACE_SUPPORT kernel option "
+                        "if it is not enabled"), True)
+                    SystemManager.userEnableWarn = True
                 return ('0', None, None)
 
             else:
@@ -4343,6 +4344,12 @@ class FunctionAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
+        # choose syscall / heap menu in table #
+        if self.sysEnabled:
+            cmenu = 'SYSC'
+        else:
+            cmenu = 'HEAP'
+
         # Print thread list #
         SystemManager.pipePrint(\
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ]" % \
@@ -4352,7 +4359,7 @@ class FunctionAnalyzer(object):
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
             "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
-            format("Thread", "CPU", "PAGE", "HEAP", "BLOCK", "LOCK", "CUSTOM"))
+            format("Thread", "CPU", "PAGE", cmenu, "BLOCK", "LOCK", "CUSTOM"))
         SystemManager.pipePrint(\
             (("{0:^16}|{1:^7}|{2:^7}|{3:^6}|{4:^6}|{5:^7}|"
             "{6:^9}{7:^8}{8:^8}{9:^12}|{10:^8}|{11:^7}|{12:^8}|"
@@ -4364,7 +4371,7 @@ class FunctionAnalyzer(object):
             "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
             "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
             format("Name", "Tid", "Pid", "PICK", "LIFE", \
-            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EXPAND", \
+            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EVENTS", \
             "READ", "WRITE", "TRY", "EVENTS"))
         SystemManager.pipePrint(twoLine)
 
@@ -4381,6 +4388,9 @@ class FunctionAnalyzer(object):
         elif SystemManager.sort == 'h':
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['heapSize'], reverse=True)
+        elif SystemManager.sort == 's':
+            sortedThreadData = sorted(self.threadData.items(), \
+                key=lambda e: e[1]['nrSyscall'], reverse=True)
         else:
             # set cpu usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
@@ -4440,6 +4450,13 @@ class FunctionAnalyzer(object):
             else:
                 cpuPer = '-'
 
+            if self.sysEnabled:
+                cval = '%d' % value['nrSyscall']
+            elif self.heapEnabled:
+                cval = '%dK' % (value['heapSize'] >> 10)
+            else:
+                cval = '-'
+
             if self.memEnabled:
                 allocMem = '%dK' % (value['nrPages'] * 4)
                 userMem = '%dK' % (value['userPages'] * 4)
@@ -4447,7 +4464,6 @@ class FunctionAnalyzer(object):
                 kernelMem = '%dK' % (value['kernelPages'] * 4)
                 knownFreeMem = '%dK' % (value['nrKnownFreePages'] * 4)
                 unknownFreeMem = '%dK' % (value['nrUnknownFreePages'] * 4)
-                heapMem = '%dK' % (value['heapSize'] >> 10)
             else:
                 allocMem = '-'
                 userMem = '-'
@@ -4455,7 +4471,6 @@ class FunctionAnalyzer(object):
                 kernelMem = '-'
                 knownFreeMem = '-'
                 unknownFreeMem = '-'
-                heapMem = '-'
 
             if self.breadEnabled:
                 readBlock = '%dK' % int(value['nrRdBlocks'] * 0.5)
@@ -4483,7 +4498,7 @@ class FunctionAnalyzer(object):
                 "{12:>8}|{13:>8}|{14:>9}|{15:>6}|{16:>8}|")).\
                 format(value['comm'], idx, value['tgid'], targetMark, life, \
                 cpuPer, allocMem, userMem, cacheMem,  kernelMem, \
-                knownFreeMem, unknownFreeMem, heapMem, \
+                knownFreeMem, unknownFreeMem, cval, \
                 readBlock, writeBlock, nrLock, nrCustom))
 
         if targetCnt == 0:
@@ -4551,7 +4566,7 @@ class FunctionAnalyzer(object):
         if self.sort == 'sym':
             for sym in subStack:
                 if sym is None or sym == '0':
-                    symbolSet = ' <- None'
+                    symbolSet = ''
                 elif self.userSymData[sym]['origBin'] == '??':
                     symbolSet = ' <- %s' % sym
                 else:
@@ -4582,7 +4597,10 @@ class FunctionAnalyzer(object):
                         (symbolStack, self.posData[pos]['symbol'], \
                         self.posData[pos]['origBin'])
 
-        return symbolStack
+        if len(symbolStack) == 0:
+            return '\tNone'
+        else:
+            return symbolStack
 
 
 
@@ -4596,9 +4614,6 @@ class FunctionAnalyzer(object):
 
         # Make syscall event list #
         sysList = ConfigManager.sysList
-        syscallList = \
-            [sysList[syscall][4:] for syscall in self.syscallTable.keys()]
-        syscallList = ', '.join(list(syscallList))
 
         # Print custom event in user space #
         if SystemManager.userEnable:
@@ -4661,8 +4676,7 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.sysCallData) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function %s History] [Cnt: %d]' % \
-                (syscallList, self.syscallCnt))
+                '[Function Syscall History] [Cnt: %d]' % self.syscallCnt)
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -4673,7 +4687,7 @@ class FunctionAnalyzer(object):
             # sort by time #
             for call in self.sysCallData:
                 event = ConfigManager.sysList[call[0]][4:]
-                args = call[1][1]
+                args = call[1][0]
                 time = call[1][1]
                 core = call[1][2]
                 tid = call[1][3]
@@ -5003,7 +5017,8 @@ class FunctionAnalyzer(object):
                     break
 
                 cpuPer = \
-                    round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
+                    round(float(value['tickCnt']) / \
+                    float(self.periodicEventCnt) * 100, 1)
                 if cpuPer < 1 and SystemManager.showAll is False:
                     break
 
@@ -7438,6 +7453,7 @@ class SystemManager(object):
     blockEnable = False
     lockEnable = False
     userEnable = True
+    userEnableWarn = False
     printEnable = True
     powerEnable = False
     pipeEnable = False
@@ -9337,7 +9353,7 @@ class SystemManager(object):
                             (attrPath, paranoid))
             except:
                 SystemManager.printWarning(\
-                    "enable CONFIG_PERF_EVENTS option in kernel")
+                    "enable CONFIG_PERF_EVENTS kernel option")
                 return
 
         hwTargetList = [
@@ -9558,7 +9574,7 @@ class SystemManager(object):
         elif os.path.isfile(\
             SystemManager.mountPath + '../kprobe_events') is False:
             SystemManager.printError(\
-                "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS option in kernel")
+                "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS kernel option")
             sys.exit(0)
 
         for cmd in SystemManager.kernelCmd:
@@ -9721,7 +9737,7 @@ class SystemManager(object):
         elif os.path.isfile(\
             SystemManager.mountPath + '../uprobe_events') is False:
             SystemManager.printError(\
-                "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT option in kernel")
+                "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT kernel option")
             sys.exit(0)
 
         for cmd in SystemManager.userCmd:
@@ -15428,7 +15444,7 @@ class SystemManager(object):
                 if SystemManager.writeCmd(\
                     '../current_tracer', 'function_graph') < 0:
                     SystemManager.printError(\
-                        "enable CONFIG_FUNCTION_GRAPH_TRACER option in kernel")
+                        "enable CONFIG_FUNCTION_GRAPH_TRACER kernel option")
                     sys.exit(0)
 
                 # apply filter #
@@ -18573,6 +18589,7 @@ class Debugger(object):
             if retval & 0x8000000000000000:
                 retval = retval - 0x10000000000000000
 
+            # convert error code #
             if retval < 0:
                 err = '(%s)' % ConfigManager.errList[abs(retval+1)]
             else:
@@ -22243,11 +22260,19 @@ class ThreadAnalyzer(object):
                         otype = value[4]
                         elapsed = value[5]
 
+                    # convert error code #
+                    ret = int(value[7])
+                    if ret < 0:
+                        try:
+                            ret = '%s' % ConfigManager.errList[abs(ret+1)]
+                        except:
+                            pass
+
                     SystemManager.pipePrint((\
                         "{0:>12} {1:>16}{2:>13} {3:>4} {4:<24} " + \
                         "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
                         format(time, comm, tid, core, value[3],\
-                        otype, elapsed, value[6], value[7], value[8]))
+                        otype, elapsed, value[6], ret, value[8]))
 
                     cnt += 1
                 except:
@@ -22456,6 +22481,7 @@ class ThreadAnalyzer(object):
                             elapsed = ' ' * 8
 
                     try:
+                        # convert error code #
                         nrRet = int(ret)
                         if nrRet < 0:
                             ret = ConfigManager.errList[abs(nrRet) - 1]
