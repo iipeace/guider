@@ -1018,11 +1018,11 @@ class NetworkManager(object):
                     SystemManager.selectObject.select(\
                     [conn.socket], [], [])
 
-                output = conn.recv(1024)
+                output = conn.recvfrom()[0]
                 if not output:
                     break
 
-                print(output.decode())
+                print(output.decode()[:-1])
 
 
 
@@ -7296,6 +7296,7 @@ class SystemManager(object):
     ttyCols = 156
     encoding = None
     supportExtAscii = True
+    remoteRun = False
     magicString = '@@@@@'
     procPath = '/proc'
     imagePath = None
@@ -11728,6 +11729,9 @@ class SystemManager(object):
             else:
                 sys.stdout.write(line)
 
+            if SystemManager.remoteRun:
+                sys.stdout.flush()
+
 
 
     @staticmethod
@@ -13752,8 +13756,8 @@ class SystemManager(object):
                     "Fail to upload %s to %s:%s because %s" % \
                     (targetPath, ':'.join(list(map(str, addr))), \
                     ' '.join(list(map(str, err.args))), remotePath))
-
-            sender.close()
+            finally:
+                sender.close()
 
         def onUpload(netObj, connMan, ip, port, value):
             try:
@@ -13806,8 +13810,8 @@ class SystemManager(object):
                     (origPath, \
                     ':'.join(list(map(str, addr))), targetPath, \
                     ' '.join(list(map(str, err.args)))))
-
-            receiver.close()
+            finally:
+                receiver.close()
 
         def onRun(netObj, connMan, ip, port, value):
             # send tcp server info #
@@ -13851,7 +13855,7 @@ class SystemManager(object):
                 procObj = None
                 procObj = subprocess.Popen(\
                     value, shell=True, stdout=subprocess.PIPE, \
-                    stderr=subprocess.PIPE, env=myEnv)
+                    stderr=subprocess.PIPE, env=myEnv, bufsize=-1)
 
                 SystemManager.printInfo(\
                     "'%s' command is executed for %s" % \
@@ -13861,11 +13865,14 @@ class SystemManager(object):
                 while 1:
                     # read from process #
                     try:
-                        output = b''.join(procObj.stdout.readlines())
+                        #output = b''.join(procObj.stdout.readlines())
+                        output = procObj.stdout.readline()
                         if output:
                             ret = pipeObj.write(output)
                             if ret is False:
                                 break
+                            else:
+                                continue
                     except:
                         break
 
@@ -13888,6 +13895,8 @@ class SystemManager(object):
                 if procObj != None and procObj.poll() == None:
                     procObj.kill()
                     procObj.wait()
+
+                pipeObj.close()
 
         def handleRequest(netObj, connMan, req):
             # unmarshalling #
@@ -14071,6 +14080,10 @@ class SystemManager(object):
             SystemManager.printError(\
                 "Fail to set network address")
             sys.exit(0)
+
+        SystemManager.printInfo(\
+            "use %s:%s as remote address" % \
+            (networkObject.ip, networkObject.port))
 
         # set timeout #
         networkObject.timeout()
@@ -30950,8 +30963,11 @@ if __name__ == '__main__':
 
     # set extended ascii suppport #
     try:
-        if "REMOTERUN" in os.environ or \
-            'tty' in os.ttyname(sys.stdout.fileno()):
+        if "REMOTERUN" in os.environ:
+            SystemManager.supportExtAscii = False
+            SystemManager.remoteRun = True
+
+        if 'tty' in os.ttyname(sys.stdout.fileno()):
             SystemManager.supportExtAscii = False
     except:
         pass
