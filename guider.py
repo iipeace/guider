@@ -1027,7 +1027,12 @@ class NetworkManager(object):
                 if not output:
                     break
 
-                print(output.decode()[:-1])
+                output = output.decode()
+                newLinePos = output.rfind('\n')
+                if newLinePos >= 0:
+                    print(output[:newLinePos])
+                else:
+                    print(output)
 
 
 
@@ -3073,11 +3078,18 @@ class FunctionAnalyzer(object):
                 self.nowCtx['kernelCallStack'] = []
                 self.nowCtx['userCallStack'] = []
 
-        # save both stacks #
-        self.saveFullStack(\
-            self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
-            self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
-            targetEvent, targetCnt, targetArg)
+        try:
+            # save both stacks #
+            self.saveFullStack(\
+                self.nowCtx['kernelLastPos'], self.nowCtx['kernelCallStack'], \
+                self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
+                targetEvent, targetCnt, targetArg)
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to save full stacks because %s" % \
+                (' '.join(list(map(str, err.args)))))
+            sys.exit(0)
 
 
 
@@ -3998,7 +4010,8 @@ class FunctionAnalyzer(object):
 
                     self.threadData[tid]['nrLockTry'] += 1
 
-                    self.saveEventParam('LOCK_TRY', 1, 0)
+                    self.saveEventParam(\
+                        'LOCK_TRY', 1, ['FLOCK', d['ino'], time, core, tid])
             else:
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -7446,6 +7459,7 @@ class SystemManager(object):
     leakEnable = False
     wssEnable = False
     heapEnable = False
+    floatEnable = False
     fileTopEnable = False
     ueventEnable = False
     keventEnable = False
@@ -8184,9 +8198,9 @@ class SystemManager(object):
             options.rfind('c') >= 0 or options.rfind('s') >= 0 or \
             options.rfind('S') >= 0 or options.rfind('u') >= 0 or \
             options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
-            options.rfind('f') >= 0 or options.rfind('R') >= 0 or \
+            options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
-            options.rfind('r') >= 0 :
+            options.rfind('r') >= 0 or options.rfind('R') >= 0:
             return True
         else:
             return False
@@ -8415,13 +8429,13 @@ class SystemManager(object):
                 pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
                 pipePrint('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
                 pipePrint('              [thread]   '\
-                    '{i(rq)|l(ock)|n(et)|p(ipe)|'\
+                                                 '{i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
                 pipePrint('              [top]      '\
-                    '{t(hread)|wf(C)|s(tack)|w(ss)|'\
+                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
-                    '\n                          a(ffinity)|W(chan)|h(andler)|'\
+                    '\n                          a(ffinity)|W(chan)|h(andler)|F(loat)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
@@ -8429,7 +8443,6 @@ class SystemManager(object):
                 pipePrint('              [function] {a(ll)|u(ser)}')
                 pipePrint('              [top]      {p(rint)|P(erf)|W(chan)|n(net)}')
                 pipePrint('        -s  [save_traceData - path]')
-                pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/n(ew)/r(untime)/f(ile)]')
                 pipePrint('        -u  [run_inBackground]')
                 pipePrint('        -W  [wait_forSignal]')
                 pipePrint('        -b  [set_bufferSize - kb]')
@@ -8447,6 +8460,8 @@ class SystemManager(object):
                 pipePrint('        -M  [set_objdumpPath - file]')
                 pipePrint('    [analysis]')
                 pipePrint('        -o  [save_outputData - path]')
+                pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/'\
+                    '\n                    n(ew)/r(untime)/f(ile)/s(yscall)]')
                 pipePrint('        -O  [set_coreFilter - cores]')
                 pipePrint('        -P  [group_perProcessBasis]')
                 pipePrint('        -p  [show_preemptInfo - tids]')
@@ -10370,6 +10385,11 @@ class SystemManager(object):
                 else:
                     disableStat += 'WCHAN '
 
+                if SystemManager.floatEnable:
+                    enableStat += 'FLOAT '
+                else:
+                    disableStat += 'FLOAT '
+
                 if SystemManager.sigHandlerEnable:
                     enableStat += 'SIGNAL '
                 else:
@@ -12029,7 +12049,7 @@ class SystemManager(object):
                 if SystemManager.findOption('g') is False:
                     SystemManager.printError((\
                         "wrong option with -P, "
-                        "use -g option to group threads as process"))
+                        "use -g option to group threads as a process"))
                     sys.exit(0)
 
                 SystemManager.groupProcEnable = True
@@ -12038,6 +12058,10 @@ class SystemManager(object):
                 if SystemManager.findOption('i'):
                     SystemManager.printError(\
                         "wrong option with -p, -i option is already enabled")
+                    sys.exit(0)
+                elif SystemManager.findOption('g'):
+                    SystemManager.printError(\
+                        "wrong option with -p, -g option is already enabled")
                     sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
@@ -12117,8 +12141,8 @@ class SystemManager(object):
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
                 if options.rfind('b') > -1:
+                    procPath = SystemManager.procPath
                     if SystemManager.isRoot() is False:
-                        procPath = SystemManager.procPath
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
@@ -12166,6 +12190,8 @@ class SystemManager(object):
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
                     SystemManager.fileTopEnable = True
+                if options.rfind('F') > -1:
+                    SystemManager.floatEnable = True
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
@@ -13860,7 +13886,8 @@ class SystemManager(object):
                 procObj = None
                 procObj = subprocess.Popen(\
                     value, shell=True, stdout=subprocess.PIPE, \
-                    stderr=subprocess.PIPE, env=myEnv, bufsize=-1)
+                    stderr=subprocess.PIPE, env=myEnv, bufsize=0, \
+                    preexec_fn=os.setsid)
 
                 SystemManager.printInfo(\
                     "'%s' command is executed for %s" % \
@@ -13870,7 +13897,6 @@ class SystemManager(object):
                 while 1:
                     # read from process #
                     try:
-                        #output = b''.join(procObj.stdout.readlines())
                         output = procObj.stdout.readline()
                         if output:
                             ret = pipeObj.write(output)
@@ -13897,11 +13923,11 @@ class SystemManager(object):
                     (value, ':'.join(list(map(str, addr))), \
                     ' '.join(list(map(str, err.args)))))
             finally:
-                if procObj != None and procObj.poll() == None:
-                    procObj.kill()
-                    procObj.wait()
-
-                pipeObj.close()
+                try:
+                    pipeObj.close()
+                    os.killpg(procObj.pid, signal.SIGKILL)
+                except:
+                    pass
 
         def handleRequest(netObj, connMan, req):
             # unmarshalling #
@@ -14139,18 +14165,21 @@ class SystemManager(object):
 
         # run mainloop #
         while 1:
-            uinput = getUserInput()
-            if len(uinput) == 0:
-                continue
+            try:
+                uinput = getUserInput()
+                if len(uinput) == 0:
+                    continue
 
-            # send request to server #
-            networkObject.send(uinput)
+                # send request to server #
+                networkObject.send(uinput)
 
-            # receive reply from server #
-            reply = networkObject.recvfrom()
+                # receive reply from server #
+                reply = networkObject.recvfrom()
 
-            # handle reply from server #
-            networkObject.handleServerRequest(reply)
+                # handle reply from server #
+                networkObject.handleServerRequest(reply)
+            except:
+                pass
 
         sys.exit(0)
 
@@ -19719,7 +19748,7 @@ class ThreadAnalyzer(object):
 
                     pid = d['pid']
                     pname = '%s(%s)' % (comm, pid)
-                    average = int(sline[1])
+                    average = float(sline[1])
                     intervalList = sline[2]
             elif slen == 2:
                 if intervalList is not None:
@@ -20231,7 +20260,7 @@ class ThreadAnalyzer(object):
             plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
             labelList.append('[ TOTAL CPU + IO ]')
             try:
-                avgUsage = int(sum(blkWait) / len(blkWait))
+                avgUsage = round(sum(blkWait) / len(blkWait), 1)
             except:
                 avgUsage = 0
             maxUsage = max(blkWait)
@@ -20240,14 +20269,15 @@ class ThreadAnalyzer(object):
                 if idx != 0 and blkWait[idx] == blkWait[idx-1]:
                     continue
                 text(timeline[idx], blkWait[maxIdx], \
-                        'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
+                        'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='pink', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                break
 
             plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
             labelList.append('[ TOTAL CPU Only ]')
             try:
-                avgUsage = int(sum(cpuUsage) / len(cpuUsage))
+                avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
             except:
                 avgUsage = 0
             maxUsage = max(cpuUsage)
@@ -20256,9 +20286,10 @@ class ThreadAnalyzer(object):
                 if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
                     continue
                 text(timeline[idx], cpuUsage[maxIdx], \
-                        'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
+                        'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='red', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                break
 
             # CPU usage of processes #
             for idx, item in sorted(\
@@ -20273,7 +20304,7 @@ class ThreadAnalyzer(object):
                 cpuUsage = list(usage)
 
                 try:
-                    avgUsage = int(sum(cpuUsage) / len(cpuUsage))
+                    avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
                 except:
                     avgUsage = 0
 
@@ -20619,11 +20650,7 @@ class ThreadAnalyzer(object):
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='blue', fontweight='bold')
                     if usage[-1] > 0:
-                        try:
-                            unit = timeline[-1]-timeline[-2]
-                        except:
-                            unit = 0
-                        text(timeline[-1]+unit, usage[-1], usage[-1],\
+                        text(timeline[-1], usage[-1], usage[-1],\
                                 fontsize=5, color='blue', fontweight='bold')
                     plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
                     if totalRAM is not None:
@@ -20647,11 +20674,7 @@ class ThreadAnalyzer(object):
                         text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
                                 fontsize=5, color='skyblue', fontweight='bold')
                     if usage[-1] > 0:
-                        try:
-                            unit = timeline[-1]-timeline[-2]
-                        except:
-                            unit = 0
-                        text(timeline[-1]+unit, usage[-1], usage[-1],\
+                        text(timeline[-1], usage[-1], usage[-1],\
                                 fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM User')
@@ -23859,8 +23882,8 @@ class ThreadAnalyzer(object):
 
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
-            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>[0-9]+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>[0-9]+)'
+            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
+            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>\S+)'
             r'\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if m is not None:
             d = m.groupdict()
@@ -23898,8 +23921,8 @@ class ThreadAnalyzer(object):
                     dict(ThreadAnalyzer.init_procTotData)
                 ThreadAnalyzer.procTotData[pid]['startIdx'] = index
 
-            cpu = int(d['cpu'])
-            blk = int(d['blk'])
+            cpu = int(float(d['cpu']))
+            blk = int(float(d['blk']))
             try:
                 blkrd = int(d['blkrd'])
                 blkwr = int(d['blkwr'])
@@ -23971,7 +23994,7 @@ class ThreadAnalyzer(object):
 
         if idx > 0:
             for pid, val in ThreadAnalyzer.procTotData.items():
-                val['cpu'] = int(val['cpu'] / idx)
+                val['cpu'] = round(val['cpu'] / idx, 1)
                 val['memDiff'] = val['lastMem'] - val['initMem']
 
 
@@ -29430,44 +29453,91 @@ class ThreadAnalyzer(object):
 
                 value['majflt'] = \
                     nowData[self.majfltIdx] - prevData[self.majfltIdx]
-                value['utime'] = \
-                    int((nowData[self.utimeIdx] - prevData[self.utimeIdx]) / interval)
-                if value['utime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+
+                utick = nowData[self.utimeIdx] - prevData[self.utimeIdx]
+                value['utime'] = int(utick / interval)
+                if value['utime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
-                value['stime'] = \
-                    int((nowData[self.stimeIdx] - prevData[self.stimeIdx]) / interval)
-                if value['stime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+
+                stick = nowData[self.stimeIdx] - prevData[self.stimeIdx]
+                value['stime'] = int(stick / interval)
+                if value['stime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
-                value['ttime'] = value['utime'] + value['stime']
-                if value['ttime'] > 100 and value['stat'][self.nrthreadIdx] == '1':
+
+                value['ttime'] = utick + stick
+                if SystemManager.floatEnable:
+                    value['ttime'] = round(value['ttime'] / interval, 1)
+                else:
+                    value['ttime'] = int(value['ttime'] / interval)
+                if value['ttime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
-                cutime = int((nowData[self.cutimeIdx] - prevData[self.cutimeIdx]) / interval)
-                cstime = int((nowData[self.cstimeIdx] - prevData[self.cstimeIdx]) / interval)
+                elif value['ttime'] == 0:
+                    value['ttime'] = 0
+
+                cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
+                if SystemManager.floatEnable:
+                    cutime = round(cutick / interval, 1)
+                else:
+                    cutime = int(cutick / interval)
+
+                cstick = nowData[self.cstimeIdx] - prevData[self.cstimeIdx]
+                if SystemManager.floatEnable:
+                    cstime = round(cstick / interval, 1)
+                else:
+                    cstime = int(cstick / interval)
+
                 value['cttime'] = cutime + cstime
-                value['btime'] = long((nowData[self.btimeIdx] - prevData[self.btimeIdx]) / interval)
+
+                btick = nowData[self.btimeIdx] - prevData[self.btimeIdx]
+                if SystemManager.floatEnable:
+                    value['btime'] = round(btick / interval, 1)
+                    if value['btime'] == 0:
+                        value['btime'] = 0
+                else:
+                    value['btime'] = long(btick / interval)
+
                 if value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
             except:
                 value['new'] = True
+
                 value['runtime'] = \
-                    int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
+                    int(SystemManager.uptime - \
+                    (float(nowData[self.starttimeIdx]) / 100))
+
                 value['majflt'] = nowData[self.majfltIdx]
-                value['utime'] = int(nowData[self.utimeIdx] / interval)
-                if value['utime'] > 100 and \
+
+                if SystemManager.floatEnable:
+                    value['utime'] = int(nowData[self.utimeIdx] / interval)
+                else:
+                    value['utime'] = round(nowData[self.utimeIdx] / interval, 1)
+                if value['utime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
-                value['stime'] = int(nowData[self.stimeIdx] / interval)
-                if value['stime'] > 100 and \
+
+                if SystemManager.floatEnable:
+                    value['stime'] = int(nowData[self.stimeIdx] / interval)
+                else:
+                    value['stime'] = round(nowData[self.stimeIdx] / interval, 1)
+                if value['stime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
+
                 value['ttime'] = value['utime'] + value['stime']
-                if value['ttime'] > 100 and \
+                if value['ttime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
-                cutime = int(nowData[self.cutimeIdx] / interval)
-                cstime = int(nowData[self.cstimeIdx] / interval)
+
+                if SystemManager.floatEnable:
+                    cutime = round(nowData[self.cutimeIdx] / interval, 1)
+                    cstime = round(nowData[self.cstimeIdx] / interval, 1)
+                else:
+                    cutime = int(nowData[self.cutimeIdx] / interval)
+                    cstime = int(nowData[self.cstimeIdx] / interval)
+
                 value['cttime'] = cutime + cstime
+
                 value['btime'] = long(nowData[self.btimeIdx] / interval)
                 if value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
