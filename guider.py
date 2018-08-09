@@ -1018,6 +1018,7 @@ class NetworkManager(object):
                 return
 
             # run mainloop #
+            buf = ''
             while 1:
                 [readSock, writeSock, errorSock] = \
                     SystemManager.selectObject.select(\
@@ -1028,11 +1029,12 @@ class NetworkManager(object):
                     break
 
                 output = output.decode()
-                newLinePos = output.rfind('\n')
-                if newLinePos >= 0:
-                    print(output[:newLinePos])
+                if output[-1] != '\n':
+                    buf = '%s%s' % (buf, output)
                 else:
-                    print(output)
+                    # concatenate split lines #
+                    print('%s%s' % (buf, output[:-1]))
+                    buf = ''
 
 
 
@@ -7855,6 +7857,10 @@ class SystemManager(object):
         # check mask type #
         try:
             mask = int(mask, 16)
+            if mask == 0:
+                SystemManager.printError(\
+                    'Fail to set mask to 0, use bit mask bigger than 0')
+                return
         except:
             SystemManager.printError('Fail to recognize mask type')
             return
@@ -12178,14 +12184,17 @@ class SystemManager(object):
                     SystemManager.affinityEnable = True
                     SystemManager.wchanEnable = False
                     SystemManager.sigHandlerEnable = False
+                    SystemManager.tgnameEnable = False
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
                     SystemManager.affinityEnable = False
                     SystemManager.sigHandlerEnable = False
+                    SystemManager.tgnameEnable = False
                 if options.rfind('h') > -1:
                     SystemManager.sigHandlerEnable = True
                     SystemManager.wchanEnable = False
                     SystemManager.affinityEnable = False
+                    SystemManager.tgnameEnable = False
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
@@ -13568,7 +13577,11 @@ class SystemManager(object):
                 try:
                     objs = SystemManager.getProcSocketObjs(pid)
                     addrs = SystemManager.getSocketAddrList(objs)
-                    network = '(%s)' % ','.join(addrs)
+                    netList = ','.join(addrs)
+                    if len(netList) > 0:
+                        network = '(%s)' % netList
+                    else:
+                        network = ''
                 except:
                     network = ''
 
@@ -13895,15 +13908,21 @@ class SystemManager(object):
 
                 # run mainloop #
                 while 1:
-                    # read from process #
                     try:
-                        output = procObj.stdout.readline()
-                        if output:
-                            ret = pipeObj.write(output)
-                            if ret is False:
-                                break
-                            else:
-                                continue
+                        # wait for event #
+                        [read, write, error] = \
+                            SystemManager.selectObject.select(\
+                                [procObj.stdout], [], [], 1)
+
+                        # read from process #
+                        if len(read) > 0:
+                            output = procObj.stdout.readline()
+                            if output:
+                                ret = pipeObj.write(output)
+                                if ret is False:
+                                    break
+                                else:
+                                    continue
                     except:
                         break
 
@@ -14043,8 +14062,8 @@ class SystemManager(object):
         def printMenu():
             sys.stdout.write(\
                 '\n[Client Mode Commands]\n'
-                '- DOWNLOAD:RemotePath:LocalPath\n'
-                '- UPLOAD:LocalPath:RemotePath\n'
+                '- DOWNLOAD:RemotePath,LocalPath\n'
+                '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
                 '\n'
             )
@@ -14176,8 +14195,13 @@ class SystemManager(object):
                 # receive reply from server #
                 reply = networkObject.recvfrom()
 
-                # handle reply from server #
-                networkObject.handleServerRequest(reply)
+                try:
+                    # handle reply from server #
+                    networkObject.handleServerRequest(reply)
+                except:
+                    pass
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -29509,17 +29533,17 @@ class ThreadAnalyzer(object):
                 value['majflt'] = nowData[self.majfltIdx]
 
                 if SystemManager.floatEnable:
-                    value['utime'] = int(nowData[self.utimeIdx] / interval)
-                else:
                     value['utime'] = round(nowData[self.utimeIdx] / interval, 1)
+                else:
+                    value['utime'] = int(nowData[self.utimeIdx] / interval)
                 if value['utime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
 
                 if SystemManager.floatEnable:
-                    value['stime'] = int(nowData[self.stimeIdx] / interval)
-                else:
                     value['stime'] = round(nowData[self.stimeIdx] / interval, 1)
+                else:
+                    value['stime'] = int(nowData[self.stimeIdx] / interval)
                 if value['stime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
@@ -29779,10 +29803,10 @@ class ThreadAnalyzer(object):
 
         if SystemManager.wchanEnable:
             etc = 'WaitChannel'
-        elif SystemManager.tgnameEnable:
-            etc = 'Group'
         elif SystemManager.affinityEnable:
             etc = 'Affinity'
+        elif SystemManager.tgnameEnable:
+            etc = 'Group'
         elif SystemManager.sigHandlerEnable:
             etc = 'SignalHandler'
         else:
@@ -30064,15 +30088,15 @@ class ThreadAnalyzer(object):
                     etc = value['wchan'][:21]
                 except:
                     etc = ''
+            elif SystemManager.affinityEnable:
+                try:
+                    etc = SystemManager.getAffinity(int(idx))
+                except:
+                    etc = ''
             elif SystemManager.tgnameEnable:
                 try:
                     pgid = self.procData[idx]['mainID']
                     etc = self.procData[pgid]['stat'][self.commIdx][1:-1]
-                except:
-                    etc = ''
-            elif SystemManager.affinityEnable:
-                try:
-                    etc = SystemManager.getAffinity(int(idx))
                 except:
                     etc = ''
             elif SystemManager.sigHandlerEnable or True:
@@ -31076,12 +31100,14 @@ if __name__ == '__main__':
     SystemManager.getMaxPid()
     SystemManager.pid = os.getpid()
 
-    # set extended ascii suppport #
+    # environment variables #
     try:
+        # set run type #
         if "REMOTERUN" in os.environ:
             SystemManager.supportExtAscii = False
             SystemManager.remoteRun = True
 
+        # set encode type #
         if 'tty' in os.ttyname(sys.stdout.fileno()):
             SystemManager.supportExtAscii = False
     except:
