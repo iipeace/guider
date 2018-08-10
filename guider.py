@@ -3099,7 +3099,8 @@ class FunctionAnalyzer(object):
         nowCtx = self.nowCtx
 
         # stack of kernel thread #
-        if nowCtx['prevMode'] != nowCtx['curMode'] == 'kernel':
+        if SystemManager.userRecordEnable is False or \
+            nowCtx['prevMode'] != nowCtx['curMode'] == 'kernel':
             if len(nowCtx['userCallStack']) == 0 and \
                 len(nowCtx['kernelCallStack']) > 0:
                     # Set userLastPos to None #
@@ -3528,18 +3529,21 @@ class FunctionAnalyzer(object):
         # check fixed event list #
         if len(self.customEventTable) > 0 and \
             (func[:-1] in self.customEventTable or \
-            True in [True for event in self.customEventTable if event.find('/') == -1]):
+            len([event for event in self.customEventTable \
+                if event.endswith(func[:-1])]) > 0):
             isFixedEvent = False
         else:
             isFixedEvent = True
 
         # cpu tick event #
         # toDo: find shorter periodic event for sampling #
-        if isFixedEvent and \
-            func == "hrtimer_start:" and args.rfind('tick_sched_timer') > -1:
-            self.cpuEnabled = True
+        if isFixedEvent and func == "hrtimer_start:":
+            if args.rfind('tick_sched_timer') > -1:
+                self.cpuEnabled = True
 
-            self.saveEventParam('CPU_TICK', 1, 0)
+                self.saveEventParam('CPU_TICK', 1, 0)
+            else:
+                self.saveEventParam('IGNORE', 0, func[:-1])
 
             return False
 
@@ -4045,12 +4049,13 @@ class FunctionAnalyzer(object):
         # custom event #
         elif isFixedEvent is False:
             try:
-                if True in \
-                    [True for event in self.customEventTable if event.find('/') == -1]:
+                if len([event for event in self.customEventTable \
+                    if event.endswith(func[:-1])]) == 0:
                     cond = self.customEventTable[func[:-1]] = None
                 else:
                     cond = self.customEventTable[func[:-1]]
 
+                # set event filter #
                 customCnt = self.getCustomEventValue(func, args, cond)
 
                 if customCnt > 0:
@@ -4366,9 +4371,11 @@ class FunctionAnalyzer(object):
 
         # choose syscall / heap menu in table #
         if self.sysEnabled:
-            cmenu = 'SYSC'
+            cmenu = 'SYSTEM'
+            cmenu2 = 'CALLS'
         else:
             cmenu = 'HEAP'
+            cmenu2 = 'EVENTS'
 
         # Print thread list #
         SystemManager.pipePrint(\
@@ -4391,7 +4398,7 @@ class FunctionAnalyzer(object):
             "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
             "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
             format("Name", "Tid", "Pid", "PICK", "LIFE", \
-            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", "EVENTS", \
+            "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", cmenu2, \
             "READ", "WRITE", "TRY", "EVENTS"))
         SystemManager.pipePrint(twoLine)
 
@@ -4550,6 +4557,9 @@ class FunctionAnalyzer(object):
         symbolStack = ''
         stackIdx = 0
         appliedIndentLen = indentLen
+
+        if len(subStack) == 0:
+            return ' None'
 
         try:
             for pos in subStack:
@@ -5097,14 +5107,13 @@ class FunctionAnalyzer(object):
 
         # Make exception list to remove a redundant part of stack #
         exceptList = {}
-        if SystemManager.showAll is False:
-            for pos, value in self.posData.items():
-                if value['symbol'] == '__irq_usr' or \
-                    value['symbol'] == '__irq_svc' or \
-                    value['symbol'] == 'gic_handle_irq' or \
-                    value['symbol'].find('hrtimer_') >= 0 or \
-                    value['symbol'] == 'apic_timer_interrupt':
-                    exceptList.setdefault(pos, dict())
+        for pos, value in self.posData.items():
+            if value['symbol'] == '__irq_usr' or \
+                value['symbol'] == '__irq_svc' or \
+                value['symbol'] == 'gic_handle_irq' or \
+                value['symbol'].find('hrtimer_') >= 0 or \
+                value['symbol'] == 'apic_timer_interrupt':
+                exceptList.setdefault(pos, dict())
 
         # Print cpu usage of stacks #
         for idx, value in sorted(\
@@ -5114,17 +5123,24 @@ class FunctionAnalyzer(object):
             if value['tickCnt'] == 0:
                 break
 
+            '''
+            disable to print last symbol because it is only one
+
             cpuPer = \
                 round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
             if cpuPer < 1 and SystemManager.showAll is False:
                 break
 
             SystemManager.pipePrint("{0:7}% |{1:^134}".format(cpuPer, idx))
+            '''
 
             # Sort stacks by usage #
             value['stack'].sort(reverse=True)
 
-            # Print stacks by symbol #
+            # Define merge list #
+            mergedSymbolChain = {}
+
+            # Merge by symbol chain #
             for stack in value['stack']:
                 cpuCnt = stack[cpuTickIndex]
                 subStack = list(stack[subStackIndex])
@@ -5132,31 +5148,43 @@ class FunctionAnalyzer(object):
                 if cpuCnt == 0:
                     break
                 else:
-                    cpuPer = \
-                        round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
-                    if cpuPer < 1 and SystemManager.showAll is False:
-                        break
-
                     # Remove a redundant part #
-                    for pos, val in exceptList.items():
+                    for pos in exceptList.keys():
                         try:
-                            del subStack[0:subStack.index(pos)+1]
+                            ridx = subStack.index(pos) + 1
+                            if ridx == len(subStack):
+                                subStack = []
+                            else:
+                                subStack = subStack[ridx:]
                         except:
-                            continue
+                            pass
 
                 if len(subStack) == 0:
-                    continue
+                    symbolStack = ' <- USER'
                 elif len(subStack) == 1 and SystemManager.showAll is False and \
                     (self.posData[subStack[0]]['symbol'] is None or \
                     self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
                     continue
                 else:
-                    indentLen = len("\t" * 4 * 4)
+                    indentLen = 10
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
+                try:
+                    mergedSymbolChain[symbolStack] += cpuCnt
+                except:
+                    mergedSymbolChain[symbolStack] = cpuCnt
+
+            # Print stacks by symbol #
+            for chain, tick in sorted(\
+                mergedSymbolChain.items(), key=lambda e:e[1], reverse=True):
+                cpuPer = \
+                    round(tick / float(value['tickCnt']) * 100, 1)
+                if cpuPer < 1 and SystemManager.showAll is False:
+                    break
+
                 SystemManager.pipePrint(\
-                    "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                    "{0:7}% |{1:32}".format(cpuPer, chain))
 
             SystemManager.pipePrint(oneLine)
 
@@ -7475,6 +7503,7 @@ class SystemManager(object):
     blockEnable = False
     lockEnable = False
     userEnable = True
+    userRecordEnable = True
     userEnableWarn = False
     printEnable = True
     powerEnable = False
@@ -8485,7 +8514,7 @@ class SystemManager(object):
                 pipePrint('        -R  [set_repeatCount - {interval:}count]')
                 pipePrint('        -g  [set_filter - comms|tids{:files}]')
                 pipePrint('        -A  [set_arch - arm|aarch64|x86|x64]')
-                pipePrint('        -c  [set_customEvent - event:filter]')
+                pipePrint('        -c  [set_customEvent - event:cond]')
                 pipePrint('        -E  [set_errorLogPath - file]')
                 pipePrint('        -H  [set_functionDepth]')
                 pipePrint('        -k  [set_killList - comms|tids{:CONT}]')
@@ -8571,6 +8600,8 @@ class SystemManager(object):
             pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
             pipePrint('    - analyze function data for only lower than 3 levels')
             pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
+            pipePrint('    - analyze function data of functions of all threads with specific argument condition')
+            pipePrint('        # %s record -f -o . -c softirq_entry:vec==1' % cmd)
             pipePrint('    - record segmentation fault event of all threads')
             pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
             pipePrint('    - record blocking event except for cpu usage of all threads')
@@ -11312,6 +11343,7 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
             if filterList.find('u') > -1:
                 SystemManager.userEnable = False
+                SystemManager.userRecordEnable = False
                 SystemManager.rootPath = '/'
             if filterList.find('a') > -1:
                 SystemManager.disableAll = True
@@ -15457,6 +15489,33 @@ class SystemManager(object):
 
 
     def runRecordStartCmd(self):
+        def writeCommonCmd():
+            # enable dynamic events #
+            SystemManager.writeCustomCmd()
+            SystemManager.writeKernelCmd()
+            SystemManager.writeUserCmd()
+
+            # enable flock events #
+            if self.cmdList["filelock/locks_get_lock_context"]:
+                SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
+
+            # enable common events #
+            if self.cmdList["task"]:
+                SystemManager.writeCmd('task/enable', '1')
+            if self.cmdList["sched/sched_process_fork"]:
+                SystemManager.writeCmd('sched/sched_process_fork/enable', '1')
+            if self.cmdList["sched/sched_process_exit"]:
+                SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
+            if self.cmdList["signal"]:
+                if SystemManager.filterGroup != []:
+                    commonFilter  = SystemManager.getPidFilter()
+                    genFilter = commonFilter.replace("common_", "")
+                    SystemManager.writeCmd(\
+                        'signal/signal_deliver/filter', commonFilter)
+                    SystemManager.writeCmd(\
+                        'signal/signal_generate/filter', genFilter)
+                SystemManager.writeCmd('signal/enable', '1')
+
         # run user command before recording #
         SystemManager.writeRecordCmd('BEFORE')
 
@@ -15516,32 +15575,6 @@ class SystemManager(object):
 
         # write start event #
         SystemManager.writeEvent("EVENT_START", False)
-
-        # enable dynamic events #
-        SystemManager.writeCustomCmd()
-        SystemManager.writeKernelCmd()
-        SystemManager.writeUserCmd()
-
-        # enable flock events #
-        if self.cmdList["filelock/locks_get_lock_context"]:
-            SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
-
-        # enable common events #
-        if self.cmdList["task"]:
-            SystemManager.writeCmd('task/enable', '1')
-        if self.cmdList["sched/sched_process_fork"]:
-            SystemManager.writeCmd('sched/sched_process_fork/enable', '1')
-        if self.cmdList["sched/sched_process_exit"]:
-            SystemManager.writeCmd('sched/sched_process_exit/enable', '1')
-        if self.cmdList["signal"]:
-            if SystemManager.filterGroup != []:
-                commonFilter  = SystemManager.getPidFilter()
-                genFilter = commonFilter.replace("common_", "")
-                SystemManager.writeCmd(\
-                    'signal/signal_deliver/filter', commonFilter)
-                SystemManager.writeCmd(\
-                    'signal/signal_generate/filter', genFilter)
-            SystemManager.writeCmd('signal/enable', '1')
 
         #-------------------- FUNCTION MODE --------------------#
         if SystemManager.isFunctionMode():
@@ -15706,6 +15739,9 @@ class SystemManager(object):
                 SystemManager.writeCmd(\
                     'writeback/writeback_dirty_page/enable', '0')
                 SystemManager.writeCmd('writeback/wbc_writepage/enable', '0')
+
+            # enable special events #
+            writeCommonCmd()
 
             return
 
@@ -15988,6 +16024,9 @@ class SystemManager(object):
         # enable printk events #
         if self.cmdList["printk"]:
             SystemManager.writeCmd('printk/enable', '1')
+
+        # enable special events #
+        writeCommonCmd()
 
         return
 
@@ -21266,7 +21305,8 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
 
             # print irq list #
-            irqList = [irq for irq in list(self.irqData.keys()) if irq.startswith('irq')]
+            irqList = [irq for irq in list(self.irqData.keys()) \
+                if irq.startswith('irq')]
             for key in sorted(irqList, key=lambda e:int(e.split('/')[1])):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
@@ -21276,20 +21316,23 @@ class ThreadAnalyzer(object):
                     format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
-                    self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
+                    self.irqData[key]['maxPeriod'], \
+                    self.irqData[key]['minPeriod']))
 
             # print softirq list #
-            sirqList = [irq for irq in list(self.irqData.keys()) if irq.startswith('softirq')]
+            sirqList = [irq for irq in list(self.irqData.keys()) \
+                if irq.startswith('softirq')]
             for key in sorted(sirqList, key=lambda e:int(e.split('/')[1])):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SystemManager.addPrint(\
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
-                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
-                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
+                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").format(\
+                    key, ' | '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
-                    self.irqData[key]['maxPeriod'], self.irqData[key]['minPeriod']))
+                    self.irqData[key]['maxPeriod'], \
+                    self.irqData[key]['minPeriod']))
 
             SystemManager.pipePrint("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
                 ('', len(self.irqData), totalUsage, totalCnt))
@@ -21320,7 +21363,8 @@ class ThreadAnalyzer(object):
 
             newLine = False
             for idx, val in sorted(\
-                self.customEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                self.customEventInfo.items(), key=lambda e: e[1]['count'], \
+                reverse=True):
                 if newLine:
                     SystemManager.pipePrint("")
                 else:
@@ -21328,14 +21372,17 @@ class ThreadAnalyzer(object):
 
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
-                    format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], val['minPeriod']))
+                    format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], \
+                    val['minPeriod']))
                 for key, value in sorted(self.customInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    reverse=True):
                     try:
                         SystemManager.pipePrint(\
                             "{0:^32} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
-                            format(' ', self.threadData[key]['comm'], key, value[idx]['count'], \
-                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                            format(' ', self.threadData[key]['comm'], key, \
+                            value[idx]['count'], value[idx]['maxPeriod'], \
+                            value[idx]['minPeriod']))
                     except:
                         pass
             SystemManager.pipePrint(oneLine)
@@ -21393,18 +21440,20 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint(\
                     ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                    format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
-                    val['maxPeriod'], val['minPeriod']))
+                    format(idx, 'TOTAL', '-', val['usage'], val['count'], \
+                    val['max'], val['min'], val['maxPeriod'], val['minPeriod']))
 
                 for key, value in sorted(self.userInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
+                    reverse=True):
 
                     try:
                         SystemManager.pipePrint(\
                             ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                             "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                            format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
-                            value[idx]['count'], value[idx]['max'], value[idx]['min'], \
+                            format(' ', self.threadData[key]['comm'], key, \
+                            value[idx]['usage'], value[idx]['count'], \
+                            value[idx]['max'], value[idx]['min'], \
                             value[idx]['maxPeriod'], value[idx]['minPeriod']))
                     except:
                         pass
@@ -21427,7 +21476,8 @@ class ThreadAnalyzer(object):
 
                 skipFlag = False
                 for fval in SystemManager.filterGroup:
-                    if SystemManager.isEffectiveTid(val[3], fval) or val[2].find(fval) >= 0:
+                    if SystemManager.isEffectiveTid(val[3], fval) or \
+                        val[2].find(fval) >= 0:
                         skipFlag = False
                         break
                     skipFlag = True
@@ -21447,7 +21497,8 @@ class ThreadAnalyzer(object):
                 cnt += 1
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
-                    format(val[1], val[0], val[4], val[2], val[3], val[5], elapsed))
+                    format(val[1], val[0], val[4], val[2], \
+                    val[3], val[5], elapsed))
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
@@ -21475,18 +21526,21 @@ class ThreadAnalyzer(object):
                 SystemManager.pipePrint(\
                     ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                    format(idx, 'TOTAL', '-', val['usage'], val['count'], val['max'], val['min'], \
+                    format(idx, 'TOTAL', '-', val['usage'], \
+                    val['count'], val['max'], val['min'], \
                     val['maxPeriod'], val['minPeriod']))
 
                 for key, value in sorted(self.kernelInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
+                    reverse=True):
 
                     try:
                         SystemManager.pipePrint(\
-                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
-                            "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                            format(' ', self.threadData[key]['comm'], key, value[idx]['usage'], \
-                            value[idx]['count'], value[idx]['max'], value[idx]['min'], \
+                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
+                            "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                            format(' ', self.threadData[key]['comm'], key, \
+                            value[idx]['usage'], value[idx]['count'], \
+                            value[idx]['max'], value[idx]['min'], \
                             value[idx]['maxPeriod'], value[idx]['minPeriod']))
                     except:
                         pass
@@ -21509,7 +21563,8 @@ class ThreadAnalyzer(object):
 
                 skipFlag = False
                 for fval in SystemManager.filterGroup:
-                    if SystemManager.isEffectiveTid(val[4], fval) or val[3].find(fval) >= 0:
+                    if SystemManager.isEffectiveTid(val[4], fval) or \
+                        val[3].find(fval) >= 0:
                         skipFlag = False
                         break
                     skipFlag = True
@@ -21530,7 +21585,8 @@ class ThreadAnalyzer(object):
                 args = (' '.join(val[7].split(' arg'))).replace('=','>')
                 SystemManager.pipePrint(\
                     "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
-                    format(val[1], val[0], val[5], val[3], val[4], val[6], elapsed, args))
+                    format(val[1], val[0], val[5], val[3], \
+                    val[4], val[6], elapsed, args))
             if cnt == 0:
                 SystemManager.pipePrint("\tNone")
             SystemManager.pipePrint(oneLine)
@@ -22627,7 +22683,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Message Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "%16s %5s %4s %10s %30s" % ('Name', 'Tid', 'Core', 'Time', 'Console message'))
+            "%16s %5s %4s %10s %30s" % \
+            ('Name', 'Tid', 'Core', 'Time', 'Console message'))
         SystemManager.pipePrint(twoLine)
 
         startTime = float(SystemManager.startTime)
@@ -22711,9 +22768,12 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint('\n[Thread Block Info] (Unit: KB/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
-            format('ID', 'OPT', 'NrDev', 'TOTAL', 'SEQUENTIAL(    %)', 'FS', 'PATH'))
-        SystemManager.pipePrint("{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+        SystemManager.pipePrint(\
+            "{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+            format('ID', 'OPT', 'NrDev', 'TOTAL', \
+            'SEQUENTIAL(    %)', 'FS', 'PATH'))
+        SystemManager.pipePrint(\
+            "{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
             format('', '', '', '[ACCESS]', 'COUNT', '', ''))
         SystemManager.pipePrint(twoLine)
 
@@ -22761,6 +22821,7 @@ class ThreadAnalyzer(object):
         titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
         maxLineLen = SystemManager.lineLength
         timeLineLen = titleLineLen = len(titleLine)
+        intervalEnable = SystemManager.intervalEnable
 
         # custom event usage on timeline #
         SystemManager.clearPrint()
@@ -22770,10 +22831,11 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.customInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -22800,7 +22862,7 @@ class ThreadAnalyzer(object):
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
+                                    newFlag = nowVal['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -22812,7 +22874,7 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        cnt = str(self.intData[icount][key]['customEvent'][idx]['count'])
+                        cnt = str(nowVal['customEvent'][idx]['count'])
 
                         timeLine += '%4s' % (newFlag + cnt + dieFlag)
 
@@ -22837,10 +22899,11 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.userInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -22867,7 +22930,7 @@ class ThreadAnalyzer(object):
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
+                                    newFlag = nowVal['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -22879,10 +22942,10 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        res = str(self.intData[icount][key]['userEvent'][idx]['count'])
+                        res = str(nowVal['userEvent'][idx]['count'])
 
                         '''
-                        res = str(self.intData[icount][key]['userEvent'][idx]['usage']) / \
+                        res = str(nowVal['userEvent'][idx]['usage']) / \
                             SystemManager.intervalEnable * 100
                         '''
 
@@ -22911,7 +22974,7 @@ class ThreadAnalyzer(object):
                     key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / SystemManager.intervalEnable) + 1
+                    lval = int(float(self.totalTime) / intervalEnable) + 1
                     for icount in xrange(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
@@ -22938,7 +23001,7 @@ class ThreadAnalyzer(object):
                         if icount > 0:
                             try:
                                 if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
+                                    newFlag = nowVal['new']
                             except:
                                 newFlag = nowVal['new']
                             try:
@@ -22950,10 +23013,10 @@ class ThreadAnalyzer(object):
                             newFlag = nowVal['new']
                             dieFlag = nowVal['die']
 
-                        res = str(self.intData[icount][key]['kernelEvent'][idx]['count'])
+                        res = str(nowVal['kernelEvent'][idx]['count'])
 
                         '''
-                        res = str(self.intData[icount][key]['kernelEvent'][idx]['usage']) / \
+                        res = str(nowVal['kernelEvent'][idx]['usage']) / \
                             SystemManager.intervalEnable * 100
                         '''
 
@@ -23159,7 +23222,8 @@ class ThreadAnalyzer(object):
                 if brtotal == 0:
                     SystemManager.addPrint('\n')
                 SystemManager.addPrint(\
-                    "%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + timeLine + '\n')
+                    "%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + \
+                    timeLine + '\n')
                 if SystemManager.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
                     ioUsageList.append(timeLineData)
@@ -23246,13 +23310,12 @@ class ThreadAnalyzer(object):
                     timeLineLen += 4
 
                 try:
-                    timeLine += '%3d ' % \
-                        self.intData[icount]['toTal']['kernelEvent'][evt]['count']
+                    evtVal = self.intData[icount]['toTal']['kernelEvent'][evt]
+                    timeLine += '%3d ' % evtVal['count']
 
                     '''
                     timeLine += '%3d ' % \
-                        (self.intData[icount]['toTal']['kernelEvent'][evt]['usage'] / \
-                        intervalEnable * 100)
+                        (evtVal['usage'] / intervalEnable * 100)
                     '''
                 except:
                     timeLine += '%3d ' % (0)
