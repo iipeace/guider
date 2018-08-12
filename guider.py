@@ -11100,6 +11100,9 @@ class SystemManager(object):
 
     @staticmethod
     def clearScreen():
+        if SystemManager.printEnable is False:
+            return
+
         if sys.platform.startswith('linux'):
             sys.stdout.write("\x1b[2J\x1b[H")
         elif sys.platform.startswith('win'):
