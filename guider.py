@@ -5110,8 +5110,8 @@ class FunctionAnalyzer(object):
         for pos, value in self.posData.items():
             if value['symbol'] == '__irq_usr' or \
                 value['symbol'] == '__irq_svc' or \
+                value['symbol'] == 'el1_irq' or \
                 value['symbol'] == 'gic_handle_irq' or \
-                value['symbol'].find('hrtimer_') >= 0 or \
                 value['symbol'] == 'apic_timer_interrupt':
                 exceptList.setdefault(pos, dict())
 
@@ -5148,16 +5148,23 @@ class FunctionAnalyzer(object):
                 if cpuCnt == 0:
                     break
                 else:
-                    # Remove a redundant part #
+                    # Find index of the backmost exception value #
+                    maxIdx = -1
                     for pos in exceptList.keys():
                         try:
-                            ridx = subStack.index(pos) + 1
-                            if ridx == len(subStack):
-                                subStack = []
-                            else:
-                                subStack = subStack[ridx:]
+                            ridx = subStack.index(pos)
+                            if ridx >= 0 and ridx > maxIdx:
+                                maxIdx = ridx
                         except:
                             pass
+
+                    # Remove a redundant part #
+                    if maxIdx >= 0:
+                        maxIdx += 1
+                        if maxIdx == len(subStack):
+                            subStack = []
+                        else:
+                            subStack = subStack[maxIdx:]
 
                 if len(subStack) == 0:
                     symbolStack = ' <- USER'
@@ -8522,8 +8529,6 @@ class SystemManager(object):
                 pipePrint('        -Y  [set_schedPriority - policy:prio{:tid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
 
-                SystemManager.closeAllForPrint()
-
             else:
                 print('\nHelp:')
                 print('    # %s -h | --help' % cmd)
@@ -8706,8 +8711,6 @@ class SystemManager(object):
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
             pipePrint('    - limit cpu usage of specific threads')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
-
-            SystemManager.closeAllForPrint()
 
             sys.exit(0)
 
@@ -10676,12 +10679,6 @@ class SystemManager(object):
                 # submit summarized report and details #
                 ThreadAnalyzer.printIntervalUsage()
 
-                # close log file to sync #
-                try:
-                    SystemManager.fileForPrint.close()
-                except:
-                    pass
-
                 try:
                     fsize = \
                         SystemManager.convertSize(\
@@ -10696,7 +10693,10 @@ class SystemManager(object):
             if SystemManager.imageEnable:
                 SystemManager.makeLogImage()
 
-            sys.exit(0)
+            SystemManager.closeAllForPrint()
+
+            # do terminate #
+            os._exit(0)
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
@@ -10749,7 +10749,8 @@ class SystemManager(object):
                 SystemManager.fileForPrint.close()
             except:
                 pass
-            SystemManager.fileForPrint = None
+            finally:
+                SystemManager.fileForPrint = None
 
             try:
                 fsize = \
@@ -11756,7 +11757,8 @@ class SystemManager(object):
                     "Fail to backup %s" % SystemManager.inputFile)
 
             try:
-                SystemManager.fileForPrint = open(SystemManager.inputFile, 'w+')
+                SystemManager.fileForPrint = \
+                    open(SystemManager.inputFile, 'w+')
 
                 # print output file name #
                 if SystemManager.printFile != None:
@@ -11771,10 +11773,10 @@ class SystemManager(object):
         # file output #
         if SystemManager.fileForPrint != None:
             try:
-                if SystemManager.isTopMode() is False:
-                    SystemManager.fileForPrint.write(line + retstr)
-                else:
+                if SystemManager.isTopMode():
                     SystemManager.fileForPrint.writelines(line)
+                else:
+                    SystemManager.fileForPrint.write(line + retstr)
             except:
                 SystemManager.printError(\
                     "Fail to write to file because %s" % sys.exc_info()[1])
@@ -15405,9 +15407,11 @@ class SystemManager(object):
         if SystemManager.pipeForPrint is not None:
             try:
                 SystemManager.pipeForPrint.close()
-                SystemManager.pipeForPrint = None
             except:
-                return
+                pass
+            finally:
+                SystemManager.pipeForPrint = None
+
         if SystemManager.fileForPrint is not None:
             try:
                 fsize = SystemManager.convertSize(\
@@ -15416,9 +15420,10 @@ class SystemManager(object):
                     "finish saving results into %s [%s] successfully" % \
                     (SystemManager.fileForPrint.name, fsize))
                 SystemManager.fileForPrint.close()
-                SystemManager.fileForPrint = None
             except:
-                return
+                pass
+            finally:
+                SystemManager.fileForPrint = None
 
 
 
@@ -24084,7 +24089,7 @@ class ThreadAnalyzer(object):
 
         if idx > 0:
             for pid, val in ThreadAnalyzer.procTotData.items():
-                val['cpu'] = round(val['cpu'] / idx, 1)
+                val['cpu'] = round(val['cpu'] / float(idx), 1)
                 val['memDiff'] = val['lastMem'] - val['initMem']
 
 
@@ -24253,8 +24258,9 @@ class ThreadAnalyzer(object):
 
         # Print total cpu usage #
         value = ThreadAnalyzer.procTotData['total']
+        cpuAvg = '%.1f' % value['cpu']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('[CPU]', '-', '-', '-', '-', value['cpu'], cl=cl, pd=pd)
+            format('[CPU]', '-', '-', '-', '-', cpuAvg, cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -24284,10 +24290,11 @@ class ThreadAnalyzer(object):
             if pid == 'total':
                 continue
 
+            cpuAvg = '%.1f' % value['cpu']
             procInfo = \
                 "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'][:cl], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], value['cpu'], cl=cl, pd=pd)
+                value['nrThreads'], value['pri'], cpuAvg, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
@@ -30984,7 +30991,8 @@ class ThreadAnalyzer(object):
                     SystemManager.fileForPrint.close()
                 except:
                     pass
-                SystemManager.fileForPrint = None
+                finally:
+                    SystemManager.fileForPrint = None
 
             # make output path #
             filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
@@ -31263,8 +31271,6 @@ if __name__ == '__main__':
 
             # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
-
-            SystemManager.closeAllForPrint()
 
             sys.exit(0)
 
