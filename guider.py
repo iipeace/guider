@@ -951,8 +951,8 @@ class NetworkManager(object):
                     'Fail to download %s from %s:%s:%s because %s' % \
                     (origPath, targetIp, targetPort, targetPath, \
                     ' '.join(list(map(str, err.args)))))
-
-            receiver.close()
+            finally:
+                receiver.close()
 
         def onUpload(req, addr):
             # parse path #
@@ -996,8 +996,8 @@ class NetworkManager(object):
                     "Fail to upload %s to %s:%s because %s" % \
                     (origPath, ':'.join(list(map(str, addr))), \
                     ' '.join(list(map(str, err.args))), targetPath))
-
-            sender.close()
+            finally:
+                sender.close()
 
         def onRun(req, addr):
             # parse command #
@@ -1020,21 +1020,26 @@ class NetworkManager(object):
             # run mainloop #
             buf = ''
             while 1:
-                [readSock, writeSock, errorSock] = \
-                    SystemManager.selectObject.select(\
-                    [conn.socket], [], [])
+                try:
+                    [readSock, writeSock, errorSock] = \
+                        SystemManager.selectObject.select(\
+                        [conn.socket], [], [])
 
-                output = conn.recvfrom()[0]
-                if not output:
+                    output = conn.recvfrom()[0]
+                    if not output:
+                        break
+
+                    output = output.decode()
+                    if output[-1] != '\n':
+                        buf = '%s%s' % (buf, output)
+                    else:
+                        # concatenate split lines #
+                        print('%s%s' % (buf, output[:-1]))
+                        buf = ''
+                except:
                     break
 
-                output = output.decode()
-                if output[-1] != '\n':
-                    buf = '%s%s' % (buf, output)
-                else:
-                    # concatenate split lines #
-                    print('%s%s' % (buf, output[:-1]))
-                    buf = ''
+            conn.close()
 
 
 
@@ -2173,7 +2178,7 @@ class FunctionAnalyzer(object):
                         try:
                             kenrelData['pagePair'][pairId]
                         except:
-                            self.kernelSymData[allocKernelSym]['pagePair'][pairId] = \
+                            kernelData['pagePair'][pairId] = \
                                 dict(self.init_glueData)
 
                         self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
@@ -7503,7 +7508,7 @@ class SystemManager(object):
     netEnable = False
     stackEnable = False
     wchanEnable = True
-    sigHandlerEnable = True
+    sigHandlerEnable = False
     tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
@@ -10354,11 +10359,6 @@ class SystemManager(object):
         else:
             disableStat += 'PRINT '
 
-        if SystemManager.repeatCount > 0:
-            enableStat += 'REPEAT '
-        else:
-            disableStat += 'REPEAT '
-
         # check current mode #
         if SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
@@ -10366,19 +10366,15 @@ class SystemManager(object):
             if SystemManager.fileTopEnable:
                 enableStat += 'FILE '
             else:
-                disableStat += 'FILE '
-
                 if SystemManager.processEnable:
-                    disableStat += 'THREAD '
                     enableStat += 'PROCESS '
                 else:
                     enableStat += 'THREAD '
-                    disableStat += 'PROCESS '
 
                 if SystemManager.cpuEnable:
-                    enableStat += 'CPU '
+                    enableStat += 'CORE '
                 else:
-                    disableStat += 'CPU '
+                    disableStat += 'CORE '
 
                 if SystemManager.gpuEnable:
                     enableStat += 'GPU '
@@ -10405,16 +10401,6 @@ class SystemManager(object):
                 else:
                     disableStat += 'PERF '
 
-                if SystemManager.stackEnable:
-                    enableStat += 'STACK '
-                else:
-                    disableStat += 'STACK '
-
-                if SystemManager.netEnable:
-                    enableStat += 'NET '
-                else:
-                    disableStat += 'NET '
-
                 if SystemManager.supportExtAscii != None:
                     enableStat += 'ENCODE '
                 else:
@@ -10431,24 +10417,30 @@ class SystemManager(object):
                     disableStat += 'FLOAT '
 
                 if SystemManager.sigHandlerEnable:
-                    enableStat += 'SIGNAL '
+                    enableStat += 'SIG '
                 else:
-                    disableStat += 'SIGNAL '
+                    disableStat += 'SIG '
 
                 if SystemManager.wfcEnable:
                     enableStat += 'WFC '
                 else:
                     disableStat += 'WFC '
 
+                if SystemManager.stackEnable:
+                    enableStat += 'STACK '
+
+                if SystemManager.netEnable:
+                    enableStat += 'NET '
+
                 if SystemManager.affinityEnable:
-                    enableStat += 'AFFINITY '
+                    enableStat += 'AFNT '
                 else:
-                    disableStat += 'AFFINITY '
+                    disableStat += 'AFNT '
 
                 if SystemManager.imageEnable:
-                    enableStat += 'IMAGE '
+                    enableStat += 'IMG '
                 else:
-                    disableStat += 'IMAGE '
+                    disableStat += 'IMG '
 
                 if SystemManager.reportFileEnable:
                     enableStat += 'RFILE '
@@ -10471,9 +10463,9 @@ class SystemManager(object):
                     disableStat += 'WSS '
 
                 if SystemManager.groupProcEnable:
-                    enableStat += 'PGROUP '
+                    enableStat += 'PGRP '
                 else:
-                    disableStat += 'PGROUP '
+                    disableStat += 'PGRP '
 
                 if SystemManager.reportEnable:
                     enableStat += 'REPORT '
@@ -10559,14 +10551,14 @@ class SystemManager(object):
                 disableStat += 'IRQ '
 
             if SystemManager.ueventEnable:
-                enableStat += 'UEVENT '
+                enableStat += 'UEVT '
             else:
-                disableStat += 'UEVENT '
+                disableStat += 'UEVT '
 
             if SystemManager.keventEnable:
-                enableStat += 'KEVENT '
+                enableStat += 'KEVT '
             else:
-                disableStat += 'KEVENT '
+                disableStat += 'KEVT '
 
             if SystemManager.netEnable:
                 enableStat += 'NET '
@@ -10600,13 +10592,9 @@ class SystemManager(object):
 
             if SystemManager.resetEnable:
                 enableStat += 'RESET '
-            else:
-                disableStat += 'RESET '
 
             if SystemManager.disableAll:
                 enableStat += 'DISABLE '
-            else:
-                disableStat += 'DISABLE '
 
         # print options #
         if enableStat != '':
@@ -12571,6 +12559,10 @@ class SystemManager(object):
                     try:
                         SystemManager.intervalEnable = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.intervalEnable, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input integer values")
@@ -12579,6 +12571,10 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatCount = int(repeatParams[0])
                         SystemManager.intervalEnable = 1
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.intervalEnable, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input a integer value")
@@ -12822,6 +12818,10 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.repeatInterval, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input integer values")
@@ -12830,6 +12830,8 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = 1
+                        SystemManager.printInfo(\
+                            "run only for %s sec" % SystemManager.repeatCount)
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input a integer value")
@@ -21186,7 +21188,7 @@ class ThreadAnalyzer(object):
 
 
     def getRunTaskNum(self):
-        return len(self.threadData)
+        return len(self.threadData) - SystemManager.nrCore
 
 
 
@@ -21615,8 +21617,8 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.pipePrint((\
-            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
-            "[ CtxSwc: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %d ] " + \
+            "[ ContextSwitch: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
@@ -25708,6 +25710,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[coreId]
             except:
+                SystemManager.nrCore += 1
                 self.threadData[coreId] = dict(self.init_threadData)
                 self.threadData[coreId]['comm'] = "swapper/%s" % core
 
@@ -27817,7 +27820,8 @@ class ThreadAnalyzer(object):
 
             procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue))
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
+                str(schedValue))
 
             procInfoLen = len(procInfo)
 
@@ -27893,7 +27897,8 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s|' % \
+                (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         SystemManager.topPrint()
@@ -28069,16 +28074,24 @@ class ThreadAnalyzer(object):
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
-                        self.cpuData['all'] = {'user': long(statList[1]), \
-                            'nice': long(statList[2]), 'system': long(statList[3]), \
-                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), 'softirq': long(statList[7])}
+                        self.cpuData['all'] = \
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 elif cpuId.rfind('cpu') == 0:
                     if not int(cpuId[3:]) in self.cpuData:
-                        self.cpuData[int(cpuId[3:])] = {'user': long(statList[1]), \
-                            'nice': long(statList[2]), 'system': long(statList[3]), \
-                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), 'softirq': long(statList[7])}
+                        self.cpuData[int(cpuId[3:])] = \
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 else:
                     if not cpuId in self.cpuData:
                         self.cpuData[cpuId] = {cpuId: long(statList[1])}
@@ -28611,7 +28624,8 @@ class ThreadAnalyzer(object):
                 line.startswith('voluntary_ctxt_switches') or \
                 line.startswith('nonvoluntary_ctxt_switches'):
                 statusList = line.split(':')
-                self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
+                self.procData[tid]['status'][statusList[0]] = \
+                    statusList[1].strip()
 
         # save statm info #
         try:
@@ -29093,8 +29107,8 @@ class ThreadAnalyzer(object):
             "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
-            "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", \
-            "NrDrt", "Network")), oneLine)), newline = 3)
+            "PgRclm", "BlkRW", "MjFlt", "PrBlk", "NrSIRQ", "PgMlk", \
+            "PgDrt", "Network")), oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
@@ -29313,7 +29327,8 @@ class ThreadAnalyzer(object):
             try:
                 tempDirList = \
                     [ '%s/%s' % (tempPath, item) \
-                    for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
+                    for item in os.listdir(tempPath) \
+                    if item.startswith('thermal_zone') ]
             except:
                 tempDirList = []
             for tempDir in sorted(tempDirList):
@@ -29338,7 +29353,8 @@ class ThreadAnalyzer(object):
 
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(),\
-                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
+                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, \
+                reverse=False):
                 try:
                     int(idx)
 
@@ -29375,7 +29391,8 @@ class ThreadAnalyzer(object):
                         with open(curPath, 'r') as fd:
                             curFreq = fd.readline()[:-1]
                     except:
-                        curPath = '%s%s/cpufreq/scaling_cur_freq' % (freqPath, idx)
+                        curPath = '%s%s/cpufreq/scaling_cur_freq' % \
+                            (freqPath, idx)
                         try:
                             with open(curPath, 'r') as fd:
                                 curFreq = fd.readline()[:-1]
@@ -29407,7 +29424,8 @@ class ThreadAnalyzer(object):
                         gov = None
 
                     idPath = '%s%s/topology/core_id' % (freqPath, idx)
-                    pidPath = '%s%s/topology/physical_package_id' % (freqPath, idx)
+                    pidPath = '%s%s/topology/physical_package_id' % \
+                        (freqPath, idx)
                     try:
                         with open(pidPath, 'r') as fd:
                             phyId = int(fd.readline()[:-1])
@@ -29496,14 +29514,16 @@ class ThreadAnalyzer(object):
                         coreFreq = '? Mhz'
                     if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
                         value['MIN_FREQ'] > 0 and value['MAX_FREQ'] > 0:
-                        coreFreq = '%s [%d-%d]' % (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
+                        coreFreq = '%s [%d-%d]' % \
+                            (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
                     coreFreq = '%20s|' % coreFreq
 
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except:
                         try:
-                            coreFreq = '%3s C | %s' % (coreTempData['GPU'], coreFreq)
+                            coreFreq = '%3s C | %s' % \
+                                (coreTempData['GPU'], coreFreq)
                         except:
                             coreFreq = '%3s C | %s' % ('?', coreFreq)
 
@@ -29534,7 +29554,8 @@ class ThreadAnalyzer(object):
                 prevData = self.prevProcData[pid]['stat']
 
                 value['runtime'] = \
-                    int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
+                    int(SystemManager.uptime - \
+                    (float(nowData[self.starttimeIdx]) / 100))
 
                 if value['io'] is not None:
                     value['read'] = value['io']['read_bytes'] - \
@@ -29553,12 +29574,14 @@ class ThreadAnalyzer(object):
 
                 utick = nowData[self.utimeIdx] - prevData[self.utimeIdx]
                 value['utime'] = int(utick / interval)
-                if value['utime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['utime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
 
                 stick = nowData[self.stimeIdx] - prevData[self.stimeIdx]
                 value['stime'] = int(stick / interval)
-                if value['stime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['stime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
 
                 value['ttime'] = utick + stick
@@ -29566,7 +29589,8 @@ class ThreadAnalyzer(object):
                     value['ttime'] = round(value['ttime'] / interval, 1)
                 else:
                     value['ttime'] = int(value['ttime'] / interval)
-                if value['ttime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['ttime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
                 elif value['ttime'] == 0:
                     value['ttime'] = 0
@@ -29880,9 +29904,7 @@ class ThreadAnalyzer(object):
             etc = 'Affinity'
         elif SystemManager.tgnameEnable:
             etc = 'Group'
-        elif SystemManager.sigHandlerEnable:
-            etc = 'SignalHandler'
-        else:
+        elif SystemManager.sigHandlerEnable or True:
             etc = 'SignalHandler'
 
         if SystemManager.pssEnable:
@@ -29899,7 +29921,7 @@ class ThreadAnalyzer(object):
             "{14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "MjFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
 
         # set sort value #
@@ -30123,14 +30145,16 @@ class ThreadAnalyzer(object):
                 value['fdsize'] = '-'
 
             try:
+                prevStatus = self.prevProcData[idx]['status']
                 yld = long(value['yield']) - \
-                    long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
+                    long(prevStatus['voluntary_ctxt_switches'])
             except:
                 yld = '-'
 
             try:
+                prevStatus = self.prevProcData[idx]['status']
                 prtd = long(value['preempted']) - \
-                    long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
+                    long(prevStatus['nonvoluntary_ctxt_switches'])
             except:
                 prtd = '-'
 
@@ -30194,7 +30218,8 @@ class ThreadAnalyzer(object):
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
+                str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 mems >> 8, codeSize, shr, vmswp, \
@@ -30274,7 +30299,8 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s|' % \
+                (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
         elif needLine:
             pass
@@ -30301,27 +30327,30 @@ class ThreadAnalyzer(object):
             self.procData.items(), \
             key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
 
-            status = value['stat'][self.statIdx]
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+            status = stat[self.statIdx]
+
             if status != 'S' and status != 'R':
-                comm = ('[%s]%s' % (status, value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('[%s]%s' % \
+                    (status, stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30349,12 +30378,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 procCnt += 1
@@ -30380,21 +30410,23 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+
             if value['new']:
-                comm = ('%s%s' % ('[+]', value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('%s%s' % ('[+]', stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30422,12 +30454,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 newCnt += 1
@@ -30454,21 +30487,23 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+
             if value['alive'] is False:
-                comm = ('%s%s' % ('[-]', value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('%s%s' % ('[-]', stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30496,12 +30531,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 dieCnt += 1
