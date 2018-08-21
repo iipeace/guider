@@ -8482,7 +8482,7 @@ class SystemManager(object):
                                                  '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
-                    '\n                          a(ffinity)|W(chan)|h(andler)|F(loat)|'\
+                    '\n                          a(ffinity)|W(chan)|h(andler)|f(loat)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
@@ -8623,9 +8623,9 @@ class SystemManager(object):
             pipePrint('    - show resource usage of processes with fixed terminal size in real-time')
             pipePrint('        # %s top -m' % cmd)
             pipePrint('    - show files opened via processes in real-time')
-            pipePrint('        # %s top -e f' % cmd)
+            pipePrint('        # %s top -e F' % cmd)
             pipePrint('    - show specific files opened via specific processes in real-time')
-            pipePrint('        # %s top -e f -g init, lightdm : home, var' % cmd)
+            pipePrint('        # %s top -e F -g init, lightdm : home, var' % cmd)
             pipePrint('    - show performance stats of specific processes in real-time')
             pipePrint('        # %s top -e P -g init, lightdm' % cmd)
             pipePrint('    - show resource usage of processes by sorting memory in real-time')
@@ -10688,7 +10688,7 @@ class SystemManager(object):
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
-            SystemManager.runRecordStopCmd()
+            SystemManager.stopRecording()
 
         # update record status #
         SystemManager.recordStatus = False
@@ -10798,7 +10798,7 @@ class SystemManager(object):
 
             if SystemManager.pipeEnable:
                 if repeatCount == progressCnt:
-                    SystemManager.runRecordStopCmd()
+                    SystemManager.stopRecording()
                     SystemManager.recordStatus = False
                 signal.alarm(repeatInterval)
             elif SystemManager.outputFile != None:
@@ -10913,6 +10913,20 @@ class SystemManager(object):
                         "Fail to apply command '%s' to %s" % (val, path))
             elif len(cmd) == 1:
                 os.system(cmd[0])
+
+
+
+    @staticmethod
+    def readCmdVal(path):
+        # open for applying command #
+        try:
+            target = '%s%s' % (SystemManager.mountPath, path)
+            with open(target, 'r') as fd:
+                return fd.read()[:-1]
+        except:
+            SystemManager.printError(\
+                "Fail to read data from %s\n" % target)
+            return None
 
 
 
@@ -12223,9 +12237,9 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
-                    SystemManager.fileTopEnable = True
-                if options.rfind('F') > -1:
                     SystemManager.floatEnable = True
+                if options.rfind('F') > -1:
+                    SystemManager.fileTopEnable = True
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
@@ -13115,7 +13129,7 @@ class SystemManager(object):
     def checkCmdMode():
         # LIST MODE #
         if SystemManager.isListMode():
-            SystemManager.printBackgroundProcs()
+            SystemManager.printBgProcs()
             sys.exit(0)
 
         # SERVER MODE #
@@ -13547,7 +13561,30 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printBackgroundProcs():
+    def getBgProcCount():
+        procList = SystemManager.getBgProcList()
+
+        return procList.count('\n')
+
+
+
+    @staticmethod
+    def printBgProcs():
+        procList = SystemManager.getBgProcList()
+
+        if procList == '':
+            print("\nno running process in background\n")
+        else:
+            print('\n[Running Process]')
+            print(twoLine)
+            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
+            print(oneLine)
+            print(procList + "%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def getBgProcList():
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
@@ -13569,14 +13606,8 @@ class SystemManager(object):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
 
             try:
-                fd = open(procPath + '/comm', 'r')
-                comm = fd.readline()[0:-1]
-            except:
-                continue
-
-            try:
-                cmdFd = open(procPath + '/cmdline', 'r')
-                cmdline = cmdFd.readline().replace("\x00", " ")
+                with open('%s/comm' % procPath, 'r') as fd:
+                    comm = fd.readline()[0:-1]
             except:
                 continue
 
@@ -13625,21 +13656,18 @@ class SystemManager(object):
                     network = ''
 
                 try:
+                    with open('%s/cmdline' % procPath, 'r') as fd:
+                        cmdline = fd.readline().replace("\x00", " ")
+                except:
+                    cmdline = '?'
+
+                try:
                     printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
                         (printBuf, pid, comm, runtime, cmdline, network)
                 except:
                     continue
 
-                nrProc += 1
-
-        if nrProc == 0:
-            print("\nno running process in background\n")
-        else:
-            print('\n[Running Process]')
-            print(twoLine)
-            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
-            print(oneLine)
-            print(printBuf + "%s\n" % oneLine)
+        return printBuf
 
 
 
@@ -15498,7 +15526,33 @@ class SystemManager(object):
 
 
 
-    def runRecordStartCmd(self):
+    def startTracing(self):
+        stat = SystemManager.readCmdVal('../tracing_on')
+        if stat == None:
+            sys.exit(0)
+        elif stat == '1':
+            # no running guider process except for myself #
+            if SystemManager.getBgProcCount() <= 1:
+                SystemManager.printError(\
+                    "Fail to start tracing because "
+                    "tracing is already running on system\n"
+                    "\tit would be cleaned up so that try to record again")
+                sys.exit(0)
+            else:
+                SystemManager.printError(\
+                    "Fail to start tracing because "
+                    "another guider is already running on system")
+                os._exit(0)
+
+        # clean up ring buffer for tracing #
+        SystemManager.clearTraceBuffer()
+
+        # write command to start tracing #
+        SystemManager.writeCmd('../tracing_on', '1')
+
+
+
+    def startRecording(self):
         def writeCommonCmd():
             # enable dynamic events #
             SystemManager.writeCustomCmd()
@@ -15507,7 +15561,8 @@ class SystemManager(object):
 
             # enable flock events #
             if self.cmdList["filelock/locks_get_lock_context"]:
-                SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
+                SystemManager.writeCmd(\
+                    "filelock/locks_get_lock_context/enable", '1')
 
             # enable common events #
             if self.cmdList["task"]:
@@ -15550,9 +15605,6 @@ class SystemManager(object):
 
             sys.exit(0)
 
-        # make trace buffer empty #
-        SystemManager.clearTraceBuffer()
-
         # set size of trace buffer per core #
         if SystemManager.bufferSize == 0:
             SystemManager.bufferSize = '40960' # 40MB #
@@ -15581,7 +15633,7 @@ class SystemManager(object):
         SystemManager.writeCmd('../current_tracer', 'nop')
 
         # start tracing #
-        SystemManager.writeCmd('../tracing_on', '1')
+        self.startTracing()
 
         # write start event #
         SystemManager.writeEvent("EVENT_START", False)
@@ -15591,7 +15643,7 @@ class SystemManager(object):
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
                 # reset events #
-                SystemManager.runRecordStopCmd()
+                SystemManager.stopRecording()
                 SystemManager.clearTraceBuffer()
 
                 # set function_graph tracer #
@@ -15687,13 +15739,17 @@ class SystemManager(object):
             # enable page events #
             if SystemManager.memEnable:
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
+
                 if SystemManager.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/filter', cmd)
+
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
+
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '1') < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '1')
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
+
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '0') < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
 
@@ -15949,10 +16005,9 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.lockEnable:
-            if len(SystemManager.syscallList) > 0:
-                nrFutex = ConfigManager.sysList.index("sys_futex")
-                if nrFutex not in SystemManager.syscallList:
-                    SystemManager.syscallList.append(nrFutex)
+            nrFutex = ConfigManager.sysList.index("sys_futex")
+            if nrFutex not in SystemManager.syscallList:
+                SystemManager.syscallList.append(nrFutex)
         else:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
@@ -16043,7 +16098,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def runRecordStopCmd():
+    def stopRecording():
         if (SystemManager.isRecordMode() and \
             (SystemManager.isThreadMode() or \
             SystemManager.isFunctionMode())) is False:
@@ -16065,6 +16120,8 @@ class SystemManager(object):
                 SystemManager.saveCmd =\
                     'cat ' + SystemManager.mountPath + '../trace > ' +\
                     SystemManager.outputFile + '\n'
+
+        SystemManager.writeCmd('../tracing_on', '0')
 
         # disable all ftrace options registered #
         for idx, val in SystemManager.cmdList.items():
@@ -22590,7 +22647,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(\
                 "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} {6:>5} {7:>10} {8:>16} {9:<1}"\
                 .format("Time", "Name", "Tid", "Core", "Syscall", \
-                "SID", "Type", "Elapsed", "Return", "Parameter"))
+                "Sid", "Type", "Elapsed", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
             # remove calls of unavailable threads #
@@ -22672,7 +22729,7 @@ class ThreadAnalyzer(object):
 
                     SystemManager.pipePrint(\
                         ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
-                        "{6:>5} {7:>10} {8:>16}  {9:<1}").\
+                        "{6:>5} {7:>10} {8:>16} {9:<1}").\
                         format('%.6f' % eventTime, comm, tid,\
                         core, syscall[4:], nowData[4],\
                         eventType, elapsed, ret, param))
@@ -31341,10 +31398,10 @@ if __name__ == '__main__':
 
         #-------------------- THREAD & FUNCTION MODE --------------------
         # register exit handler #
-        atexit.register(SystemManager.runRecordStopCmd)
+        atexit.register(SystemManager.stopRecording)
 
         # start recording #
-        SystemManager.sysInstance.runRecordStartCmd()
+        SystemManager.sysInstance.startRecording()
 
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
