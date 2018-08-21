@@ -8482,7 +8482,7 @@ class SystemManager(object):
                                                  '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
-                    '\n                          a(ffinity)|W(chan)|h(andler)|F(loat)|'\
+                    '\n                          a(ffinity)|W(chan)|h(andler)|f(loat)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
@@ -8623,9 +8623,9 @@ class SystemManager(object):
             pipePrint('    - show resource usage of processes with fixed terminal size in real-time')
             pipePrint('        # %s top -m' % cmd)
             pipePrint('    - show files opened via processes in real-time')
-            pipePrint('        # %s top -e f' % cmd)
+            pipePrint('        # %s top -e F' % cmd)
             pipePrint('    - show specific files opened via specific processes in real-time')
-            pipePrint('        # %s top -e f -g init, lightdm : home, var' % cmd)
+            pipePrint('        # %s top -e F -g init, lightdm : home, var' % cmd)
             pipePrint('    - show performance stats of specific processes in real-time')
             pipePrint('        # %s top -e P -g init, lightdm' % cmd)
             pipePrint('    - show resource usage of processes by sorting memory in real-time')
@@ -12237,9 +12237,9 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
-                    SystemManager.fileTopEnable = True
-                if options.rfind('F') > -1:
                     SystemManager.floatEnable = True
+                if options.rfind('F') > -1:
+                    SystemManager.fileTopEnable = True
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
