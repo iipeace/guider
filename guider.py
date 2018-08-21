@@ -16005,10 +16005,9 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.lockEnable:
-            if len(SystemManager.syscallList) > 0:
-                nrFutex = ConfigManager.sysList.index("sys_futex")
-                if nrFutex not in SystemManager.syscallList:
-                    SystemManager.syscallList.append(nrFutex)
+            nrFutex = ConfigManager.sysList.index("sys_futex")
+            if nrFutex not in SystemManager.syscallList:
+                SystemManager.syscallList.append(nrFutex)
         else:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
@@ -22648,7 +22647,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(\
                 "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} {6:>5} {7:>10} {8:>16} {9:<1}"\
                 .format("Time", "Name", "Tid", "Core", "Syscall", \
-                "SID", "Type", "Elapsed", "Return", "Parameter"))
+                "Sid", "Type", "Elapsed", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
             # remove calls of unavailable threads #
@@ -22730,7 +22729,7 @@ class ThreadAnalyzer(object):
 
                     SystemManager.pipePrint(\
                         ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
-                        "{6:>5} {7:>10} {8:>16}  {9:<1}").\
+                        "{6:>5} {7:>10} {8:>16} {9:<1}").\
                         format('%.6f' % eventTime, comm, tid,\
                         core, syscall[4:], nowData[4],\
                         eventType, elapsed, ret, param))
