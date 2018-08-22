@@ -20357,69 +20357,83 @@ class ThreadAnalyzer(object):
         def drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, gpuUsage, xtype, pos, size):
 
+            # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
 
+            # set visible total usage flag #
+            if len(SystemManager.filterGroup) == 0:
+                isVisibleTotal = True
+            elif SystemManager.showAll:
+                isVisibleTotal = True
+            else:
+                isVisibleTotal = False
+
             #-------------------- GPU usage --------------------#
-            for gpu, stat in gpuUsage.items():
-                stat = list(map(int, stat.split()))
-                try:
-                    if min(stat) == max(stat):
-                        continue
-                except:
-                    pass
-                plot(timeline, stat, '-', c='olive', linewidth=2, solid_capstyle='round')
-                labelList.append('[ %s ]' % gpu)
-                maxUsage = max(stat)
-                maxIdx = stat.index(maxUsage)
-                for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
-                    if idx != 0 and stat[idx] == stat[idx-1]:
-                        continue
-                    text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
+            if isVisibleTotal:
+                for gpu, stat in gpuUsage.items():
+                    stat = list(map(int, stat.split()))
+                    try:
+                        if min(stat) == max(stat):
+                            continue
+                    except:
+                        pass
+                    plot(timeline, stat, '-', c='olive', \
+                        linewidth=2, solid_capstyle='round')
+                    labelList.append('[ %s ]' % gpu)
+                    maxUsage = max(stat)
+                    maxIdx = stat.index(maxUsage)
+                    for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
+                        if idx != 0 and stat[idx] == stat[idx-1]:
+                            continue
+                        text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             #-------------------- CPU usage --------------------#
             ymax = 0
-            for idx, item in enumerate(blkWait):
-                blkWait[idx] += cpuUsage[idx]
-                if ymax < blkWait[idx]:
-                    ymax = blkWait[idx]
 
-            plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
-            labelList.append('[ TOTAL CPU + IO ]')
-            try:
-                avgUsage = round(sum(blkWait) / len(blkWait), 1)
-            except:
-                avgUsage = 0
-            maxUsage = max(blkWait)
-            maxIdx = blkWait.index(maxUsage)
-            for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
-                if idx != 0 and blkWait[idx] == blkWait[idx-1]:
-                    continue
-                text(timeline[idx], blkWait[maxIdx], \
+            if isVisibleTotal:
+                for idx, item in enumerate(blkWait):
+                    blkWait[idx] += cpuUsage[idx]
+                    if ymax < blkWait[idx]:
+                        ymax = blkWait[idx]
+
+                plot(timeline, blkWait, '-', c='pink', \
+                    linewidth=2, solid_capstyle='round')
+                labelList.append('[ TOTAL CPU + IO ]')
+                try:
+                    avgUsage = round(sum(blkWait) / len(blkWait), 1)
+                except:
+                    avgUsage = 0
+                maxUsage = max(blkWait)
+                maxIdx = blkWait.index(maxUsage)
+                for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
+                    if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                        continue
+                    text(timeline[idx], blkWait[maxIdx], \
                         'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='pink', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-                break
+                    break
 
-            plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
-            labelList.append('[ TOTAL CPU Only ]')
-            try:
-                avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
-            except:
-                avgUsage = 0
-            maxUsage = max(cpuUsage)
-            maxIdx = cpuUsage.index(maxUsage)
-            for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
-                if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
-                    continue
-                text(timeline[idx], cpuUsage[maxIdx], \
+                plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
+                labelList.append('[ TOTAL CPU Only ]')
+                try:
+                    avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
+                except:
+                    avgUsage = 0
+                maxUsage = max(cpuUsage)
+                maxIdx = cpuUsage.index(maxUsage)
+                for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
+                    if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
+                        continue
+                    text(timeline[idx], cpuUsage[maxIdx], \
                         'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='red', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-                break
+                    break
 
             # CPU usage of processes #
             for idx, item in sorted(\
@@ -20475,7 +20489,7 @@ class ThreadAnalyzer(object):
                 maxPer = '[max:%s+%s/avg:%s]' % (maxCpuPer, maxBlkPer, avgUsage)
                 ilabel = '%s %s' % (idx, maxPer)
                 text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
-                        fontsize=3, color=color, fontweight='bold')
+                    fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
             ylabel('CPU+I/O(%)', fontsize=8)
@@ -20504,6 +20518,7 @@ class ThreadAnalyzer(object):
         def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
             reclaimBg, reclaimDr, xtype, pos, size):
 
+            # draw title #
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -20518,17 +20533,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
                 labelList.append('Block Read')
 
@@ -20541,17 +20556,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='green', fontweight='bold')
+                        fontsize=5, color='green', fontweight='bold')
                 plot(timeline, blkWrite, '-', c='green', linewidth=2)
                 labelList.append('Block Write')
 
@@ -20564,17 +20579,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='pink', fontweight='bold')
+                        fontsize=5, color='pink', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='pink', fontweight='bold')
+                        fontsize=5, color='pink', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='pink', fontweight='bold')
+                        fontsize=5, color='pink', fontweight='bold')
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
                 labelList.append('Reclaim Background')
 
@@ -20587,17 +20602,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='red', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='red', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='red', fontweight='bold')
+                        fontsize=5, color='red', fontweight='bold')
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2)
                 labelList.append('Reclaim Foreground')
 
@@ -20610,17 +20625,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
+                        fontsize=5, color='purple', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
+                        fontsize=5, color='purple', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='purple', fontweight='bold')
+                        fontsize=5, color='purple', fontweight='bold')
                 plot(timeline, netRead, '-', c='purple', linewidth=2)
                 labelList.append('Network Recv')
 
@@ -20633,17 +20648,17 @@ class ThreadAnalyzer(object):
             else:
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                        fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
                 labelList.append('Network Send')
 
@@ -20748,6 +20763,11 @@ class ThreadAnalyzer(object):
                 #ax.get_xaxis().set_visible(False)
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    [SystemManager.convertSize(val * 1024) for val in ytickLabel]
+
                 ax.set_yticklabels(ytickLabel)
             except:
                 pass
@@ -20757,6 +20777,7 @@ class ThreadAnalyzer(object):
         def drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
             totalRAM, swapUsage, totalSwap, xtype, pos, size):
 
+            # draw title #
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
