@@ -20058,6 +20058,7 @@ class ThreadAnalyzer(object):
 
                     pid = d['pid']
                     pname = '%s(%s)' % (comm, pid)
+
                     try:
                         total = int(sline[1])
                     except:
@@ -20314,10 +20315,6 @@ class ThreadAnalyzer(object):
                     xlim([xtickLabel[0], xtickLabel[-1]])
                     xtickLabel[-1] = '   TIME(Sec)'
                     ax.set_xticklabels(xtickLabel)
-
-                    ytickLabel = ax.get_yticks().tolist()
-                    ytickLabel = list(map(int, ytickLabel))
-                    ax.set_yticklabels(ytickLabel)
                 except:
                     pass
             elif xtype == 3:
@@ -20532,17 +20529,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
                 labelList.append('Block Read')
@@ -20555,17 +20555,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='green', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='green', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='green', fontweight='bold')
                 plot(timeline, blkWrite, '-', c='green', linewidth=2)
                 labelList.append('Block Write')
@@ -20578,17 +20581,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='pink', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='pink', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='pink', fontweight='bold')
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
                 labelList.append('Reclaim Background')
@@ -20601,17 +20607,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='red', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='red', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='red', fontweight='bold')
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2)
                 labelList.append('Reclaim Foreground')
@@ -20624,17 +20633,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='purple', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='purple', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='purple', fontweight='bold')
                 plot(timeline, netRead, '-', c='purple', linewidth=2)
                 labelList.append('Network Recv')
@@ -20647,17 +20659,20 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
                         fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
                 labelList.append('Network Send')
@@ -20674,8 +20689,13 @@ class ThreadAnalyzer(object):
                 # divide io graph #
                 for item in usage:
                     io = item.split('/')
-                    rdUsage.append(int(io[0]) << 10)
-                    wrUsage.append(int(io[1]) << 10)
+                    if(len(io) == 2):
+                        rdUsage.append(int(io[0]) << 10)
+                        wrUsage.append(int(io[1]) << 10)
+
+                # no io usage #
+                if len(rdUsage) == len(wrUsage) == 0:
+                    continue
 
                 # get margin #
                 ytick = yticks()[0]
@@ -20694,7 +20714,8 @@ class ThreadAnalyzer(object):
                         plot(timeline, wrUsage, '-', linewidth=1)[0].get_color()
                     if wrUsage[maxIdx] > 0:
                         text(timeline[maxIdx], wrUsage[maxIdx] + margin, \
-                            '[%s]%s' % (wrUsage[maxIdx], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            wrUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
                         try:
@@ -20702,8 +20723,8 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, wrUsage[-1] + margin, '[%s]%s' % \
-                            (wrUsage[-1], idx), fontsize=3, color=color, \
-                            fontweight='bold')
+                            (SystemManager.convertSize(wrUsage[-1] << 10), idx), \
+                            fontsize=3, color=color, fontweight='bold')
                     labelList.append('%s[BWR]' % idx)
 
                 # Block Read of process #
@@ -20716,7 +20737,8 @@ class ThreadAnalyzer(object):
                         plot(timeline, rdUsage, '-', linewidth=1)[0].get_color()
                     if rdUsage[maxIdx] > 0:
                         text(timeline[maxIdx], rdUsage[maxIdx] + margin, \
-                            '[%s]%s' % (rdUsage[maxIdx], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            rdUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
                         try:
@@ -20724,11 +20746,12 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, rdUsage[-1] + margin, \
-                            '[%s]%s' % (rdUsage[-1], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            rdUsage[-1] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     labelList.append('%s[BRD]' % idx)
 
-            ylabel('I/O(KB)', fontsize=7)
+            ylabel('I/O', fontsize=7)
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
@@ -20766,7 +20789,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val * 1024) for val in ytickLabel]
+                    [SystemManager.convertSize(val << 10) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except:
@@ -20795,14 +20818,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
                     if totalRAM is not None:
                         label = 'RAM Total [%s]\nRAM Free' % \
@@ -20819,14 +20845,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM User')
 
@@ -20838,14 +20867,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM Cache')
 
@@ -20857,14 +20889,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
                     if totalSwap is not None:
                         label = 'Swap Total [%s]\nSwap Usage' % \
@@ -20902,14 +20937,20 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
-                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
-                            labelList.append('%s[VSS]' % key)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    color=color, fontsize=3)
+                            labelList.append('%s [VSS]' % key)
                 # Process Leak #
                 elif SystemManager.leakEnable:
                     # get VSS diffs #
@@ -20959,13 +21000,16 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] - margin, \
-                                    '[%s/-%s]%s' % (usage[minIdx], item['vssDiff'], key), \
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
                                     color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s/+%s]%s' % (usage[maxIdx], item['vssDiff'], key), \
+                                    '[%s/+%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), \
+                                    SystemManager.convertSize(item['vssDiff'] << 20), key), \
                                     color=color, fontsize=3)
-                            labelList.append('%s[VSS]' % key)
+                            labelList.append('%s [VSS]' % key)
                 # Process RSS #
                 if SystemManager.rssEnable:
                     for key, item in sorted(memProcUsage.items(),\
@@ -20991,16 +21035,22 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
-                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
-                            labelList.append('%s[RSS]' % key)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    color=color, fontsize=3)
+                            labelList.append('%s [RSS]' % key)
 
-            ylabel('MEMORY(MB)', fontsize=7)
+            ylabel('MEMORY', fontsize=7)
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
             else:
@@ -21009,14 +21059,17 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
-            # convert tick type to integer #
             try:
-                ytickOrig = list(map(int, yticks()[0]))
-                ytick = ytickOrig
-                for idx, val in enumerate(ytick):
-                    if val < 0:
-                        ytickOrig.pop(idx)
-                yticks(ytickOrig, fontsize=5)
+                #ax.get_xaxis().set_visible(False)
+
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    [SystemManager.convertSize(val << 20) for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
             except:
                 pass
 
@@ -21024,7 +21077,7 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
-            ticklabel_format(useOffset=False)
+            #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
@@ -31304,12 +31357,12 @@ if __name__ == '__main__':
     # set arch #
     SystemManager.setArch(SystemManager.getArch())
 
-    # save system info first #
     if SystemManager.isLinux:
+        # save system info first #
         SystemManager()
 
-    # set default signal #
-    SystemManager.setDefaultSignal()
+        # set default signal #
+        SystemManager.setDefaultSignal()
 
     # check commands #
     SystemManager.checkCmdMode()
