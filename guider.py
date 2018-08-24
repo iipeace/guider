@@ -20489,14 +20489,21 @@ class ThreadAnalyzer(object):
                     fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
-            ylabel('CPU+I/O(%)', fontsize=8)
+            '''
+            ylabel('CPU + I/O', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
+
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
+
             xticks(fontsize=4)
             ylim([0, ymax])
             if len(timeline) > 1:
@@ -20505,7 +20512,20 @@ class ThreadAnalyzer(object):
             if inc == 0:
                 inc = 1
             yticks(xrange(0, ymax + inc, inc), fontsize=5)
-            ticklabel_format(useOffset=False)
+
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    ['%s%%' % val for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
+            except:
+                pass
+
+            #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
@@ -20751,7 +20771,11 @@ class ThreadAnalyzer(object):
                             color=color, fontweight='bold')
                     labelList.append('%s[BRD]' % idx)
 
-            ylabel('I/O', fontsize=7)
+            '''
+            ylabel('I/O', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
@@ -21050,7 +21074,11 @@ class ThreadAnalyzer(object):
                                     color=color, fontsize=3)
                             labelList.append('%s [RSS]' % key)
 
-            ylabel('MEMORY', fontsize=7)
+            '''
+            ylabel('MEMORY', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
             else:
@@ -21061,7 +21089,6 @@ class ThreadAnalyzer(object):
 
             try:
                 #ax.get_xaxis().set_visible(False)
-
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(int, ytickLabel))
 
@@ -21077,6 +21104,7 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
+
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
