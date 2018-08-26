@@ -8561,160 +8561,229 @@ class SystemManager(object):
             SystemManager.printRawTitle(False, True, True)
 
             pipePrint('')
-            pipePrint('[thread mode examples]')
-            pipePrint('    - record cpu usage of threads')
+            pipePrint('[ thread mode examples ]')
+
+            pipePrint('\n    - record and report cpu events of threads')
             pipePrint('        # %s record -s .' % cmd)
-            pipePrint('    - record specific resource usage of threads in background')
+
+            pipePrint('\n    - record and save specific resource events of threads in background')
             pipePrint('        # %s record -s . -e m, b, i -u' % cmd)
-            pipePrint('    - record specific resource usage excluding cpu of threads in background')
+
+            pipePrint('\n    - record and save specific resource events excluding cpu of threads in background')
             pipePrint('        # %s record -s . -e m, b, i -d c -u' % cmd)
-            pipePrint('    - record specific systemcalls of specific threads')
+
+            pipePrint('\n    - record and save specific systemcall events of specific threads')
             pipePrint('        # %s record -s . -t sys_read, write -g 1234' % cmd)
-            pipePrint('    - record lock events of threads')
+
+            pipePrint('\n    - record and save lock events of threads')
             pipePrint('        # %s record -s . -e L' % cmd)
-            pipePrint('    - record specific user function events')
-            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
-            pipePrint('    - record specific kernel function events')
+
+            pipePrint('\n    - record and save specific user function events of threads')
+            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out' % cmd)
+
+            pipePrint('\n    - record and save specific kernel function events of threads')
             pipePrint('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
-            pipePrint('    - record specific kernel function events with register values')
+
+            pipePrint('\n    - record and save specific kernel function events with register values')
             pipePrint('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
-            pipePrint('    - record specific kernel function events with return value')
+
+            pipePrint('\n    - record and save specific kernel function events with return value')
             pipePrint('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
-            pipePrint('    - excute special commands before recording')
+
+            pipePrint('\n    - execute special commands and record and save cpu events of threads')
             pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            pipePrint('    - analyze data by expressing all possible information')
+
+            pipePrint('\n    - report all possible information from trace data')
             pipePrint('        # %s guider.dat -o . -a -i' % cmd)
-            pipePrint('    - analyze data on specific interval')
+
+            pipePrint('\n    - report on specific interval from trace data')
             pipePrint('        # %s guider.dat -o . -R 3' % cmd)
-            pipePrint('    - analyze data including preemption info of specific threads')
+
+            pipePrint('\n    - report including preemption info of specific threads from trace data')
             pipePrint('        # %s guider.dat -o . -p 1234, 4567' % cmd)
-            pipePrint('    - analyze specific threads that are involved in the specific processes')
+
+            pipePrint('\n    - report including specific threads involved in the specific processes from trace data')
             pipePrint('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
-            pipePrint('    - draw graph and chart in image file')
+
+            pipePrint('\n    - draw graph and chart from trace data')
             pipePrint('        # %s draw guider.dat' % cmd)
 
-            pipePrint('\n[function mode examples]')
-            pipePrint('    - record cpu usage of functions in all threads')
+            pipePrint('\n [ function mode examples ]')
+
+            pipePrint('\n    - record and report cpu function events of threads')
             pipePrint('        # %s record -f -s .' % cmd)
-            pipePrint('    - record cpu usage of specific functions having tid bigger than 1024 in all threads')
+
+            pipePrint('\n    - record and save cpu function events of specific threads having tid bigger than 1024')
             pipePrint('        # %s record -f -s . -g 1024\<' % cmd)
-            pipePrint('    - record specific events of functions of all threads in kernel level')
+
+            pipePrint('\n    - record and save specific function events of threads except for user-mode')
             pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
-            pipePrint('    - record resource usage of functions of specific threads')
+
+            pipePrint('\n    - record and save specific resource function events specific threads')
             pipePrint('        # %s record -f -s . -e m, b, h -g 1234' % cmd)
-            pipePrint('    - excute special commands before recording')
-            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            pipePrint('    - analyze function data for all')
-            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-            pipePrint('    - analyze function data for all with remote server support')
-            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
-            pipePrint('    - analyze function data for only lower than 3 levels')
-            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
-            pipePrint('    - analyze function data of functions of all threads with specific argument condition')
-            pipePrint('        # %s record -f -o . -c softirq_entry:vec==1' % cmd)
-            pipePrint('    - record segmentation fault event of all threads')
+
+            pipePrint('\n    - record and save specific function events of threads with specific argument condition')
+            pipePrint('        # %s record -f -s . -c softirq_entry:vec==1' % cmd)
+
+            pipePrint('\n    - record and save segmentation fault function events of threads')
             pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
-            pipePrint('    - record blocking event except for cpu usage of all threads')
-            pipePrint('        # %s record -f -s . -d c -K block:schedule' % cmd)
+
+            pipePrint('\n    - record and save blocking function events of threads')
+            pipePrint('        # %s record -f -s . -K block:schedule' % cmd)
+
+            pipePrint('\n    - execute special commands and record and save cpu function events of threads')
+            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+
+            pipePrint('\n    - report all possible information from trace data using specific toolchain tools')
+            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+
+            pipePrint('\n    - report all possible information with remote server support')
+            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
+
+            pipePrint('\n    - report all possible information about only lower than 3 function levels')
+            pipePrint('        # %s guider.dat -o . -H 3' % cmd)
 
             pipePrint('\n[top mode examples]')
-            pipePrint('    - show resource usage of processes in real-time')
+
+            pipePrint('\n    - show resource usage of processes in real-time')
             pipePrint('        # %s top' % cmd)
-            pipePrint('    - show resource usage of processes with fixed terminal size in real-time')
+
+            pipePrint('\n    - show resource usage of processes on fixed-size terminal in real-time')
             pipePrint('        # %s top -m' % cmd)
-            pipePrint('    - show files opened via processes in real-time')
+
+            pipePrint('\n    - show files opened via processes in real-time')
             pipePrint('        # %s top -e F' % cmd)
-            pipePrint('    - show specific files opened via specific processes in real-time')
+
+            pipePrint('\n    - show specific files opened via specific processes in real-time')
             pipePrint('        # %s top -e F -g init, lightdm : home, var' % cmd)
-            pipePrint('    - show performance stats of specific processes in real-time')
+
+            pipePrint('\n    - show performance stats of specific processes in real-time')
             pipePrint('        # %s top -e P -g init, lightdm' % cmd)
-            pipePrint('    - show resource usage of processes by sorting memory in real-time')
+
+            pipePrint('\n    - show resource usage of processes by sorting memory in real-time')
             pipePrint('        # %s top -S m' % cmd)
-            pipePrint('    - show resource usage of processes by sorting file in real-time')
+
+            pipePrint('\n    - show resource usage of processes by sorting file in real-time')
             pipePrint('        # %s top -S f' % cmd)
-            pipePrint('    - show resource usage of processes only 5 times in real-time')
+
+            pipePrint('\n    - show resource usage of processes only 5 times in real-time')
             pipePrint('        # %s top -R 5' % cmd)
-            pipePrint('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
+
+            pipePrint('\n    - show resource usage of processes only 5 times per 3 sec interval in real-time')
             pipePrint('        # %s top -R 3, 5' % cmd)
-            pipePrint('    - show resource usage including block of threads per 2 sec interval in real-time')
+
+            pipePrint('\n    - show resource usage including block of threads per 2 sec interval in real-time')
             pipePrint('        # %s top -e t, b -i 2 -a' % cmd)
-            pipePrint('    - show resource usage of specific processes/threads involved in specific process group in real-time')
+
+            pipePrint('\n    - show resource usage of specific processes/threads involved in specific process group in real-time')
             pipePrint('        # %s top -g 1234,4567 -P' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file in real-time')
+
+            pipePrint('\n    - save resource usage of processes and write to specific file in real-time')
             pipePrint('        # %s top -o . -e p' % cmd)
-            pipePrint('    - record and print resource usage of processes')
+
+            pipePrint('\n    - save and print resource usage of processes in real-time')
             pipePrint('        # %s top -o . -Q' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file in background')
+
+            pipePrint('\n    - save resource usage of processes in background')
             pipePrint('        # %s top -o . -u' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific file in background')
+
+            pipePrint('\n    - save resource usage of processes and report system stats in background')
             pipePrint('        # %s top -o . -e r -j . -u' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific file if some events occur')
+
+            pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
             pipePrint('        # %s top -o . -e r, R' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific image')
+
+            pipePrint('\n    - save resource usage of processes and report system status to specific image')
             pipePrint('        # %s top -o . -e r, I' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file when specific conditions met')
+
+            pipePrint('\n    - save resource usage of processes and report to file if specific conditions meet')
             pipePrint('        # %s top -o . -e R' % cmd)
-            pipePrint('    - excute special commands every interval')
+
+            pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
-            pipePrint('    - trace memory working set for specific processes')
+
+            pipePrint('\n    - trace memory working set of specific processes')
             pipePrint('        # %s top -e w -g chrome' % cmd)
-            pipePrint('    - draw graph and chart in image file')
+
+            pipePrint('\n    - draw graph and chart to specific files')
             pipePrint('        # %s draw guider.out' % cmd)
-            pipePrint('        # %s top -I guider.out -e g' % cmd)
-            pipePrint('    - draw graph and chart for specific process group in image file')
+
+            pipePrint('\n    - draw graph and chart for specific process group to specific files')
             pipePrint('        # %s draw guider.out -g chrome' % cmd)
-            pipePrint('        # %s top -I guider.out -e g -g chrome' % cmd)
-            pipePrint('    - draw cpu and memory graphs of specific processes in image file propotionally')
+
+            pipePrint('\n    - draw cpu and memory graphs of specific processes to a specific file propotionally')
             pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
-            pipePrint('    - draw VSS graph and chart for specific processes in image file')
+
+            pipePrint('\n    - draw VSS graph and chart for specific processes to specific files')
             pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
-            pipePrint('    - report system status to specific server')
+
+            pipePrint('\n    - show and report resource usage of processes to specific server')
             pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
-            pipePrint('    - report system status to specific clients that asked it')
+
+            pipePrint('\n    - show and report resource usage of processes to specific clients that asked it')
             pipePrint('        # %s top -x 5555' % cmd)
-            pipePrint('    - receive report data from server')
+
+            pipePrint('\n    - handle report data from server')
             pipePrint('        # %s top -x 5555 -X' % cmd)
-            pipePrint('    - set configuration file path')
+
+            pipePrint('\n    - show resource usage of processes and set condition file path for report')
             pipePrint('        # %s top -I guider.json' % cmd)
 
-            pipePrint('\n[file mode examples]')
-            pipePrint('    - record memory usage of files mapped to processes')
+            pipePrint('\n[ file mode examples ]')
+
+            pipePrint('\n    - record memory usage of files mapped to processes')
             pipePrint('        # %s record -F -o .' % cmd)
-            pipePrint('    - record memory usage of files mapped to processes each intervals')
+
+            pipePrint('\n    - record memory usage of files mapped to processes each intervals')
             pipePrint('        # %s record -F -i' % cmd)
 
             pipePrint('\n[etc examples]')
-            pipePrint('    - check property of specific pages')
+
+            pipePrint('\n    - check property of specific pages')
             pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
-            pipePrint('    - convert a text fle to a image file')
+
+            pipePrint('\n    - convert a text fle to a image file')
             pipePrint('        # %s guider.out -Z' % cmd)
-            pipePrint('    - wait for signal')
+
+            pipePrint('\n    - wait for signal')
             pipePrint('        # %s record|top -W' % cmd)
-            pipePrint('    - show guider processes running')
+
+            pipePrint('\n    - show guider processes running')
             pipePrint('        # %s list' % cmd)
-            pipePrint('    - send noty signal to guider processes running')
+
+            pipePrint('\n    - send noty signal to guider processes running')
             pipePrint('        # %s send' % cmd)
             pipePrint('        # %s kill ' % cmd)
-            pipePrint('    - send stop signal to guider processes running')
+
+            pipePrint('\n    - send stop signal to guider processes running')
             pipePrint('        # %s stop' % cmd)
-            pipePrint('    - send specific signals to specific processes running')
+
+            pipePrint('\n    - send specific signals to specific processes running')
             pipePrint('        # %s send -9 1234, 4567' % cmd)
             pipePrint('        # %s kill -9 1234, 4567' % cmd)
-            pipePrint('    - change priority of task')
+
+            pipePrint('\n    - change priority of task')
             pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
-            pipePrint('    - change priority of tasks in a group')
+
+            pipePrint('\n    - change priority of tasks in a group')
             pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
-            pipePrint('    - update priority of all tasks shown')
+
+            pipePrint('\n    - update priority of all tasks shown')
             pipePrint('        # %s top -Y r:90:ALL' % cmd)
-            pipePrint('    - update priority of tasks continuously')
+
+            pipePrint('\n    - update priority of tasks continuously')
             pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
-            pipePrint('    - update cpu affinity of all tasks shown')
+
+            pipePrint('\n    - update cpu affinity of all tasks shown')
             pipePrint('        # %s top -z f:ALL' % cmd)
-            pipePrint('    - update cpu affinity of tasks continuously')
+
+            pipePrint('\n    - update cpu affinity of tasks continuously')
             pipePrint('        # %s top -z f:1234:CONT' % cmd)
-            pipePrint('    - limit cpu usage of specific processes')
+
+            pipePrint('\n    - limit cpu usage of specific processes')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
-            pipePrint('    - limit cpu usage of specific threads')
+
+            pipePrint('\n    - limit cpu usage of specific threads')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
 
             sys.exit(0)
