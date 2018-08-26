@@ -2794,16 +2794,18 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable is False:
             return
         elif SystemManager.addr2linePath is None:
+            # get addr2line path #
             addr2linePath = SystemManager.which('addr2line')
+
             if addr2linePath != None:
                 SystemManager.printWarning((\
-                    "Fail to recognize addr2line path for user function analysis\n"
+                    "Fail to recognize addr2line path to analyze user functions\n"
                     "\tso just use %s as default addr2line path\n"
                     "\tif it is wrong then use -l option") % addr2linePath, True)
                 SystemManager.addr2linePath = addr2linePath
             else:
                 SystemManager.printError((\
-                    "Fail to recognize addr2line path for user function analysis "
+                    "Fail to recognize addr2line path to analyze user functions, "
                     "use -l option"))
                 sys.exit(0)
         else:
@@ -2834,7 +2836,8 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SystemManager.printError("Fail to execute %s" % path)
+                    SystemManager.printError(\
+                        "Fail to execute %s to get symbols from binary" % path)
                     sys.exit(0)
 
                 # Increase offset count in address list #
@@ -9902,14 +9905,14 @@ class SystemManager(object):
                         objdumpPath = SystemManager.which('objdump')
                         if objdumpPath != None:
                             SystemManager.printWarning((\
-                                "Fail to recognize objdump path for user event tracing\n"
+                                "Fail to recognize objdump path to get address of user function\n"
                                 "\tso just use %s as default objdump path\n"
                                 "\tif it is wrong then use -M option") % \
                                     objdumpPath[0], True)
                             SystemManager.objdumpPath = objdumpPath[0]
                         else:
                             SystemManager.printError((\
-                                "Fail to recognize objdump path for user event tracing, "
+                                "Fail to recognize objdump path to get address of user function, "
                                 "use -l option"))
                             sys.exit(0)
                     # symbol input with objdump #
@@ -10047,7 +10050,8 @@ class SystemManager(object):
             proc = subprocess.Popen(\
                 args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
         except:
-            SystemManager.printError("Fail to execute %s" % objdumpPath)
+            SystemManager.printError(\
+                "Fail to execute %s to get address from binary" % objdumpPath)
             sys.exit(0)
 
         while 1:
@@ -12357,13 +12361,7 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
-                # Handle error about record option #
-                if SystemManager.outputFile is None:
-                    SystemManager.printError(\
-                        "wrong option with -f, use -s option to save data")
-                    sys.exit(0)
-                else:
-                    SystemManager.functionEnable = True
+                SystemManager.functionEnable = True
 
             elif option == 'l' and SystemManager.isTopMode() is False:
                 SystemManager.addr2linePath = value.split(',')
