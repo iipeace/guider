@@ -20874,6 +20874,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # adjust yticks #
             ylist = ax.get_yticks().tolist()
             ymin = int(min(ylist))
             if ymin < 0:
@@ -20900,7 +20901,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 10) for val in ytickLabel]
+                    [SystemManager.convertSize(val << 10, True) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except:
@@ -21174,6 +21175,17 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # adjust yticks #
+            ylist = ax.get_yticks().tolist()
+            ymin = int(min(ylist))
+            if ymin < 0:
+                ymin = 0
+            ymax = int(max(ylist))
+            inc = int(ymax / 10)
+            if inc == 0:
+                inc = 1
+            yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+
             try:
                 #ax.get_xaxis().set_visible(False)
                 ytickLabel = ax.get_yticks().tolist()
@@ -21181,7 +21193,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 20) for val in ytickLabel]
+                    [SystemManager.convertSize(val << 20, True) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except:
