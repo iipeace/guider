@@ -8749,22 +8749,22 @@ class SystemManager(object):
             pipePrint('\n    - convert a text fle to a image file')
             pipePrint('        # %s guider.out -Z' % cmd)
 
-            pipePrint('\n    - wait for signal')
+            pipePrint('\n    - wait for signal to start')
             pipePrint('        # %s record|top -W' % cmd)
 
-            pipePrint('\n    - show guider processes running')
+            pipePrint('\n    - show guider processes')
             pipePrint('        # %s list' % cmd)
 
-            pipePrint('\n    - send noty signal to guider processes running')
+            pipePrint('\n    - send noty signal to guider processes')
             pipePrint('        # %s send' % cmd)
             pipePrint('        # %s kill ' % cmd)
 
-            pipePrint('\n    - send stop signal to guider processes running')
+            pipePrint('\n    - send stop signal to guider processes')
             pipePrint('        # %s stop' % cmd)
 
-            pipePrint('\n    - send specific signals to specific processes running')
+            pipePrint('\n    - send specific signals to specific processes')
             pipePrint('        # %s send -9 1234, 4567' % cmd)
-            pipePrint('        # %s kill -9 1234, 4567' % cmd)
+            pipePrint('        # %s kill -kill 1234, 4567' % cmd)
 
             pipePrint('\n    - change priority of task')
             pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
