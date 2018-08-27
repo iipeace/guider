@@ -8646,7 +8646,7 @@ class SystemManager(object):
             pipePrint('\n    - report all possible information about only lower than 3 function levels')
             pipePrint('        # %s guider.dat -o . -H 3' % cmd)
 
-            pipePrint('\n[top mode examples]')
+            pipePrint('\n[ top mode examples ]')
 
             pipePrint('\n    - show resource usage of processes in real-time')
             pipePrint('        # %s top' % cmd)
@@ -8734,13 +8734,13 @@ class SystemManager(object):
 
             pipePrint('\n[ file mode examples ]')
 
-            pipePrint('\n    - record memory usage of files mapped to processes')
+            pipePrint('\n    - trace memory usage of files mapped to processes')
             pipePrint('        # %s record -F -o .' % cmd)
 
-            pipePrint('\n    - record memory usage of files mapped to processes each intervals')
+            pipePrint('\n    - trace memory usage of files mapped to processes each intervals')
             pipePrint('        # %s record -F -i' % cmd)
 
-            pipePrint('\n[etc examples]')
+            pipePrint('\n[ etc examples ]')
 
             pipePrint('\n    - check property of specific pages')
             pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
