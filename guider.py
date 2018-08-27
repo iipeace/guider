@@ -8104,25 +8104,40 @@ class SystemManager(object):
 
 
     @staticmethod
-    def convertSize(size):
+    def convertSize(size, isInt=False):
         sizeKB = 1024
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
-        try:
-            if size >= sizeTB:
-                return '%.1fT' % ((size >> 30) / 1024)
-            elif size >= sizeGB:
-                return '%.1fG' % ((size >> 20) / 1024)
-            elif size >= sizeMB:
-                return '%.1fM' % ((size >> 10) / 1024)
-            elif size >= sizeKB:
-                return '%.1fK' % (size / 1024)
-            else:
-                return '%d' % (size)
-        except:
-            return '?'
+        if isInt:
+            try:
+                if size >= sizeTB:
+                    return '%dT' % (size >> 40)
+                elif size >= sizeGB:
+                    return '%dG' % (size >> 30)
+                elif size >= sizeMB:
+                    return '%dM' % (size >> 20)
+                elif size >= sizeKB:
+                    return '%dK' % (size >> 10)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+        else:
+            try:
+                if size >= sizeTB:
+                    return '%.1fT' % ((size >> 30) / 1024)
+                elif size >= sizeGB:
+                    return '%.1fG' % ((size >> 20) / 1024)
+                elif size >= sizeMB:
+                    return '%.1fM' % ((size >> 10) / 1024)
+                elif size >= sizeKB:
+                    return '%.1fK' % (size / 1024)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
 
 
 
@@ -23409,6 +23424,7 @@ class ThreadAnalyzer(object):
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('RAM Usage')
 
+        # total block usage on timeline #
         if SystemManager.blockEnable:
             # total block read usage on timeline #
             brtotal = 0
@@ -25119,8 +25135,8 @@ class ThreadAnalyzer(object):
             if cnt > limitProcCnt:
                 break
 
+            # get memory details #
             if value['maps'] is None:
-                # get memory details #
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
 
             if value['maps'] is not None:
@@ -29920,43 +29936,51 @@ class ThreadAnalyzer(object):
 
                 try:
                     prop = 'Size:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Rss:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                     rss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Pss:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                     pss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Swap:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'AnonHugePages:'
-                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
+                    tmpstr = "%s%s:%4s / " % \
+                        (tmpstr, 'HUGE', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', 0)
+                    tmpstr = "%s%s:%3sK / " % (tmpstr, 'HUGE', 0)
 
                 try:
                     prop = 'Locked:'
-                    tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', item[prop])
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, 'LOCK:', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
 
@@ -29969,31 +29993,25 @@ class ThreadAnalyzer(object):
                 try:
                     prop = 'Shared_Dirty:'
                     sss += item[prop]
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', item[prop])
+                    tmpstr = "%s%s:%5s / " % \
+                        (tmpstr, 'SDRT', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
 
                 try:
                     prop = 'Private_Dirty:'
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDRT', item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDRT', item[prop])
+                    tmpstr = "%s%s:%5s / " % \
+                        (tmpstr, 'PDRT', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
 
                 try:
                     prop = 'NOPM'
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK" % (tmpstr, prop, item[prop])
+                    tmpstr = "%s%s:%5s" % \
+                        (tmpstr, prop, \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
