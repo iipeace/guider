@@ -8309,22 +8309,23 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
-        if os.path.exists(SystemManager.reportPath):
-            os.remove(SystemManager.reportPath)
-
         try:
             fd = open(SystemManager.reportPath, 'w')
         except:
-            SystemManager.printWarning(\
-                "Fail to open %s to write json data" % SystemManager.reportPath)
-            return False
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s to write json data because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))))
+            sys.exit(0)
 
         try:
             fd.write(jsonObj)
             fd.close()
         except:
+            err = sys.exc_info()[1]
             SystemManager.printWarning(\
-                "Fail to write json data to %s" % SystemManager.reportPath)
+                "Fail to write json data to %s because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
             return False
 
         return True
@@ -8646,7 +8647,7 @@ class SystemManager(object):
             pipePrint('\n    - report all possible information about only lower than 3 function levels')
             pipePrint('        # %s guider.dat -o . -H 3' % cmd)
 
-            pipePrint('\n[top mode examples]')
+            pipePrint('\n[ top mode examples ]')
 
             pipePrint('\n    - show resource usage of processes in real-time')
             pipePrint('        # %s top' % cmd)
@@ -8734,13 +8735,13 @@ class SystemManager(object):
 
             pipePrint('\n[ file mode examples ]')
 
-            pipePrint('\n    - record memory usage of files mapped to processes')
+            pipePrint('\n    - trace memory usage of files mapped to processes')
             pipePrint('        # %s record -F -o .' % cmd)
 
-            pipePrint('\n    - record memory usage of files mapped to processes each intervals')
+            pipePrint('\n    - trace memory usage of files mapped to processes each intervals')
             pipePrint('        # %s record -F -i' % cmd)
 
-            pipePrint('\n[etc examples]')
+            pipePrint('\n[ etc examples ]')
 
             pipePrint('\n    - check property of specific pages')
             pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
@@ -8748,22 +8749,22 @@ class SystemManager(object):
             pipePrint('\n    - convert a text fle to a image file')
             pipePrint('        # %s guider.out -Z' % cmd)
 
-            pipePrint('\n    - wait for signal')
+            pipePrint('\n    - wait for signal to start')
             pipePrint('        # %s record|top -W' % cmd)
 
-            pipePrint('\n    - show guider processes running')
+            pipePrint('\n    - show guider processes')
             pipePrint('        # %s list' % cmd)
 
-            pipePrint('\n    - send noty signal to guider processes running')
+            pipePrint('\n    - send noty signal to guider processes')
             pipePrint('        # %s send' % cmd)
             pipePrint('        # %s kill ' % cmd)
 
-            pipePrint('\n    - send stop signal to guider processes running')
+            pipePrint('\n    - send stop signal to guider processes')
             pipePrint('        # %s stop' % cmd)
 
-            pipePrint('\n    - send specific signals to specific processes running')
+            pipePrint('\n    - send specific signals to specific processes')
             pipePrint('        # %s send -9 1234, 4567' % cmd)
-            pipePrint('        # %s kill -9 1234, 4567' % cmd)
+            pipePrint('        # %s kill -kill 1234, 4567' % cmd)
 
             pipePrint('\n    - change priority of task')
             pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
@@ -12509,20 +12510,24 @@ class SystemManager(object):
                     SystemManager.printError("no option value with -j option")
                     sys.exit(0)
 
+                # directory path #
                 if os.path.isdir(SystemManager.reportPath) == False:
                     reportPath = SystemManager.reportPath
                     upDirPos = SystemManager.reportPath.rfind('/')
                     if upDirPos > 0 and \
                         os.path.isdir(reportPath[:upDirPos]) is False:
-                        SystemManager.printError("wrong path with -j option")
+                        SystemManager.printError(\
+                            "wrong path with -j option to report stats")
                         sys.exit(0)
-
-                if os.path.isdir(SystemManager.reportPath):
+                # file path #
+                else:
                     SystemManager.reportPath = \
-                        SystemManager.reportPath + '/guider.report'
+                        '%s/guider.report' % SystemManager.reportPath
 
+                # remove redundant slash #
                 SystemManager.reportPath = \
                     SystemManager.reportPath.replace('//', '/')
+
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
 
