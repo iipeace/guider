@@ -8309,22 +8309,23 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
-        if os.path.exists(SystemManager.reportPath):
-            os.remove(SystemManager.reportPath)
-
         try:
             fd = open(SystemManager.reportPath, 'w')
         except:
-            SystemManager.printWarning(\
-                "Fail to open %s to write json data" % SystemManager.reportPath)
-            return False
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s to write json data because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))))
+            sys.exit(0)
 
         try:
             fd.write(jsonObj)
             fd.close()
         except:
+            err = sys.exc_info()[1]
             SystemManager.printWarning(\
-                "Fail to write json data to %s" % SystemManager.reportPath)
+                "Fail to write json data to %s because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
             return False
 
         return True
@@ -12509,20 +12510,24 @@ class SystemManager(object):
                     SystemManager.printError("no option value with -j option")
                     sys.exit(0)
 
+                # directory path #
                 if os.path.isdir(SystemManager.reportPath) == False:
                     reportPath = SystemManager.reportPath
                     upDirPos = SystemManager.reportPath.rfind('/')
                     if upDirPos > 0 and \
                         os.path.isdir(reportPath[:upDirPos]) is False:
-                        SystemManager.printError("wrong path with -j option")
+                        SystemManager.printError(\
+                            "wrong path with -j option to report stats")
                         sys.exit(0)
-
-                if os.path.isdir(SystemManager.reportPath):
+                # file path #
+                else:
                     SystemManager.reportPath = \
-                        SystemManager.reportPath + '/guider.report'
+                        '%s/guider.report' % SystemManager.reportPath
 
+                # remove redundant slash #
                 SystemManager.reportPath = \
                     SystemManager.reportPath.replace('//', '/')
+
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
 
