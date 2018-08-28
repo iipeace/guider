@@ -20,7 +20,7 @@ Do you struggle to improve system performance or to find root cause that makes s
 Guider is made to measure amount of system resource usage and to trace system behavior.   
 You can analyze your performance issues effectively with this tool.   
 
-Guider pursues characteristics as bellow.
+Guider pursues characteristics as below.
 >1. Easy to use: just run without any setting and package installation
 >2. Measure correctly: count, time in from us, size in from byte
 >3. Provide all features: enough functions for experiment and analysis
@@ -629,18 +629,18 @@ How to use
 =======
 
 ```
-Input a command as bellow to start tracing for all threads.
+Input a command as below to start tracing for all threads.
     # ./guider.py record -a
 And input 'Ctrl + c' on keyboard to finish tracing.
 
-Input a command as bellow to start monitoring for all processes.
+Input a command as below to start monitoring for all processes.
     $ ./guider.py top -a
 And Input 'Ctrl + c' on keyboard to finish monitoring.
 
-Input a command as bellow to see more instructions.
+Input a command as below to see more instructions.
     $ ./guider.py -h
 
-Visit a bellow link to see output of guider.
+Visit a below link to see output of guider.
 - https://github.com/iipeace/guider/wiki
 ```
 
@@ -658,13 +658,13 @@ Build & Installation
 =======
 
 ```
-If you can run 'pip' on your system then just input a command as bellow
-    $ sudo pip install guider
+If you can run 'pip' on your system then just input a command as below
+    # pip install guider
 Then you can use 'guider' command
 
-Otherwise download source from https://github.com/iipeace/guider
+Otherwise, download the source from https://github.com/iipeace/guider
 Then you can just run "guider.py" but it is little bit heavy 
-If you want to run guider lightly then input a command as bellow
+If you want to run guider lightly then input a command as below
     # make && make install
 Then you can use 'guider' command
 ```
@@ -874,23 +874,23 @@ Examples
         # ./guider.py top -R 5
     - show resource usage of processes only 5 times per 3 sec interval in real-time
         # ./guider.py top -R 3, 5
-    - show resource usage including block of threads per 2 sec interval in real-time
-        # ./guider.py top -e t, b -i 2 -a
+    - show resource usage including block I/O of threads per 2 sec interval in real-time
+        # ./guider.py threadtop -e b -i 2 -a
     - show resource usage of specific processes/threads involved in specific process group in real-time
         # ./guider.py top -g 1234,4567 -P
-    - record resource usage of processes and write to specific file in real-time
+    - record resource usage of processes and write to the specific file in real-time
         # ./guider.py top -o . -e p
     - record and print resource usage of processes
         # ./guider.py top -o . -Q
-    - record resource usage of processes and write to specific file in background
+    - record resource usage of processes and write to the specific file in background
         # ./guider.py top -o . -u
-    - record resource usage of processes, system status and write to specific file in background
+    - record resource usage of processes, system status and write to the specific file in background
         # ./guider.py top -o . -e r -j . -u
-    - record resource usage of processes, system status and write to specific file if some events occur
+    - record resource usage of processes, system status and write to the specific file if some events occur
         # ./guider.py top -o . -e r, R
-    - record resource usage of processes, system status and write to specific image
+    - record resource usage of processes, system status and write to the specific image
         # ./guider.py top -o . -e r, I
-    - record resource usage of processes and write to specific file when specific conditions met
+    - record resource usage of processes and write to the specific file when specific conditions met
         # ./guider.py top -o . -e R
     - excute special commands every interval
         # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
@@ -906,7 +906,7 @@ Examples
         # ./guider.py draw guider.out -g chrome -L cpu:5, mem:5
     - draw VSS graph and chart for specific processes in image file
         # ./guider.py draw guider.out -g chrome -e v
-    - report system status to specific server if only some events occur
+    - report system status to the specific server if only some events occur
         # ./guider.py top -e r -N REPORT_ALWAYS@192.168.0.5:5555
     - report system status to specific clients that asked it
         # ./guider.py top -x 5555
@@ -922,7 +922,7 @@ Examples
         # ./guider.py record -F -i
 
 [etc examples]
-    - check property of specific pages
+    - check the property of specific pages
         # ./guider.py mem -g 1234 -I 0x7abc1234-0x7abc6789
     - convert a text fle to a image file
         # ./guider.py guider.out -Z

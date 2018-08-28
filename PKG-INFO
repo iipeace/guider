@@ -1,0 +1,12 @@
+Metadata-Version: 1.1
+Name: guider
+Version: 3.9.3
+Summary: A system-wide analyzer of performance
+Home-page: https://github.com/iipeace/guider
+Author: Peace Lee
+Author-email: iipeace5@gmail.com
+License: GPL2
+Download-URL: https://github.com/iipeace/guider/archive/master.zip
+Description: UNKNOWN
+Keywords: guider,linux,analyzer,performance,profile,trace,kernel
+Platform: UNKNOWN

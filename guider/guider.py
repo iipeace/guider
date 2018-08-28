@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
@@ -951,8 +951,8 @@ class NetworkManager(object):
                     'Fail to download %s from %s:%s:%s because %s' % \
                     (origPath, targetIp, targetPort, targetPath, \
                     ' '.join(list(map(str, err.args)))))
-
-            receiver.close()
+            finally:
+                receiver.close()
 
         def onUpload(req, addr):
             # parse path #
@@ -996,8 +996,8 @@ class NetworkManager(object):
                     "Fail to upload %s to %s:%s because %s" % \
                     (origPath, ':'.join(list(map(str, addr))), \
                     ' '.join(list(map(str, err.args))), targetPath))
-
-            sender.close()
+            finally:
+                sender.close()
 
         def onRun(req, addr):
             # parse command #
@@ -1020,21 +1020,26 @@ class NetworkManager(object):
             # run mainloop #
             buf = ''
             while 1:
-                [readSock, writeSock, errorSock] = \
-                    SystemManager.selectObject.select(\
-                    [conn.socket], [], [])
+                try:
+                    [readSock, writeSock, errorSock] = \
+                        SystemManager.selectObject.select(\
+                        [conn.socket], [], [])
 
-                output = conn.recvfrom()[0]
-                if not output:
+                    output = conn.recvfrom()[0]
+                    if not output:
+                        break
+
+                    output = output.decode()
+                    if output[-1] != '\n':
+                        buf = '%s%s' % (buf, output)
+                    else:
+                        # concatenate split lines #
+                        print('%s%s' % (buf, output[:-1]))
+                        buf = ''
+                except:
                     break
 
-                output = output.decode()
-                if output[-1] != '\n':
-                    buf = '%s%s' % (buf, output)
-                else:
-                    # concatenate split lines #
-                    print('%s%s' % (buf, output[:-1]))
-                    buf = ''
+            conn.close()
 
 
 
@@ -2173,7 +2178,7 @@ class FunctionAnalyzer(object):
                         try:
                             kenrelData['pagePair'][pairId]
                         except:
-                            self.kernelSymData[allocKernelSym]['pagePair'][pairId] = \
+                            kernelData['pagePair'][pairId] = \
                                 dict(self.init_glueData)
 
                         self.kernelSymData[allocKernelSym]['pagePairCnt'] += 1
@@ -2789,16 +2794,18 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable is False:
             return
         elif SystemManager.addr2linePath is None:
+            # get addr2line path #
             addr2linePath = SystemManager.which('addr2line')
+
             if addr2linePath != None:
                 SystemManager.printWarning((\
-                    "Fail to recognize addr2line path for user function analysis\n"
+                    "Fail to recognize addr2line path to analyze user functions\n"
                     "\tso just use %s as default addr2line path\n"
                     "\tif it is wrong then use -l option") % addr2linePath, True)
                 SystemManager.addr2linePath = addr2linePath
             else:
                 SystemManager.printError((\
-                    "Fail to recognize addr2line path for user function analysis "
+                    "Fail to recognize addr2line path to analyze user functions, "
                     "use -l option"))
                 sys.exit(0)
         else:
@@ -2829,7 +2836,8 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SystemManager.printError("Fail to execute %s" % path)
+                    SystemManager.printError(\
+                        "Fail to execute %s to get symbols from binary" % path)
                     sys.exit(0)
 
                 # Increase offset count in address list #
@@ -6555,7 +6563,7 @@ class FileAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
-        # Print proccess list #
+        # Print process list #
         SystemManager.pipePrint((\
             "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
@@ -6671,7 +6679,7 @@ class FileAnalyzer(object):
 
 
     def printIntervalInfo(self):
-        # Merge proccess info into a global list #
+        # Merge process info into a global list #
         for procData in self.intervalProcData:
             for pid, procInfo in procData.items():
                 try:
@@ -6715,7 +6723,7 @@ class FileAnalyzer(object):
         # Print system information #
         SystemManager.printInfoBuffer()
 
-        # Print proccess list #
+        # Print process list #
         SystemManager.pipePrint(\
             "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
             ('File Process Info', len(self.procList), self.profPageCnt * 4))
@@ -7503,7 +7511,7 @@ class SystemManager(object):
     netEnable = False
     stackEnable = False
     wchanEnable = True
-    sigHandlerEnable = True
+    sigHandlerEnable = False
     tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
@@ -8096,25 +8104,40 @@ class SystemManager(object):
 
 
     @staticmethod
-    def convertSize(size):
+    def convertSize(size, isInt=False):
         sizeKB = 1024
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
-        try:
-            if size >= sizeTB:
-                return '%.1fT' % ((size >> 30) / 1024)
-            elif size >= sizeGB:
-                return '%.1fG' % ((size >> 20) / 1024)
-            elif size >= sizeMB:
-                return '%.1fM' % ((size >> 10) / 1024)
-            elif size >= sizeKB:
-                return '%.1fK' % (size / 1024)
-            else:
-                return '%d' % (size)
-        except:
-            return '?'
+        if isInt:
+            try:
+                if size >= sizeTB:
+                    return '%dT' % (size >> 40)
+                elif size >= sizeGB:
+                    return '%dG' % (size >> 30)
+                elif size >= sizeMB:
+                    return '%dM' % (size >> 20)
+                elif size >= sizeKB:
+                    return '%dK' % (size >> 10)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+        else:
+            try:
+                if size >= sizeTB:
+                    return '%.1fT' % ((size >> 30) / 1024)
+                elif size >= sizeGB:
+                    return '%.1fG' % ((size >> 20) / 1024)
+                elif size >= sizeMB:
+                    return '%.1fM' % ((size >> 10) / 1024)
+                elif size >= sizeKB:
+                    return '%.1fK' % (size / 1024)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
 
 
 
@@ -8301,22 +8324,23 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj):
-        if os.path.exists(SystemManager.reportPath):
-            os.remove(SystemManager.reportPath)
-
         try:
             fd = open(SystemManager.reportPath, 'w')
         except:
-            SystemManager.printWarning(\
-                "Fail to open %s to write json data" % SystemManager.reportPath)
-            return False
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s to write json data because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))))
+            sys.exit(0)
 
         try:
             fd.write(jsonObj)
             fd.close()
         except:
+            err = sys.exc_info()[1]
             SystemManager.printWarning(\
-                "Fail to write json data to %s" % SystemManager.reportPath)
+                "Fail to write json data to %s because %s" % \
+                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
             return False
 
         return True
@@ -8477,7 +8501,7 @@ class SystemManager(object):
                                                  '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
                     '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
-                    '\n                          a(ffinity)|W(chan)|h(andler)|F(loat)|'\
+                    '\n                          a(ffinity)|W(chan)|h(andler)|f(loat)|'\
                     '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
@@ -8556,160 +8580,229 @@ class SystemManager(object):
             SystemManager.printRawTitle(False, True, True)
 
             pipePrint('')
-            pipePrint('[thread mode examples]')
-            pipePrint('    - record cpu usage of threads')
+            pipePrint('[ thread mode examples ]')
+
+            pipePrint('\n    - record and report cpu events of threads')
             pipePrint('        # %s record -s .' % cmd)
-            pipePrint('    - record specific resource usage of threads in background')
+
+            pipePrint('\n    - record and save specific resource events of threads in background')
             pipePrint('        # %s record -s . -e m, b, i -u' % cmd)
-            pipePrint('    - record specific resource usage excluding cpu of threads in background')
+
+            pipePrint('\n    - record and save specific resource events excluding cpu of threads in background')
             pipePrint('        # %s record -s . -e m, b, i -d c -u' % cmd)
-            pipePrint('    - record specific systemcalls of specific threads')
+
+            pipePrint('\n    - record and save specific systemcall events of specific threads')
             pipePrint('        # %s record -s . -t sys_read, write -g 1234' % cmd)
-            pipePrint('    - record lock events of threads')
+
+            pipePrint('\n    - record and save lock events of threads')
             pipePrint('        # %s record -s . -e L' % cmd)
-            pipePrint('    - record specific user function events')
-            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -M $(which objdump)' % cmd)
-            pipePrint('    - record specific kernel function events')
+
+            pipePrint('\n    - record and save specific user function events of threads')
+            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out' % cmd)
+
+            pipePrint('\n    - record and save specific kernel function events of threads')
             pipePrint('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
-            pipePrint('    - record specific kernel function events with register values')
+
+            pipePrint('\n    - record and save specific kernel function events with register values')
             pipePrint('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
-            pipePrint('    - record specific kernel function events with return value')
+
+            pipePrint('\n    - record and save specific kernel function events with return value')
             pipePrint('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
-            pipePrint('    - excute special commands before recording')
+
+            pipePrint('\n    - execute special commands and record and save cpu events of threads')
             pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            pipePrint('    - analyze data by expressing all possible information')
+
+            pipePrint('\n    - report all possible information from trace data')
             pipePrint('        # %s guider.dat -o . -a -i' % cmd)
-            pipePrint('    - analyze data on specific interval')
+
+            pipePrint('\n    - report on specific interval from trace data')
             pipePrint('        # %s guider.dat -o . -R 3' % cmd)
-            pipePrint('    - analyze data including preemption info of specific threads')
+
+            pipePrint('\n    - report including preemption info of specific threads from trace data')
             pipePrint('        # %s guider.dat -o . -p 1234, 4567' % cmd)
-            pipePrint('    - analyze specific threads that are involved in the specific processes')
+
+            pipePrint('\n    - report including specific threads involved in the specific processes from trace data')
             pipePrint('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
-            pipePrint('    - draw graph and chart in image file')
+
+            pipePrint('\n    - draw graph and chart from trace data')
             pipePrint('        # %s draw guider.dat' % cmd)
 
-            pipePrint('\n[function mode examples]')
-            pipePrint('    - record cpu usage of functions in all threads')
-            pipePrint('        # %s record -f -s .' % cmd)
-            pipePrint('    - record cpu usage of specific functions having tid bigger than 1024 in all threads')
-            pipePrint('        # %s record -f -s . -g 1024\<' % cmd)
-            pipePrint('    - record specific events of functions of all threads in kernel level')
-            pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
-            pipePrint('    - record resource usage of functions of specific threads')
-            pipePrint('        # %s record -f -s . -e m, b, h -g 1234' % cmd)
-            pipePrint('    - excute special commands before recording')
-            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
-            pipePrint('    - analyze function data for all')
-            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
-            pipePrint('    - analyze function data for all with remote server support')
-            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
-            pipePrint('    - analyze function data for only lower than 3 levels')
-            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -H 3' % cmd)
-            pipePrint('    - analyze function data of functions of all threads with specific argument condition')
-            pipePrint('        # %s record -f -o . -c softirq_entry:vec==1' % cmd)
-            pipePrint('    - record segmentation fault event of all threads')
-            pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
-            pipePrint('    - record blocking event except for cpu usage of all threads')
-            pipePrint('        # %s record -f -s . -d c -K block:schedule' % cmd)
+            pipePrint('\n [ function mode examples ]')
 
-            pipePrint('\n[top mode examples]')
-            pipePrint('    - show resource usage of processes in real-time')
+            pipePrint('\n    - record and report cpu function events of threads')
+            pipePrint('        # %s record -f -s .' % cmd)
+
+            pipePrint('\n    - record and save cpu function events of specific threads having tid bigger than 1024')
+            pipePrint('        # %s record -f -s . -g 1024\<' % cmd)
+
+            pipePrint('\n    - record and save specific function events of threads except for user-mode')
+            pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
+
+            pipePrint('\n    - record and save specific resource function events specific threads')
+            pipePrint('        # %s record -f -s . -e m, b, h -g 1234' % cmd)
+
+            pipePrint('\n    - record and save specific function events of threads with specific argument condition')
+            pipePrint('        # %s record -f -s . -c softirq_entry:vec==1' % cmd)
+
+            pipePrint('\n    - record and save segmentation fault function events of threads')
+            pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
+
+            pipePrint('\n    - record and save blocking function events of threads')
+            pipePrint('        # %s record -f -s . -K block:schedule' % cmd)
+
+            pipePrint('\n    - execute special commands and record and save cpu function events of threads')
+            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+
+            pipePrint('\n    - report all possible information from trace data using specific toolchain tools')
+            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+
+            pipePrint('\n    - report all possible information with remote server support')
+            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
+
+            pipePrint('\n    - report all possible information about only lower than 3 function levels')
+            pipePrint('        # %s guider.dat -o . -H 3' % cmd)
+
+            pipePrint('\n[ top mode examples ]')
+
+            pipePrint('\n    - show resource usage of processes in real-time')
             pipePrint('        # %s top' % cmd)
-            pipePrint('    - show resource usage of processes with fixed terminal size in real-time')
+
+            pipePrint('\n    - show resource usage of processes on fixed-size terminal in real-time')
             pipePrint('        # %s top -m' % cmd)
-            pipePrint('    - show files opened via processes in real-time')
-            pipePrint('        # %s top -e f' % cmd)
-            pipePrint('    - show specific files opened via specific processes in real-time')
-            pipePrint('        # %s top -e f -g init, lightdm : home, var' % cmd)
-            pipePrint('    - show performance stats of specific processes in real-time')
+
+            pipePrint('\n    - show files opened via processes in real-time')
+            pipePrint('        # %s top -e F' % cmd)
+
+            pipePrint('\n    - show specific files opened via specific processes in real-time')
+            pipePrint('        # %s top -e F -g init, lightdm : home, var' % cmd)
+
+            pipePrint('\n    - show performance stats of specific processes in real-time')
             pipePrint('        # %s top -e P -g init, lightdm' % cmd)
-            pipePrint('    - show resource usage of processes by sorting memory in real-time')
+
+            pipePrint('\n    - show resource usage of processes by sorting memory in real-time')
             pipePrint('        # %s top -S m' % cmd)
-            pipePrint('    - show resource usage of processes by sorting file in real-time')
+
+            pipePrint('\n    - show resource usage of processes by sorting file in real-time')
             pipePrint('        # %s top -S f' % cmd)
-            pipePrint('    - show resource usage of processes only 5 times in real-time')
+
+            pipePrint('\n    - show resource usage of processes only 5 times in real-time')
             pipePrint('        # %s top -R 5' % cmd)
-            pipePrint('    - show resource usage of processes only 5 times per 3 sec interval in real-time')
+
+            pipePrint('\n    - show resource usage of processes only 5 times per 3 sec interval in real-time')
             pipePrint('        # %s top -R 3, 5' % cmd)
-            pipePrint('    - show resource usage including block of threads per 2 sec interval in real-time')
+
+            pipePrint('\n    - show resource usage including block of threads per 2 sec interval in real-time')
             pipePrint('        # %s top -e t, b -i 2 -a' % cmd)
-            pipePrint('    - show resource usage of specific processes/threads involved in specific process group in real-time')
+
+            pipePrint('\n    - show resource usage of specific processes/threads involved in specific process group in real-time')
             pipePrint('        # %s top -g 1234,4567 -P' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file in real-time')
+
+            pipePrint('\n    - save resource usage of processes and write to specific file in real-time')
             pipePrint('        # %s top -o . -e p' % cmd)
-            pipePrint('    - record and print resource usage of processes')
+
+            pipePrint('\n    - save and print resource usage of processes in real-time')
             pipePrint('        # %s top -o . -Q' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file in background')
+
+            pipePrint('\n    - save resource usage of processes in background')
             pipePrint('        # %s top -o . -u' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific file in background')
+
+            pipePrint('\n    - save resource usage of processes and report system stats in background')
             pipePrint('        # %s top -o . -e r -j . -u' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific file if some events occur')
+
+            pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
             pipePrint('        # %s top -o . -e r, R' % cmd)
-            pipePrint('    - record resource usage of processes, system status and write to specific image')
+
+            pipePrint('\n    - save resource usage of processes and report system status to specific image')
             pipePrint('        # %s top -o . -e r, I' % cmd)
-            pipePrint('    - record resource usage of processes and write to specific file when specific conditions met')
+
+            pipePrint('\n    - save resource usage of processes and report to file if specific conditions meet')
             pipePrint('        # %s top -o . -e R' % cmd)
-            pipePrint('    - excute special commands every interval')
+
+            pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
-            pipePrint('    - trace memory working set for specific processes')
+
+            pipePrint('\n    - trace memory working set of specific processes')
             pipePrint('        # %s top -e w -g chrome' % cmd)
-            pipePrint('    - draw graph and chart in image file')
+
+            pipePrint('\n    - draw graph and chart to specific files')
             pipePrint('        # %s draw guider.out' % cmd)
-            pipePrint('        # %s top -I guider.out -e g' % cmd)
-            pipePrint('    - draw graph and chart for specific process group in image file')
+
+            pipePrint('\n    - draw graph and chart for specific process group to specific files')
             pipePrint('        # %s draw guider.out -g chrome' % cmd)
-            pipePrint('        # %s top -I guider.out -e g -g chrome' % cmd)
-            pipePrint('    - draw cpu and memory graphs of specific processes in image file propotionally')
+
+            pipePrint('\n    - draw cpu and memory graphs of specific processes to a specific file propotionally')
             pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
-            pipePrint('    - draw VSS graph and chart for specific processes in image file')
+
+            pipePrint('\n    - draw VSS graph and chart for specific processes to specific files')
             pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
-            pipePrint('    - report system status to specific server')
+
+            pipePrint('\n    - show and report resource usage of processes to specific server')
             pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
-            pipePrint('    - report system status to specific clients that asked it')
+
+            pipePrint('\n    - show and report resource usage of processes to specific clients that asked it')
             pipePrint('        # %s top -x 5555' % cmd)
-            pipePrint('    - receive report data from server')
+
+            pipePrint('\n    - handle report data from server')
             pipePrint('        # %s top -x 5555 -X' % cmd)
-            pipePrint('    - set configuration file path')
+
+            pipePrint('\n    - show resource usage of processes and set condition file path for report')
             pipePrint('        # %s top -I guider.json' % cmd)
 
-            pipePrint('\n[file mode examples]')
-            pipePrint('    - record memory usage of files mapped to processes')
+            pipePrint('\n[ file mode examples ]')
+
+            pipePrint('\n    - trace memory usage of files mapped to processes')
             pipePrint('        # %s record -F -o .' % cmd)
-            pipePrint('    - record memory usage of files mapped to processes each intervals')
+
+            pipePrint('\n    - trace memory usage of files mapped to processes each intervals')
             pipePrint('        # %s record -F -i' % cmd)
 
-            pipePrint('\n[etc examples]')
-            pipePrint('    - check property of specific pages')
+            pipePrint('\n[ etc examples ]')
+
+            pipePrint('\n    - check property of specific pages')
             pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
-            pipePrint('    - convert a text fle to a image file')
+
+            pipePrint('\n    - convert a text fle to a image file')
             pipePrint('        # %s guider.out -Z' % cmd)
-            pipePrint('    - wait for signal')
+
+            pipePrint('\n    - wait for signal to start')
             pipePrint('        # %s record|top -W' % cmd)
-            pipePrint('    - show guider processes running')
+
+            pipePrint('\n    - show guider processes')
             pipePrint('        # %s list' % cmd)
-            pipePrint('    - send noty signal to guider processes running')
+
+            pipePrint('\n    - send noty signal to guider processes')
             pipePrint('        # %s send' % cmd)
             pipePrint('        # %s kill ' % cmd)
-            pipePrint('    - send stop signal to guider processes running')
+
+            pipePrint('\n    - send stop signal to guider processes')
             pipePrint('        # %s stop' % cmd)
-            pipePrint('    - send specific signals to specific processes running')
+
+            pipePrint('\n    - send specific signals to specific processes')
             pipePrint('        # %s send -9 1234, 4567' % cmd)
-            pipePrint('        # %s kill -9 1234, 4567' % cmd)
-            pipePrint('    - change priority of task')
+            pipePrint('        # %s kill -kill 1234, 4567' % cmd)
+
+            pipePrint('\n    - change priority of task')
             pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
-            pipePrint('    - change priority of tasks in a group')
+
+            pipePrint('\n    - change priority of tasks in a group')
             pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
-            pipePrint('    - update priority of all tasks shown')
+
+            pipePrint('\n    - update priority of all tasks shown')
             pipePrint('        # %s top -Y r:90:ALL' % cmd)
-            pipePrint('    - update priority of tasks continuously')
+
+            pipePrint('\n    - update priority of tasks continuously')
             pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
-            pipePrint('    - update cpu affinity of all tasks shown')
+
+            pipePrint('\n    - update cpu affinity of all tasks shown')
             pipePrint('        # %s top -z f:ALL' % cmd)
-            pipePrint('    - update cpu affinity of tasks continuously')
+
+            pipePrint('\n    - update cpu affinity of tasks continuously')
             pipePrint('        # %s top -z f:1234:CONT' % cmd)
-            pipePrint('    - limit cpu usage of specific processes')
+
+            pipePrint('\n    - limit cpu usage of specific processes')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
-            pipePrint('    - limit cpu usage of specific threads')
+
+            pipePrint('\n    - limit cpu usage of specific threads')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
 
             sys.exit(0)
@@ -9828,14 +9921,14 @@ class SystemManager(object):
                         objdumpPath = SystemManager.which('objdump')
                         if objdumpPath != None:
                             SystemManager.printWarning((\
-                                "Fail to recognize objdump path for user event tracing\n"
+                                "Fail to recognize objdump path to get address of user function\n"
                                 "\tso just use %s as default objdump path\n"
                                 "\tif it is wrong then use -M option") % \
                                     objdumpPath[0], True)
                             SystemManager.objdumpPath = objdumpPath[0]
                         else:
                             SystemManager.printError((\
-                                "Fail to recognize objdump path for user event tracing, "
+                                "Fail to recognize objdump path to get address of user function, "
                                 "use -l option"))
                             sys.exit(0)
                     # symbol input with objdump #
@@ -9973,7 +10066,8 @@ class SystemManager(object):
             proc = subprocess.Popen(\
                 args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
         except:
-            SystemManager.printError("Fail to execute %s" % objdumpPath)
+            SystemManager.printError(\
+                "Fail to execute %s to get address from binary" % objdumpPath)
             sys.exit(0)
 
         while 1:
@@ -10354,11 +10448,6 @@ class SystemManager(object):
         else:
             disableStat += 'PRINT '
 
-        if SystemManager.repeatCount > 0:
-            enableStat += 'REPEAT '
-        else:
-            disableStat += 'REPEAT '
-
         # check current mode #
         if SystemManager.isTopMode():
             SystemManager.printInfo("TOP MODE")
@@ -10366,19 +10455,15 @@ class SystemManager(object):
             if SystemManager.fileTopEnable:
                 enableStat += 'FILE '
             else:
-                disableStat += 'FILE '
-
                 if SystemManager.processEnable:
-                    disableStat += 'THREAD '
                     enableStat += 'PROCESS '
                 else:
                     enableStat += 'THREAD '
-                    disableStat += 'PROCESS '
 
                 if SystemManager.cpuEnable:
-                    enableStat += 'CPU '
+                    enableStat += 'CORE '
                 else:
-                    disableStat += 'CPU '
+                    disableStat += 'CORE '
 
                 if SystemManager.gpuEnable:
                     enableStat += 'GPU '
@@ -10405,16 +10490,6 @@ class SystemManager(object):
                 else:
                     disableStat += 'PERF '
 
-                if SystemManager.stackEnable:
-                    enableStat += 'STACK '
-                else:
-                    disableStat += 'STACK '
-
-                if SystemManager.netEnable:
-                    enableStat += 'NET '
-                else:
-                    disableStat += 'NET '
-
                 if SystemManager.supportExtAscii != None:
                     enableStat += 'ENCODE '
                 else:
@@ -10431,24 +10506,30 @@ class SystemManager(object):
                     disableStat += 'FLOAT '
 
                 if SystemManager.sigHandlerEnable:
-                    enableStat += 'SIGNAL '
+                    enableStat += 'SIG '
                 else:
-                    disableStat += 'SIGNAL '
+                    disableStat += 'SIG '
 
                 if SystemManager.wfcEnable:
                     enableStat += 'WFC '
                 else:
                     disableStat += 'WFC '
 
+                if SystemManager.stackEnable:
+                    enableStat += 'STACK '
+
+                if SystemManager.netEnable:
+                    enableStat += 'NET '
+
                 if SystemManager.affinityEnable:
-                    enableStat += 'AFFINITY '
+                    enableStat += 'AFNT '
                 else:
-                    disableStat += 'AFFINITY '
+                    disableStat += 'AFNT '
 
                 if SystemManager.imageEnable:
-                    enableStat += 'IMAGE '
+                    enableStat += 'IMG '
                 else:
-                    disableStat += 'IMAGE '
+                    disableStat += 'IMG '
 
                 if SystemManager.reportFileEnable:
                     enableStat += 'RFILE '
@@ -10471,9 +10552,9 @@ class SystemManager(object):
                     disableStat += 'WSS '
 
                 if SystemManager.groupProcEnable:
-                    enableStat += 'PGROUP '
+                    enableStat += 'PGRP '
                 else:
-                    disableStat += 'PGROUP '
+                    disableStat += 'PGRP '
 
                 if SystemManager.reportEnable:
                     enableStat += 'REPORT '
@@ -10559,14 +10640,14 @@ class SystemManager(object):
                 disableStat += 'IRQ '
 
             if SystemManager.ueventEnable:
-                enableStat += 'UEVENT '
+                enableStat += 'UEVT '
             else:
-                disableStat += 'UEVENT '
+                disableStat += 'UEVT '
 
             if SystemManager.keventEnable:
-                enableStat += 'KEVENT '
+                enableStat += 'KEVT '
             else:
-                disableStat += 'KEVENT '
+                disableStat += 'KEVT '
 
             if SystemManager.netEnable:
                 enableStat += 'NET '
@@ -10600,13 +10681,9 @@ class SystemManager(object):
 
             if SystemManager.resetEnable:
                 enableStat += 'RESET '
-            else:
-                disableStat += 'RESET '
 
             if SystemManager.disableAll:
                 enableStat += 'DISABLE '
-            else:
-                disableStat += 'DISABLE '
 
         # print options #
         if enableStat != '':
@@ -10700,7 +10777,7 @@ class SystemManager(object):
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
-            SystemManager.runRecordStopCmd()
+            SystemManager.stopRecording()
 
         # update record status #
         SystemManager.recordStatus = False
@@ -10810,7 +10887,7 @@ class SystemManager(object):
 
             if SystemManager.pipeEnable:
                 if repeatCount == progressCnt:
-                    SystemManager.runRecordStopCmd()
+                    SystemManager.stopRecording()
                     SystemManager.recordStatus = False
                 signal.alarm(repeatInterval)
             elif SystemManager.outputFile != None:
@@ -10925,6 +11002,20 @@ class SystemManager(object):
                         "Fail to apply command '%s' to %s" % (val, path))
             elif len(cmd) == 1:
                 os.system(cmd[0])
+
+
+
+    @staticmethod
+    def readCmdVal(path):
+        # open for applying command #
+        try:
+            target = '%s%s' % (SystemManager.mountPath, path)
+            with open(target, 'r') as fd:
+                return fd.read()[:-1]
+        except:
+            SystemManager.printError(\
+                "Fail to read data from %s\n" % target)
+            return None
 
 
 
@@ -11550,7 +11641,7 @@ class SystemManager(object):
             SystemManager.printError("Fail to load image path")
             return
 
-        # set image file extention #
+        # set image file extension #
         SystemManager.imagePath += '.' + imageType
 
         if SystemManager.fontPath is not None:
@@ -12235,9 +12326,9 @@ class SystemManager(object):
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
                 if options.rfind('f') > -1:
-                    SystemManager.fileTopEnable = True
-                if options.rfind('F') > -1:
                     SystemManager.floatEnable = True
+                if options.rfind('F') > -1:
+                    SystemManager.fileTopEnable = True
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
@@ -12286,13 +12377,7 @@ class SystemManager(object):
                     sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
-                # Handle error about record option #
-                if SystemManager.outputFile is None:
-                    SystemManager.printError(\
-                        "wrong option with -f, use -s option to save data")
-                    sys.exit(0)
-                else:
-                    SystemManager.functionEnable = True
+                SystemManager.functionEnable = True
 
             elif option == 'l' and SystemManager.isTopMode() is False:
                 SystemManager.addr2linePath = value.split(',')
@@ -12440,20 +12525,24 @@ class SystemManager(object):
                     SystemManager.printError("no option value with -j option")
                     sys.exit(0)
 
+                # directory path #
                 if os.path.isdir(SystemManager.reportPath) == False:
                     reportPath = SystemManager.reportPath
                     upDirPos = SystemManager.reportPath.rfind('/')
                     if upDirPos > 0 and \
                         os.path.isdir(reportPath[:upDirPos]) is False:
-                        SystemManager.printError("wrong path with -j option")
+                        SystemManager.printError(\
+                            "wrong path with -j option to report stats")
                         sys.exit(0)
-
-                if os.path.isdir(SystemManager.reportPath):
+                # file path #
+                else:
                     SystemManager.reportPath = \
-                        SystemManager.reportPath + '/guider.report'
+                        '%s/guider.report' % SystemManager.reportPath
 
+                # remove redundant slash #
                 SystemManager.reportPath = \
                     SystemManager.reportPath.replace('//', '/')
+
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
 
@@ -12571,6 +12660,10 @@ class SystemManager(object):
                     try:
                         SystemManager.intervalEnable = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.intervalEnable, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input integer values")
@@ -12579,6 +12672,10 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatCount = int(repeatParams[0])
                         SystemManager.intervalEnable = 1
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.intervalEnable, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input a integer value")
@@ -12822,6 +12919,10 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = int(repeatParams[1])
+                        SystemManager.printInfo(\
+                            "run only %s sec %s time" % \
+                            (SystemManager.repeatInterval, \
+                            SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input integer values")
@@ -12830,6 +12931,8 @@ class SystemManager(object):
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = 1
+                        SystemManager.printInfo(\
+                            "run only for %s sec" % SystemManager.repeatCount)
                     except:
                         SystemManager.printError(\
                             "wrong option value with -R, input a integer value")
@@ -13113,7 +13216,7 @@ class SystemManager(object):
     def checkCmdMode():
         # LIST MODE #
         if SystemManager.isListMode():
-            SystemManager.printBackgroundProcs()
+            SystemManager.printBgProcs()
             sys.exit(0)
 
         # SERVER MODE #
@@ -13545,7 +13648,30 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printBackgroundProcs():
+    def getBgProcCount():
+        procList = SystemManager.getBgProcList()
+
+        return procList.count('\n')
+
+
+
+    @staticmethod
+    def printBgProcs():
+        procList = SystemManager.getBgProcList()
+
+        if procList == '':
+            print("\nno running process in background\n")
+        else:
+            print('\n[Running Process]')
+            print(twoLine)
+            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
+            print(oneLine)
+            print(procList + "%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def getBgProcList():
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
@@ -13567,14 +13693,8 @@ class SystemManager(object):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
 
             try:
-                fd = open(procPath + '/comm', 'r')
-                comm = fd.readline()[0:-1]
-            except:
-                continue
-
-            try:
-                cmdFd = open(procPath + '/cmdline', 'r')
-                cmdline = cmdFd.readline().replace("\x00", " ")
+                with open('%s/comm' % procPath, 'r') as fd:
+                    comm = fd.readline()[0:-1]
             except:
                 continue
 
@@ -13623,21 +13743,18 @@ class SystemManager(object):
                     network = ''
 
                 try:
+                    with open('%s/cmdline' % procPath, 'r') as fd:
+                        cmdline = fd.readline().replace("\x00", " ")
+                except:
+                    cmdline = '?'
+
+                try:
                     printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
                         (printBuf, pid, comm, runtime, cmdline, network)
                 except:
                     continue
 
-                nrProc += 1
-
-        if nrProc == 0:
-            print("\nno running process in background\n")
-        else:
-            print('\n[Running Process]')
-            print(twoLine)
-            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
-            print(oneLine)
-            print(printBuf + "%s\n" % oneLine)
+        return printBuf
 
 
 
@@ -15496,7 +15613,33 @@ class SystemManager(object):
 
 
 
-    def runRecordStartCmd(self):
+    def startTracing(self):
+        stat = SystemManager.readCmdVal('../tracing_on')
+        if stat == None:
+            sys.exit(0)
+        elif stat == '1':
+            # no running guider process except for myself #
+            if SystemManager.getBgProcCount() <= 1:
+                SystemManager.printError(\
+                    "Fail to start tracing because "
+                    "tracing is already running on system\n"
+                    "\tit would be cleaned up so that try to record again")
+                sys.exit(0)
+            else:
+                SystemManager.printError(\
+                    "Fail to start tracing because "
+                    "another guider is already running on system")
+                os._exit(0)
+
+        # clean up ring buffer for tracing #
+        SystemManager.clearTraceBuffer()
+
+        # write command to start tracing #
+        SystemManager.writeCmd('../tracing_on', '1')
+
+
+
+    def startRecording(self):
         def writeCommonCmd():
             # enable dynamic events #
             SystemManager.writeCustomCmd()
@@ -15505,7 +15648,8 @@ class SystemManager(object):
 
             # enable flock events #
             if self.cmdList["filelock/locks_get_lock_context"]:
-                SystemManager.writeCmd("filelock/locks_get_lock_context/enable", '1')
+                SystemManager.writeCmd(\
+                    "filelock/locks_get_lock_context/enable", '1')
 
             # enable common events #
             if self.cmdList["task"]:
@@ -15548,9 +15692,6 @@ class SystemManager(object):
 
             sys.exit(0)
 
-        # make trace buffer empty #
-        SystemManager.clearTraceBuffer()
-
         # set size of trace buffer per core #
         if SystemManager.bufferSize == 0:
             SystemManager.bufferSize = '40960' # 40MB #
@@ -15579,7 +15720,7 @@ class SystemManager(object):
         SystemManager.writeCmd('../current_tracer', 'nop')
 
         # start tracing #
-        SystemManager.writeCmd('../tracing_on', '1')
+        self.startTracing()
 
         # write start event #
         SystemManager.writeEvent("EVENT_START", False)
@@ -15589,7 +15730,7 @@ class SystemManager(object):
             # check conditions for kernel function_graph #
             if SystemManager.graphEnable:
                 # reset events #
-                SystemManager.runRecordStopCmd()
+                SystemManager.stopRecording()
                 SystemManager.clearTraceBuffer()
 
                 # set function_graph tracer #
@@ -15685,13 +15826,17 @@ class SystemManager(object):
             # enable page events #
             if SystemManager.memEnable:
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
+
                 if SystemManager.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/filter', cmd)
+
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
+
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '1') < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '1')
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
+
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '0') < 0:
                     SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
 
@@ -15947,10 +16092,9 @@ class SystemManager(object):
             SystemManager.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
             SystemManager.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SystemManager.lockEnable:
-            if len(SystemManager.syscallList) > 0:
-                nrFutex = ConfigManager.sysList.index("sys_futex")
-                if nrFutex not in SystemManager.syscallList:
-                    SystemManager.syscallList.append(nrFutex)
+            nrFutex = ConfigManager.sysList.index("sys_futex")
+            if nrFutex not in SystemManager.syscallList:
+                SystemManager.syscallList.append(nrFutex)
         else:
             SystemManager.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SystemManager.writeCmd('raw_syscalls/sys_enter/enable', '0')
@@ -16041,7 +16185,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def runRecordStopCmd():
+    def stopRecording():
         if (SystemManager.isRecordMode() and \
             (SystemManager.isThreadMode() or \
             SystemManager.isFunctionMode())) is False:
@@ -16063,6 +16207,8 @@ class SystemManager(object):
                 SystemManager.saveCmd =\
                     'cat ' + SystemManager.mountPath + '../trace > ' +\
                     SystemManager.outputFile + '\n'
+
+        SystemManager.writeCmd('../tracing_on', '0')
 
         # disable all ftrace options registered #
         for idx, val in SystemManager.cmdList.items():
@@ -19999,6 +20145,7 @@ class ThreadAnalyzer(object):
 
                     pid = d['pid']
                     pname = '%s(%s)' % (comm, pid)
+
                     try:
                         total = int(sline[1])
                     except:
@@ -20255,10 +20402,6 @@ class ThreadAnalyzer(object):
                     xlim([xtickLabel[0], xtickLabel[-1]])
                     xtickLabel[-1] = '   TIME(Sec)'
                     ax.set_xticklabels(xtickLabel)
-
-                    ytickLabel = ax.get_yticks().tolist()
-                    ytickLabel = list(map(int, ytickLabel))
-                    ax.set_yticklabels(ytickLabel)
                 except:
                     pass
             elif xtype == 3:
@@ -20298,69 +20441,83 @@ class ThreadAnalyzer(object):
         def drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
             blkWait, blkProcUsage, gpuUsage, xtype, pos, size):
 
+            # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
 
+            # set visible total usage flag #
+            if len(SystemManager.filterGroup) == 0:
+                isVisibleTotal = True
+            elif SystemManager.showAll:
+                isVisibleTotal = True
+            else:
+                isVisibleTotal = False
+
             #-------------------- GPU usage --------------------#
-            for gpu, stat in gpuUsage.items():
-                stat = list(map(int, stat.split()))
-                try:
-                    if min(stat) == max(stat):
-                        continue
-                except:
-                    pass
-                plot(timeline, stat, '-', c='olive', linewidth=2, solid_capstyle='round')
-                labelList.append('[ %s ]' % gpu)
-                maxUsage = max(stat)
-                maxIdx = stat.index(maxUsage)
-                for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
-                    if idx != 0 and stat[idx] == stat[idx-1]:
-                        continue
-                    text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
+            if isVisibleTotal:
+                for gpu, stat in gpuUsage.items():
+                    stat = list(map(int, stat.split()))
+                    try:
+                        if min(stat) == max(stat):
+                            continue
+                    except:
+                        pass
+                    plot(timeline, stat, '-', c='olive', \
+                        linewidth=2, solid_capstyle='round')
+                    labelList.append('[ %s ]' % gpu)
+                    maxUsage = max(stat)
+                    maxIdx = stat.index(maxUsage)
+                    for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
+                        if idx != 0 and stat[idx] == stat[idx-1]:
+                            continue
+                        text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
             #-------------------- CPU usage --------------------#
             ymax = 0
-            for idx, item in enumerate(blkWait):
-                blkWait[idx] += cpuUsage[idx]
-                if ymax < blkWait[idx]:
-                    ymax = blkWait[idx]
 
-            plot(timeline, blkWait, '-', c='pink', linewidth=2, solid_capstyle='round')
-            labelList.append('[ TOTAL CPU + IO ]')
-            try:
-                avgUsage = round(sum(blkWait) / len(blkWait), 1)
-            except:
-                avgUsage = 0
-            maxUsage = max(blkWait)
-            maxIdx = blkWait.index(maxUsage)
-            for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
-                if idx != 0 and blkWait[idx] == blkWait[idx-1]:
-                    continue
-                text(timeline[idx], blkWait[maxIdx], \
+            if isVisibleTotal:
+                for idx, item in enumerate(blkWait):
+                    blkWait[idx] += cpuUsage[idx]
+                    if ymax < blkWait[idx]:
+                        ymax = blkWait[idx]
+
+                plot(timeline, blkWait, '-', c='pink', \
+                    linewidth=2, solid_capstyle='round')
+                labelList.append('[ TOTAL CPU + IO ]')
+                try:
+                    avgUsage = round(sum(blkWait) / len(blkWait), 1)
+                except:
+                    avgUsage = 0
+                maxUsage = max(blkWait)
+                maxIdx = blkWait.index(maxUsage)
+                for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
+                    if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                        continue
+                    text(timeline[idx], blkWait[maxIdx], \
                         'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='pink', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-                break
+                    break
 
-            plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
-            labelList.append('[ TOTAL CPU Only ]')
-            try:
-                avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
-            except:
-                avgUsage = 0
-            maxUsage = max(cpuUsage)
-            maxIdx = cpuUsage.index(maxUsage)
-            for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
-                if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
-                    continue
-                text(timeline[idx], cpuUsage[maxIdx], \
+                plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
+                labelList.append('[ TOTAL CPU Only ]')
+                try:
+                    avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
+                except:
+                    avgUsage = 0
+                maxUsage = max(cpuUsage)
+                maxIdx = cpuUsage.index(maxUsage)
+                for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
+                    if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
+                        continue
+                    text(timeline[idx], cpuUsage[maxIdx], \
                         'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='red', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-                break
+                    break
 
             # CPU usage of processes #
             for idx, item in sorted(\
@@ -20416,17 +20573,24 @@ class ThreadAnalyzer(object):
                 maxPer = '[max:%s+%s/avg:%s]' % (maxCpuPer, maxBlkPer, avgUsage)
                 ilabel = '%s %s' % (idx, maxPer)
                 text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
-                        fontsize=3, color=color, fontweight='bold')
+                    fontsize=3, color=color, fontweight='bold')
                 labelList.append(idx)
 
-            ylabel('CPU+I/O(%)', fontsize=8)
+            '''
+            ylabel('CPU + I/O', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
+
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
+
             xticks(fontsize=4)
             ylim([0, ymax])
             if len(timeline) > 1:
@@ -20435,7 +20599,20 @@ class ThreadAnalyzer(object):
             if inc == 0:
                 inc = 1
             yticks(xrange(0, ymax + inc, inc), fontsize=5)
-            ticklabel_format(useOffset=False)
+
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    ['%s%%' % val for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
+            except:
+                pass
+
+            #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
@@ -20445,6 +20622,7 @@ class ThreadAnalyzer(object):
         def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
             reclaimBg, reclaimDr, xtype, pos, size):
 
+            # draw title #
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -20458,18 +20636,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
                 labelList.append('Block Read')
 
@@ -20481,18 +20662,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='green', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='green', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='green', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='green', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='green', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='green', fontweight='bold')
                 plot(timeline, blkWrite, '-', c='green', linewidth=2)
                 labelList.append('Block Write')
 
@@ -20504,18 +20688,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='pink', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='pink', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='pink', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='pink', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='pink', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='pink', fontweight='bold')
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
                 labelList.append('Reclaim Background')
 
@@ -20527,18 +20714,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='red', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='red', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='red', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='red', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='red', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='red', fontweight='bold')
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2)
                 labelList.append('Reclaim Foreground')
 
@@ -20550,18 +20740,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='purple', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='purple', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='purple', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='purple', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='purple', fontweight='bold')
                 plot(timeline, netRead, '-', c='purple', linewidth=2)
                 labelList.append('Network Recv')
 
@@ -20573,18 +20766,21 @@ class ThreadAnalyzer(object):
                 pass
             else:
                 if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 if usage[-1] > 0:
                     try:
                         unit = timeline[-1]-timeline[-2]
                     except:
                         unit = 0
-                    text(timeline[-1]+unit, usage[-1], usage[-1],\
-                            fontsize=5, color='skyblue', fontweight='bold')
+                    text(timeline[-1]+unit, usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 10), \
+                        fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
                 labelList.append('Network Send')
 
@@ -20600,8 +20796,13 @@ class ThreadAnalyzer(object):
                 # divide io graph #
                 for item in usage:
                     io = item.split('/')
-                    rdUsage.append(int(io[0]) << 10)
-                    wrUsage.append(int(io[1]) << 10)
+                    if(len(io) == 2):
+                        rdUsage.append(int(io[0]) << 10)
+                        wrUsage.append(int(io[1]) << 10)
+
+                # no io usage #
+                if len(rdUsage) == len(wrUsage) == 0:
+                    continue
 
                 # get margin #
                 ytick = yticks()[0]
@@ -20620,7 +20821,8 @@ class ThreadAnalyzer(object):
                         plot(timeline, wrUsage, '-', linewidth=1)[0].get_color()
                     if wrUsage[maxIdx] > 0:
                         text(timeline[maxIdx], wrUsage[maxIdx] + margin, \
-                            '[%s]%s' % (wrUsage[maxIdx], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            wrUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
                         try:
@@ -20628,8 +20830,8 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, wrUsage[-1] + margin, '[%s]%s' % \
-                            (wrUsage[-1], idx), fontsize=3, color=color, \
-                            fontweight='bold')
+                            (SystemManager.convertSize(wrUsage[-1] << 10), idx), \
+                            fontsize=3, color=color, fontweight='bold')
                     labelList.append('%s[BWR]' % idx)
 
                 # Block Read of process #
@@ -20642,7 +20844,8 @@ class ThreadAnalyzer(object):
                         plot(timeline, rdUsage, '-', linewidth=1)[0].get_color()
                     if rdUsage[maxIdx] > 0:
                         text(timeline[maxIdx], rdUsage[maxIdx] + margin, \
-                            '[%s]%s' % (rdUsage[maxIdx], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            rdUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
                         try:
@@ -20650,11 +20853,16 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, rdUsage[-1] + margin, \
-                            '[%s]%s' % (rdUsage[-1], idx), fontsize=3, \
+                            '[%s]%s' % (SystemManager.convertSize(\
+                            rdUsage[-1] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     labelList.append('%s[BRD]' % idx)
 
-            ylabel('I/O(KB)', fontsize=7)
+            '''
+            ylabel('I/O', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
@@ -20666,6 +20874,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # adjust yticks #
             ylist = ax.get_yticks().tolist()
             ymin = int(min(ylist))
             if ymin < 0:
@@ -20689,6 +20898,11 @@ class ThreadAnalyzer(object):
                 #ax.get_xaxis().set_visible(False)
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    [SystemManager.convertSize(val << 10) for val in ytickLabel]
+
                 ax.set_yticklabels(ytickLabel)
             except:
                 pass
@@ -20698,6 +20912,7 @@ class ThreadAnalyzer(object):
         def drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
             totalRAM, swapUsage, totalSwap, xtype, pos, size):
 
+            # draw title #
             labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -20715,14 +20930,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='blue', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='blue', fontweight='bold')
                     plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
                     if totalRAM is not None:
                         label = 'RAM Total [%s]\nRAM Free' % \
@@ -20739,14 +20957,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='skyblue', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM User')
 
@@ -20758,14 +20979,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='darkgray', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='darkgray', fontweight='bold')
                     plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
                     labelList.append('RAM Cache')
 
@@ -20777,14 +21001,17 @@ class ThreadAnalyzer(object):
                     pass
                 else:
                     if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], usage[minIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[minIdx], usage[minIdx], \
+                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], usage[maxIdx],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[maxIdx], usage[maxIdx], \
+                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], usage[-1],\
-                                fontsize=5, color='orange', fontweight='bold')
+                        text(timeline[-1], usage[-1], \
+                            SystemManager.convertSize(usage[-1] << 20), \
+                            fontsize=5, color='orange', fontweight='bold')
                     plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
                     if totalSwap is not None:
                         label = 'Swap Total [%s]\nSwap Usage' % \
@@ -20822,14 +21049,20 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
-                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
-                            labelList.append('%s[VSS]' % key)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    color=color, fontsize=3)
+                            labelList.append('%s [VSS]' % key)
                 # Process Leak #
                 elif SystemManager.leakEnable:
                     # get VSS diffs #
@@ -20879,13 +21112,16 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] - margin, \
-                                    '[%s/-%s]%s' % (usage[minIdx], item['vssDiff'], key), \
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
                                     color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s/+%s]%s' % (usage[maxIdx], item['vssDiff'], key), \
+                                    '[%s/+%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), \
+                                    SystemManager.convertSize(item['vssDiff'] << 20), key), \
                                     color=color, fontsize=3)
-                            labelList.append('%s[VSS]' % key)
+                            labelList.append('%s [VSS]' % key)
                 # Process RSS #
                 if SystemManager.rssEnable:
                     for key, item in sorted(memProcUsage.items(),\
@@ -20911,16 +21147,26 @@ class ThreadAnalyzer(object):
                             color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s]%s' % (usage[minIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s]%s' % (usage[maxIdx], key), color=color, fontsize=3)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
-                                    '[%s]%s' % (usage[-1], key), color=color, fontsize=3)
-                            labelList.append('%s[RSS]' % key)
+                                    '[%s] %s' % (\
+                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    color=color, fontsize=3)
+                            labelList.append('%s [RSS]' % key)
 
-            ylabel('MEMORY(MB)', fontsize=7)
+            '''
+            ylabel('MEMORY', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
             else:
@@ -20929,14 +21175,27 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
-            # convert tick type to integer #
+            # adjust yticks #
+            ylist = ax.get_yticks().tolist()
+            ymin = int(min(ylist))
+            if ymin < 0:
+                ymin = 0
+            ymax = int(max(ylist))
+            inc = int(ymax / 10)
+            if inc == 0:
+                inc = 1
+            yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+
             try:
-                ytickOrig = list(map(int, yticks()[0]))
-                ytick = ytickOrig
-                for idx, val in enumerate(ytick):
-                    if val < 0:
-                        ytickOrig.pop(idx)
-                yticks(ytickOrig, fontsize=5)
+                #ax.get_xaxis().set_visible(False)
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    [SystemManager.convertSize(val << 20) for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
             except:
                 pass
 
@@ -20944,7 +21203,8 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
-            ticklabel_format(useOffset=False)
+
+            #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
@@ -21186,7 +21446,7 @@ class ThreadAnalyzer(object):
 
 
     def getRunTaskNum(self):
-        return len(self.threadData)
+        return len(self.threadData) - SystemManager.nrCore
 
 
 
@@ -21615,8 +21875,8 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.pipePrint((\
-            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Running: %d ] " + \
-            "[ CtxSwc: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %d ] " + \
+            "[ ContextSwitch: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
             ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
@@ -22588,7 +22848,7 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint(\
                 "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} {6:>5} {7:>10} {8:>16} {9:<1}"\
                 .format("Time", "Name", "Tid", "Core", "Syscall", \
-                "SID", "Type", "Elapsed", "Return", "Parameter"))
+                "Sid", "Type", "Elapsed", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
             # remove calls of unavailable threads #
@@ -22670,7 +22930,7 @@ class ThreadAnalyzer(object):
 
                     SystemManager.pipePrint(\
                         ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
-                        "{6:>5} {7:>10} {8:>16}  {9:<1}").\
+                        "{6:>5} {7:>10} {8:>16} {9:<1}").\
                         format('%.6f' % eventTime, comm, tid,\
                         core, syscall[4:], nowData[4],\
                         eventType, elapsed, ret, param))
@@ -23176,6 +23436,7 @@ class ThreadAnalyzer(object):
                 ioUsageList.append(timeLineData)
                 ioLabelList.append('RAM Usage')
 
+        # total block usage on timeline #
         if SystemManager.blockEnable:
             # total block read usage on timeline #
             brtotal = 0
@@ -24886,8 +25147,8 @@ class ThreadAnalyzer(object):
             if cnt > limitProcCnt:
                 break
 
+            # get memory details #
             if value['maps'] is None:
-                # get memory details #
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
 
             if value['maps'] is not None:
@@ -25708,6 +25969,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[coreId]
             except:
+                SystemManager.nrCore += 1
                 self.threadData[coreId] = dict(self.init_threadData)
                 self.threadData[coreId]['comm'] = "swapper/%s" % core
 
@@ -27817,7 +28079,8 @@ class ThreadAnalyzer(object):
 
             procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue))
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
+                str(schedValue))
 
             procInfoLen = len(procInfo)
 
@@ -27893,7 +28156,8 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s|' % \
+                (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         SystemManager.topPrint()
@@ -28069,16 +28333,24 @@ class ThreadAnalyzer(object):
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
-                        self.cpuData['all'] = {'user': long(statList[1]), \
-                            'nice': long(statList[2]), 'system': long(statList[3]), \
-                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), 'softirq': long(statList[7])}
+                        self.cpuData['all'] = \
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 elif cpuId.rfind('cpu') == 0:
                     if not int(cpuId[3:]) in self.cpuData:
-                        self.cpuData[int(cpuId[3:])] = {'user': long(statList[1]), \
-                            'nice': long(statList[2]), 'system': long(statList[3]), \
-                            'idle': long(statList[4]), 'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), 'softirq': long(statList[7])}
+                        self.cpuData[int(cpuId[3:])] = \
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 else:
                     if not cpuId in self.cpuData:
                         self.cpuData[cpuId] = {cpuId: long(statList[1])}
@@ -28611,7 +28883,8 @@ class ThreadAnalyzer(object):
                 line.startswith('voluntary_ctxt_switches') or \
                 line.startswith('nonvoluntary_ctxt_switches'):
                 statusList = line.split(':')
-                self.procData[tid]['status'][statusList[0]] = statusList[1].strip()
+                self.procData[tid]['status'][statusList[0]] = \
+                    statusList[1].strip()
 
         # save statm info #
         try:
@@ -29093,8 +29366,8 @@ class ThreadAnalyzer(object):
             "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
-            "NrPgRclm", "BlkRW", "NrFlt", "NrBlk", "NrSIRQ", "NrMlk", \
-            "NrDrt", "Network")), oneLine)), newline = 3)
+            "PgRclm", "BlkRW", "MjFlt", "PrBlk", "NrSIRQ", "PgMlk", \
+            "PgDrt", "Network")), oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
@@ -29313,7 +29586,8 @@ class ThreadAnalyzer(object):
             try:
                 tempDirList = \
                     [ '%s/%s' % (tempPath, item) \
-                    for item in os.listdir(tempPath) if item.startswith('thermal_zone') ]
+                    for item in os.listdir(tempPath) \
+                    if item.startswith('thermal_zone') ]
             except:
                 tempDirList = []
             for tempDir in sorted(tempDirList):
@@ -29338,7 +29612,8 @@ class ThreadAnalyzer(object):
 
             freqPath = '/sys/devices/system/cpu/cpu'
             for idx, value in sorted(self.cpuData.items(),\
-                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
+                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, \
+                reverse=False):
                 try:
                     int(idx)
 
@@ -29375,7 +29650,8 @@ class ThreadAnalyzer(object):
                         with open(curPath, 'r') as fd:
                             curFreq = fd.readline()[:-1]
                     except:
-                        curPath = '%s%s/cpufreq/scaling_cur_freq' % (freqPath, idx)
+                        curPath = '%s%s/cpufreq/scaling_cur_freq' % \
+                            (freqPath, idx)
                         try:
                             with open(curPath, 'r') as fd:
                                 curFreq = fd.readline()[:-1]
@@ -29407,7 +29683,8 @@ class ThreadAnalyzer(object):
                         gov = None
 
                     idPath = '%s%s/topology/core_id' % (freqPath, idx)
-                    pidPath = '%s%s/topology/physical_package_id' % (freqPath, idx)
+                    pidPath = '%s%s/topology/physical_package_id' % \
+                        (freqPath, idx)
                     try:
                         with open(pidPath, 'r') as fd:
                             phyId = int(fd.readline()[:-1])
@@ -29496,14 +29773,16 @@ class ThreadAnalyzer(object):
                         coreFreq = '? Mhz'
                     if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
                         value['MIN_FREQ'] > 0 and value['MAX_FREQ'] > 0:
-                        coreFreq = '%s [%d-%d]' % (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
+                        coreFreq = '%s [%d-%d]' % \
+                            (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
                     coreFreq = '%20s|' % coreFreq
 
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except:
                         try:
-                            coreFreq = '%3s C | %s' % (coreTempData['GPU'], coreFreq)
+                            coreFreq = '%3s C | %s' % \
+                                (coreTempData['GPU'], coreFreq)
                         except:
                             coreFreq = '%3s C | %s' % ('?', coreFreq)
 
@@ -29534,7 +29813,8 @@ class ThreadAnalyzer(object):
                 prevData = self.prevProcData[pid]['stat']
 
                 value['runtime'] = \
-                    int(SystemManager.uptime - (float(nowData[self.starttimeIdx]) / 100))
+                    int(SystemManager.uptime - \
+                    (float(nowData[self.starttimeIdx]) / 100))
 
                 if value['io'] is not None:
                     value['read'] = value['io']['read_bytes'] - \
@@ -29553,12 +29833,14 @@ class ThreadAnalyzer(object):
 
                 utick = nowData[self.utimeIdx] - prevData[self.utimeIdx]
                 value['utime'] = int(utick / interval)
-                if value['utime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['utime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
 
                 stick = nowData[self.stimeIdx] - prevData[self.stimeIdx]
                 value['stime'] = int(stick / interval)
-                if value['stime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['stime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
 
                 value['ttime'] = utick + stick
@@ -29566,7 +29848,8 @@ class ThreadAnalyzer(object):
                     value['ttime'] = round(value['ttime'] / interval, 1)
                 else:
                     value['ttime'] = int(value['ttime'] / interval)
-                if value['ttime'] >= 100 and value['stat'][self.nrthreadIdx] == '1':
+                if value['ttime'] >= 100 and \
+                    value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
                 elif value['ttime'] == 0:
                     value['ttime'] = 0
@@ -29665,43 +29948,51 @@ class ThreadAnalyzer(object):
 
                 try:
                     prop = 'Size:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Rss:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                     rss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Pss:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                     pss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Swap:'
-                    tmpstr = "%s%s%4sM / " % \
-                        (tmpstr, prop.upper(), item[prop] >> 10)
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, prop.upper(), \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s%4sM / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'AnonHugePages:'
-                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', item[prop] >> 10)
+                    tmpstr = "%s%s:%4s / " % \
+                        (tmpstr, 'HUGE', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s:%3sM / " % (tmpstr, 'HUGE', 0)
+                    tmpstr = "%s%s:%3sK / " % (tmpstr, 'HUGE', 0)
 
                 try:
                     prop = 'Locked:'
-                    tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', item[prop])
+                    tmpstr = "%s%s%5s / " % \
+                        (tmpstr, 'LOCK:', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
 
@@ -29714,31 +30005,25 @@ class ThreadAnalyzer(object):
                 try:
                     prop = 'Shared_Dirty:'
                     sss += item[prop]
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'SDRT', item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', item[prop])
+                    tmpstr = "%s%s:%5s / " % \
+                        (tmpstr, 'SDRT', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
 
                 try:
                     prop = 'Private_Dirty:'
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM / " % (tmpstr, 'PDRT', item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK / " % (tmpstr, 'PDRT', item[prop])
+                    tmpstr = "%s%s:%5s / " % \
+                        (tmpstr, 'PDRT', \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
 
                 try:
                     prop = 'NOPM'
-                    if item[prop] > 9999:
-                        item[prop] = item[prop] >> 10
-                        tmpstr = "%s%s:%4sM" % (tmpstr, prop, item[prop])
-                    else:
-                        tmpstr = "%s%s:%4sK" % (tmpstr, prop, item[prop])
+                    tmpstr = "%s%s:%5s" % \
+                        (tmpstr, prop, \
+                        SystemManager.convertSize(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
@@ -29880,9 +30165,7 @@ class ThreadAnalyzer(object):
             etc = 'Affinity'
         elif SystemManager.tgnameEnable:
             etc = 'Group'
-        elif SystemManager.sigHandlerEnable:
-            etc = 'SignalHandler'
-        else:
+        elif SystemManager.sigHandlerEnable or True:
             etc = 'SignalHandler'
 
         if SystemManager.pssEnable:
@@ -29899,7 +30182,7 @@ class ThreadAnalyzer(object):
             "{14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "MjFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
 
         # set sort value #
@@ -30123,14 +30406,16 @@ class ThreadAnalyzer(object):
                 value['fdsize'] = '-'
 
             try:
+                prevStatus = self.prevProcData[idx]['status']
                 yld = long(value['yield']) - \
-                    long(self.prevProcData[idx]['status']['voluntary_ctxt_switches'])
+                    long(prevStatus['voluntary_ctxt_switches'])
             except:
                 yld = '-'
 
             try:
+                prevStatus = self.prevProcData[idx]['status']
                 prtd = long(value['preempted']) - \
-                    long(self.prevProcData[idx]['status']['nonvoluntary_ctxt_switches'])
+                    long(prevStatus['nonvoluntary_ctxt_switches'])
             except:
                 prtd = '-'
 
@@ -30194,7 +30479,8 @@ class ThreadAnalyzer(object):
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
+                str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(value['stat'][self.vsizeIdx]) >> 20, \
                 mems >> 8, codeSize, shr, vmswp, \
@@ -30274,7 +30560,8 @@ class ThreadAnalyzer(object):
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
-            frame = '%s%s|' % (text, ' ' * (SystemManager.lineLength - len(text) - 1))
+            frame = '%s%s|' % \
+                (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
         elif needLine:
             pass
@@ -30301,27 +30588,30 @@ class ThreadAnalyzer(object):
             self.procData.items(), \
             key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
 
-            status = value['stat'][self.statIdx]
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+            status = stat[self.statIdx]
+
             if status != 'S' and status != 'R':
-                comm = ('[%s]%s' % (status, value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('[%s]%s' % \
+                    (status, stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30349,12 +30639,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 procCnt += 1
@@ -30380,21 +30671,23 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+
             if value['new']:
-                comm = ('%s%s' % ('[+]', value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('%s%s' % ('[+]', stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30422,12 +30715,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 newCnt += 1
@@ -30454,21 +30748,23 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint('---more---')
                 return -1
 
+            stat = value['stat']
+
             if value['alive'] is False:
-                comm = ('%s%s' % ('[-]', value['stat'][self.commIdx][1:-1]))[:16]
+                comm = ('%s%s' % ('[-]', stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
-                    pid = value['stat'][self.ppidIdx]
+                    pid = stat[self.ppidIdx]
                 else:
                     pid = value['mainID']
 
-                codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                    long(value['stat'][self.scodeIdx])) >> 20
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
-                    schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
                 runtime = value['runtime'] + SystemManager.uptimeDiff
                 lifeTime = SystemManager.convertTime(runtime)
@@ -30496,12 +30792,13 @@ class ThreadAnalyzer(object):
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                    ConfigManager.schedList[int(value['stat'][self.policyIdx])] + str(schedValue), \
+                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
-                    long(value['stat'][self.vsizeIdx]) >> 20, \
-                    long(value['stat'][self.rssIdx]) >> 8, codeSize, shr, vmswp, \
+                    long(stat[self.vsizeIdx]) >> 20, \
+                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
                     int(value['btime']), readSize, writeSize, value['majflt'],\
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 dieCnt += 1
@@ -31190,12 +31487,12 @@ if __name__ == '__main__':
     # set arch #
     SystemManager.setArch(SystemManager.getArch())
 
-    # save system info first #
     if SystemManager.isLinux:
+        # save system info first #
         SystemManager()
 
-    # set default signal #
-    SystemManager.setDefaultSignal()
+        # set default signal #
+        SystemManager.setDefaultSignal()
 
     # check commands #
     SystemManager.checkCmdMode()
@@ -31305,10 +31602,10 @@ if __name__ == '__main__':
 
         #-------------------- THREAD & FUNCTION MODE --------------------
         # register exit handler #
-        atexit.register(SystemManager.runRecordStopCmd)
+        atexit.register(SystemManager.stopRecording)
 
         # start recording #
-        SystemManager.sysInstance.runRecordStartCmd()
+        SystemManager.sysInstance.startRecording()
 
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
