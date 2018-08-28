@@ -20901,7 +20901,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 10, True) for val in ytickLabel]
+                    [SystemManager.convertSize(val << 10) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except:
@@ -21193,7 +21193,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 20, True) for val in ytickLabel]
+                    [SystemManager.convertSize(val << 20) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
             except:
