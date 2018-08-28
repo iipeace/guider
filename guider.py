@@ -6563,7 +6563,7 @@ class FileAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
-        # Print proccess list #
+        # Print process list #
         SystemManager.pipePrint((\
             "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
@@ -6679,7 +6679,7 @@ class FileAnalyzer(object):
 
 
     def printIntervalInfo(self):
-        # Merge proccess info into a global list #
+        # Merge process info into a global list #
         for procData in self.intervalProcData:
             for pid, procInfo in procData.items():
                 try:
@@ -6723,7 +6723,7 @@ class FileAnalyzer(object):
         # Print system information #
         SystemManager.printInfoBuffer()
 
-        # Print proccess list #
+        # Print process list #
         SystemManager.pipePrint(\
             "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
             ('File Process Info', len(self.procList), self.profPageCnt * 4))
@@ -11641,7 +11641,7 @@ class SystemManager(object):
             SystemManager.printError("Fail to load image path")
             return
 
-        # set image file extention #
+        # set image file extension #
         SystemManager.imagePath += '.' + imageType
 
         if SystemManager.fontPath is not None:
