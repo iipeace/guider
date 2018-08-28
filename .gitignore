@@ -7,3 +7,10 @@
 *.out*
 *.dat*
 *.report
+__pycache__
+
+# virtualenv
+.python-version
+
+# Distribution / packaging
+build/
