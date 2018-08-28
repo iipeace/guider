@@ -8,4 +8,4 @@ python:
 - "3.5"
 - "3.6"
 
-script: make && ./guider
+script: cd guider && make && ./guider
