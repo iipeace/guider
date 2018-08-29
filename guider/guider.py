@@ -1272,25 +1272,17 @@ class NetworkManager(object):
     def getMainIp():
         ipList = {}
 
-        ips = NetworkManager.getUsingIps()
+        ipList = NetworkManager.getUsingIps()
 
-        for ip in ips:
-            try:
-                if ip == '0.0.0.0' or \
-                    ip.endswith('.1') or \
-                    ip.startswith('127.'):
-                    continue
-
-                ipList[ip] = None
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        # remove invaild ip #
+        ipList.remove('0.0.0.0')
 
         if len(ipList) == 0:
             return None
+        elif '127.0.0.1' in ipList:
+            return '127.0.0.1'
         else:
-            return list(sorted(ipList.keys(), reverse=True))[0]
+            return list(sorted(ipList, reverse=True))[0]
 
 
 
@@ -7734,12 +7726,10 @@ class SystemManager(object):
                 for tid in list(map(int, tids.split(','))):
                     try:
                         os.kill(int(tid), signal.SIGKILL)
-                    except (OSError, IOError) as e:
-                        if e.errno == errno.ESRCH:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % tid)
                     except:
-                        pass
+                        SystemManager.printError(
+                            "Fail to send signal SIGKILL to %s because %s" % \
+                            (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
             elif len(value) == 2 and value[1] == 'CONT':
                 tids = value[0]
 
@@ -10074,9 +10064,10 @@ class SystemManager(object):
             try:
                 # read a line from objdump process #
                 line = proc.stdout.readline()
-            except (OSError, IOError) as e:
-                if e.errno == errno.EINTR:
-                    continue
+            except:
+                SystemManager.printError(\
+                    "Fail to read output from objdump because %s" % \
+                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
 
             # handle error #
             if not line:
@@ -14616,12 +14607,10 @@ class SystemManager(object):
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, NR_SIGSTOP)
-                                except (OSError, IOError) as e:
-                                    if e.errno == errno.ESRCH:
-                                        SystemManager.printError(\
-                                            "Fail to find %s process" % tid)
                                 except:
-                                    pass
+                                    SystemManager.printError(
+                                        "Fail to send signal SIGSTOP to %s because %s" % \
+                                        (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
                             val['running'] = False
                     # continue #
                     else:
@@ -14629,12 +14618,10 @@ class SystemManager(object):
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, NR_SIGCONT)
-                                except (OSError, IOError) as e:
-                                    if e.errno == errno.ESRCH:
-                                        SystemManager.printError(\
-                                            "Fail to find %s process" % tid)
                                 except:
-                                    pass
+                                    SystemManager.printError(
+                                        "Fail to send signal SIGCONT to %s because %s" % \
+                                        (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
                             val['running'] = True
 
                 time.sleep(SLEEP_SEC)
@@ -14645,12 +14632,10 @@ class SystemManager(object):
                 for tid in val['group']:
                     try:
                         os.kill(tid, NR_SIGCONT)
-                    except (OSError, IOError) as e:
-                        if e.errno == errno.ESRCH:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % tid)
                     except:
-                        pass
+                        SystemManager.printError(
+                            "Fail to send signal SIGCONT to %s because %s" % \
+                            (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
 
 
 
@@ -14697,14 +14682,11 @@ class SystemManager(object):
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % (sigList[nrSig], pid))
-                except (OSError, IOError) as e:
-                    if e.errno == errno.ESRCH:
-                        SystemManager.printError(\
-                            "Fail to find %s process" % pid)
                 except:
                     SystemManager.printError(\
-                        "Fail to send signal %s to %s because of permission" % \
-                        (sigList[nrSig], pid))
+                        "Fail to send signal %s to %s because %s" % \
+                        (sigList[nrSig], pid,\
+                        ' '.join(list(map(str, sys.exc_info()[1].args)))))
             return
 
         commLocation = sys.argv[0].rfind('/')
@@ -14750,42 +14732,33 @@ class SystemManager(object):
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo(\
                                 "started %s process to profile" % pid)
-                        except (OSError, IOError) as e:
-                            if e.errno == errno.ESRCH:
-                                SystemManager.printError(\
-                                    "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
-                                "Fail to send signal %s to %s because of permission" % \
-                                (sigList[nrSig], pid))
+                                "Fail to send signal %s to %s because %s" % \
+                                (sigList[nrSig], pid, \
+                                ' '.join(list(map(str, sys.exc_info()[1].args)))))
                     elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo(\
                                 "sent signal %s to %s process" % \
                                 (sigList[nrSig], pid))
-                        except (OSError, IOError) as e:
-                            if e.errno == errno.ESRCH:
-                                SystemManager.printError(\
-                                    "Fail to find %s process" % pid)
                         except:
                             SystemManager.printError(\
-                                "Fail to send signal %s to %s because of permission" % \
-                                (sigList[nrSig], pid))
+                                "Fail to send signal %s to %s because %s" % \
+                                (sigList[nrSig], pid, \
+                                ' '.join(list(map(str, sys.exc_info()[1].args)))))
                 else:
                     try:
                         os.kill(int(pid), nrSig)
                         SystemManager.printInfo(\
                             "sent signal %s to %s process" % \
                             (sigList[nrSig], pid))
-                    except (OSError, IOError) as e:
-                        if e.errno == errno.ESRCH:
-                            SystemManager.printError(\
-                                "Fail to find %s process" % pid)
                     except:
                         SystemManager.printError(\
-                            "Fail to send signal %s to %s because of permission" % \
-                            (sigList[nrSig], pid))
+                            "Fail to send signal %s to %s because %s" % \
+                            (sigList[nrSig], pid, \
+                            ' '.join(list(map(str, sys.exc_info()[1].args)))))
 
                 nrProc += 1
 
@@ -31033,7 +31006,9 @@ class ThreadAnalyzer(object):
                 except:
                     message = ret[0]
 
-                if type(message) is not str:
+                # check message type #
+                if type(message) is not str and \
+                    type(message) is not unicode:
                     return
 
                 try:
