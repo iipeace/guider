@@ -4258,7 +4258,7 @@ class FunctionAnalyzer(object):
                     SystemManager.printWarning((\
                         "enable CONFIG_USER_STACKTRACE_SUPPORT kernel option "
                         "if it is not enabled"), True)
-                    SystemManager.userEnableWarn = True
+                    SystemManager.userEnableWarn = False
                 return ('0', None, None)
 
             else:
@@ -7511,7 +7511,7 @@ class SystemManager(object):
     lockEnable = False
     userEnable = True
     userRecordEnable = True
-    userEnableWarn = False
+    userEnableWarn = True
     printEnable = True
     powerEnable = False
     pipeEnable = False
@@ -15593,11 +15593,17 @@ class SystemManager(object):
         elif stat == '1':
             # no running guider process except for myself #
             if SystemManager.getBgProcCount() <= 1:
-                SystemManager.printError(\
-                    "Fail to start tracing because "
-                    "tracing is already running on system\n"
-                    "\tit would be cleaned up so that try to record again")
-                sys.exit(0)
+                res = SystemManager.readCmdVal('enable')
+                # default status #
+                if res == '0':
+                    pass
+                # tracing status #
+                else:
+                    SystemManager.printError(\
+                        "Fail to start tracing because "
+                        "tracing is already in progress on system\n"
+                        "\tit would be stopped so that try to record again")
+                    sys.exit(0)
             else:
                 SystemManager.printError(\
                     "Fail to start tracing because "
