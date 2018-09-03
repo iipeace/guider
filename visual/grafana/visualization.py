@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import json
 from pprint import pprint
 from influxdb import InfluxDBClient
