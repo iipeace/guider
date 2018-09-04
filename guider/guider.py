@@ -8457,29 +8457,41 @@ class SystemManager(object):
                 SystemManager.printRawTitle(False, True, True)
 
                 pipePrint('\nMode:')
+                pipePrint('')
                 pipePrint('    [analysis]')
                 pipePrint('        top        [realtime]')
-                pipePrint('        record     [thread]')
-                pipePrint('        record -y  [system]')
-                pipePrint('        record -f  [function]')
-                pipePrint('        record -F  [file]')
-                pipePrint('        mem        [page]')
-                pipePrint('    [test]')
-                pipePrint('        alloctest')
-                pipePrint('    [control]')
-                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
-                pipePrint('    [communication]')
-                pipePrint('        list|start|stop|send|kill [proc]')
-                pipePrint('    [convenience]')
-                pipePrint('        draw       [image]')
-                pipePrint('        event      [event]')
                 pipePrint('        threadtop  [thread]')
                 pipePrint('        filetop    [file]')
                 pipePrint('        stacktop   [stack]')
                 pipePrint('        perftop    [PMU]')
                 pipePrint('        memtop     [memory]')
+                pipePrint('')
+                pipePrint('        record     [thread]')
+                pipePrint('        record -y  [system]')
+                pipePrint('        record -f  [function]')
+                pipePrint('        record -F  [file]')
+                pipePrint('        mem        [page]')
+                pipePrint('')
+                pipePrint('        draw       [image]')
+                pipePrint('        cpudraw    [cpu]')
+                pipePrint('        memdraw    [memory]')
+                pipePrint('        vssdraw    [vss]')
+                pipePrint('        rssdraw    [rss]')
+                pipePrint('        leakdraw   [leak]')
+                pipePrint('        iodraw     [io]')
+                pipePrint('')
+                pipePrint('    [control]')
+                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
+                pipePrint('')
+                pipePrint('    [communication]')
+                pipePrint('        list|start|stop|send|event [proc]')
+                pipePrint('')
+                pipePrint('    [test]')
+                pipePrint('        alloctest')
 
-                pipePrint('\nOptions:')
+                pipePrint('')
+                pipePrint('Options:')
+                pipePrint('')
                 pipePrint('    [record]')
                 pipePrint('        -e  [enable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
@@ -8514,6 +8526,7 @@ class SystemManager(object):
                 pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
                 pipePrint('        -N  [set_reportToRemoteServer - req@ip:port]')
                 pipePrint('        -M  [set_objdumpPath - file]')
+                pipePrint('')
                 pipePrint('    [analysis]')
                 pipePrint('        -o  [save_outputData - path]')
                 pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/'\
@@ -8528,6 +8541,7 @@ class SystemManager(object):
                 pipePrint('        -Z  [convert_textToImage]')
                 pipePrint('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
                 pipePrint('        -m  [set_terminalSize - {rows:cols}]')
+                pipePrint('')
                 pipePrint('    [common]')
                 pipePrint('        -a  [show_allInfo]')
                 pipePrint('        -Q  [print_allRowsInaStream]')
@@ -8724,7 +8738,10 @@ class SystemManager(object):
             pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
 
             pipePrint('\n    - draw VSS graph and chart for specific processes to specific files')
-            pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
+            pipePrint('        # %s vssdraw guider.out -g chrome' % cmd)
+
+            pipePrint('\n    - draw leak graph and chart to specific files')
+            pipePrint('        # %s leakdraw guider.out' % cmd)
 
             pipePrint('\n    - show and report resource usage of processes to specific server')
             pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
@@ -13311,11 +13328,80 @@ class SystemManager(object):
 
 
     @staticmethod
-    def isDrawMode():
-        if sys.argv[1] == 'draw' or SystemManager.drawMode:
-            SystemManager.drawMode = True
+    def isCpuDrawMode():
+        if sys.argv[1] == 'cpudraw':
             return True
         else:
+            return False
+
+
+
+    @staticmethod
+    def isMemDrawMode():
+        if sys.argv[1] == 'memdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isVssDrawMode():
+        if sys.argv[1] == 'vssdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isRssDrawMode():
+        if sys.argv[1] == 'rssdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLeakDrawMode():
+        if sys.argv[1] == 'leakdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isIoDrawMode():
+        if sys.argv[1] == 'iodraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawMode():
+        orig = SystemManager.drawMode
+        SystemManager.drawMode = True
+
+        if sys.argv[1] == 'draw' or orig:
+            return True
+        elif SystemManager.isCpuDrawMode():
+            return True
+        elif SystemManager.isMemDrawMode():
+            return True
+        elif SystemManager.isVssDrawMode():
+            return True
+        elif SystemManager.isRssDrawMode():
+            return True
+        elif SystemManager.isLeakDrawMode():
+            return True
+        elif SystemManager.isIoDrawMode():
+            return True
+        else:
+            SystemManager.drawMode = orig
             return False
 
 
@@ -20248,9 +20334,10 @@ class ThreadAnalyzer(object):
         def make_autopct(values):
             def autopct(pct):
                 total = sum(values)
-                val = int(round(pct*total/100.0))
-                usage = '* {v:d}MB ({p:.0f}%)'.format(p=pct,v=val)
-                line = '-' * len(usage) * 2
+                val = int(round(pct*total/100.0)) << 20
+                val = SystemManager.convertSize(val, True)
+                usage = '{v:s} ({p:.0f}%)'.format(p=pct,v=val)
+                line = '=' * 7
                 string = '{s:1}\n{l:1}{d:1}'.\
                     format(s=usage,d=self.details[self.tmpCnt],l=line)
                 self.tmpCnt += 1
@@ -20270,35 +20357,43 @@ class ThreadAnalyzer(object):
                 continue
 
             for prop, value in item.items():
-                if prop != '[TOTAL]' and \
-                    (value[propList.index('rss')] > 0 or \
-                    value[propList.index('swap')] > 0):
+                if prop == '[TOTAL]' or \
+                    (value[propList.index('rss')] == 0 and \
+                    value[propList.index('swap')] == 0):
+                    continue
 
-                    labels.append('%s(%s)' % \
-                        (prop, value[propList.index('count')]))
-                    sizes.append(\
-                        value[propList.index('rss')] + \
-                        value[propList.index('swap')])
+                # add label of property and its property count #
+                labels.append('%s(%s)' % \
+                    (prop, value[propList.index('count')]))
 
-                    # set private dirty unit #
-                    pdrt = value[propList.index('pdirty')]
-                    if pdrt > 1 << 10:
-                        pdrt = '%d MB' % (pdrt >> 10)
-                    else:
-                        pdrt = '%d KB' % (pdrt)
+                sizes.append(\
+                    value[propList.index('rss')] + \
+                    value[propList.index('swap')])
 
-                    # set shared dirty unit #
-                    sdrt = value[propList.index('sdirty')]
-                    if sdrt > 1 << 10:
-                        sdrt = '%d MB' % (sdrt >> 10)
-                    else:
-                        sdrt = '%d KB' % (sdrt)
+                # set private dirty size #
+                pdrt = SystemManager.convertSize(\
+                    value[propList.index('pdirty')] << 10, True)
 
-                    self.details.append(\
-                        '\n- RSS: %s MB\n- SWAP: %s MB\n- LOCK: %s KB\n- PDRT: %s\n- SDRT: %s' %\
-                        (value[propList.index('rss')], \
-                        value[propList.index('swap')],\
-                        value[propList.index('locked')], pdrt, sdrt))
+                # set shared dirty size #
+                sdrt = SystemManager.convertSize(\
+                    value[propList.index('sdirty')] << 10, True)
+
+                # set rss size #
+                rss = SystemManager.convertSize(\
+                    value[propList.index('rss')] << 20, True)
+
+                # set swap size #
+                swap = SystemManager.convertSize(\
+                    value[propList.index('swap')] << 20, True)
+
+                # set locked size #
+                locked = SystemManager.convertSize(\
+                    value[propList.index('locked')] << 10, True)
+
+                self.details.append((\
+                    '\n- RSS  : %5s \n- SWAP : %5s \n%s\n'
+                    '- LOCK : %5s \n- PDRT : %5s \n- SDRT : %5s') % \
+                    (rss, swap, '=' * 7, locked, pdrt, sdrt))
 
             # convert labels to tuple #
             labels = tuple(labels)
@@ -20316,30 +20411,40 @@ class ThreadAnalyzer(object):
             except:
                 continue
 
-            # get total size #
+            # get property of process  #
             line = '_' * len(idx) * 1
+
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            vmem = item['[TOTAL]'][propList.index('vmem')]
-            pss = item['[TOTAL]'][propList.index('pss')]
-            lock = item['[TOTAL]'][propList.index('locked')]
+            total = SystemManager.convertSize((rss+swap) << 20)
+
+            rss = SystemManager.convertSize(rss << 20)
+            swap = SystemManager.convertSize(swap << 20)
+
+            vmem = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('vmem')] << 20)
+
+            pss = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('pss')] << 20)
+
+            lock = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('locked')] << 10)
+
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            if dirty > 1 << 10:
-                dirty = '%d MB' % (dirty >> 10)
-            else:
-                dirty = '%d KB' % (dirty)
+            dirty = SystemManager.convertSize(dirty << 10)
+
             totalList =\
-                [('\n%s\n%s\n\n- TOTAL: %s MB\n- RSS: %s MB\n- SWAP: %s MB\n%s\n\n'
-                '- VIRT: %s MB\n- PSS: %s MB\n- LOCK: %s KB\n- DIRTY: %s') %\
-                ('[%s] %s' % (str(seq+1), idx), line, rss+swap, \
+                [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
+                '- VIRT: %s \n- PSS: %s \n- LOCK: %s \n- DIRTY: %s') %\
+                ('[%s] %s' % (str(seq+1), idx), line, total, \
                 rss, swap, line, vmem, pss, lock, dirty)]
 
             # draw chart #
             if SystemManager.matplotlibVersion >= 1.2:
                 patches, texts, autotexts = \
                     pie(sizes, explode=explode, labels=labels, colors=colors, \
-                    autopct=make_autopct(sizes), shadow=True, startangle=90, \
+                    autopct=make_autopct(sizes), shadow=True, startangle=50, \
                     pctdistance=0.7)
             else:
                 patches, texts, autotexts = \
@@ -20348,7 +20453,7 @@ class ThreadAnalyzer(object):
 
             # set font size #
             for idx, val in enumerate(texts):
-                val.set_fontsize(7)
+                val.set_fontsize(5)
                 autotexts[idx].set_fontsize(3.5)
             axis('equal')
 
@@ -20921,32 +21026,31 @@ class ThreadAnalyzer(object):
             if SystemManager.vssEnable is False and \
                 SystemManager.rssEnable is False and \
                 SystemManager.leakEnable is False:
+
                 # System Free Memory #
                 usage = list(map(int, memFree))
                 minIdx = usage.index(min(usage))
                 maxIdx = usage.index(max(usage))
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    pass
+
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
+                if totalRAM is not None:
+                    label = 'RAM Total [%s]\nRAM Free' % \
+                        SystemManager.convertSize(long(totalRAM) << 20)
+                    labelList.append(label)
                 else:
-                    if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], \
-                            SystemManager.convertSize(usage[minIdx] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], \
-                            SystemManager.convertSize(usage[maxIdx] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], \
-                            SystemManager.convertSize(usage[-1] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
-                    if totalRAM is not None:
-                        label = 'RAM Total [%s]\nRAM Free' % \
-                            SystemManager.convertSize(long(totalRAM) << 20)
-                        labelList.append(label)
-                    else:
-                        labelList.append('RAM Free')
+                    labelList.append('RAM Free')
 
                 # System Anon Memory #
                 usage = list(map(int, memAnon))
@@ -21280,14 +21384,16 @@ class ThreadAnalyzer(object):
                 try:
                     xtype = len(layoutList) - idx
 
-                    if target.upper() == 'CPU':
+                    targetc = target.upper()
+
+                    if targetc == 'CPU' or targetc.startswith('C'):
                         drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
                             blkWait, blkProcUsage, gpuUsage, xtype, pos, size)
-                    elif target.upper() == 'MEM':
+                    elif targetc == 'MEM' or targetc.startswith('M'):
                         drawMem(timeline, labelList, memFree, memAnon, \
                             memCache, memProcUsage, totalRAM, swapUsage, \
                             totalSwap, xtype, pos, size)
-                    elif target.upper() == 'IO':
+                    elif targetc == 'IO' or targetc.startswith('I'):
                         drawIo(timeline, labelList, blkRead, blkWrite, \
                             netRead, netWrite, reclaimBg, reclaimDr, \
                             xtype, pos, size)
@@ -31696,15 +31802,39 @@ if __name__ == '__main__':
         if len(sys.argv) <= 2:
             SystemManager.printError("no input file to draw graph and chart")
             sys.exit(0)
-        else:
-            SystemManager.graphEnable = True
 
+        SystemManager.graphEnable = True
+
+        # thread mode #
         if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
             SystemManager.intervalEnable = 1
             SystemManager.printFile = '.'
             del sys.argv[2]
+        # top mode #
         else:
+            # cpu graph #
+            if SystemManager.isCpuDrawMode():
+                SystemManager.layout = 'CPU'
+            # memory graph #
+            elif SystemManager.isMemDrawMode():
+                SystemManager.layout = 'MEM'
+            # vss graph #
+            elif SystemManager.isVssDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.vssEnable = True
+            # rss graph #
+            elif SystemManager.isRssDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.rssEnable = True
+            # leak graph #
+            elif SystemManager.isLeakDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.leakEnable = True
+            # io graph #
+            elif SystemManager.isIoDrawMode():
+                SystemManager.layout = 'IO'
+
             sys.argv[1] = 'top'
             SystemManager.sourceFile = sys.argv[2]
 
