@@ -21299,14 +21299,16 @@ class ThreadAnalyzer(object):
                 try:
                     xtype = len(layoutList) - idx
 
-                    if target.upper() == 'CPU':
+                    targetc = target.upper()
+
+                    if targetc == 'CPU' or targetc.startswith('C'):
                         drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
                             blkWait, blkProcUsage, gpuUsage, xtype, pos, size)
-                    elif target.upper() == 'MEM':
+                    elif targetc == 'MEM' or targetc.startswith('M'):
                         drawMem(timeline, labelList, memFree, memAnon, \
                             memCache, memProcUsage, totalRAM, swapUsage, \
                             totalSwap, xtype, pos, size)
-                    elif target.upper() == 'IO':
+                    elif targetc == 'IO' or targetc.startswith('I'):
                         drawIo(timeline, labelList, blkRead, blkWrite, \
                             netRead, netWrite, reclaimBg, reclaimDr, \
                             xtype, pos, size)
