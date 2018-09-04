@@ -19813,10 +19813,12 @@ class ThreadAnalyzer(object):
                     timeline.append(int(float(summaryList[1].split('-')[1])))
                 except:
                     timeline.append(0)
+
                 try:
                     cpuUsage.append(int(summaryList[2]))
                 except:
                     cpuUsage.append(0)
+
                 try:
                     memStat = summaryList[3].split('/')
                     if len(memStat) != 3:
@@ -19838,10 +19840,12 @@ class ThreadAnalyzer(object):
                     blkWait.append(int(summaryList[5]))
                 except:
                     blkWait.append(0)
+
                 try:
                     swapUsage.append(int(summaryList[6]))
                 except:
                     swapUsage.append(0)
+
                 try:
                     reclaim = summaryList[7].strip().split('/')
                     reclaimBg.append(int(reclaim[0]) << 2)
@@ -19849,6 +19853,7 @@ class ThreadAnalyzer(object):
                 except:
                     netRead.append(0)
                     netWrite.append(0)
+
                 try:
                     blkUsage = summaryList[4].split('/')
                     blkRead.append(int(blkUsage[0]) << 10)
@@ -19856,23 +19861,38 @@ class ThreadAnalyzer(object):
                 except:
                     blkRead.append(0)
                     blkWrite.append(0)
+
                 try:
                     nrCore.append(int(summaryList[12]))
                 except:
                     nrCore.append(0)
+
                 try:
                     netstat = summaryList[13].strip().split('/')
                     if netstat[0] == '-':
                         raise Exception()
 
-                    if netstat[0][-1] == 'M':
+                    if netstat[0][-1] == 'T':
+                        netRead.append(int(netstat[0][:-1]) << 30)
+                    elif netstat[0][-1] == 'G':
+                        netRead.append(int(netstat[0][:-1]) << 20)
+                    elif netstat[0][-1] == 'M':
                         netRead.append(int(netstat[0][:-1]) << 10)
-                    else:
+                    elif netstat[0][-1] == 'K':
                         netRead.append(int(netstat[0][:-1]))
-                    if netstat[1][-1] == 'M':
-                        netWrite.append(int(netstat[1][:-1]) << 10)
                     else:
+                        netRead.append(0)
+
+                    if netstat[0][-1] == 'T':
+                        netWrite.append(int(netstat[1][:-1]) << 30)
+                    elif netstat[0][-1] == 'G':
+                        netWrite.append(int(netstat[1][:-1]) << 20)
+                    elif netstat[1][-1] == 'M':
+                        netWrite.append(int(netstat[1][:-1]) << 10)
+                    elif netstat[1][-1] == 'K':
                         netWrite.append(int(netstat[1][:-1]))
+                    else:
+                        netWrite.append(0)
                 except:
                     netRead.append(0)
                     netWrite.append(0)
@@ -29438,12 +29458,20 @@ class ThreadAnalyzer(object):
         else:
             totalUsage = 0
 
-        # get network usage #
+        # get network usage in bytes #
         (netIn, netOut) = \
             self.getNetworkUsage(\
             SystemManager.prevNetstat, SystemManager.netstat)
-        netIO = '%s/%s' % self.convertNetworkUsage(netIn, netOut)
 
+        # convert network usage #
+        try:
+            netIO = '%s/%s' % \
+                (SystemManager.convertSize(netIn, True), \
+                SystemManager.convertSize(netOut, True))
+        except:
+            netIO = '-/-'
+
+        # make total stat string #
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
