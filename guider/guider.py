@@ -20248,9 +20248,10 @@ class ThreadAnalyzer(object):
         def make_autopct(values):
             def autopct(pct):
                 total = sum(values)
-                val = int(round(pct*total/100.0))
-                usage = '* {v:d}MB ({p:.0f}%)'.format(p=pct,v=val)
-                line = '-' * len(usage) * 2
+                val = int(round(pct*total/100.0)) << 20
+                val = SystemManager.convertSize(val, True)
+                usage = '{v:s} ({p:.0f}%)'.format(p=pct,v=val)
+                line = '=' * 7
                 string = '{s:1}\n{l:1}{d:1}'.\
                     format(s=usage,d=self.details[self.tmpCnt],l=line)
                 self.tmpCnt += 1
@@ -20270,35 +20271,43 @@ class ThreadAnalyzer(object):
                 continue
 
             for prop, value in item.items():
-                if prop != '[TOTAL]' and \
-                    (value[propList.index('rss')] > 0 or \
-                    value[propList.index('swap')] > 0):
+                if prop == '[TOTAL]' or \
+                    (value[propList.index('rss')] == 0 and \
+                    value[propList.index('swap')] == 0):
+                    continue
 
-                    labels.append('%s(%s)' % \
-                        (prop, value[propList.index('count')]))
-                    sizes.append(\
-                        value[propList.index('rss')] + \
-                        value[propList.index('swap')])
+                # add label of property and its property count #
+                labels.append('%s(%s)' % \
+                    (prop, value[propList.index('count')]))
 
-                    # set private dirty unit #
-                    pdrt = value[propList.index('pdirty')]
-                    if pdrt > 1 << 10:
-                        pdrt = '%d MB' % (pdrt >> 10)
-                    else:
-                        pdrt = '%d KB' % (pdrt)
+                sizes.append(\
+                    value[propList.index('rss')] + \
+                    value[propList.index('swap')])
 
-                    # set shared dirty unit #
-                    sdrt = value[propList.index('sdirty')]
-                    if sdrt > 1 << 10:
-                        sdrt = '%d MB' % (sdrt >> 10)
-                    else:
-                        sdrt = '%d KB' % (sdrt)
+                # set private dirty size #
+                pdrt = SystemManager.convertSize(\
+                    value[propList.index('pdirty')] << 10, True)
 
-                    self.details.append(\
-                        '\n- RSS: %s MB\n- SWAP: %s MB\n- LOCK: %s KB\n- PDRT: %s\n- SDRT: %s' %\
-                        (value[propList.index('rss')], \
-                        value[propList.index('swap')],\
-                        value[propList.index('locked')], pdrt, sdrt))
+                # set shared dirty size #
+                sdrt = SystemManager.convertSize(\
+                    value[propList.index('sdirty')] << 10, True)
+
+                # set rss size #
+                rss = SystemManager.convertSize(\
+                    value[propList.index('rss')] << 20, True)
+
+                # set swap size #
+                swap = SystemManager.convertSize(\
+                    value[propList.index('swap')] << 20, True)
+
+                # set locked size #
+                locked = SystemManager.convertSize(\
+                    value[propList.index('locked')] << 10, True)
+
+                self.details.append((\
+                    '\n- RSS  : %5s \n- SWAP : %5s \n%s\n'
+                    '- LOCK : %5s \n- PDRT : %5s \n- SDRT : %5s') % \
+                    (rss, swap, '=' * 7, locked, pdrt, sdrt))
 
             # convert labels to tuple #
             labels = tuple(labels)
@@ -20316,30 +20325,40 @@ class ThreadAnalyzer(object):
             except:
                 continue
 
-            # get total size #
+            # get property of process  #
             line = '_' * len(idx) * 1
+
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            vmem = item['[TOTAL]'][propList.index('vmem')]
-            pss = item['[TOTAL]'][propList.index('pss')]
-            lock = item['[TOTAL]'][propList.index('locked')]
+            total = SystemManager.convertSize((rss+swap) << 20)
+
+            rss = SystemManager.convertSize(rss << 20)
+            swap = SystemManager.convertSize(swap << 20)
+
+            vmem = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('vmem')] << 20)
+
+            pss = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('pss')] << 20)
+
+            lock = SystemManager.convertSize(\
+                item['[TOTAL]'][propList.index('locked')] << 10)
+
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            if dirty > 1 << 10:
-                dirty = '%d MB' % (dirty >> 10)
-            else:
-                dirty = '%d KB' % (dirty)
+            dirty = SystemManager.convertSize(dirty << 10)
+
             totalList =\
-                [('\n%s\n%s\n\n- TOTAL: %s MB\n- RSS: %s MB\n- SWAP: %s MB\n%s\n\n'
-                '- VIRT: %s MB\n- PSS: %s MB\n- LOCK: %s KB\n- DIRTY: %s') %\
-                ('[%s] %s' % (str(seq+1), idx), line, rss+swap, \
+                [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
+                '- VIRT: %s \n- PSS: %s \n- LOCK: %s \n- DIRTY: %s') %\
+                ('[%s] %s' % (str(seq+1), idx), line, total, \
                 rss, swap, line, vmem, pss, lock, dirty)]
 
             # draw chart #
             if SystemManager.matplotlibVersion >= 1.2:
                 patches, texts, autotexts = \
                     pie(sizes, explode=explode, labels=labels, colors=colors, \
-                    autopct=make_autopct(sizes), shadow=True, startangle=90, \
+                    autopct=make_autopct(sizes), shadow=True, startangle=50, \
                     pctdistance=0.7)
             else:
                 patches, texts, autotexts = \
@@ -20348,7 +20367,7 @@ class ThreadAnalyzer(object):
 
             # set font size #
             for idx, val in enumerate(texts):
-                val.set_fontsize(7)
+                val.set_fontsize(5)
                 autotexts[idx].set_fontsize(3.5)
             axis('equal')
 
