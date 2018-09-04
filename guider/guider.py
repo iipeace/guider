@@ -8457,29 +8457,41 @@ class SystemManager(object):
                 SystemManager.printRawTitle(False, True, True)
 
                 pipePrint('\nMode:')
+                pipePrint('')
                 pipePrint('    [analysis]')
                 pipePrint('        top        [realtime]')
-                pipePrint('        record     [thread]')
-                pipePrint('        record -y  [system]')
-                pipePrint('        record -f  [function]')
-                pipePrint('        record -F  [file]')
-                pipePrint('        mem        [page]')
-                pipePrint('    [test]')
-                pipePrint('        alloctest')
-                pipePrint('    [control]')
-                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
-                pipePrint('    [communication]')
-                pipePrint('        list|start|stop|send|kill [proc]')
-                pipePrint('    [convenience]')
-                pipePrint('        draw       [image]')
-                pipePrint('        event      [event]')
                 pipePrint('        threadtop  [thread]')
                 pipePrint('        filetop    [file]')
                 pipePrint('        stacktop   [stack]')
                 pipePrint('        perftop    [PMU]')
                 pipePrint('        memtop     [memory]')
+                pipePrint('')
+                pipePrint('        record     [thread]')
+                pipePrint('        record -y  [system]')
+                pipePrint('        record -f  [function]')
+                pipePrint('        record -F  [file]')
+                pipePrint('        mem        [page]')
+                pipePrint('')
+                pipePrint('        draw       [image]')
+                pipePrint('        cpudraw    [cpu]')
+                pipePrint('        memdraw    [memory]')
+                pipePrint('        vssdraw    [vss]')
+                pipePrint('        rssdraw    [rss]')
+                pipePrint('        leakdraw   [leak]')
+                pipePrint('        iodraw     [io]')
+                pipePrint('')
+                pipePrint('    [control]')
+                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
+                pipePrint('')
+                pipePrint('    [communication]')
+                pipePrint('        list|start|stop|send|event [proc]')
+                pipePrint('')
+                pipePrint('    [test]')
+                pipePrint('        alloctest')
 
-                pipePrint('\nOptions:')
+                pipePrint('')
+                pipePrint('Options:')
+                pipePrint('')
                 pipePrint('    [record]')
                 pipePrint('        -e  [enable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
@@ -8514,6 +8526,7 @@ class SystemManager(object):
                 pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
                 pipePrint('        -N  [set_reportToRemoteServer - req@ip:port]')
                 pipePrint('        -M  [set_objdumpPath - file]')
+                pipePrint('')
                 pipePrint('    [analysis]')
                 pipePrint('        -o  [save_outputData - path]')
                 pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/'\
@@ -8528,6 +8541,7 @@ class SystemManager(object):
                 pipePrint('        -Z  [convert_textToImage]')
                 pipePrint('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
                 pipePrint('        -m  [set_terminalSize - {rows:cols}]')
+                pipePrint('')
                 pipePrint('    [common]')
                 pipePrint('        -a  [show_allInfo]')
                 pipePrint('        -Q  [print_allRowsInaStream]')
@@ -8724,7 +8738,10 @@ class SystemManager(object):
             pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
 
             pipePrint('\n    - draw VSS graph and chart for specific processes to specific files')
-            pipePrint('        # %s draw guider.out -g chrome -e v' % cmd)
+            pipePrint('        # %s vssdraw guider.out -g chrome' % cmd)
+
+            pipePrint('\n    - draw leak graph and chart to specific files')
+            pipePrint('        # %s leakdraw guider.out' % cmd)
 
             pipePrint('\n    - show and report resource usage of processes to specific server')
             pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
@@ -13311,11 +13328,80 @@ class SystemManager(object):
 
 
     @staticmethod
-    def isDrawMode():
-        if sys.argv[1] == 'draw' or SystemManager.drawMode:
-            SystemManager.drawMode = True
+    def isCpuDrawMode():
+        if sys.argv[1] == 'cpudraw':
             return True
         else:
+            return False
+
+
+
+    @staticmethod
+    def isMemDrawMode():
+        if sys.argv[1] == 'memdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isVssDrawMode():
+        if sys.argv[1] == 'vssdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isRssDrawMode():
+        if sys.argv[1] == 'rssdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLeakDrawMode():
+        if sys.argv[1] == 'leakdraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isIoDrawMode():
+        if sys.argv[1] == 'iodraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawMode():
+        orig = SystemManager.drawMode
+        SystemManager.drawMode = True
+
+        if sys.argv[1] == 'draw' or orig:
+            return True
+        elif SystemManager.isCpuDrawMode():
+            return True
+        elif SystemManager.isMemDrawMode():
+            return True
+        elif SystemManager.isVssDrawMode():
+            return True
+        elif SystemManager.isRssDrawMode():
+            return True
+        elif SystemManager.isLeakDrawMode():
+            return True
+        elif SystemManager.isIoDrawMode():
+            return True
+        else:
+            SystemManager.drawMode = orig
             return False
 
 
@@ -20940,32 +21026,31 @@ class ThreadAnalyzer(object):
             if SystemManager.vssEnable is False and \
                 SystemManager.rssEnable is False and \
                 SystemManager.leakEnable is False:
+
                 # System Free Memory #
                 usage = list(map(int, memFree))
                 minIdx = usage.index(min(usage))
                 maxIdx = usage.index(max(usage))
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    pass
+
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], \
+                        SystemManager.convertSize(usage[minIdx] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], \
+                        SystemManager.convertSize(usage[maxIdx] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], \
+                        SystemManager.convertSize(usage[-1] << 20), \
+                        fontsize=5, color='blue', fontweight='bold')
+                plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
+                if totalRAM is not None:
+                    label = 'RAM Total [%s]\nRAM Free' % \
+                        SystemManager.convertSize(long(totalRAM) << 20)
+                    labelList.append(label)
                 else:
-                    if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], \
-                            SystemManager.convertSize(usage[minIdx] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], \
-                            SystemManager.convertSize(usage[maxIdx] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], \
-                            SystemManager.convertSize(usage[-1] << 20), \
-                            fontsize=5, color='blue', fontweight='bold')
-                    plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
-                    if totalRAM is not None:
-                        label = 'RAM Total [%s]\nRAM Free' % \
-                            SystemManager.convertSize(long(totalRAM) << 20)
-                        labelList.append(label)
-                    else:
-                        labelList.append('RAM Free')
+                    labelList.append('RAM Free')
 
                 # System Anon Memory #
                 usage = list(map(int, memAnon))
@@ -31717,15 +31802,39 @@ if __name__ == '__main__':
         if len(sys.argv) <= 2:
             SystemManager.printError("no input file to draw graph and chart")
             sys.exit(0)
-        else:
-            SystemManager.graphEnable = True
 
+        SystemManager.graphEnable = True
+
+        # thread mode #
         if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
             SystemManager.intervalEnable = 1
             SystemManager.printFile = '.'
             del sys.argv[2]
+        # top mode #
         else:
+            # cpu graph #
+            if SystemManager.isCpuDrawMode():
+                SystemManager.layout = 'CPU'
+            # memory graph #
+            elif SystemManager.isMemDrawMode():
+                SystemManager.layout = 'MEM'
+            # vss graph #
+            elif SystemManager.isVssDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.vssEnable = True
+            # rss graph #
+            elif SystemManager.isRssDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.rssEnable = True
+            # leak graph #
+            elif SystemManager.isLeakDrawMode():
+                SystemManager.layout = 'MEM'
+                SystemManager.leakEnable = True
+            # io graph #
+            elif SystemManager.isIoDrawMode():
+                SystemManager.layout = 'IO'
+
             sys.argv[1] = 'top'
             SystemManager.sourceFile = sys.argv[2]
 
