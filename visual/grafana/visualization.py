@@ -26,6 +26,7 @@ def InsertDB(file_path) :
         json_dic["measurement"] = super_k
         json_dic["fields"] = dict()
         for sub_k in guider_data[super_k] :
+            #TODO : Add execption precessing
             json_dic["fields"][sub_k] = guider_data[super_k][sub_k]
         if len(json_dic["fields"]) > 0 :
             json_body_list.append(json_dic)
@@ -36,6 +37,7 @@ def InsertDB(file_path) :
         result = client.query('select value from mem;')
     except :
         print('Error is occurred. Check [file_name].[time].error !!!')
+        #TODO : Copy [file_name] file to [file_name].[time].error when exception is occurred.
 
 class GuiderOutputEventHandler(PatternMatchingEventHandler) :
 
