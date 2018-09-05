@@ -1,0 +1,54 @@
+{
+  "task": {
+    "nrThread": 172, 
+    "nrBlocked": 0, 
+    "nrCtx": 244, 
+    "nrProc": 119
+  }, 
+  "mem": {
+    "kernel": 31, 
+    "anonDiff": 0, 
+    "cache": 688, 
+    "slabDiff": 0, 
+    "free": 112, 
+    "anon": 159, 
+    "dirty": 24, 
+    "file": 568, 
+    "freeDiff": 0, 
+    "total": 990, 
+    "slab": 120, 
+    "fileDiff": 0
+  }, 
+  "system": {
+    "nrSoftIrq": 104, 
+    "uptime": 441222.81, 
+    "interval": 1.0100000000093132, 
+    "pid": 22928, 
+    "nrIrq": 80
+  }, 
+  "event": {}, 
+  "swap": {
+    "usage": 0, 
+    "drReclaim": 0, 
+    "total": 0, 
+    "usageDiff": 0, 
+    "bgReclaim": 0
+  }, 
+  "net": {
+    "input": 864, 
+    "output": 800
+  }, 
+  "cpu": {
+    "kernel": 0, 
+    "nrCore": 1, 
+    "total": 1, 
+    "user": 0, 
+    "irq": 0
+  }, 
+  "block": {
+    "read": 0, 
+    "ioWait": 0, 
+    "write": 0, 
+    "nrFault": 0
+  }
+}
