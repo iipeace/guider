@@ -16407,7 +16407,7 @@ class SystemManager(object):
                 SystemManager.infoBufferPrint(\
                     "{0:35} {1:<100}".format(name, value))
         except:
-            SystemManager.printWarning("Fail to parse devData")
+            pass
 
         SystemManager.infoBufferPrint(twoLine)
 
