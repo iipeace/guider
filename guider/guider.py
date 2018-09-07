@@ -8040,11 +8040,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def importJson():
+        if SystemManager.jsonObject != None:
+            return
+
+        try:
+            import json
+            SystemManager.jsonObject = json
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to import python package: %s " % err.args[0])
+            sys.exit(0)
+
+
+
+    @staticmethod
     def makeJsonString(dictObj):
-        if SystemManager.jsonObject is None:
-            return None
-        else:
-            return SystemManager.jsonObject.dumps(dictObj, indent=2)
+        SystemManager.importJson()
+
+        return SystemManager.jsonObject.dumps(dictObj, indent=2)
 
 
 
@@ -8339,14 +8354,13 @@ class SystemManager(object):
 
     @staticmethod
     def makeJsonDict(strObj):
-        if SystemManager.jsonObject is None:
+        SystemManager.importJson()
+
+        try:
+            strObj = strObj.replace("'", '"')
+            return SystemManager.jsonObject.loads(strObj)
+        except:
             return None
-        else:
-            try:
-                strObj = strObj.replace("'", '"')
-                return SystemManager.jsonObject.loads(strObj)
-            except:
-                return None
 
 
 
@@ -11978,16 +11992,6 @@ class SystemManager(object):
             else:
                 raise Exception()
 
-            if request.find('REPORT') >= 0 and SystemManager.jsonObject is None:
-                try:
-                    import json
-                    SystemManager.jsonObject = json
-                except ImportError:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        "Fail to import python package: %s" % err.args[0])
-                    sys.exit(0)
-
             return True
         except SystemExit:
             sys.exit(0)
@@ -12226,18 +12230,24 @@ class SystemManager(object):
 
             elif option == 'd':
                 options = value
+
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+
                 if options.rfind('P') > -1:
                     SystemManager.perfEnable = False
                     SystemManager.perfGroupEnable = False
+
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
                     SystemManager.rootPath = '/'
+
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
+
                 if options.rfind('n') > -1:
                     SystemManager.netEnable = False
+
                 if options.rfind('e') > -1:
                     SystemManager.supportExtAscii = False
 
@@ -12260,8 +12270,10 @@ class SystemManager(object):
 
             elif option == 'e':
                 options = value
+
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
+
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
 
@@ -12271,12 +12283,16 @@ class SystemManager(object):
 
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
+
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = True
+
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
+
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
+
                 if options.rfind('b') > -1:
                     procPath = SystemManager.procPath
                     if SystemManager.isRoot() is False:
@@ -12290,11 +12306,13 @@ class SystemManager(object):
                         sys.exit(0)
                     else:
                         SystemManager.blockEnable = True
+
                 if options.rfind('s') > -1:
                     if SystemManager.checkStackTopCond():
                         SystemManager.stackEnable = True
                     else:
                         sys.exit(0)
+
                 if options.rfind('S') > -1:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -12302,6 +12320,7 @@ class SystemManager(object):
                         sys.exit(0)
                     SystemManager.pssEnable = True
                     SystemManager.sort = 'm'
+
                 if options.rfind('u') > -1:
                     if SystemManager.isRoot() is False:
                         SystemManager.printError(\
@@ -12309,39 +12328,51 @@ class SystemManager(object):
                         sys.exit(0)
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
+
                 if options.rfind('C') > -1:
                     SystemManager.wfcEnable = True
+
                 if options.rfind('a') > -1:
                     SystemManager.affinityEnable = True
                     SystemManager.wchanEnable = False
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
+
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
                     SystemManager.affinityEnable = False
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
+
                 if options.rfind('h') > -1:
                     SystemManager.sigHandlerEnable = True
                     SystemManager.wchanEnable = False
                     SystemManager.affinityEnable = False
                     SystemManager.tgnameEnable = False
+
                 if options.rfind('I') > -1:
                     SystemManager.imageEnable = True
+
                 if options.rfind('f') > -1:
                     SystemManager.floatEnable = True
+
                 if options.rfind('F') > -1:
                     SystemManager.fileTopEnable = True
+
                 if options.rfind('R') > -1:
+                    SystemManager.importJson()
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
+
                 if options.rfind('e') > -1:
                     SystemManager.supportExtAscii = True
+
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
                         SystemManager.memEnable = True
                     else:
                         sys.exit(0)
+
                 if options.rfind('w') > -1:
                     if SystemManager.findOption('g') is False:
                         SystemManager.printError(\
@@ -12355,22 +12386,17 @@ class SystemManager(object):
                     SystemManager.memEnable = True
                     SystemManager.wssEnable = True
                     SystemManager.sort = 'm'
+
                 if options.rfind('P') > -1:
                     if SystemManager.checkPerfTopCond():
                         SystemManager.perfGroupEnable = True
                     else:
                         sys.exit(0)
+
                 if options.rfind('r') > -1:
-                    try:
-                        if SystemManager.jsonObject is None:
-                            import json
-                            SystemManager.jsonObject = json
-                        SystemManager.reportEnable = True
-                    except ImportError:
-                        err = sys.exc_info()[1]
-                        SystemManager.printError(\
-                            "Fail to import python package: %s" % err.args[0])
-                        sys.exit(0)
+                    SystemManager.importJson()
+                    SystemManager.reportEnable = True
+
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
                         "unrecognized option -%s for enable" % options)
@@ -12542,6 +12568,8 @@ class SystemManager(object):
                 # remove redundant slash #
                 SystemManager.reportPath = \
                     SystemManager.reportPath.replace('//', '/')
+
+                SystemManager.reportEnable = True
 
                 SystemManager.printInfo(\
                     "start writing report to %s" % SystemManager.reportPath)
@@ -12769,24 +12797,34 @@ class SystemManager(object):
                 options = value
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
+
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = True
+
                 if options.rfind('n') > -1:
                     SystemManager.netEnable = True
+
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = True
+
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = True
+
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
+
                 if options.rfind('P') > -1:
                     SystemManager.powerEnable = True
+
                 if options.rfind('r') > -1:
                     SystemManager.resetEnable = True
+
                 if options.rfind('g') > -1:
                     SystemManager.graphEnable = True
+
                 if options.rfind('L') > -1:
                     SystemManager.lockEnable = True
+
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
                         "unrecognized option -%s for enable" % options)
@@ -12965,21 +13003,29 @@ class SystemManager(object):
 
             elif option == 'd':
                 options = value
+
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
                     SystemManager.latEnable = False
+
                 if options.rfind('m') > -1:
                     SystemManager.memEnable = False
+
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = False
+
                 if options.rfind('b') > -1:
                     SystemManager.blockEnable = False
+
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
+
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
+
                 if options.rfind('l') > -1:
                     SystemManager.latEnable = False
+
                 if options.rfind('a') > -1:
                     SystemManager.disableAll = True
 
@@ -22512,16 +22558,8 @@ class ThreadAnalyzer(object):
                     SystemManager.sourceFile)
                 sys.exit(0)
 
-            if SystemManager.jsonObject is None:
-                try:
-                    import json
-                    SystemManager.jsonObject = json
-                except ImportError:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        ("Fail to import python package: %s "
-                        "to load configuration") % err.args[0])
-                    sys.exit(0)
+            # import json package #
+            SystemManager.importJson()
 
             try:
                 confBuf = confBuf.replace("'", '"')
@@ -24146,7 +24184,7 @@ class ThreadAnalyzer(object):
 
     def getNetworkUsage(self, prev, now):
         if prev == now:
-            return ('-', '-')
+            return (0, 0)
 
         nowIn = nowOut = prevIn = prevOut = 0
 
@@ -29221,6 +29259,8 @@ class ThreadAnalyzer(object):
 
 
     def printSystemUsage(self):
+        vmData = self.vmData
+
         # total memory #
         try:
             totalMem = self.memData['MemTotal'] >> 10
@@ -29230,7 +29270,7 @@ class ThreadAnalyzer(object):
 
         # free memory #
         try:
-            freeMem = self.vmData['nr_free_pages'] >> 8
+            freeMem = vmData['nr_free_pages'] >> 8
             freeMemDiff = freeMem - (self.prevVmData['nr_free_pages'] >> 8)
         except:
             freeMem = freeMemDiff = 0
@@ -29238,10 +29278,10 @@ class ThreadAnalyzer(object):
 
         # anonymous memory #
         try:
-            actAnonMem = self.vmData['nr_active_anon'] >> 8
-            inactAnonMem = self.vmData['nr_inactive_anon'] >> 8
-            totalAnonMem = self.vmData['nr_anon_pages'] >> 8
-            anonMemDiff = (self.vmData['nr_anon_pages'] - \
+            actAnonMem = vmData['nr_active_anon'] >> 8
+            inactAnonMem = vmData['nr_inactive_anon'] >> 8
+            totalAnonMem = vmData['nr_anon_pages'] >> 8
+            anonMemDiff = (vmData['nr_anon_pages'] - \
                 self.prevVmData['nr_anon_pages']) >> 8
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = 0
@@ -29249,10 +29289,10 @@ class ThreadAnalyzer(object):
 
         # file memory #
         try:
-            actFileMem = self.vmData['nr_active_file'] >> 8
-            inactFileMem = self.vmData['nr_inactive_file'] >> 8
-            totalFileMem = self.vmData['nr_file_pages'] >> 8
-            fileMemDiff = (self.vmData['nr_file_pages'] - \
+            actFileMem = vmData['nr_active_file'] >> 8
+            inactFileMem = vmData['nr_inactive_file'] >> 8
+            totalFileMem = vmData['nr_file_pages'] >> 8
+            fileMemDiff = (vmData['nr_file_pages'] - \
                 self.prevVmData['nr_file_pages']) >> 8
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = 0
@@ -29260,32 +29300,33 @@ class ThreadAnalyzer(object):
 
         # dirty memory #
         try:
-            nrDirty = self.vmData['nr_dirty']
+            pgDirty = vmData['nr_dirty']
+
             '''
             dirtyRatio = \
-                int((self.vmData['nr_dirty'] / \
-                float(self.vmData['nr_dirty_threshold'])) * 100)
+                int((vmData['nr_dirty'] / \
+                float(vmData['nr_dirty_threshold'])) * 100)
             dirtyBgRatio = \
-                int((self.vmData['nr_dirty'] / \
-                float(self.vmData['nr_dirty_background_threshold'])) * 100)
+                int((vmData['nr_dirty'] / \
+                float(vmData['nr_dirty_background_threshold'])) * 100)
             '''
         except:
-            nrDirty = 0
+            pgDirty = 0
             SystemManager.printWarning("Fail to get dirtyMem")
 
         # slab memory #
         try:
-            slabReclm = self.vmData['nr_slab_reclaimable'] >> 8
-            slabUnReclm = self.vmData['nr_slab_unreclaimable'] >> 8
+            slabReclm = vmData['nr_slab_reclaimable'] >> 8
+            slabUnReclm = vmData['nr_slab_unreclaimable'] >> 8
             slabReclmDiff = \
-                self.vmData['nr_slab_reclaimable'] - \
+                vmData['nr_slab_reclaimable'] - \
                 self.prevVmData['nr_slab_reclaimable']
             slabUnReclmDiff = \
-                self.vmData['nr_slab_unreclaimable'] - \
+                vmData['nr_slab_unreclaimable'] - \
                 self.prevVmData['nr_slab_unreclaimable']
             totalSlabMem = \
-                (self.vmData['nr_slab_reclaimable'] + \
-                self.vmData['nr_slab_unreclaimable']) >> 8
+                (vmData['nr_slab_reclaimable'] + \
+                vmData['nr_slab_unreclaimable']) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
         except:
             slabReclm = slabUnReclm = slabReclmDiff = \
@@ -29302,8 +29343,8 @@ class ThreadAnalyzer(object):
 
         # fault #
         try:
-            nrMajFault = self.vmData['pgmajfault'] - self.prevVmData['pgmajfault']
-            nrTotalFault = self.vmData['pgfault'] - self.prevVmData['pgfault']
+            nrMajFault = vmData['pgmajfault'] - self.prevVmData['pgmajfault']
+            nrTotalFault = vmData['pgfault'] - self.prevVmData['pgfault']
             nrMinFault = nrTotalFault - nrMajFault
         except:
             nrMajFault = nrTotalFault = nrMinFault = 0
@@ -29312,116 +29353,116 @@ class ThreadAnalyzer(object):
         # paged in/out from/to disk #
         try:
             pgInMemDiff = \
-                (self.vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
+                (vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
             pgOutMemDiff = \
-                (self.vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
+                (vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
         except:
             pgInMemDiff = pgOutMemDiff = 0
             SystemManager.printWarning("Fail to get pgMem")
 
         # swap memory #
         try:
-            swapTotal = self.vmData['swapTotal'] >> 10
-            swapUsage = self.vmData['swapUsed'] >> 10
+            swapTotal = vmData['swapTotal'] >> 10
+            swapUsage = vmData['swapUsed'] >> 10
             swapUsageDiff = \
-                (self.prevVmData['swapUsed'] - self.vmData['swapUsed']) >> 10
+                (self.prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
             swapInMem = \
-                (self.vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
+                (vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
             swapOutMem = \
-                (self.vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
+                (vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
         except:
             swapTotal = swapUsage = swapUsageDiff = swapInMem = swapOutMem = 0
             SystemManager.printWarning("Fail to get swapMem")
 
         # background reclaim #
         try:
-            bgReclaim = 0
-            if 'pgsteal_kswapd' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd'] - \
+            pgRclmBg = 0
+            if 'pgsteal_kswapd' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd'] - \
                     self.prevVmData['pgsteal_kswapd']
-            if 'pgsteal_kswapd_normal' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd_normal'] - \
+            if 'pgsteal_kswapd_normal' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd_normal'] - \
                     self.prevVmData['pgsteal_kswapd_normal']
-            if 'pgsteal_kswapd_high' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd_high'] - \
+            if 'pgsteal_kswapd_high' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd_high'] - \
                     self.prevVmData['pgsteal_kswapd_high']
-            if 'pgsteal_kswapd_dma' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd_dma'] - \
+            if 'pgsteal_kswapd_dma' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd_dma'] - \
                     self.prevVmData['pgsteal_kswapd_dma']
-            if 'pgsteal_kswapd_dma32' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd_dma32'] - \
+            if 'pgsteal_kswapd_dma32' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd_dma32'] - \
                     self.prevVmData['pgsteal_kswapd_dma32']
-            if 'pgsteal_kswapd_movable' in self.vmData:
-                bgReclaim += \
-                    self.vmData['pgsteal_kswapd_movable'] - \
+            if 'pgsteal_kswapd_movable' in vmData:
+                pgRclmBg += \
+                    vmData['pgsteal_kswapd_movable'] - \
                     self.prevVmData['pgsteal_kswapd_movable']
 
             # convert to MB #
-            #bgReclaim = bgReclaim >> 8
+            #pgRclmBg = pgRclmBg >> 8
 
             try:
                 nrBgReclaim = \
-                    self.vmData['pageoutrun'] - \
+                    vmData['pageoutrun'] - \
                     self.prevVmData['pageoutrun']
             except:
                 nrBgReclaim = 0
         except:
-            bgReclaim = nrBgReclaim = 0
+            pgRclmBg = nrBgReclaim = 0
             SystemManager.printWarning("Fail to get bgReclmMem")
 
         # direct reclaim #
         try:
-            drReclaim = 0
-            if 'pgsteal_direct' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct'] - \
+            pgRclmFg = 0
+            if 'pgsteal_direct' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct'] - \
                     self.prevVmData['pgsteal_direct']
-            if 'pgsteal_direct_normal' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct_normal'] - \
+            if 'pgsteal_direct_normal' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct_normal'] - \
                     self.prevVmData['pgsteal_direct_normal']
-            if 'pgsteal_direct_high' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct_high'] - \
+            if 'pgsteal_direct_high' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct_high'] - \
                     self.prevVmData['pgsteal_direct_high']
-            if 'pgsteal_direct_dma' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct_dma'] - \
+            if 'pgsteal_direct_dma' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct_dma'] - \
                     self.prevVmData['pgsteal_direct_dma']
-            if 'pgsteal_direct_dma32' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct_dma32'] - \
+            if 'pgsteal_direct_dma32' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct_dma32'] - \
                     self.prevVmData['pgsteal_direct_dma32']
-            if 'pgsteal_direct_movable' in self.vmData:
-                drReclaim += \
-                    self.vmData['pgsteal_direct_movable'] - \
+            if 'pgsteal_direct_movable' in vmData:
+                pgRclmFg += \
+                    vmData['pgsteal_direct_movable'] - \
                     self.prevVmData['pgsteal_direct_movable']
 
             # convert to MB #
-            #drReclaim = drReclaim >> 8
+            #pgRclmFg = pgRclmFg >> 8
 
             try:
                 nrDrReclaim = \
-                    self.vmData['allocstall'] - \
+                    vmData['allocstall'] - \
                     self.prevVmData['allocstall']
             except:
                 nrDrReclaim = 0
         except:
-            drReclaim = nrDrReclaim = 0
+            pgRclmFg = nrDrReclaim = 0
             SystemManager.printWarning("Fail to get drReclmMem")
 
 
         # mlock #
         try:
-            nrMlock = self.vmData['nr_mlock']
-            #mappedMem = self.vmData['nr_mapped'] >> 8
+            pgMlock = vmData['nr_mlock']
+            #mappedMem = vmData['nr_mapped'] >> 8
         except:
-            nrMlock = 0
+            pgMlock = 0
             SystemManager.printWarning("Fail to get mlockMem")
 
         # pending #
@@ -29453,9 +29494,9 @@ class ThreadAnalyzer(object):
         try:
             pass
             '''
-            shMem = self.vmData['nr_shmem'] >> 8
-            pageTableMem = self.vmData['nr_page_table_pages'] >> 8
-            kernelStackMem = self.vmData['nr_kernel_stack'] * 8 >> 10
+            shMem = vmData['nr_shmem'] >> 8
+            pageTableMem = vmData['nr_page_table_pages'] >> 8
+            kernelStackMem = vmData['nr_kernel_stack'] * 8 >> 10
             '''
         except:
             SystemManager.printWarning("Fail to get etcMem")
@@ -29469,14 +29510,14 @@ class ThreadAnalyzer(object):
             "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
-            "PgRclm", "BlkRW", "MjFlt", "PrBlk", "NrSIRQ", "PgMlk", \
+            "PgRclm", "BlkRW", "NrFlt", "PrBlk", "NrSIRQ", "PgMlk", \
             "PgDrt", "Network")), oneLine)), newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
             return
 
-        ctxSwc = \
+        nrCtxSwc = \
             self.cpuData['ctxt']['ctxt'] - \
             self.prevCpuData['ctxt']['ctxt']
         nrIrq = \
@@ -29584,9 +29625,9 @@ class ThreadAnalyzer(object):
             ioUsage, irqUsage, freeMem, freeMemDiff, totalAnonMem, \
             totalCacheMem, totalKernelMem, swapUsage, swapUsageDiff, \
             '%s/%s' % (swapInMem, swapOutMem), \
-            '%s/%s' % (bgReclaim, drReclaim), \
+            '%s/%s' % (pgRclmBg, pgRclmFg), \
             '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
-            nrMajFault, nrBlocked, nrSoftIrq, nrMlock, nrDirty, netIO)
+            nrMajFault, nrBlocked, nrSoftIrq, pgMlock, pgDirty, netIO)
 
         SystemManager.addPrint(totalCoreStat)
 
@@ -29594,29 +29635,41 @@ class ThreadAnalyzer(object):
         if SystemManager.reportEnable:
             self.reportData = {}
 
+            # system #
             self.reportData['system'] = {}
             self.reportData['system']['pid'] = SystemManager.pid
             self.reportData['system']['uptime'] = SystemManager.uptime
             self.reportData['system']['interval'] = interval
             self.reportData['system']['nrIrq'] = nrIrq
             self.reportData['system']['nrSoftIrq'] = nrSoftIrq
+            try:
+                loads = list(map(float, SystemManager.loadavg.split()[:3]))
+                self.reportData['system']['load1m'] = loads[0]
+                self.reportData['system']['load5m'] = loads[1]
+                self.reportData['system']['load15m'] = loads[2]
+            except:
+                pass
 
+            # cpu #
             self.reportData['cpu'] = {}
             self.reportData['cpu']['total'] = totalUsage
+            self.reportData['cpu']['idle'] = idleUsage
             self.reportData['cpu']['user'] = userUsage
             self.reportData['cpu']['kernel'] = kerUsage
             self.reportData['cpu']['irq'] = irqUsage
+            self.reportData['cpu']['iowait'] = ioUsage
             self.reportData['cpu']['nrCore'] = nrCore
 
+            # memory #
             self.reportData['mem'] = {}
             self.reportData['mem']['total'] = totalMem
             self.reportData['mem']['free'] = freeMem
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
+            # cache = file + slab
             self.reportData['mem']['cache'] = totalCacheMem
             self.reportData['mem']['kernel'] = totalKernelMem
-            self.reportData['mem']['dirty'] = nrDirty
             self.reportData['mem']['freeDiff'] = freeMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
@@ -29625,29 +29678,34 @@ class ThreadAnalyzer(object):
                 self.reportData['mem']['cmaTotal'] = cmaTotalMem
                 self.reportData['mem']['cmaFree'] = cmaFreeMem
                 self.reportData['mem']['cmaDev'] = cmaDevMem
+            self.reportData['mem']['pgDirty'] = pgDirty
+            self.reportData['mem']['pgRclmBg'] = pgRclmBg
+            self.reportData['mem']['pgRclmFg'] = pgRclmFg
 
+            # swap #
             self.reportData['swap'] = {}
             self.reportData['swap']['total'] = swapTotal
             self.reportData['swap']['usage'] = swapUsage
             self.reportData['swap']['usageDiff'] = swapUsageDiff
-            self.reportData['swap']['bgReclaim'] = bgReclaim
-            self.reportData['swap']['drReclaim'] = drReclaim
 
+            # block #
             self.reportData['block'] = {}
-            self.reportData['block']['ioWait'] = ioUsage
             self.reportData['block']['read'] = pgInMemDiff
             self.reportData['block']['write'] = pgOutMemDiff
-            self.reportData['block']['nrFault'] = nrMajFault
+            self.reportData['block']['ioWait'] = ioUsage
+            self.reportData['block']['nrMajFlt'] = nrMajFault
 
+            # task #
             self.reportData['task'] = {}
             self.reportData['task']['nrBlocked'] = nrBlocked
             self.reportData['task']['nrProc'] = self.nrProcess
             self.reportData['task']['nrThread'] = self.nrThread
-            self.reportData['task']['nrCtx'] = ctxSwc
+            self.reportData['task']['nrCtx'] = nrCtxSwc
 
+            # network #
             self.reportData['net'] = {}
-            self.reportData['net']['input'] = netIn
-            self.reportData['net']['output'] = netOut
+            self.reportData['net']['inbound'] = netIn
+            self.reportData['net']['outbound'] = netOut
 
         # get temperature #
         if SystemManager.gpuEnable:
@@ -30293,7 +30351,7 @@ class ThreadAnalyzer(object):
             "{14:^3}({15:^4}/{16:^4}/{17:^5})|" \
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "MjFlt",\
+            "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
 
         # set sort value #
@@ -30496,6 +30554,7 @@ class ThreadAnalyzer(object):
                 vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
             except:
                 vmswp = '-'
+
             try:
                 shr = long(value['statm'][self.shrIdx]) >> 8
             except:
@@ -30505,6 +30564,7 @@ class ThreadAnalyzer(object):
                 value['yield'] = value['status']['voluntary_ctxt_switches']
             except:
                 value['yield'] = '-'
+
             try:
                 value['preempted'] = value['status']['nonvoluntary_ctxt_switches']
             except:
@@ -31037,15 +31097,7 @@ class ThreadAnalyzer(object):
 
         # REPORT service #
         if data[0] == '{':
-            if SystemManager.jsonObject is None:
-                try:
-                    import json
-                    SystemManager.jsonObject = json
-                except ImportError:
-                    err = sys.exc_info()[1]
-                    SystemManager.printError(\
-                        "Fail to import python package: %s" % err.args[0])
-                    sys.exit(0)
+            SystemManager.importJson()
 
             # convert report data to dictionary type #
             reportStat = SystemManager.makeJsonDict(data)
@@ -31265,9 +31317,9 @@ class ThreadAnalyzer(object):
                         evtdata[rank] = {}
                         evtdata[rank]['pid'] = pid
                         evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['ttime'] = data['ttime']
-                        evtdata[rank]['utime'] = data['utime']
-                        evtdata[rank]['stime'] = data['stime']
+                        evtdata[rank]['total'] = data['ttime']
+                        evtdata[rank]['user'] = data['utime']
+                        evtdata[rank]['kernel'] = data['stime']
 
                         rank += 1
                     else:
@@ -31370,7 +31422,7 @@ class ThreadAnalyzer(object):
                         evtdata[rank] = {}
                         evtdata[rank]['pid'] = pid
                         evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['btime'] = data['btime']
+                        evtdata[rank]['iowait'] = data['btime']
 
                         rank += 1
                     else:
