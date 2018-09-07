@@ -8502,9 +8502,8 @@ class SystemManager(object):
                 pipePrint('              [top]      '\
                                                  '{t(hread)|wf(C)|s(tack)|w(ss)|'\
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
-                    '\n                          I(mage)|a(ffinity)|g(raph)|r(eport)|'\
-                    '\n                          a(ffinity)|W(chan)|h(andler)|f(loat)|'\
-                    '\n                          R(file)|r(ss)|v(ss)|l(leak)}')
+                    '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
+                    '\n                          W(chan)|h(andler)|f(loat)|R(file)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
                 pipePrint('              [thread]   {a(ll)}')
@@ -12270,10 +12269,6 @@ class SystemManager(object):
                 if SystemManager.isTopMode() is False:
                     continue
 
-                if options.rfind('v') > -1:
-                    SystemManager.vssEnable = True
-                if options.rfind('l') > -1:
-                    SystemManager.leakEnable = True
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = True
                 if options.rfind('c') > -1:
@@ -12366,19 +12361,16 @@ class SystemManager(object):
                     else:
                         sys.exit(0)
                 if options.rfind('r') > -1:
-                    if SystemManager.isDrawMode():
-                        SystemManager.rssEnable = True
-                    else:
-                        try:
-                            if SystemManager.jsonObject is None:
-                                import json
-                                SystemManager.jsonObject = json
-                            SystemManager.reportEnable = True
-                        except ImportError:
-                            err = sys.exc_info()[1]
-                            SystemManager.printError(\
-                                "Fail to import python package: %s" % err.args[0])
-                            sys.exit(0)
+                    try:
+                        if SystemManager.jsonObject is None:
+                            import json
+                            SystemManager.jsonObject = json
+                        SystemManager.reportEnable = True
+                    except ImportError:
+                        err = sys.exc_info()[1]
+                        SystemManager.printError(\
+                            "Fail to import python package: %s" % err.args[0])
+                        sys.exit(0)
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
                         "unrecognized option -%s for enable" % options)
@@ -20583,31 +20575,32 @@ class ThreadAnalyzer(object):
             ymax = 0
 
             if isVisibleTotal:
-                for idx, item in enumerate(blkWait):
-                    blkWait[idx] += cpuUsage[idx]
-                    if ymax < blkWait[idx]:
-                        ymax = blkWait[idx]
+                if sum(blkWait) > 0:
+                    for idx, item in enumerate(blkWait):
+                        blkWait[idx] += cpuUsage[idx]
+                        if ymax < blkWait[idx]:
+                            ymax = blkWait[idx]
 
-                plot(timeline, blkWait, '-', c='pink', \
-                    linewidth=2, solid_capstyle='round')
-                labelList.append('[ TOTAL CPU + IO ]')
-                try:
-                    avgUsage = round(sum(blkWait) / len(blkWait), 1)
-                except:
-                    avgUsage = 0
-                maxUsage = max(blkWait)
-                maxIdx = blkWait.index(maxUsage)
-                for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
-                    if idx != 0 and blkWait[idx] == blkWait[idx-1]:
-                        continue
-                    text(timeline[idx], blkWait[maxIdx], \
-                        'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
-                        fontsize=5, color='pink', fontweight='bold',\
-                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
-                    break
+                    plot(timeline, blkWait, '-', c='pink', \
+                        linewidth=2, solid_capstyle='round')
+                    labelList.append('[ CPU + IOWAIT ]')
+                    try:
+                        avgUsage = round(sum(blkWait) / len(blkWait), 1)
+                    except:
+                        avgUsage = 0
+                    maxUsage = max(blkWait)
+                    maxIdx = blkWait.index(maxUsage)
+                    for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
+                        if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                            continue
+                        text(timeline[idx], blkWait[maxIdx], \
+                            'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
+                            fontsize=5, color='pink', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                        break
 
                 plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
-                labelList.append('[ TOTAL CPU Only ]')
+                labelList.append('[ CPU Average ]')
                 try:
                     avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
                 except:
@@ -20736,157 +20729,157 @@ class ThreadAnalyzer(object):
             usage = list(map(int, blkRead))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='skyblue', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='skyblue', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='skyblue', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, blkRead, '-', c='skyblue', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
-                labelList.append('Block Read')
+            labelList.append('Block Read')
 
             # System Block Write #
             usage = list(map(int, blkWrite))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='green', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='green', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='green', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, blkWrite, '-', c='green', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='green', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='green', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='green', fontweight='bold')
                 plot(timeline, blkWrite, '-', c='green', linewidth=2)
-                labelList.append('Block Write')
+            labelList.append('Block Write')
 
             # System Background Reclaim #
             usage = list(map(int, reclaimBg))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='pink', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='pink', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='pink', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, reclaimBg, '-', c='pink', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='pink', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='pink', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='pink', fontweight='bold')
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
-                labelList.append('Reclaim Background')
+            labelList.append('Reclaim Background')
 
             # System Direct Reclaim #
             usage = list(map(int, reclaimDr))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='red', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='red', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='red', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, reclaimDr, '-', c='red', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='red', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='red', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='red', fontweight='bold')
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2)
-                labelList.append('Reclaim Foreground')
+            labelList.append('Reclaim Foreground')
 
-            # System Network Recv #
+            # System Network Inbound #
             usage = list(map(int, netRead))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='purple', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='purple', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='purple', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, netRead, '-', c='purple', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='purple', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='purple', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='purple', fontweight='bold')
                 plot(timeline, netRead, '-', c='purple', linewidth=2)
-                labelList.append('Network Recv')
+            labelList.append('Network Inbound')
 
-            # System Network Send #
+            # System Network Outbound #
             usage = list(map(int, netWrite))
             minIdx = usage.index(min(usage))
             maxIdx = usage.index(max(usage))
+            if usage[minIdx] > 0:
+                text(timeline[minIdx], usage[minIdx], \
+                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    fontsize=5, color='yellow', fontweight='bold')
+            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                text(timeline[maxIdx], usage[maxIdx], \
+                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    fontsize=5, color='yellow', fontweight='bold')
+            if usage[-1] > 0:
+                try:
+                    unit = timeline[-1]-timeline[-2]
+                except:
+                    unit = 0
+                text(timeline[-1]+unit, usage[-1], \
+                    SystemManager.convertSize(usage[-1] << 10), \
+                    fontsize=5, color='yellow', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                pass
+                plot(timeline, netWrite, '-', c='yellow', linewidth=2, alpha=0.1)
             else:
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = timeline[-1]-timeline[-2]
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 10), \
-                        fontsize=5, color='skyblue', fontweight='bold')
-                plot(timeline, netWrite, '-', c='skyblue', linewidth=2)
-                labelList.append('Network Send')
+                plot(timeline, netWrite, '-', c='yellow', linewidth=2)
+            labelList.append('Network Outbound')
 
             # IO usage of processes #
             for idx, item in blkProcUsage.items():
@@ -31474,7 +31467,7 @@ class ThreadAnalyzer(object):
             loadavg = '?'
 
         SystemManager.addPrint(\
-            ("[Top Info] [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] " \
+            ("[Top Info] [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] " \
             "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
             (SystemManager.uptime, SystemManager.uptimeDiff, \
