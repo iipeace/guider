@@ -20862,11 +20862,11 @@ class ThreadAnalyzer(object):
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
                     SystemManager.convertSize(usage[minIdx] << 10), \
-                    fontsize=5, color='yellow', fontweight='bold')
+                    fontsize=5, color='cyan', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
                     SystemManager.convertSize(usage[maxIdx] << 10), \
-                    fontsize=5, color='yellow', fontweight='bold')
+                    fontsize=5, color='cyan', fontweight='bold')
             if usage[-1] > 0:
                 try:
                     unit = timeline[-1]-timeline[-2]
@@ -20874,11 +20874,11 @@ class ThreadAnalyzer(object):
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
                     SystemManager.convertSize(usage[-1] << 10), \
-                    fontsize=5, color='yellow', fontweight='bold')
+                    fontsize=5, color='cyan', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, netWrite, '-', c='yellow', linewidth=2, alpha=0.1)
+                plot(timeline, netWrite, '-', c='cyan', linewidth=2, alpha=0.1)
             else:
-                plot(timeline, netWrite, '-', c='yellow', linewidth=2)
+                plot(timeline, netWrite, '-', c='cyan', linewidth=2)
             labelList.append('Network Outbound')
 
             # IO usage of processes #
@@ -21001,6 +21001,11 @@ class ThreadAnalyzer(object):
                     [SystemManager.convertSize(val << 10) for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
+
+                # hide yticks #
+                if ytickLabel[-1] == '0':
+                    ax.set_ylim(ymax=0)
+                    ax.get_yaxis().set_visible(False)
             except:
                 pass
 
