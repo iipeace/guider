@@ -8346,9 +8346,7 @@ class SystemManager(object):
             SystemManager.printWarning(\
                 "Fail to write json data to %s because %s" % \
                 (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
-            return False
-
-        return True
+            sys.exit(0)
 
 
 
@@ -12161,7 +12159,8 @@ class SystemManager(object):
                     upDirPos = SystemManager.printFile.rfind('/')
                     if upDirPos > 0 and \
                         os.path.isdir(outputPath[:upDirPos]) is False:
-                        SystemManager.printError("wrong path with -o option")
+                        SystemManager.printError(\
+                            "wrong path %s with -o option" % outputPath)
                         sys.exit(0)
 
             elif option == 'I' and SystemManager.isTopMode():
@@ -12558,7 +12557,8 @@ class SystemManager(object):
                     if upDirPos > 0 and \
                         os.path.isdir(reportPath[:upDirPos]) is False:
                         SystemManager.printError(\
-                            "wrong path with -j option to report stats")
+                            "wrong path %s with -j option to report stats" % \
+                            reportPath)
                         sys.exit(0)
                 # file path #
                 else:
@@ -31489,8 +31489,8 @@ class ThreadAnalyzer(object):
             return
 
         # report system status to file #
-        if SystemManager.reportPath is not None:
-            ret = SystemManager.writeJsonObject(jsonObj)
+        if SystemManager.reportPath != None:
+            SystemManager.writeJsonObject(jsonObj)
 
         # report system status to socket #
         for addr, cli in SystemManager.addrListForReport.items():
