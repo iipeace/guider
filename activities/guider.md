@@ -8,7 +8,7 @@
 - **Guider**
   - Visualization: @pyotel(조인표), @jmg7173(정민교)
   - Documentation: 
-  - Analyzer: @ChoiByeongUk(최병욱), @wnsgh1107(박준호)
+  - Analyzer: @have9208(오명규), @ChoiByeongUk(최병욱), @wnsgh1107(박준호)
 
 ## 참여자 개인별 Contribution 현황
 - **@pyotel (조인표)**
