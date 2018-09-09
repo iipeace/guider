@@ -22935,9 +22935,11 @@ class ThreadAnalyzer(object):
         outputCnt = 0
         SystemManager.pipePrint('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint(\
-            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12} {5:>12} {6:>12} {7:>12} {8:>12} {9:>12}'.format(\
-            "Name", "Tid", "Syscall", "ID", "Elapsed", "Count", "Error", "Min", "Max", "Avg"))
+        SystemManager.pipePrint((\
+            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12} {5:>12} '
+            '{6:>12} {7:>12} {8:>12} {9:>12}').format(\
+            "Name", "Tid", "Syscall", "ID", "Elapsed", "Count",\
+            "Error", "Min", "Max", "Avg"))
         SystemManager.pipePrint(twoLine)
 
         for key, value in sorted(\
@@ -22986,9 +22988,10 @@ class ThreadAnalyzer(object):
         if SystemManager.showAll:
             SystemManager.pipePrint('\n[Thread Syscall History] (Unit: Sec/NR)')
             SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint(\
-                "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} {6:>5} {7:>10} {8:>16} {9:<1}"\
-                .format("Time", "Name", "Tid", "Core", "Syscall", \
+            SystemManager.pipePrint((\
+                "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} "
+                "{6:>5} {7:>10} {8:>16} {9:<1}").format(\
+                "Time", "Name", "Tid", "Core", "Syscall", \
                 "Sid", "Type", "Elapsed", "Return", "Parameter"))
             SystemManager.pipePrint(twoLine)
 
@@ -26059,13 +26062,15 @@ class ThreadAnalyzer(object):
         if SystemManager.tgidEnable:
             # record-tgid option #
             m = re.match((\
-                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
-                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
+                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
+                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
+                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
             if m is None:
                 # print-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
         else:
             m = re.match((\
                 r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
