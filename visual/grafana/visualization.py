@@ -76,14 +76,17 @@ def fileObservingNInsertDB(path):
         observer.stop()
     observer.join()
 
+
 def loadConfiguration(filePath='./visualization.conf'):
+    global config
     with open(filePath, 'r') as configFile:
-	global config
 	config = json.load(configFile)
+
 	
 def printArgv():
     for i in range(len(sys.argv)):
         print("sys.argv[%d] = '%s'" % (i, sys.argv[i]))
+
 
 printArgv()
 
