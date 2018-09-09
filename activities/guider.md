@@ -6,7 +6,7 @@
 
 ## 참여자 담당 역할
 - **Guider**
-  - Visualization: @pyotel(조인표), @jmg7173(정민교)
+  - Visualization: @pyotel(조인표), @jmg7173(정민교), @shon9811(강우진)
   - Documentation: 
   - Analyzer: @have9208(오명규), @ChoiByeongUk(최병욱), @wnsgh1107(박준호)
 
