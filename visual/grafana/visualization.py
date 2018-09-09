@@ -53,21 +53,16 @@ class GuiderOutputEventHandler(PatternMatchingEventHandler):
 
 def fileObservingNInsertDB(path):
     x = path.split('/')
-    print('split : ', x)
 
-    print(len(x))
     fileDir = ''
     for i in range(len(x)-1):
-	print('x[%d]' % i)
 	fileDir = fileDir + x[i] + '/'
-	print(fileDir)
-    print(fileDir)
+    print('fileDir : %s' % fileDir)
 
     fileName = x[len(x)-1]
-    print(fileName)
+    print('fileName : %s' % fileName)
 
     patterns = ['*' + fileName]
-    print('file_name : ' + fileName)
     event_handler = GuiderOutputEventHandler(patterns=patterns)
     event_handler.setFilePath(fileDir + fileName)
     observer = Observer()
