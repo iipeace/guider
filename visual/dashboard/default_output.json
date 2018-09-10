@@ -69,7 +69,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "groupBy": [],
+          "groupBy": [
+            {
+              "params": [
+                "host"
+              ],
+              "type": "tag"
+            }
+          ],
           "measurement": "cpu",
           "orderByTime": "ASC",
           "policy": "default",
@@ -85,10 +92,29 @@
               }
             ]
           ],
-          "tags": []
+          "tags": [
+            {
+              "key": "host",
+              "operator": "=",
+              "value": "woojin_ncloude"
+            },
+            {
+              "condition": "OR",
+              "key": "host",
+              "operator": "=",
+              "value": "db_host_server"
+            }
+          ]
         },
         {
-          "groupBy": [],
+          "groupBy": [
+            {
+              "params": [
+                "host"
+              ],
+              "type": "tag"
+            }
+          ],
           "measurement": "cpu",
           "orderByTime": "ASC",
           "policy": "default",
@@ -104,10 +130,29 @@
               }
             ]
           ],
-          "tags": []
+          "tags": [
+            {
+              "key": "host",
+              "operator": "=",
+              "value": "woojin_ncloude"
+            },
+            {
+              "condition": "OR",
+              "key": "host",
+              "operator": "=",
+              "value": "db_host_server"
+            }
+          ]
         },
         {
-          "groupBy": [],
+          "groupBy": [
+            {
+              "params": [
+                "host"
+              ],
+              "type": "tag"
+            }
+          ],
           "measurement": "cpu",
           "orderByTime": "ASC",
           "policy": "default",
@@ -123,7 +168,19 @@
               }
             ]
           ],
-          "tags": []
+          "tags": [
+            {
+              "key": "host",
+              "operator": "=",
+              "value": "woojin_ncloude"
+            },
+            {
+              "condition": "OR",
+              "key": "host",
+              "operator": "=",
+              "value": "db_host_server"
+            }
+          ]
         }
       ],
       "thresholds": [],
@@ -665,5 +722,5 @@
   "timezone": "",
   "title": "Guider Output Visualization",
   "uid": "PsdVpB2iz",
-  "version": 8
+  "version": 9
 }
