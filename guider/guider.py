@@ -16683,9 +16683,11 @@ class SystemManager(object):
             except:
                 continue
 
+            # initialize device data #
             dev = key[key.rfind('/')+1:]
             readSize = readTime = writeSize = writeTime = '?'
 
+            # calculate read/write size of device #
             try:
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
@@ -16713,6 +16715,7 @@ class SystemManager(object):
 
             major = minor = total = free = use = avail = '?'
 
+            # get device stat #
             try:
                 fstat = os.lstat(val['path'])
                 major = os.major(fstat.st_dev)
@@ -16738,6 +16741,7 @@ class SystemManager(object):
             except:
                 pass
 
+            # get partition range #
             try:
                 devid = '%s:%s' % (major, minor)
                 prange = '[%s-%s]' % \
@@ -16746,6 +16750,7 @@ class SystemManager(object):
             except:
                 prange = '[?]'
 
+            # update device path with partition range #
             try:
                 key = '%s (%s) %s' % \
                     (key, ','.join(self.devInfo['block'][major]), prange)
@@ -16754,6 +16759,7 @@ class SystemManager(object):
 
             SystemManager.infoBufferPrint("{0:<16}".format(key))
 
+            # build block device info string #
             diskInfo = \
                 "{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:<20}".\
                 format(' ', '%s:%s' % (major, minor), readSize, writeSize, \
