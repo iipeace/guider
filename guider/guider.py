@@ -31309,129 +31309,110 @@ class ThreadAnalyzer(object):
 
         # analyze cpu status #
         if 'cpu' in self.reportData:
-            if rb['cpu']['total'] < self.reportData['cpu']['total']:
-                self.reportData['event']['CPU_INTENSIVE'] = {}
+            rank = 1
+            self.reportData['cpu']['procs'] = {}
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['ttime'], reverse=True)
 
-                rank = 1
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['ttime'], reverse=True)
+            for pid, data in sortedProcData:
+                if data['ttime'] > 0:
+                    evtdata = self.reportData['cpu']['procs']
 
-                for pid, data in sortedProcData:
-                    if data['ttime'] > 0:
-                        evtdata = self.reportData['event']['CPU_INTENSIVE']
-                        evtdata[rank] = {}
-                        evtdata[rank]['pid'] = pid
-                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['total'] = data['ttime']
-                        evtdata[rank]['user'] = data['utime']
-                        evtdata[rank]['kernel'] = data['stime']
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['total'] = data['ttime']
+                    evtdata[rank]['user'] = data['utime']
+                    evtdata[rank]['kernel'] = data['stime']
 
-                        rank += 1
-                    else:
-                        break
+                    rank += 1
+                else:
+                    break
 
-        # analyze memory status #
+            # check event boundary #
+            if rb['cpu']['total'] <= self.reportData['cpu']['total']:
+                self.reportData['event']['CPU_INTENSIVE'] = \
+                    self.reportData['cpu']['procs']
+
+        # analyze memory & swap status #
         if 'mem' in self.reportData:
-            if rb['mem']['free'] > self.reportData['mem']['free']:
-                self.reportData['event']['MEM_PRESSURE'] = {}
+            rank = 1
+            self.reportData['mem']['procs'] = {}
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
 
-                rank = 1
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+            for pid, data in sortedProcData:
+                rss = long(data['stat'][self.rssIdx]) >> 8
 
-                for pid, data in sortedProcData:
-                    rss = long(data['stat'][self.rssIdx]) >> 8
+                if rss > 0 and rank <= 10:
+                    text = (long(data['stat'][self.ecodeIdx]) - \
+                        long(data['stat'][self.scodeIdx])) >> 20
 
-                    if  rss > 0 and rank < 10:
-                        text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) >> 20
+                    evtdata = self.reportData['mem']['procs']
 
-                        evtdata = self.reportData['event']['MEM_PRESSURE']
-                        evtdata[rank] = {}
-                        evtdata[rank]['pid'] = pid
-                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['rss'] = rss
-                        evtdata[rank]['text'] = text
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['rss'] = rss
+                    evtdata[rank]['text'] = text
 
-                        try:
-                            self.reportData['event']['MEM_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'].split()[0]) >> 10
-                        except:
-                            pass
+                    try:
+                        self.reportData['mem']['procs'][rank]['swap'] = \
+                            long(data['status']['VmSwap'].split()[0]) >> 10
+                    except:
+                        pass
 
-                        try:
-                            self.reportData['event']['MEM_PRESSURE'][rank]['shared'] = \
-                                long(data['statm'][self.shrIdx]) >> 8
-                        except:
-                            pass
+                    try:
+                        self.reportData['mem']['procs'][rank]['shared'] = \
+                            long(data['statm'][self.shrIdx]) >> 8
+                    except:
+                        pass
 
-                        rank += 1
-                    else:
-                        break
+                    rank += 1
+                else:
+                    break
 
-        # analyze swap status #
-        if 'swap' in self.reportData and self.reportData['swap']['total'] > 0:
-            swapUsagePer = \
-                int(self.reportData['swap']['usage'] / \
-                float(self.reportData['swap']['total']) * 100)
+            # check event boundary #
+            if rb['mem']['free'] >= self.reportData['mem']['free']:
+                self.reportData['event']['MEM_PRESSURE'] = \
+                    self.reportData['mem']['procs']
 
-            if rb['swap']['usage'] < swapUsagePer:
-                self.reportData['event']['SWAP_PRESSURE'] = {}
+            # check event boundary #
+            if 'swap' in self.reportData and \
+                self.reportData['swap']['total'] > 0:
 
-                rank = 1
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+                # get swap usage #
+                swapUsagePer = \
+                    int(self.reportData['swap']['usage'] / \
+                    float(self.reportData['swap']['total']) * 100)
 
-                for pid, data in sortedProcData:
-                    rss = long(data['stat'][self.rssIdx]) >> 8
-
-                    if  rss > 0 and rank < 10:
-                        text = (long(data['stat'][self.ecodeIdx]) - \
-                            long(data['stat'][self.scodeIdx])) >> 20
-
-                        evtdata = self.reportData['event']['SWAP_PRESSURE']
-                        evtdata[rank] = {}
-                        evtdata[rank]['pid'] = pid
-                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['rss'] = rss
-                        evtdata[rank]['text'] = text
-
-                        try:
-                            self.reportData['event']['SWAP_PRESSURE'][rank]['swap'] = \
-                                long(data['status']['VmSwap'].split()[0]) >> 10
-                        except:
-                            pass
-
-                        try:
-                            self.reportData['event']['SWAP_PRESSURE'][rank]['shared'] = \
-                                long(data['statm'][self.shrIdx]) >> 8
-                        except:
-                            pass
-
-                        rank += 1
-                    else:
-                        break
+                if rb['swap']['usage'] <= swapUsagePer:
+                    self.reportData['event']['SWAP_PRESSURE'] = \
+                        self.reportData['mem']['procs']
 
         # analyze block status #
         if 'block' in self.reportData:
-            if rb['block']['ioWait'] < self.reportData['block']['ioWait']:
-                self.reportData['event']['IO_INTENSIVE'] = {}
+            rank = 1
+            self.reportData['block']['procs'] = {}
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['btime'], reverse=True)
 
-                rank = 1
-                sortedProcData = sorted(self.procData.items(), \
-                    key=lambda e: e[1]['btime'], reverse=True)
+            for pid, data in sortedProcData:
+                if data['btime'] > 0:
+                    evtdata = self.reportData['block']['procs']
 
-                for pid, data in sortedProcData:
-                    if data['btime'] > 0:
-                        evtdata = self.reportData['event']['IO_INTENSIVE']
-                        evtdata[rank] = {}
-                        evtdata[rank]['pid'] = pid
-                        evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                        evtdata[rank]['iowait'] = data['btime']
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['iowait'] = data['btime']
 
-                        rank += 1
-                    else:
-                        break
+                    rank += 1
+                else:
+                    break
+
+            if rb['block']['ioWait'] <= self.reportData['block']['ioWait']:
+                self.reportData['event']['IO_INTENSIVE'] = \
+                    self.reportData['block']['procs']
 
         # analyze system status #
         if 'system' in self.reportData:
