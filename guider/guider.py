@@ -16597,8 +16597,7 @@ class SystemManager(object):
 
 
     def printDiskInfo(self):
-        # get disk stat #
-        if len(self.diskData) == 2:
+        def updateDiskInfo():
             for time in list(self.diskData.keys()):
                 self.diskInfo[time] = {}
                 for l in self.diskData[time]:
@@ -16616,11 +16615,8 @@ class SystemManager(object):
                     diskInfoBuf['writeTime'] = writeTime
                     diskInfoBuf['currentIO'] = currentIO
                     diskInfoBuf['ioTime'] = ioTime
-        else:
-            return
 
-        # get mount point #
-        if self.mountData is not None:
+        def updateMountInfo():
             class MountException(Exception):
                 pass
 
@@ -16648,6 +16644,16 @@ class SystemManager(object):
                 self.mountInfo[rpath]['path'] = path
                 self.mountInfo[rpath]['fs'] = fs
                 self.mountInfo[rpath]['option'] = option
+
+        # get disk stat #
+        if len(self.diskData) == 2:
+            updateDiskInfo()
+        else:
+            return
+
+        # get mount point #
+        if self.mountData is not None:
+            updateMountInfo()
         else:
             return
 
