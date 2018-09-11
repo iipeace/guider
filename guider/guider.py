@@ -15268,7 +15268,9 @@ class SystemManager(object):
     def saveResourceSnapshot(self, initialized=True):
         if initialized:
             # process info #
-            if SystemManager.tgidEnable is False:
+            if SystemManager.tgidEnable:
+                pass
+            else:
                 self.saveProcTree()
 
             # resource info #
@@ -15278,14 +15280,12 @@ class SystemManager(object):
             self.saveDevInfo()
 
             # os specific info #
-            if self.saveWebOSInfo() is True:
-                pass
-            else:
-                self.saveLinuxInfo()
+            self.saveWebOSInfo()
+            self.saveLinuxInfo()
 
         # storage resource info #
         self.saveMemInfo()
-        self.saveDiskInfo()
+        self.saveStorageInfo()
 
         if initialized:
             # write system info to buf #
@@ -15444,7 +15444,7 @@ class SystemManager(object):
 
 
 
-    def saveDiskInfo(self):
+    def saveStorageInfo(self):
         partFile = '%s/partitions' % SystemManager.procPath
         mountFile = '%s/mounts' % SystemManager.procPath
         diskFile = '%s/diskstats' % SystemManager.procPath
@@ -15467,7 +15467,7 @@ class SystemManager(object):
         except:
             SystemManager.printWarning("Fail to open %s" % diskFile)
 
-        # save disk size #
+        # save partition size #
         try:
             for dirnames in os.walk(blockDir):
                 for subdirname in dirnames[1]:
