@@ -11295,7 +11295,7 @@ class SystemManager(object):
 
         if infoBuf == '':
             return
-        mountPosStart = infoBuf.find('Disk Info')
+        mountPosStart = infoBuf.find('Storage Info')
         if mountPosStart == -1:
             return
         mountPosStart = infoBuf.find(twoLine, mountPosStart+1)
@@ -16657,8 +16657,8 @@ class SystemManager(object):
         else:
             return
 
-        # print disk info #
-        SystemManager.infoBufferPrint('\n[System Disk Info]')
+        # print storage info #
+        SystemManager.infoBufferPrint('\n[System Storage Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
             "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:>40}". \
