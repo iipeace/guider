@@ -16669,8 +16669,9 @@ class SystemManager(object):
         # print storage info #
         SystemManager.infoBufferPrint('\n[System Storage Info]')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint(\
-            "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:>40}". \
+        SystemManager.infoBufferPrint((\
+            "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} "
+            "{5:>8} {6:>6} {7:>7} {8:>8} {9:>40}").\
             format("DEV", "NUM", "READ", "WRITE", \
             "TOTAL", "FREE", "USAGE", "AVL", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
@@ -16696,7 +16697,7 @@ class SystemManager(object):
             dev = key[key.rfind('/')+1:]
             readSize = readTime = writeSize = writeTime = '?'
 
-            # calculate read/write size of device #
+            # calculate read & write size of devices #
             try:
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
@@ -16770,9 +16771,11 @@ class SystemManager(object):
 
             # build block device info string #
             diskInfo = \
-                "{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:<20}".\
-                format(' ', '%s:%s' % (major, minor), readSize, writeSize, \
-                total, free, use, avail, val['fs'], val['path'] + ' <' + val['option'] + '>')
+                ("{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} "
+                "{5:>8} {6:>6} {7:>7} {8:>8} {9:<20}").\
+                format(' ', '%s:%s' % (major, minor), readSize, \
+                writeSize, total, free, use, avail, val['fs'], \
+                '%s <%s>' % (val['path'], val['option']))
 
             lineLength = SystemManager.lineLength
             if len(diskInfo) > lineLength:
@@ -16786,6 +16789,7 @@ class SystemManager(object):
 
             SystemManager.infoBufferPrint(diskInfo)
 
+        # print total I/O size #
         if outputCnt == 0:
             SystemManager.infoBufferPrint('\tN/A')
         else:
@@ -16810,36 +16814,37 @@ class SystemManager(object):
             except:
                 totalInfo['use'] = '?%'
 
-            SystemManager.infoBufferPrint(\
-                "{0:^16}\n{1:^24} {2:>8} {3:>8} {4:>8} {5:>8} {6:>6} {7:>7} {8:>8} {9:<20}".\
-                format(oneLine, 'TOTAL', totalInfo['read'], totalInfo['write'], \
-                totalInfo['total'], totalInfo['free'], totalInfo['use'], \
-                totalInfo['favail'], ' ', ' '))
+            SystemManager.infoBufferPrint((\
+                "{0:^16}\n{1:^24} {2:>8} {3:>8} {4:>8} "
+                "{5:>8} {6:>6} {7:>7} {8:>8} {9:<20}").\
+                format(oneLine, 'TOTAL', totalInfo['read'], \
+                totalInfo['write'], totalInfo['total'], totalInfo['free'], \
+                totalInfo['use'], totalInfo['favail'], ' ', ' '))
 
         SystemManager.infoBufferPrint("%s\n\n" % twoLine)
 
 
 
     def printMemInfo(self):
-        # parse data #
-        if len(self.memData) == 2:
-            time = 'before'
-            self.memInfo[time] = dict()
-            for l in self.memData[time]:
-                m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
-                if m is not None:
-                    d = m.groupdict()
-                    self.memInfo[time][d['type']] = d['size']
-
-            time = 'after'
-            self.memInfo[time] = dict()
-            for l in self.memData[time]:
-                m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
-                if m is not None:
-                    d = m.groupdict()
-                    self.memInfo[time][d['type']] = d['size']
-        else:
+        if len(self.memData) != 2:
             return
+
+        # parse data #
+        time = 'before'
+        self.memInfo[time] = dict()
+        for l in self.memData[time]:
+            m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
+            if m is not None:
+                d = m.groupdict()
+                self.memInfo[time][d['type']] = d['size']
+
+        time = 'after'
+        self.memInfo[time] = dict()
+        for l in self.memData[time]:
+            m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
+            if m is not None:
+                d = m.groupdict()
+                self.memInfo[time][d['type']] = d['size']
 
         beforeInfo = self.memInfo['before']
         afterInfo = self.memInfo['after']
