@@ -15266,6 +15266,10 @@ class SystemManager(object):
 
 
     def saveResourceSnapshot(self, initialized=True):
+        # resource info for difference #
+        self.updateMemInfo()
+        self.updateStorageInfo()
+
         if initialized:
             # process info #
             if SystemManager.tgidEnable:
@@ -15277,18 +15281,12 @@ class SystemManager(object):
             self.saveSystemInfo()
             self.saveCpuInfo()
             self.saveCpuCacheInfo()
-            self.saveDevInfo()
 
             # os specific info #
             self.saveWebOSInfo()
             self.saveLinuxInfo()
 
-        # storage resource info #
-        self.saveMemInfo()
-        self.saveStorageInfo()
-
-        if initialized:
-            # write system info to buf #
+            # print resource info to temporary buffer #
             self.printResourceInfo()
 
 
@@ -15498,7 +15496,7 @@ class SystemManager(object):
 
 
 
-    def saveMemInfo(self):
+    def updateMemInfo(self):
         memFile = '%s/meminfo' % SystemManager.procPath
 
         try:
@@ -16353,9 +16351,12 @@ class SystemManager(object):
         self.printOSInfo()
 
         self.printCpuInfo()
+
         self.printCpuCacheInfo()
+
         self.printMemInfo()
-        self.printDiskInfo()
+
+        self.printStorageInfo()
 
         self.printProcInfo()
 
@@ -16596,67 +16597,75 @@ class SystemManager(object):
 
 
 
-    def printDiskInfo(self):
-        def updateDiskInfo():
-            for time in list(self.diskData.keys()):
-                self.diskInfo[time] = {}
-                for l in self.diskData[time]:
-                    major, minor, name, readComplete, readMerge, sectorRead, \
-                    readTime, writeComplete, writeMerge, sectorWrite, writeTime, \
-                     currentIO, ioTime, ioWTime = l.split()
+    def updateDiskInfo(self):
+        for time in list(self.diskData.keys()):
+            self.diskInfo[time] = {}
+            for l in self.diskData[time]:
+                major, minor, name, readComplete, readMerge, sectorRead, \
+                readTime, writeComplete, writeMerge, sectorWrite, writeTime, \
+                 currentIO, ioTime, ioWTime = l.split()
 
-                    self.diskInfo[time][name] = dict()
-                    diskInfoBuf = self.diskInfo[time][name]
-                    diskInfoBuf['major'] = major
-                    diskInfoBuf['minor'] = minor
-                    diskInfoBuf['sectorRead'] = sectorRead
-                    diskInfoBuf['readTime'] = readTime
-                    diskInfoBuf['sectorWrite'] = sectorWrite
-                    diskInfoBuf['writeTime'] = writeTime
-                    diskInfoBuf['currentIO'] = currentIO
-                    diskInfoBuf['ioTime'] = ioTime
+                self.diskInfo[time][name] = dict()
+                diskInfoBuf = self.diskInfo[time][name]
+                diskInfoBuf['major'] = major
+                diskInfoBuf['minor'] = minor
+                diskInfoBuf['sectorRead'] = sectorRead
+                diskInfoBuf['readTime'] = readTime
+                diskInfoBuf['sectorWrite'] = sectorWrite
+                diskInfoBuf['writeTime'] = writeTime
+                diskInfoBuf['currentIO'] = currentIO
+                diskInfoBuf['ioTime'] = ioTime
 
-        def updateMountInfo():
-            class MountException(Exception):
-                pass
 
-            for l in self.mountData:
-                dev, path, fs, option, etc1, etc2 = l.split()
 
-                try:
-                    rpath = os.path.realpath(dev)
-                    dev = rpath[rpath.rfind('/')+1:]
+    def updateMountInfo(self):
+        class MountException(Exception):
+            pass
 
-                    if dev.find(':') > -1:
-                        major, minor = dev.split(':')
-                        for mp in self.diskInfo['before'].values():
-                            if mp['major'] == major and mp['minor'] == minor:
-                                raise MountException
+        if self.mountData is None:
+            return
 
-                    if dev not in self.diskInfo['before']:
-                        continue
-                except MountException:
-                    pass
-                except:
+        for l in self.mountData:
+            dev, path, fs, option, etc1, etc2 = l.split()
+
+            try:
+                rpath = os.path.realpath(dev)
+                dev = rpath[rpath.rfind('/')+1:]
+
+                if dev.find(':') > -1:
+                    major, minor = dev.split(':')
+                    for mp in self.diskInfo['before'].values():
+                        if mp['major'] == major and mp['minor'] == minor:
+                            raise MountException
+
+                if dev not in self.diskInfo['before']:
                     continue
+            except MountException:
+                pass
+            except:
+                continue
 
-                self.mountInfo[rpath] = dict()
-                self.mountInfo[rpath]['path'] = path
-                self.mountInfo[rpath]['fs'] = fs
-                self.mountInfo[rpath]['option'] = option
+            self.mountInfo[rpath] = dict()
+            self.mountInfo[rpath]['path'] = path
+            self.mountInfo[rpath]['fs'] = fs
+            self.mountInfo[rpath]['option'] = option
+
+
+
+    def updateStorageInfo(self):
+        # load system stat #
+        self.saveDevInfo()
+        self.saveStorageInfo()
 
         # get disk stat #
-        if len(self.diskData) == 2:
-            updateDiskInfo()
-        else:
-            return
+        self.updateDiskInfo()
 
-        # get mount point #
-        if self.mountData is not None:
-            updateMountInfo()
-        else:
-            return
+        # get mount info #
+        self.updateMountInfo()
 
+
+
+    def printStorageInfo(self):
         # print storage info #
         SystemManager.infoBufferPrint('\n[System Storage Info]')
         SystemManager.infoBufferPrint(twoLine)
@@ -31121,16 +31130,20 @@ class ThreadAnalyzer(object):
 
             # print report data #
             self.printReportStat(reportStat)
+
         # REFUSE response #
         elif data == 'REFUSE':
             SystemManager.printError(\
                 "Fail to request service because of no support from server")
             sys.exit(0)
+
         # DUPLICATED response #
         elif data == 'PRINT' or data.startswith('REPORT'):
             SystemManager.printError(\
-                "Fail to request service because of same port used between client and sever")
+                "Fail to request service " \
+                "because of same port used between client and sever")
             sys.exit(0)
+
         # PRINT service #
         else:
             # realtime mode #
@@ -31148,7 +31161,8 @@ class ThreadAnalyzer(object):
                 while SystemManager.procBufferSize > SystemManager.bufferSize:
                     if len(SystemManager.procBuffer) == 1:
                         break
-                    SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
+                    SystemManager.procBufferSize -= \
+                        len(SystemManager.procBuffer[-1])
                     SystemManager.procBuffer.pop(-1)
 
 
