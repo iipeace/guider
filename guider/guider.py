@@ -16669,7 +16669,7 @@ class SystemManager(object):
         storageData = {}
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0), \
-            'read': long(0), 'write': long(0), 'mount': None}
+            'read': long(0), 'write': long(0), 'usage': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
 
@@ -16685,7 +16685,6 @@ class SystemManager(object):
             # calculate read & write size of devices #
             try:
                 dev = key[key.rfind('/')+1:]
-                readSize = readTime = writeSize = writeTime = '?'
 
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
@@ -16696,15 +16695,15 @@ class SystemManager(object):
                 beforeInfo = self.diskInfo['before'][dev]
                 afterInfo = self.diskInfo['after'][dev]
 
-                read = readSize = \
+                read = \
                     (int(afterInfo['sectorRead']) - \
                     int(beforeInfo['sectorRead'])) << 9
-                readSize = SystemManager.convertSize(readSize)
+                read = read >> 20
 
-                write = writeSize = \
+                write = \
                     (int(afterInfo['sectorWrite']) - \
                     int(beforeInfo['sectorWrite'])) << 9
-                writeSize = SystemManager.convertSize(writeSize)
+                write = write >> 20
 
                 storageData[key]['read'] = read
                 storageData[key]['write'] = write
@@ -16716,28 +16715,31 @@ class SystemManager(object):
 
             # get device stat #
             try:
-                major = minor = total = free = use = avail = '?'
-
-                fstat = os.lstat(val['path'])
-                major = os.major(fstat.st_dev)
-                minor = os.minor(fstat.st_dev)
-
                 stat = os.statvfs(val['path'])
 
-                total = stat.f_bsize * stat.f_blocks
-                free = stat.f_bsize * stat.f_bavail
+                total = (stat.f_bsize * stat.f_blocks) >> 20
+                free = (stat.f_bsize * stat.f_bavail) >> 20
                 avail = stat.f_favail
-                use = '%d%%' % int((total - free) / float(total) * 100)
+                usage = '%d' % int((total - free) / float(total) * 100)
 
                 storageData[key]['total'] = total
                 storageData[key]['free'] = free
                 storageData[key]['favail'] = avail
+                storageData[key]['usage'] = usage
 
                 storageData['total']['total'] += total
                 storageData['total']['free'] += free
                 storageData['total']['favail'] += avail
             except:
                 pass
+
+        try:
+            total = storageData['total']
+            storageData['total']['usage'] = \
+                '%d' % int((total['total'] - total['free']) / \
+                float(total['total']) * 100)
+        except:
+            pass
 
         return storageData
 
