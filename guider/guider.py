@@ -16684,6 +16684,7 @@ class SystemManager(object):
 
         # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
+            # check device node path #
             try:
                 if key[0] == '/':
                     devInfo[key] = {}
@@ -16723,10 +16724,10 @@ class SystemManager(object):
             except:
                 pass
 
-            major = minor = total = free = use = avail = '?'
-
             # get device stat #
             try:
+                major = minor = total = free = use = avail = '?'
+
                 fstat = os.lstat(val['path'])
                 major = os.major(fstat.st_dev)
                 minor = os.minor(fstat.st_dev)
@@ -16767,6 +16768,7 @@ class SystemManager(object):
             except:
                 pass
 
+            # print device info #
             SystemManager.infoBufferPrint("{0:<16}".format(key))
 
             # build block device info string #
@@ -16780,6 +16782,7 @@ class SystemManager(object):
             except:
                 continue
 
+            # split a long line to multiple lines #
             lineLength = SystemManager.lineLength
             if len(diskInfo) > lineLength:
                 try:
@@ -16790,6 +16793,7 @@ class SystemManager(object):
                 except:
                     pass
 
+            # print storage usage info #
             SystemManager.infoBufferPrint(diskInfo)
 
         # print total I/O size #
