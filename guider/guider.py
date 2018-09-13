@@ -16770,12 +16770,15 @@ class SystemManager(object):
             SystemManager.infoBufferPrint("{0:<16}".format(key))
 
             # build block device info string #
-            diskInfo = \
-                ("{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} "
-                "{5:>8} {6:>6} {7:>7} {8:>8} {9:<20}").\
-                format(' ', '%s:%s' % (major, minor), readSize, \
-                writeSize, total, free, use, avail, val['fs'], \
-                '%s <%s>' % (val['path'], val['option']))
+            try:
+                diskInfo = \
+                    ("{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} "
+                    "{5:>8} {6:>6} {7:>7} {8:>8} {9:<20}").\
+                    format(' ', '%s:%s' % (major, minor), readSize, \
+                    writeSize, total, free, use, avail, val['fs'], \
+                    '%s <%s>' % (val['path'], val['option']))
+            except:
+                continue
 
             lineLength = SystemManager.lineLength
             if len(diskInfo) > lineLength:
