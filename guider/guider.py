@@ -16665,6 +16665,84 @@ class SystemManager(object):
 
 
 
+    def getStorageInfo(self):
+        storageData = {}
+        init_storageData = \
+            {'total': long(0), 'free': long(0), 'favail': long(0), \
+            'read': long(0), 'write': long(0), 'mount': None}
+
+        storageData['total'] = dict(init_storageData)
+
+        # make block device table #
+        for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
+            # check device node path #
+            if key[0] != '/':
+                continue
+
+            storageData[key] = dict(init_storageData)
+            storageData[key]['mount'] = val
+
+            # calculate read & write size of devices #
+            try:
+                dev = key[key.rfind('/')+1:]
+                readSize = readTime = writeSize = writeTime = '?'
+
+                if dev.find(':') > -1:
+                    major, minor = dev.split(':')
+                    for name, mp in self.diskInfo['before'].items():
+                        if mp['major'] == major and mp['minor'] == minor:
+                            dev = name
+
+                beforeInfo = self.diskInfo['before'][dev]
+                afterInfo = self.diskInfo['after'][dev]
+
+                read = readSize = \
+                    (int(afterInfo['sectorRead']) - \
+                    int(beforeInfo['sectorRead'])) << 9
+                readSize = SystemManager.convertSize(readSize)
+
+                write = writeSize = \
+                    (int(afterInfo['sectorWrite']) - \
+                    int(beforeInfo['sectorWrite'])) << 9
+                writeSize = SystemManager.convertSize(writeSize)
+
+                storageData[key]['read'] = read
+                storageData[key]['write'] = write
+
+                storageData['total']['read'] += read
+                storageData['total']['write'] += write
+            except:
+                pass
+
+            # get device stat #
+            try:
+                major = minor = total = free = use = avail = '?'
+
+                fstat = os.lstat(val['path'])
+                major = os.major(fstat.st_dev)
+                minor = os.minor(fstat.st_dev)
+
+                stat = os.statvfs(val['path'])
+
+                total = stat.f_bsize * stat.f_blocks
+                free = stat.f_bsize * stat.f_bavail
+                avail = stat.f_favail
+                use = '%d%%' % int((total - free) / float(total) * 100)
+
+                storageData[key]['total'] = total
+                storageData[key]['free'] = free
+                storageData[key]['favail'] = avail
+
+                storageData['total']['total'] += total
+                storageData['total']['free'] += free
+                storageData['total']['favail'] += avail
+            except:
+                pass
+
+        return storageData
+
+
+
     def printStorageInfo(self):
         # print storage info #
         SystemManager.infoBufferPrint('\n[System Storage Info]')
@@ -16694,12 +16772,12 @@ class SystemManager(object):
             except:
                 continue
 
-            # initialize device data #
-            dev = key[key.rfind('/')+1:]
-            readSize = readTime = writeSize = writeTime = '?'
-
             # calculate read & write size of devices #
             try:
+                # initialize device data #
+                dev = key[key.rfind('/')+1:]
+                readSize = readTime = writeSize = writeTime = '?'
+
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
                     for name, mp in self.diskInfo['before'].items():
@@ -29744,6 +29822,11 @@ class ThreadAnalyzer(object):
             self.reportData['net'] = {}
             self.reportData['net']['inbound'] = netIn
             self.reportData['net']['outbound'] = netOut
+
+            # storage #
+            SystemManager.sysInstance.updateStorageInfo()
+            self.reportData['storage'] = \
+                SystemManager.sysInstance.getStorageInfo()
 
         # get temperature #
         if SystemManager.gpuEnable:
