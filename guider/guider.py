@@ -16672,6 +16672,7 @@ class SystemManager(object):
             'read': long(0), 'write': long(0), 'usage': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
+        storageData['total']['mount'] = {}
 
         # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
