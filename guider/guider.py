@@ -16672,6 +16672,7 @@ class SystemManager(object):
             'read': long(0), 'write': long(0), 'usage': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
+        storageData['total']['mount'] = {}
 
         # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
@@ -31420,7 +31421,14 @@ class ThreadAnalyzer(object):
             return
 
         # initialize report event list #
-        # CPU_INTENSIVE, MEM_PRESSURE, SWAP_PRESSURE, IO_INTENSIVE, DISK_FULL, ... #
+        '''
+        CPU_INTENSIVE
+        MEM_PRESSURE
+        SWAP_PRESSURE
+        IO_INTENSIVE
+        DISK_FULL
+        '''
+
         self.reportData['event'] = {}
 
         # check image created #
@@ -31447,6 +31455,9 @@ class ThreadAnalyzer(object):
                     evtdata[rank]['total'] = data['ttime']
                     evtdata[rank]['user'] = data['utime']
                     evtdata[rank]['kernel'] = data['stime']
+                    evtdata[rank]['runtime'] = \
+                        SystemManager.convertTime(\
+                        data['runtime']).replace(' ', '')
 
                     rank += 1
                 else:
@@ -31478,6 +31489,9 @@ class ThreadAnalyzer(object):
                     evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                     evtdata[rank]['rss'] = rss
                     evtdata[rank]['text'] = text
+                    evtdata[rank]['runtime'] = \
+                        SystemManager.convertTime(\
+                        data['runtime']).replace(' ', '')
 
                     try:
                         self.reportData['mem']['procs'][rank]['swap'] = \
@@ -31528,6 +31542,9 @@ class ThreadAnalyzer(object):
                     evtdata[rank]['pid'] = pid
                     evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                     evtdata[rank]['iowait'] = data['btime']
+                    evtdata[rank]['runtime'] = \
+                        SystemManager.convertTime(\
+                        data['runtime']).replace(' ', '')
 
                     rank += 1
                 else:
