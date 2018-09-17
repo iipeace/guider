@@ -7343,7 +7343,7 @@ class SystemManager(object):
 
     startTime = time.time()
     blockSize = 512
-    bufferSize = 0
+    bufferSize = -1
     termGetId = None
     termSetId = None
     ttyRows = 43
@@ -11758,7 +11758,7 @@ class SystemManager(object):
             SystemManager.procBufferSize += len(SystemManager.bufferString)
             SystemManager.clearPrint()
 
-            while SystemManager.procBufferSize > SystemManager.bufferSize:
+            while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -12490,11 +12490,15 @@ class SystemManager(object):
             elif option == 'b':
                 try:
                     bsize = int(value)
-                    if bsize > 0:
+                    if bsize >= 0:
                         SystemManager.bufferSize = str(value)
 
-                        SystemManager.printInfo(\
-                            "set buffer size to %sKB" % bsize)
+                        if bsize == 0:
+                            SystemManager.printInfo(\
+                                "set buffer size to unlimited")
+                        else:
+                            SystemManager.printInfo(\
+                                "set buffer size to %sKB" % bsize)
                     else:
                         SystemManager.printError(\
                             "wrong option value with -b option, "
@@ -15794,7 +15798,7 @@ class SystemManager(object):
             sys.exit(0)
 
         # set size of trace buffer per core #
-        if SystemManager.bufferSize == 0:
+        if SystemManager.bufferSize == -1:
             SystemManager.bufferSize = '40960' # 40MB #
         else:
             # Change from integer to string #
@@ -19607,7 +19611,7 @@ class ThreadAnalyzer(object):
             self.getConf()
 
             # set log buffer size #
-            if SystemManager.bufferSize == 0:
+            if SystemManager.bufferSize == -1:
                 # 512KB #
                 SystemManager.bufferSize = 512 << 10
             else:
@@ -31256,7 +31260,7 @@ class ThreadAnalyzer(object):
                 SystemManager.procBufferSize += len(data)
                 SystemManager.clearPrint()
 
-                while SystemManager.procBufferSize > SystemManager.bufferSize:
+                while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
                     if len(SystemManager.procBuffer) == 1:
                         break
                     SystemManager.procBufferSize -= \
