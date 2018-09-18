@@ -21164,6 +21164,14 @@ class ThreadAnalyzer(object):
                 ytickLabel = \
                     [SystemManager.convertSize(val << 10) for val in ytickLabel]
 
+                # remove redundant ticks #
+                lastTick = ''
+                tempLabelList = list(ytickLabel)
+                for idx, ytick in enumerate(tempLabelList):
+                    if lastTick == ytick:
+                        ytickLabel[idx] = ''
+                    else:
+                        lastTick = ytick
                 ax.set_yticklabels(ytickLabel)
 
                 # hide yticks #
@@ -21459,6 +21467,15 @@ class ThreadAnalyzer(object):
                 # convert label units #
                 ytickLabel = \
                     [SystemManager.convertSize(val << 20) for val in ytickLabel]
+
+                # remove redundant ticks #
+                lastTick = ''
+                tempLabelList = list(ytickLabel)
+                for idx, ytick in enumerate(tempLabelList):
+                    if lastTick == ytick:
+                        ytickLabel[idx] = ''
+                    else:
+                        lastTick = ytick
 
                 ax.set_yticklabels(ytickLabel)
             except:
