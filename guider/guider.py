@@ -31455,7 +31455,7 @@ class ThreadAnalyzer(object):
         MEM_PRESSURE
         SWAP_PRESSURE
         IO_INTENSIVE
-        DISK_FULL
+        STORAGE_FULL
         '''
 
         self.reportData['event'] = {}
@@ -31587,7 +31587,7 @@ class ThreadAnalyzer(object):
         if 'storage' in self.reportData:
             if rb['storage']['total'] <= \
                 self.reportData['storage']['total']['usageper']:
-                self.reportData['event']['DISK_FULL'] = \
+                self.reportData['event']['STORAGE_FULL'] = \
                     self.reportData['storage']
 
         # analyze system status #
