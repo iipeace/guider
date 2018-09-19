@@ -16673,7 +16673,8 @@ class SystemManager(object):
         storageData = {}
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0), \
-            'read': long(0), 'write': long(0), 'usage': long(0), 'mount': None}
+            'read': long(0), 'write': long(0), 'usage': long(0), \
+            'usageper': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
         storageData['total']['mount'] = {}
@@ -16729,8 +16730,9 @@ class SystemManager(object):
 
                 storageData[key]['total'] = total
                 storageData[key]['free'] = free
+                storageData[key]['usage'] = total - free
+                storageData[key]['usageper'] = usage
                 storageData[key]['favail'] = avail
-                storageData[key]['usage'] = usage
 
                 storageData['total']['total'] += total
                 storageData['total']['free'] += free
@@ -16738,9 +16740,12 @@ class SystemManager(object):
             except:
                 pass
 
+        # set total storage stat #
         try:
             total = storageData['total']
             storageData['total']['usage'] = \
+                total['total'] - total['free']
+            storageData['total']['usageper'] = \
                 '%d' % int((total['total'] - total['free']) / \
                 float(total['total']) * 100)
         except:
