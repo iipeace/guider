@@ -19407,7 +19407,7 @@ class ThreadAnalyzer(object):
             'total' : 99
         },
         'task' : {
-            'nrCtx' : 5000
+            'nrCtx' : 20000
         }
     }
 
