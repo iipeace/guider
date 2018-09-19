@@ -16673,7 +16673,8 @@ class SystemManager(object):
         storageData = {}
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0), \
-            'read': long(0), 'write': long(0), 'usage': long(0), 'mount': None}
+            'read': long(0), 'write': long(0), 'usage': long(0), \
+            'usageper': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
         storageData['total']['mount'] = {}
@@ -16725,12 +16726,13 @@ class SystemManager(object):
                 total = (stat.f_bsize * stat.f_blocks) >> 20
                 free = (stat.f_bsize * stat.f_bavail) >> 20
                 avail = stat.f_favail
-                usage = '%d' % int((total - free) / float(total) * 100)
+                usage = int((total - free) / float(total) * 100)
 
                 storageData[key]['total'] = total
                 storageData[key]['free'] = free
+                storageData[key]['usage'] = total - free
+                storageData[key]['usageper'] = usage
                 storageData[key]['favail'] = avail
-                storageData[key]['usage'] = usage
 
                 storageData['total']['total'] += total
                 storageData['total']['free'] += free
@@ -16738,10 +16740,13 @@ class SystemManager(object):
             except:
                 pass
 
+        # set total storage stat #
         try:
             total = storageData['total']
             storageData['total']['usage'] = \
-                '%d' % int((total['total'] - total['free']) / \
+                total['total'] - total['free']
+            storageData['total']['usageper'] = \
+                int((total['total'] - total['free']) / \
                 float(total['total']) * 100)
         except:
             pass
@@ -19397,6 +19402,9 @@ class ThreadAnalyzer(object):
         },
         'block' : {
             'ioWait' : 10
+        },
+        'storage' : {
+            'total' : 99
         },
         'task' : {
             'nrCtx' : 5000
@@ -31574,6 +31582,13 @@ class ThreadAnalyzer(object):
             if rb['block']['ioWait'] <= self.reportData['block']['ioWait']:
                 self.reportData['event']['IO_INTENSIVE'] = \
                     self.reportData['block']['procs']
+
+        # analyze storage status #
+        if 'storage' in self.reportData:
+            if rb['storage']['total'] <= \
+                self.reportData['storage']['total']['usageper']:
+                self.reportData['event']['DISK_FULL'] = \
+                    self.reportData['storage']
 
         # analyze system status #
         if 'system' in self.reportData:
