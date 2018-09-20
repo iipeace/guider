@@ -31479,7 +31479,7 @@ class ThreadAnalyzer(object):
                     evtdata = self.reportData['cpu']['procs']
 
                     evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['pid'] = long(pid)
                     evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                     evtdata[rank]['total'] = data['ttime']
                     evtdata[rank]['user'] = data['utime']
@@ -31514,7 +31514,7 @@ class ThreadAnalyzer(object):
                     evtdata = self.reportData['mem']['procs']
 
                     evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['pid'] = long(pid)
                     evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                     evtdata[rank]['rss'] = rss
                     evtdata[rank]['text'] = text
