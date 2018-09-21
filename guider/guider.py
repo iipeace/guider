@@ -20791,7 +20791,7 @@ class ThreadAnalyzer(object):
             # CPU usage of processes #
             for idx, item in sorted(\
                 cpuProcUsage.items(), \
-                key=lambda e: e[1]['average'], reverse=False):
+                key=lambda e: e[1]['average'], reverse=True):
 
                 if SystemManager.cpuEnable is False:
                     break
@@ -20851,7 +20851,8 @@ class ThreadAnalyzer(object):
             '''
 
             if SystemManager.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 1.05), fontsize=3.5, loc='upper right')
+                legend(labelList, bbox_to_anchor=(1.12, 1.05), \
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
 
@@ -21222,7 +21223,8 @@ class ThreadAnalyzer(object):
                     text(timeline[-1], usage[-1], \
                         SystemManager.convertSize(usage[-1] << 20), \
                         fontsize=5, color='blue', fontweight='bold')
-                plot(timeline, usage, '-', c='blue', linewidth=2, solid_capstyle='round')
+                plot(timeline, usage, '-', c='blue', \
+                    linewidth=2, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
                         SystemManager.convertSize(long(totalRAM) << 20)
@@ -21249,7 +21251,8 @@ class ThreadAnalyzer(object):
                         text(timeline[-1], usage[-1], \
                             SystemManager.convertSize(usage[-1] << 20), \
                             fontsize=5, color='skyblue', fontweight='bold')
-                    plot(timeline, usage, '-', c='skyblue', linewidth=2, solid_capstyle='round')
+                    plot(timeline, usage, '-', c='skyblue', \
+                        linewidth=2, solid_capstyle='round')
                     labelList.append('RAM User')
 
                 # System Cache Memory #
@@ -21271,7 +21274,8 @@ class ThreadAnalyzer(object):
                         text(timeline[-1], usage[-1], \
                             SystemManager.convertSize(usage[-1] << 20), \
                             fontsize=5, color='darkgray', fontweight='bold')
-                    plot(timeline, usage, '-', c='darkgray', linewidth=2, solid_capstyle='round')
+                    plot(timeline, usage, '-', c='darkgray', \
+                        linewidth=2, solid_capstyle='round')
                     labelList.append('RAM Cache')
 
                 # System Swap Memory #
@@ -21293,13 +21297,15 @@ class ThreadAnalyzer(object):
                         text(timeline[-1], usage[-1], \
                             SystemManager.convertSize(usage[-1] << 20), \
                             fontsize=5, color='orange', fontweight='bold')
-                    plot(timeline, swapUsage, '-', c='orange', linewidth=2, solid_capstyle='round')
+                    plot(timeline, swapUsage, '-', c='orange', \
+                        linewidth=2, solid_capstyle='round')
                     if totalSwap is not None:
                         label = 'Swap Total [%s]\nSwap Usage' % \
                             SystemManager.convertSize(long(totalSwap) << 20)
                         labelList.append(label)
                     else:
                         labelList.append('Swap Usage')
+
             # PROCESS STAT #
             else:
                 # get margin #
@@ -21311,8 +21317,9 @@ class ThreadAnalyzer(object):
 
                 # Process VSS #
                 if SystemManager.vssEnable:
-                    for key, item in sorted(memProcUsage.items(),\
-                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
+                    for key, item in sorted(memProcUsage.items(), \
+                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
 
                         try:
@@ -21344,12 +21351,15 @@ class ThreadAnalyzer(object):
                                     SystemManager.convertSize(usage[-1] << 20), key), \
                                     color=color, fontsize=3)
                             labelList.append('%s [VSS]' % key)
+
                 # Process Leak #
                 elif SystemManager.leakEnable:
                     # get VSS diffs #
-                    for key, item in sorted(memProcUsage.items(),\
-                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], reverse=True):
+                    for key, item in sorted(memProcUsage.items(), \
+                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
+                        # get maximum value #
                         try:
                             maxVss = max(usage)
                         except:
@@ -21359,6 +21369,17 @@ class ThreadAnalyzer(object):
                             item['vssDiff'] = 0
                             continue
 
+                        # get index of maximum and minimum values greater than 0 #
+                        try:
+                            first = next(val for val in usage if val > 0)
+                            last = next(val for val in reversed(usage) if val > 0)
+                            if long(first) > long(last):
+                                item['vssDiff'] = 0
+                                continue
+                        except:
+                            pass
+
+                        # get minimum value #
                         try:
                             minVss = min(x for x in usage if x != 0)
                         except:
@@ -21377,11 +21398,13 @@ class ThreadAnalyzer(object):
 
                         usage = list(map(int, item['vssUsage'].split()))
 
+                        # get minimum value #
                         try:
                             minIdx = usage.index(min(usage))
                         except:
                             minIdx = 0
 
+                        # get maximum value #
                         try:
                             maxIdx = usage.index(item['maxVss'])
                         except:
@@ -21402,11 +21425,13 @@ class ThreadAnalyzer(object):
                                     SystemManager.convertSize(usage[maxIdx] << 20), \
                                     SystemManager.convertSize(item['vssDiff'] << 20), key), \
                                     color=color, fontsize=3)
-                            labelList.append('%s [VSS]' % key)
+                            labelList.append('%s [LEAK]' % key)
+
                 # Process RSS #
                 if SystemManager.rssEnable:
-                    for key, item in sorted(memProcUsage.items(),\
-                        key=lambda e: 0 if not 'maxRss' in e[1] else e[1]['maxRss'], reverse=True):
+                    for key, item in sorted(memProcUsage.items(), \
+                        key=lambda e: 0 if not 'maxRss' in e[1] else e[1]['maxRss'], \
+                        reverse=True):
                         try:
                             usage = list(map(int, item['rssUsage'].split()))
                         except:
@@ -21449,7 +21474,8 @@ class ThreadAnalyzer(object):
             '''
 
             if SystemManager.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 0.75), fontsize=3.5, loc='upper right')
+                legend(labelList, bbox_to_anchor=(1.12, 0.75), \
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -25306,7 +25332,7 @@ class ThreadAnalyzer(object):
 
         # print lifecycle info #
         if SystemManager.processEnable:
-            msg = ' Process Lifecfycle '
+            msg = ' Process Lifecycle'
         else:
             msg = ' Thread Lifecycle '
         stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
