@@ -24562,12 +24562,18 @@ class ThreadAnalyzer(object):
             try:
                 # ignore special processes #
                 if comm[0] == '[' and comm[2] == ']':
-                    # add die process to list #
+                    # define real comm #
+                    rcomm = comm[3:]
+
+                    # check item #
+                    if rcomm not in ThreadAnalyzer.lifecycleData:
+                        ThreadAnalyzer.lifecycleData[rcomm] = [0] * 4
+                        ThreadAnalyzer.lifecycleData[rcomm][2] = dict()
+                        ThreadAnalyzer.lifecycleData[rcomm][3] = dict()
+
+                    # add died process to list #
                     if comm[1] == '-':
-                        try:
-                            ThreadAnalyzer.lifecycleData[comm[3:]][1] += 1
-                        except:
-                            ThreadAnalyzer.lifecycleData[comm[3:]] = [0, 1]
+                        ThreadAnalyzer.lifecycleData[rcomm][1] += 1
 
                         try:
                             ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
@@ -24575,11 +24581,15 @@ class ThreadAnalyzer(object):
                             ThreadAnalyzer.procIntData[index-1][pid] = \
                                 dict(ThreadAnalyzer.init_procIntData)
                             ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
+                    # add created process to list #
                     elif comm[1] == '+':
-                        try:
-                            ThreadAnalyzer.lifecycleData[comm[3:]][0] += 1
-                        except:
-                            ThreadAnalyzer.lifecycleData[comm[3:]] = [1, 0]
+                        ThreadAnalyzer.lifecycleData[rcomm][0] += 1
+                    # add zomebie process to list #
+                    elif comm[1] == 'Z':
+                        ThreadAnalyzer.lifecycleData[rcomm][2][pid] = 1
+                    # add zomebie process to list #
+                    elif comm[1] == 'T':
+                        ThreadAnalyzer.lifecycleData[rcomm][3][pid] = 1
 
                     return
             except:
@@ -25332,7 +25342,7 @@ class ThreadAnalyzer(object):
 
         # print lifecycle info #
         if SystemManager.processEnable:
-            msg = ' Process Lifecycle'
+            msg = ' Process Lifecycle '
         else:
             msg = ' Thread Lifecycle '
         stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
@@ -25361,12 +25371,17 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint("\n\tNone")
             return
 
-        SystemManager.pipePrint("\n{0:1}\n{1:^16} {2:>15} {3:>15}\n{4:1}\n".\
-            format(twoLine, "Name", "Created", "Terminated", oneLine))
+        SystemManager.pipePrint(\
+            "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} {5:>15}\n{6:1}\n".\
+            format(twoLine, "Name", "Created", \
+            "Terminated", "Zombie", "Traced", oneLine))
+
         for comm, event in sorted(ThreadAnalyzer.lifecycleData.items(),\
             key=lambda e: e[1][0] + e[1][1], reverse=True):
             SystemManager.pipePrint(\
-                "{0:^16} {1:>15} {2:>15}\n".format(comm, event[0], event[1]))
+                "{0:^16} {1:>15} {2:>15} {3:>15} {4:>15} \n".\
+                format(comm, event[0], event[1], len(event[2]), len(event[3])))
+
         SystemManager.pipePrint(oneLine)
 
 
