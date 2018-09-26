@@ -14556,11 +14556,11 @@ class SystemManager(object):
 
     @staticmethod
     def doStrace():
-        isProcess = False
-        SystemManager.warningEnable = True
-
         # parse options #
         SystemManager.parseAnalOption()
+
+        # no use pager #
+        SystemManager.printStreamEnable = True
 
         # check tid #
         if len(SystemManager.filterGroup) == 0:
@@ -19224,13 +19224,15 @@ class Debugger(object):
                 # process syscall #
                 self.processSyscall()
             except OSError:
-                SystemManager.printWarning('No thread %s to trace' % pid)
+                SystemManager.printError('No thread %s to trace' % pid)
                 break
             except:
                 err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    'Terminated tracing thread %s because %s' % \
-                    (pid, ' '.join(list(map(str, err.args)))), True)
+                ereason = ' '.join(list(map(str, err.args)))
+                if ereason != '0':
+                    SystemManager.printError(\
+                        'Terminated tracing thread %s because %s' % \
+                        (pid, ereason, True))
                 break
 
 
