@@ -19126,6 +19126,14 @@ class Debugger(object):
 
 
 
+    def getNrSyscall(self):
+        try:
+            return self.regs.getdict()[self.sysreg]
+        except:
+            return None
+
+
+
     def processSyscall(self):
         sysreg = self.sysreg
         retreg = self.retreg
@@ -19208,8 +19216,13 @@ class Debugger(object):
             ret = self.ptrace(cmd, 0, 0)
 
             try:
+                # wait process #
                 ret = os.waitpid(int(pid), 0)
+
+                # get status of process #
                 stat = Debugger.processStatus(ret[1])
+
+                # check status of process #
                 if type(stat) is int:
                     if stat == sigTrapIdx:
                         pass
@@ -19231,11 +19244,18 @@ class Debugger(object):
                         "Fail to trace syscall of thread %d" % pid)
                     return
 
+                # filter syscall #
+                if len(SystemManager.syscallList) > 0:
+                    if self.getNrSyscall() not in SystemManager.syscallList:
+                        continue
+
                 # process syscall #
                 self.processSyscall()
+
             except OSError:
                 SystemManager.printError('No thread %s to trace' % pid)
                 break
+
             except:
                 err = sys.exc_info()[1]
                 ereason = ' '.join(list(map(str, err.args)))
