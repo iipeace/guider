@@ -8346,7 +8346,8 @@ class SystemManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 "Fail to write json data to %s because %s" % \
-                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
+                (SystemManager.reportPath, \
+                ' '.join(list(map(str, err.args)))), True)
             sys.exit(0)
 
 
@@ -12140,13 +12141,15 @@ class SystemManager(object):
 
                     if SystemManager.intervalEnable <= 0:
                         SystemManager.printError(\
-                            "wrong option value with -i option, input number bigger than 0")
+                            "wrong option value with -i option, "
+                            "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -i option, input number in integer format")
+                        "wrong option value with -i option, "
+                        "input number in integer format")
                     sys.exit(0)
 
             elif option == 'o':
@@ -13173,6 +13176,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isStraceMode():
+        if sys.argv[1] == 'strace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSetAffinityMode():
         if sys.argv[1] == 'setaffinity':
             return True
@@ -13336,6 +13348,10 @@ class SystemManager(object):
         # SETSCHED MODE #
         if SystemManager.isSetSchedMode():
             SystemManager.doSetSched()
+
+        # STRACE MODE #
+        if SystemManager.isStraceMode():
+            SystemManager.doStrace()
 
         # AFFINITY MODE #
         if SystemManager.isSetAffinityMode():
@@ -14532,6 +14548,19 @@ class SystemManager(object):
             value = value.replace('-P', '').replace(' ', '')
 
         SystemManager.parsePriorityOption(value, isProcess)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doStrace():
+        isProcess = False
+        SystemManager.warningEnable = True
+
+        SystemManager.parseAnalOption()
+
+        Debugger().strace()
 
         sys.exit(0)
 
@@ -31370,7 +31399,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SystemManager.printError(\
-                "Fail to send request '%s'" % SystemManager.remoteServObj.request)
+                "Fail to send request '%s'" % \
+                SystemManager.remoteServObj.request)
 
 
 
@@ -31442,7 +31472,8 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForPrint:
                         SystemManager.addrListForPrint[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote address for PRINT" % (ip, port))
+                            "registered %s:%d as remote address for PRINT" % \
+                            (ip, port))
                     else:
                         SystemManager.printWarning(\
                             "Duplicated %s:%d as remote address" % (ip, port))
@@ -31450,7 +31481,7 @@ class ThreadAnalyzer(object):
                 elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                     if SystemManager.reportEnable is False:
                         SystemManager.printWarning(\
-                            "Ignored %s request from %s:%d because no report service" % \
+                            "Ignored %s request from %s:%d because no service" % \
                             (message, ip, port))
                         networkObject.send("REFUSE")
                         del networkObject
@@ -31462,11 +31493,13 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForReport:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote address for REPORT" % (ip, port))
+                            "registered %s:%d as remote address for REPORT" % \
+                            (ip, port))
                     else:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "updated %s:%d as remote address for REPORT" % (ip, port))
+                            "updated %s:%d as remote address for REPORT" % \
+                            (ip, port))
 
                 elif message == 'ACK':
                     index = ip + ':' + str(port)
@@ -31996,7 +32029,8 @@ if __name__ == '__main__':
                         SystemManager.outputFile)
                 else:
                     SystemManager.printError(\
-                        "wrong option with -e + p, use also -s option to save data")
+                        "wrong option with -e + p, "
+                        "use also -s option to save data")
 
                 sys.exit(0)
 
