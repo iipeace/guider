@@ -51,6 +51,7 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define logo #
+    # made by http://www.figlet.org #
     logo = '''
                 _      _
    __ _  _   _ (_)  __| |  ___  _ __
@@ -8345,7 +8346,8 @@ class SystemManager(object):
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 "Fail to write json data to %s because %s" % \
-                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))), True)
+                (SystemManager.reportPath, \
+                ' '.join(list(map(str, err.args)))), True)
             sys.exit(0)
 
 
@@ -8471,35 +8473,45 @@ class SystemManager(object):
                 pipePrint('\nMode:')
                 pipePrint('')
                 pipePrint('    [analysis]')
-                pipePrint('        top        [realtime]')
-                pipePrint('        threadtop  [thread]')
-                pipePrint('        filetop    [file]')
-                pipePrint('        stacktop   [stack]')
-                pipePrint('        perftop    [PMU]')
-                pipePrint('        memtop     [memory]')
+                pipePrint('        top         [realtime]')
+                pipePrint('        threadtop   [thread]')
+                pipePrint('        filetop     [file]')
+                pipePrint('        stacktop    [stack]')
+                pipePrint('        perftop     [PMU]')
+                pipePrint('        memtop      [memory]')
                 pipePrint('')
-                pipePrint('        record     [thread]')
-                pipePrint('        record -y  [system]')
-                pipePrint('        record -f  [function]')
-                pipePrint('        record -F  [file]')
-                pipePrint('        mem        [page]')
+                pipePrint('        record      [thread]')
+                pipePrint('        record -y   [system]')
+                pipePrint('        record -f   [function]')
+                pipePrint('        record -F   [file]')
                 pipePrint('')
-                pipePrint('        draw       [image]')
-                pipePrint('        cpudraw    [cpu]')
-                pipePrint('        memdraw    [memory]')
-                pipePrint('        vssdraw    [vss]')
-                pipePrint('        rssdraw    [rss]')
-                pipePrint('        leakdraw   [leak]')
-                pipePrint('        iodraw     [io]')
+                pipePrint('        mem         [page]')
+                pipePrint('')
+                pipePrint('        strace      [syscall]')
+                pipePrint('')
+                pipePrint('        draw        [image]')
+                pipePrint('        cpudraw     [cpu]')
+                pipePrint('        memdraw     [memory]')
+                pipePrint('        vssdraw     [vss]')
+                pipePrint('        rssdraw     [rss]')
+                pipePrint('        leakdraw    [leak]')
+                pipePrint('        iodraw      [io]')
                 pipePrint('')
                 pipePrint('    [control]')
-                pipePrint('        kill|setsched|get/setaffinity|cpulimit [proc]')
-                pipePrint('')
-                pipePrint('    [communication]')
-                pipePrint('        list|start|stop|send|event [proc]')
+                pipePrint('        kill        [signal]')
+                pipePrint('        setsched    [priority]')
+                pipePrint('        getaffinity [affinity]')
+                pipePrint('        setaffinity [affinity]')
+                pipePrint('        cpulimit    [cpu]')
                 pipePrint('')
                 pipePrint('    [test]')
-                pipePrint('        alloctest')
+                pipePrint('        alloctest   [mem]')
+                pipePrint('')
+                pipePrint('    [communication]')
+                pipePrint('        list')
+                pipePrint('        start')
+                pipePrint('        send')
+                pipePrint('        event')
 
                 pipePrint('')
                 pipePrint('Options:')
@@ -11790,11 +11802,11 @@ class SystemManager(object):
             retstr = ''
 
         # pager initialization #
-        if SystemManager.pipeForPrint == None and \
-            SystemManager.selectMenu == None and \
+        if SystemManager.isTopMode() is False and \
+            SystemManager.pipeForPrint == None and \
             SystemManager.printFile == None and \
             SystemManager.printStreamEnable is False and \
-            SystemManager.isTopMode() is False:
+            SystemManager.selectMenu == None:
             try:
                 if sys.platform.startswith('linux'):
                     SystemManager.pipeForPrint = os.popen('less', 'w')
@@ -11804,7 +11816,8 @@ class SystemManager(object):
                     pass
             except:
                 SystemManager.printError(\
-                    "Fail to find pager, use -o option to save output into file\n")
+                    "Fail to find pager, "
+                    "use -o option to save output into file\n")
                 sys.exit(0)
 
         # pager output #
@@ -12139,13 +12152,15 @@ class SystemManager(object):
 
                     if SystemManager.intervalEnable <= 0:
                         SystemManager.printError(\
-                            "wrong option value with -i option, input number bigger than 0")
+                            "wrong option value with -i option, "
+                            "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SystemManager.printError(\
-                        "wrong option value with -i option, input number in integer format")
+                        "wrong option value with -i option, "
+                        "input number in integer format")
                     sys.exit(0)
 
             elif option == 'o':
@@ -12201,11 +12216,11 @@ class SystemManager(object):
             elif option == 'p' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('i'):
                     SystemManager.printError(\
-                        "wrong option with -p, -i option is already enabled")
+                        "wrong option with -p, -i option is already used")
                     sys.exit(0)
                 elif SystemManager.findOption('g'):
                     SystemManager.printError(\
-                        "wrong option with -p, -g option is already enabled")
+                        "wrong option with -p, -g option is already used")
                     sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
@@ -13172,6 +13187,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isStraceMode():
+        if sys.argv[1] == 'strace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSetAffinityMode():
         if sys.argv[1] == 'setaffinity':
             return True
@@ -13335,6 +13359,10 @@ class SystemManager(object):
         # SETSCHED MODE #
         if SystemManager.isSetSchedMode():
             SystemManager.doSetSched()
+
+        # STRACE MODE #
+        if SystemManager.isStraceMode():
+            SystemManager.doStrace()
 
         # AFFINITY MODE #
         if SystemManager.isSetAffinityMode():
@@ -14531,6 +14559,35 @@ class SystemManager(object):
             value = value.replace('-P', '').replace(' ', '')
 
         SystemManager.parsePriorityOption(value, isProcess)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doStrace():
+        # parse options #
+        SystemManager.parseAnalOption()
+
+        # no use pager #
+        SystemManager.printStreamEnable = True
+
+        # check tid #
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printError("No tid with -g option")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) > 1:
+            SystemManager.printError(\
+                "wrong option wigh -g, input only one tid")
+            sys.exit(0)
+        elif SystemManager.filterGroup[0].isdigit() is False:
+            SystemManager.printError(\
+                "wrong option wigh -g, input tid in integer format")
+            sys.exit(0)
+        else:
+            pid = int(SystemManager.filterGroup[0])
+
+        Debugger(pid=pid).strace()
 
         sys.exit(0)
 
@@ -19069,6 +19126,14 @@ class Debugger(object):
 
 
 
+    def getNrSyscall(self):
+        try:
+            return self.regs.getdict()[self.sysreg]
+        except:
+            return None
+
+
+
     def processSyscall(self):
         sysreg = self.sysreg
         retreg = self.retreg
@@ -19151,8 +19216,13 @@ class Debugger(object):
             ret = self.ptrace(cmd, 0, 0)
 
             try:
-                ret = os.waitpid(pid, 0)
+                # wait process #
+                ret = os.waitpid(int(pid), 0)
+
+                # get status of process #
                 stat = Debugger.processStatus(ret[1])
+
+                # check status of process #
                 if type(stat) is int:
                     if stat == sigTrapIdx:
                         pass
@@ -19174,13 +19244,25 @@ class Debugger(object):
                         "Fail to trace syscall of thread %d" % pid)
                     return
 
+                # filter syscall #
+                if len(SystemManager.syscallList) > 0:
+                    if self.getNrSyscall() not in SystemManager.syscallList:
+                        continue
+
                 # process syscall #
                 self.processSyscall()
+
             except OSError:
-                SystemManager.printWarning('No thread %s to trace' % pid)
+                SystemManager.printError('No thread %s to trace' % pid)
                 break
+
             except:
-                SystemManager.printWarning('Terminated thread %s to trace' % pid)
+                err = sys.exc_info()[1]
+                ereason = ' '.join(list(map(str, err.args)))
+                if ereason != '0':
+                    SystemManager.printError(\
+                        'Terminated tracing thread %s because %s' % \
+                        (pid, ereason, True))
                 break
 
 
@@ -31369,7 +31451,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SystemManager.printError(\
-                "Fail to send request '%s'" % SystemManager.remoteServObj.request)
+                "Fail to send request '%s'" % \
+                SystemManager.remoteServObj.request)
 
 
 
@@ -31441,7 +31524,8 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForPrint:
                         SystemManager.addrListForPrint[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote address for PRINT" % (ip, port))
+                            "registered %s:%d as remote address for PRINT" % \
+                            (ip, port))
                     else:
                         SystemManager.printWarning(\
                             "Duplicated %s:%d as remote address" % (ip, port))
@@ -31449,7 +31533,7 @@ class ThreadAnalyzer(object):
                 elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                     if SystemManager.reportEnable is False:
                         SystemManager.printWarning(\
-                            "Ignored %s request from %s:%d because no report service" % \
+                            "Ignored %s request from %s:%d because no service" % \
                             (message, ip, port))
                         networkObject.send("REFUSE")
                         del networkObject
@@ -31461,11 +31545,13 @@ class ThreadAnalyzer(object):
                     if not index in SystemManager.addrListForReport:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "registered %s:%d as remote address for REPORT" % (ip, port))
+                            "registered %s:%d as remote address for REPORT" % \
+                            (ip, port))
                     else:
                         SystemManager.addrListForReport[index] = networkObject
                         SystemManager.printInfo(\
-                            "updated %s:%d as remote address for REPORT" % (ip, port))
+                            "updated %s:%d as remote address for REPORT" % \
+                            (ip, port))
 
                 elif message == 'ACK':
                     index = ip + ':' + str(port)
@@ -31995,7 +32081,8 @@ if __name__ == '__main__':
                         SystemManager.outputFile)
                 else:
                     SystemManager.printError(\
-                        "wrong option with -e + p, use also -s option to save data")
+                        "wrong option with -e + p, "
+                        "use also -s option to save data")
 
                 sys.exit(0)
 
