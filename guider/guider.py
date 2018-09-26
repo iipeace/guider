@@ -11792,11 +11792,11 @@ class SystemManager(object):
             retstr = ''
 
         # pager initialization #
-        if SystemManager.pipeForPrint == None and \
-            SystemManager.selectMenu == None and \
+        if SystemManager.isTopMode() is False and \
+            SystemManager.pipeForPrint == None and \
             SystemManager.printFile == None and \
             SystemManager.printStreamEnable is False and \
-            SystemManager.isTopMode() is False:
+            SystemManager.selectMenu == None:
             try:
                 if sys.platform.startswith('linux'):
                     SystemManager.pipeForPrint = os.popen('less', 'w')
@@ -11806,7 +11806,8 @@ class SystemManager(object):
                     pass
             except:
                 SystemManager.printError(\
-                    "Fail to find pager, use -o option to save output into file\n")
+                    "Fail to find pager, "
+                    "use -o option to save output into file\n")
                 sys.exit(0)
 
         # pager output #
@@ -12205,11 +12206,11 @@ class SystemManager(object):
             elif option == 'p' and SystemManager.isTopMode() is False:
                 if SystemManager.findOption('i'):
                     SystemManager.printError(\
-                        "wrong option with -p, -i option is already enabled")
+                        "wrong option with -p, -i option is already used")
                     sys.exit(0)
                 elif SystemManager.findOption('g'):
                     SystemManager.printError(\
-                        "wrong option with -p, -g option is already enabled")
+                        "wrong option with -p, -g option is already used")
                     sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
@@ -14558,9 +14559,25 @@ class SystemManager(object):
         isProcess = False
         SystemManager.warningEnable = True
 
+        # parse options #
         SystemManager.parseAnalOption()
 
-        Debugger().strace()
+        # check tid #
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printError("No tid with -g option")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) > 1:
+            SystemManager.printError(\
+                "wrong option wigh -g, input only one tid")
+            sys.exit(0)
+        elif SystemManager.filterGroup[0].isdigit() is False:
+            SystemManager.printError(\
+                "wrong option wigh -g, input tid in integer format")
+            sys.exit(0)
+        else:
+            pid = int(SystemManager.filterGroup[0])
+
+        Debugger(pid=pid).strace()
 
         sys.exit(0)
 
@@ -19181,7 +19198,7 @@ class Debugger(object):
             ret = self.ptrace(cmd, 0, 0)
 
             try:
-                ret = os.waitpid(pid, 0)
+                ret = os.waitpid(int(pid), 0)
                 stat = Debugger.processStatus(ret[1])
                 if type(stat) is int:
                     if stat == sigTrapIdx:
@@ -19210,7 +19227,10 @@ class Debugger(object):
                 SystemManager.printWarning('No thread %s to trace' % pid)
                 break
             except:
-                SystemManager.printWarning('Terminated thread %s to trace' % pid)
+                err = sys.exc_info()[1]
+                SystemManager.printWarning(\
+                    'Terminated tracing thread %s because %s' % \
+                    (pid, ' '.join(list(map(str, err.args)))), True)
                 break
 
 
