@@ -51,6 +51,7 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define logo #
+    # made by http://www.figlet.org #
     logo = '''
                 _      _
    __ _  _   _ (_)  __| |  ___  _ __
