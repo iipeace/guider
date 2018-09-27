@@ -472,7 +472,7 @@ Output
 
 >>>
            
-    # ./guider.py setsched r:90:22371
+    # ./guider.py top -e w -g yes
 
     [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
