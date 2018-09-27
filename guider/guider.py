@@ -32249,6 +32249,7 @@ if __name__ == '__main__':
         elif SystemManager.isMemTopMode():
             if SystemManager.checkMemTopCond():
                 SystemManager.memEnable = True
+                SystemManager.sort = 'm'
             else:
                 sys.exit(0)
 
