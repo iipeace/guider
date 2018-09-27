@@ -35,7 +35,7 @@ It usually supports all platforms based on the Linux kernel as shown below.
 - Windows (only for drawing, reporting, networking)
 
 The features of Guider are as follows.
-![guider_mindmap](https://user-images.githubusercontent.com/15862689/42793164-d69a8f1e-89b3-11e8-974f-eb89998fc601.png)
+![guider_mindmap](https://user-images.githubusercontent.com/15862689/46118768-27bb8c00-c243-11e8-8fae-a23c38d5bca3.png)
 
 Output
 =======
