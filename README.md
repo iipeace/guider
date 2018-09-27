@@ -231,6 +231,194 @@ Output
 
 >>>
            
+    # ./guider.py top -o . -j . -u
+    # cat guider.report
+
+    {
+      "task": {
+        "nrThread": 397,
+        "nrBlocked": 0,
+        "nrCtx": 4290,
+        "nrProc": 292
+      },
+      "mem": {
+        "kernel": 1432,
+        "anonDiff": -1,
+        "pgRclmFg": 0,
+        "cache": 35332,
+        "slabDiff": 0,
+        "free": 26929,
+        "anon": 698,
+        "pgDirty": 28,
+        "file": 31751,
+        "freeDiff": -1,
+        "pgRclmBg": 0,
+        "total": 64391,
+        "slab": 3581,
+        "fileDiff": -1
+        "procs": {
+          "1954": {
+            "text": 0,
+            "pid": 1954,
+            "rank": 2,
+            "comm": "ruby1.9.1",
+            "runtime": "110:43:32",
+            "rss": 104
+          },
+          "27977": {
+            "text": 0,
+            "pid": 27977,
+            "rank": 10,
+            "comm": "/usr/sbin/apach",
+            "runtime": "34:46:1",
+            "rss": 36
+          },
+          "31050": {
+            "text": 0,
+            "pid": 31050,
+            "rank": 8,
+            "comm": "/usr/sbin/apach",
+            "runtime": "10:21:44",
+            "rss": 38
+          },
+      },
+      "storage": {
+        "total": {
+          "read": 0,
+          "mount": {},
+          "favail": 133443655,
+          "free": 1141633,
+          "write": 1,
+          "usage": 1152423,
+          "total": 2294056,
+          "usageper": 50
+        },
+        "/dev/sdb1": {
+          "read": 0,
+          "mount": {
+            "path": "/mnt/hdd1",
+            "fs": "ext4",
+            "option": "rw,relatime,data=ordered"
+          },
+          "favail": 50709466,
+          "free": 293649,
+          "write": 0,
+          "usage": 645251,
+          "total": 938900,
+          "usageper": 68
+        },
+        "/dev/sda1": {
+          "read": 0,
+          "mount": {
+            "path": "/",
+            "fs": "ext4",
+            "option": "rw,relatime,errors=remount-ro,data=ordered"
+          },
+          "favail": 26727712,
+          "free": 374921,
+          "write": 0,
+          "usage": 41335,
+          "total": 416256,
+          "usageper": 9
+        },
+      },
+      "system": {
+        "load5m": 2.38,
+        "uptime": 4191643.92,
+        "nrSoftIrq": 7405,
+        "nrIrq": 7289,
+        "load15m": 0.84,
+        "interval": 1.029999999795109,
+        "pid": 14578,
+        "load1m": 9.39
+      },
+      "event": {
+        "CPU_INTENSIVE": {
+          "14592": {
+            "kernel": 0,
+            "runtime": "0:0:47",
+            "pid": 14592,
+            "rank": 3,
+            "comm": "yes",
+            "user": 99,
+            "total": 100
+          },
+          "14593": {
+            "kernel": 0,
+            "runtime": "0:0:46",
+            "pid": 14593,
+            "rank": 10,
+            "comm": "yes",
+            "user": 99,
+            "total": 100
+          },
+          "14594": {
+            "kernel": 0,
+            "runtime": "0:0:46",
+            "pid": 14594,
+            "rank": 12,
+            "comm": "yes",
+            "user": 100,
+            "total": 100
+          },
+      },
+      "swap": {
+        "usage": 76,
+        "total": 65491,
+        "usageDiff": 0
+      },
+      "net": {
+        "inbound": 1479,
+        "outbound": 392
+      },
+      "cpu": {
+        "kernel": 0,
+        "iowait": 0,
+        "nrCore": 24,
+        "idle": 8,
+        "user": 91,
+        "irq": 0,
+        "total": 92,
+        "procs": {
+          "14592": {
+            "kernel": 0,
+            "runtime": "0:0:47",
+            "pid": 14592,
+            "rank": 3,
+            "comm": "yes",
+            "user": 99,
+            "total": 100
+          },
+          "14593": {
+            "kernel": 0,
+            "runtime": "0:0:46",
+            "pid": 14593,
+            "rank": 10,
+            "comm": "yes",
+            "user": 99,
+            "total": 100
+          },
+          "14594": {
+            "kernel": 0,
+            "runtime": "0:0:46",
+            "pid": 14594,
+            "rank": 12,
+            "comm": "yes",
+            "user": 100,
+            "total": 100
+          },
+      },
+      "block": {
+        "read": 0,
+        "write": 0,
+        "procs": {},
+        "nrMajFlt": 0,
+        "ioWait": 0
+      }
+    }
+
+>>>
+
     # ./guider.py cpulimit -g 22371:50
 
 
