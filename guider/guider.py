@@ -7496,6 +7496,7 @@ class SystemManager(object):
     vssEnable = False
     leakEnable = False
     wssEnable = False
+    diskEnable = False
     heapEnable = False
     floatEnable = False
     fileTopEnable = False
@@ -8271,7 +8272,8 @@ class SystemManager(object):
             options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
             options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
-            options.rfind('r') >= 0 or options.rfind('R') >= 0:
+            options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
+            options.rfind('d') >= 0:
             return True
         else:
             return False
@@ -8479,6 +8481,8 @@ class SystemManager(object):
                 pipePrint('        stacktop    [stack]')
                 pipePrint('        perftop     [PMU]')
                 pipePrint('        memtop      [memory]')
+                pipePrint('        disktop     [storage]')
+                pipePrint('        wsstop      [WSS]')
                 pipePrint('')
                 pipePrint('        record      [thread]')
                 pipePrint('        record -y   [system]')
@@ -8524,10 +8528,10 @@ class SystemManager(object):
                                                  '{i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
                 pipePrint('              [top]      '\
-                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|'\
-                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
+                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|'\
+                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|'
                     '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
-                    '\n                          W(chan)|h(andler)|f(loat)|R(file)}')
+                    '\n                          h(andler)|f(loat)|R(file)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
                 pipePrint('              [thread]   {a(ll)}')
@@ -8748,8 +8752,11 @@ class SystemManager(object):
             pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
 
+            pipePrint('\n    - show storage usage in real-time')
+            pipePrint('        # %s disktop' % cmd)
+
             pipePrint('\n    - trace memory working set of specific processes')
-            pipePrint('        # %s top -e w -g chrome' % cmd)
+            pipePrint('        # %s wsstop -g chrome' % cmd)
 
             pipePrint('\n    - draw graph and chart to specific files')
             pipePrint('        # %s draw guider.out' % cmd)
@@ -10444,7 +10451,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRecordCmd():
+    def printProfileCmd():
         for idx, val in SystemManager.rcmdList.items():
             if len(val) == 0:
                 continue
@@ -10458,7 +10465,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRecordOption():
+    def printProfileOption():
         enableStat = ''
         disableStat = ''
 
@@ -10515,6 +10522,11 @@ class SystemManager(object):
                     enableStat += 'IRQ '
                 else:
                     disableStat += 'IRQ '
+
+                if SystemManager.diskEnable:
+                    enableStat += 'DISK '
+                else:
+                    disableStat += 'DISK '
 
                 if SystemManager.perfGroupEnable:
                     enableStat += 'PERF '
@@ -12313,7 +12325,7 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
-                    elif os.path.isfile('%s/1/io' % procPath) is False:
+                    elif os.path.isfile('%s/self/io' % procPath) is False:
                         SystemManager.printError((\
                             "Fail to use bio event, "
                             "please check kernel configuration"))
@@ -12388,18 +12400,12 @@ class SystemManager(object):
                         sys.exit(0)
 
                 if options.rfind('w') > -1:
-                    if SystemManager.findOption('g') is False:
-                        SystemManager.printError(\
-                            "wrong option with -e + w, "
-                            "use also -g option to track memory working set")
+                    if SystemManager.checkWssTopCond():
+                        SystemManager.memEnable = True
+                        SystemManager.wssEnable = True
+                        SystemManager.sort = 'm'
+                    else:
                         sys.exit(0)
-                    elif SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to clear refcnts")
-                        sys.exit(0)
-                    SystemManager.memEnable = True
-                    SystemManager.wssEnable = True
-                    SystemManager.sort = 'm'
 
                 if options.rfind('P') > -1:
                     if SystemManager.checkPerfTopCond():
@@ -12410,6 +12416,9 @@ class SystemManager(object):
                 if options.rfind('r') > -1:
                     SystemManager.importJson()
                     SystemManager.reportEnable = True
+
+                if options.rfind('d') > -1:
+                    SystemManager.diskEnable = True
 
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
@@ -13241,6 +13250,24 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isWssTopMode():
+        if sys.argv[1] == 'wsstop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDiskTopMode():
+        if sys.argv[1] == 'disktop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if sys.argv[1] == 'stacktop':
             return True
@@ -13271,15 +13298,13 @@ class SystemManager(object):
     def isTopMode():
         if sys.argv[1] == 'top':
             return True
-        elif SystemManager.isFileTopMode():
-            return True
-        elif SystemManager.isThreadTopMode():
-            return True
-        elif SystemManager.isStackTopMode():
-            return True
-        elif SystemManager.isPerfTopMode():
-            return True
-        elif SystemManager.isMemTopMode():
+        elif SystemManager.isFileTopMode() or \
+            SystemManager.isThreadTopMode() or \
+            SystemManager.isStackTopMode() or \
+            SystemManager.isPerfTopMode() or \
+            SystemManager.isMemTopMode() or \
+            SystemManager.isWssTopMode() or \
+            SystemManager.isDiskTopMode():
             return True
         else:
             return False
@@ -13493,7 +13518,7 @@ class SystemManager(object):
             return False
         elif SystemManager.findOption('g') is False:
             SystemManager.printError(\
-                "wrong option with -e + P, "
+                "wrong option for PMP monitoring, "
                 "use also -g option to show performance stat")
             return False
         elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
@@ -13518,6 +13543,22 @@ class SystemManager(object):
 
 
     @staticmethod
+    def checkWssTopCond():
+        if SystemManager.findOption('g') is False:
+            SystemManager.printError(\
+                "wrong option for wss monitoring, "
+                "use also -g option to track memory working set")
+            return False
+        elif SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to clear refcnts")
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
     def checkStackTopCond():
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
@@ -13526,7 +13567,8 @@ class SystemManager(object):
         elif SystemManager.findOption('g') is False or \
             SystemManager.getOption('g') is None:
             SystemManager.printError(\
-                "wrong option with -e + s, use also -g option to show stacks")
+                "wrong option stack monitoring, "
+                "use also -g option to show stacks")
             return False
         elif os.path.isfile('%s/self/stack' % SystemManager.procPath) is False:
             SystemManager.printError(\
@@ -30520,6 +30562,23 @@ class ThreadAnalyzer(object):
 
 
 
+    def printDiskUsage(self):
+        if SystemManager.diskEnable is False:
+            return
+        elif SystemManager.uptimeDiff == 0:
+            return
+        elif SystemManager.checkCutCond():
+            return
+
+        # update storage usage #
+        SystemManager.sysInstance.updateStorageInfo()
+
+        # get storage stat #
+        storageData = \
+            SystemManager.sysInstance.getStorageInfo()
+
+
+
     def printProcUsage(self):
         def printStackSamples(idx):
             # set indent size including arrow #
@@ -31867,6 +31926,9 @@ class ThreadAnalyzer(object):
             if len(perfString) > 0:
                 SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
+        # print disk stat #
+        self.printDiskUsage()
+
         # print system stat #
         self.printSystemUsage()
 
@@ -31968,8 +32030,8 @@ if __name__ == '__main__':
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         SystemManager.parseRecordOption()
-        SystemManager.printRecordOption()
-        SystemManager.printRecordCmd()
+        SystemManager.printProfileOption()
+        SystemManager.printProfileCmd()
 
         # run in background #
         if SystemManager.backgroundEnable:
@@ -32230,22 +32292,31 @@ if __name__ == '__main__':
 
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
-        # select top mode #
+
+        # thread #
         if SystemManager.isThreadTopMode():
             SystemManager.processEnable = False
+
+        # file #
         elif SystemManager.isFileTopMode():
             SystemManager.fileTopEnable = True
+
+        # stack #
         elif SystemManager.isStackTopMode():
             if SystemManager.checkStackTopCond():
                 SystemManager.processEnable = False
                 SystemManager.stackEnable = True
             else:
                 sys.exit(0)
+
+        # perf #
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
                 SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
+
+        # mem #
         elif SystemManager.isMemTopMode():
             if SystemManager.checkMemTopCond():
                 SystemManager.memEnable = True
@@ -32253,9 +32324,22 @@ if __name__ == '__main__':
             else:
                 sys.exit(0)
 
-        # print record option #
-        SystemManager.printRecordOption()
-        SystemManager.printRecordCmd()
+        # wss (working set size) #
+        elif SystemManager.isWssTopMode():
+            if SystemManager.checkWssTopCond():
+                SystemManager.memEnable = True
+                SystemManager.wssEnable = True
+                SystemManager.sort = 'm'
+            else:
+                sys.exit(0)
+
+        # disk #
+        elif SystemManager.isDiskTopMode():
+            SystemManager.diskEnable = True
+
+        # print profile option #
+        SystemManager.printProfileOption()
+        SystemManager.printProfileCmd()
 
         # set handler for exit #
         if sys.platform.startswith('linux'):
@@ -32266,7 +32350,7 @@ if __name__ == '__main__':
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        # create ThreadAnalyzer using proc #
+        # run top mode #
         ThreadAnalyzer(None)
 
         sys.exit(0)
