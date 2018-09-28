@@ -12388,18 +12388,12 @@ class SystemManager(object):
                         sys.exit(0)
 
                 if options.rfind('w') > -1:
-                    if SystemManager.findOption('g') is False:
-                        SystemManager.printError(\
-                            "wrong option with -e + w, "
-                            "use also -g option to track memory working set")
+                    if SystemManager.checkWssTopCond():
+                        SystemManager.memEnable = True
+                        SystemManager.wssEnable = True
+                        SystemManager.sort = 'm'
+                    else:
                         sys.exit(0)
-                    elif SystemManager.isRoot() is False:
-                        SystemManager.printError(\
-                            "Fail to get root permission to clear refcnts")
-                        sys.exit(0)
-                    SystemManager.memEnable = True
-                    SystemManager.wssEnable = True
-                    SystemManager.sort = 'm'
 
                 if options.rfind('P') > -1:
                     if SystemManager.checkPerfTopCond():
@@ -13241,6 +13235,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isWssTopMode():
+        if sys.argv[1] == 'wsstop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if sys.argv[1] == 'stacktop':
             return True
@@ -13280,6 +13283,8 @@ class SystemManager(object):
         elif SystemManager.isPerfTopMode():
             return True
         elif SystemManager.isMemTopMode():
+            return True
+        elif SystemManager.isWssTopMode():
             return True
         else:
             return False
@@ -13493,7 +13498,7 @@ class SystemManager(object):
             return False
         elif SystemManager.findOption('g') is False:
             SystemManager.printError(\
-                "wrong option with -e + P, "
+                "wrong option for PMP monitoring, "
                 "use also -g option to show performance stat")
             return False
         elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
@@ -13518,6 +13523,22 @@ class SystemManager(object):
 
 
     @staticmethod
+    def checkWssTopCond():
+        if SystemManager.findOption('g') is False:
+            SystemManager.printError(\
+                "wrong option for wss monitoring, "
+                "use also -g option to track memory working set")
+            return False
+        elif SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to clear refcnts")
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
     def checkStackTopCond():
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
@@ -13526,7 +13547,8 @@ class SystemManager(object):
         elif SystemManager.findOption('g') is False or \
             SystemManager.getOption('g') is None:
             SystemManager.printError(\
-                "wrong option with -e + s, use also -g option to show stacks")
+                "wrong option stack monitoring, "
+                "use also -g option to show stacks")
             return False
         elif os.path.isfile('%s/self/stack' % SystemManager.procPath) is False:
             SystemManager.printError(\
@@ -32229,26 +32251,38 @@ if __name__ == '__main__':
         sys.exit(0)
 
     #-------------------- REALTIME MODE --------------------
+    # check top mode #
     if SystemManager.isTopMode():
-        # select top mode #
         if SystemManager.isThreadTopMode():
             SystemManager.processEnable = False
+
         elif SystemManager.isFileTopMode():
             SystemManager.fileTopEnable = True
+
         elif SystemManager.isStackTopMode():
             if SystemManager.checkStackTopCond():
                 SystemManager.processEnable = False
                 SystemManager.stackEnable = True
             else:
                 sys.exit(0)
+
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
                 SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
+
         elif SystemManager.isMemTopMode():
             if SystemManager.checkMemTopCond():
                 SystemManager.memEnable = True
+                SystemManager.sort = 'm'
+            else:
+                sys.exit(0)
+
+        elif SystemManager.isWssTopMode():
+            if SystemManager.checkWssTopCond():
+                SystemManager.memEnable = True
+                SystemManager.wssEnable = True
                 SystemManager.sort = 'm'
             else:
                 sys.exit(0)
