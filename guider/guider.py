@@ -8272,7 +8272,8 @@ class SystemManager(object):
             options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
             options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
-            options.rfind('r') >= 0 or options.rfind('R') >= 0:
+            options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
+            options.rfind('d') >= 0:
             return True
         else:
             return False
@@ -12415,6 +12416,9 @@ class SystemManager(object):
                 if options.rfind('r') > -1:
                     SystemManager.importJson()
                     SystemManager.reportEnable = True
+
+                if options.rfind('d') > -1:
+                    SystemManager.diskEnable = True
 
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
@@ -30560,6 +30564,10 @@ class ThreadAnalyzer(object):
 
     def printDiskUsage(self):
         if SystemManager.diskEnable is False:
+            return
+        elif SystemManager.uptimeDiff == 0:
+            return
+        elif SystemManager.checkCutCond():
             return
 
         # update storage usage #
