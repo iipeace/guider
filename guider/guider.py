@@ -8528,10 +8528,10 @@ class SystemManager(object):
                                                  '{i(rq)|l(ock)|n(et)|p(ipe)|'\
                     '\n                          P(ower)|r(eset)|g(raph)}')
                 pipePrint('              [top]      '\
-                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|'\
-                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|'
+                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|'\
+                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|'
                     '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
-                    '\n                          W(chan)|h(andler)|f(loat)|R(file)}')
+                    '\n                          h(andler)|f(loat)|R(file)}')
                 pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
                 pipePrint('              [thread]   {a(ll)}')

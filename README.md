@@ -959,10 +959,10 @@ Options
           [function] {h(eap)│L(ock)│p(ipe)│g(raph)}
           [thread]   {i(rq)│l(ock)│n(et)│p(ipe)│
                       P(ower)│r(eset)│g(raph)}
-          [top]      {t(hread)│wf(C)│s(tack)│w(ss)│
-                      P(erf)│G(pu)│i(rq)│ps(S)│u(ss)│
+          [top]      {t(hread)│wf(C)│s(tack)│w(ss)│d(isk)│
+                      P(erf)│G(pu)│i(rq)│ps(S)│u(ss)│W(chan)│
                       I(mage)│a(ffinity)│r(eport)│a(ffinity)│
-                      W(chan)│h(andler)│f(loat)│R(file)}
+                      h(andler)│f(loat)│R(file)}
     -d  [disable_optionsPerMode - belowCharacters]
           [common]   {c(pu)│e(ncoding)}
           [thread]   {a(ll)}
