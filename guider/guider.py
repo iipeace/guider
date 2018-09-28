@@ -10445,7 +10445,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRecordCmd():
+    def printProfileCmd():
         for idx, val in SystemManager.rcmdList.items():
             if len(val) == 0:
                 continue
@@ -10459,7 +10459,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printRecordOption():
+    def printProfileOption():
         enableStat = ''
         disableStat = ''
 
@@ -13238,6 +13238,15 @@ class SystemManager(object):
     @staticmethod
     def isWssTopMode():
         if sys.argv[1] == 'wsstop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDiskTopMode():
+        if sys.argv[1] == 'disktop':
             return True
         else:
             return False
@@ -31991,8 +32000,8 @@ if __name__ == '__main__':
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         SystemManager.parseRecordOption()
-        SystemManager.printRecordOption()
-        SystemManager.printRecordCmd()
+        SystemManager.printProfileOption()
+        SystemManager.printProfileCmd()
 
         # run in background #
         if SystemManager.backgroundEnable:
@@ -32252,14 +32261,17 @@ if __name__ == '__main__':
         sys.exit(0)
 
     #-------------------- REALTIME MODE --------------------
-    # check top mode #
     if SystemManager.isTopMode():
+
+        # thread #
         if SystemManager.isThreadTopMode():
             SystemManager.processEnable = False
 
+        # file #
         elif SystemManager.isFileTopMode():
             SystemManager.fileTopEnable = True
 
+        # stack #
         elif SystemManager.isStackTopMode():
             if SystemManager.checkStackTopCond():
                 SystemManager.processEnable = False
@@ -32267,12 +32279,14 @@ if __name__ == '__main__':
             else:
                 sys.exit(0)
 
+        # perf #
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
                 SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
 
+        # mem #
         elif SystemManager.isMemTopMode():
             if SystemManager.checkMemTopCond():
                 SystemManager.memEnable = True
@@ -32280,6 +32294,7 @@ if __name__ == '__main__':
             else:
                 sys.exit(0)
 
+        # wss #
         elif SystemManager.isWssTopMode():
             if SystemManager.checkWssTopCond():
                 SystemManager.memEnable = True
@@ -32288,9 +32303,9 @@ if __name__ == '__main__':
             else:
                 sys.exit(0)
 
-        # print record option #
-        SystemManager.printRecordOption()
-        SystemManager.printRecordCmd()
+        # print profile option #
+        SystemManager.printProfileOption()
+        SystemManager.printProfileCmd()
 
         # set handler for exit #
         if sys.platform.startswith('linux'):
@@ -32301,7 +32316,7 @@ if __name__ == '__main__':
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        # create ThreadAnalyzer using proc #
+        # run top mode #
         ThreadAnalyzer(None)
 
         sys.exit(0)
