@@ -909,6 +909,7 @@ Modes
     stacktop    [stack]
     perftop     [PMU]
     memtop      [memory]
+    disktop     [storage]
     wsstop      [WSS]
 
     record      [thread]
@@ -1160,6 +1161,9 @@ Examples
 
     - show resource usage of processes and excute special commands every interval
         # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
+
+    - show storage usage in real-time
+        # ./guider.py disktop
 
     - trace memory working set of specific processes
         # ./guider.py wsstop -g chrome
