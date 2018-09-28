@@ -8479,6 +8479,7 @@ class SystemManager(object):
                 pipePrint('        stacktop    [stack]')
                 pipePrint('        perftop     [PMU]')
                 pipePrint('        memtop      [memory]')
+                pipePrint('        wsstop      [WSS]')
                 pipePrint('')
                 pipePrint('        record      [thread]')
                 pipePrint('        record -y   [system]')
@@ -8749,7 +8750,7 @@ class SystemManager(object):
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
 
             pipePrint('\n    - trace memory working set of specific processes')
-            pipePrint('        # %s top -e w -g chrome' % cmd)
+            pipePrint('        # %s wsstop -g chrome' % cmd)
 
             pipePrint('\n    - draw graph and chart to specific files')
             pipePrint('        # %s draw guider.out' % cmd)
