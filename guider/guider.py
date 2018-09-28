@@ -12324,7 +12324,7 @@ class SystemManager(object):
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
-                    elif os.path.isfile('%s/1/io' % procPath) is False:
+                    elif os.path.isfile('%s/self/io' % procPath) is False:
                         SystemManager.printError((\
                             "Fail to use bio event, "
                             "please check kernel configuration"))
