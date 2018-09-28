@@ -7496,6 +7496,7 @@ class SystemManager(object):
     vssEnable = False
     leakEnable = False
     wssEnable = False
+    diskEnable = False
     heapEnable = False
     floatEnable = False
     fileTopEnable = False
@@ -8479,6 +8480,7 @@ class SystemManager(object):
                 pipePrint('        stacktop    [stack]')
                 pipePrint('        perftop     [PMU]')
                 pipePrint('        memtop      [memory]')
+                pipePrint('        disktop     [storage]')
                 pipePrint('        wsstop      [WSS]')
                 pipePrint('')
                 pipePrint('        record      [thread]')
@@ -8748,6 +8750,9 @@ class SystemManager(object):
 
             pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
+
+            pipePrint('\n    - show storage usage in real-time')
+            pipePrint('        # %s disktop' % cmd)
 
             pipePrint('\n    - trace memory working set of specific processes')
             pipePrint('        # %s wsstop -g chrome' % cmd)
@@ -10516,6 +10521,11 @@ class SystemManager(object):
                     enableStat += 'IRQ '
                 else:
                     disableStat += 'IRQ '
+
+                if SystemManager.diskEnable:
+                    enableStat += 'DISK '
+                else:
+                    disableStat += 'DISK '
 
                 if SystemManager.perfGroupEnable:
                     enableStat += 'PERF '
@@ -13284,17 +13294,13 @@ class SystemManager(object):
     def isTopMode():
         if sys.argv[1] == 'top':
             return True
-        elif SystemManager.isFileTopMode():
-            return True
-        elif SystemManager.isThreadTopMode():
-            return True
-        elif SystemManager.isStackTopMode():
-            return True
-        elif SystemManager.isPerfTopMode():
-            return True
-        elif SystemManager.isMemTopMode():
-            return True
-        elif SystemManager.isWssTopMode():
+        elif SystemManager.isFileTopMode() or \
+            SystemManager.isThreadTopMode() or \
+            SystemManager.isStackTopMode() or \
+            SystemManager.isPerfTopMode() or \
+            SystemManager.isMemTopMode() or \
+            SystemManager.isWssTopMode() or \
+            SystemManager.isDiskTopMode():
             return True
         else:
             return False
@@ -30552,6 +30558,19 @@ class ThreadAnalyzer(object):
 
 
 
+    def printDiskUsage(self):
+        if SystemManager.diskEnable is False:
+            return
+
+        # update storage usage #
+        SystemManager.sysInstance.updateStorageInfo()
+
+        # get storage stat #
+        storageData = \
+            SystemManager.sysInstance.getStorageInfo()
+
+
+
     def printProcUsage(self):
         def printStackSamples(idx):
             # set indent size including arrow #
@@ -31899,6 +31918,9 @@ class ThreadAnalyzer(object):
             if len(perfString) > 0:
                 SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
+        # print disk stat #
+        self.printDiskUsage()
+
         # print system stat #
         self.printSystemUsage()
 
@@ -32294,7 +32316,7 @@ if __name__ == '__main__':
             else:
                 sys.exit(0)
 
-        # wss #
+        # wss (working set size) #
         elif SystemManager.isWssTopMode():
             if SystemManager.checkWssTopCond():
                 SystemManager.memEnable = True
@@ -32302,6 +32324,10 @@ if __name__ == '__main__':
                 SystemManager.sort = 'm'
             else:
                 sys.exit(0)
+
+        # disk #
+        elif SystemManager.isDiskTopMode():
+            SystemManager.diskEnable = True
 
         # print profile option #
         SystemManager.printProfileOption()
