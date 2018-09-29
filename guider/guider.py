@@ -19658,6 +19658,8 @@ class ThreadAnalyzer(object):
             self.nrFd = 0
             self.procData = {}
             self.prevProcData = {}
+            self.storageData = {}
+            self.prevStorageData = {}
             self.fileData = {}
             self.cpuData = {}
             self.prevCpuData = {}
@@ -30573,8 +30575,11 @@ class ThreadAnalyzer(object):
         # update storage usage #
         SystemManager.sysInstance.updateStorageInfo()
 
+        # save previous storage data #
+        self.prevStorageData = self.storageData
+
         # get storage stat #
-        storageData = \
+        self.storageData = \
             SystemManager.sysInstance.getStorageInfo()
 
 
