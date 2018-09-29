@@ -16862,7 +16862,7 @@ class SystemManager(object):
             "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} "
             "{5:>8} {6:>6} {7:>7} {8:>8} {9:>40}").\
             format("DEV", "NUM", "READ", "WRITE", \
-            "TOTAL", "FREE", "USAGE", "AVL", "FS", "MountPoint <Option>"))
+            "TOTAL", "FREE", "USAGE", "FAVL", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
 
         devInfo = {}
@@ -30581,6 +30581,73 @@ class ThreadAnalyzer(object):
         # get storage stat #
         self.storageData = \
             SystemManager.sysInstance.getStorageInfo()
+
+        SystemManager.addPrint(twoLine)
+        SystemManager.addPrint((\
+            "\n{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
+            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:>40}\n").\
+            format("DEV", "READ", "WRITE", "FREE", 'DIFF',\
+            "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
+        SystemManager.addPrint('%s\n' % oneLine)
+
+        # remove total stat #
+        self.storageData.pop('total', None)
+
+        printCnt = 0
+        for dev, value in sorted(self.storageData.items()):
+            try:
+                readSize = value['read'] - self.prevStorageData[dev]['read']
+                readSize = SystemManager.convertSize(readSize << 20)
+            except:
+                readSize = 0
+
+            try:
+                writeSize = value['write'] - self.prevStorageData[dev]['write']
+                writeSize = SystemManager.convertSize(writeSize << 20)
+            except:
+                writeSize = 0
+
+            total = SystemManager.convertSize(value['total'] << 20)
+
+            free = SystemManager.convertSize(value['free'] << 20)
+
+            try:
+                freeDiff = value['free'] - self.prevStorageData[dev]['free']
+
+                if freeDiff < 0:
+                    op = '-'
+                elif freeDiff == 0:
+                    op = ''
+                else:
+                    op = '+'
+
+                freeDiff = '%s%s' % \
+                    (op, SystemManager.convertSize(abs(freeDiff) << 20))
+            except:
+                freeDiff = 0
+
+            use = SystemManager.convertSize(value['usageper'])
+            avail = SystemManager.convertSize(value['favail'])
+            fs = value['mount']['fs']
+            path = value['mount']['path']
+            option = value['mount']['option']
+
+            diskInfo = \
+                ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
+                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<1}\n").\
+                format(dev, readSize, writeSize, free, freeDiff,\
+                '%s%%' % use, total, avail, fs, \
+                '%s <%s>' % (path, option))
+
+            if SystemManager.checkCutCond():
+                return
+
+            SystemManager.addPrint(diskInfo)
+
+            printCnt += 1
+
+        if printCnt == 0:
+            SystemManager.addPrint('\tNone\n')
 
 
 
