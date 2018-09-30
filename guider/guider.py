@@ -8616,10 +8616,10 @@ class SystemManager(object):
             pipePrint('\n    - record and report cpu events of threads')
             pipePrint('        # %s record -s .' % cmd)
 
-            pipePrint('\n    - record and save specific resource events of threads in background')
+            pipePrint('\n    - record and save specific resource events of threads in the background')
             pipePrint('        # %s record -s . -e m, b, i -u' % cmd)
 
-            pipePrint('\n    - record and save specific resource events excluding cpu of threads in background')
+            pipePrint('\n    - record and save specific resource events excluding cpu of threads in the background')
             pipePrint('        # %s record -s . -e m, b, i -d c -u' % cmd)
 
             pipePrint('\n    - record and save specific systemcall events of specific threads')
@@ -8734,10 +8734,10 @@ class SystemManager(object):
             pipePrint('\n    - save and print resource usage of processes in real-time')
             pipePrint('        # %s top -o . -Q' % cmd)
 
-            pipePrint('\n    - save resource usage of processes in background')
+            pipePrint('\n    - save resource usage of processes in the background')
             pipePrint('        # %s top -o . -u' % cmd)
 
-            pipePrint('\n    - save resource usage of processes and report system stats in background')
+            pipePrint('\n    - save resource usage of processes and report system stats in the background')
             pipePrint('        # %s top -o . -e r -j . -u' % cmd)
 
             pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
@@ -13790,7 +13790,7 @@ class SystemManager(object):
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 0:
                 if SystemManager.isEventMode():
-                    print("\nno running process in background\n")
+                    print("\nno running process in the background\n")
                 else:
                     SystemManager.printWarning(\
                         "Failed to find running %s process to send event" % \
@@ -13849,7 +13849,7 @@ class SystemManager(object):
         procList = SystemManager.getBgProcList()
 
         if procList == '':
-            print("\nno running process in background\n")
+            print("\nno running process in the background\n")
         else:
             print('\n[Running Process]')
             print(twoLine)
@@ -14990,7 +14990,7 @@ class SystemManager(object):
                 nrProc += 1
 
         if nrProc == 0:
-            SystemManager.printInfo("no running process in background")
+            SystemManager.printInfo("no running process in the background")
 
 
 
@@ -19977,7 +19977,7 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to access proc filesystem")
             sys.exit(0)
 
-        # import select package on foreground #
+        # import select package in the foreground #
         selectObject = None
         if SystemManager.printFile is None:
             try:
@@ -20052,7 +20052,7 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to access proc filesystem")
             sys.exit(0)
 
-        # import select package on foreground #
+        # import select package in the foreground #
         selectObject = None
         if SystemManager.printFile is None:
             try:
@@ -30595,12 +30595,14 @@ class ThreadAnalyzer(object):
 
         printCnt = 0
         for dev, value in sorted(self.storageData.items()):
+            # get read size on this interval #
             try:
                 readSize = value['read'] - self.prevStorageData[dev]['read']
                 readSize = SystemManager.convertSize(readSize << 20)
             except:
                 readSize = 0
 
+            # get write size on this interval #
             try:
                 writeSize = value['write'] - self.prevStorageData[dev]['write']
                 writeSize = SystemManager.convertSize(writeSize << 20)
@@ -30611,6 +30613,7 @@ class ThreadAnalyzer(object):
 
             free = SystemManager.convertSize(value['free'] << 20)
 
+            # get free space change on this interval #
             try:
                 freeDiff = value['free'] - self.prevStorageData[dev]['free']
 
@@ -30632,6 +30635,7 @@ class ThreadAnalyzer(object):
             path = value['mount']['path']
             option = value['mount']['option']
 
+            # make disk stat string #
             diskInfo = \
                 ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
                 "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<1}\n").\
@@ -32105,7 +32109,7 @@ if __name__ == '__main__':
         SystemManager.printProfileOption()
         SystemManager.printProfileCmd()
 
-        # run in background #
+        # run in the background #
         if SystemManager.backgroundEnable:
             pid = os.fork()
 
@@ -32418,7 +32422,7 @@ if __name__ == '__main__':
             signal.signal(signal.SIGINT, SystemManager.stopHandler)
             signal.signal(signal.SIGQUIT, SystemManager.newHandler)
 
-        # run in background #
+        # run in the background #
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
