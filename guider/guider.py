@@ -984,8 +984,8 @@ class NetworkManager(object):
                 with open(origPath,'rb') as fd:
                     buf = fd.read(1024)
                     while (buf):
-                       sender.send(buf)
-                       buf = fd.read(1024)
+                        sender.send(buf)
+                        buf = fd.read(1024)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
@@ -14155,8 +14155,8 @@ class SystemManager(object):
                 with open(targetPath,'rb') as fd:
                     buf = fd.read(1024)
                     while (buf):
-                       sender.send(buf)
-                       buf = fd.read(1024)
+                        sender.send(buf)
+                        buf = fd.read(1024)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
