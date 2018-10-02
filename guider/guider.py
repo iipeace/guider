@@ -1404,10 +1404,8 @@ class PageAnalyzer(object):
             SystemManager.printError(\
                 "Fail to get root permission analyze pages")
             sys.exit(0)
-        elif pid is False or vaddr is False:
-            SystemManager.printError(\
-                "Fail to recognize input, "
-                "input pid with -g option and address with -I option")
+        elif pid is None:
+            SystemManager.printError("Fail to recognize pid, use -g option")
             sys.exit(0)
         elif vaddr is None:
             PageAnalyzer.printMemoryArea(pid)
@@ -8487,6 +8485,7 @@ class SystemManager(object):
                 pipePrint('        memtop      [memory]')
                 pipePrint('        disktop     [storage]')
                 pipePrint('        wsstop      [WSS]')
+                pipePrint('        reporttop   [report]')
                 pipePrint('')
                 pipePrint('        record      [thread]')
                 pipePrint('        record -y   [system]')
@@ -8741,8 +8740,8 @@ class SystemManager(object):
             pipePrint('\n    - save resource usage of processes in the background')
             pipePrint('        # %s top -o . -u' % cmd)
 
-            pipePrint('\n    - save resource usage of processes and report system stats in the background')
-            pipePrint('        # %s top -o . -e r -j . -u' % cmd)
+            pipePrint('\n    - report system stats in the background')
+            pipePrint('        # %s reporttop -j . -u' % cmd)
 
             pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
             pipePrint('        # %s top -o . -e r, R' % cmd)
@@ -12110,7 +12109,7 @@ class SystemManager(object):
     @staticmethod
     def getOption(option):
         if len(sys.argv) <= 2:
-            return False
+            return None
 
         SystemManager.parseOption()
 
@@ -12577,34 +12576,8 @@ class SystemManager(object):
                     "use %s:%d as remote address" % (ip, port))
 
             elif option == 'j' and SystemManager.isTopMode():
-                SystemManager.reportPath = value
-                if len(SystemManager.reportPath) == 0:
-                    SystemManager.printError("no option value with -j option")
+                if SystemManager.checkReportTopCond(value) is False:
                     sys.exit(0)
-
-                # directory path #
-                if os.path.isdir(SystemManager.reportPath) == False:
-                    reportPath = SystemManager.reportPath
-                    upDirPos = SystemManager.reportPath.rfind('/')
-                    if upDirPos > 0 and \
-                        os.path.isdir(reportPath[:upDirPos]) is False:
-                        SystemManager.printError(\
-                            "wrong path %s with -j option to report stats" % \
-                            reportPath)
-                        sys.exit(0)
-                # file path #
-                else:
-                    SystemManager.reportPath = \
-                        '%s/guider.report' % SystemManager.reportPath
-
-                # remove redundant slash #
-                SystemManager.reportPath = \
-                    SystemManager.reportPath.replace('//', '/')
-
-                SystemManager.reportEnable = True
-
-                SystemManager.printInfo(\
-                    "start writing report to %s" % SystemManager.reportPath)
 
             elif option == 'x':
                 ret = SystemManager.parseAddr(value)
@@ -13290,6 +13263,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isReportTopMode():
+        if sys.argv[1] == 'reporttop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isThreadTopMode():
         if sys.argv[1] == 'threadtop':
             return True
@@ -13308,6 +13290,7 @@ class SystemManager(object):
             SystemManager.isPerfTopMode() or \
             SystemManager.isMemTopMode() or \
             SystemManager.isWssTopMode() or \
+            SystemManager.isReportTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -13357,10 +13340,7 @@ class SystemManager(object):
             pid = SystemManager.getOption('g')
             addr = SystemManager.getOption('I')
 
-            if pid is None:
-                SystemManager.printError("Fail to recognize pid, use -g option")
-            else:
-                PageAnalyzer.getPageInfo(pid, addr)
+            PageAnalyzer.getPageInfo(pid, addr)
 
             sys.exit(0)
 
@@ -13547,6 +13527,49 @@ class SystemManager(object):
 
 
     @staticmethod
+    def checkReportTopCond(val=None):
+        # check whether report option is already enabled #
+        if SystemManager.reportEnable:
+            return True
+
+        if val == None:
+            reportPath = SystemManager.getOption('j')
+        else:
+            reportPath = val
+
+        if reportPath == None or len(reportPath) == 0:
+            SystemManager.printError(\
+                "wrong option for stat report, "
+                "use also -j option to set report path")
+            return False
+
+        # directory path #
+        if os.path.isdir(reportPath) == False:
+            upDirPos = reportPath.rfind('/')
+            if upDirPos > 0 and \
+                os.path.isdir(reportPath[:upDirPos]) is False:
+                SystemManager.printError(\
+                    "wrong path %s with -j option to report stats" % \
+                    reportPath)
+                return False
+        # file path #
+        else:
+            reportPath = '%s/guider.report' % reportPath
+
+        # remove redundant slashes and save it as the global report path #
+        SystemManager.reportPath = \
+            reportPath.replace('//', '/')
+
+        SystemManager.reportEnable = True
+
+        SystemManager.printInfo(\
+            "start writing report to %s" % SystemManager.reportPath)
+
+        return True
+
+
+
+    @staticmethod
     def checkWssTopCond():
         if SystemManager.findOption('g') is False:
             SystemManager.printError(\
@@ -13568,8 +13591,7 @@ class SystemManager(object):
             SystemManager.printError(\
                 "Fail to get root permission to sample stack")
             return False
-        elif SystemManager.findOption('g') is False or \
-            SystemManager.getOption('g') is None:
+        elif SystemManager.getOption('g') is None:
             SystemManager.printError(\
                 "wrong option stack monitoring, "
                 "use also -g option to show stacks")
@@ -14369,7 +14391,7 @@ class SystemManager(object):
         addr = SystemManager.getOption('x')
 
         # parse address value #
-        if addr is not None and addr is not False:
+        if addr is not None:
             ret = SystemManager.parseAddr(addr)
             (service, ip, port) = ret
         else:
@@ -14436,7 +14458,7 @@ class SystemManager(object):
         addr = SystemManager.getOption('X')
 
         # search address of local guider process #
-        if addr is None or addr is False:
+        if addr is None:
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 1:
                 objs = SystemManager.getProcSocketObjs(pids[0])
@@ -14493,7 +14515,7 @@ class SystemManager(object):
         caddr = SystemManager.getOption('x')
 
         try:
-            if caddr is None or caddr is False:
+            if caddr is None:
                 ip = NetworkManager.getPublicIp()
                 port = 0
 
@@ -32442,6 +32464,13 @@ if __name__ == '__main__':
         # disk #
         elif SystemManager.isDiskTopMode():
             SystemManager.diskEnable = True
+
+        # report #
+        elif SystemManager.isReportTopMode():
+            if SystemManager.checkReportTopCond():
+                SystemManager.printEnable = False
+            else:
+                sys.exit(0)
 
         # print profile option #
         SystemManager.printProfileOption()
