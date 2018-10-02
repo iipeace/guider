@@ -8452,6 +8452,9 @@ class SystemManager(object):
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
+            # disable extended ascii code support #
+            SystemManager.supportExtAscii = False
+
             print('Usage:')
             print('    # %s [mode] [options]' % cmd)
             print('    $ %s <file> [options]' % cmd)
