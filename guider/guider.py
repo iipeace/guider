@@ -28,6 +28,7 @@ try:
     import atexit
     import struct
     import errno
+    import copy
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -14235,7 +14236,7 @@ class SystemManager(object):
                 pipeObj.socket = sock
 
                 # copy environment variables #
-                myEnv = os.environ.copy()
+                myEnv = copy.deepcopy(os.environ)
                 myEnv["REMOTERUN"] = "True"
 
                 # create process to communicate #
@@ -30023,9 +30024,34 @@ class ThreadAnalyzer(object):
             self.reportData['net']['outbound'] = netOut
 
             # storage #
-            SystemManager.sysInstance.updateStorageInfo()
-            self.reportData['storage'] = \
-                SystemManager.sysInstance.getStorageInfo()
+            if SystemManager.diskEnable is False:
+                SystemManager.sysInstance.updateStorageInfo()
+
+                # save previous storage usage #
+                self.prevStorageData = self.storageData
+                self.storageData = SystemManager.sysInstance.getStorageInfo()
+            else:
+                '''
+                storageData should have been saved on diskTop mode
+                '''
+                pass
+
+            # copy storage data into report data structure #
+            self.reportData['storage'] = copy.deepcopy(self.storageData)
+
+            # calculate diff of read /write on each devices #
+            for dev, value in sorted(self.reportData['storage'].items()):
+                # get read size on this interval #
+                try:
+                    value['read'] -= self.prevStorageData[dev]['read']
+                except:
+                    value['read'] = 0
+
+                # get write size on this interval #
+                try:
+                    value['write'] -= self.prevStorageData[dev]['write']
+                except:
+                    value['write'] = 0
 
         # get temperature #
         if SystemManager.gpuEnable:
@@ -30590,11 +30616,12 @@ class ThreadAnalyzer(object):
             "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
 
-        # remove total stat #
-        self.storageData.pop('total', None)
-
         printCnt = 0
         for dev, value in sorted(self.storageData.items()):
+            # skip total usage #
+            if dev == 'total':
+                continue
+
             # get read size on this interval #
             try:
                 readSize = value['read'] - self.prevStorageData[dev]['read']
