@@ -231,7 +231,7 @@ Output
 
 >>>
            
-    # ./guider.py top -o . -j . -u
+    # ./guider.py reporttop -j . -u
     # cat guider.report
 
     {
@@ -1147,8 +1147,8 @@ Examples
     - save resource usage of processes in background
         # ./guider.py top -o . -u
 
-    - save resource usage of processes and report system stats in background
-        # ./guider.py top -o . -e r -j . -u
+    - report system stats in the background
+        # ./guider.py reporttop -j . -u
 
     - save resource usage of processes and report system stats if some events occur
         # ./guider.py top -o . -e r, R
