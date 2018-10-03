@@ -63,7 +63,8 @@ class ConfigManager(object):
     ''' % __version__
 
     # Define color #
-    if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+    if sys.platform.startswith('linux') or \
+        sys.platform.startswith('freebsd'):
         WARNING = '\033[95m'
         OKBLUE = '\033[94m'
         OKGREEN = '\033[92m'
@@ -945,7 +946,7 @@ class NetworkManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
                     (targetPath, \
-                    SystemManager.convertSize(os.path.getsize(targetPath)),
+                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)),
                     targetIp, targetPort, origPath))
             except:
                 err = sys.exc_info()[1]
@@ -990,7 +991,7 @@ class NetworkManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
                     (origPath, \
-                    SystemManager.convertSize(os.path.getsize(origPath)), \
+                    SystemManager.convertSize2Unit(os.path.getsize(origPath)), \
                     ':'.join(list(map(str, addr))), targetPath))
             except:
                 err = sys.exc_info()[1]
@@ -8065,7 +8066,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getDigitSize(value):
+    def convertUnit2Size(value):
         sizeKB = 1024
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
@@ -8091,8 +8092,10 @@ class SystemManager(object):
                 return long(value[:-1]) * sizeTB
             if value.upper().endswith('TB'):
                 return long(value[:-2]) * sizeTB
+
+            raise Exception()
         except:
-            return False
+            return None
 
 
 
@@ -8110,7 +8113,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def convertSize(size, isInt=False):
+    def convertSize2Unit(size, isInt=False):
         sizeKB = 1024
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
@@ -9699,10 +9702,10 @@ class SystemManager(object):
         try:
             cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
             perfbuf = '%sCycle: %s / ' % \
-                (perfbuf, SystemManager.convertSize(cpucycle))
+                (perfbuf, SystemManager.convertSize2Unit(cpucycle))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
             perfbuf = '%sInst: %s / ' % \
-                (perfbuf, SystemManager.convertSize(inst))
+                (perfbuf, SystemManager.convertSize2Unit(inst))
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
         except:
@@ -9714,7 +9717,7 @@ class SystemManager(object):
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
             perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize(cachemiss), cachemissrate)
+                (perfbuf, SystemManager.convertSize2Unit(cachemiss), cachemissrate)
         except:
             pass
 
@@ -9724,14 +9727,14 @@ class SystemManager(object):
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
             perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize(branchmiss), branchmissrate)
+                (perfbuf, SystemManager.convertSize2Unit(branchmiss), branchmissrate)
         except:
             pass
 
         # CPU stats #
         try:
             perfbuf = '%sClk: %s / ' % \
-                (perfbuf, SystemManager.convertSize(\
+                (perfbuf, SystemManager.convertSize2Unit(\
                 value['PERF_COUNT_SW_CPU_CLOCK']))
         except:
             pass
@@ -10804,12 +10807,13 @@ class SystemManager(object):
 
                 try:
                     fsize = \
-                        SystemManager.convertSize(\
+                        SystemManager.convertSize2Unit(\
                         int(os.path.getsize(SystemManager.inputFile)))
                 except:
                     fsize = '?'
                 SystemManager.printInfo(\
-                    "finish saving results based monitoring into %s [%s] successfully" % \
+                    "finish saving results based monitoring into "
+                    "%s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -10877,12 +10881,13 @@ class SystemManager(object):
 
             try:
                 fsize = \
-                    SystemManager.convertSize(\
+                    SystemManager.convertSize2Unit(\
                     int(os.path.getsize(SystemManager.inputFile)))
             except:
                 fsize = '?'
             SystemManager.printInfo(\
-                "finish saving results based monitoring into %s [%s] successfully" % \
+                "finish saving results based monitoring into "
+                "%s [%s] successfully" % \
                 (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -10962,14 +10967,14 @@ class SystemManager(object):
                             fw.write(fr.read())
 
                             try:
-                                fsize = SystemManager.convertSize(\
+                                fsize = SystemManager.convertSize2Unit(\
                                     int(os.path.getsize(output)))
                             except:
                                 fsize = '?'
 
                             SystemManager.printInfo(\
-                                'finish saving trace data into %s [%s] successfully' % \
-                                (output, fsize))
+                                'finish saving trace data into '
+                                '%s [%s] successfully' % (output, fsize))
                 except:
                     SystemManager.printWarning(\
                         'Fail to save trace data to %s' % output)
@@ -11010,7 +11015,7 @@ class SystemManager(object):
                 f.writelines(lines)
 
                 try:
-                    fsize = SystemManager.convertSize(\
+                    fsize = SystemManager.convertSize2Unit(\
                         int(os.path.getsize(SystemManager.outputFile)))
                 except:
                     fsize = '?'
@@ -11755,7 +11760,7 @@ class SystemManager(object):
 
         try:
             fsize = \
-                SystemManager.convertSize(\
+                SystemManager.convertSize2Unit(\
                 int(os.path.getsize(SystemManager.imagePath)))
         except:
             fsize = '?'
@@ -14163,7 +14168,7 @@ class SystemManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
                     (targetPath, \
-                    SystemManager.convertSize(os.path.getsize(targetPath)), \
+                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), remotePath))
             except:
                 err = sys.exc_info()[1]
@@ -14216,7 +14221,7 @@ class SystemManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
                     (targetPath, \
-                    SystemManager.convertSize(os.path.getsize(targetPath)), \
+                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), origPath))
             except:
                 err = sys.exc_info()[1]
@@ -14673,8 +14678,8 @@ class SystemManager(object):
             sys.exit(0)
 
         value = sys.argv[2]
-        size = SystemManager.getDigitSize(value)
-        if size is False:
+        size = SystemManager.convertUnit2Size(value)
+        if size is None:
             SystemManager.printError(\
                 ("wrong option value to test memory allocation, "
                 "input size to allocate memory"))
@@ -14696,8 +14701,8 @@ class SystemManager(object):
         SystemManager.printInfo((\
             'allocated %s of physical memory, '
             'additionally used %s of physical memory for running') % \
-            (SystemManager.convertSize(len(buffer)), \
-            SystemManager.convertSize(rssSize)))
+            (SystemManager.convertSize2Unit(len(buffer)), \
+            SystemManager.convertSize2Unit(rssSize)))
 
         signal.pause()
 
@@ -15757,7 +15762,7 @@ class SystemManager(object):
 
         if SystemManager.fileForPrint is not None:
             try:
-                fsize = SystemManager.convertSize(\
+                fsize = SystemManager.convertSize2Unit(\
                     int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
                 SystemManager.printInfo(\
                     "finish saving results into %s [%s] successfully" % \
@@ -16929,12 +16934,12 @@ class SystemManager(object):
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - \
                     int(beforeInfo['sectorRead'])) << 9
-                readSize = SystemManager.convertSize(readSize)
+                readSize = SystemManager.convertSize2Unit(readSize)
 
                 write = writeSize = \
                     (int(afterInfo['sectorWrite']) - \
                     int(beforeInfo['sectorWrite'])) << 9
-                writeSize = SystemManager.convertSize(writeSize)
+                writeSize = SystemManager.convertSize2Unit(writeSize)
 
                 totalInfo['read'] += read
                 totalInfo['write'] += write
@@ -16963,9 +16968,9 @@ class SystemManager(object):
                 except:
                     pass
 
-                total = SystemManager.convertSize(total)
-                free = SystemManager.convertSize(free)
-                avail = SystemManager.convertSize(avail)
+                total = SystemManager.convertSize2Unit(total)
+                free = SystemManager.convertSize2Unit(free)
+                avail = SystemManager.convertSize2Unit(avail)
             except:
                 pass
 
@@ -17025,15 +17030,15 @@ class SystemManager(object):
                     usage = 0
 
                 totalInfo['total'] = \
-                    SystemManager.convertSize(totalInfo['total'])
+                    SystemManager.convertSize2Unit(totalInfo['total'])
                 totalInfo['free'] = \
-                    SystemManager.convertSize(totalInfo['free'])
+                    SystemManager.convertSize2Unit(totalInfo['free'])
                 totalInfo['favail'] = \
-                    SystemManager.convertSize(totalInfo['favail'])
+                    SystemManager.convertSize2Unit(totalInfo['favail'])
                 totalInfo['read'] = \
-                    SystemManager.convertSize(totalInfo['read'])
+                    SystemManager.convertSize2Unit(totalInfo['read'])
                 totalInfo['write'] = \
-                    SystemManager.convertSize(totalInfo['write'])
+                    SystemManager.convertSize2Unit(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
             except:
                 totalInfo['use'] = '?%'
@@ -19451,7 +19456,10 @@ class EventAnalyzer(object):
 
         try:
             eventData[name]
-            # {'list': [ID, time, number], 'summary': [ID, cnt, avr, min, max, first, last]} #
+            '''
+            {'list': [ID, time, number], \
+            'summary': [ID, cnt, avr, min, max, first, last]}
+            '''
         except:
             eventData[name] = {'list': [], 'summary': []}
 
@@ -19563,7 +19571,8 @@ class ThreadAnalyzer(object):
         }
     }
 
-    init_procTotData = {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
+    init_procTotData = \
+        {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
         'startIdx': int(0), 'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), \
         'memDiff': int(0), 'blk': int(0), 'minMem': int(0), 'maxMem': int(0), \
         'minVss': int(0), 'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
@@ -19802,7 +19811,10 @@ class ThreadAnalyzer(object):
         # initialize preempt thread list #
         if SystemManager.preemptGroup != None:
             for index in SystemManager.preemptGroup:
-                # preempted state [preemptBit, threadList, startTime, core, totalUsage] #
+                '''
+                preempted state
+                [preemptBit, threadList, startTime, core, totalUsage] #
+                '''
                 self.preemptData.append([False, {}, float(0), 0, float(0)])
 
         try:
@@ -20642,18 +20654,21 @@ class ThreadAnalyzer(object):
 
         seq = 0
         height = \
-            int(len(data) / 2) if len(data) % 2 == 0 else int(len(data) / 2 + 1)
+            int(len(data) / 2) \
+            if len(data) % 2 == 0 else int(len(data) / 2 + 1)
         colors = \
-            ['pink', 'lightgreen', 'skyblue', 'lightcoral', 'gold', 'yellowgreen']
+            ['pink', 'lightgreen', 'skyblue', \
+            'lightcoral', 'gold', 'yellowgreen']
         propList = \
-            ['count', 'vmem', 'rss', 'pss', 'swap', 'huge', 'locked', 'pdirty', 'sdirty']
+            ['count', 'vmem', 'rss', 'pss', 'swap', \
+            'huge', 'locked', 'pdirty', 'sdirty']
         suptitle('guider memory chart', fontsize=8)
 
         def make_autopct(values):
             def autopct(pct):
                 total = sum(values)
                 val = int(round(pct*total/100.0)) << 20
-                val = SystemManager.convertSize(val, True)
+                val = SystemManager.convertSize2Unit(val, True)
                 usage = '{v:s} ({p:.0f}%)'.format(p=pct,v=val)
                 line = '=' * 7
                 string = '{s:1}\n{l:1}{d:1}'.\
@@ -20689,23 +20704,23 @@ class ThreadAnalyzer(object):
                     value[propList.index('swap')])
 
                 # set private dirty size #
-                pdrt = SystemManager.convertSize(\
+                pdrt = SystemManager.convertSize2Unit(\
                     value[propList.index('pdirty')] << 10, True)
 
                 # set shared dirty size #
-                sdrt = SystemManager.convertSize(\
+                sdrt = SystemManager.convertSize2Unit(\
                     value[propList.index('sdirty')] << 10, True)
 
                 # set rss size #
-                rss = SystemManager.convertSize(\
+                rss = SystemManager.convertSize2Unit(\
                     value[propList.index('rss')] << 20, True)
 
                 # set swap size #
-                swap = SystemManager.convertSize(\
+                swap = SystemManager.convertSize2Unit(\
                     value[propList.index('swap')] << 20, True)
 
                 # set locked size #
-                locked = SystemManager.convertSize(\
+                locked = SystemManager.convertSize2Unit(\
                     value[propList.index('locked')] << 10, True)
 
                 self.details.append((\
@@ -20734,23 +20749,23 @@ class ThreadAnalyzer(object):
 
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            total = SystemManager.convertSize((rss+swap) << 20)
+            total = SystemManager.convertSize2Unit((rss+swap) << 20)
 
-            rss = SystemManager.convertSize(rss << 20)
-            swap = SystemManager.convertSize(swap << 20)
+            rss = SystemManager.convertSize2Unit(rss << 20)
+            swap = SystemManager.convertSize2Unit(swap << 20)
 
-            vmem = SystemManager.convertSize(\
+            vmem = SystemManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('vmem')] << 20)
 
-            pss = SystemManager.convertSize(\
+            pss = SystemManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('pss')] << 20)
 
-            lock = SystemManager.convertSize(\
+            lock = SystemManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('locked')] << 10)
 
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            dirty = SystemManager.convertSize(dirty << 10)
+            dirty = SystemManager.convertSize2Unit(dirty << 10)
 
             totalList =\
                 [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
@@ -20890,12 +20905,14 @@ class ThreadAnalyzer(object):
                     labelList.append('[ %s ]' % gpu)
                     maxUsage = max(stat)
                     maxIdx = stat.index(maxUsage)
-                    for idx in [idx for idx, usage in enumerate(stat) if usage == maxUsage]:
+                    for idx in [idx for idx, usage in enumerate(stat) \
+                        if usage == maxUsage]:
                         if idx != 0 and stat[idx] == stat[idx-1]:
                             continue
                         text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
                             fontsize=5, color='olive', fontweight='bold',\
-                            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                            bbox=dict(boxstyle='round', facecolor='wheat', \
+                            alpha=0.3))
 
             #-------------------- CPU usage --------------------#
             ymax = 0
@@ -20916,16 +20933,19 @@ class ThreadAnalyzer(object):
                         avgUsage = 0
                     maxUsage = max(blkWait)
                     maxIdx = blkWait.index(maxUsage)
-                    for idx in [idx for idx, usage in enumerate(blkWait) if usage == maxUsage]:
+                    for idx in [idx for idx, usage in enumerate(blkWait) \
+                        if usage == maxUsage]:
                         if idx != 0 and blkWait[idx] == blkWait[idx-1]:
                             continue
                         text(timeline[idx], blkWait[maxIdx], \
                             'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='pink', fontweight='bold',\
-                            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                            bbox=dict(boxstyle='round', facecolor='wheat', \
+                            alpha=0.3))
                         break
 
-                plot(timeline, cpuUsage, '-', c='red', linewidth=2, solid_capstyle='round')
+                plot(timeline, cpuUsage, '-', c='red', \
+                    linewidth=2, solid_capstyle='round')
                 labelList.append('[ CPU Average ]')
                 try:
                     avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
@@ -20933,7 +20953,8 @@ class ThreadAnalyzer(object):
                     avgUsage = 0
                 maxUsage = max(cpuUsage)
                 maxIdx = cpuUsage.index(maxUsage)
-                for idx in [idx for idx, usage in enumerate(cpuUsage) if usage == maxUsage]:
+                for idx in [idx for idx, usage in enumerate(cpuUsage) \
+                    if usage == maxUsage]:
                     if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
                         continue
                     text(timeline[idx], cpuUsage[maxIdx], \
@@ -21038,13 +21059,16 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+            figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
 
         def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
             reclaimBg, reclaimDr, xtype, pos, size):
+
+            convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
             labelList = []
@@ -21058,11 +21082,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='skyblue', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='skyblue', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21070,7 +21094,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='skyblue', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, blkRead, '-', c='skyblue', linewidth=2, alpha=0.1)
@@ -21084,11 +21108,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='green', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='green', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21096,7 +21120,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='green', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, blkWrite, '-', c='green', linewidth=2, alpha=0.1)
@@ -21110,11 +21134,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='pink', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='pink', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21122,7 +21146,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='pink', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, reclaimBg, '-', c='pink', linewidth=2, alpha=0.1)
@@ -21136,11 +21160,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='red', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='red', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21148,7 +21172,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='red', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, reclaimDr, '-', c='red', linewidth=2, alpha=0.1)
@@ -21162,11 +21186,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='purple', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='purple', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21174,7 +21198,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='purple', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, netRead, '-', c='purple', linewidth=2, alpha=0.1)
@@ -21188,11 +21212,11 @@ class ThreadAnalyzer(object):
             maxIdx = usage.index(max(usage))
             if usage[minIdx] > 0:
                 text(timeline[minIdx], usage[minIdx], \
-                    SystemManager.convertSize(usage[minIdx] << 10), \
+                    convertSize2Unit(usage[minIdx] << 10), \
                     fontsize=5, color='cyan', fontweight='bold')
             if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                 text(timeline[maxIdx], usage[maxIdx], \
-                    SystemManager.convertSize(usage[maxIdx] << 10), \
+                    convertSize2Unit(usage[maxIdx] << 10), \
                     fontsize=5, color='cyan', fontweight='bold')
             if usage[-1] > 0:
                 try:
@@ -21200,7 +21224,7 @@ class ThreadAnalyzer(object):
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
-                    SystemManager.convertSize(usage[-1] << 10), \
+                    convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='cyan', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
                 plot(timeline, netWrite, '-', c='cyan', linewidth=2, alpha=0.1)
@@ -21245,7 +21269,7 @@ class ThreadAnalyzer(object):
                         plot(timeline, wrUsage, '-', linewidth=1)[0].get_color()
                     if wrUsage[maxIdx] > 0:
                         text(timeline[maxIdx], wrUsage[maxIdx] + margin, \
-                            '[%s]%s' % (SystemManager.convertSize(\
+                            '[%s]%s' % (convertSize2Unit(\
                             wrUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
@@ -21254,8 +21278,8 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, wrUsage[-1] + margin, '[%s]%s' % \
-                            (SystemManager.convertSize(wrUsage[-1] << 10), idx), \
-                            fontsize=3, color=color, fontweight='bold')
+                            (convertSize2Unit(wrUsage[-1] << 10), \
+                            idx), fontsize=3, color=color, fontweight='bold')
                     labelList.append('%s[BWR]' % idx)
 
                 # Block Read of process #
@@ -21268,7 +21292,7 @@ class ThreadAnalyzer(object):
                         plot(timeline, rdUsage, '-', linewidth=1)[0].get_color()
                     if rdUsage[maxIdx] > 0:
                         text(timeline[maxIdx], rdUsage[maxIdx] + margin, \
-                            '[%s]%s' % (SystemManager.convertSize(\
+                            '[%s]%s' % (convertSize2Unit(\
                             rdUsage[maxIdx] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
@@ -21277,7 +21301,7 @@ class ThreadAnalyzer(object):
                         except:
                             unit = 0
                         text(timeline[-1]+unit, rdUsage[-1] + margin, \
-                            '[%s]%s' % (SystemManager.convertSize(\
+                            '[%s]%s' % (convertSize2Unit(\
                             rdUsage[-1] << 10), idx), fontsize=3, \
                             color=color, fontweight='bold')
                     labelList.append('%s[BRD]' % idx)
@@ -21314,7 +21338,8 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
             ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+            figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             # convert tick type to integer #
@@ -21325,7 +21350,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 10) for val in ytickLabel]
+                    [convertSize2Unit(val << 10) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ''
@@ -21346,8 +21371,10 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
-            totalRAM, swapUsage, totalSwap, xtype, pos, size):
+        def drawMem(timeline, labelList, memFree, memAnon, memCache, \
+            memProcUsage, totalRAM, swapUsage, totalSwap, xtype, pos, size):
+
+            convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
             labelList = []
@@ -21367,21 +21394,21 @@ class ThreadAnalyzer(object):
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], \
-                        SystemManager.convertSize(usage[minIdx] << 20), \
+                        convertSize2Unit(usage[minIdx] << 20), \
                         fontsize=5, color='blue', fontweight='bold')
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], \
-                        SystemManager.convertSize(usage[maxIdx] << 20), \
+                        convertSize2Unit(usage[maxIdx] << 20), \
                         fontsize=5, color='blue', fontweight='bold')
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], \
-                        SystemManager.convertSize(usage[-1] << 20), \
+                        convertSize2Unit(usage[-1] << 20), \
                         fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', \
                     linewidth=2, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
-                        SystemManager.convertSize(long(totalRAM) << 20)
+                        convertSize2Unit(long(totalRAM) << 20)
                     labelList.append(label)
                 else:
                     labelList.append('RAM Free')
@@ -21395,15 +21422,15 @@ class ThreadAnalyzer(object):
                 else:
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], \
-                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            convertSize2Unit(usage[minIdx] << 20), \
                             fontsize=5, color='skyblue', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], \
-                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            convertSize2Unit(usage[maxIdx] << 20), \
                             fontsize=5, color='skyblue', fontweight='bold')
                     if usage[-1] > 0:
                         text(timeline[-1], usage[-1], \
-                            SystemManager.convertSize(usage[-1] << 20), \
+                            convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', \
                         linewidth=2, solid_capstyle='round')
@@ -21418,15 +21445,15 @@ class ThreadAnalyzer(object):
                 else:
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], \
-                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            convertSize2Unit(usage[minIdx] << 20), \
                             fontsize=5, color='darkgray', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], \
-                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            convertSize2Unit(usage[maxIdx] << 20), \
                             fontsize=5, color='darkgray', fontweight='bold')
                     if usage[-1] > 0:
                         text(timeline[-1], usage[-1], \
-                            SystemManager.convertSize(usage[-1] << 20), \
+                            convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='darkgray', fontweight='bold')
                     plot(timeline, usage, '-', c='darkgray', \
                         linewidth=2, solid_capstyle='round')
@@ -21441,21 +21468,21 @@ class ThreadAnalyzer(object):
                 else:
                     if usage[minIdx] > 0:
                         text(timeline[minIdx], usage[minIdx], \
-                            SystemManager.convertSize(usage[minIdx] << 20), \
+                            convertSize2Unit(usage[minIdx] << 20), \
                             fontsize=5, color='orange', fontweight='bold')
                     if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                         text(timeline[maxIdx], usage[maxIdx], \
-                            SystemManager.convertSize(usage[maxIdx] << 20), \
+                            convertSize2Unit(usage[maxIdx] << 20), \
                             fontsize=5, color='orange', fontweight='bold')
                     if usage[-1] > 0:
                         text(timeline[-1], usage[-1], \
-                            SystemManager.convertSize(usage[-1] << 20), \
+                            convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='orange', fontweight='bold')
                     plot(timeline, swapUsage, '-', c='orange', \
                         linewidth=2, solid_capstyle='round')
                     if totalSwap is not None:
                         label = 'Swap Total [%s]\nSwap Usage' % \
-                            SystemManager.convertSize(long(totalSwap) << 20)
+                            convertSize2Unit(long(totalSwap) << 20)
                         labelList.append(label)
                     else:
                         labelList.append('Swap Usage')
@@ -21472,7 +21499,8 @@ class ThreadAnalyzer(object):
                 # Process VSS #
                 if SystemManager.vssEnable:
                     for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        key=lambda e: 0 \
+                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
 
@@ -21488,21 +21516,23 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
-                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                            color = plot(timeline, usage, '-', \
+                                linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    convertSize2Unit(usage[minIdx] << 20), key), \
                                     color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and \
+                                usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    convertSize2Unit(usage[maxIdx] << 20), key), \
                                     color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    convertSize2Unit(usage[-1] << 20), key), \
                                     color=color, fontsize=3)
                             labelList.append('%s [VSS]' % key)
 
@@ -21510,7 +21540,8 @@ class ThreadAnalyzer(object):
                 elif SystemManager.leakEnable:
                     # get VSS diffs #
                     for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        key=lambda e: 0 \
+                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))
                         # get maximum value #
@@ -21567,24 +21598,27 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
-                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                            color = plot(timeline, usage, '-', \
+                                linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] - margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    convertSize2Unit(usage[minIdx] << 20), key), \
                                     color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and \
+                                usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s/+%s] %s' % (\
-                                    SystemManager.convertSize(usage[maxIdx] << 20), \
-                                    SystemManager.convertSize(item['vssDiff'] << 20), key), \
+                                    convertSize2Unit(usage[maxIdx] << 20), \
+                                    convertSize2Unit(item['vssDiff'] << 20), key), \
                                     color=color, fontsize=3)
                             labelList.append('%s [LEAK]' % key)
 
                 # Process RSS #
                 if SystemManager.rssEnable:
                     for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 if not 'maxRss' in e[1] else e[1]['maxRss'], \
+                        key=lambda e: 0 \
+                        if not 'maxRss' in e[1] else e[1]['maxRss'], \
                         reverse=True):
                         try:
                             usage = list(map(int, item['rssUsage'].split()))
@@ -21604,21 +21638,23 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             pass
                         else:
-                            color = plot(timeline, usage, '-', linewidth=1)[0].get_color()
+                            color = plot(timeline, usage, '-', \
+                                linewidth=1)[0].get_color()
                             if usage[minIdx] > 0:
                                 text(timeline[minIdx], usage[minIdx] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[minIdx] << 20), key), \
+                                    convertSize2Unit(usage[minIdx] << 20), key), \
                                     color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                            if usage[minIdx] != usage[maxIdx] and \
+                                usage[maxIdx] > 0:
                                 text(timeline[maxIdx], usage[maxIdx] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[maxIdx] << 20), key), \
+                                    convertSize2Unit(usage[maxIdx] << 20), key), \
                                     color=color, fontsize=3)
                             if usage[-1] > 0:
                                 text(timeline[-1], usage[-1] + margin, \
                                     '[%s] %s' % (\
-                                    SystemManager.convertSize(usage[-1] << 20), key), \
+                                    convertSize2Unit(usage[-1] << 20), key), \
                                     color=color, fontsize=3)
                             labelList.append('%s [RSS]' % key)
 
@@ -21654,7 +21690,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [SystemManager.convertSize(val << 20) for val in ytickLabel]
+                    [convertSize2Unit(val << 20) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ''
@@ -21676,7 +21712,8 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+            figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
@@ -21699,8 +21736,8 @@ class ThreadAnalyzer(object):
             drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
                 reclaimBg, reclaimDr, 2, 4, 1)
 
-            drawMem(timeline, labelList, memFree, memAnon, memCache, memProcUsage,\
-                totalRAM, swapUsage, totalSwap, 1, 5, 1)
+            drawMem(timeline, labelList, memFree, memAnon, memCache, \
+                memProcUsage, totalRAM, swapUsage, totalSwap, 1, 5, 1)
         else:
             pos = 0
             total = 0
@@ -21721,7 +21758,8 @@ class ThreadAnalyzer(object):
                     try:
                         layoutDict[target]
                         SystemManager.printError(\
-                            "Fail to draw graph because %s graph is duplicated" % target)
+                            "Fail to draw graph "
+                            "because %s graph is duplicated" % target)
                         sys.exit(0)
                     except SystemExit:
                         sys.exit(0)
@@ -21738,7 +21776,8 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
                 except:
                     SystemManager.printError(\
-                        "Fail to draw graph because graph format [TYPE:SIZE] is wrong")
+                        "Fail to draw graph "
+                        "because graph format [TYPE:SIZE] is wrong")
                     sys.exit(0)
 
             for idx, item in enumerate(layoutList):
@@ -21766,7 +21805,8 @@ class ThreadAnalyzer(object):
                             xtype, pos, size)
                     else:
                         SystemManager.printError(\
-                            "Fail to draw graph because '%s' is not recognized" % target)
+                            "Fail to draw graph "
+                            "because '%s' is not recognized" % target)
                         sys.exit(0)
 
                     if idx == 0:
@@ -21828,7 +21868,8 @@ class ThreadAnalyzer(object):
             clf()
             try:
                 fsize = \
-                    SystemManager.convertSize(int(os.path.getsize(outputFile)))
+                    SystemManager.convertSize2Unit(\
+                    int(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
             SystemManager.printStatus(\
@@ -21883,7 +21924,8 @@ class ThreadAnalyzer(object):
 
         ConfigManager.writeConfData(fd, '[%s]\n' % (eventInput))
         threadInput = \
-            raw_input('Input id of target threads for taskchain (ex. 13,144,235): ')
+            raw_input(\
+            'Input id of target threads for taskchain (ex. 13,144,235): ')
         threadList = threadInput.split(',')
         ConfigManager.writeConfData(fd, 'nr_tid=' + str(len(threadList)) + '\n')
 
@@ -21928,7 +21970,8 @@ class ThreadAnalyzer(object):
 
         if self.threadData[tid]['createdTime'] > 0:
             threadName += " /%2.3f/" % \
-                (self.threadData[tid]['createdTime'] - float(SystemManager.startTime))
+                (self.threadData[tid]['createdTime'] - \
+                float(SystemManager.startTime))
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
         if self.threadData[tid]['childList'] is not None:
@@ -22411,8 +22454,8 @@ class ThreadAnalyzer(object):
 
                 # calculate total core usage percentage #
                 try:
-                    usagePercent = \
-                        100 - (round(float(value['usage']) / float(self.totalTime), 7) * 100)
+                    idle = float(value['usage']) / float(self.totalTime)
+                    usagePercent = 100 - (round(idle, 7) * 100)
                 except:
                     usagePercent = 0
 
@@ -22540,7 +22583,8 @@ class ThreadAnalyzer(object):
                 breakCond = value['nrPages']
             elif SystemManager.sort == 'b':
                 breakCond = \
-                    value['readBlock'] + value['writeBlock'] + value['awriteBlock']
+                    value['readBlock'] + value['writeBlock'] + \
+                    value['awriteBlock']
             else:
                 breakCond = usagePercent
 
@@ -23486,8 +23530,8 @@ class ThreadAnalyzer(object):
 
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
-                    start = SystemManager.convertSize(optSize)
-                    end = SystemManager.convertSize((optSize << 1) - 1024)
+                    start = SystemManager.convertSize2Unit(optSize)
+                    end = SystemManager.convertSize2Unit((optSize << 1) - 1024)
                     SystemManager.pipePrint(\
                         "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
                         format('', '', '', '[%5s - %5s]' % (start, end),\
@@ -24572,7 +24616,8 @@ class ThreadAnalyzer(object):
         if 'time' not in ThreadAnalyzer.procIntData[index]:
             m = re.match((\
                 r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
-                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
+                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+' \
+                r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
                 r'\[Core:\s*(?P<nrCore>[0-9]+)\].+' \
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
@@ -24588,14 +24633,31 @@ class ThreadAnalyzer(object):
         # Split stats #
         tokenList = procLine.split('|')
 
+        # Get Storage resource usage #
+        if len(tokenList) == 11 and tokenList[0][0] == '/':
+            convertUnit2Size = SystemManager.convertUnit2Size
+
+            try:
+                dev = tokenList[0].strip()
+                read = convertUnit2Size(tokenList[1].strip())
+                write = convertUnit2Size(tokenList[2].strip())
+                free = convertUnit2Size(tokenList[3].strip())
+                freeDiff = convertUnit2Size(tokenList[4].strip())
+                total = convertUnit2Size(tokenList[6].strip())
+                favail = convertUnit2Size(tokenList[7].strip())
+            except:
+                pass
+
         # Get total resource usage #
         if 'total' not in ThreadAnalyzer.procIntData[index] and \
             tokenList[0].startswith('Total'):
 
             # CPU & BLOCK stat #
             m = re.match((\
-                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' \
-                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)'), tokenList[1])
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*' \
+                r'(?P<user>\-*[0-9]+)\s*\/s*\s*' \
+                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*' \
+                r'(?P<block>\-*[0-9]+)'), tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
@@ -24681,14 +24743,16 @@ class ThreadAnalyzer(object):
 
         # Get GPU resource usage #
         if len(tokenList) == 5:
-            m = re.match(r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+            m = re.match(\
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m is not None:
                 d = m.groupdict()
 
                 gpu = d['gpu'].strip()
                 usage = int(d['usage'])
 
-                ThreadAnalyzer.procIntData[index]['total'].setdefault('gpu', dict())
+                ThreadAnalyzer.procIntData[index]['total'].setdefault(\
+                    'gpu', dict())
                 ThreadAnalyzer.procTotData['total'].setdefault('gpu', dict())
 
                 try:
@@ -24699,15 +24763,15 @@ class ThreadAnalyzer(object):
                 try:
                     ThreadAnalyzer.procIntData[index]['total']['gpu'][gpu] = usage
                 except:
-                    ThreadAnalyzer.procIntData[index]['total']['gpu'][d['proc']] = 0
+                    pass
 
                 return
 
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>\S+)'
-            r'\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
+            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
+            r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if m is not None:
             d = m.groupdict()
             pid = d['pid']
@@ -25470,7 +25534,7 @@ class ThreadAnalyzer(object):
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
         else:
-            # print summarized interval table #
+            # build summary interval table #
             ThreadAnalyzer.summarizeIntervalUsage()
 
             # print interval info #
@@ -28193,7 +28257,8 @@ class ThreadAnalyzer(object):
                 True in [True for event in SystemManager.customEventList if event.find('/') == -1]:
                 # add data into list #
                 ntime = float(time) - float(SystemManager.startTime)
-                self.customEventData.append([func, comm, thread, ntime, etc.strip()])
+                self.customEventData.append(\
+                    [func, comm, thread, ntime, etc.strip()])
 
                 # make event list #
                 if self.threadData[thread]['customEvent'] is None:
@@ -28216,7 +28281,8 @@ class ThreadAnalyzer(object):
                     interDiff = float(time) - eventObj['start']
 
                 # update period of thread #
-                if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
+                if interDiff > eventObj['maxPeriod'] or \
+                    eventObj['maxPeriod'] == 0:
                     self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
                 if interDiff < eventObj['minPeriod'] or eventObj == 0:
                     self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
@@ -28251,7 +28317,8 @@ class ThreadAnalyzer(object):
                     if func == '%s_enter' % name:
                         # add data into list #
                         ntime = float(time) - float(SystemManager.startTime)
-                        self.userEventData.append(['ENTER', name, comm, thread, ntime, ''])
+                        self.userEventData.append(\
+                            ['ENTER', name, comm, thread, ntime, ''])
 
                         # get interval #
                         interDiff = 0
@@ -28262,9 +28329,11 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['userEvent'][name]['start'] = float(time)
 
                         # update period of thread #
-                        if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
+                        if interDiff > eventObj['maxPeriod'] or \
+                            eventObj['maxPeriod'] == 0:
                             self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
-                        if interDiff < eventObj['minPeriod'] or eventObj['minPeriod'] == 0:
+                        if interDiff < eventObj['minPeriod'] or \
+                            eventObj['minPeriod'] == 0:
                             self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
 
                         self.userEventInfo[name]['count'] += 1
@@ -28354,9 +28423,11 @@ class ThreadAnalyzer(object):
                             self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
 
                             # update period of thread #
-                            if interDiff > eventObj['maxPeriod'] or eventObj['maxPeriod'] == 0:
+                            if interDiff > eventObj['maxPeriod'] or \
+                                eventObj['maxPeriod'] == 0:
                                 self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
-                            if interDiff < eventObj['minPeriod'] or eventObj['minPeriod'] == 0:
+                            if interDiff < eventObj['minPeriod'] or \
+                                eventObj['minPeriod'] == 0:
                                 self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
 
                             self.kernelEventInfo[name]['count'] += 1
@@ -28405,9 +28476,11 @@ class ThreadAnalyzer(object):
                                 self.kernelEventInfo[name]['usage'] += usage
 
                                 # update usage of thread #
-                                if usage > eventObj['max'] or eventObj['max'] == 0:
+                                if usage > eventObj['max'] or \
+                                    eventObj['max'] == 0:
                                     self.threadData[thread]['kernelEvent'][name]['max'] = usage
-                                if usage < eventObj['min'] or eventObj['min'] == 0:
+                                if usage < eventObj['min'] or \
+                                    eventObj['min'] == 0:
                                     self.threadData[thread]['kernelEvent'][name]['min'] = usage
 
                                 # update usage of system #
@@ -29954,8 +30027,8 @@ class ThreadAnalyzer(object):
         # convert network usage #
         try:
             netIO = '%s/%s' % \
-                (SystemManager.convertSize(netIn, True), \
-                SystemManager.convertSize(netOut, True))
+                (SystemManager.convertSize2Unit(netIn, True), \
+                SystemManager.convertSize2Unit(netOut, True))
         except:
             netIO = '-/-'
 
@@ -30492,7 +30565,7 @@ class ThreadAnalyzer(object):
                     prop = 'Size:'
                     tmpstr = "%s%s%5s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
@@ -30500,7 +30573,7 @@ class ThreadAnalyzer(object):
                     prop = 'Rss:'
                     tmpstr = "%s%s%5s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                     rss += item[prop]
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
@@ -30509,7 +30582,7 @@ class ThreadAnalyzer(object):
                     prop = 'Pss:'
                     tmpstr = "%s%s%5s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                     pss += item[prop]
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
@@ -30518,7 +30591,7 @@ class ThreadAnalyzer(object):
                     prop = 'Swap:'
                     tmpstr = "%s%s%5s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
 
@@ -30526,7 +30599,7 @@ class ThreadAnalyzer(object):
                     prop = 'AnonHugePages:'
                     tmpstr = "%s%s:%4s / " % \
                         (tmpstr, 'HUGE', \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%3sK / " % (tmpstr, 'HUGE', 0)
 
@@ -30534,7 +30607,7 @@ class ThreadAnalyzer(object):
                     prop = 'Locked:'
                     tmpstr = "%s%s%5s / " % \
                         (tmpstr, 'LOCK:', \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
 
@@ -30549,7 +30622,7 @@ class ThreadAnalyzer(object):
                     sss += item[prop]
                     tmpstr = "%s%s:%5s / " % \
                         (tmpstr, 'SDRT', \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
 
@@ -30557,7 +30630,7 @@ class ThreadAnalyzer(object):
                     prop = 'Private_Dirty:'
                     tmpstr = "%s%s:%5s / " % \
                         (tmpstr, 'PDRT', \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
 
@@ -30565,7 +30638,7 @@ class ThreadAnalyzer(object):
                     prop = 'NOPM'
                     tmpstr = "%s%s:%5s" % \
                         (tmpstr, prop, \
-                        SystemManager.convertSize(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
 
@@ -30575,7 +30648,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.wssEnable:
                     # get current WSS size #
                     try:
-                        wss =  SystemManager.convertSize(\
+                        wss =  SystemManager.convertSize2Unit(\
                             item['Referenced:'] << 10)
                     except:
                         wss =  0
@@ -30635,10 +30708,10 @@ class ThreadAnalyzer(object):
         self.storageData = \
             SystemManager.sysInstance.getStorageInfo()
 
-        SystemManager.addPrint(twoLine)
+        SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
-            "\n{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
-            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:>40}\n").\
+            "{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
+            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:^59}|\n").\
             format("DEV", "READ", "WRITE", "FREE", 'DIFF',\
             "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
@@ -30652,20 +30725,20 @@ class ThreadAnalyzer(object):
             # get read size on this interval #
             try:
                 readSize = value['read'] - self.prevStorageData[dev]['read']
-                readSize = SystemManager.convertSize(readSize << 20)
+                readSize = SystemManager.convertSize2Unit(readSize << 20)
             except:
                 readSize = 0
 
             # get write size on this interval #
             try:
                 writeSize = value['write'] - self.prevStorageData[dev]['write']
-                writeSize = SystemManager.convertSize(writeSize << 20)
+                writeSize = SystemManager.convertSize2Unit(writeSize << 20)
             except:
                 writeSize = 0
 
-            total = SystemManager.convertSize(value['total'] << 20)
+            total = SystemManager.convertSize2Unit(value['total'] << 20)
 
-            free = SystemManager.convertSize(value['free'] << 20)
+            free = SystemManager.convertSize2Unit(value['free'] << 20)
 
             # get free space change on this interval #
             try:
@@ -30679,23 +30752,23 @@ class ThreadAnalyzer(object):
                     op = '+'
 
                 freeDiff = '%s%s' % \
-                    (op, SystemManager.convertSize(abs(freeDiff) << 20))
+                    (op, SystemManager.convertSize2Unit(abs(freeDiff) << 20))
             except:
                 freeDiff = 0
 
-            use = SystemManager.convertSize(value['usageper'])
-            avail = SystemManager.convertSize(value['favail'])
+            use = SystemManager.convertSize2Unit(value['usageper'])
+            avail = SystemManager.convertSize2Unit(value['favail'])
             fs = value['mount']['fs']
             path = value['mount']['path']
             option = value['mount']['option']
 
             # make disk stat string #
+            mountInfo = '%s <%s>' % (path, option)
             diskInfo = \
                 ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
-                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<1}\n").\
+                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<58}|\n").\
                 format(dev, readSize, writeSize, free, freeDiff,\
-                '%s%%' % use, total, avail, fs, \
-                '%s <%s>' % (path, option))
+                '%s%%' % use, total, avail, fs, mountInfo[:58])
 
             if SystemManager.checkCutCond():
                 return
@@ -31951,7 +32024,7 @@ class ThreadAnalyzer(object):
                 os.rename(SystemManager.inputFile, filePath)
 
                 try:
-                    fsize = SystemManager.convertSize(\
+                    fsize = SystemManager.convertSize2Unit(\
                         int(os.path.getsize(filePath)))
                 except:
                     fsize = '?'
