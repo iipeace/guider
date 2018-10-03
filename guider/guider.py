@@ -24616,7 +24616,8 @@ class ThreadAnalyzer(object):
         if 'time' not in ThreadAnalyzer.procIntData[index]:
             m = re.match((\
                 r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
-                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
+                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+' \
+                r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
                 r'\[Core:\s*(?P<nrCore>[0-9]+)\].+' \
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
@@ -24638,8 +24639,10 @@ class ThreadAnalyzer(object):
 
             # CPU & BLOCK stat #
             m = re.match((\
-                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*(?P<user>\-*[0-9]+)\s*\/s*\s*' \
-                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*(?P<block>\-*[0-9]+)'), tokenList[1])
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*' \
+                r'(?P<user>\-*[0-9]+)\s*\/s*\s*' \
+                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*' \
+                r'(?P<block>\-*[0-9]+)'), tokenList[1])
             if m is not None:
                 d = m.groupdict()
 
@@ -24725,7 +24728,8 @@ class ThreadAnalyzer(object):
 
         # Get GPU resource usage #
         if len(tokenList) == 5:
-            m = re.match(r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+            m = re.match(\
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m is not None:
                 d = m.groupdict()
 
@@ -24750,8 +24754,8 @@ class ThreadAnalyzer(object):
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*(?P<blk>\S+)'
-            r'\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
+            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
+            r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if m is not None:
             d = m.groupdict()
             pid = d['pid']
