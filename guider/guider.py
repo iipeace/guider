@@ -63,7 +63,8 @@ class ConfigManager(object):
     ''' % __version__
 
     # Define color #
-    if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+    if sys.platform.startswith('linux') or \
+        sys.platform.startswith('freebsd'):
         WARNING = '\033[95m'
         OKBLUE = '\033[94m'
         OKGREEN = '\033[92m'
@@ -10811,7 +10812,8 @@ class SystemManager(object):
                 except:
                     fsize = '?'
                 SystemManager.printInfo(\
-                    "finish saving results based monitoring into %s [%s] successfully" % \
+                    "finish saving results based monitoring into "
+                    "%s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -10884,7 +10886,8 @@ class SystemManager(object):
             except:
                 fsize = '?'
             SystemManager.printInfo(\
-                "finish saving results based monitoring into %s [%s] successfully" % \
+                "finish saving results based monitoring into "
+                "%s [%s] successfully" % \
                 (SystemManager.inputFile, fsize))
 
             # convert text log to image #
@@ -10970,8 +10973,8 @@ class SystemManager(object):
                                 fsize = '?'
 
                             SystemManager.printInfo(\
-                                'finish saving trace data into %s [%s] successfully' % \
-                                (output, fsize))
+                                'finish saving trace data into "
+                                "%s [%s] successfully' % (output, fsize))
                 except:
                     SystemManager.printWarning(\
                         'Fail to save trace data to %s' % output)
@@ -25511,7 +25514,7 @@ class ThreadAnalyzer(object):
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
         else:
-            # print summarized interval table #
+            # build summary interval table #
             ThreadAnalyzer.summarizeIntervalUsage()
 
             # print interval info #
