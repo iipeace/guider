@@ -10973,8 +10973,8 @@ class SystemManager(object):
                                 fsize = '?'
 
                             SystemManager.printInfo(\
-                                'finish saving trace data into "
-                                "%s [%s] successfully' % (output, fsize))
+                                'finish saving trace data into '
+                                '%s [%s] successfully' % (output, fsize))
                 except:
                     SystemManager.printWarning(\
                         'Fail to save trace data to %s' % output)
@@ -24633,6 +24633,21 @@ class ThreadAnalyzer(object):
         # Split stats #
         tokenList = procLine.split('|')
 
+        # Get Storage resource usage #
+        if len(tokenList) == 11 and tokenList[0][0] == '/':
+            convertUnit2Size = SystemManager.convertUnit2Size
+
+            try:
+                dev = tokenList[0].strip()
+                read = convertUnit2Size(tokenList[1].strip())
+                write = convertUnit2Size(tokenList[2].strip())
+                free = convertUnit2Size(tokenList[3].strip())
+                freeDiff = convertUnit2Size(tokenList[4].strip())
+                total = convertUnit2Size(tokenList[6].strip())
+                favail = convertUnit2Size(tokenList[7].strip())
+            except:
+                pass
+
         # Get total resource usage #
         if 'total' not in ThreadAnalyzer.procIntData[index] and \
             tokenList[0].startswith('Total'):
@@ -24736,7 +24751,8 @@ class ThreadAnalyzer(object):
                 gpu = d['gpu'].strip()
                 usage = int(d['usage'])
 
-                ThreadAnalyzer.procIntData[index]['total'].setdefault('gpu', dict())
+                ThreadAnalyzer.procIntData[index]['total'].setdefault(\
+                    'gpu', dict())
                 ThreadAnalyzer.procTotData['total'].setdefault('gpu', dict())
 
                 try:
@@ -24747,7 +24763,7 @@ class ThreadAnalyzer(object):
                 try:
                     ThreadAnalyzer.procIntData[index]['total']['gpu'][gpu] = usage
                 except:
-                    ThreadAnalyzer.procIntData[index]['total']['gpu'][d['proc']] = 0
+                    pass
 
                 return
 
@@ -30692,10 +30708,10 @@ class ThreadAnalyzer(object):
         self.storageData = \
             SystemManager.sysInstance.getStorageInfo()
 
-        SystemManager.addPrint(twoLine)
+        SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
-            "\n{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
-            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:>40}\n").\
+            "{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
+            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:^59}|\n").\
             format("DEV", "READ", "WRITE", "FREE", 'DIFF',\
             "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
@@ -30747,12 +30763,12 @@ class ThreadAnalyzer(object):
             option = value['mount']['option']
 
             # make disk stat string #
+            mountInfo = '%s <%s>' % (path, option)
             diskInfo = \
                 ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
-                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<1}\n").\
+                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<58}|\n").\
                 format(dev, readSize, writeSize, free, freeDiff,\
-                '%s%%' % use, total, avail, fs, \
-                '%s <%s>' % (path, option))
+                '%s%%' % use, total, avail, fs, mountInfo[:58])
 
             if SystemManager.checkCutCond():
                 return
