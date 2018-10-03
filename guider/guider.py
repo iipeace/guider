@@ -8075,22 +8075,25 @@ class SystemManager(object):
         if value.isdigit():
             return long(value)
 
+        # convert unit character to capital #
+        value = value.upper()
+
         try:
-            if value.upper().endswith('K'):
+            if value.endswith('K'):
                 return long(value[:-1]) * sizeKB
-            if value.upper().endswith('KB'):
+            if value.endswith('KB'):
                 return long(value[:-2]) * sizeKB
-            if value.upper().endswith('M'):
+            if value.endswith('M'):
                 return long(value[:-1]) * sizeMB
-            if value.upper().endswith('MB'):
+            if value.endswith('MB'):
                 return long(value[:-2]) * sizeMB
-            if value.upper().endswith('G'):
+            if value.endswith('G'):
                 return long(value[:-1]) * sizeGB
-            if value.upper().endswith('GB'):
+            if value.endswith('GB'):
                 return long(value[:-2]) * sizeGB
-            if value.upper().endswith('T'):
+            if value.endswith('T'):
                 return long(value[:-1]) * sizeTB
-            if value.upper().endswith('TB'):
+            if value.endswith('TB'):
                 return long(value[:-2]) * sizeTB
 
             raise Exception()
@@ -24633,21 +24636,6 @@ class ThreadAnalyzer(object):
         # Split stats #
         tokenList = procLine.split('|')
 
-        # Get Storage resource usage #
-        if len(tokenList) == 11 and tokenList[0][0] == '/':
-            convertUnit2Size = SystemManager.convertUnit2Size
-
-            try:
-                dev = tokenList[0].strip()
-                read = convertUnit2Size(tokenList[1].strip())
-                write = convertUnit2Size(tokenList[2].strip())
-                free = convertUnit2Size(tokenList[3].strip())
-                freeDiff = convertUnit2Size(tokenList[4].strip())
-                total = convertUnit2Size(tokenList[6].strip())
-                favail = convertUnit2Size(tokenList[7].strip())
-            except:
-                pass
-
         # Get total resource usage #
         if 'total' not in ThreadAnalyzer.procIntData[index] and \
             tokenList[0].startswith('Total'):
@@ -24766,6 +24754,23 @@ class ThreadAnalyzer(object):
                     pass
 
                 return
+
+        # Get Storage resource usage #
+        if len(tokenList) == 11 and tokenList[0][0] == '/':
+            convertUnit2Size = SystemManager.convertUnit2Size
+
+            try:
+                dev = tokenList[0].strip()
+                read = convertUnit2Size(tokenList[1].strip())
+                write = convertUnit2Size(tokenList[2].strip())
+                free = convertUnit2Size(tokenList[3].strip())
+                freeDiff = convertUnit2Size(tokenList[4].strip())
+                total = convertUnit2Size(tokenList[6].strip())
+                favail = convertUnit2Size(tokenList[7].strip())
+            except:
+                pass
+
+            return
 
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
@@ -32129,11 +32134,11 @@ class ThreadAnalyzer(object):
             if len(perfString) > 0:
                 SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
-        # print disk stat #
-        self.printDiskUsage()
-
         # print system stat #
         self.printSystemUsage()
+
+        # print disk stat #
+        self.printDiskUsage()
 
         # print process stat #
         self.printProcUsage()
