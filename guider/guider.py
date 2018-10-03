@@ -13975,7 +13975,9 @@ class SystemManager(object):
 
     @staticmethod
     def doUserInput():
-        if SystemManager.printFile is None and SystemManager.selectObject != None and \
+        if SystemManager.printFile is None and \
+            SystemManager.isReportTopMode() is False and \
+            SystemManager.selectObject != None and \
             SystemManager.selectObject.select(\
             [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
             sys.stdout.write('\b' * SystemManager.ttyCols)
