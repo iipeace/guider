@@ -8075,22 +8075,25 @@ class SystemManager(object):
         if value.isdigit():
             return long(value)
 
+        # convert unit character to capital #
+        value = value.upper()
+
         try:
-            if value.upper().endswith('K'):
+            if value.endswith('K'):
                 return long(value[:-1]) * sizeKB
-            if value.upper().endswith('KB'):
+            if value.endswith('KB'):
                 return long(value[:-2]) * sizeKB
-            if value.upper().endswith('M'):
+            if value.endswith('M'):
                 return long(value[:-1]) * sizeMB
-            if value.upper().endswith('MB'):
+            if value.endswith('MB'):
                 return long(value[:-2]) * sizeMB
-            if value.upper().endswith('G'):
+            if value.endswith('G'):
                 return long(value[:-1]) * sizeGB
-            if value.upper().endswith('GB'):
+            if value.endswith('GB'):
                 return long(value[:-2]) * sizeGB
-            if value.upper().endswith('T'):
+            if value.endswith('T'):
                 return long(value[:-1]) * sizeTB
-            if value.upper().endswith('TB'):
+            if value.endswith('TB'):
                 return long(value[:-2]) * sizeTB
 
             raise Exception()
@@ -24766,6 +24769,8 @@ class ThreadAnalyzer(object):
                 favail = convertUnit2Size(tokenList[7].strip())
             except:
                 pass
+
+            return
 
         # Get process resource usage #
         m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
