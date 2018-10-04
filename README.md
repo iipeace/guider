@@ -971,7 +971,7 @@ Options
     -s  [save_traceData - path]
     -u  [run_inBackground]
     -W  [wait_forSignal]
-    -b  [set_bufferSize - kb]
+    -b  [set_bufferSize - KB]
     -D  [trace_threadDependency]
     -t  [trace_syscall - syscalls]
     -T  [set_fontPath]
