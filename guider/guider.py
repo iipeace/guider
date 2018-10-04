@@ -8080,21 +8080,21 @@ class SystemManager(object):
 
         try:
             if value.endswith('K'):
-                return long(value[:-1]) * sizeKB
+                return long(float(value[:-1])) * sizeKB
             if value.endswith('KB'):
-                return long(value[:-2]) * sizeKB
+                return long(float(value[:-2])) * sizeKB
             if value.endswith('M'):
-                return long(value[:-1]) * sizeMB
+                return long(float(value[:-1])) * sizeMB
             if value.endswith('MB'):
-                return long(value[:-2]) * sizeMB
+                return long(float(value[:-2])) * sizeMB
             if value.endswith('G'):
-                return long(value[:-1]) * sizeGB
+                return long(float(value[:-1])) * sizeGB
             if value.endswith('GB'):
-                return long(value[:-2]) * sizeGB
+                return long(float(value[:-2])) * sizeGB
             if value.endswith('T'):
-                return long(value[:-1]) * sizeTB
+                return long(float(value[:-1])) * sizeTB
             if value.endswith('TB'):
-                return long(value[:-2]) * sizeTB
+                return long(float(value[:-2])) * sizeTB
 
             raise Exception()
         except:
