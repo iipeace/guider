@@ -8549,7 +8549,7 @@ class SystemManager(object):
                 pipePrint('        -s  [save_traceData - path]')
                 pipePrint('        -u  [run_inBackground]')
                 pipePrint('        -W  [wait_forSignal]')
-                pipePrint('        -b  [set_bufferSize - kb]')
+                pipePrint('        -b  [set_bufferSize - KB]')
                 pipePrint('        -D  [trace_threadDependency]')
                 pipePrint('        -t  [trace_syscall - syscalls]')
                 pipePrint('        -T  [set_fontPath]')
