@@ -15671,6 +15671,12 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setBufferSize(bufferSize):
+        SystemManager.writeCmd("../buffer_size_kb", bufferSize)
+
+
+
+    @staticmethod
     def copyPipeToFile(pipePath, filePath):
         try:
             pd = open(pipePath, 'r')
@@ -15939,12 +15945,17 @@ class SystemManager(object):
             # Change from integer to string #
             SystemManager.bufferSize = str(SystemManager.bufferSize)
 
-        SystemManager.writeCmd("../buffer_size_kb", SystemManager.bufferSize)
+        # set system buffer size #
+        SystemManager.setBufferSize(SystemManager.bufferSize)
+
+        # get system buffer size #
         setBufferSize = SystemManager.getBufferSize()
+
+        # check system buffer size #
         if int(SystemManager.bufferSize) != setBufferSize:
             SystemManager.printWarning(\
-                "Fail to set buffer size to %sKB, buffer size is %sKB now" % \
-                (SystemManager.bufferSize, setBufferSize))
+                "Fail to set buffer size to %s KB, buffer size is %s KB now" % \
+                (SystemManager.bufferSize, setBufferSize), True)
 
         # initialize event list to enable #
         self.initCmdList()
@@ -20903,8 +20914,12 @@ class ThreadAnalyzer(object):
                             continue
                     except:
                         pass
-                    plot(timeline, stat, '-', c='olive', \
-                        linewidth=2, solid_capstyle='round')
+
+                    # draw total gpu graph #
+                    plot(timeline, stat, '-', c='olive', linestyle='-.',\
+                        linewidth=2, marker='d', markersize=4, \
+                        solid_capstyle='round')
+
                     labelList.append('[ %s ]' % gpu)
                     maxUsage = max(stat)
                     maxIdx = stat.index(maxUsage)
@@ -20924,11 +20939,15 @@ class ThreadAnalyzer(object):
                 if sum(blkWait) > 0:
                     for idx, item in enumerate(blkWait):
                         blkWait[idx] += cpuUsage[idx]
+
+                        # set the max value of yticks #
                         if ymax < blkWait[idx]:
                             ymax = blkWait[idx]
 
-                    plot(timeline, blkWait, '-', c='pink', \
-                        linewidth=2, solid_capstyle='round')
+                    # draw total cpu + iowait graph #
+                    plot(timeline, blkWait, '-', c='pink', linestyle='-.',\
+                        linewidth=2, marker='d', markersize=4, \
+                        solid_capstyle='round')
                     labelList.append('[ CPU + IOWAIT ]')
                     try:
                         avgUsage = round(sum(blkWait) / len(blkWait), 1)
@@ -20943,12 +20962,15 @@ class ThreadAnalyzer(object):
                         text(timeline[idx], blkWait[maxIdx], \
                             'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='pink', fontweight='bold',\
-                            bbox=dict(boxstyle='round', facecolor='wheat', \
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
                             alpha=0.3))
                         break
 
-                plot(timeline, cpuUsage, '-', c='red', \
-                    linewidth=2, solid_capstyle='round')
+                # draw total cpu graph #
+                plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
+                    linewidth=2, marker='d', markersize=4, \
+                    solid_capstyle='round')
+
                 labelList.append('[ CPU Average ]')
                 try:
                     avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
@@ -20956,6 +20978,11 @@ class ThreadAnalyzer(object):
                     avgUsage = 0
                 maxUsage = max(cpuUsage)
                 maxIdx = cpuUsage.index(maxUsage)
+
+                # set the max value of yticks #
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
                 for idx in [idx for idx, usage in enumerate(cpuUsage) \
                     if usage == maxUsage]:
                     if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
@@ -20998,7 +21025,7 @@ class ThreadAnalyzer(object):
                     if cnt > 0:
                         effectProcList[seq] += 1
 
-                # get max usage #
+                # set the max value of yticks #
                 maxusage = max(usage)
                 if ymax < maxusage:
                     ymax = maxusage
@@ -21039,6 +21066,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # set yticks attributes #
             xticks(fontsize=4)
             ylim([0, ymax])
             if len(timeline) > 1:
@@ -22568,6 +22596,35 @@ class ThreadAnalyzer(object):
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['usage'], reverse=True)
 
+        # set total cpu variables #
+        totalCpuTime = 0
+        totalPrtTime = 0
+        totalSchedLatency = 0
+        totalYieldCnt = 0
+        totalPreemptedCnt = 0
+        totalPreemptionCnt = 0
+        totalMigrateCnt = 0
+
+        # set total irq variables #
+        totalIrqTime = 0
+
+        # set total io variables #
+        totalIoRdWait = 0
+        totalReadBlock = 0
+        totalReadBlockCnt = 0
+        totalIoWrWait = 0
+        totalWriteBlock = 0
+
+        # set total mem variables #
+        totalUsedMem = 0
+        totalUserMem = 0
+        totalCacheMem = 0
+        totalKernelMem = 0
+        totalReclaimedMem = 0
+        totalWastedMem = 0
+        totalDreclaimedTime = 0
+        totalDreclaimedCnt = 0
+
         # print thread information after sorting by time of cpu usage #
         count = 0
         SystemManager.clearPrint()
@@ -22597,14 +22654,29 @@ class ThreadAnalyzer(object):
 
             if SystemManager.cpuEnable:
                 cpuTime = '%5.2f' % value['usage']
+                totalCpuTime += value['usage']
+
                 cpuPer = '%5.1f' % usagePercent
+
                 prtTime = '%5.2f' % value['cpuWait']
+                totalPrtTime += value['cpuWait']
+
                 schedLatency = '%5.2f' % value['schedLatency']
+                totalSchedLatency += value['schedLatency']
+
                 pri = value['pri']
+
                 yieldCnt = '%5d' % value['yield']
+                totalYieldCnt += value['yield']
+
                 preemptedCnt = '%5d' % value['preempted']
+                totalPreemptedCnt += value['preempted']
+
                 preemptionCnt = '%5d' % value['preemption']
+                totalPreemptionCnt += value['preemption']
+
                 migrateCnt = '%4d' % value['migrate']
+                totalMigrateCnt += value['migrate']
             else:
                 cpuTime = '-'
                 cpuPer = '-'
@@ -22616,18 +22688,38 @@ class ThreadAnalyzer(object):
                 preemptionCnt = '-'
                 migrateCnt = '-'
 
+                totalCpuPer = '-'
+                totalCpuTime = '-'
+                totalPrtTime = '-'
+                totalSchedLatency = '-'
+                totalYieldCnt = '-'
+                totalPreemptedCnt = '-'
+                totalPreemptionCnt = '-'
+                totalMigrateCnt = '-'
+
             if SystemManager.irqEnable:
                 irqTime = '%5.2f' % value['irq']
+                totalIrqTime += value['irq']
             else:
                 irqTime = '-'
+                totalIrqTime = '-'
 
             if SystemManager.blockEnable:
                 ioRdWait = '%5.2f' % value['ioRdWait']
+                totalIoRdWait += value['ioRdWait']
+
                 readBlock = '%3d' % value['readBlock']
+                totalReadBlock += value['readBlock']
+
                 readBlockCnt = '%4d' % value['readBlockCnt']
+                totalReadBlockCnt += value['readBlockCnt']
+
                 ioWrWait = '%5.2f' % value['ioWrWait']
+                totalIoWrWait += value['ioWrWait']
+
                 writeBlock = '%3d' % \
                     (value['writeBlock'] + value['awriteBlock'])
+                totalWriteBlock += (value['writeBlock'] + value['awriteBlock'])
             else:
                 ioRdWait = '-'
                 readBlock = '-'
@@ -22635,17 +22727,40 @@ class ThreadAnalyzer(object):
                 ioWrWait = '-'
                 writeBlock = '-'
 
+                totalIoRdWait = '-'
+                totalReadBlock = '-'
+                totalReadBlockCnt = '-'
+                totalIoWrWait = '-'
+                totalWriteBlock = '-'
+
             if SystemManager.memEnable:
-                usedMem = '%4d' % \
+                usedMem = \
                     ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                totalUsedMem += usedMem
+                usedMem = '%4d' % usedMem
+
                 userMem = '%3d' % (value['userPages'] >> 8)
+                totalUserMem += (value['userPages'] >> 8)
+
                 cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
+                totalCacheMem += (value['cachePages'] >> 8)
+
+                kernelMem = \
                     ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                totalKernelMem += kernelMem
+                kernelMem = '%3d' % kernelMem
+
                 reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                totalReclaimedMem += (value['reclaimedPages'] >> 8)
+
                 wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                totalWastedMem += (value['wasteKmem'] >> 20)
+
                 dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                totalDreclaimedTime += value['dReclaimWait']
+
                 dreclaimedCnt = '%2d' % value['dReclaimCnt']
+                totalDreclaimedCnt += value['dReclaimCnt']
             else:
                 usedMem = '-'
                 userMem = '-'
@@ -22655,6 +22770,15 @@ class ThreadAnalyzer(object):
                 wastedMem = '-'
                 dreclaimedTime = '-'
                 dreclaimedCnt = '-'
+
+                totalUsedMem = '-'
+                totalUserMem = '-'
+                totalCacheMem = '-'
+                totalKernelMem = '-'
+                totalReclaimedMem = '-'
+                totalWastedMem = '-'
+                totalDreclaimedTime = '-'
+                totalDreclaimedCnt = '-'
 
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
@@ -22670,6 +22794,60 @@ class ThreadAnalyzer(object):
             count += 1
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
+
+        # build total usage string #
+        try:
+            totalCpuPer = \
+                '%5.1f' % (totalCpuTime / float(self.totalTime) * 100)
+            totalCpuTime = '%5.2f' % totalCpuTime
+            totalPrtTime = '%5.2f' % totalPrtTime
+            totalSchedLatency = '%5.2f' % totalSchedLatency
+            totalYieldCnt = '%5d' % totalYieldCnt
+            totalPreemptedCnt = '%5d' % totalPreemptedCnt
+            totalPreemptionCnt = '%5d' % totalPreemptionCnt
+            totalMigrateCnt = '%4d' % totalMigrateCnt
+        except:
+            pass
+
+        try:
+            totalIrqTime = '%5.2f' % totalIrqTime
+        except:
+            pass
+
+        try:
+            totalIoRdWait = '%5.2f' % totalIoRdWait
+            totalReadBlock = '%3d' % totalReadBlock
+            totalReadBlockCnt = '%4d' % totalReadBlockCnt
+            totalIoWrWait = '%5.2f' % totalIoWrWait
+            totalWriteBlock = '%3d' % totalWriteBlock
+        except:
+            pass
+
+        try:
+            totalUsedMem = '%4d' % totalUsedMem
+            totalUserMem = '%3d' % totalUserMem
+            totalCacheMem = '%3d' % totalCacheMem
+            totalKernelMem = '%3d' % totalKernelMem
+            totalReclaimedMem = '%3d' % totalReclaimedMem
+            totalWastedMem = '%3d' % totalWastedMem
+            totalDreclaimedTime = '%4.2f' % totalDreclaimedTime
+            totalDreclaimedCnt = '%2d' % totalDreclaimedCnt
+        except:
+            pass
+
+        SystemManager.pipePrint(\
+            ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+            "%3s|%3s|%4s(%2s)|\n") % \
+            ('[ TOTAL ]', '-', '-', ' ', ' ', \
+            totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
+            totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
+            totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
+            totalReadBlock, totalReadBlockCnt, totalIoWrWait, \
+            totalWriteBlock, totalUsedMem, totalUserMem, totalCacheMem, \
+            totalKernelMem, totalReclaimedMem, totalWastedMem, \
+            totalDreclaimedTime, totalDreclaimedCnt))
+
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
