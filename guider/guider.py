@@ -22839,7 +22839,7 @@ class ThreadAnalyzer(object):
             ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
             "%3s|%3s|%4s(%2s)|\n") % \
-            ('[ TOTAL ]', '-', '-', ' ', ' ', \
+            ('[ TOTAL ]', '-----', '-----', ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
             totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
             totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
