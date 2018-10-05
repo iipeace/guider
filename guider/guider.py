@@ -22585,6 +22585,29 @@ class ThreadAnalyzer(object):
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['usage'], reverse=True)
 
+        # set total variables #
+        totalCpuTime = 0
+        totalPrtTime = 0
+        totalSchedLatency = 0
+        totalIrqTime = 0
+        totalYieldCnt = 0
+        totalPreemptedCnt = 0
+        totalPreemptionCnt = 0
+        totalMigrateCnt = 0
+        totalIoRdWait = 0
+        totalReadBlock = 0
+        totalReadBlockCnt = 0
+        totalIoWrWait = 0
+        totalWriteBlock = 0
+        totalUsedMem = 0
+        totalUserMem = 0
+        totalCacheMem = 0
+        totalKernelMem = 0
+        totalReclaimedMem = 0
+        totalWastedMem = 0
+        totalDreclaimedTime = 0
+        totalDreclaimedCnt = 0
+
         # print thread information after sorting by time of cpu usage #
         count = 0
         SystemManager.clearPrint()
@@ -22614,14 +22637,29 @@ class ThreadAnalyzer(object):
 
             if SystemManager.cpuEnable:
                 cpuTime = '%5.2f' % value['usage']
+                totalCpuTime += value['usage']
+
                 cpuPer = '%5.1f' % usagePercent
+
                 prtTime = '%5.2f' % value['cpuWait']
+                totalPrtTime += value['cpuWait']
+
                 schedLatency = '%5.2f' % value['schedLatency']
+                totalSchedLatency += value['schedLatency']
+
                 pri = value['pri']
+
                 yieldCnt = '%5d' % value['yield']
+                totalYieldCnt += value['yield']
+
                 preemptedCnt = '%5d' % value['preempted']
+                totalPreemptedCnt += value['preempted']
+
                 preemptionCnt = '%5d' % value['preemption']
+                totalPreemptionCnt += value['preemption']
+
                 migrateCnt = '%4d' % value['migrate']
+                totalMigrateCnt += value['migrate']
             else:
                 cpuTime = '-'
                 cpuPer = '-'
@@ -22635,16 +22673,26 @@ class ThreadAnalyzer(object):
 
             if SystemManager.irqEnable:
                 irqTime = '%5.2f' % value['irq']
+                totalIrqTime += value['irq']
             else:
                 irqTime = '-'
 
             if SystemManager.blockEnable:
                 ioRdWait = '%5.2f' % value['ioRdWait']
+                totalIoRdWait += value['ioRdWait']
+
                 readBlock = '%3d' % value['readBlock']
+                totalReadBlock += value['readBlock']
+
                 readBlockCnt = '%4d' % value['readBlockCnt']
+                totalReadBlockCnt += value['readBlockCnt']
+
                 ioWrWait = '%5.2f' % value['ioWrWait']
+                totalIoWrWait += value['ioWrWait']
+
                 writeBlock = '%3d' % \
                     (value['writeBlock'] + value['awriteBlock'])
+                totalWriteBlock += (value['writeBlock'] + value['awriteBlock'])
             else:
                 ioRdWait = '-'
                 readBlock = '-'
@@ -22653,16 +22701,33 @@ class ThreadAnalyzer(object):
                 writeBlock = '-'
 
             if SystemManager.memEnable:
-                usedMem = '%4d' % \
+                usedMem = \
                     ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                totalUsedMem += usedMem
+                usedMem = '%4d' % usedMem
+
                 userMem = '%3d' % (value['userPages'] >> 8)
+                totalUserMem += (value['userPages'] >> 8)
+
                 cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
+                totalCacheMem += (value['cachePages'] >> 8)
+
+                kernelMem = \
                     ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                totalKernelMem += kernelMem
+                kernelMem = '%3d' % kernelMem
+
                 reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                totalReclaimedMem += (value['reclaimedPages'] >> 8)
+
                 wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                totalWastedMem += (value['wasteKmem'] >> 20)
+
                 dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                totalDreclaimedTime += value['dReclaimWait']
+
                 dreclaimedCnt = '%2d' % value['dReclaimCnt']
+                totalDreclaimedCnt += value['dReclaimCnt']
             else:
                 usedMem = '-'
                 userMem = '-'
