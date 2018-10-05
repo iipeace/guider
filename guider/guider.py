@@ -15671,6 +15671,12 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setBufferSize(bufferSize):
+        SystemManager.writeCmd("../buffer_size_kb", bufferSize)
+
+
+
+    @staticmethod
     def copyPipeToFile(pipePath, filePath):
         try:
             pd = open(pipePath, 'r')
@@ -15939,8 +15945,13 @@ class SystemManager(object):
             # Change from integer to string #
             SystemManager.bufferSize = str(SystemManager.bufferSize)
 
-        SystemManager.writeCmd("../buffer_size_kb", SystemManager.bufferSize)
+        # set system buffer size #
+        SystemManager.setBufferSize(SystemManager.bufferSize)
+
+        # get system buffer size #
         setBufferSize = SystemManager.getBufferSize()
+
+        # check system buffer size #
         if int(SystemManager.bufferSize) != setBufferSize:
             SystemManager.printWarning(\
                 "Fail to set buffer size to %s KB, buffer size is %s KB now" % \
