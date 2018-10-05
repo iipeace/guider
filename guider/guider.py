@@ -20903,8 +20903,12 @@ class ThreadAnalyzer(object):
                             continue
                     except:
                         pass
-                    plot(timeline, stat, '-', c='olive', \
-                        linewidth=2, solid_capstyle='round')
+
+                    # draw total gpu graph #
+                    plot(timeline, stat, '-', c='olive', linestyle='-.',\
+                        linewidth=2, marker='d', markersize=4, \
+                        solid_capstyle='round')
+
                     labelList.append('[ %s ]' % gpu)
                     maxUsage = max(stat)
                     maxIdx = stat.index(maxUsage)
@@ -20924,11 +20928,15 @@ class ThreadAnalyzer(object):
                 if sum(blkWait) > 0:
                     for idx, item in enumerate(blkWait):
                         blkWait[idx] += cpuUsage[idx]
+
+                        # set the max value of yticks #
                         if ymax < blkWait[idx]:
                             ymax = blkWait[idx]
 
-                    plot(timeline, blkWait, '-', c='pink', \
-                        linewidth=2, solid_capstyle='round')
+                    # draw total cpu + iowait graph #
+                    plot(timeline, blkWait, '-', c='pink', linestyle='-.',\
+                        linewidth=2, marker='d', markersize=4, \
+                        solid_capstyle='round')
                     labelList.append('[ CPU + IOWAIT ]')
                     try:
                         avgUsage = round(sum(blkWait) / len(blkWait), 1)
@@ -20943,12 +20951,15 @@ class ThreadAnalyzer(object):
                         text(timeline[idx], blkWait[maxIdx], \
                             'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='pink', fontweight='bold',\
-                            bbox=dict(boxstyle='round', facecolor='wheat', \
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
                             alpha=0.3))
                         break
 
-                plot(timeline, cpuUsage, '-', c='red', \
-                    linewidth=2, solid_capstyle='round')
+                # draw total cpu graph #
+                plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
+                    linewidth=2, marker='d', markersize=4, \
+                    solid_capstyle='round')
+
                 labelList.append('[ CPU Average ]')
                 try:
                     avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
@@ -20956,6 +20967,11 @@ class ThreadAnalyzer(object):
                     avgUsage = 0
                 maxUsage = max(cpuUsage)
                 maxIdx = cpuUsage.index(maxUsage)
+
+                # set the max value of yticks #
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
                 for idx in [idx for idx, usage in enumerate(cpuUsage) \
                     if usage == maxUsage]:
                     if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
@@ -20998,7 +21014,7 @@ class ThreadAnalyzer(object):
                     if cnt > 0:
                         effectProcList[seq] += 1
 
-                # get max usage #
+                # set the max value of yticks #
                 maxusage = max(usage)
                 if ymax < maxusage:
                     ymax = maxusage
@@ -21039,6 +21055,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # set yticks attributes #
             xticks(fontsize=4)
             ylim([0, ymax])
             if len(timeline) > 1:
