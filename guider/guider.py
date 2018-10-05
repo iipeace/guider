@@ -15943,8 +15943,8 @@ class SystemManager(object):
         setBufferSize = SystemManager.getBufferSize()
         if int(SystemManager.bufferSize) != setBufferSize:
             SystemManager.printWarning(\
-                "Fail to set buffer size to %sKB, buffer size is %sKB now" % \
-                (SystemManager.bufferSize, setBufferSize))
+                "Fail to set buffer size to %s KB, buffer size is %s KB now" % \
+                (SystemManager.bufferSize, setBufferSize), True)
 
         # initialize event list to enable #
         self.initCmdList()
@@ -22585,20 +22585,26 @@ class ThreadAnalyzer(object):
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['usage'], reverse=True)
 
-        # set total variables #
+        # set total cpu variables #
         totalCpuTime = 0
         totalPrtTime = 0
         totalSchedLatency = 0
-        totalIrqTime = 0
         totalYieldCnt = 0
         totalPreemptedCnt = 0
         totalPreemptionCnt = 0
         totalMigrateCnt = 0
+
+        # set total irq variables #
+        totalIrqTime = 0
+
+        # set total io variables #
         totalIoRdWait = 0
         totalReadBlock = 0
         totalReadBlockCnt = 0
         totalIoWrWait = 0
         totalWriteBlock = 0
+
+        # set total mem variables #
         totalUsedMem = 0
         totalUserMem = 0
         totalCacheMem = 0
@@ -22671,11 +22677,21 @@ class ThreadAnalyzer(object):
                 preemptionCnt = '-'
                 migrateCnt = '-'
 
+                totalCpuPer = '-'
+                totalCpuTime = '-'
+                totalPrtTime = '-'
+                totalSchedLatency = '-'
+                totalYieldCnt = '-'
+                totalPreemptedCnt = '-'
+                totalPreemptionCnt = '-'
+                totalMigrateCnt = '-'
+
             if SystemManager.irqEnable:
                 irqTime = '%5.2f' % value['irq']
                 totalIrqTime += value['irq']
             else:
                 irqTime = '-'
+                totalIrqTime = '-'
 
             if SystemManager.blockEnable:
                 ioRdWait = '%5.2f' % value['ioRdWait']
@@ -22699,6 +22715,12 @@ class ThreadAnalyzer(object):
                 readBlockCnt = '-'
                 ioWrWait = '-'
                 writeBlock = '-'
+
+                totalIoRdWait = '-'
+                totalReadBlock = '-'
+                totalReadBlockCnt = '-'
+                totalIoWrWait = '-'
+                totalWriteBlock = '-'
 
             if SystemManager.memEnable:
                 usedMem = \
@@ -22738,6 +22760,15 @@ class ThreadAnalyzer(object):
                 dreclaimedTime = '-'
                 dreclaimedCnt = '-'
 
+                totalUsedMem = '-'
+                totalUserMem = '-'
+                totalCacheMem = '-'
+                totalKernelMem = '-'
+                totalReclaimedMem = '-'
+                totalWastedMem = '-'
+                totalDreclaimedTime = '-'
+                totalDreclaimedCnt = '-'
+
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
                 "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
@@ -22752,6 +22783,60 @@ class ThreadAnalyzer(object):
             count += 1
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Hot', count))
+
+        # build total usage string #
+        try:
+            totalCpuPer = \
+                '%5.1f' % (totalCpuTime / float(self.totalTime) * 100)
+            totalCpuTime = '%5.2f' % totalCpuTime
+            totalPrtTime = '%5.2f' % totalPrtTime
+            totalSchedLatency = '%5.2f' % totalSchedLatency
+            totalYieldCnt = '%5d' % totalYieldCnt
+            totalPreemptedCnt = '%5d' % totalPreemptedCnt
+            totalPreemptionCnt = '%5d' % totalPreemptionCnt
+            totalMigrateCnt = '%4d' % totalMigrateCnt
+        except:
+            pass
+
+        try:
+            totalIrqTime = '%5.2f' % totalIrqTime
+        except:
+            pass
+
+        try:
+            totalIoRdWait = '%5.2f' % totalIoRdWait
+            totalReadBlock = '%3d' % totalReadBlock
+            totalReadBlockCnt = '%4d' % totalReadBlockCnt
+            totalIoWrWait = '%5.2f' % totalIoWrWait
+            totalWriteBlock = '%3d' % totalWriteBlock
+        except:
+            pass
+
+        try:
+            totalUsedMem = '%4d' % totalUsedMem
+            totalUserMem = '%3d' % totalUserMem
+            totalCacheMem = '%3d' % totalCacheMem
+            totalKernelMem = '%3d' % totalKernelMem
+            totalReclaimedMem = '%3d' % totalReclaimedMem
+            totalWastedMem = '%3d' % totalWastedMem
+            totalDreclaimedTime = '%4.2f' % totalDreclaimedTime
+            totalDreclaimedCnt = '%2d' % totalDreclaimedCnt
+        except:
+            pass
+
+        SystemManager.pipePrint(\
+            ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+            "%3s|%3s|%4s(%2s)|\n") % \
+            ('[ TOTAL ]', '-', '-', ' ', ' ', \
+            totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
+            totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
+            totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
+            totalReadBlock, totalReadBlockCnt, totalIoWrWait, \
+            totalWriteBlock, totalUsedMem, totalUserMem, totalCacheMem, \
+            totalKernelMem, totalReclaimedMem, totalWastedMem, \
+            totalDreclaimedTime, totalDreclaimedCnt))
+
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
 
