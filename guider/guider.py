@@ -26020,8 +26020,11 @@ class ThreadAnalyzer(object):
             try:
                 with open(file, 'r') as fd:
                     buf = fd.readlines(nrLine)
-            except IOError:
-                SystemManager.printError("Fail to open %s" % file)
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to open %s because %s" % \
+                    (file, ' '.join(list(map(str, err.args)))))
                 sys.exit(0)
 
             # verify log buffer #
