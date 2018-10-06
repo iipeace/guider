@@ -12947,7 +12947,8 @@ class SystemManager(object):
                             nrSyscall = \
                                 ConfigManager.sysList.index('sys_%s' % val)
 
-                        enabledSyscall.append(ConfigManager.sysList[nrSyscall])
+                        enabledSyscall.append(\
+                            ConfigManager.sysList[nrSyscall])
                         sidx = SystemManager.syscallList.index(val)
                         SystemManager.syscallList[sidx] = nrSyscall
                     except:
@@ -12976,17 +12977,20 @@ class SystemManager(object):
                             SystemManager.repeatCount))
                     except:
                         SystemManager.printError(\
-                            "wrong option value with -R, input integer values")
+                            "wrong option value with -R, "
+                            "input integer values")
                         sys.exit(0)
                 elif len(repeatParams) == 1:
                     try:
                         SystemManager.repeatInterval = int(repeatParams[0])
                         SystemManager.repeatCount = 1
                         SystemManager.printInfo(\
-                            "run only for %s sec" % SystemManager.repeatCount)
+                            "run only for %s sec" % \
+                            SystemManager.repeatInterval)
                     except:
                         SystemManager.printError(\
-                            "wrong option value with -R, input a integer value")
+                            "wrong option value with -R, "
+                            "input a integer value")
                         sys.exit(0)
                 else:
                     SystemManager.printError((\
@@ -13004,14 +13008,16 @@ class SystemManager(object):
             elif option == 'o':
                 SystemManager.printFile = str(value)
                 if len(SystemManager.printFile) == 0:
-                    SystemManager.printError("no option value with -o option")
+                    SystemManager.printError(\
+                        "no option value with -o option")
                     sys.exit(0)
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
                 SystemManager.removeEmptyValue(SystemManager.customCmd)
                 if SystemManager.customCmd == []:
-                    SystemManager.printError("Fail to recognize custom events")
+                    SystemManager.printError(\
+                        "Fail to recognize custom events")
                     sys.exit(0)
 
             elif option == 'd':
