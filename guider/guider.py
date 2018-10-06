@@ -13071,8 +13071,11 @@ class SystemManager(object):
         symPath = '%s/kallsyms' % SystemManager.procPath
         try:
             f = open(symPath, 'r')
-        except IOError:
-            SystemManager.printWarning("Fail to open %s" % symPath)
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                "Fail to open %s because %s" % \
+                (symPath, ' '.join(list(map(str, err.args)))))
 
         ret = None
         startPos = len(SystemManager.kerSymTable)
@@ -19841,8 +19844,11 @@ class ThreadAnalyzer(object):
             f = open(file, 'r')
             lines = f.readlines()
             f.close()
-        except IOError:
-            SystemManager.printError("Fail to open %s" % file)
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s because %s" % \
+                (file, ' '.join(list(map(str, err.args)))))
             sys.exit(0)
 
         # save data and quit #
