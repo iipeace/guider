@@ -32106,14 +32106,14 @@ class ThreadAnalyzer(object):
                     evtdata = self.reportData['cpu']['procs']
 
                     pid = long(pid)
-                    evtdata[pid] = {}
-                    evtdata[pid]['pid'] = pid
-                    evtdata[pid]['rank'] = rank
-                    evtdata[pid]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[pid]['total'] = data['ttime']
-                    evtdata[pid]['user'] = data['utime']
-                    evtdata[pid]['kernel'] = data['stime']
-                    evtdata[pid]['runtime'] = \
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['total'] = data['ttime']
+                    evtdata[rank]['user'] = data['utime']
+                    evtdata[rank]['kernel'] = data['stime']
+                    evtdata[rank]['runtime'] = \
                         SystemManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
@@ -32143,13 +32143,13 @@ class ThreadAnalyzer(object):
                     evtdata = self.reportData['mem']['procs']
 
                     pid = long(pid)
-                    evtdata[pid] = {}
-                    evtdata[pid]['pid'] = pid
-                    evtdata[pid]['rank'] = rank
-                    evtdata[pid]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[pid]['rss'] = rss
-                    evtdata[pid]['text'] = text
-                    evtdata[pid]['runtime'] = \
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['rss'] = rss
+                    evtdata[rank]['text'] = text
+                    evtdata[rank]['runtime'] = \
                         SystemManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
@@ -32199,12 +32199,12 @@ class ThreadAnalyzer(object):
                     evtdata = self.reportData['block']['procs']
 
                     pid = long(pid)
-                    evtdata[pid] = {}
-                    evtdata[pid]['pid'] = long(pid)
-                    evtdata[pid]['rank'] = rank
-                    evtdata[pid]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[pid]['iowait'] = data['btime']
-                    evtdata[pid]['runtime'] = \
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = long(pid)
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['iowait'] = data['btime']
+                    evtdata[rank]['runtime'] = \
                         SystemManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
