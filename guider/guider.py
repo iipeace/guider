@@ -13071,11 +13071,8 @@ class SystemManager(object):
         symPath = '%s/kallsyms' % SystemManager.procPath
         try:
             f = open(symPath, 'r')
-        except:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                "Fail to open %s because %s" % \
-                (symPath, ' '.join(list(map(str, err.args)))))
+        except IOError:
+            SystemManager.printWarning("Fail to open %s" % symPath)
 
         ret = None
         startPos = len(SystemManager.kerSymTable)
@@ -19844,11 +19841,8 @@ class ThreadAnalyzer(object):
             f = open(file, 'r')
             lines = f.readlines()
             f.close()
-        except:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to open %s because %s" % \
-                (file, ' '.join(list(map(str, err.args)))))
+        except IOError:
+            SystemManager.printError("Fail to open %s" % file)
             sys.exit(0)
 
         # save data and quit #
@@ -20917,7 +20911,7 @@ class ThreadAnalyzer(object):
             else:
                 isVisibleTotal = False
 
-            #-------------------- GPU usage --------------------#
+            #-------------------- Total GPU usage --------------------#
             if isVisibleTotal:
                 for gpu, stat in gpuUsage.items():
                     stat = list(map(int, stat.split()))
@@ -20929,22 +20923,28 @@ class ThreadAnalyzer(object):
 
                     # draw total gpu graph #
                     plot(timeline, stat, '-', c='olive', linestyle='-.',\
-                        linewidth=2, marker='d', markersize=4, \
+                        linewidth=1, marker='d', markersize=2, \
                         solid_capstyle='round')
 
                     labelList.append('[ %s ]' % gpu)
+                    try:
+                        avgUsage = round(sum(stat) / len(stat), 1)
+                    except:
+                        avgUsage = 0
                     maxUsage = max(stat)
                     maxIdx = stat.index(maxUsage)
+
                     for idx in [idx for idx, usage in enumerate(stat) \
                         if usage == maxUsage]:
                         if idx != 0 and stat[idx] == stat[idx-1]:
                             continue
-                        text(timeline[idx], stat[maxIdx], '%d%%' % maxUsage,\
+                        text(timeline[idx], stat[maxIdx], \
+                            'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', \
                             alpha=0.3))
 
-            #-------------------- CPU usage --------------------#
+            #-------------------- Total CPU usage --------------------#
             ymax = 0
 
             if isVisibleTotal:
@@ -20958,7 +20958,7 @@ class ThreadAnalyzer(object):
 
                     # draw total cpu + iowait graph #
                     plot(timeline, blkWait, '-', c='pink', linestyle='-.',\
-                        linewidth=2, marker='d', markersize=4, \
+                        linewidth=1, marker='d', markersize=2, \
                         solid_capstyle='round')
                     labelList.append('[ CPU + IOWAIT ]')
                     try:
@@ -20967,6 +20967,7 @@ class ThreadAnalyzer(object):
                         avgUsage = 0
                     maxUsage = max(blkWait)
                     maxIdx = blkWait.index(maxUsage)
+
                     for idx in [idx for idx, usage in enumerate(blkWait) \
                         if usage == maxUsage]:
                         if idx != 0 and blkWait[idx] == blkWait[idx-1]:
@@ -20980,7 +20981,7 @@ class ThreadAnalyzer(object):
 
                 # draw total cpu graph #
                 plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
-                    linewidth=2, marker='d', markersize=4, \
+                    linewidth=1, marker='d', markersize=2, \
                     solid_capstyle='round')
 
                 labelList.append('[ CPU Average ]')
@@ -21005,6 +21006,7 @@ class ThreadAnalyzer(object):
                         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
                     break
 
+            #-------------------- Process CPU usage --------------------#
             # CPU usage of processes #
             for idx, item in sorted(\
                 cpuProcUsage.items(), \
@@ -21140,9 +21142,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='skyblue', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, blkRead, '-', c='skyblue', linewidth=2, alpha=0.1)
+                plot(timeline, blkRead, '-', c='skyblue', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, blkRead, '-', c='skyblue', linewidth=2)
+                plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
             labelList.append('Block Read')
 
             # System Block Write #
@@ -21166,9 +21168,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='green', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, blkWrite, '-', c='green', linewidth=2, alpha=0.1)
+                plot(timeline, blkWrite, '-', c='green', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, blkWrite, '-', c='green', linewidth=2)
+                plot(timeline, blkWrite, '-', c='green', linewidth=1)
             labelList.append('Block Write')
 
             # System Background Reclaim #
@@ -21192,9 +21194,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='pink', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, reclaimBg, '-', c='pink', linewidth=2, alpha=0.1)
+                plot(timeline, reclaimBg, '-', c='pink', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, reclaimBg, '-', c='pink', linewidth=2)
+                plot(timeline, reclaimBg, '-', c='pink', linewidth=1)
             labelList.append('Reclaim Background')
 
             # System Direct Reclaim #
@@ -21218,9 +21220,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='red', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, reclaimDr, '-', c='red', linewidth=2, alpha=0.1)
+                plot(timeline, reclaimDr, '-', c='red', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, reclaimDr, '-', c='red', linewidth=2)
+                plot(timeline, reclaimDr, '-', c='red', linewidth=1)
             labelList.append('Reclaim Foreground')
 
             # System Network Inbound #
@@ -21244,9 +21246,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='purple', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, netRead, '-', c='purple', linewidth=2, alpha=0.1)
+                plot(timeline, netRead, '-', c='purple', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, netRead, '-', c='purple', linewidth=2)
+                plot(timeline, netRead, '-', c='purple', linewidth=1)
             labelList.append('Network Inbound')
 
             # System Network Outbound #
@@ -21270,9 +21272,9 @@ class ThreadAnalyzer(object):
                     convertSize2Unit(usage[-1] << 10), \
                     fontsize=5, color='cyan', fontweight='bold')
             if usage[minIdx] == usage[maxIdx] == 0:
-                plot(timeline, netWrite, '-', c='cyan', linewidth=2, alpha=0.1)
+                plot(timeline, netWrite, '-', c='cyan', linewidth=1, alpha=0.1)
             else:
-                plot(timeline, netWrite, '-', c='cyan', linewidth=2)
+                plot(timeline, netWrite, '-', c='cyan', linewidth=1)
             labelList.append('Network Outbound')
 
             # IO usage of processes #
@@ -21448,7 +21450,7 @@ class ThreadAnalyzer(object):
                         convertSize2Unit(usage[-1] << 20), \
                         fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', \
-                    linewidth=2, solid_capstyle='round')
+                    linewidth=1, solid_capstyle='round')
                 if totalRAM is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
                         convertSize2Unit(long(totalRAM) << 20)
@@ -21476,7 +21478,7 @@ class ThreadAnalyzer(object):
                             convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='skyblue', fontweight='bold')
                     plot(timeline, usage, '-', c='skyblue', \
-                        linewidth=2, solid_capstyle='round')
+                        linewidth=1, solid_capstyle='round')
                     labelList.append('RAM User')
 
                 # System Cache Memory #
@@ -21499,7 +21501,7 @@ class ThreadAnalyzer(object):
                             convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='darkgray', fontweight='bold')
                     plot(timeline, usage, '-', c='darkgray', \
-                        linewidth=2, solid_capstyle='round')
+                        linewidth=1, solid_capstyle='round')
                     labelList.append('RAM Cache')
 
                 # System Swap Memory #
@@ -21522,7 +21524,7 @@ class ThreadAnalyzer(object):
                             convertSize2Unit(usage[-1] << 20), \
                             fontsize=5, color='orange', fontweight='bold')
                     plot(timeline, swapUsage, '-', c='orange', \
-                        linewidth=2, solid_capstyle='round')
+                        linewidth=1, solid_capstyle='round')
                     if totalSwap is not None:
                         label = 'Swap Total [%s]\nSwap Usage' % \
                             convertSize2Unit(long(totalSwap) << 20)
@@ -22848,10 +22850,10 @@ class ThreadAnalyzer(object):
             pass
 
         SystemManager.pipePrint(\
-            ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
+            ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
             "%3s|%3s|%4s(%2s)|\n") % \
-            ('[ TOTAL ]', '-----', '-----', ' ', ' ', \
+            ('{0:^29}'.format('[ TOTAL ]'), ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
             totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
             totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
@@ -26312,8 +26314,10 @@ class ThreadAnalyzer(object):
                     intervalThread['kernelEvent'] = {}
                     intervalThread['totalKernelEvent'] = {}
                     for evt in SystemManager.kernelEventList:
-                        intervalThread['kernelEvent'][evt] = dict(self.init_eventData)
-                        intervalThread['totalKernelEvent'][evt] = dict(self.init_eventData)
+                        intervalThread['kernelEvent'][evt] = \
+                            dict(self.init_eventData)
+                        intervalThread['totalKernelEvent'][evt] = \
+                            dict(self.init_eventData)
                         try:
                             intervalThread['totalKernelEvent'][evt]['count'] = \
                                 self.threadData[key]['kernelEvent'][evt]['count']
@@ -26325,15 +26329,21 @@ class ThreadAnalyzer(object):
 
                 # first interval #
                 if SystemManager.intervalNow == intervalEnable:
-                    intervalThread['cpuUsage'] = float(self.threadData[key]['usage'])
-                    intervalThread['preempted'] = float(self.threadData[key]['cpuWait'])
-                    intervalThread['coreSchedCnt'] = float(self.threadData[key]['coreSchedCnt'])
-                    intervalThread['brUsage'] = int(self.threadData[key]['reqRdBlock'])
+                    intervalThread['cpuUsage'] = \
+                        float(self.threadData[key]['usage'])
+                    intervalThread['preempted'] = \
+                        float(self.threadData[key]['cpuWait'])
+                    intervalThread['coreSchedCnt'] = \
+                        float(self.threadData[key]['coreSchedCnt'])
+                    intervalThread['brUsage'] = \
+                        int(self.threadData[key]['reqRdBlock'])
                     intervalThread['bwUsage'] = \
                         int(self.threadData[key]['writeBlock']) + \
                         (int(self.threadData[key]['awriteBlock']) << 3)
-                    intervalThread['memUsage'] = int(self.threadData[key]['nrPages'])
-                    intervalThread['kmemUsage'] = int(self.threadData[key]['remainKmem'])
+                    intervalThread['memUsage'] = \
+                        int(self.threadData[key]['nrPages'])
+                    intervalThread['kmemUsage'] = \
+                        int(self.threadData[key]['remainKmem'])
 
                 # later intervals #
                 else:
@@ -26781,6 +26791,21 @@ class ThreadAnalyzer(object):
 
                     self.cxtSwitch += 1
 
+                    '''
+                    /* states in TASK_REPORT: */
+                    "R (running)",      /* 0x00 */
+                    "S (sleeping)",     /* 0x01 */
+                    "D (disk sleep)",   /* 0x02 */
+                    "T (stopped)",      /* 0x04 */
+                    "t (tracing stop)", /* 0x08 */
+                    "X (dead)",     /* 0x10 */
+                    "Z (zombie)",       /* 0x20 */
+                    "P (parked)",       /* 0x40 */
+
+                    /* states beyond TASK_REPORT: */
+                    "I (idle)",     /* 0x80 */
+                    '''
+
                     prev_comm = d['prev_comm']
                     prev_pid = d['prev_pid']
                     prev_id = prev_pid
@@ -26969,10 +26994,16 @@ class ThreadAnalyzer(object):
 
                     # set sched status #
                     if d['prev_state'][0] == 'R':
-                        self.threadData[prev_id]['preempted'] += 1
-                        self.threadData[coreId]['preempted'] += 1
-                        self.threadData[next_id]['preemption'] += 1
-                        self.threadData[coreId]['preemption'] += 1
+                        # except for core sched event #
+                        if prev_id != coreId:
+                            self.threadData[prev_id]['preempted'] += 1
+                            self.threadData[coreId]['preempted'] += 1
+
+                        # except for core sched event #
+                        if next_id != coreId:
+                            self.threadData[next_id]['preemption'] += 1
+                            self.threadData[coreId]['preemption'] += 1
+
                         self.threadData[prev_id]['lastStatus'] = 'P'
 
                         if SystemManager.preemptGroup != None:
@@ -26992,11 +27023,19 @@ class ThreadAnalyzer(object):
 
                                 self.preemptData[index][2] = float(time)
                                 self.preemptData[index][3] = core
-                    elif d['prev_state'][0] == 'S':
-                        self.threadData[prev_id]['yield'] += 1
-                        self.threadData[coreId]['yield'] += 1
+
+                    elif d['prev_state'][0] == 'S' or \
+                        d['prev_state'][0] == 'D' or \
+                        d['prev_state'][0] == 't' or \
+                        d['prev_state'][0] == 'T':
+                        # except for core sched event #
+                        if prev_id != coreId:
+                            self.threadData[prev_id]['yield'] += 1
+                            self.threadData[coreId]['yield'] += 1
+
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = 'S'
+
                     else:
                         self.threadData[prev_id]['stop'] = 0
                         self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
@@ -27018,7 +27057,8 @@ class ThreadAnalyzer(object):
                         preemptedTime = \
                             self.threadData[next_id]['start'] - \
                             self.threadData[next_id]['stop']
-                        if preemptedTime >=0:
+
+                        if preemptedTime >= 0:
                             self.threadData[next_id]['cpuWait'] += preemptedTime
                         else:
                             SystemManager.printWarning(\
@@ -32578,21 +32618,22 @@ if __name__ == '__main__':
 
             sys.exit(0)
 
-        # get init time from buffer for verification #
-        if SystemManager.graphEnable is False:
+        if SystemManager.graphEnable:
+            pass
+        else:
+            # get init time from buffer for verification #
             initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
-        # wait for user input #
-        while 1:
-            if SystemManager.recordStatus:
-                SystemManager.condExit = True
-                signal.pause()
-                if SystemManager.condExit:
+            # wait for user input #
+            while 1:
+                if SystemManager.recordStatus:
+                    SystemManager.condExit = True
+                    signal.pause()
+                    if SystemManager.condExit:
+                        break
+                else:
                     break
-            else:
-                break
 
-        if SystemManager.graphEnable is False:
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
                 SystemManager.printError("buffer size %sKB is not enough" % \
