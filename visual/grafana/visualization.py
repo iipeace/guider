@@ -8,6 +8,8 @@ from influxdb import InfluxDBClient
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 
+exception_sub_keys = ["procs"]
+
 
 def InsertDB(file_path):
     json_dic_tags = {
@@ -27,9 +29,18 @@ def InsertDB(file_path):
         json_dic["fields"] = dict()
         for sub_k in guider_data[super_k]:
             # TODO : Add execption precessing
-            json_dic["fields"][sub_k] = guider_data[super_k][sub_k]
-        if len(json_dic["fields"]) > 0:
-            json_body_list.append(json_dic)
+            if sub_k != "procs" :
+                json_dic["fields"][sub_k] = guider_data[super_k][sub_k]
+            else if sub_k == "procs" :
+                json_dic["measurement"] = sub_k
+                for procs_pid_k in guider[super_k][sub_k]
+                    procs_comm_filed_name = "rank" + guider[super_k][sub_k][procs_pid_k]["rank"] + "_comm"
+                    procs_rss_filed_name = "rank" + guider[super_k][sub_k][procs_pid_k]["rank"] + "_rss"
+                    json_dic["fields"][procs_comm_filed_name] = guider[super_k][sub_k][procs_pid_k]["comm"]
+                    json_dic["fields"][procs_rss_filed_name] = guider[super_k][sub_k][procs_pid_k]["rss"]
+            if len(json_dic["fields"]) > 0:
+                json_body_list.append(json_dic)
+
 
     try:
         client = InfluxDBClient(config['influxDBClientConfig']['host'], config['influxDBClientConfig']['port'], config['influxDBClientConfig']['username'], config['influxDBClientConfig']['password'], config['influxDBClientConfig']['database'])
