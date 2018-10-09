@@ -11938,13 +11938,16 @@ class SystemManager(object):
             # convert to extended ascii #
             line = SystemManager.convertExtAscii(line)
 
-            if newline:
-                sys.stdout.write(line + '\n')
-            else:
-                sys.stdout.write(line)
+            try:
+                if newline:
+                    sys.stdout.write(line + '\n')
+                else:
+                    sys.stdout.write(line)
 
-            if SystemManager.remoteRun:
-                sys.stdout.flush()
+                if SystemManager.remoteRun:
+                    sys.stdout.flush()
+            except:
+                pass
 
 
 
