@@ -9389,26 +9389,25 @@ class SystemManager(object):
         # load standard libc library #
         try:
             if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
             SystemManager.printWarning('Fail to find libc to call systemcall')
             return
 
-        # define struct read_format #
+        # define struct read_group_format #
         class struct_anon_5(Structure):
-            pass
-        struct_anon_5.__slots__ = [
-            'value',
-            'id',
-        ]
-        struct_anon_5._fields_ = [
-            ('value', c_uint64),
-            ('id', c_uint64),
-        ]
+            __slots__ = [
+                'value',
+                'id',
+            ]
 
-        class struct_read_group_format(Structure):
-            pass
+            _fields_ = [
+                ('value', c_uint64),
+                ('id', c_uint64),
+            ]
+
         '''
         struct read_group_format {
             uint64_t nr;            /* The number of events */
@@ -9420,21 +9419,24 @@ class SystemManager(object):
             } values[];
         };
         '''
-        struct_read_group_format.__slots__ = [
-            'nr',
-            #'time_enabled',
-            #'time_running',
-            'values',
-        ]
-        struct_read_group_format._fields_ = [
-            ('nr', c_uint64),
-            #('time_enabled', c_uint64),
-            #('time_running', c_uint64),
-            ('values', POINTER(struct_anon_5)),
-        ]
+        '''
+        class struct_read_group_format(Structure):
+            __slots__ = [
+                'nr',
+                #'time_enabled',
+                #'time_running',
+                'values',
+            ]
 
-        class struct_read_format(Structure):
-            pass
+            _fields_ = [
+                ('nr', c_uint64),
+                #('time_enabled', c_uint64),
+                #('time_running', c_uint64),
+                ('values', POINTER(struct_anon_5)),
+            ]
+        '''
+
+        # define struct read_format #
         '''
         struct read_format {
             uint64_t value;         /* The value of the event */
@@ -9443,18 +9445,20 @@ class SystemManager(object):
             uint64_t id;            /* if PERF_FORMAT_ID */
         };
         '''
-        struct_read_format.__slots__ = [
-            'value',
-            #'time_enabled',
-            #'time_running',
-            'id',
-        ]
-        struct_read_format._fields_ = [
-            ('value', c_uint64),
-            #('time_enabled', c_uint64),
-            #('time_running', c_uint64),
-            ('id', c_uint64),
-        ]
+        class struct_read_format(Structure):
+            __slots__ = [
+                'value',
+                #'time_enabled',
+                #'time_running',
+                'id',
+            ]
+
+            _fields_ = [
+                ('value', c_uint64),
+                #('time_enabled', c_uint64),
+                #('time_running', c_uint64),
+                ('id', c_uint64),
+            ]
 
         # define IOC for ioctl call #
         _IOC_NRBITS = 8
@@ -9479,10 +9483,14 @@ class SystemManager(object):
                     nr   << _IOC_NRSHIFT   | \
                     size << _IOC_SIZESHIFT
 
-        def _IO(type, nr): return _IOC(_IOC_NONE, type, nr, 0)
-        def _IOR(type, nr, size): return _IOC(_IOC_READ, type, nr, size)
-        def _IOW(type, nr, size): return _IOC(_IOC_WRITE, type, nr, size)
-        def _IOWR(type, nr, size): return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
+        def _IO(type, nr):
+            return _IOC(_IOC_NONE, type, nr, 0)
+        def _IOR(type, nr, size):
+            return _IOC(_IOC_READ, type, nr, size)
+        def _IOW(type, nr, size):
+            return _IOC(_IOC_WRITE, type, nr, size)
+        def _IOWR(type, nr, size):
+            return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
 
         # define CMD #
         PERF_EVENT_IOC_ENABLE = _IO ('$', 0)
@@ -9644,10 +9652,12 @@ class SystemManager(object):
     def collectSystemPerfData():
         SystemManager.perfEventData = {}
 
+        # check perf event option #
         if SystemManager.perfGroupEnable and \
             len(SystemManager.perfEventChannel) == 0:
             return
 
+        # check perf event channel #
         for coreId in list(SystemManager.perfEventChannel.keys()):
             # make event list #
             events = list(SystemManager.perfEventChannel[coreId].keys())
@@ -9662,6 +9672,9 @@ class SystemManager(object):
             # get event data #
             values = SystemManager.readPerfEvents(\
                 SystemManager.perfEventChannel[coreId].values())
+
+            if values is None:
+                continue
 
             # summarize perf data of each cores #
             for idx, evt in enumerate(events):
