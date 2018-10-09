@@ -20055,8 +20055,11 @@ class ThreadAnalyzer(object):
         time.sleep(1)
 
         while 1:
-            # pause and resume by enter key #
-            SystemManager.doUserInput()
+            try:
+                # pause and resume by enter key #
+                SystemManager.doUserInput()
+            except:
+                pass
 
             # collect file stats as soon as possible #
             self.saveFileStat()
@@ -20142,8 +20145,11 @@ class ThreadAnalyzer(object):
 
                 continue
 
-            # pause and resume by enter key #
-            SystemManager.doUserInput()
+            try:
+                # pause and resume by enter key #
+                SystemManager.doUserInput()
+            except:
+                pass
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
