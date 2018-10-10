@@ -8124,13 +8124,13 @@ class SystemManager(object):
 
         if isInt:
             try:
-                if size >= sizeTB:
+                if abs(size) >= sizeTB:
                     return '%dT' % (size >> 40)
-                elif size >= sizeGB:
+                elif abs(size) >= sizeGB:
                     return '%dG' % (size >> 30)
-                elif size >= sizeMB:
+                elif abs(size) >= sizeMB:
                     return '%dM' % (size >> 20)
-                elif size >= sizeKB:
+                elif abs(size) >= sizeKB:
                     return '%dK' % (size >> 10)
                 else:
                     return '%d' % (size)
@@ -8138,13 +8138,13 @@ class SystemManager(object):
                 return '?'
         else:
             try:
-                if size >= sizeTB:
+                if abs(size) >= sizeTB:
                     return '%.1fT' % ((size >> 30) / 1024)
-                elif size >= sizeGB:
+                elif abs(size) >= sizeGB:
                     return '%.1fG' % ((size >> 20) / 1024)
-                elif size >= sizeMB:
+                elif abs(size) >= sizeMB:
                     return '%.1fM' % ((size >> 10) / 1024)
-                elif size >= sizeKB:
+                elif abs(size) >= sizeKB:
                     return '%.1fK' % (size / 1024)
                 else:
                     return '%d' % (size)
@@ -16017,11 +16017,12 @@ class SystemManager(object):
                 for pid in SystemManager.filterGroup:
                     try:
                         pid = str(int(pid))
-                    except:
-                        SystemManager.printError(\
-                            "Fail to set pid %s filter for function graph tracing" % pid)
-                        sys.exit(0)
                         SystemManager.writeCmd('../set_ftrace_pid', pid, True)
+                    except:
+                        SystemManager.printError((\
+                            "Fail to add %s to pid filter "
+                            "for function graph tracing") % pid)
+                        sys.exit(0)
 
                 SystemManager.writeCmd('../trace_options', 'nofuncgraph-proc')
                 SystemManager.writeCmd('../trace_options', 'funcgraph-abstime')
@@ -20243,6 +20244,7 @@ class ThreadAnalyzer(object):
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
+        storageUsage = {}
 
         try:
             with open(logFile, 'r') as fd:
@@ -20358,8 +20360,8 @@ class ThreadAnalyzer(object):
             if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
                 break
 
+        # initialize event timeline #
         if logBuf[finalLine-1].startswith('[Top Event Info]'):
-            # initialize event timeline #
             eventList = [[] for x in xrange(len(timeline))]
 
             for line in logBuf[finalLine:]:
@@ -20434,8 +20436,8 @@ class ThreadAnalyzer(object):
                 cpuProcUsage[pname]['average'] = average
                 cpuProcUsage[pname]['usage'] = intervalList
 
+        # parse gpu stat #
         if logBuf[finalLine-1].startswith('[Top GPU Info]'):
-            # parse gpu stat #
             compareString = ['[Top Memory Info]', '[Top VSS Info]']
             gname = None
             maxUsage = 0
@@ -20461,6 +20463,7 @@ class ThreadAnalyzer(object):
                     # save previous info #
                     gpuUsage[gname] = intervalList
 
+        # parse memory of processes #
         if not logBuf[finalLine-1].startswith('[Top Memory Info]'):
             # parse vss of processes #
             compareString = ['[Top RSS Info]']
@@ -20564,9 +20567,8 @@ class ThreadAnalyzer(object):
                     memProcUsage[pname]['maxRss'] = maxRss
                     memProcUsage[pname]['rssUsage'] = intervalList
 
-
         # parse block wait of processes #
-        compareString = '[Top Memory Details]'
+        compareString = ['[Top Storage Info]', '[Top Memory Details]']
         compareLen = len(compareString)
         pname = None
         pid = 0
@@ -20576,10 +20578,10 @@ class ThreadAnalyzer(object):
         intervalList = None
 
         for line in logBuf[finalLine:]:
-            if line[:compareLen] == compareString:
-                break
-
             finalLine += 1
+
+            if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
+                break
 
             sline = line.split('|')
             slen = len(sline)
@@ -20617,6 +20619,32 @@ class ThreadAnalyzer(object):
                 blkProcUsage[pname]['pid'] = pid
                 blkProcUsage[pname]['total'] = total
                 blkProcUsage[pname]['usage'] = intervalList
+
+        # parse storage stat #
+        if logBuf[finalLine-1].startswith('[Top Storage Info]'):
+            compareString = ['[Top Memory Details]', '[Top Info]']
+            sname = None
+            intervalList = None
+
+            for line in logBuf[finalLine:]:
+                finalLine += 1
+
+                if line.find(']') > 0 and \
+                    line[:line.find(']')+1] in compareString:
+                    break
+
+                sline = line.split('|')
+                slen = len(sline)
+
+                if slen == 3:
+                    sname = sline[0].strip()
+                    intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList is not None:
+                        intervalList += sline[1]
+                elif intervalList is not None:
+                    # save previous info #
+                    storageUsage[sname] = intervalList
 
         # parse memory details of processes #
         compareString = '[Top Info]'
@@ -24829,8 +24857,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def parseProcLine(index, procLine):
+        TA = ThreadAnalyzer
+
         # Get time info #
-        if 'time' not in ThreadAnalyzer.procIntData[index]:
+        if 'time' not in TA.procIntData[index]:
             m = re.match((\
                 r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
                 r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+' \
@@ -24839,19 +24869,19 @@ class ThreadAnalyzer(object):
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
                 d = m.groupdict()
-                ThreadAnalyzer.procIntData[index]['time'] = d['time']
-                ThreadAnalyzer.procIntData[index]['nrCtxt'] = d['nrCtxt']
-                ThreadAnalyzer.procIntData[index]['nrIrq'] = d['nrIrq']
-                ThreadAnalyzer.procIntData[index]['nrCore'] = d['nrCore']
-                ThreadAnalyzer.procIntData[index]['nrProc'] = d['nrProc']
-                ThreadAnalyzer.procIntData[index]['nrThread'] = d['nrThread']
+                TA.procIntData[index]['time'] = d['time']
+                TA.procIntData[index]['nrCtxt'] = d['nrCtxt']
+                TA.procIntData[index]['nrIrq'] = d['nrIrq']
+                TA.procIntData[index]['nrCore'] = d['nrCore']
+                TA.procIntData[index]['nrProc'] = d['nrProc']
+                TA.procIntData[index]['nrThread'] = d['nrThread']
             return
 
         # Split stats #
         tokenList = procLine.split('|')
 
         # Get total resource usage #
-        if 'total' not in ThreadAnalyzer.procIntData[index] and \
+        if 'total' not in TA.procIntData[index] and \
             tokenList[0].startswith('Total'):
 
             # CPU & BLOCK stat #
@@ -24863,24 +24893,25 @@ class ThreadAnalyzer(object):
             if m is not None:
                 d = m.groupdict()
 
-                ThreadAnalyzer.procTotData['total']['cpu'] += int(d['cpu'])
+                TA.procTotData['total']['cpu'] += int(d['cpu'])
 
-                ThreadAnalyzer.procIntData[index]['total'] = \
-                    dict(ThreadAnalyzer.init_procIntData)
-                try:
-                    ThreadAnalyzer.procIntData[index]['total']['cpu'] = int(d['cpu'])
-                except:
-                    ThreadAnalyzer.procIntData[index]['total']['cpu'] = 0
+                TA.procIntData[index]['total'] = dict(TA.init_procIntData)
 
                 try:
-                    ThreadAnalyzer.procIntData[index]['total']['blkwait'] = int(d['block'])
+                    TA.procIntData[index]['total']['cpu'] = int(d['cpu'])
                 except:
-                    ThreadAnalyzer.procIntData[index]['total']['blkwait'] = 0
+                    TA.procIntData[index]['total']['cpu'] = 0
+
+                try:
+                    TA.procIntData[index]['total']['blkwait'] = int(d['block'])
+                except:
+                    TA.procIntData[index]['total']['blkwait'] = 0
             else:
                 return
 
             # MEM stat #
-            m = re.match((r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)\s*'
+            m = re.match((\
+                r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)\s*'
                 r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<cache>\-*[0-9]+)\s*'
                 r'/\s*(?P<kernel>\-*[0-9]+)'), tokenList[2])
             if m is not None:
@@ -24892,54 +24923,54 @@ class ThreadAnalyzer(object):
                 cacheMem = int(d['cache'])
                 kernelMem = int(d['kernel'])
 
-                if ThreadAnalyzer.procTotData['total']['initMem'] == 0:
-                    ThreadAnalyzer.procTotData['total']['initMem'] = freeMem
+                if TA.procTotData['total']['initMem'] == 0:
+                    TA.procTotData['total']['initMem'] = freeMem
 
-                ThreadAnalyzer.procTotData['total']['lastMem'] = freeMem
+                TA.procTotData['total']['lastMem'] = freeMem
 
                 # set minimum free memory #
-                if ThreadAnalyzer.procTotData['total']['minMem'] == 0 or \
-                    ThreadAnalyzer.procTotData['total']['minMem'] > freeMem:
-                    ThreadAnalyzer.procTotData['total']['minMem'] = freeMem
+                if TA.procTotData['total']['minMem'] == 0 or \
+                    TA.procTotData['total']['minMem'] > freeMem:
+                    TA.procTotData['total']['minMem'] = freeMem
                 # set maximum free memory #
-                if ThreadAnalyzer.procTotData['total']['maxMem'] < freeMem:
-                    ThreadAnalyzer.procTotData['total']['maxMem'] = freeMem
+                if TA.procTotData['total']['maxMem'] < freeMem:
+                    TA.procTotData['total']['maxMem'] = freeMem
 
-                ThreadAnalyzer.procIntData[index]['total']['mem'] = freeMem
-                ThreadAnalyzer.procIntData[index]['total']['memDiff'] = freeMemDiff
-                ThreadAnalyzer.procIntData[index]['total']['anonmem'] = anonMem
-                ThreadAnalyzer.procIntData[index]['total']['cachemem'] = cacheMem
-                ThreadAnalyzer.procIntData[index]['total']['kernelmem'] = kernelMem
+                TA.procIntData[index]['total']['mem'] = freeMem
+                TA.procIntData[index]['total']['memDiff'] = freeMemDiff
+                TA.procIntData[index]['total']['anonmem'] = anonMem
+                TA.procIntData[index]['total']['cachemem'] = cacheMem
+                TA.procIntData[index]['total']['kernelmem'] = kernelMem
             else:
                 return
 
             try:
-                ThreadAnalyzer.procIntData[index]['total']['blk'] = tokenList[5]
+                TA.procIntData[index]['total']['blk'] = tokenList[5]
             except:
-                ThreadAnalyzer.procIntData[index]['total']['blk'] = '-'
+                TA.procIntData[index]['total']['blk'] = '-'
 
             m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
             if m is not None:
                 d = m.groupdict()
 
-                ThreadAnalyzer.procIntData[index]['total']['swap'] = int(d['swap'])
+                TA.procIntData[index]['total']['swap'] = int(d['swap'])
             else:
                 return
 
             try:
-                ThreadAnalyzer.procIntData[index]['total']['rclm'] = tokenList[4].strip()
+                TA.procIntData[index]['total']['rclm'] = tokenList[4].strip()
             except:
-                ThreadAnalyzer.procIntData[index]['total']['rclm'] = '-'
+                TA.procIntData[index]['total']['rclm'] = '-'
 
             try:
-                ThreadAnalyzer.procIntData[index]['total']['nrFlt'] = int(tokenList[6])
+                TA.procIntData[index]['total']['nrFlt'] = int(tokenList[6])
             except:
-                ThreadAnalyzer.procIntData[index]['total']['nrFlt'] = '-'
+                TA.procIntData[index]['total']['nrFlt'] = '-'
 
             try:
-                ThreadAnalyzer.procIntData[index]['total']['netIO'] = tokenList[11].strip()
+                TA.procIntData[index]['total']['netIO'] = tokenList[11].strip()
             except:
-                ThreadAnalyzer.procIntData[index]['total']['netIO'] = '-'
+                TA.procIntData[index]['total']['netIO'] = '-'
 
             return
 
@@ -24953,17 +24984,17 @@ class ThreadAnalyzer(object):
                 gpu = d['gpu'].strip()
                 usage = int(d['usage'])
 
-                ThreadAnalyzer.procIntData[index]['total'].setdefault(\
+                TA.procIntData[index]['total'].setdefault(\
                     'gpu', dict())
-                ThreadAnalyzer.procTotData['total'].setdefault('gpu', dict())
+                TA.procTotData['total'].setdefault('gpu', dict())
 
                 try:
-                    ThreadAnalyzer.procTotData['total']['gpu'][gpu] += usage
+                    TA.procTotData['total']['gpu'][gpu] += usage
                 except:
-                    ThreadAnalyzer.procTotData['total']['gpu'][gpu] = usage
+                    TA.procTotData['total']['gpu'][gpu] = usage
 
                 try:
-                    ThreadAnalyzer.procIntData[index]['total']['gpu'][gpu] = usage
+                    TA.procIntData[index]['total']['gpu'][gpu] = usage
                 except:
                     pass
 
@@ -24973,21 +25004,56 @@ class ThreadAnalyzer(object):
         if len(tokenList) == 11 and tokenList[0][0] == '/':
             convertUnit2Size = SystemManager.convertUnit2Size
 
+            TA.procIntData[index]['total'].setdefault('storage', dict())
+
+            TA.procTotData['total'].setdefault('storage', dict())
+
             try:
+                # get device name #
                 dev = tokenList[0].strip()
+                dev = dev[dev.rfind('/')+1:]
+
+                TA.procIntData[index]['total']['storage'].setdefault(dev, dict())
+                TA.procTotData['total']['storage'].setdefault(dev, dict())
+
+                # get storage stats in MB #
                 read = convertUnit2Size(tokenList[1].strip())
                 write = convertUnit2Size(tokenList[2].strip())
                 free = convertUnit2Size(tokenList[3].strip())
                 freeDiff = convertUnit2Size(tokenList[4].strip())
                 total = convertUnit2Size(tokenList[6].strip())
                 favail = convertUnit2Size(tokenList[7].strip())
+
+                # read #
+                try:
+                    TA.procIntData[index]['total']['storage'][dev]['read'] = read
+                    TA.procTotData['total']['storage'][dev]['read'] += read
+                except:
+                    TA.procTotData['total']['storage'][dev]['read'] = read
+
+                # write #
+                try:
+                    TA.procIntData[index]['total']['storage'][dev]['write'] = \
+                        write
+                    TA.procTotData['total']['storage'][dev]['write'] += write
+                except:
+                    TA.procTotData['total']['storage'][dev]['write'] = write
+
+                # freediff #
+                try:
+                    TA.procIntData[index]['total']['storage'][dev]['free'] = \
+                        freeDiff
+                    TA.procTotData['total']['storage'][dev]['free'] += freeDiff
+                except:
+                    TA.procTotData['total']['storage'][dev]['free'] = freeDiff
             except:
                 pass
 
             return
 
         # Get process resource usage #
-        m = re.match((r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
+        m = re.match((\
+            r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
             r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
             r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
@@ -25003,39 +25069,38 @@ class ThreadAnalyzer(object):
                     rcomm = comm[3:]
 
                     # check item #
-                    if rcomm not in ThreadAnalyzer.lifecycleData:
-                        ThreadAnalyzer.lifecycleData[rcomm] = [0] * 4
-                        ThreadAnalyzer.lifecycleData[rcomm][2] = dict()
-                        ThreadAnalyzer.lifecycleData[rcomm][3] = dict()
+                    if rcomm not in TA.lifecycleData:
+                        TA.lifecycleData[rcomm] = [0] * 4
+                        TA.lifecycleData[rcomm][2] = dict()
+                        TA.lifecycleData[rcomm][3] = dict()
 
                     # add died process to list #
                     if comm[1] == '-':
-                        ThreadAnalyzer.lifecycleData[rcomm][1] += 1
+                        TA.lifecycleData[rcomm][1] += 1
 
                         try:
-                            ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
+                            TA.procIntData[index-1][pid]['die'] = True
                         except:
-                            ThreadAnalyzer.procIntData[index-1][pid] = \
-                                dict(ThreadAnalyzer.init_procIntData)
-                            ThreadAnalyzer.procIntData[index-1][pid]['die'] = True
+                            TA.procIntData[index-1][pid] = \
+                                dict(TA.init_procIntData)
+                            TA.procIntData[index-1][pid]['die'] = True
                     # add created process to list #
                     elif comm[1] == '+':
-                        ThreadAnalyzer.lifecycleData[rcomm][0] += 1
+                        TA.lifecycleData[rcomm][0] += 1
                     # add zomebie process to list #
                     elif comm[1] == 'Z':
-                        ThreadAnalyzer.lifecycleData[rcomm][2][pid] = 1
+                        TA.lifecycleData[rcomm][2][pid] = 1
                     # add zomebie process to list #
                     elif comm[1] == 'T':
-                        ThreadAnalyzer.lifecycleData[rcomm][3][pid] = 1
+                        TA.lifecycleData[rcomm][3][pid] = 1
 
                     return
             except:
                 pass
 
-            if pid not in ThreadAnalyzer.procTotData:
-                ThreadAnalyzer.procTotData[pid] = \
-                    dict(ThreadAnalyzer.init_procTotData)
-                ThreadAnalyzer.procTotData[pid]['startIdx'] = index
+            if pid not in TA.procTotData:
+                TA.procTotData[pid] = dict(TA.init_procTotData)
+                TA.procTotData[pid]['startIdx'] = index
 
             cpu = int(float(d['cpu']))
             blk = int(float(d['blk']))
@@ -25046,47 +25111,46 @@ class ThreadAnalyzer(object):
             except:
                 blkrd = blkwr = 0
 
-            ThreadAnalyzer.procTotData[pid]['comm'] = d['comm']
-            ThreadAnalyzer.procTotData[pid]['ppid'] = d['ppid']
-            ThreadAnalyzer.procTotData[pid]['nrThreads'] = d['nrThreads']
-            ThreadAnalyzer.procTotData[pid]['pri'] = d['pri']
+            TA.procTotData[pid]['comm'] = d['comm']
+            TA.procTotData[pid]['ppid'] = d['ppid']
+            TA.procTotData[pid]['nrThreads'] = d['nrThreads']
+            TA.procTotData[pid]['pri'] = d['pri']
 
-            ThreadAnalyzer.procTotData[pid]['cpu'] += cpu
-            ThreadAnalyzer.procTotData[pid]['blk'] += blk
-            ThreadAnalyzer.procTotData[pid]['blkrd'] += blkrd
-            ThreadAnalyzer.procTotData[pid]['blkwr'] += blkwr
+            TA.procTotData[pid]['cpu'] += cpu
+            TA.procTotData[pid]['blk'] += blk
+            TA.procTotData[pid]['blkrd'] += blkrd
+            TA.procTotData[pid]['blkwr'] += blkwr
 
             # set vss #
             vss = int(d['vss'])
-            if ThreadAnalyzer.procTotData[pid]['minVss'] >= vss:
-                ThreadAnalyzer.procTotData[pid]['minVss'] = vss
-            if ThreadAnalyzer.procTotData[pid]['maxVss'] < vss:
-                ThreadAnalyzer.procTotData[pid]['maxVss'] = vss
+            if TA.procTotData[pid]['minVss'] >= vss:
+                TA.procTotData[pid]['minVss'] = vss
+            if TA.procTotData[pid]['maxVss'] < vss:
+                TA.procTotData[pid]['maxVss'] = vss
 
             # set rss #
             rss = int(d['rss'])
-            if ThreadAnalyzer.procTotData[pid]['minMem'] >= rss:
-                ThreadAnalyzer.procTotData[pid]['minMem'] = rss
-            if ThreadAnalyzer.procTotData[pid]['maxMem'] <= rss:
-                ThreadAnalyzer.procTotData[pid]['maxMem'] = rss
+            if TA.procTotData[pid]['minMem'] >= rss:
+                TA.procTotData[pid]['minMem'] = rss
+            if TA.procTotData[pid]['maxMem'] <= rss:
+                TA.procTotData[pid]['maxMem'] = rss
 
             # set mem #
-            if ThreadAnalyzer.procTotData[pid]['initMem'] == 0:
-                ThreadAnalyzer.procTotData[pid]['initMem'] = rss
-                ThreadAnalyzer.procTotData[pid]['lastMem'] = rss
+            if TA.procTotData[pid]['initMem'] == 0:
+                TA.procTotData[pid]['initMem'] = rss
+                TA.procTotData[pid]['lastMem'] = rss
 
-            if pid not in ThreadAnalyzer.procIntData[index]:
-                ThreadAnalyzer.procIntData[index][pid] = \
-                    dict(ThreadAnalyzer.init_procIntData)
-                ThreadAnalyzer.procIntData[index][pid]['cpu'] = cpu
-                ThreadAnalyzer.procIntData[index][pid]['vss'] = vss
-                ThreadAnalyzer.procIntData[index][pid]['blk'] = blk
-                ThreadAnalyzer.procIntData[index][pid]['blkrd'] = blkrd
-                ThreadAnalyzer.procIntData[index][pid]['blkwr'] = blkwr
-                ThreadAnalyzer.procIntData[index][pid]['mem'] = rss
-                ThreadAnalyzer.procIntData[index][pid]['memDiff'] = \
-                    rss - ThreadAnalyzer.procTotData[pid]['lastMem']
-                ThreadAnalyzer.procTotData[pid]['lastMem'] = rss
+            if pid not in TA.procIntData[index]:
+                TA.procIntData[index][pid] = dict(TA.init_procIntData)
+                TA.procIntData[index][pid]['cpu'] = cpu
+                TA.procIntData[index][pid]['vss'] = vss
+                TA.procIntData[index][pid]['blk'] = blk
+                TA.procIntData[index][pid]['blkrd'] = blkrd
+                TA.procIntData[index][pid]['blkwr'] = blkwr
+                TA.procIntData[index][pid]['mem'] = rss
+                TA.procIntData[index][pid]['memDiff'] = \
+                    rss - TA.procTotData[pid]['lastMem']
+                TA.procTotData[pid]['lastMem'] = rss
 
 
 
@@ -25147,7 +25211,8 @@ class ThreadAnalyzer(object):
 
         for filename, value in sorted(SystemManager.fileInstance.items(),\
             key=lambda e: int(e[1]), reverse=True):
-            SystemManager.pipePrint("{0:>5} | {1:<144} |\n".format(value, filename))
+            SystemManager.pipePrint(\
+                "{0:>5} | {1:<144} |\n".format(value, filename))
 
         if len(SystemManager.fileInstance) == 0:
             SystemManager.pipePrint('\tN/A\n')
@@ -25340,7 +25405,8 @@ class ThreadAnalyzer(object):
             if total == 0:
                 continue
 
-            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(\
+                ("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
 
 
@@ -25471,7 +25537,8 @@ class ThreadAnalyzer(object):
             if pid == 'total' or value['maxMem'] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+            procInfo = \
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'][:cl], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxMem'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -25531,7 +25598,8 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(\
+                ("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
 
 
@@ -25600,7 +25668,8 @@ class ThreadAnalyzer(object):
             if pid == 'total' or value['maxVss'] == 0:
                 continue
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
+            procInfo = \
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
                 format(value['comm'][:cl], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], value['maxVss'], cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -25660,7 +25729,8 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-            SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SystemManager.pipePrint(\
+                ("{0:1} {1:1}\n").format(procInfo, timeLine))
             SystemManager.pipePrint("%s\n" % oneLine)
 
 
@@ -25710,7 +25780,8 @@ class ThreadAnalyzer(object):
             else:
                 bstat = value['blk']
 
-            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+            procInfo = \
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
                 format(value['comm'], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], bstat, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -25749,6 +25820,76 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def printStorageInterval():
+        TA = ThreadAnalyzer
+
+        # Check storage data #
+        if 'storage' not in TA.procTotData['total']:
+            return
+
+        # Print title #
+        SystemManager.pipePrint('\n[Top Storage Info] (Unit: %)\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Print menu #
+        storageInfo = "{0:^16} | {1:^21} |".format('Storage', 'Sum')
+        storageInfoLen = len(storageInfo)
+        maxLineLen = SystemManager.lineLength
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(storageInfo)
+        for i in xrange(1,len(TA.procIntData) + 1):
+            if lineLen + 21 > maxLineLen:
+                timeLine += ('\n' + (' ' * (storageInfoLen - 1)) + '| ')
+                lineLen = len(storageInfo)
+
+            timeLine = '%s%s' % (timeLine, '{0:>21} '.format(i))
+            lineLen += 21
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(storageInfo, timeLine))
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Print storage usage #
+        for dev, val in TA.procTotData['total']['storage'].items():
+            try:
+                 total = '%s/%s/%s' % \
+                    (SystemManager.convertSize2Unit(val['read'], True),\
+                    SystemManager.convertSize2Unit(val['write'], True),\
+                    SystemManager.convertSize2Unit(val['free'], True))
+            except:
+                continue
+
+            storageInfo = "{0:^16} | {1:^21} |".format(dev, total)
+            storageInfoLen = len(storageInfo)
+            maxLineLen = SystemManager.lineLength
+
+            timeLine = ''
+            lineLen = len(storageInfo)
+            for idx in xrange(0,len(TA.procIntData)):
+                if lineLen + 21 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (storageInfoLen - 1)) + '| ')
+                    lineLen = len(storageInfo)
+
+                try:
+                    stats = TA.procIntData[idx]['total']['storage'][dev]
+                    usage = '%s/%s/%s' % \
+                        (SystemManager.convertSize2Unit(stats['read'], True),\
+                        SystemManager.convertSize2Unit(stats['write'], True),\
+                        SystemManager.convertSize2Unit(stats['free'], True))
+                except:
+                    continue
+
+                timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
+                lineLen += 21
+
+            SystemManager.pipePrint(\
+                ("{0:1} {1:1}\n").format(storageInfo, timeLine))
+            SystemManager.pipePrint("%s\n" % oneLine)
+
+
+
+    @staticmethod
     def printIntervalUsage():
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
@@ -25764,6 +25905,7 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.printVssInterval()
             ThreadAnalyzer.printRssInterval()
             ThreadAnalyzer.printBlkInterval()
+            ThreadAnalyzer.printStorageInterval()
 
         # print interval info #
         ThreadAnalyzer.printMemAnalysis()
