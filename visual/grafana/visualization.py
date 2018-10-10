@@ -23,24 +23,27 @@ def InsertDB(file_path):
         guider_data = json.load(data_file)
 
     for super_k in guider_data.keys():
+        if super_k == "storage" :
+            # TODO : Parsing storage section
+            i = 0
+            continue
         json_dic = dict()
         json_dic["tags"] = json_dic_tags
         json_dic["measurement"] = super_k
         json_dic["fields"] = dict()
         for sub_k in guider_data[super_k]:
             # TODO : Add execption precessing
-            if sub_k != "procs" :
+            if super_k != "mem" and sub_k != "procs" :
                 json_dic["fields"][sub_k] = guider_data[super_k][sub_k]
-            else if sub_k == "procs" :
-                json_dic["measurement"] = sub_k
-                for procs_pid_k in guider[super_k][sub_k]
-                    procs_comm_filed_name = "rank" + guider[super_k][sub_k][procs_pid_k]["rank"] + "_comm"
-                    procs_rss_filed_name = "rank" + guider[super_k][sub_k][procs_pid_k]["rank"] + "_rss"
-                    json_dic["fields"][procs_comm_filed_name] = guider[super_k][sub_k][procs_pid_k]["comm"]
-                    json_dic["fields"][procs_rss_filed_name] = guider[super_k][sub_k][procs_pid_k]["rss"]
-            if len(json_dic["fields"]) > 0:
-                json_body_list.append(json_dic)
+            elif super_k=="mem" and sub_k == "procs" :
+                for procs_pid_k in guider_data[super_k][sub_k] :
+                    for procs_sub_k in guider_data[super_k][sub_k][procs_pid_k] :
+                        if procs_sub_k == "comm" or procs_sub_k == "rss" :
+                            filed_name = "rank%d_%s" % (guider_data[super_k][sub_k][procs_pid_k]["rank"], procs_sub_k)
+                            json_dic["fields"][filed_name] = guider_data[super_k][sub_k][procs_pid_k][procs_sub_k]
 
+        if len(json_dic["fields"]) > 0:
+            json_body_list.append(json_dic)
 
     try:
         client = InfluxDBClient(config['influxDBClientConfig']['host'], config['influxDBClientConfig']['port'], config['influxDBClientConfig']['username'], config['influxDBClientConfig']['password'], config['influxDBClientConfig']['database'])
