@@ -25,7 +25,6 @@ def InsertDB(file_path):
     for super_k in guider_data.keys():
         if super_k == "storage" :
             # TODO : Parsing storage section
-            i = 0
             continue
         json_dic = dict()
         json_dic["tags"] = json_dic_tags
@@ -33,7 +32,7 @@ def InsertDB(file_path):
         json_dic["fields"] = dict()
         for sub_k in guider_data[super_k]:
             # TODO : Add execption precessing
-            if super_k != "mem" and sub_k != "procs" :
+            if sub_k != "procs" :
                 json_dic["fields"][sub_k] = guider_data[super_k][sub_k]
             elif super_k=="mem" and sub_k == "procs" :
                 for procs_pid_k in guider_data[super_k][sub_k] :
@@ -41,6 +40,9 @@ def InsertDB(file_path):
                         if procs_sub_k == "comm" or procs_sub_k == "rss" :
                             filed_name = "rank%d_%s" % (guider_data[super_k][sub_k][procs_pid_k]["rank"], procs_sub_k)
                             json_dic["fields"][filed_name] = guider_data[super_k][sub_k][procs_pid_k][procs_sub_k]
+            elif super_k=="cpu" and sub_k == "procs" :
+                # TODO : Parsing cpu procs section
+                continue
 
         if len(json_dic["fields"]) > 0:
             json_body_list.append(json_dic)
