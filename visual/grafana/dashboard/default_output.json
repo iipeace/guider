@@ -19,7 +19,7 @@
   "links": [],
   "panels": [
     {
-      "content": "<h1><center>Guider Output Visualization</center></h1>",
+      "content": "<h1><center>Guider Output Visualization - 1st AWS Instance</center></h1>",
       "gridPos": {
         "h": 2,
         "w": 8,
@@ -261,6 +261,7 @@
       "targets": [
         {
           "groupBy": [],
+          "hide": false,
           "measurement": "mem",
           "orderByTime": "ASC",
           "policy": "default",
@@ -274,41 +275,19 @@
                 ],
                 "type": "field"
               }
-            ]
-          ],
-          "tags": []
-        },
-        {
-          "groupBy": [],
-          "measurement": "mem",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "B",
-          "resultFormat": "time_series",
-          "select": [
-            [
-              {
-                "params": [
-                  "kernel"
-                ],
-                "type": "field"
-              }
-            ]
-          ],
-          "tags": []
-        },
-        {
-          "groupBy": [],
-          "measurement": "mem",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "C",
-          "resultFormat": "time_series",
-          "select": [
+            ],
             [
               {
                 "params": [
                   "anon"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "kernel"
                 ],
                 "type": "field"
               }
@@ -404,7 +383,7 @@
             [
               {
                 "params": [
-                  "input"
+                  "inbound"
                 ],
                 "type": "field"
               }
@@ -423,7 +402,7 @@
             [
               {
                 "params": [
-                  "output"
+                  "outbound"
                 ],
                 "type": "field"
               }
@@ -681,6 +660,112 @@
       "title": "Task Status",
       "transform": "timeseries_to_columns",
       "type": "table"
+    },
+    {
+      "columns": [],
+      "datasource": null,
+      "fontSize": "100%",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 14,
+      "links": [],
+      "pageSize": null,
+      "scroll": true,
+      "showHeader": true,
+      "sort": {
+        "col": 0,
+        "desc": true
+      },
+      "styles": [
+        {
+          "alias": "Time",
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "pattern": "Time",
+          "type": "date"
+        },
+        {
+          "alias": "",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "decimals": 2,
+          "pattern": "/.*/",
+          "thresholds": [],
+          "type": "number",
+          "unit": "short"
+        }
+      ],
+      "targets": [
+        {
+          "groupBy": [],
+          "measurement": "mem",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "rank1_comm"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "rank1_rss"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "rank2_comm"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "rank2_rss"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "rank3_comm"
+                ],
+                "type": "field"
+              }
+            ],
+            [
+              {
+                "params": [
+                  "rank3_rss"
+                ],
+                "type": "field"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "title": "Memory Usage Best 3",
+      "transform": "timeseries_to_columns",
+      "type": "table"
     }
   ],
   "refresh": "5s",
@@ -722,5 +807,5 @@
   "timezone": "",
   "title": "Guider Output Visualization",
   "uid": "PsdVpB2iz",
-  "version": 9
+  "version": 12
 }
