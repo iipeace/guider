@@ -16599,11 +16599,13 @@ class SystemManager(object):
                 format('Launch', '# ' + '%s%s' % (' '.join(sys.argv), ' -')))
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SystemManager.arch))
         except:
             pass
+
         try:
             timeInfo = '%s %s' % \
                 (self.systemInfo['date'], self.systemInfo['time'])
@@ -16611,11 +16613,13 @@ class SystemManager(object):
                 "{0:20} {1:<100}".format('Time', timeInfo))
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('OS', self.systemInfo['osVer']))
         except:
             pass
+
         try:
             kernelInfo = '%s %s' % \
                 (self.systemInfo['osType'], self.systemInfo['kernelVer'])
@@ -16623,6 +16627,7 @@ class SystemManager(object):
                 "{0:20} {1:<100}".format('Kernel', kernelInfo))
         except:
             pass
+
         try:
             uptimeMin = int(float(self.uptimeData[0]) / 60)
             h, m = divmod(uptimeMin, 60)
@@ -16632,6 +16637,7 @@ class SystemManager(object):
                 "{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
         except:
             pass
+
         try:
             runtime = long(time.time() - SystemManager.startTime)
             m, s = divmod(runtime, 60)
@@ -16641,6 +16647,7 @@ class SystemManager(object):
                 "{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
@@ -16649,16 +16656,20 @@ class SystemManager(object):
                 str(int(float(self.loadData[2]) * 100)) + '%(15m)'))
         except:
             pass
+
         try:
-            SystemManager.infoBufferPrint("{0:20} {1:<10}".format('Threads', \
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<10}".format('Threads', \
                 self.loadData[3] + ' (running/total)'))
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
         except:
             pass
+
         try:
             title = 'Cmdline'
             splitLen = SystemManager.lineLength - 21
@@ -17034,26 +17045,26 @@ class SystemManager(object):
             try:
                 diskInfo = \
                     ("{0:<16} {1:>7} {2:>8} {3:>8} {4:>8} "
-                    "{5:>8} {6:>6} {7:>7} {8:>8} {9:<20}").\
+                    "{5:>8} {6:>6} {7:>7} {8:>8} ").\
                     format(' ', '%s:%s' % (major, minor), readSize, \
-                    writeSize, total, free, use, avail, val['fs'], \
-                    '%s <%s>' % (val['path'], val['option']))
+                    writeSize, total, free, use, avail, val['fs'])
             except:
                 continue
 
-            # split a long line to multiple lines #
-            lineLength = SystemManager.lineLength
-            if len(diskInfo) > lineLength:
-                try:
-                    idt = ' ' * \
-                        (lineLength - len(diskInfo[lineLength + 1:]))
-                    diskInfo = '%s\n%s%s' %\
-                        (diskInfo[:lineLength], idt, diskInfo[lineLength + 1:])
-                except:
-                    pass
-
-            # print storage usage info #
-            SystemManager.infoBufferPrint(diskInfo)
+            # print storage info #
+            try:
+                title = diskInfo
+                splitLen = SystemManager.lineLength - len(diskInfo) - 1
+                mountList = '%s <%s>' % (val['path'], val['option'])
+                mountList = \
+                    [mountList[i:i+splitLen] for i in \
+                    xrange(0, len(mountList), splitLen)]
+                for string in mountList:
+                    SystemManager.infoBufferPrint(\
+                        '{0:85} {1:<100}'.format(title, string))
+                    title = ' '
+            except:
+                pass
 
         # print total I/O size #
         if outputCnt == 0:
@@ -19204,27 +19215,29 @@ class Debugger(object):
 
 
 
-    def writeMem(self, cmd, addr, size, word):
+    def accessMem(self, cmd, addr):
         wordSize = ConfigManager.wordSize
 
         if addr % wordSize:
             SystemManager.printError(\
                 "Fail to access %s memory because of unaligned address" % addr)
+            return
 
+        return self.ptrace(cmd, addr)
+
+
+
+    def writeMem(self, addr, size):
         cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
-        ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+        return self.accessMem(cmd, addr)
 
 
 
-    def readMem(self, cmd, addr, size):
-        wordSize = ConfigManager.wordSize
-
-        if addr % wordSize:
-            SystemManager.printError(\
-                "Fail to access %s memory because of unaligned address" % addr)
-
+    def readMem(self, addr, size):
         cmd = ConfigManager.ptraceList.index('PTRACE_PEEKDATA')
-        ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+        return self.accessMem(cmd, addr)
 
 
 
@@ -19282,6 +19295,7 @@ class Debugger(object):
                     args.append(str(arg[2]))
 
             argText = ', '.join(args)
+
             SystemManager.pipePrint('%s(%s) ' % (name, argText), False)
         # exit #
         else:
@@ -19435,7 +19449,7 @@ class Debugger(object):
 
 
 
-    def ptrace(self, req, addr, data):
+    def ptrace(self, req, addr=0, data=0):
         pid = self.pid
 
         ctypes = SystemManager.ctypesObj
@@ -20642,9 +20656,27 @@ class ThreadAnalyzer(object):
                 elif slen == 2:
                     if intervalList is not None:
                         intervalList += sline[1]
-                elif intervalList is not None:
+                elif intervalList is not None and sname != 'Storage':
+                    # define arrays #
+                    storageUsage.setdefault(sname, dict())
+                    readList = list()
+                    writeList = list()
+                    freeList = list()
+
+                    # convert previous stats #
+                    for item in intervalList.split():
+                        read, write, free = item.split('/')
+                        readList.append(\
+                            SystemManager.convertUnit2Size(read) >> 10)
+                        writeList.append(\
+                            SystemManager.convertUnit2Size(write) >> 10)
+                        freeList.append(\
+                            SystemManager.convertUnit2Size(free) >> 10)
+
                     # save previous info #
-                    storageUsage[sname] = intervalList
+                    storageUsage[sname]['read'] = readList
+                    storageUsage[sname]['write'] = writeList
+                    storageUsage[sname]['free'] = freeList
 
         # parse memory details of processes #
         compareString = '[Top Info]'
@@ -20695,10 +20727,11 @@ class ThreadAnalyzer(object):
 
         # draw and save graph #
         try:
-            self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage, blkWait,\
-                blkProcUsage, blkRead, blkWrite, netRead, netWrite, memFree,\
-                memAnon, memCache, memProcUsage, gpuUsage, totalRAM, swapUsage,\
-                totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile)
+            self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage,\
+                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
+                memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
+                swapUsage, totalSwap, reclaimBg, reclaimDr, storageUsage,\
+                nrCore, eventList, logFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -20882,7 +20915,8 @@ class ThreadAnalyzer(object):
     def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
         blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
         memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
-        swapUsage, totalSwap, reclaimBg, reclaimDr, nrCore, eventList, logFile):
+        swapUsage, totalSwap, reclaimBg, reclaimDr, storageUsage,\
+        nrCore, eventList, logFile):
 
         #==================== define part ====================#
 
@@ -21007,7 +21041,7 @@ class ThreadAnalyzer(object):
                             ymax = blkWait[idx]
 
                     # draw total cpu + iowait graph #
-                    plot(timeline, blkWait, '-', c='pink', linestyle='-.',\
+                    plot(timeline, blkWait, '-', c='pink', linestyle='-',\
                         linewidth=1, marker='d', markersize=2, \
                         solid_capstyle='round')
                     labelList.append('[ CPU + IOWAIT ]')
@@ -21161,7 +21195,7 @@ class ThreadAnalyzer(object):
             drawBottom(xtype, ax)
 
         def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
-            reclaimBg, reclaimDr, xtype, pos, size):
+            reclaimBg, reclaimDr, storageUsage, xtype, pos, size):
 
             convertSize2Unit = SystemManager.convertSize2Unit
 
@@ -21326,6 +21360,69 @@ class ThreadAnalyzer(object):
             else:
                 plot(timeline, netWrite, '-', c='cyan', linewidth=1)
             labelList.append('Network Outbound')
+
+            # System Storage Usage #
+            for idx, item in storageUsage.items():
+                rdUsage = item['read']
+                wrUsage = item['write']
+                freeUsage = item['free']
+
+                # no storage usage #
+                if len(rdUsage) == len(wrUsage) == len(freeUsage) == 0:
+                    continue
+
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
+                # Storage Write #
+                minIdx = wrUsage.index(min(wrUsage))
+                maxIdx = wrUsage.index(max(wrUsage))
+
+                if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
+                    pass
+                else:
+                    color = \
+                        plot(timeline, wrUsage, '-', linewidth=1)[0].get_color()
+                    if wrUsage[maxIdx] > 0:
+                        text(timeline[maxIdx], wrUsage[maxIdx] + margin, \
+                            convertSize2Unit(wrUsage[maxIdx] << 10), \
+                            fontsize=5, color=color, fontweight='bold')
+                    if wrUsage[-1] > 0:
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, wrUsage[-1] + margin, \
+                            convertSize2Unit(wrUsage[-1] << 10), \
+                            fontsize=5, color=color, fontweight='bold')
+                    labelList.append('%s Write' % idx)
+
+                # Storage Read #
+                minIdx = rdUsage.index(min(rdUsage))
+                maxIdx = rdUsage.index(max(rdUsage))
+
+                if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
+                    pass
+                else:
+                    color = \
+                        plot(timeline, rdUsage, '-', linewidth=1)[0].get_color()
+                    if rdUsage[maxIdx] > 0:
+                        text(timeline[maxIdx], rdUsage[maxIdx] + margin, \
+                            convertSize2Unit(rdUsage[maxIdx] << 10), \
+                            fontsize=5, color=color, fontweight='bold')
+                    if rdUsage[-1] > 0:
+                        try:
+                            unit = timeline[-1]-timeline[-2]
+                        except:
+                            unit = 0
+                        text(timeline[-1]+unit, rdUsage[-1] + margin, \
+                            convertSize2Unit(rdUsage[-1] << 10), \
+                            fontsize=5, color=color, fontweight='bold')
+                    labelList.append('%s Read' % idx)
 
             # IO usage of processes #
             for idx, item in blkProcUsage.items():
@@ -21829,7 +21926,7 @@ class ThreadAnalyzer(object):
             drawEvent(timeline, eventList)
 
             drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
-                reclaimBg, reclaimDr, 2, 4, 1)
+                reclaimBg, reclaimDr, storageUsage, 2, 4, 1)
 
             drawMem(timeline, labelList, memFree, memAnon, memCache, \
                 memProcUsage, totalRAM, swapUsage, totalSwap, 1, 5, 1)
@@ -21897,7 +21994,7 @@ class ThreadAnalyzer(object):
                     elif targetc == 'IO' or targetc.startswith('I'):
                         drawIo(timeline, labelList, blkRead, blkWrite, \
                             netRead, netWrite, reclaimBg, reclaimDr, \
-                            xtype, pos, size)
+                            storageUsage, xtype, pos, size)
                     else:
                         SystemManager.printError(\
                             "Fail to draw graph "
@@ -23368,16 +23465,26 @@ class ThreadAnalyzer(object):
                 status = 'Wait'
 
             pid = value['tgid']
+
             ftxTotal = '%.3f' % float(value['ftxTotal'])
-            ftxProcess = '%.3f' % float(value['ftxProcess'])
             ftxMax = '%.3f' % float(value['ftxMax'])
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
-            ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
-            ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
-            ftxBlockCall = '{:,}'.format(value['ftxBlockCnt'])
             ftxLockCall = '{:,}'.format(value['ftxLockCnt'])
             ftxWaitCall = '{:,}'.format(value['ftxWaitCnt'])
+
+            if SystemManager.cpuEnable:
+                ftxProcess = '%.3f' % float(value['ftxProcess'])
+                ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
+                ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
+                ftxBlockCall = '{:,}'.format(value['ftxBlockCnt'])
+                ftxLSwitch = value['ftxLSwitch']
+            else:
+                ftxProcess = '-'
+                ftxBlock = '-'
+                ftxLBlock = '-'
+                ftxBlockCall = '-'
+                ftxLSwitch = '-'
 
             futexInfo = \
                 ('{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} ' + \
@@ -23385,7 +23492,8 @@ class ThreadAnalyzer(object):
                 '{11:>8} {12:>10} {13:>8} {14:>10}').\
                 format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock,\
                 ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall,\
-                ftxWaitCall, ftxLBlock, value['ftxLSwitch'], status)
+                ftxWaitCall, ftxLBlock, ftxLSwitch, status)
+
             SystemManager.pipePrint('%s\n%s' % (futexInfo, oneLine))
             outputCnt += 1
 
