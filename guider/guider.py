@@ -8532,7 +8532,7 @@ class SystemManager(object):
                 pipePrint('Options:')
                 pipePrint('')
                 pipePrint('    [record]')
-                pipePrint('        -e  [enable_optionsPerMode - belowCharacters]')
+                pipePrint('        -e  [enable_options - characters]')
                 pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
                 pipePrint('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
                 pipePrint('              [thread]   '\
@@ -8543,7 +8543,7 @@ class SystemManager(object):
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|'
                     '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
                     '\n                          h(andler)|f(loat)|R(file)}')
-                pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
+                pipePrint('        -d  [disable_options - characters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
                 pipePrint('              [thread]   {a(ll)}')
                 pipePrint('              [function] {a(ll)|u(ser)}')
@@ -8554,11 +8554,11 @@ class SystemManager(object):
                 pipePrint('        -b  [set_bufferSize - KB]')
                 pipePrint('        -D  [trace_threadDependency]')
                 pipePrint('        -t  [trace_syscall - syscalls]')
-                pipePrint('        -T  [set_fontPath]')
+                pipePrint('        -T  [set_fontPath - path]')
                 pipePrint('        -j  [set_reportPath - path]')
                 pipePrint('        -U  [set_userEvent - name:func|addr:file]')
                 pipePrint('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
-                pipePrint('        -C  [set_commandScriptPath - file]')
+                pipePrint('        -C  [set_commandScriptPath - path]')
                 pipePrint('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
                 pipePrint('        -x  [set_addressForLocalServer - {ip:port}]')
                 pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
