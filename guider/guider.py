@@ -403,6 +403,7 @@ class ConfigManager(object):
         'B', # 3: BATCH #
         'N', # 4: NONE #
         'I', # 5: IDLE #
+        'D', # 6: DEADLINE #
         ]
 
     # Define statm of process #
@@ -4316,8 +4317,8 @@ class FunctionAnalyzer(object):
             '[Function Syscall Info] [Cnt: %d]' % self.syscallCnt)
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12}'.format(\
-            "Name", "Tid", "Syscall", "ID", "Count"))
+            '{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}'.format(\
+            "Name", "Tid", "Pid", "Syscall", "ID", "Count"))
         SystemManager.pipePrint(twoLine)
 
         outputCnt = 0
@@ -4332,7 +4333,8 @@ class FunctionAnalyzer(object):
 
             try:
                 if len(value['syscallTable']) > 0:
-                    threadInfo = "%16s(%5s)" % (value['comm'], key)
+                    threadInfo = "%16s(%7s/%7s)" % \
+                        (value['comm'], key, value['tgid'])
                 else:
                     continue
             except:
@@ -8066,6 +8068,18 @@ class SystemManager(object):
 
 
     @staticmethod
+    def word2bstring(word):
+        return struct.pack('L', word)
+
+
+
+    @staticmethod
+    def bstring2word(bstring):
+        return struct.unpack('L', bstring)[0]
+
+
+
+    @staticmethod
     def convertUnit2Size(value):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -8483,7 +8497,8 @@ class SystemManager(object):
                 pipePrint('\nMode:')
                 pipePrint('')
                 pipePrint('    [analysis]')
-                pipePrint('        top         [realtime]')
+                pipePrint('        top         [process]')
+                pipePrint('        bgtop       [background]')
                 pipePrint('        threadtop   [thread]')
                 pipePrint('        filetop     [file]')
                 pipePrint('        stacktop    [stack]')
@@ -8491,16 +8506,12 @@ class SystemManager(object):
                 pipePrint('        memtop      [memory]')
                 pipePrint('        disktop     [storage]')
                 pipePrint('        wsstop      [WSS]')
-                pipePrint('        reporttop   [report]')
+                pipePrint('        reptop      [report]')
                 pipePrint('')
                 pipePrint('        record      [thread]')
-                pipePrint('        record -y   [system]')
-                pipePrint('        record -f   [function]')
-                pipePrint('        record -F   [file]')
-                pipePrint('')
-                pipePrint('        mem         [page]')
-                pipePrint('')
-                pipePrint('        strace      [syscall]')
+                pipePrint('        funcrecord  [function]')
+                pipePrint('        filerecord  [file]')
+                pipePrint('        sysrecord   [system]')
                 pipePrint('')
                 pipePrint('        draw        [image]')
                 pipePrint('        cpudraw     [cpu]')
@@ -8509,6 +8520,10 @@ class SystemManager(object):
                 pipePrint('        rssdraw     [rss]')
                 pipePrint('        leakdraw    [leak]')
                 pipePrint('        iodraw      [io]')
+                pipePrint('')
+                pipePrint('        mem         [page]')
+                pipePrint('')
+                pipePrint('        strace      [syscall]')
                 pipePrint('')
                 pipePrint('    [control]')
                 pipePrint('        kill        [signal]')
@@ -8530,7 +8545,7 @@ class SystemManager(object):
                 pipePrint('Options:')
                 pipePrint('')
                 pipePrint('    [record]')
-                pipePrint('        -e  [enable_optionsPerMode - belowCharacters]')
+                pipePrint('        -e  [enable_options - characters]')
                 pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
                 pipePrint('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
                 pipePrint('              [thread]   '\
@@ -8541,7 +8556,7 @@ class SystemManager(object):
                     '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|'
                     '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
                     '\n                          h(andler)|f(loat)|R(file)}')
-                pipePrint('        -d  [disable_optionsPerMode - belowCharacters]')
+                pipePrint('        -d  [disable_options - characters]')
                 pipePrint('              [common]   {c(pu)|e(ncoding)}')
                 pipePrint('              [thread]   {a(ll)}')
                 pipePrint('              [function] {a(ll)|u(ser)}')
@@ -8552,11 +8567,11 @@ class SystemManager(object):
                 pipePrint('        -b  [set_bufferSize - KB]')
                 pipePrint('        -D  [trace_threadDependency]')
                 pipePrint('        -t  [trace_syscall - syscalls]')
-                pipePrint('        -T  [set_fontPath]')
+                pipePrint('        -T  [set_fontPath - path]')
                 pipePrint('        -j  [set_reportPath - path]')
                 pipePrint('        -U  [set_userEvent - name:func|addr:file]')
                 pipePrint('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
-                pipePrint('        -C  [set_commandScriptPath - file]')
+                pipePrint('        -C  [set_commandScriptPath - path]')
                 pipePrint('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
                 pipePrint('        -x  [set_addressForLocalServer - {ip:port}]')
                 pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
@@ -8744,10 +8759,11 @@ class SystemManager(object):
             pipePrint('        # %s top -o . -Q' % cmd)
 
             pipePrint('\n    - save resource usage of processes in the background')
+            pipePrint('        # %s bgtop' % cmd)
             pipePrint('        # %s top -o . -u' % cmd)
 
             pipePrint('\n    - report system stats in the background')
-            pipePrint('        # %s reporttop -j . -u' % cmd)
+            pipePrint('        # %s reptop -j . -u' % cmd)
 
             pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
             pipePrint('        # %s top -o . -e r, R' % cmd)
@@ -11456,7 +11472,8 @@ class SystemManager(object):
 
         # apply mode option #
         launchPosStart = SystemManager.launchBuffer.find(' -f')
-        if launchPosStart > -1:
+        if launchPosStart > -1 or \
+            SystemManager.launchBuffer.find(' funcrecord') > -1:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
             SystemManager.printInfo("FUNCTION MODE")
@@ -11592,8 +11609,8 @@ class SystemManager(object):
             filterList = filterList[:filterList.find(' -')].replace(" ", "")
 
             if SystemManager.arch != filterList:
-                SystemManager.printError(\
-                    ("arch(%s) of recorded target is different with current arch(%s), "
+                SystemManager.printError((\
+                    "arch(%s) of recorded target is different with current arch(%s), "
                     "use -A option with %s") % \
                     (filterList, SystemManager.arch, filterList))
                 sys.exit(0)
@@ -11993,7 +12010,8 @@ class SystemManager(object):
     def printWarning(line, always=False):
         if SystemManager.warningEnable or always:
             print('\n%s%s%s%s' % \
-                (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
+                (ConfigManager.WARNING, '[Warning] ', line,\
+                ConfigManager.ENDC))
 
 
 
@@ -12244,7 +12262,7 @@ class SystemManager(object):
                 SystemManager.depEnable = True
 
             elif option == 'P':
-                if SystemManager.findOption('g') is False:
+                if SystemManager.getOption('g') is None:
                     SystemManager.printError((\
                         "wrong option with -P, "
                         "use -g option to group threads as a process"))
@@ -13127,6 +13145,37 @@ class SystemManager(object):
     def isRecordMode():
         if sys.argv[1] == 'record':
             return True
+        elif SystemManager.isFuncRecordMode() or \
+            SystemManager.isFileRecordMode() or \
+            SystemManager.isSystemRecordMode():
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isFuncRecordMode():
+        if sys.argv[1] == 'funcrecord':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isFileRecordMode():
+        if sys.argv[1] == 'filerecord':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isSystemRecordMode():
+        if sys.argv[1] == 'sysrecord':
+            return True
         else:
             return False
 
@@ -13266,6 +13315,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def isBgTopMode():
+        if sys.argv[1] == 'bgtop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isDiskTopMode():
         if sys.argv[1] == 'disktop':
             return True
@@ -13294,7 +13352,7 @@ class SystemManager(object):
 
     @staticmethod
     def isReportTopMode():
-        if sys.argv[1] == 'reporttop':
+        if sys.argv[1] == 'reptop':
             return True
         else:
             return False
@@ -13321,6 +13379,7 @@ class SystemManager(object):
             SystemManager.isMemTopMode() or \
             SystemManager.isWssTopMode() or \
             SystemManager.isReportTopMode() or \
+            SystemManager.isBgTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -13532,7 +13591,7 @@ class SystemManager(object):
             return False
         elif SystemManager.findOption('g') is False:
             SystemManager.printError(\
-                "wrong option for PMP monitoring, "
+                "wrong option for PMU monitoring, "
                 "use also -g option to show performance stat")
             return False
         elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
@@ -13553,6 +13612,27 @@ class SystemManager(object):
             return False
         else:
             return True
+
+
+
+    @staticmethod
+    def checkBgTopCond():
+        if SystemManager.printFile != None:
+            return True
+
+        logPath = '/var/log'
+        tmpPath = '/tmp'
+
+        if os.path.isdir(logPath):
+            SystemManager.printFile = logPath
+            return True
+        elif os.path.isdir(tmpPath):
+            SystemManager.printFile = tmpPath
+            return True
+        else:
+            SystemManager.printError(\
+                "Fail to get path to save output, use -o option")
+            return False
 
 
 
@@ -13601,7 +13681,7 @@ class SystemManager(object):
 
     @staticmethod
     def checkWssTopCond():
-        if SystemManager.findOption('g') is False:
+        if SystemManager.getOption('g') is None:
             SystemManager.printError(\
                 "wrong option for wss monitoring, "
                 "use also -g option to track memory working set")
@@ -19227,17 +19307,47 @@ class Debugger(object):
 
 
 
-    def writeMem(self, addr, size):
+    def writeMem(self, addr, size=1, isString=False):
+        wordSize = ConfigManager.wordSize
         cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
 
         return self.accessMem(cmd, addr)
 
 
 
-    def readMem(self, addr, size):
-        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKDATA')
+    def readMem(self, addr, size=0):
+        wordSize = ConfigManager.wordSize
+        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
 
-        return self.accessMem(cmd, addr)
+        if size == 0:
+            size = wordSize
+
+        # define return list #
+        data = bytes()
+
+        # handle not aligned part #
+        offset = addr % wordSize
+        if offset == 0:
+            pass
+        elif addr < wordSize or offset > 0:
+            addr -= offset
+            size += offset
+
+        # read words from target address space #
+        while size > 0:
+            word = self.accessMem(cmd, addr)
+
+            word = SystemManager.word2bstring(word)
+
+            if size < wordSize:
+                data += word[:size]
+            else:
+                data += word
+
+            size -= wordSize
+            addr += wordSize
+
+        return data[offset:]
 
 
 
@@ -19388,7 +19498,7 @@ class Debugger(object):
                 if ereason != '0':
                     SystemManager.printError(\
                         'Terminated tracing thread %s because %s' % \
-                        (pid, ereason, True))
+                        (pid, ereason))
                 break
 
 
@@ -19452,10 +19562,19 @@ class Debugger(object):
     def ptrace(self, req, addr=0, data=0):
         pid = self.pid
 
-        ctypes = SystemManager.ctypesObj
-
-        # type converting #
-        data = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))
+        # try to load ctypes package #
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, cast, c_int, c_ulong
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to call ptrace") % err.args[0])
+            sys.exit(0)
 
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
@@ -19467,6 +19586,12 @@ class Debugger(object):
             if SystemManager.libcObj is None:
                 SystemManager.libcObj = \
                     ctypes.cdll.LoadLibrary(SystemManager.libcPath)
+
+            # type converting #
+            SystemManager.libcObj.ptrace.argtypes = \
+                (c_ulong, c_ulong, c_ulong, c_ulong)
+            SystemManager.libcObj.ptrace.restype = c_ulong
+
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except:
             SystemManager.printWarning('Fail to call ptrace in libc')
@@ -32734,6 +32859,18 @@ if __name__ == '__main__':
 
     #==================== record part ====================#
     if SystemManager.isRecordMode():
+        # function #
+        if SystemManager.isFuncRecordMode():
+            SystemManager.functionEnable = True
+
+        # file #
+        elif SystemManager.isFileRecordMode():
+            SystemManager.fileEnable = True
+
+        # system #
+        elif SystemManager.isSystemRecordMode():
+            SystemManager.systemEnable = True
+
         # update record status #
         SystemManager.recordStatus = True
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
@@ -33050,6 +33187,13 @@ if __name__ == '__main__':
         # disk #
         elif SystemManager.isDiskTopMode():
             SystemManager.diskEnable = True
+
+        # background #
+        elif SystemManager.isBgTopMode():
+            if SystemManager.checkBgTopCond():
+                SystemManager.backgroundEnable = True
+            else:
+                sys.exit(0)
 
         # report #
         elif SystemManager.isReportTopMode():
