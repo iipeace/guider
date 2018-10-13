@@ -19322,10 +19322,16 @@ class Debugger(object):
         if size == 0:
             size = wordSize
 
-        # toDo: add not aligned address handling code #
-
         # define return list #
         data = bytes()
+
+        # handle not aligned part #
+        offset = addr % wordSize
+        if offset == 0:
+            pass
+        elif addr < wordSize or offset > 0:
+            addr -= offset
+            size += offset
 
         # read words from target address space #
         while size > 0:
@@ -19341,7 +19347,7 @@ class Debugger(object):
             size -= wordSize
             addr += wordSize
 
-        return data
+        return data[offset:]
 
 
 
