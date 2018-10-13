@@ -403,6 +403,7 @@ class ConfigManager(object):
         'B', # 3: BATCH #
         'N', # 4: NONE #
         'I', # 5: IDLE #
+        'D', # 6: DEADLINE #
         ]
 
     # Define statm of process #
