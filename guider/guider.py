@@ -403,6 +403,7 @@ class ConfigManager(object):
         'B', # 3: BATCH #
         'N', # 4: NONE #
         'I', # 5: IDLE #
+        'D', # 6: DEADLINE #
         ]
 
     # Define statm of process #
@@ -8067,6 +8068,18 @@ class SystemManager(object):
 
 
     @staticmethod
+    def word2bstring(word):
+        return struct.pack('L', word)
+
+
+
+    @staticmethod
+    def bstring2word(bstring):
+        return struct.unpack('L', bstring)[0]
+
+
+
+    @staticmethod
     def convertUnit2Size(value):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -11997,7 +12010,8 @@ class SystemManager(object):
     def printWarning(line, always=False):
         if SystemManager.warningEnable or always:
             print('\n%s%s%s%s' % \
-                (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
+                (ConfigManager.WARNING, '[Warning] ', line,\
+                ConfigManager.ENDC))
 
 
 
@@ -19293,17 +19307,41 @@ class Debugger(object):
 
 
 
-    def writeMem(self, addr, size):
+    def writeMem(self, addr, size=1, isString=False):
+        wordSize = ConfigManager.wordSize
         cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
 
         return self.accessMem(cmd, addr)
 
 
 
-    def readMem(self, addr, size):
-        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKDATA')
+    def readMem(self, addr, size=0):
+        wordSize = ConfigManager.wordSize
+        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
 
-        return self.accessMem(cmd, addr)
+        if size == 0:
+            size = wordSize
+
+        # toDo: add not aligned address handling code #
+
+        # define return list #
+        data = bytes()
+
+        # read words from target address space #
+        while size > 0:
+            word = self.accessMem(cmd, addr)
+
+            word = SystemManager.word2bstring(word)
+
+            if size < wordSize:
+                data += word[:size]
+            else:
+                data += word
+
+            size -= wordSize
+            addr += wordSize
+
+        return data
 
 
 
@@ -19454,7 +19492,7 @@ class Debugger(object):
                 if ereason != '0':
                     SystemManager.printError(\
                         'Terminated tracing thread %s because %s' % \
-                        (pid, ereason, True))
+                        (pid, ereason))
                 break
 
 
@@ -19518,10 +19556,19 @@ class Debugger(object):
     def ptrace(self, req, addr=0, data=0):
         pid = self.pid
 
-        ctypes = SystemManager.ctypesObj
-
-        # type converting #
-        data = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))
+        # try to load ctypes package #
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, cast, c_int, c_ulong
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to call ptrace") % err.args[0])
+            sys.exit(0)
 
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
@@ -19533,6 +19580,12 @@ class Debugger(object):
             if SystemManager.libcObj is None:
                 SystemManager.libcObj = \
                     ctypes.cdll.LoadLibrary(SystemManager.libcPath)
+
+            # type converting #
+            SystemManager.libcObj.ptrace.argtypes = \
+                (c_ulong, c_ulong, c_ulong, c_ulong)
+            SystemManager.libcObj.ptrace.restype = c_ulong
+
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except:
             SystemManager.printWarning('Fail to call ptrace in libc')
