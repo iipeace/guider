@@ -8530,6 +8530,8 @@ class SystemManager(object):
                 pipePrint('        setsched    [priority]')
                 pipePrint('        getaffinity [affinity]')
                 pipePrint('        setaffinity [affinity]')
+                pipePrint('        server      [server]')
+                pipePrint('        client      [client]')
                 pipePrint('        cpulimit    [cpu]')
                 pipePrint('')
                 pipePrint('    [test]')
@@ -13784,6 +13786,7 @@ class SystemManager(object):
         inodeIdx = ConfigManager.udpList.index('inode')
         addrIdx = ConfigManager.udpList.index('local_address')
 
+        # get udp list #
         udpList = SystemManager.getUdpList()
         for udp in udpList:
             try:
@@ -13795,6 +13798,7 @@ class SystemManager(object):
             except:
                 pass
 
+        # get tcp list #
         tcpList = SystemManager.getTcpList()
         for tcp in tcpList:
             try:
@@ -13819,7 +13823,10 @@ class SystemManager(object):
         try:
             fdlist = os.listdir(fdlistPath)
         except:
-            SystemManager.printWarning('Fail to open %s' % fdlistPath)
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                'Fail to open %s because %s' % \
+                (fdlistPath, ' '.join(list(map(str, err.args)))))
             return socketAddrList
 
         # save fd info of process #
@@ -14559,7 +14566,7 @@ class SystemManager(object):
         def printError():
             SystemManager.printError(\
                 "no running server or wrong option value with -X, "
-                "Input {address:port} in format")
+                "Input {ip:port} in format")
 
 
 
@@ -14571,16 +14578,30 @@ class SystemManager(object):
 
         # search address of local guider process #
         if addr is None:
+            # check permission #
+            if SystemManager.isRoot() is False:
+                SystemManager.printError(\
+                    "Fail to get root permission to get server info")
+                sys.exit(0)
+
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 1:
+                # get socket objects #
                 objs = SystemManager.getProcSocketObjs(pids[0])
+
+                # get bind address #
                 addrs = SystemManager.getSocketAddrList(objs)
+                if len(addrs) == 0:
+                    SystemManager.printError(\
+                        "Fail to get socket attribute of server process")
+                    sys.exit(0)
+
                 addr = addrs[0]
                 addr = addr[addr.find(':')+1:]
             elif len(pids) > 1:
                 SystemManager.printError(\
-                    "Found multiple running guider processes")
-                printError()
+                    "Found multiple running guider processes, "
+                    "Input {ip:port} of only one process with -X")
                 sys.exit(0)
             else:
                 printError()
@@ -14597,6 +14618,7 @@ class SystemManager(object):
         else:
             printError()
 
+        # classify ip and port #
         ret = SystemManager.parseAddr(saddr)
 
         (service, ip, port) = ret
@@ -14628,9 +14650,11 @@ class SystemManager(object):
 
         try:
             if caddr is None:
+                # get public IP #
                 ip = NetworkManager.getPublicIp()
                 port = 0
 
+                # bind ip and port #
                 networkObject.bind(ip, port)
 
                 ip, port = networkObject.socket.getsockname()
@@ -14642,6 +14666,7 @@ class SystemManager(object):
                     ip = caddr[0]
                     port = 0
 
+                    # bind ip and port #
                     networkObject.bind(ip, port)
 
                     ip, port = networkObject.socket.getsockname()
@@ -14649,6 +14674,7 @@ class SystemManager(object):
                     ip, port = caddr
                     port = int(port)
 
+                    # bind ip and port #
                     networkObject.bind(ip, port)
 
                     ip, port = networkObject.socket.getsockname()
@@ -14657,7 +14683,7 @@ class SystemManager(object):
         except:
             SystemManager.printError(\
                 "wrong option value with -x, "
-                "Input {address:port} in format")
+                "Input {ip:port} in format")
             sys.exit(0)
 
         SystemManager.printInfo(\
@@ -14753,7 +14779,11 @@ class SystemManager(object):
         SystemManager.printStreamEnable = True
 
         # check tid #
-        if len(SystemManager.filterGroup) == 0:
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to trace systemcall")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) == 0:
             SystemManager.printError("No tid with -g option")
             sys.exit(0)
         elif len(SystemManager.filterGroup) > 1:
@@ -19295,7 +19325,7 @@ class Debugger(object):
 
 
 
-    def accessMem(self, cmd, addr):
+    def accessMem(self, cmd, addr, data=0):
         wordSize = ConfigManager.wordSize
 
         if addr % wordSize:
@@ -19303,15 +19333,31 @@ class Debugger(object):
                 "Fail to access %s memory because of unaligned address" % addr)
             return
 
-        return self.ptrace(cmd, addr)
+        return self.ptrace(cmd, addr, data)
 
 
 
-    def writeMem(self, addr, size=1, isString=False):
+    def writeMem(self, addr, data=0, size=0):
         wordSize = ConfigManager.wordSize
         cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
 
-        return self.accessMem(cmd, addr)
+        # check data type #
+        if type(data) is bytes:
+            data = SystemManager.bstring2word(data)
+        elif type(data) is int or type(data) is long:
+            pass
+        elif type(data) is str:
+            data = SystemManager.bstring2word(data.encode())
+        else:
+            SystemManager.printError((\
+                "Fail to recognize data to write because "
+                "%s is not supported") % type(data))
+            return -1
+
+        # check size #
+        # toDo: check size #
+
+        return self.accessMem(cmd, addr, data)
 
 
 
@@ -19319,6 +19365,7 @@ class Debugger(object):
         wordSize = ConfigManager.wordSize
         cmd = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
 
+        # check size #
         if size == 0:
             size = wordSize
 
@@ -19487,10 +19534,6 @@ class Debugger(object):
 
                 # process syscall #
                 self.processSyscall()
-
-            except OSError:
-                SystemManager.printError('No thread %s to trace' % pid)
-                break
 
             except:
                 err = sys.exc_info()[1]
