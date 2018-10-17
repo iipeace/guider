@@ -6553,6 +6553,8 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
+        pageSize = SystemManager.pageSize
+
         SystemManager.printTitle(big=True)
 
         # print system information #
@@ -6579,7 +6581,7 @@ class FileAnalyzer(object):
             self.procData.items(), \
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
-                rsize = val['pageCnt'] * SystemManager.pageSize >> 10
+                rsize = val['pageCnt'] * pageSize >> 10
                 rsize = "{:,}".format(rsize)
             except:
                 pass
@@ -6614,12 +6616,12 @@ class FileAnalyzer(object):
         for fileName, val in sorted(\
             self.fileData.items(), \
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            memSize = val['pageCnt'] * SystemManager.pageSize >> 10
+            memSize = val['pageCnt'] * pageSize >> 10
 
-            idx = val['totalSize'] + SystemManager.pageSize - 1
+            idx = val['totalSize'] + pageSize - 1
 
             fileSize = \
-                (int(idx / SystemManager.pageSize) * SystemManager.pageSize) >> 10
+                (int(idx / pageSize) * pageSize) >> 10
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
@@ -6639,9 +6641,11 @@ class FileAnalyzer(object):
             if val['isRep'] is False:
                 continue
             else:
-                SystemManager.pipePrint(\
-                    "{0:>11} |{1:>9} |{2:>5} | {3:1} [Proc: {4:1}] [Link: {5:1}]".\
-                    format(memSize, fileSize, per, fileName, len(val['pids']), val['hardLink']))
+                SystemManager.pipePrint((\
+                    "{0:>11} |{1:>9} |{2:>5} | {3:1} "
+                    "[Proc: {4:1}] [Link: {5:1}]").\
+                    format(memSize, fileSize, per, fileName, \
+                    len(val['pids']), val['hardLink']))
 
             # prepare for printing process list #
             pidInfo = ''
@@ -6654,7 +6658,8 @@ class FileAnalyzer(object):
             if val['hardLink'] > 1:
                 for fileLink, tmpVal in val['linkList'].items():
                     if fileName != fileLink:
-                        SystemManager.pipePrint((' ' * indentLength) + '| -> ' + fileLink)
+                        SystemManager.pipePrint(\
+                            (' ' * indentLength) + '| -> ' + fileLink)
 
             # print process list #
             for pid, comm in val['pids'].items():
@@ -6761,7 +6766,8 @@ class FileAnalyzer(object):
             ('File Usage Info', len(self.fileList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
 
-        printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format("InitRAM(KB)", "File(KB)", "%")
+        printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format(\
+            "InitRAM(KB)", "File(KB)", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in xrange(1, len(self.intervalFileData)):
@@ -6806,7 +6812,8 @@ class FileAnalyzer(object):
             isRep = False
             for fileData in reversed(self.intervalFileData):
                 if fileName in fileData and fileData[fileName]['isRep']:
-                    printMsg = "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
+                    printMsg = \
+                        "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
                     isRep = True
                     break
 
@@ -6857,7 +6864,8 @@ class FileAnalyzer(object):
             else:
                 per = 0
 
-            printMsg += "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
+            printMsg += \
+                "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
 
             SystemManager.pipePrint(printMsg)
 
@@ -7089,7 +7097,8 @@ class FileAnalyzer(object):
                 procMap[fileName]['size'] = newSize
         else:
             if SystemManager.showAll:
-                SystemManager.printWarning("Fail to recognize '%s' line in maps" % string)
+                SystemManager.printWarning(\
+                    "Fail to recognize '%s' line in maps" % string)
 
 
 
@@ -7131,7 +7140,7 @@ class FileAnalyzer(object):
                 '''
 
                 try:
-                    # open binary file to check whether pages are on memory or not #
+                    # check whether pages are on memory or not #
                     stat = os.stat(fileName)
 
                     devid = stat.st_dev
@@ -7145,7 +7154,7 @@ class FileAnalyzer(object):
                         procList = dict(val['pids'].items())
 
                         for fileIdx, fileDevid in self.inodeData[inode].items():
-                            # this file was already profiled with hard-linked others #
+                            # this hard-lined file was already profiled #
                             if devid == fileDevid:
                                 found = True
 
@@ -7219,7 +7228,7 @@ class FileAnalyzer(object):
             size = val['size']
 
             if SystemManager.guiderObj is not None:
-                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+                # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SystemManager.guiderObj.mmap(0, size, 0, 2, fd, offset)
 
                 # call mincore systemcall by standard libc library #
@@ -7234,7 +7243,7 @@ class FileAnalyzer(object):
                 ctypes = SystemManager.ctypesObj
                 from  ctypes import POINTER, c_char, c_ubyte, cast
 
-                # map a file to ram area with PROT_NONE(0), MAP_SHARED(0x10) flags #
+                # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SystemManager.libcObj.mmap(\
                     POINTER(c_char)(), size, 0, 2, fd, offset)
 
@@ -7258,7 +7267,8 @@ class FileAnalyzer(object):
                 try:
                     if SystemManager.guiderObj is not None:
                         val['fileMap'] = \
-                            [ord(pagemap[i]) for i in xrange(int(size / pageSize))]
+                            [ord(pagemap[i]) for i in \
+                            xrange(int(size / pageSize))]
                     else:
                         val['fileMap'] = \
                             [pagemap[i] for i in xrange(int(size / pageSize))]
@@ -7310,8 +7320,9 @@ class LogManager(object):
 
         try:
             if self.notified is False:
-                SystemManager.printError(\
-                    'Please report %s file to https://github.com/iipeace/guider/issues' % \
+                SystemManager.printError((\
+                    'Please report %s file to '
+                    'https://github.com/iipeace/guider/issues') % \
                     SystemManager.errorFile)
                 self.notified = True
 
@@ -8002,8 +8013,9 @@ class SystemManager(object):
             else:
                 raise Exception()
         except:
-            SystemManager.printWarning(\
-                "Fail to get cpu affinity of tasks because of sched_getaffinity fail")
+            SystemManager.printWarning((\
+                "Fail to get cpu affinity of tasks "
+                "because of sched_getaffinity fail"))
 
 
 
@@ -9977,6 +9989,8 @@ class SystemManager(object):
                 "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT kernel option")
             sys.exit(0)
 
+        kernelCmd = SystemManager.kernelCmd
+
         for cmd in SystemManager.userCmd:
             addr = None
             cvtCmd = cmd.replace("::", "#")
@@ -9985,10 +9999,11 @@ class SystemManager(object):
 
             if len(cmdFormat) == 3:
                 # check redundant event name #
-                if SystemManager.kernelCmd is not None and \
-                    cmd[0] in [kcmd.split(':')[0] for kcmd in SystemManager.kernelCmd]:
-                    SystemManager.printError(\
-                        "redundant event name '%s' as user event and kernel event" % cmd[0])
+                if kernelCmd is not None and \
+                    cmd[0] in [kcmd.split(':')[0] for kcmd in kernelCmd]:
+                    SystemManager.printError((\
+                        "redundant event name '%s' "
+                        "as user event and kernel event") % cmd[0])
                     sys.exit(0)
 
                 # check binary file #
@@ -10004,14 +10019,16 @@ class SystemManager(object):
                         objdumpPath = SystemManager.which('objdump')
                         if objdumpPath != None:
                             SystemManager.printWarning((\
-                                "Fail to recognize objdump path to get address of user function\n"
+                                "Fail to recognize objdump path "
+                                "to get address of user function\n"
                                 "\tso just use %s as default objdump path\n"
                                 "\tif it is wrong then use -M option") % \
                                     objdumpPath[0], True)
                             SystemManager.objdumpPath = objdumpPath[0]
                         else:
                             SystemManager.printError((\
-                                "Fail to recognize objdump path to get address of user function, "
+                                "Fail to recognize objdump path "
+                                "to get address of user function, "
                                 "use -l option"))
                             sys.exit(0)
                     # symbol input with objdump #
@@ -10187,8 +10204,9 @@ class SystemManager(object):
         if len(syms) == 0:
             return None
         else:
-            SystemManager.printError(\
-                "Fail to find %s in %s, \n\tbut similar symbols [ %s ] are exist" % \
+            SystemManager.printError((\
+                "Fail to find %s in %s, "
+                "\n\tbut similar symbols [ %s ] are exist") % \
                 (symbol, binPath, ', '.join(syms)))
             sys.exit(0)
 
@@ -10230,7 +10248,8 @@ class SystemManager(object):
             if SystemManager.isThreadMode() and \
                 cmdFormat[0] in SystemManager.cmdList:
                 SystemManager.printError(\
-                    "Fail to use default event '%s' as custom event" % cmdFormat[0])
+                    "Fail to use default event '%s' as custom event" % \
+                    cmdFormat[0])
                 sys.exit(0)
 
             # check effective event #
@@ -11618,8 +11637,8 @@ class SystemManager(object):
 
             if SystemManager.arch != filterList:
                 SystemManager.printError((\
-                    "arch(%s) of recorded target is different with current arch(%s), "
-                    "use -A option with %s") % \
+                    "arch(%s) of recorded target is different with "
+                    "current arch(%s), use -A option with %s") % \
                     (filterList, SystemManager.arch, filterList))
                 sys.exit(0)
 
@@ -15958,15 +15977,18 @@ class SystemManager(object):
         self.cmdList["timer/hrtimer_start"] = False
         self.cmdList["block/block_bio_queue"] = SystemManager.blockEnable
         self.cmdList["block/block_rq_complete"] = SystemManager.blockEnable
-        self.cmdList["writeback/writeback_dirty_page"] = SystemManager.blockEnable
+        self.cmdList["writeback/writeback_dirty_page"] = \
+            SystemManager.blockEnable
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
         self.cmdList["net/net_dev_xmit"] = SystemManager.netEnable
         self.cmdList["net/netif_receive_skb"] = SystemManager.netEnable
         self.cmdList["uprobes"] = SystemManager.ueventEnable
         self.cmdList["kprobes"] = SystemManager.keventEnable
-        self.cmdList["filelock/locks_get_lock_context"] = SystemManager.lockEnable
+        self.cmdList["filelock/locks_get_lock_context"] = \
+            SystemManager.lockEnable
         self.cmdList["power/cpu_idle"] = SystemManager.powerEnable
-        self.cmdList["power/cpu_frequency"] = SystemManager.powerEnable # toDo #
+        # toDo #
+        self.cmdList["power/cpu_frequency"] = SystemManager.powerEnable
         self.cmdList["power/suspend_resume"] = SystemManager.powerEnable
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
             SystemManager.memEnable
@@ -16074,8 +16096,9 @@ class SystemManager(object):
         if os.path.isdir(SystemManager.mountPath) == False:
             if SystemManager.isRoot():
                 cmd = '/boot/config-$(uname -r)'
-                SystemManager.printError(\
-                    "Check whether ftrace options are enabled in kernel through %s" % cmd)
+                SystemManager.printError((\
+                    "Check whether ftrace options are enabled in kernel "
+                    "through %s") % cmd)
             else:
                 SystemManager.printError(\
                     "Fail to get root permission to trace system")
@@ -22778,14 +22801,18 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(twoLine)
 
         SystemManager.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-            format("Thread Info", "CPU Info", "SCHED Info", "BLOCK Info", "MEM Info"))
+            format("Thread Info", "CPU Info", "SCHED Info", \
+            "BLOCK Info", "MEM Info"))
         SystemManager.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
             format("", "", "", "", "", ""))
 
-        SystemManager.pipePrint(("%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|" + \
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%3s|%3s|%4s(%2s)|") % \
-            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', 'IRQ', \
-            'Yld', ' Lose', 'Steal', 'Mig', 'Read', 'MB', 'Cnt', 'Write', 'MB', \
+        SystemManager.pipePrint((\
+            "%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
+            "%3s|%3s|%4s(%2s)|") % \
+            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', \
+            'IRQ', 'Yld', ' Lose', 'Steal', 'Mig', \
+            'Read', 'MB', 'Cnt', 'Write', 'MB', \
             'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
         SystemManager.pipePrint(twoLine)
 
@@ -22891,7 +22918,8 @@ class ThreadAnalyzer(object):
                     userMem = '%3d' % (value['userPages'] >> 8)
                     cacheMem = '%3d' % (value['cachePages'] >> 8)
                     kernelMem = '%3d' % \
-                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                        ((value['kernelPages'] >> 8) + \
+                        (value['remainKmem'] >> 20))
                     reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
                     wastedMem = '%3d' % (value['wasteKmem'] >> 20)
                     dreclaimedTime = '%4.2f' % value['dReclaimWait']
@@ -26149,10 +26177,10 @@ class ThreadAnalyzer(object):
         # Print storage usage #
         for dev, val in TA.procTotData['total']['storage'].items():
             try:
-                 total = '%s/%s/%s' % \
-                    (SystemManager.convertSize2Unit(val['read'], True),\
-                    SystemManager.convertSize2Unit(val['write'], True),\
-                    SystemManager.convertSize2Unit(val['free'], True))
+                total = '%s/%s/%s' % \
+                   (SystemManager.convertSize2Unit(val['read'], True),\
+                   SystemManager.convertSize2Unit(val['write'], True),\
+                   SystemManager.convertSize2Unit(val['free'], True))
             except:
                 continue
 
@@ -32231,7 +32259,8 @@ class ThreadAnalyzer(object):
                     '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
                 dieCnt += 1
 
-                # close fd that thread who already termiated created because of limited resource #
+                # close fd that created by thread who already termiated #
+                # because of resource limitation #
                 try:
                     value['statFd'].close()
                 except:
