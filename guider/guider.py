@@ -8687,25 +8687,25 @@ class SystemManager(object):
             pipePrint('\n [ function mode examples ]')
 
             pipePrint('\n    - record and report cpu function events of threads')
-            pipePrint('        # %s record -f -s .' % cmd)
+            pipePrint('        # %s funcrecord -s .' % cmd)
 
             pipePrint('\n    - record and save cpu function events of specific threads having tid bigger than 1024')
-            pipePrint('        # %s record -f -s . -g 1024\<' % cmd)
+            pipePrint('        # %s funcrecord -s . -g 1024\<' % cmd)
 
             pipePrint('\n    - record and save specific function events of threads except for user-mode')
-            pipePrint('        # %s record -f -s . -d u -c sched/sched_switch' % cmd)
+            pipePrint('        # %s funcrecord -s . -d u -c sched/sched_switch' % cmd)
 
             pipePrint('\n    - record and save specific resource function events specific threads')
-            pipePrint('        # %s record -f -s . -e m, b, h -g 1234' % cmd)
+            pipePrint('        # %s funcrecord -s . -e m, b, h -g 1234' % cmd)
 
             pipePrint('\n    - record and save specific function events of threads with specific argument condition')
-            pipePrint('        # %s record -f -s . -c softirq_entry:vec==1' % cmd)
+            pipePrint('        # %s funcrecord -s . -c softirq_entry:vec==1' % cmd)
 
             pipePrint('\n    - record and save segmentation fault function events of threads')
-            pipePrint('        # %s record -f -s . -K segflt:bad_area -e p' % cmd)
+            pipePrint('        # %s funcrecord -s . -K segflt:bad_area -e p' % cmd)
 
             pipePrint('\n    - record and save blocking function events of threads')
-            pipePrint('        # %s record -f -s . -K block:schedule' % cmd)
+            pipePrint('        # %s funcrecord -s . -K block:schedule' % cmd)
 
             pipePrint('\n    - execute special commands and record and save cpu function events of threads')
             pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
@@ -8779,6 +8779,18 @@ class SystemManager(object):
             pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
 
+            pipePrint('\n    - update priority of all tasks shown')
+            pipePrint('        # %s top -Y r:90:ALL' % cmd)
+
+            pipePrint('\n    - update priority of tasks continuously')
+            pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
+
+            pipePrint('\n    - update cpu affinity of all tasks shown')
+            pipePrint('        # %s top -z f:ALL' % cmd)
+
+            pipePrint('\n    - update cpu affinity of tasks continuously')
+            pipePrint('        # %s top -z f:1234:CONT' % cmd)
+
             pipePrint('\n    - show storage usage in real-time')
             pipePrint('        # %s disktop' % cmd)
 
@@ -8815,15 +8827,21 @@ class SystemManager(object):
             pipePrint('\n[ file mode examples ]')
 
             pipePrint('\n    - trace memory usage of files mapped to processes')
-            pipePrint('        # %s record -F -o .' % cmd)
+            pipePrint('        # %s filerecord -o .' % cmd)
 
             pipePrint('\n    - trace memory usage of files mapped to processes each intervals')
-            pipePrint('        # %s record -F -i' % cmd)
+            pipePrint('        # %s filerecord -i' % cmd)
 
             pipePrint('\n[ etc examples ]')
 
             pipePrint('\n    - check property of specific pages')
             pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
+
+            pipePrint('\n    - run as server mode')
+            pipePrint('        # %s server' % cmd)
+
+            pipePrint('\n    - run as client mode')
+            pipePrint('        # %s client' % cmd)
 
             pipePrint('\n    - convert a text fle to a image file')
             pipePrint('        # %s guider.out -Z' % cmd)
@@ -8850,18 +8868,6 @@ class SystemManager(object):
 
             pipePrint('\n    - change priority of tasks in a group')
             pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
-
-            pipePrint('\n    - update priority of all tasks shown')
-            pipePrint('        # %s top -Y r:90:ALL' % cmd)
-
-            pipePrint('\n    - update priority of tasks continuously')
-            pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
-
-            pipePrint('\n    - update cpu affinity of all tasks shown')
-            pipePrint('        # %s top -z f:ALL' % cmd)
-
-            pipePrint('\n    - update cpu affinity of tasks continuously')
-            pipePrint('        # %s top -z f:1234:CONT' % cmd)
 
             pipePrint('\n    - limit cpu usage of specific processes')
             pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
