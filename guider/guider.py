@@ -15003,9 +15003,11 @@ class SystemManager(object):
                                 try:
                                     os.kill(tid, NR_SIGSTOP)
                                 except:
-                                    SystemManager.printError(
-                                        "Fail to send signal SIGSTOP to %s because %s" % \
-                                        (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                                    errList = map(str, sys.exc_info()[1].args)
+                                    SystemManager.printError((
+                                        "Fail to send signal SIGSTOP to %s "
+                                        "because %s") % \
+                                        (tid, ' '.join(list(errList))))
                             val['running'] = False
                     # continue #
                     else:
@@ -15014,9 +15016,11 @@ class SystemManager(object):
                                 try:
                                     os.kill(tid, NR_SIGCONT)
                                 except:
-                                    SystemManager.printError(
-                                        "Fail to send signal SIGCONT to %s because %s" % \
-                                        (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                                    errList = map(str, sys.exc_info()[1].args)
+                                    SystemManager.printError((
+                                        "Fail to send signal SIGCONT to %s "
+                                        "because %s") % \
+                                        (tid, ' '.join(list(errList))))
                             val['running'] = True
 
                 time.sleep(SLEEP_SEC)
@@ -15028,23 +15032,25 @@ class SystemManager(object):
                     try:
                         os.kill(tid, NR_SIGCONT)
                     except:
+                        errList = map(str, sys.exc_info()[1].args)
                         SystemManager.printError(
                             "Fail to send signal SIGCONT to %s because %s" % \
-                            (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                            (tid, ' '.join(list(errList))))
 
 
 
     @staticmethod
     def sendSignalArgs(argList):
         sig = signal.SIGQUIT
+        cSigList = ConfigManager.sigList
         if argList is not None:
             sigList = [item for item in argList if item.startswith('-')]
             for val in sigList:
                 try:
-                    if val[1:].upper() in ConfigManager.sigList:
-                        sig = ConfigManager.sigList.index(val[1:].upper())
-                    elif 'SIG%s' % val[1:].upper() in ConfigManager.sigList:
-                        sig = ConfigManager.sigList.index('SIG%s' % val[1:].upper())
+                    if val[1:].upper() in cSigList:
+                        sig = cSigList.index(val[1:].upper())
+                    elif 'SIG%s' % val[1:].upper() in cSigList:
+                        sig = cSigList.index('SIG%s' % val[1:].upper())
                     elif val[1:].isdigit():
                         sig = int(val[1:])
                     else:
@@ -16192,7 +16198,8 @@ class SystemManager(object):
             # enable segmentation fault events #
             customCmd = SystemManager.customCmd
             if customCmd is None or \
-                True not in [True for evt in customCmd if evt.startswith('signal')]:
+                True not in [True for evt in customCmd \
+                if evt.startswith('signal')]:
                 sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
                 SystemManager.writeCmd('signal/filter', sigCmd)
 
@@ -16212,17 +16219,20 @@ class SystemManager(object):
                 SystemManager.writeCmd('kmem/mm_page_alloc/filter', cmd)
 
                 if SystemManager.writeCmd('kmem/mm_page_free/filter', cmd) < 0:
-                    SystemManager.writeCmd('kmem/mm_page_free_direct/filter', cmd)
+                    SystemManager.writeCmd(\
+                        'kmem/mm_page_free_direct/filter', cmd)
 
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '1')
 
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '1') < 0:
-                    SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '1')
+                    SystemManager.writeCmd(\
+                        'kmem/mm_page_free_direct/enable', '1')
             else:
                 SystemManager.writeCmd('kmem/mm_page_alloc/enable', '0')
 
                 if SystemManager.writeCmd('kmem/mm_page_free/enable', '0') < 0:
-                    SystemManager.writeCmd('kmem/mm_page_free_direct/enable', '0')
+                    SystemManager.writeCmd(\
+                        'kmem/mm_page_free_direct/enable', '0')
 
             # enable all syscall events #
             if SystemManager.sysEnable:
@@ -16379,7 +16389,8 @@ class SystemManager(object):
             SystemManager.writeCmd('sched/sched_wakeup_new/enable', '1')
 
         if self.cmdList["sched/sched_migrate_task"]:
-            if SystemManager.writeCmd('sched/sched_migrate_task/filter', cmd) < 0:
+            if SystemManager.writeCmd(\
+                'sched/sched_migrate_task/filter', cmd) < 0:
                 SystemManager.printError(\
                     "Fail to set filter [ %s ]" % \
                     ' '.join(SystemManager.filterGroup))
@@ -16388,7 +16399,8 @@ class SystemManager(object):
             SystemManager.writeCmd('sched/sched_migrate_task/enable', '1')
 
         if self.cmdList["sched/sched_process_wait"]:
-            if SystemManager.writeCmd('sched/sched_process_wait/filter', cmd) < 0:
+            if SystemManager.writeCmd(\
+                'sched/sched_process_wait/filter', cmd) < 0:
                 SystemManager.printError(\
                     "Fail to set filter [ %s ]" % \
                     ' '.join(SystemManager.filterGroup))
@@ -19945,6 +19957,8 @@ class ThreadAnalyzer(object):
             self.ecodeIdx = ConfigManager.statList.index("ENDCODE")
             self.statIdx = ConfigManager.statList.index("STATE")
             self.starttimeIdx = ConfigManager.statList.index("STARTTIME")
+            self.sidIdx = ConfigManager.statList.index("SESSIONID")
+            self.pgrpIdx = ConfigManager.statList.index("PGRP")
             self.shrIdx = ConfigManager.statmList.index("SHR")
 
             if SystemManager.graphEnable:
@@ -31534,10 +31548,14 @@ class ThreadAnalyzer(object):
             mode = 'Process'
             pid = 'PID'
             ppid = 'PPID'
+            sid = 'SID'
+            pgrp = 'PGID'
         else:
             mode = 'Thread'
             pid = 'TID'
             ppid = 'PID'
+            sid = 'Yld'
+            pgrp = 'Prmt'
 
         if SystemManager.wfcEnable is False:
             dprop = 'Dly'
@@ -31568,7 +31586,8 @@ class ThreadAnalyzer(object):
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            "Yld", "Prmt", "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), newline = 3)
+            sid, pgrp, "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), \
+            newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
@@ -31609,7 +31628,10 @@ class ThreadAnalyzer(object):
         # print process usage #
         procCnt = 0
         needLine = False
+        procData = self.procData
         for idx, value in sortedProcData:
+            stat = value['stat']
+
             # apply filter #
             exceptFlag = False
             for item in SystemManager.filterGroup:
@@ -31618,14 +31640,14 @@ class ThreadAnalyzer(object):
                 if SystemManager.groupProcEnable:
                     # process mode #
                     if SystemManager.processEnable:
-                        ppid = self.procData[idx]['stat'][self.ppidIdx]
+                        ppid = procData[idx]['stat'][self.ppidIdx]
 
                         # check current pid #
                         if idx  == item:
                             exceptFlag = False
                             break
                         # check current thread comm #
-                        elif value['stat'][self.commIdx].find(item) >= 0:
+                        elif stat[self.commIdx].find(item) >= 0:
                             exceptFlag = False
                             break
                         # check current's parent pid by comm #
@@ -31633,24 +31655,24 @@ class ThreadAnalyzer(object):
                             exceptFlag = False
                             break
                         # check current's parent comm #
-                        elif ppid in self.procData and \
-                            self.procData[ppid]['stat'][self.commIdx].find(item) >= 0:
+                        elif ppid in procData and \
+                            procData[ppid]['stat'][self.commIdx].find(item) >= 0:
                             exceptFlag = False
                             break
                         # check current's parent pid #
                         elif item.isdigit() and \
-                            item in self.procData and \
-                            self.procData[item]['stat'][self.ppidIdx] == \
-                            value['stat'][self.ppidIdx]:
+                            item in procData and \
+                            procData[item]['stat'][self.ppidIdx] == \
+                            stat[self.ppidIdx]:
                             exceptFlag = False
                             break
                     # thread mode #
                     else:
-                        pid = self.procData[idx]['mainID']
+                        pid = procData[idx]['mainID']
 
                         # check current process comm #
-                        if pid in self.procData and \
-                            self.procData[pid]['stat'][self.commIdx].find(item) >= 0:
+                        if pid in procData and \
+                            procData[pid]['stat'][self.commIdx].find(item) >= 0:
                             exceptFlag = False
                             break
                         # check current pid by comm #
@@ -31659,8 +31681,8 @@ class ThreadAnalyzer(object):
                             break
                         # check current's pid #
                         elif item.isdigit() and \
-                            item in self.procData and \
-                            self.procData[item]['mainID'] == value['mainID']:
+                            item in procData and \
+                            procData[item]['mainID'] == value['mainID']:
                             exceptFlag = False
                             break
                         elif idx == item or \
@@ -31672,7 +31694,7 @@ class ThreadAnalyzer(object):
                     if idx == item:
                         exceptFlag = False
                         break
-                    elif value['stat'][self.commIdx].find(item) >= 0:
+                    elif stat[self.commIdx].find(item) >= 0:
                         exceptFlag = False
                         break
 
@@ -31711,7 +31733,7 @@ class ThreadAnalyzer(object):
             if SystemManager.sort == 'c' or SystemManager.sort is None:
                 targetValue = value['ttime']
             elif SystemManager.sort == 'm':
-                targetValue = long(value['stat'][self.rssIdx]) >> 8
+                targetValue = long(stat[self.rssIdx]) >> 8
             elif SystemManager.sort == 'b':
                 targetValue = value['btime']
             elif SystemManager.sort == 'w':
@@ -31730,22 +31752,23 @@ class ThreadAnalyzer(object):
                 break
 
             if value['new']:
-                comm = '*' + value['stat'][self.commIdx][1:-1]
+                comm = '*' + stat[self.commIdx][1:-1]
             else:
-                comm = value['stat'][self.commIdx][1:-1]
+                comm = stat[self.commIdx][1:-1]
 
             if SystemManager.processEnable:
-                pid = value['stat'][self.ppidIdx]
+                pid = stat[self.ppidIdx]
             else:
                 pid = value['mainID']
 
-            codeSize = (long(value['stat'][self.ecodeIdx]) - \
-                long(value['stat'][self.scodeIdx])) >> 20
+            codeSize = (long(stat[self.ecodeIdx]) - \
+                long(stat[self.scodeIdx])) >> 20
 
-            if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
-                schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
+            schedList = ConfigManager.schedList
+            if schedList[int(stat[self.policyIdx])] == 'C':
+                schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
             else:
-                schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
+                schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
             lifeTime = SystemManager.convertTime(value['runtime'])
 
@@ -31777,12 +31800,14 @@ class ThreadAnalyzer(object):
                 shr = '-'
 
             try:
-                value['yield'] = value['status']['voluntary_ctxt_switches']
+                value['yield'] = \
+                    value['status']['voluntary_ctxt_switches']
             except:
                 value['yield'] = '-'
 
             try:
-                value['preempted'] = value['status']['nonvoluntary_ctxt_switches']
+                value['preempted'] = \
+                    value['status']['nonvoluntary_ctxt_switches']
             except:
                 value['preempted'] = '-'
 
@@ -31792,23 +31817,34 @@ class ThreadAnalyzer(object):
             except:
                 value['fdsize'] = '-'
 
-            try:
-                prevStatus = self.prevProcData[idx]['status']
-                yld = long(value['yield']) - \
-                    long(prevStatus['voluntary_ctxt_switches'])
-            except:
-                yld = '-'
+            if SystemManager.processEnable:
+                yld = stat[self.sidIdx]
+                if yld == '0':
+                    yld = '-'
+
+                prtd = stat[self.pgrpIdx]
+                if prtd == '0':
+                    prtd = '-'
+            else:
+                try:
+                    prevStatus = self.prevProcData[idx]['status']
+                    yld = long(value['yield']) - \
+                        long(prevStatus['voluntary_ctxt_switches'])
+                except:
+                    yld = '-'
+
+                try:
+                    prevStatus = self.prevProcData[idx]['status']
+                    prtd = long(value['preempted']) - \
+                        long(prevStatus['nonvoluntary_ctxt_switches'])
+                except:
+                    prtd = '-'
 
             try:
-                prevStatus = self.prevProcData[idx]['status']
-                prtd = long(value['preempted']) - \
-                    long(prevStatus['nonvoluntary_ctxt_switches'])
-            except:
-                prtd = '-'
-
-            try:
-                execTime = value['execTime'] - self.prevProcData[idx]['execTime']
-                waitTime = value['waitTime'] - self.prevProcData[idx]['waitTime']
+                execTime = \
+                    value['execTime'] - self.prevProcData[idx]['execTime']
+                waitTime = \
+                    value['waitTime'] - self.prevProcData[idx]['waitTime']
                 execPer = (execTime / (execTime + waitTime)) * 100
                 totalTime = value['ttime'] * (100 / execPer)
                 dtime = int(totalTime - value['ttime'])
@@ -31840,8 +31876,8 @@ class ThreadAnalyzer(object):
                     etc = ''
             elif SystemManager.tgnameEnable:
                 try:
-                    pgid = self.procData[idx]['mainID']
-                    etc = self.procData[pgid]['stat'][self.commIdx][1:-1]
+                    pgid = procData[idx]['mainID']
+                    etc = procData[pgid]['stat'][self.commIdx][1:-1]
                 except:
                     etc = ''
             elif SystemManager.sigHandlerEnable or True:
@@ -31851,7 +31887,7 @@ class ThreadAnalyzer(object):
                     etc = '-'
 
             try:
-                mems = long(value['stat'][self.rssIdx])
+                mems = long(stat[self.rssIdx])
             except:
                 mems = 0
 
@@ -31865,14 +31901,13 @@ class ThreadAnalyzer(object):
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                format(comm[:cl], idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
-                str(schedValue), \
+                format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                schedList[int(stat[self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
-                long(value['stat'][self.vsizeIdx]) >> 20, \
-                mems >> 8, codeSize, shr, vmswp, \
-                value['btime'], readSize, writeSize, value['majflt'],\
-                yld, prtd, value['fdsize'], lifeTime, etc, cl=cl, pd=pd))
+                long(stat[self.vsizeIdx]) >> 20, mems >> 8, codeSize, \
+                shr, vmswp, value['btime'], readSize, writeSize, \
+                value['majflt'], yld, prtd, value['fdsize'], \
+                lifeTime, etc, cl=cl, pd=pd))
 
             # print PMU stats #
             try:
@@ -31905,7 +31940,7 @@ class ThreadAnalyzer(object):
                     indent = 48
                     isFirstLined = True
                     limit = SystemManager.lineLength - indent
-                    pstr = self.procData[idx]['wss'][mprop]
+                    pstr = procData[idx]['wss'][mprop]
 
                     while len(pstr) > limit:
                         slimit = len(pstr[:limit])
