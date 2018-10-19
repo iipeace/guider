@@ -903,7 +903,8 @@ Modes
 
 ```
 [analysis]
-    top         [realtime]
+    top         [process]
+    bgtop       [background]
     threadtop   [thread]
     filetop     [file]
     stacktop    [stack]
@@ -911,15 +912,12 @@ Modes
     memtop      [memory]
     disktop     [storage]
     wsstop      [WSS]
+    reptop      [report]
 
     record      [thread]
-    record -y   [system]
-    record -f   [function]
-    record -F   [file]
-
-    mem         [page]
-
-    strace      [syscall]
+    funcrecord  [function]
+    filerecord  [file]
+    sysrecord   [system]
 
     draw        [image]
     cpudraw     [cpu]
@@ -929,11 +927,17 @@ Modes
     leakdraw    [leak]
     iodraw      [io]
 
+    mem         [page]
+
+    strace      [syscall]
+
 [control]
     kill        [signal]
     setsched    [priority]
     getaffinity [affinity]
     setaffinity [affinity]
+    server      [server]
+    client      [client]
     cpulimit    [cpu]
 
 [test]
@@ -954,32 +958,32 @@ Options
 
 ```
 [record]
-    -e  [enable_optionsPerMode - belowCharacters]
-          [common]   {m(em)│b(lock)│e(ncoding)}
-          [function] {h(eap)│L(ock)│p(ipe)│g(raph)}
-          [thread]   {i(rq)│l(ock)│n(et)│p(ipe)│
-                      P(ower)│r(eset)│g(raph)}
-          [top]      {t(hread)│wf(C)│s(tack)│w(ss)│d(isk)│
-                      P(erf)│G(pu)│i(rq)│ps(S)│u(ss)│W(chan)│
-                      I(mage)│a(ffinity)│r(eport)│a(ffinity)│
-                      h(andler)│f(loat)│R(file)}
-    -d  [disable_optionsPerMode - belowCharacters]
-          [common]   {c(pu)│e(ncoding)}
+    -e  [enable_options - characters]
+          [common]   {m(em)|b(lock)|e(ncoding)}
+          [function] {h(eap)|L(ock)|p(ipe)|g(raph)}
+          [thread]   {i(rq)|l(ock)|n(et)|p(ipe)|
+                      P(ower)|r(eset)|g(raph)}
+          [top]      {t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|
+                      P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|
+                      I(mage)|a(ffinity)|r(eport)|a(ffinity)|
+                      h(andler)|f(loat)|R(file)}
+    -d  [disable_options - characters]
+          [common]   {c(pu)|e(ncoding)}
           [thread]   {a(ll)}
-          [function] {a(ll)│u(ser)}
-          [top]      {p(rint)│P(erf)│W(chan)│n(net)}
+          [function] {a(ll)|u(ser)}
+          [top]      {p(rint)|P(erf)|W(chan)|n(net)}
     -s  [save_traceData - path]
     -u  [run_inBackground]
     -W  [wait_forSignal]
     -b  [set_bufferSize - KB]
     -D  [trace_threadDependency]
     -t  [trace_syscall - syscalls]
-    -T  [set_fontPath]
+    -T  [set_fontPath - path]
     -j  [set_reportPath - path]
-    -U  [set_userEvent - name:func│addr:file]
-    -K  [set_kernelEvent - name:func│addr{:%reg/argtype:rettype}]
-    -C  [set_commandScriptPath - file]
-    -w  [set_customRecordCommand - BEFORE│AFTER│STOP:file{:value}]
+    -U  [set_userEvent - name:func|addr:file]
+    -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]
+    -C  [set_commandScriptPath - path]
+    -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]
     -x  [set_addressForLocalServer - {ip:port}]
     -X  [set_requestToRemoteServer - {req@ip:port}]
     -N  [set_reportToRemoteServer - req@ip:port]
@@ -994,10 +998,10 @@ Options
     -p  [show_preemptInfo - tids]
     -l  [set_addr2linePath - files]
     -r  [set_targetRootPath - dir]
-    -I  [set_inputValue - file│addr]
+    -I  [set_inputValue - file|addr]
     -q  [configure_taskList]
     -Z  [convert_textToImage]
-    -L  [set_graphLayout - CPU│MEM│IO{:proportion}]
+    -L  [set_graphLayout - CPU|MEM|IO{:proportion}]
     -m  [set_terminalSize - {rows:cols}]
 
 [common]
@@ -1005,14 +1009,14 @@ Options
     -Q  [print_allRowsInaStream]
     -i  [set_interval - sec]
     -R  [set_repeatCount - {interval:}count]
-    -g  [set_filter - comms│tids{:files}]
-    -A  [set_arch - arm│aarch64│x86│x64]
+    -g  [set_filter - comms|tids{:files}]
+    -A  [set_arch - arm|aarch64|x86|x64]
     -c  [set_customEvent - event:cond]
     -E  [set_errorLogPath - file]
     -H  [set_functionDepth]
-    -k  [set_killList - comms│tids{:CONT}]
-    -z  [set_cpuAffinity - mask:tids│ALL{:CONT}]
-    -Y  [set_schedPriority - policy:prio{:tid│ALL:CONT}]
+    -k  [set_killList - comms|tids{:CONT}]
+    -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]
+    -Y  [set_schedPriority - policy:prio|times{:tid|ALL:CONT}]
     -v  [verbose]
 ```
 
@@ -1234,10 +1238,13 @@ Examples
     - change priority of tasks in a group
         # ./guider.py setsched c:-19, r:90:1217 -P
 
-    - update priority of all tasks shown
+    - update priority of all tasks shown to realtime 90
         # ./guider.py top -Y r:90:ALL
 
-    - update priority of tasks continuously
+    - update priority of all tasks shown to deadline sched
+        # ./guider.py top -Y d:1000000/20000000/20000000:ALL
+
+    - update priority of a task continuously to realtime 90
         # ./guider.py top -Y r:90:1234:CONT
 
     - update cpu affinity of all tasks shown
