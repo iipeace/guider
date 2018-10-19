@@ -17,14 +17,14 @@ Intro
 </pre></code>
 
 Do you struggle to improve system performance or to find root cause that makes system abnormal?   
-Guider is made to measure amount of system resource usage and to trace system behavior.   
+Guider is made to measure the amount of system resource usage and to trace system behavior.   
 You can analyze your performance issues effectively with this tool.   
 
 Guider pursues characteristics as below.
 >1. Easy to use: just run without any setting and package installation
 >2. Measure correctly: count, time in from us, size in from byte
 >3. Provide all features: enough functions for experiment and analysis
->4. Report in detail: show as much information as possible
+>4. Submit the report in detail: show as much information as possible
 
 It usually supports all platforms based on the Linux kernel as shown below.
 - Android
@@ -828,7 +828,7 @@ And Input 'Ctrl + c' on keyboard to finish monitoring.
 Input a command as below to see more instructions.
     $ ./guider.py -h
 
-Visit a below link to see output of guider.
+Visit a below link to see the output of guider.
 - https://github.com/iipeace/guider/wiki
 ```
 
@@ -851,7 +851,7 @@ If you can run 'pip' on your system then just input a command as below
 Then you can use 'guider' command
 
 Otherwise, download the source from https://github.com/iipeace/guider
-Then you can just run "guider.py" but it is little bit heavy 
+Then you can just run "guider.py" but it is a little bit heavy 
 If you want to run guider lightly then input a command as below
     # make && make install
 Then you can use 'guider' command
@@ -1027,16 +1027,16 @@ Examples
 ```
 [ thread mode examples ]
 
-    - record and report cpu events of threads
+    - record and report CPU events of threads
         # ./guider.py record -s .
 
-    - record and save specific resource events of threads in background
+    - record and save specific resource events of threads in the background
         # ./guider.py record -s . -e m, b, i -u
 
-    - record and save specific resource events excluding cpu of threads in background
+    - record and save specific resource events excluding CPU of threads in the background
         # ./guider.py record -s . -e m, b, i -d c -u
 
-    - record and save specific systemcall events of specific threads
+    - record and save specific system call events of specific threads
         # ./guider.py record -s . -t sys_read, write -g 1234
 
     - record and save lock events of threads
@@ -1051,22 +1051,22 @@ Examples
     - record and save specific kernel function events with register values
         # ./guider.py record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
-    - record and save specific kernel function events with return value
+    - record and save specific kernel function events with the return value
         # ./guider.py record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
 
-    - execute special commands and record and save cpu events of threads
+    - execute special commands and record and save CPU events of threads
         # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - report all possible information from trace data
         # ./guider.py guider.dat -o . -a -i
 
-    - report on specific interval from trace data
+    - report stats on a specific interval from trace data
         # ./guider.py guider.dat -o . -R 3
 
-    - report including preemption info of specific threads from trace data
+    - report stats including preemption of specific threads from trace data
         # ./guider.py guider.dat -o . -p 1234, 4567
 
-    - report including specific threads involved in the specific processes from trace data
+    - report stats including specific threads involved in the specific processes from trace data
         # ./guider.py guider.dat -o . -P -g 1234, 4567
 
     - draw graph and chart from trace data
@@ -1074,10 +1074,10 @@ Examples
 
  [ function mode examples ]
 
-    - record and report cpu function events of threads
+    - record and report CPU function events of threads
         # ./guider.py record -f -s .
 
-    - record and save cpu function events of specific threads having tid bigger than 1024
+    - record and save CPU function events of specific threads having TID bigger than 1024
         # ./guider.py record -f -s . -g 1024\<
 
     - record and save specific function events of threads except for user-mode
@@ -1095,7 +1095,7 @@ Examples
     - record and save blocking function events of threads
         # ./guider.py record -f -s . -K block:schedule
 
-    - execute special commands and record and save cpu function events of threads
+    - execute special commands and record and save CPU function events of threads
         # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - report all possible information from trace data using specific toolchain tools
@@ -1112,7 +1112,7 @@ Examples
     - show resource usage of processes in real-time
         # ./guider.py top
 
-    - show resource usage of processes on fixed-size terminal in real-time
+    - show resource usage of processes on the fixed-size terminal in real-time
         # ./guider.py top -m
 
     - show files opened via processes in real-time
@@ -1133,22 +1133,22 @@ Examples
     - show resource usage of processes only 5 times in real-time
         # ./guider.py top -R 5
 
-    - show resource usage of processes only 5 times per 3 sec interval in real-time
+    - show resource usage of processes only 5 times per 3-sec interval in real-time
         # ./guider.py top -R 3, 5
 
-    - show resource usage including block of threads per 2 sec interval in real-time
+    - show resource usage including block of threads per 2-sec interval in real-time
         # ./guider.py top -e t, b -i 2 -a
 
     - show resource usage of specific processes/threads involved in specific process group in real-time
         # ./guider.py top -g 1234,4567 -P
 
-    - save resource usage of processes and write to specific file in real-time
+    - save resource usage of processes and write to the specific file in real-time
         # ./guider.py top -o . -e p
 
     - save and print resource usage of processes in real-time
         # ./guider.py top -o . -Q
 
-    - save resource usage of processes in background
+    - save resource usage of processes in the background
         # ./guider.py top -o . -u
 
     - report system stats in the background
@@ -1157,13 +1157,13 @@ Examples
     - save resource usage of processes and report system stats if some events occur
         # ./guider.py top -o . -e r, R
 
-    - save resource usage of processes and report system status to specific image
+    - save resource usage of processes and report system status to the specific image
         # ./guider.py top -o . -e r, I
 
-    - save resource usage of processes and report to file if specific conditions meet
+    - save resource usage of processes and report to file if specific conditions met
         # ./guider.py top -o . -e R
 
-    - show resource usage of processes and excute special commands every interval
+    - show resource usage of processes and execute special commands every interval
         # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
 
     - show storage usage in real-time
@@ -1178,7 +1178,7 @@ Examples
     - draw graph and chart for specific process group to specific files
         # ./guider.py draw guider.out -g chrome
 
-    - draw cpu and memory graphs of specific processes to a specific file propotionally
+    - draw CPU and memory graphs of specific processes to a specific file proportionally
         # ./guider.py draw guider.out -g chrome -L cpu:5, mem:5
 
     - draw VSS graph and chart for specific processes to specific files
@@ -1193,10 +1193,10 @@ Examples
     - show and report resource usage of processes to specific clients that asked it
         # ./guider.py top -x 5555
 
-    - handle report data from server
+    - handle report data from the server
         # ./guider.py top -x 5555 -X
 
-    - show resource usage of processes and set condition file path for report
+    - show resource usage of processes and set condition file path for the report
         # ./guider.py top -I guider.json
 
 [ file mode examples ]
@@ -1204,58 +1204,58 @@ Examples
     - trace memory usage of files mapped to processes
         # ./guider.py record -F -o .
 
-    - trace memory usage of files mapped to processes each intervals
+    - trace memory usage of files mapped to processes each interval
         # ./guider.py record -F -i
 
 [ etc examples ]
 
-    - check property of specific pages
+    - check the property of specific pages
         # ./guider.py mem -g 1234 -I 0x7abc1234-0x7abc6789
 
-    - convert a text fle to a image file
+    - convert a text file to an image file
         # ./guider.py guider.out -Z
 
-    - wait for signal to start
+    - wait for the signal to start
         # ./guider.py record│top -W
 
     - show guider processes
         # ./guider.py list
 
-    - send noty signal to guider processes
+    - send the signal to all guider processes
         # ./guider.py send
         # ./guider.py kill 
 
-    - send stop signal to guider processes
+    - send the stop signal to all guider processes
         # ./guider.py stop
 
     - send specific signals to specific processes
         # ./guider.py send -9 1234, 4567
         # ./guider.py kill -kill 1234, 4567
 
-    - change priority of task
+    - change the priority of tasks
         # ./guider.py setsched c:-19, r:90:1217, i:0:1209
 
-    - change priority of tasks in a group
+    - change the priority of tasks in a group
         # ./guider.py setsched c:-19, r:90:1217 -P
 
-    - update priority of all tasks shown to realtime 90
+    - update priority of all tasks shown to real-time 90
         # ./guider.py top -Y r:90:ALL
 
-    - update priority of all tasks shown to deadline sched
+    - update priority of all tasks shown to the deadline policy
         # ./guider.py top -Y d:1000000/20000000/20000000:ALL
 
-    - update priority of a task continuously to realtime 90
+    - update the priority of a task continuously to real-time 90
         # ./guider.py top -Y r:90:1234:CONT
 
-    - update cpu affinity of all tasks shown
+    - update CPU affinity of all tasks shown
         # ./guider.py top -z f:ALL
 
-    - update cpu affinity of tasks continuously
+    - update CPU affinity of tasks continuously
         # ./guider.py top -z f:1234:CONT
 
-    - limit cpu usage of specific processes
+    - limit CPU usage of specific processes
         # ./guider.py cpulimit -g 1234:40, 5678:10
 
-    - limit cpu usage of specific threads
+    - limit CPU usage of specific threads
         # ./guider.py cpulimit -g 1234:40, 5678:10 -e t
 ```
