@@ -6501,7 +6501,8 @@ class FileAnalyzer(object):
                 SystemManager.libcObj.mincore.restype = c_int
             except:
                 SystemManager.libcObj = None
-                SystemManager.printError('Fail to find libc to call systemcall')
+                SystemManager.printError(\
+                    'Fail to find libc to call systemcall', True)
                 sys.exit(0)
 
         # set system maximum fd number #
@@ -7385,6 +7386,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
 
     arch = 'arm'
+    kernelVersion = None
     wordSize = 4
     isLinux = True
     isAndroid = False
@@ -8619,7 +8621,7 @@ class SystemManager(object):
                 pipePrint('        -H  [set_functionDepth]')
                 pipePrint('        -k  [set_killList - comms|tids{:CONT}]')
                 pipePrint('        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]')
-                pipePrint('        -Y  [set_schedPriority - policy:prio{:tid|ALL:CONT}]')
+                pipePrint('        -Y  [set_schedPriority - policy:prio|times{:tid|ALL:CONT}]')
                 pipePrint('        -v  [verbose]')
 
             else:
@@ -8791,8 +8793,11 @@ class SystemManager(object):
             pipePrint('\n    - show resource usage of processes and excute special commands every interval')
             pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
 
-            pipePrint('\n    - update priority of all tasks shown')
+            pipePrint('\n    - update priority of all tasks shown to realtime 90')
             pipePrint('        # %s top -Y r:90:ALL' % cmd)
+
+            pipePrint('\n    - update priority of all tasks shown to deadline sched')
+            pipePrint('        # %s top -Y d:1000000/20000000/20000000:ALL' % cmd)
 
             pipePrint('\n    - update priority of tasks continuously')
             pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
@@ -8892,6 +8897,32 @@ class SystemManager(object):
         elif sys.argv[1] == '--version':
 
             sys.exit(0)
+
+
+
+    @staticmethod
+    def getKernelVersion():
+        if SystemManager.kernelVersion != None:
+            return SystemManager.kernelVersion
+
+        try:
+            kernel = os.uname()[2]
+            kernelList = kernel.split('.')
+
+            # get kernel major version #
+            kernelVersion = '.'.join(kernelList[0:2])
+
+            # get kernel minor version #
+            if len(kernel) > 2:
+                kernelVersion = \
+                    '%s.%s' % (kernelVersion, kernelList[2].split('-')[0])
+
+            # update system info #
+            SystemManager.kernelVersion = kernelVersion
+
+            return kernelVersion
+        except:
+            return None
 
 
 
@@ -9049,7 +9080,8 @@ class SystemManager(object):
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to find libc to call systemcall')
+            SystemManager.printWarning(\
+                'Fail to find libc to call systemcall')
             SystemManager.perfEnable = False
             SystemManager.perfGroupEnable = False
             return
@@ -9429,7 +9461,8 @@ class SystemManager(object):
                     cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning('Fail to find libc to call systemcall')
+            SystemManager.printWarning(\
+                'Fail to find libc to call systemcall')
             return
 
         # define struct read_group_format #
@@ -10143,6 +10176,7 @@ class SystemManager(object):
 
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
+        # load subprocess package #
         try:
             if SystemManager.subprocessObject == None:
                 import subprocess
@@ -11720,6 +11754,7 @@ class SystemManager(object):
     def drawText(lines):
         imageType = None
 
+        # load textwrap package #
         try:
             import textwrap
             from PIL import Image, ImageFont, ImageDraw
@@ -11729,8 +11764,8 @@ class SystemManager(object):
                 "Fail to import python package: %s" % err.args[0])
             return
 
+        # load jpeg plugin #
         try:
-            # load jpeg plugin #
             from PIL import JpegImagePlugin
             imageType = 'jpg'
         except ImportError:
@@ -11738,8 +11773,8 @@ class SystemManager(object):
             SystemManager.printWarning(\
                 "Fail to import python package: %s" % err.args[0])
 
+            # load bmp plugin instead of jpeg #
             try:
-                # load bmp plugin instead of jpeg #
                 from PIL import BmpImagePlugin
                 imageType = 'bmp'
             except ImportError:
@@ -14385,6 +14420,7 @@ class SystemManager(object):
                     'Failed to connect to client because of no response', True)
                 return
 
+            # load subprocess package #
             try:
                 if SystemManager.subprocessObject == None:
                     import subprocess
@@ -14783,7 +14819,7 @@ class SystemManager(object):
         if len(value) == 0:
             SystemManager.printError(\
                 ("wrong option value to set priority, "
-                "input POLICY:PRIORITY:PID in format"))
+                "input POLICY:PRIORITY|TIME:PID in format"))
             sys.exit(0)
         elif value.find('-P') >= 0:
             isProcess = True
@@ -15204,12 +15240,26 @@ class SystemManager(object):
             pass
 
 
+
+    @staticmethod
+    def getDeadlineArgs(value):
+        value = value.split('/')
+        if len(value) == 3:
+            return map(long, value)
+        elif len(value) == 2:
+            value.append(value[-1])
+            return map(long, value)
+        else:
+            return [0, 0, 0]
+
+
+
     @staticmethod
     def parsePriorityOption(value, isProcess=False):
         if len(value) == 0:
             SystemManager.printError(\
                 ("wrong option value %s with -Y, "
-                "input POLICY:PRIORITY:PID in format") % value)
+                "input POLICY:PRIORITY|TIME:PID in format") % value)
             sys.exit(0)
 
         # check root permission #
@@ -15223,6 +15273,7 @@ class SystemManager(object):
         for item in schedGroup:
             schedSet = item.split(':')
             try:
+                # change myself #
                 if len(schedSet) == 2:
                     SystemManager.prio = int(schedSet[1])
 
@@ -15240,7 +15291,9 @@ class SystemManager(object):
                     for tid in threadList:
                         SystemManager.setPriority(\
                             tid, schedSet[0], SystemManager.prio)
+                # change others #
                 elif len(schedSet) == 3:
+                    # update priority of all threads #
                     if schedSet[2] == 'ALL':
                         SystemManager.schedAllFilter.append(\
                             [schedSet[0], schedSet[1]])
@@ -15258,8 +15311,18 @@ class SystemManager(object):
 
                     # change priority of a thread #
                     for tid in threadList:
-                        SystemManager.setPriority(\
-                            tid, schedSet[0], int(schedSet[1]))
+                        if schedSet[0].upper() == 'D':
+                            # parse deadline arguments #
+                            runtime, deadline, period = \
+                                SystemManager.getDeadlineArgs(schedSet[1])
+
+                            # set deadline sched #
+                            SystemManager.setDeadlinePriority(\
+                                tid, runtime, deadline, period)
+                        else:
+                            SystemManager.setPriority(\
+                                tid, schedSet[0], int(schedSet[1]))
+                # change others continually #
                 elif len(schedSet) == 4:
                     # verify sched parameters #
                     if schedSet[3] != 'CONT':
@@ -15267,7 +15330,12 @@ class SystemManager(object):
 
                     policy = schedSet[0].upper()
                     ConfigManager.schedList.index(policy)
-                    pri = int(schedSet[1])
+                    pri = schedSet[1]
+
+                    # update priority of all threads #
+                    if schedSet[2] == 'ALL':
+                        SystemManager.schedFilter.append([policy, pri, 0])
+                        continue
 
                     if isProcess:
                         threadList = SystemManager.getThreadList(schedSet[2])
@@ -15287,16 +15355,145 @@ class SystemManager(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printError(\
-                    ("wrong option value %s with -Y, "
-                    "input POLICY:PRIORITY:PID in format") % item)
+                errList = map(str, sys.exc_info()[1].args)
+                SystemManager.printError((\
+                    "wrong option value %s with -Y because %s, "
+                    "input POLICY:PRIORITY|TIME:PID in format") % \
+                    (item, ' '.join(list(errList))))
                 sys.exit(0)
 
 
 
     @staticmethod
-    def setPriority(pid, policy, pri):
+    def setDeadlinePriority(pid, runtime, deadline, period):
+        # check kernel version #
+        try:
+            ver = SystemManager.getKernelVersion().split('.')[0:2]
+            ver = float('.'.join(ver))
+            # check whether kernel version is higher than 3.14 #
+            if ver < 3.14:
+                SystemManager.printError((\
+                    "Fail to set priority of %d "
+                    "because kernel verion %f is lesser than 3.14") % \
+                    (pid, ver))
+                return -1
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to check kernel version because %s "
+                "to set deadline priority") % err.args[0], True)
+            return -1
+
+        # load ctypes package #
+        try:
+            if SystemManager.ctypesObj is None:
+                import ctypes
+                SystemManager.ctypesObj = ctypes
+            ctypes = SystemManager.ctypesObj
+            from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
+                c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                ("Fail to import python package: %s "
+                "to set deadline priority") % err.args[0], True)
+            sys.exit(0)
+
+        # load standard libc library #
+        try:
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+        except:
+            SystemManager.libcObj = None
+            SystemManager.printWarning(\
+                'Fail to find libc to call systemcall', True)
+            sys.exit(0)
+
+        # define struct sched_attr #
+        class struct_sched_attr(Structure):
+            pass
+
+        struct_sched_attr._slots_ = [
+            'size',
+            'sched_policy',
+            'sched_flags',
+            'sched_nice',
+            'sched_priority',
+            'sched_runtime',
+            'sched_deadline',
+            'sched_period',
+        ]
+
+        struct_sched_attr._fields_ = [
+            ('size', c_uint32),
+            ('sched_policy', c_uint32),
+            ('sched_flags', c_uint64),
+            ('sched_nice', c_int32),
+            ('sched_priority', c_uint32),
+            ('sched_runtime', c_uint64),
+            ('sched_deadline', c_uint64),
+            ('sched_period', c_uint64),
+        ]
+
+        # get the number of sched_setattr systemcall #
+        nrSyscall = ConfigManager.sysList.index('sys_sched_setattr')
+
+        # define syscall parameters for sched_setattr() #
+        SystemManager.libcObj.syscall.argtypes = \
+            [c_int, c_int, POINTER(struct_sched_attr), c_uint]
+        SystemManager.libcObj.syscall.restype = c_int
+
+        # set parameters #
+        sched_attr = struct_sched_attr()
+        sched_attr.size = sizeof(sched_attr)
+        sched_attr.sched_flags = 0
+        sched_attr.sched_nice = 0
+        sched_attr.sched_priority = 0
+        sched_attr.sched_policy = ConfigManager.schedList.index('D')
+
+        # set runtime(ns) #
+        sched_attr.sched_runtime = runtime
+
+        # check deadline and period #
+        if deadline == period == 0:
+            SystemManager.printError((\
+                "Fail to set priority of %d "
+                "as runtime(ns)/deadline(ns)/period(ns)[D]") % pid)
+            return -1
+        elif deadline == 0:
+            deadline = period
+        elif period == 0:
+            period = deadline
+
+        # set period(ns) #
+        sched_attr.sched_deadline = deadline
+        sched_attr.sched_period = period
+
+        # call sched_setattr() to set deadeline sched #
+        ret = SystemManager.libcObj.syscall(\
+            nrSyscall, pid, pointer(sched_attr), 0)
+
+        # check return value #
+        if ret == 0:
+            SystemManager.printInfo((\
+                "priority of %d task is changed to "
+                "runtime(%d)/deadline(%d)/period(%d)[D]") % \
+                (pid, runtime, deadline, period))
+        else:
+            SystemManager.printError((\
+                "Fail to set priority of %d as "
+                "runtime(%d)/deadline(%d)/period(%d)[D]") % \
+                (pid, runtime, deadline, period))
+
+        return ret
+
+
+
+    @staticmethod
+    def setPriority(pid, policy, pri, runtime=0, deadline=0, period=0):
         if SystemManager.guiderObj is None:
+            # load ctypes package #
             try:
                 if SystemManager.ctypesObj is None:
                     import ctypes
@@ -15323,10 +15520,13 @@ class SystemManager(object):
             if SystemManager.guiderObj is None:
                 argPolicy = ctypes.c_int(argPolicy)
 
+            # set default priority #
             if upolicy == 'I' or upolicy == 'C' or upolicy == 'B':
                 argPriority = 0
             else:
                 argPriority = pri
+
+            # prepare for libc call #
             if SystemManager.guiderObj is None:
                 argPriority = ctypes.c_int(argPriority)
 
@@ -15339,7 +15539,7 @@ class SystemManager(object):
                     pid, argPolicy, argPriority)
             if ret != 0:
                 SystemManager.printError(\
-                    "Fail to set priority of %d as %s(%s)" % \
+                    "Fail to set priority of %d as %s[%s]" % \
                     (pid, pri, upolicy))
                 raise Exception()
 
@@ -15355,19 +15555,19 @@ class SystemManager(object):
                         0, pid, argPriority)
                 if ret != 0:
                     SystemManager.printError(\
-                        "Fail to set priority of %d as %s(%s)" % \
+                        "Fail to set priority of %d as %s[%s]" % \
                         (pid, pri, upolicy))
                     raise Exception()
 
             SystemManager.printInfo(\
-                'priority of %d task is changed to %d(%s)' % \
+                'priority of %d task is changed to %d[%s]' % \
                 (pid, pri, upolicy))
         except:
             err = ''
             if SystemManager.isRoot() is False:
                 err = ', it needs root permission to make priority higher'
             SystemManager.printWarning(\
-                'Fail to set priority of %s as %s(%s)%s' % \
+                'Fail to set priority of %s as %s[%s]%s' % \
                 (pid, pri, policy, err))
             return
 
@@ -30255,8 +30455,18 @@ class ThreadAnalyzer(object):
         # change sched priority #
         for item in SystemManager.schedFilter:
             target = str(item[2])
-            if tid == target:
-                SystemManager.setPriority(int(tid), item[0], item[1])
+            if target== '0' or tid == target:
+                if item[0].upper() == 'D':
+                    # parse deadline arguments #
+                    runtime, deadline, period = \
+                        SystemManager.getDeadlineArgs(item[1])
+
+                    # set deadline sched #
+                    SystemManager.setDeadlinePriority(\
+                        int(tid), runtime, deadline, period)
+                else:
+                    # set priority #
+                    SystemManager.setPriority(int(tid), item[0], int(item[1]))
 
         # change cpu affinity #
         for item in SystemManager.affinityFilter:
@@ -31737,8 +31947,18 @@ class ThreadAnalyzer(object):
 
             # set priority of this task #
             for item in SystemManager.schedAllFilter:
-                SystemManager.setPriority(\
-                    int(idx), item[0], int(item[1]))
+                if item[0].upper() == 'D':
+                    # parse deadline arguments #
+                    runtime, deadline, period = \
+                        SystemManager.getDeadlineArgs(item[1])
+
+                    # set deadline sched #
+                    SystemManager.setDeadlinePriority(\
+                        int(idx), runtime, deadline, period)
+                else:
+                    # set priority #
+                    SystemManager.setPriority(\
+                        int(idx), item[0], int(item[1]))
 
             # set affinity of this task #
             for item in SystemManager.affinityAllFilter:
