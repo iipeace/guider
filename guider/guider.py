@@ -19582,21 +19582,28 @@ class Debugger(object):
         wordSize = ConfigManager.wordSize
         cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
 
+        # back up data #
+        origData = data
+
         # check data type #
         if type(data) is bytes:
+            if size == 0:
+                size = len(data)
+
             data = SystemManager.bstring2word(data)
         elif type(data) is int or type(data) is long:
-            pass
+            if size == 0:
+                size = wordSize
         elif type(data) is str:
+            if size == 0:
+                size = len(data)
+
             data = SystemManager.bstring2word(data.encode())
         else:
             SystemManager.printError((\
                 "Fail to recognize data to write because "
                 "%s is not supported") % type(data))
             return -1
-
-        # check size #
-        # toDo: check size #
 
         return self.accessMem(cmd, addr, data)
 
