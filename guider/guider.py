@@ -8799,7 +8799,7 @@ class SystemManager(object):
             pipePrint('\n    - update priority of all tasks shown to deadline sched')
             pipePrint('        # %s top -Y d:1000000/20000000/20000000:ALL' % cmd)
 
-            pipePrint('\n    - update priority of tasks continuously')
+            pipePrint('\n    - update priority of a task continuously')
             pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
 
             pipePrint('\n    - update cpu affinity of all tasks shown')
@@ -13685,10 +13685,10 @@ class SystemManager(object):
         logPath = '/var/log'
         tmpPath = '/tmp'
 
-        if os.path.isdir(logPath):
+        if os.path.isdir(logPath) and os.access(logPath, os.W_OK):
             SystemManager.printFile = logPath
             return True
-        elif os.path.isdir(tmpPath):
+        elif os.path.isdir(tmpPath) and os.access(tmpPath, os.W_OK):
             SystemManager.printFile = tmpPath
             return True
         else:
