@@ -1072,7 +1072,7 @@ Examples
     - draw graph and chart from trace data
         # ./guider.py draw guider.dat
 
- [ function mode examples ]
+[ function mode examples ]
 
     - record and report CPU function events of threads
         # ./guider.py record -f -s .

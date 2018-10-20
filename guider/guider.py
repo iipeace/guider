@@ -8508,121 +8508,125 @@ class SystemManager(object):
 
                 SystemManager.printRawTitle(False, True, True)
 
-                pipePrint('\nMode:')
-                pipePrint('')
-                pipePrint('    [analysis]')
-                pipePrint('        top         [process]')
-                pipePrint('        bgtop       [background]')
-                pipePrint('        threadtop   [thread]')
-                pipePrint('        filetop     [file]')
-                pipePrint('        stacktop    [stack]')
-                pipePrint('        perftop     [PMU]')
-                pipePrint('        memtop      [memory]')
-                pipePrint('        disktop     [storage]')
-                pipePrint('        wsstop      [WSS]')
-                pipePrint('        reptop      [report]')
-                pipePrint('')
-                pipePrint('        record      [thread]')
-                pipePrint('        funcrecord  [function]')
-                pipePrint('        filerecord  [file]')
-                pipePrint('        sysrecord   [system]')
-                pipePrint('')
-                pipePrint('        draw        [image]')
-                pipePrint('        cpudraw     [cpu]')
-                pipePrint('        memdraw     [memory]')
-                pipePrint('        vssdraw     [vss]')
-                pipePrint('        rssdraw     [rss]')
-                pipePrint('        leakdraw    [leak]')
-                pipePrint('        iodraw      [io]')
-                pipePrint('')
-                pipePrint('        mem         [page]')
-                pipePrint('')
-                pipePrint('        strace      [syscall]')
-                pipePrint('')
-                pipePrint('    [control]')
-                pipePrint('        kill        [signal]')
-                pipePrint('        setsched    [priority]')
-                pipePrint('        getaffinity [affinity]')
-                pipePrint('        setaffinity [affinity]')
-                pipePrint('        server      [server]')
-                pipePrint('        client      [client]')
-                pipePrint('        cpulimit    [cpu]')
-                pipePrint('')
-                pipePrint('    [test]')
-                pipePrint('        alloctest   [mem]')
-                pipePrint('')
-                pipePrint('    [communication]')
-                pipePrint('        list')
-                pipePrint('        start')
-                pipePrint('        send')
-                pipePrint('        event')
+                helpStr = \
+                '''
+Mode:
 
-                pipePrint('')
-                pipePrint('Options:')
-                pipePrint('')
-                pipePrint('    [record]')
-                pipePrint('        -e  [enable_options - characters]')
-                pipePrint('              [common]   {m(em)|b(lock)|e(ncoding)}')
-                pipePrint('              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}')
-                pipePrint('              [thread]   '\
-                                                 '{i(rq)|l(ock)|n(et)|p(ipe)|'\
-                    '\n                          P(ower)|r(eset)|g(raph)}')
-                pipePrint('              [top]      '\
-                                                 '{t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|'\
-                    '\n                          P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|'
-                    '\n                          I(mage)|a(ffinity)|r(eport)|a(ffinity)|'\
-                    '\n                          h(andler)|f(loat)|R(file)}')
-                pipePrint('        -d  [disable_options - characters]')
-                pipePrint('              [common]   {c(pu)|e(ncoding)}')
-                pipePrint('              [thread]   {a(ll)}')
-                pipePrint('              [function] {a(ll)|u(ser)}')
-                pipePrint('              [top]      {p(rint)|P(erf)|W(chan)|n(net)}')
-                pipePrint('        -s  [save_traceData - path]')
-                pipePrint('        -u  [run_inBackground]')
-                pipePrint('        -W  [wait_forSignal]')
-                pipePrint('        -b  [set_bufferSize - KB]')
-                pipePrint('        -D  [trace_threadDependency]')
-                pipePrint('        -t  [trace_syscall - syscalls]')
-                pipePrint('        -T  [set_fontPath - path]')
-                pipePrint('        -j  [set_reportPath - path]')
-                pipePrint('        -U  [set_userEvent - name:func|addr:file]')
-                pipePrint('        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]')
-                pipePrint('        -C  [set_commandScriptPath - path]')
-                pipePrint('        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]')
-                pipePrint('        -x  [set_addressForLocalServer - {ip:port}]')
-                pipePrint('        -X  [set_requestToRemoteServer - {req@ip:port}]')
-                pipePrint('        -N  [set_reportToRemoteServer - req@ip:port]')
-                pipePrint('        -M  [set_objdumpPath - file]')
-                pipePrint('')
-                pipePrint('    [analysis]')
-                pipePrint('        -o  [save_outputData - path]')
-                pipePrint('        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/'\
-                    '\n                    n(ew)/r(untime)/f(ile)/s(yscall)]')
-                pipePrint('        -O  [set_coreFilter - cores]')
-                pipePrint('        -P  [group_perProcessBasis]')
-                pipePrint('        -p  [show_preemptInfo - tids]')
-                pipePrint('        -l  [set_addr2linePath - files]')
-                pipePrint('        -r  [set_targetRootPath - dir]')
-                pipePrint('        -I  [set_inputValue - file|addr]')
-                pipePrint('        -q  [configure_taskList]')
-                pipePrint('        -Z  [convert_textToImage]')
-                pipePrint('        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]')
-                pipePrint('        -m  [set_terminalSize - {rows:cols}]')
-                pipePrint('')
-                pipePrint('    [common]')
-                pipePrint('        -a  [show_allInfo]')
-                pipePrint('        -Q  [print_allRowsInaStream]')
-                pipePrint('        -i  [set_interval - sec]')
-                pipePrint('        -R  [set_repeatCount - {interval:}count]')
-                pipePrint('        -g  [set_filter - comms|tids{:files}]')
-                pipePrint('        -A  [set_arch - arm|aarch64|x86|x64]')
-                pipePrint('        -c  [set_customEvent - event:cond]')
-                pipePrint('        -E  [set_errorLogPath - file]')
-                pipePrint('        -H  [set_functionDepth]')
-                pipePrint('        -k  [set_killList - comms|tids{:CONT}]')
-                pipePrint('        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]')
-                pipePrint('        -Y  [set_schedPriority - policy:prio|times{:tid|ALL:CONT}]')
-                pipePrint('        -v  [verbose]')
+    [analysis]
+        top         [process]
+        bgtop       [background]
+        threadtop   [thread]
+        filetop     [file]
+        stacktop    [stack]
+        perftop     [PMU]
+        memtop      [memory]
+        disktop     [storage]
+        wsstop      [WSS]
+        reptop      [report]
+
+        record      [thread]
+        funcrecord  [function]
+        filerecord  [file]
+        sysrecord   [system]
+
+        draw        [image]
+        cpudraw     [cpu]
+        memdraw     [memory]
+        vssdraw     [vss]
+        rssdraw     [rss]
+        leakdraw    [leak]
+        iodraw      [io]
+
+        mem         [page]
+
+        strace      [syscall]
+
+    [control]
+        kill        [signal]
+        setsched    [priority]
+        getaffinity [affinity]
+        setaffinity [affinity]
+        server      [server]
+        client      [client]
+        cpulimit    [cpu]
+
+    [test]
+        alloctest   [mem]
+
+    [communication]
+        list
+        start
+        send
+        event
+
+Options:
+
+    [record]
+        -e  [enable_options - characters]
+              [common]   {m(em)|b(lock)|e(ncoding)}
+              [function] {h(eap)|L(ock)|p(ipe)|g(raph)}
+              [thread]
+                      '{i(rq)|l(ock)|n(et)|p(ipe)|
+                      P(ower)|r(eset)|g(raph)}
+              [top]
+                      '{t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|
+                      P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|
+                      I(mage)|a(ffinity)|r(eport)|a(ffinity)|
+                      h(andler)|f(loat)|R(file)}
+        -d  [disable_options - characters]
+              [common]   {c(pu)|e(ncoding)}
+              [thread]   {a(ll)}
+              [function] {a(ll)|u(ser)}
+              [top]      {p(rint)|P(erf)|W(chan)|n(net)}
+        -s  [save_traceData - path]
+        -u  [run_inBackground]
+        -W  [wait_forSignal]
+        -b  [set_bufferSize - KB]
+        -D  [trace_threadDependency]
+        -t  [trace_syscall - syscalls]
+        -T  [set_fontPath - path]
+        -j  [set_reportPath - path]
+        -U  [set_userEvent - name:func|addr:file]
+        -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]
+        -C  [set_commandScriptPath - path]
+        -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]
+        -x  [set_addressForLocalServer - {ip:port}]
+        -X  [set_requestToRemoteServer - {req@ip:port}]
+        -N  [set_reportToRemoteServer - req@ip:port]
+        -M  [set_objdumpPath - file]
+
+    [analysis]
+        -o  [save_outputData - path]
+        -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/
+                n(ew)/r(untime)/f(ile)/s(yscall)]
+        -O  [set_coreFilter - cores]
+        -P  [group_perProcessBasis]
+        -p  [show_preemptInfo - tids]
+        -l  [set_addr2linePath - files]
+        -r  [set_targetRootPath - dir]
+        -I  [set_inputValue - file|addr]
+        -q  [configure_taskList]
+        -Z  [convert_textToImage]
+        -L  [set_graphLayout - CPU|MEM|IO{:proportion}]
+        -m  [set_terminalSize - {rows:cols}]
+
+    [common]
+        -a  [show_allInfo]
+        -Q  [print_allRowsInaStream]
+        -i  [set_interval - sec]
+        -R  [set_repeatCount - {interval:}count]
+        -g  [set_filter - comms|tids{:files}]
+        -A  [set_arch - arm|aarch64|x86|x64]
+        -c  [set_customEvent - event:cond]
+        -E  [set_errorLogPath - file]
+        -H  [set_functionDepth]
+        -k  [set_killList - comms|tids{:CONT}]
+        -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]
+        -Y  [set_schedPriority - policy:prio|times{:tid|ALL:CONT}]
+        -v  [verbose]
+                '''
+
+                pipePrint(helpStr)
 
             else:
                 print('\nHelp:')
@@ -8630,8 +8634,12 @@ class SystemManager(object):
                 print('    # %s --examples' % cmd)
                 print('    # %s --version' % cmd)
 
-                print("\nAuthor: \n    %s(%s)" % (__author__, __email__))
-                print("\nReporting bugs: \n    %s or %s" % (__email__, __repository__))
+                print("\nAuthor: \n    %s(%s)" % \
+                    (__author__, __email__))
+
+                print("\nReporting bugs: \n    %s or %s" % \
+                    (__email__, __repository__))
+
                 print("\nCopyright: ")
                 print("    %s." % (__copyright__))
                 print("    License %s." % (__license__))
@@ -8650,247 +8658,244 @@ class SystemManager(object):
 
             SystemManager.printRawTitle(False, True, True)
 
-            pipePrint('')
-            pipePrint('[ thread mode examples ]')
+            examStr = \
+            '''
+[ thread mode examples ]
 
-            pipePrint('\n    - record and report cpu events of threads')
-            pipePrint('        # %s record -s .' % cmd)
+    - record and report CPU events of threads
+        # ./guider.py record -s .
 
-            pipePrint('\n    - record and save specific resource events of threads in the background')
-            pipePrint('        # %s record -s . -e m, b, i -u' % cmd)
+    - record and save specific resource events of threads in the background
+        # ./guider.py record -s . -e m, b, i -u
 
-            pipePrint('\n    - record and save specific resource events excluding cpu of threads in the background')
-            pipePrint('        # %s record -s . -e m, b, i -d c -u' % cmd)
+    - record and save specific resource events excluding CPU of threads in the background
+        # ./guider.py record -s . -e m, b, i -d c -u
 
-            pipePrint('\n    - record and save specific systemcall events of specific threads')
-            pipePrint('        # %s record -s . -t sys_read, write -g 1234' % cmd)
+    - record and save specific system call events of specific threads
+        # ./guider.py record -s . -t sys_read, write -g 1234
 
-            pipePrint('\n    - record and save lock events of threads')
-            pipePrint('        # %s record -s . -e L' % cmd)
+    - record and save lock events of threads
+        # ./guider.py record -s . -e L
 
-            pipePrint('\n    - record and save specific user function events of threads')
-            pipePrint('        # %s record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out' % cmd)
+    - record and save specific user function events of threads
+        # ./guider.py record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
 
-            pipePrint('\n    - record and save specific kernel function events of threads')
-            pipePrint('        # %s record -s . -K evt1:func1, evt2:0x1234' % cmd)
+    - record and save specific kernel function events of threads
+        # ./guider.py record -s . -K evt1:func1, evt2:0x1234
 
-            pipePrint('\n    - record and save specific kernel function events with register values')
-            pipePrint('        # %s record -s . -K strace32:func1:%%bp/u32.%%sp/s64, strace:0x1234:$stack:NONE' % cmd)
+    - record and save specific kernel function events with register values
+        # ./guider.py record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
-            pipePrint('\n    - record and save specific kernel function events with return value')
-            pipePrint('        # %s record -s . -K openfile:getname::**string, access:0x1234:NONE:*string' % cmd)
+    - record and save specific kernel function events with the return value
+        # ./guider.py record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
 
-            pipePrint('\n    - execute special commands and record and save cpu events of threads')
-            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+    - execute special commands and record and save CPU events of threads
+        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-            pipePrint('\n    - report all possible information from trace data')
-            pipePrint('        # %s guider.dat -o . -a -i' % cmd)
+    - report all possible information from trace data
+        # ./guider.py guider.dat -o . -a -i
 
-            pipePrint('\n    - report on specific interval from trace data')
-            pipePrint('        # %s guider.dat -o . -R 3' % cmd)
+    - report stats on a specific interval from trace data
+        # ./guider.py guider.dat -o . -R 3
 
-            pipePrint('\n    - report including preemption info of specific threads from trace data')
-            pipePrint('        # %s guider.dat -o . -p 1234, 4567' % cmd)
+    - report stats including preemption of specific threads from trace data
+        # ./guider.py guider.dat -o . -p 1234, 4567
 
-            pipePrint('\n    - report including specific threads involved in the specific processes from trace data')
-            pipePrint('        # %s guider.dat -o . -P -g 1234, 4567' % cmd)
+    - report stats including specific threads involved in the specific processes from trace data
+        # ./guider.py guider.dat -o . -P -g 1234, 4567
 
-            pipePrint('\n    - draw graph and chart from trace data')
-            pipePrint('        # %s draw guider.dat' % cmd)
+    - draw graph and chart from trace data
+        # ./guider.py draw guider.dat
 
-            pipePrint('\n [ function mode examples ]')
+[ function mode examples ]
 
-            pipePrint('\n    - record and report cpu function events of threads')
-            pipePrint('        # %s funcrecord -s .' % cmd)
+    - record and report CPU function events of threads
+        # ./guider.py record -f -s .
 
-            pipePrint('\n    - record and save cpu function events of specific threads having tid bigger than 1024')
-            pipePrint('        # %s funcrecord -s . -g 1024\<' % cmd)
+    - record and save CPU function events of specific threads having TID bigger than 1024
+        # ./guider.py record -f -s . -g 1024\<
 
-            pipePrint('\n    - record and save specific function events of threads except for user-mode')
-            pipePrint('        # %s funcrecord -s . -d u -c sched/sched_switch' % cmd)
+    - record and save specific function events of threads except for user-mode
+        # ./guider.py record -f -s . -d u -c sched/sched_switch
 
-            pipePrint('\n    - record and save specific resource function events specific threads')
-            pipePrint('        # %s funcrecord -s . -e m, b, h -g 1234' % cmd)
+    - record and save specific resource function events specific threads
+        # ./guider.py record -f -s . -e m, b, h -g 1234
 
-            pipePrint('\n    - record and save specific function events of threads with specific argument condition')
-            pipePrint('        # %s funcrecord -s . -c softirq_entry:vec==1' % cmd)
+    - record and save specific function events of threads with specific argument condition
+        # ./guider.py record -f -s . -c softirq_entry:vec══1
 
-            pipePrint('\n    - record and save segmentation fault function events of threads')
-            pipePrint('        # %s funcrecord -s . -K segflt:bad_area -e p' % cmd)
+    - record and save segmentation fault function events of threads
+        # ./guider.py record -f -s . -K segflt:bad_area -e p
 
-            pipePrint('\n    - record and save blocking function events of threads')
-            pipePrint('        # %s funcrecord -s . -K block:schedule' % cmd)
+    - record and save blocking function events of threads
+        # ./guider.py record -f -s . -K block:schedule
 
-            pipePrint('\n    - execute special commands and record and save cpu function events of threads')
-            pipePrint('        # %s record -s . -w BEFORE:/tmp/started:1, BEFORE:ls' % cmd)
+    - execute special commands and record and save CPU function events of threads
+        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-            pipePrint('\n    - report all possible information from trace data using specific toolchain tools')
-            pipePrint('        # %s guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a' % cmd)
+    - report all possible information from trace data using specific toolchain tools
+        # ./guider.py guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
 
-            pipePrint('\n    - report all possible information with remote server support')
-            pipePrint('        # %s guider.dat -o . -a -X 10.97.20.53:5555 -x 1234' % cmd)
+    - report all possible information with remote server support
+        # ./guider.py guider.dat -o . -a -X 10.97.20.53:5555 -x 1234
 
-            pipePrint('\n    - report all possible information about only lower than 3 function levels')
-            pipePrint('        # %s guider.dat -o . -H 3' % cmd)
+    - report all possible information about only lower than 3 function levels
+        # ./guider.py guider.dat -o . -H 3
 
-            pipePrint('\n[ top mode examples ]')
+[ top mode examples ]
 
-            pipePrint('\n    - show resource usage of processes in real-time')
-            pipePrint('        # %s top' % cmd)
+    - show resource usage of processes in real-time
+        # ./guider.py top
 
-            pipePrint('\n    - show resource usage of processes on fixed-size terminal in real-time')
-            pipePrint('        # %s top -m' % cmd)
+    - show resource usage of processes on the fixed-size terminal in real-time
+        # ./guider.py top -m
 
-            pipePrint('\n    - show files opened via processes in real-time')
-            pipePrint('        # %s top -e F' % cmd)
+    - show files opened via processes in real-time
+        # ./guider.py top -e F
 
-            pipePrint('\n    - show specific files opened via specific processes in real-time')
-            pipePrint('        # %s top -e F -g init, lightdm : home, var' % cmd)
+    - show specific files opened via specific processes in real-time
+        # ./guider.py top -e F -g init, lightdm : home, var
 
-            pipePrint('\n    - show performance stats of specific processes in real-time')
-            pipePrint('        # %s top -e P -g init, lightdm' % cmd)
+    - show performance stats of specific processes in real-time
+        # ./guider.py top -e P -g init, lightdm
 
-            pipePrint('\n    - show resource usage of processes by sorting memory in real-time')
-            pipePrint('        # %s top -S m' % cmd)
+    - show resource usage of processes by sorting memory in real-time
+        # ./guider.py top -S m
 
-            pipePrint('\n    - show resource usage of processes by sorting file in real-time')
-            pipePrint('        # %s top -S f' % cmd)
+    - show resource usage of processes by sorting file in real-time
+        # ./guider.py top -S f
 
-            pipePrint('\n    - show resource usage of processes only 5 times in real-time')
-            pipePrint('        # %s top -R 5' % cmd)
+    - show resource usage of processes only 5 times in real-time
+        # ./guider.py top -R 5
 
-            pipePrint('\n    - show resource usage of processes only 5 times per 3 sec interval in real-time')
-            pipePrint('        # %s top -R 3, 5' % cmd)
+    - show resource usage of processes only 5 times per 3-sec interval in real-time
+        # ./guider.py top -R 3, 5
 
-            pipePrint('\n    - show resource usage including block of threads per 2 sec interval in real-time')
-            pipePrint('        # %s top -e t, b -i 2 -a' % cmd)
+    - show resource usage including block of threads per 2-sec interval in real-time
+        # ./guider.py top -e t, b -i 2 -a
 
-            pipePrint('\n    - show resource usage of specific processes/threads involved in specific process group in real-time')
-            pipePrint('        # %s top -g 1234,4567 -P' % cmd)
+    - show resource usage of specific processes/threads involved in specific process group in real-time
+        # ./guider.py top -g 1234,4567 -P
 
-            pipePrint('\n    - save resource usage of processes and write to specific file in real-time')
-            pipePrint('        # %s top -o . -e p' % cmd)
+    - save resource usage of processes and write to the specific file in real-time
+        # ./guider.py top -o . -e p
 
-            pipePrint('\n    - save and print resource usage of processes in real-time')
-            pipePrint('        # %s top -o . -Q' % cmd)
+    - save and print resource usage of processes in real-time
+        # ./guider.py top -o . -Q
 
-            pipePrint('\n    - save resource usage of processes in the background')
-            pipePrint('        # %s bgtop' % cmd)
-            pipePrint('        # %s top -o . -u' % cmd)
+    - save resource usage of processes in the background
+        # ./guider.py top -o . -u
 
-            pipePrint('\n    - report system stats in the background')
-            pipePrint('        # %s reptop -j . -u' % cmd)
+    - report system stats in the background
+        # ./guider.py reporttop -j . -u
 
-            pipePrint('\n    - save resource usage of processes and report system stats if some events occur')
-            pipePrint('        # %s top -o . -e r, R' % cmd)
+    - save resource usage of processes and report system stats if some events occur
+        # ./guider.py top -o . -e r, R
 
-            pipePrint('\n    - save resource usage of processes and report system status to specific image')
-            pipePrint('        # %s top -o . -e r, I' % cmd)
+    - save resource usage of processes and report system status to the specific image
+        # ./guider.py top -o . -e r, I
 
-            pipePrint('\n    - save resource usage of processes and report to file if specific conditions meet')
-            pipePrint('        # %s top -o . -e R' % cmd)
+    - save resource usage of processes and report to file if specific conditions met
+        # ./guider.py top -o . -e R
 
-            pipePrint('\n    - show resource usage of processes and excute special commands every interval')
-            pipePrint('        # %s top -w AFTER:/tmp/touched:1, AFTER:ls' % cmd)
+    - show resource usage of processes and execute special commands every interval
+        # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
 
-            pipePrint('\n    - update priority of all tasks shown to realtime 90')
-            pipePrint('        # %s top -Y r:90:ALL' % cmd)
+    - show storage usage in real-time
+        # ./guider.py disktop
 
-            pipePrint('\n    - update priority of all tasks shown to deadline sched')
-            pipePrint('        # %s top -Y d:1000000/20000000/20000000:ALL' % cmd)
+    - trace memory working set of specific processes
+        # ./guider.py wsstop -g chrome
 
-            pipePrint('\n    - update priority of a task continuously')
-            pipePrint('        # %s top -Y r:90:1234:CONT' % cmd)
+    - draw graph and chart to specific files
+        # ./guider.py draw guider.out
 
-            pipePrint('\n    - update cpu affinity of all tasks shown')
-            pipePrint('        # %s top -z f:ALL' % cmd)
+    - draw graph and chart for specific process group to specific files
+        # ./guider.py draw guider.out -g chrome
 
-            pipePrint('\n    - update cpu affinity of tasks continuously')
-            pipePrint('        # %s top -z f:1234:CONT' % cmd)
+    - draw CPU and memory graphs of specific processes to a specific file proportionally
+        # ./guider.py draw guider.out -g chrome -L cpu:5, mem:5
 
-            pipePrint('\n    - show storage usage in real-time')
-            pipePrint('        # %s disktop' % cmd)
+    - draw VSS graph and chart for specific processes to specific files
+        # ./guider.py vssdraw guider.out -g chrome
 
-            pipePrint('\n    - trace memory working set of specific processes')
-            pipePrint('        # %s wsstop -g chrome' % cmd)
+    - draw leak graph and chart to specific files
+        # ./guider.py leakdraw guider.out
 
-            pipePrint('\n    - draw graph and chart to specific files')
-            pipePrint('        # %s draw guider.out' % cmd)
+    - show and report resource usage of processes to specific server
+        # ./guider.py top -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
-            pipePrint('\n    - draw graph and chart for specific process group to specific files')
-            pipePrint('        # %s draw guider.out -g chrome' % cmd)
+    - show and report resource usage of processes to specific clients that asked it
+        # ./guider.py top -x 5555
 
-            pipePrint('\n    - draw cpu and memory graphs of specific processes to a specific file propotionally')
-            pipePrint('        # %s draw guider.out -g chrome -L cpu:5, mem:5' % cmd)
+    - handle report data from the server
+        # ./guider.py top -x 5555 -X
 
-            pipePrint('\n    - draw VSS graph and chart for specific processes to specific files')
-            pipePrint('        # %s vssdraw guider.out -g chrome' % cmd)
+    - show resource usage of processes and set condition file path for the report
+        # ./guider.py top -I guider.json
 
-            pipePrint('\n    - draw leak graph and chart to specific files')
-            pipePrint('        # %s leakdraw guider.out' % cmd)
+[ file mode examples ]
 
-            pipePrint('\n    - show and report resource usage of processes to specific server')
-            pipePrint('        # %s top -e r -N REPORT_ALWAYS@192.168.0.5:5555' % cmd)
+    - trace memory usage of files mapped to processes
+        # ./guider.py record -F -o .
 
-            pipePrint('\n    - show and report resource usage of processes to specific clients that asked it')
-            pipePrint('        # %s top -x 5555' % cmd)
+    - trace memory usage of files mapped to processes each interval
+        # ./guider.py record -F -i
 
-            pipePrint('\n    - handle report data from server')
-            pipePrint('        # %s top -x 5555 -X' % cmd)
+[ etc examples ]
 
-            pipePrint('\n    - show resource usage of processes and set condition file path for report')
-            pipePrint('        # %s top -I guider.json' % cmd)
+    - check the property of specific pages
+        # ./guider.py mem -g 1234 -I 0x7abc1234-0x7abc6789
 
-            pipePrint('\n[ file mode examples ]')
+    - convert a text file to an image file
+        # ./guider.py guider.out -Z
 
-            pipePrint('\n    - trace memory usage of files mapped to processes')
-            pipePrint('        # %s filerecord -o .' % cmd)
+    - wait for the signal to start
+        # ./guider.py record│top -W
 
-            pipePrint('\n    - trace memory usage of files mapped to processes each intervals')
-            pipePrint('        # %s filerecord -i' % cmd)
+    - show guider processes
+        # ./guider.py list
 
-            pipePrint('\n[ etc examples ]')
+    - send the signal to all guider processes
+        # ./guider.py send
+        # ./guider.py kill 
 
-            pipePrint('\n    - check property of specific pages')
-            pipePrint('        # %s mem -g 1234 -I 0x7abc1234-0x7abc6789' % cmd)
+    - send the stop signal to all guider processes
+        # ./guider.py stop
 
-            pipePrint('\n    - run as server mode')
-            pipePrint('        # %s server' % cmd)
+    - send specific signals to specific processes
+        # ./guider.py send -9 1234, 4567
+        # ./guider.py kill -kill 1234, 4567
 
-            pipePrint('\n    - run as client mode')
-            pipePrint('        # %s client' % cmd)
+    - change the priority of tasks
+        # ./guider.py setsched c:-19, r:90:1217, i:0:1209
 
-            pipePrint('\n    - convert a text fle to a image file')
-            pipePrint('        # %s guider.out -Z' % cmd)
+    - change the priority of tasks in a group
+        # ./guider.py setsched c:-19, r:90:1217 -P
 
-            pipePrint('\n    - wait for signal to start')
-            pipePrint('        # %s record|top -W' % cmd)
+    - update priority of all tasks shown to real-time 90
+        # ./guider.py top -Y r:90:ALL
 
-            pipePrint('\n    - show guider processes')
-            pipePrint('        # %s list' % cmd)
+    - update priority of all tasks shown to the deadline policy
+        # ./guider.py top -Y d:1000000/20000000/20000000:ALL
 
-            pipePrint('\n    - send noty signal to guider processes')
-            pipePrint('        # %s send' % cmd)
-            pipePrint('        # %s kill ' % cmd)
+    - update the priority of a task continuously to real-time 90
+        # ./guider.py top -Y r:90:1234:CONT
 
-            pipePrint('\n    - send stop signal to guider processes')
-            pipePrint('        # %s stop' % cmd)
+    - update CPU affinity of all tasks shown
+        # ./guider.py top -z f:ALL
 
-            pipePrint('\n    - send specific signals to specific processes')
-            pipePrint('        # %s send -9 1234, 4567' % cmd)
-            pipePrint('        # %s kill -kill 1234, 4567' % cmd)
+    - update CPU affinity of tasks continuously
+        # ./guider.py top -z f:1234:CONT
 
-            pipePrint('\n    - change priority of task')
-            pipePrint('        # %s setsched c:-19, r:90:1217, i:0:1209' % cmd)
+    - limit CPU usage of specific processes
+        # ./guider.py cpulimit -g 1234:40, 5678:10
 
-            pipePrint('\n    - change priority of tasks in a group')
-            pipePrint('        # %s setsched c:-19, r:90:1217 -P' % cmd)
+    - limit CPU usage of specific threads
+        # ./guider.py cpulimit -g 1234:40, 5678:10 -e t
+            '''
 
-            pipePrint('\n    - limit cpu usage of specific processes')
-            pipePrint('        # %s cpulimit -g 1234:40, 5678:10' % cmd)
-
-            pipePrint('\n    - limit cpu usage of specific threads')
-            pipePrint('        # %s cpulimit -g 1234:40, 5678:10 -e t' % cmd)
+            pipePrint(examStr)
 
             sys.exit(0)
 
@@ -19587,23 +19592,35 @@ class Debugger(object):
 
         # check data type #
         if type(data) is bytes:
-            if size == 0:
+            if size == 0 or size > len(data):
                 size = len(data)
 
+            # trim data #
+            data = data[:size]
             data = SystemManager.bstring2word(data)
+        elif type(data) is str:
+            if size == 0 or size > len(data):
+                size = len(data)
+
+            # trim data #
+            data = data[:size]
+            data = SystemManager.bstring2word(data.encode())
         elif type(data) is int or type(data) is long:
             if size == 0:
                 size = wordSize
-        elif type(data) is str:
-            if size == 0:
-                size = len(data)
-
-            data = SystemManager.bstring2word(data.encode())
         else:
             SystemManager.printError((\
                 "Fail to recognize data to write because "
-                "%s is not supported") % type(data))
+                "%s type is not supported") % type(data))
             return -1
+
+        # handle not aligned part #
+        offset = addr % wordSize
+        if offset == 0:
+            pass
+        elif addr < wordSize or offset > 0:
+            addr -= offset
+            size += offset
 
         return self.accessMem(cmd, addr, data)
 
