@@ -13714,13 +13714,10 @@ Options:
         else:
             reportPath = val
 
+        # check report path #
         if reportPath == None or len(reportPath) == 0:
             tmpPath = '/tmp'
             reportPath = tmpPath
-
-            SystemManager.printWarning(\
-                "no option for stat report path, "
-                "use also -j option to set report path", True)
 
         # directory path #
         if os.path.isdir(reportPath) == False:
