@@ -7464,7 +7464,7 @@ class SystemManager(object):
     reportPath = None
     reportFileEnable = False
     imageEnable = False
-    customImageEnable = False
+    convertImageEnable = False
     graphEnable = False
     procBuffer = []
     procInstance = None
@@ -8647,7 +8647,8 @@ Options:
 
             sys.exit(0)
 
-        elif sys.argv[1] == '--examples':
+        elif sys.argv[1] == '--examples' or \
+            sys.argv[1] == '--exam':
 
             cmd = sys.argv[0]
 
@@ -10946,6 +10947,7 @@ Options:
         elif SystemManager.isSystemMode():
             pass
         elif SystemManager.isTopMode():
+            # check silent mode #
             if SystemManager.printFile is None:
                 return
 
@@ -10970,6 +10972,7 @@ Options:
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
 
+            # close output file for sync #
             try:
                 SystemManager.fileForPrint.close()
             except:
@@ -10977,6 +10980,7 @@ Options:
             finally:
                 SystemManager.fileForPrint = None
 
+            # print output info #
             try:
                 fsize = \
                     SystemManager.convertSize2Unit(\
@@ -11741,10 +11745,6 @@ Options:
                 "Fail to read data from %s\n" % SystemManager.inputFile)
             return
 
-        # trim from process info in top mode #
-        if SystemManager.isTopMode():
-            textBuf = textBuf[:textBuf.find('[Top CPU Info]')]
-
         # make image path #
         SystemManager.imagePath = \
             SystemManager.inputFile[:SystemManager.inputFile.rfind('.')] + \
@@ -12267,6 +12267,7 @@ Options:
             value = item[1:]
 
             if option == 'i':
+                # set default interval #
                 if len(value) == 0:
                     SystemManager.intervalEnable = 1
                     continue
@@ -12288,11 +12289,13 @@ Options:
                     sys.exit(0)
 
             elif option == 'o':
+                # get output path #
                 SystemManager.printFile = str(value)
                 if len(SystemManager.printFile) == 0:
                     SystemManager.printError("no option value with -o option")
                     sys.exit(0)
 
+                # check output path #
                 if os.path.isdir(SystemManager.printFile) == False:
                     outputPath = SystemManager.printFile
                     upDirPos = SystemManager.printFile.rfind('/')
@@ -12306,7 +12309,7 @@ Options:
                 SystemManager.sourceFile = value
 
             elif option == 'Z' and SystemManager.isTopMode() is False:
-                SystemManager.customImageEnable = True
+                SystemManager.convertImageEnable = True
 
             elif option == 'L' and SystemManager.isTopMode():
                 SystemManager.layout = value
@@ -31834,7 +31837,7 @@ class ThreadAnalyzer(object):
         elif SystemManager.affinityEnable:
             etc = 'Affinity'
         elif SystemManager.tgnameEnable:
-            etc = 'Group'
+            etc = 'Process'
         elif SystemManager.sigHandlerEnable or True:
             etc = 'SignalHandler'
 
@@ -31965,6 +31968,7 @@ class ThreadAnalyzer(object):
                         exceptFlag = False
                         break
 
+            # check exception flag #
             if exceptFlag:
                 continue
 
@@ -33492,7 +33496,7 @@ if __name__ == '__main__':
             sys.exit(0)
 
     # convert txt to image #
-    if SystemManager.customImageEnable:
+    if SystemManager.convertImageEnable:
         SystemManager.printStatus("start converting...")
         SystemManager.makeLogImage()
         sys.exit(0)
@@ -33619,7 +33623,7 @@ if __name__ == '__main__':
         # print resource usage of threads on timeline #
         ti.printIntervalInfo()
 
-        # print module info #
+        # print kernel module info #
         ti.printModuleInfo()
 
         # print dependency of threads #
