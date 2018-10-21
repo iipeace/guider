@@ -13715,10 +13715,12 @@ Options:
             reportPath = val
 
         if reportPath == None or len(reportPath) == 0:
-            SystemManager.printError(\
-                "wrong option for stat report, "
-                "use also -j option to set report path")
-            return False
+            tmpPath = '/tmp'
+            reportPath = tmpPath
+
+            SystemManager.printWarning(\
+                "no option for stat report path, "
+                "use also -j option to set report path", True)
 
         # directory path #
         if os.path.isdir(reportPath) == False:
