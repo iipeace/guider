@@ -8479,7 +8479,10 @@ class SystemManager(object):
             sys.argv[1] == '--help' or \
             SystemManager.findOption('h'):
 
-            cmd = sys.argv[0]
+            if 'CMDLINE' in os.environ:
+                cmd = os.environ['CMDLINE']
+            else:
+                cmd = sys.argv[0]
 
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
@@ -8578,17 +8581,17 @@ Options:
               [thread]   {a(ll)}
               [function] {a(ll)|u(ser)}
               [top]      {p(rint)|P(erf)|W(chan)|n(net)}
-        -s  [save_traceData - path]
+        -s  [save_traceData - dir|file]
         -u  [run_inBackground]
         -W  [wait_forSignal]
         -b  [set_bufferSize - KB]
         -D  [trace_threadDependency]
         -t  [trace_syscall - syscalls]
-        -T  [set_fontPath - path]
-        -j  [set_reportPath - path]
+        -T  [set_fontPath - file]
+        -j  [set_reportPath - dir|file]
         -U  [set_userEvent - name:func|addr:file]
         -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]
-        -C  [set_commandScriptPath - path]
+        -C  [set_commandScriptPath - dir|file]
         -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]
         -x  [set_addressForLocalServer - {ip:port}]
         -X  [set_requestToRemoteServer - {req@ip:port}]
@@ -8596,7 +8599,7 @@ Options:
         -M  [set_objdumpPath - file]
 
     [analysis]
-        -o  [save_outputData - path]
+        -o  [save_outputData - dir|file]
         -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/
                 n(ew)/r(untime)/f(ile)/s(yscall)]
         -O  [set_coreFilter - cores]
@@ -8650,7 +8653,10 @@ Options:
         elif sys.argv[1] == '--examples' or \
             sys.argv[1] == '--exam':
 
-            cmd = sys.argv[0]
+            if 'CMDLINE' in os.environ:
+                cmd = os.environ['CMDLINE']
+            else:
+                cmd = sys.argv[0]
 
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
@@ -8663,238 +8669,233 @@ Options:
             '''
 [ thread mode examples ]
 
-    - record and report CPU events of threads
-        # ./guider.py record -s .
+    - record and save CPU events of threads to ./guider.dat
+        # {0:1} record -s .
 
-    - record and save specific resource events of threads in the background
-        # ./guider.py record -s . -e m, b, i -u
+    - record and save specific resource events of threads to ./guider.dat in the background
+        # {0:1} record -s . -e m, b, i -u
 
-    - record and save specific resource events excluding CPU of threads in the background
-        # ./guider.py record -s . -e m, b, i -d c -u
+    - record and save specific resource events excluding CPU of threads to ./guider.dat in the background
+        # {0:1} record -s . -e m, b, i -d c -u
 
-    - record and save specific system call events of specific threads
-        # ./guider.py record -s . -t sys_read, write -g 1234
+    - record and save specific system call events of specific threads to ./guider.dat
+        # {0:1} record -s . -t sys_read, write -g 1234
 
-    - record and save lock events of threads
-        # ./guider.py record -s . -e L
+    - record and save lock events of threads to ./guider.dat
+        # {0:1} record -s . -e L
 
-    - record and save specific user function events of threads
-        # ./guider.py record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
+    - record and save specific user function events of threads to ./guider.dat
+        # {0:1} record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
 
-    - record and save specific kernel function events of threads
-        # ./guider.py record -s . -K evt1:func1, evt2:0x1234
+    - record and save specific kernel function events of threads to ./guider.dat
+        # {0:1} record -s . -K evt1:func1, evt2:0x1234
 
-    - record and save specific kernel function events with register values
-        # ./guider.py record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
+    - record and save specific kernel function events with register values to ./guider.dat
+        # {0:1} record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
-    - record and save specific kernel function events with the return value
-        # ./guider.py record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
+    - record and save specific kernel function events with the return value to ./guider.dat
+        # {0:1} record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
 
-    - execute special commands and record and save CPU events of threads
-        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+    - execute special commands and record and save CPU events of threads to ./guider.dat
+        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - report all possible information from trace data
-        # ./guider.py guider.dat -o . -a -i
+    - report all possible information from guider.dat to ./guider.out
+        # {0:1} guider.dat -o . -a -i
 
-    - report stats on a specific interval from trace data
-        # ./guider.py guider.dat -o . -R 3
+    - report stats on a specific interval from guider.dat to ./guider.out
+        # {0:1} guider.dat -o . -R 3
 
-    - report stats including preemption of specific threads from trace data
-        # ./guider.py guider.dat -o . -p 1234, 4567
+    - report stats including preemption of specific threads from guider.data to ./guider.out
+        # {0:1} guider.dat -o . -p 1234, 4567
 
-    - report stats including specific threads involved in the specific processes from trace data
-        # ./guider.py guider.dat -o . -P -g 1234, 4567
+    - report stats including specific threads involved in the specific processes from guider.dat to guider.out
+        # {0:1} guider.dat -o . -P -g 1234, 4567
 
-    - draw graph and chart from trace data
-        # ./guider.py draw guider.dat
+    - draw graph and chart from trace data to png files
+        # {0:1} draw guider.dat
 
 [ function mode examples ]
 
-    - record and report CPU function events of threads
-        # ./guider.py record -f -s .
+    - record and report CPU function events of threads to ./guider.dat
+        # {0:1} record -f -s .
 
-    - record and save CPU function events of specific threads having TID bigger than 1024
-        # ./guider.py record -f -s . -g 1024\<
+    - record and save CPU function events of specific threads having TID bigger than 1024 to ./guider.dat
+        # {0:1} record -f -s . -g 1024\<
 
-    - record and save specific function events of threads except for user-mode
-        # ./guider.py record -f -s . -d u -c sched/sched_switch
+    - record and save specific function events of threads except for user-mode to ./guider.dat
+        # {0:1} record -f -s . -d u -c sched/sched_switch
 
-    - record and save specific resource function events specific threads
-        # ./guider.py record -f -s . -e m, b, h -g 1234
+    - record and save specific resource function events specific threads to ./guider.dat
+        # {0:1} record -f -s . -e m, b, h -g 1234
 
-    - record and save specific function events of threads with specific argument condition
-        # ./guider.py record -f -s . -c softirq_entry:vec══1
+    - record and save specific function events of threads with specific argument condition to ./guider.dat
+        # {0:1} record -f -s . -c softirq_entry:vec══1
 
-    - record and save segmentation fault function events of threads
-        # ./guider.py record -f -s . -K segflt:bad_area -e p
+    - record and save segmentation fault function events of threads to ./guider.dat
+        # {0:1} record -f -s . -K segflt:bad_area -e p
 
-    - record and save blocking function events of threads
-        # ./guider.py record -f -s . -K block:schedule
+    - record and save blocking function events of threads to ./guider.dat
+        # {0:1} record -f -s . -K block:schedule
 
-    - execute special commands and record and save CPU function events of threads
-        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+    - execute special commands and record and save CPU function events of threads to ./guider.dat
+        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - report all possible information from trace data using specific toolchain tools
-        # ./guider.py guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
+    - report all possible information from guider.dat using specific toolchain tools to ./guider.out
+        # {0:1} guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
 
-    - report all possible information with remote server support
-        # ./guider.py guider.dat -o . -a -X 10.97.20.53:5555 -x 1234
-
-    - report all possible information about only lower than 3 function levels
-        # ./guider.py guider.dat -o . -H 3
+    - report all possible information about only lower than 3 function levels from guider.dat to ./guider.out
+        # {0:1} guider.dat -o . -H 3
 
 [ top mode examples ]
 
     - show resource usage of processes in real-time
-        # ./guider.py top
+        # {0:1} top
 
     - show resource usage of processes on the fixed-size terminal in real-time
-        # ./guider.py top -m
+        # {0:1} top -m
 
     - show files opened via processes in real-time
-        # ./guider.py top -e F
+        # {0:1} top -e F
 
     - show specific files opened via specific processes in real-time
-        # ./guider.py top -e F -g init, lightdm : home, var
+        # {0:1} top -e F -g init, lightdm : home, var
 
     - show performance stats of specific processes in real-time
-        # ./guider.py top -e P -g init, lightdm
+        # {0:1} top -e P -g init, lightdm
 
     - show resource usage of processes by sorting memory in real-time
-        # ./guider.py top -S m
+        # {0:1} top -S m
 
     - show resource usage of processes by sorting file in real-time
-        # ./guider.py top -S f
+        # {0:1} top -S f
 
     - show resource usage of processes only 5 times in real-time
-        # ./guider.py top -R 5
+        # {0:1} top -R 5
 
     - show resource usage of processes only 5 times per 3-sec interval in real-time
-        # ./guider.py top -R 3, 5
+        # {0:1} top -R 3, 5
 
     - show resource usage including block of threads per 2-sec interval in real-time
-        # ./guider.py top -e t, b -i 2 -a
+        # {0:1} top -e t, b -i 2 -a
 
     - show resource usage of specific processes/threads involved in specific process group in real-time
-        # ./guider.py top -g 1234,4567 -P
+        # {0:1} top -g 1234,4567 -P
 
-    - save resource usage of processes and write to the specific file in real-time
-        # ./guider.py top -o . -e p
+    - monitor and save resource usage of processes to ./guider.out in real-time
+        # {0:1} top -o . -e p
 
-    - save and print resource usage of processes in real-time
-        # ./guider.py top -o . -Q
+    - monitor and print to console and save resource usage of processes to ./guider.out in real-time
+        # {0:1} top -o . -Q
 
-    - save resource usage of processes in the background
-        # ./guider.py top -o . -u
+    - monitor and save resource usage of processes to a specific file in the background
+        # {0:1} bgtop
+        # {0:1} top -o . -u
 
-    - report system stats in the background
-        # ./guider.py reporttop -j . -u
+    - report system stats to ./guider.report in json format in the background
+        # {0:1} reporttop -j . -u
 
-    - save resource usage of processes and report system stats if some events occur
-        # ./guider.py top -o . -e r, R
+    - monitor and save resource usage of processes to ./guider.out and report system stats to the specific image files
+        # {0:1} top -o . -e r, I
 
-    - save resource usage of processes and report system status to the specific image
-        # ./guider.py top -o . -e r, I
+    - monitor and save resource usage of processes to ./guider.out and report it to the specific files if only specific events occur
+        # {0:1} top -o . -e R
 
-    - save resource usage of processes and report to file if specific conditions met
-        # ./guider.py top -o . -e R
+    - monitor resource usage of processes and execute special commands every interval
+        # {0:1} top -w AFTER:/tmp/touched:1, AFTER:ls
 
-    - show resource usage of processes and execute special commands every interval
-        # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
-
-    - show storage usage in real-time
-        # ./guider.py disktop
+    - monitor storage usage in real-time
+        # {0:1} disktop
 
     - trace memory working set of specific processes
-        # ./guider.py wsstop -g chrome
+        # {0:1} wsstop -g chrome
 
-    - draw graph and chart to specific files
-        # ./guider.py draw guider.out
+    - draw graph and chart to specific image files
+        # {0:1} draw guider.out
 
-    - draw graph and chart for specific process group to specific files
-        # ./guider.py draw guider.out -g chrome
+    - draw graph and chart for specific process group to specific image files
+        # {0:1} draw guider.out -g chrome
 
-    - draw CPU and memory graphs of specific processes to a specific file proportionally
-        # ./guider.py draw guider.out -g chrome -L cpu:5, mem:5
+    - draw CPU and memory graphs of specific processes to a specific image file proportionally
+        # {0:1} draw guider.out -g chrome -L cpu:5, mem:5
 
-    - draw VSS graph and chart for specific processes to specific files
-        # ./guider.py vssdraw guider.out -g chrome
+    - draw VSS graph and chart for specific processes to specific image files
+        # {0:1} vssdraw guider.out -g chrome
 
-    - draw leak graph and chart to specific files
-        # ./guider.py leakdraw guider.out
+    - draw leak graph and chart to specific image files
+        # {0:1} leakdraw guider.out
 
-    - show and report resource usage of processes to specific server
-        # ./guider.py top -e r -N REPORT_ALWAYS@192.168.0.5:5555
+    - monitor and report resource usage of processes to specific server
+        # {0:1} top -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
-    - show and report resource usage of processes to specific clients that asked it
-        # ./guider.py top -x 5555
+    - monitor and report resource usage of processes to specific clients that asked it
+        # {0:1} top -x 5555
 
     - handle report data from the server
-        # ./guider.py top -x 5555 -X
+        # {0:1} top -x 5555 -X
 
-    - show resource usage of processes and set condition file path for the report
-        # ./guider.py top -I guider.json
+    - monitor resource usage of processes and set condition file path for the report
+        # {0:1} top -I guider.json
 
 [ file mode examples ]
 
-    - trace memory usage of files mapped to processes
-        # ./guider.py record -F -o .
+    - trace memory usage of files mapped to processes and save it to ./guider.out
+        # {0:1} record -F -o .
 
-    - trace memory usage of files mapped to processes each interval
-        # ./guider.py record -F -i
+    - trace memory usage of files mapped to processes each interval and save it to ./guider.out
+        # {0:1} record -F -i
 
 [ etc examples ]
 
     - check the property of specific pages
-        # ./guider.py mem -g 1234 -I 0x7abc1234-0x7abc6789
+        # {0:1} mem -g 1234 -I 0x7abc1234-0x7abc6789
 
-    - convert a text file to an image file
-        # ./guider.py guider.out -Z
+    - convert a text file guider.out to an image file
+        # {0:1} guider.out -Z
 
     - wait for the signal to start
-        # ./guider.py record│top -W
+        # {0:1} record│top -W
 
-    - show guider processes
-        # ./guider.py list
+    - show running guider processes
+        # {0:1} list
 
     - send the signal to all guider processes
-        # ./guider.py send
-        # ./guider.py kill 
+        # {0:1} send
+        # {0:1} kill
 
     - send the stop signal to all guider processes
-        # ./guider.py stop
+        # {0:1} stop
 
     - send specific signals to specific processes
-        # ./guider.py send -9 1234, 4567
-        # ./guider.py kill -kill 1234, 4567
+        # {0:1} send -9 1234, 4567
+        # {0:1} kill -kill 1234, 4567
 
     - change the priority of tasks
-        # ./guider.py setsched c:-19, r:90:1217, i:0:1209
+        # {0:1} setsched c:-19, r:90:1217, i:0:1209
 
     - change the priority of tasks in a group
-        # ./guider.py setsched c:-19, r:90:1217 -P
+        # {0:1} setsched c:-19, r:90:1217 -P
 
     - update priority of all tasks shown to real-time 90
-        # ./guider.py top -Y r:90:ALL
+        # {0:1} top -Y r:90:ALL
 
     - update priority of all tasks shown to the deadline policy
-        # ./guider.py top -Y d:1000000/20000000/20000000:ALL
+        # {0:1} top -Y d:1000000/20000000/20000000:ALL
 
     - update the priority of a task continuously to real-time 90
-        # ./guider.py top -Y r:90:1234:CONT
+        # {0:1} top -Y r:90:1234:CONT
 
     - update CPU affinity of all tasks shown
-        # ./guider.py top -z f:ALL
+        # {0:1} top -z f:ALL
 
     - update CPU affinity of tasks continuously
-        # ./guider.py top -z f:1234:CONT
+        # {0:1} top -z f:1234:CONT
 
     - limit CPU usage of specific processes
-        # ./guider.py cpulimit -g 1234:40, 5678:10
+        # {0:1} cpulimit -g 1234:40, 5678:10
 
     - limit CPU usage of specific threads
-        # ./guider.py cpulimit -g 1234:40, 5678:10 -e t
-            '''
+        # {0:1} cpulimit -g 1234:40, 5678:10 -e t
+            '''.format(cmd)
 
             pipePrint(examStr)
 
@@ -11191,10 +11192,12 @@ Options:
                     SystemManager.cmdFd.write(\
                         'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
+                    err = sys.exc_info()[1]
                     SystemManager.printError(\
-                        "Fail to open %s to write command" % \
-                        SystemManager.cmdEnable)
-                    sys.exit(0)
+                        "Fail to open %s to write command because %s" % \
+                        (SystemManager.cmdEnable, \
+                        ' '.join(list(map(str, err.args)))))
+                    return -1
             if SystemManager.cmdFd is not None:
                 try:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
@@ -11202,6 +11205,7 @@ Options:
                     SystemManager.cmdFd.write(cmd)
                 except:
                     SystemManager.printError("Fail to write command")
+                    return -1
 
         # open for applying command #
         try:
@@ -13031,11 +13035,27 @@ Options:
 
             elif option == 'C':
                 SystemManager.cmdEnable = str(value)
+
+                # get output path #
                 if len(value) == 0:
                     SystemManager.printError((\
                         "wrong option with -C, "
                         "input path to make command script"))
                     sys.exit(0)
+
+                # check output path #
+                if os.path.isfile(value):
+                    outputPath = value
+                    upDirPos = value.rfind('/')
+                    if upDirPos > 0 and \
+                        os.path.isdir(outputPath[:upDirPos]) is False:
+                        SystemManager.printError(\
+                            "wrong path %s with -C option" % outputPath)
+                        sys.exit(0)
+                elif os.path.isdir(value):
+                    SystemManager.cmdEnable = '%s/guider.cmd' % value
+                    SystemManager.cmdEnable = \
+                        SystemManager.cmdEnable.replace('//', '/')
 
             elif option == 't':
                 SystemManager.sysEnable = True
@@ -21443,8 +21463,8 @@ class ThreadAnalyzer(object):
                         pass
 
                     # draw total gpu graph #
-                    plot(timeline, stat, '-', c='olive', linestyle='-.',\
-                        linewidth=1, marker='d', markersize=2, \
+                    plot(timeline, stat, '-', c='olive', linestyle='-',\
+                        linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
 
                     labelList.append('[ %s ]' % gpu)
@@ -21464,6 +21484,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', \
                             alpha=0.3))
+                        break
 
             #-------------------- Total CPU usage --------------------#
             ymax = 0
@@ -21479,7 +21500,7 @@ class ThreadAnalyzer(object):
 
                     # draw total cpu + iowait graph #
                     plot(timeline, blkWait, '-', c='pink', linestyle='-',\
-                        linewidth=1, marker='d', markersize=2, \
+                        linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
                     labelList.append('[ CPU + IOWAIT ]')
                     try:
@@ -21502,7 +21523,7 @@ class ThreadAnalyzer(object):
 
                 # draw total cpu graph #
                 plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
-                    linewidth=1, marker='d', markersize=2, \
+                    linewidth=1, marker='d', markersize=1, \
                     solid_capstyle='round')
 
                 labelList.append('[ CPU Average ]')
@@ -21592,7 +21613,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), \
-                    fontsize=3.5, loc='upper right')
+                    fontsize=3.5, loc='upper right', framealpha=0.2)
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
 
@@ -21656,7 +21677,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='skyblue', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21682,7 +21703,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='green', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21708,7 +21729,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='pink', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21734,7 +21755,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='red', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21760,7 +21781,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='purple', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21786,7 +21807,7 @@ class ThreadAnalyzer(object):
                     fontsize=5, color='cyan', fontweight='bold')
             if usage[-1] > 0:
                 try:
-                    unit = timeline[-1]-timeline[-2]
+                    unit = (timeline[-1]-timeline[-2]) / 10
                 except:
                     unit = 0
                 text(timeline[-1]+unit, usage[-1], \
@@ -21830,7 +21851,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
                         try:
-                            unit = timeline[-1]-timeline[-2]
+                            unit = (timeline[-1]-timeline[-2]) / 10
                         except:
                             unit = 0
                         text(timeline[-1]+unit, wrUsage[-1] + margin, \
@@ -21853,7 +21874,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
                         try:
-                            unit = timeline[-1]-timeline[-2]
+                            unit = (timeline[-1]-timeline[-2]) / 10
                         except:
                             unit = 0
                         text(timeline[-1]+unit, rdUsage[-1] + margin, \
@@ -21903,7 +21924,7 @@ class ThreadAnalyzer(object):
                             color=color, fontweight='bold')
                     if wrUsage[-1] > 0:
                         try:
-                            unit = timeline[-1]-timeline[-2]
+                            unit = (timeline[-1]-timeline[-2]) / 10
                         except:
                             unit = 0
                         text(timeline[-1]+unit, wrUsage[-1] + margin, '[%s]%s' % \
@@ -21926,7 +21947,7 @@ class ThreadAnalyzer(object):
                             color=color, fontweight='bold')
                     if rdUsage[-1] > 0:
                         try:
-                            unit = timeline[-1]-timeline[-2]
+                            unit = (timeline[-1]-timeline[-2]) / 10
                         except:
                             unit = 0
                         text(timeline[-1]+unit, rdUsage[-1] + margin, \
@@ -21943,10 +21964,11 @@ class ThreadAnalyzer(object):
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
-                        fontsize=3.5, loc='upper right')
+                        fontsize=3.5, loc='upper right', framealpha=0.2)
                 else:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
                         loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
@@ -22294,9 +22316,10 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), \
-                    fontsize=3.5, loc='upper right')
+                    fontsize=3.5, loc='upper right', framealpha=0.2)
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
@@ -24947,9 +24970,11 @@ class ThreadAnalyzer(object):
 
             ylabel('MEMORY(MB)', fontsize=8)
             if SystemManager.matplotlibVersion >= 1.2:
-                legend(ioLabelList, bbox_to_anchor=(1.1, 1), fontsize=3.5, loc='upper right')
+                legend(ioLabelList, bbox_to_anchor=(1.1, 1), \
+                    fontsize=3.5, loc='upper right', framealpha=0.2)
             else:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 5)
             xticks(fontsize = 4)
@@ -25066,9 +25091,10 @@ class ThreadAnalyzer(object):
             totalLabel = cpuLabelList + cpuThrLabelList
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),\
-                    fontsize=3.5, loc='upper right')
+                    fontsize=3.5, loc='upper right', framealpha=0.2)
             else:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1), loc='upper right')
+
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 7)
             xticks(fontsize = 5)
