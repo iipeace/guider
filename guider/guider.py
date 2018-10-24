@@ -19338,6 +19338,9 @@ class Debugger(object):
         self.arch = arch = SystemManager.getArch()
         self.args = []
 
+        self.peekIdx = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
+        self.pokeIdx = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
+
         try:
             if SystemManager.ctypesObj is None:
                 import ctypes
@@ -19605,52 +19608,89 @@ class Debugger(object):
 
 
 
-    def writeMem(self, addr, data=0, size=0):
+    def writeMem(self, addr, data, size=0):
+        ret = 0
         wordSize = ConfigManager.wordSize
-        cmd = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
 
-        # back up data #
-        origData = data
+        # check address alignment #
+        offset = addr % wordSize
 
-        # check data type #
-        if type(data) is bytes:
-            if size == 0 or size > len(data):
-                size = len(data)
+        # handle interger-type data #
+        if type(data) is int or type(data) is long:
+            if offset == 0:
+                if size == 0:
+                    size = 1
+                for idx in xrange(0, size):
+                    ret = self.accessMem(\
+                        self.pokeIdx, addr + (idx * wordSize), data)
+                    if ret < 0:
+                        break
+                return ret
+            else:
+                data = SystemManager.word2bstring(data)
 
-            # trim data #
-            data = data[:size]
-            data = SystemManager.bstring2word(data)
-        elif type(data) is str:
-            if size == 0 or size > len(data):
-                size = len(data)
+                # converting integer-type data #
+                if 0 <= size <= 1:
+                    size = wordSize
+                elif size > 1:
+                    data = data * size
+                    size *= wordSize
 
-            # trim data #
-            data = data[:size]
-            data = SystemManager.bstring2word(data.encode())
-        elif type(data) is int or type(data) is long:
-            if size == 0:
-                size = wordSize
-        else:
+        # convert string to bytes #
+        if type(data) is str:
+            data = data.encode()
+        elif type(data) is not bytes:
             SystemManager.printError((\
                 "Fail to recognize data to write because "
                 "%s type is not supported") % type(data))
             return -1
 
+        # update size #
+        if size == 0 or size > len(data):
+            size = len(data)
+
+        # trim data #
+        modWord = len(data) % wordSize
+        if modWord > 0:
+            data += b'0' * (wordSize - modWord)
+
+        # back up data #
+        origData = data[:size]
+        origSize = size
+
         # handle not aligned part #
-        offset = addr % wordSize
-        if offset == 0:
-            pass
-        elif addr < wordSize or offset > 0:
+        if offset > 0:
             addr -= offset
             size += offset
 
-        return self.accessMem(cmd, addr, data)
+        # read words from target address space #
+        data = b''
+        tempAddr = addr
+        while size > 0:
+            word = self.readMem(tempAddr)
+
+            data += word
+
+            size -= wordSize
+            tempAddr += wordSize
+
+        # update original data #
+        fdata = data[:offset] + origData + data[offset+origSize:]
+
+        # convert type from bytes to word #
+        for idx in xrange(0, len(fdata), wordSize):
+            data = SystemManager.bstring2word(fdata[idx:idx+wordSize])
+
+            ret = self.accessMem(self.pokeIdx, addr+idx, data)
+            if ret < 0:
+                break
+
+        return ret
 
 
 
     def readMem(self, addr, size=0):
         wordSize = ConfigManager.wordSize
-        cmd = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
 
         # check size #
         if size == 0:
@@ -19661,15 +19701,13 @@ class Debugger(object):
 
         # handle not aligned part #
         offset = addr % wordSize
-        if offset == 0:
-            pass
-        elif addr < wordSize or offset > 0:
+        if offset > 0:
             addr -= offset
             size += offset
 
         # read words from target address space #
         while size > 0:
-            word = self.accessMem(cmd, addr)
+            word = self.accessMem(self.peekIdx, addr)
 
             word = SystemManager.word2bstring(word)
 
