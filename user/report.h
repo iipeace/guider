@@ -13,13 +13,14 @@
 #ifndef __GUIDER_REPLIB_H__
 #define __GUIDER_REPLIB_H__
 
-#define NAME_MAX 32
+#define NAME_MAX 64
 #define COND_MAX 64
 
 #include <stdio.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #endif
 

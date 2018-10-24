@@ -28,6 +28,8 @@ int openRepFile(const char *path){
 }
 
 int readRepData(char (*list)[NAME_MAX],int listSize){
+	//temporary execution for test 
+
 	if(g_repFd == -1)
 		return -1;
 	// test before parsing
