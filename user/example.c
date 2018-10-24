@@ -10,4 +10,18 @@
  *
  */
 
+#include "report.h"
 
+#define LIST_MAX 50 
+
+int main(void){
+	char list[LIST_MAX][NAME_MAX];	
+	
+	openRepFile("/home/bychoi/guider/guider/guider.report");
+	
+	readRepData(list,LIST_MAX);
+
+	closeRepFile();
+	
+	return 0;
+} 

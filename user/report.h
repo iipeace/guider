@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #endif
 
@@ -34,7 +35,7 @@ enum guider_report_reader_bits {
     GRR_THREAD,
     GRR_COND,
     GRR_MAX,
-}
+};
 
 int g_repType;
 int initRepFile(const char *path);
