@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 #endif
 
@@ -42,7 +43,7 @@ int g_repType;
 int initRepFile(const char *path);
 int initRepSocket(const char *serverIP, int serverPort, int clientPort);
 
-int readRepItem(const char (*nameList)[NAME_MAX], char (*valueList)[NAME_MAX], int listSize, int flag);
+int readRepItem(char (*nameList)[NAME_MAX], char (*valueList)[NAME_MAX], int listSize, int flag);
 
 int *(*g_repCond[COND_MAX])(void *item, void *value);
 int addRepCond(int *(*func)(void *item, void *value));
