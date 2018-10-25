@@ -33611,6 +33611,8 @@ if __name__ == '__main__':
         # disk #
         elif SystemManager.isDiskTopMode():
             SystemManager.diskEnable = True
+            SystemManager.blockEnable = True
+            SystemManager.sort = 'b'
 
         # background #
         elif SystemManager.isBgTopMode():
