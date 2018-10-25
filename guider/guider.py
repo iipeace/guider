@@ -17592,6 +17592,64 @@ Options:
 class Debugger(object):
     """ Debugger for ptrace """
 
+    SOCKETCALL = {
+        1: "socket",
+        2: "bind",
+        3: "connect",
+        4: "listen",
+        5: "accept",
+        6: "getsockname",
+        7: "getpeername",
+        8: "socketpair",
+        9: "send",
+        10: "recv",
+        11: "sendto",
+        12: "recvfrom",
+        13: "shutdown",
+        14: "setsockopt",
+        15: "getsockopt",
+        16: "sendmsg",
+        17: "recvmsg",
+    }
+
+    SOCKET_FAMILY = {
+        0: "AF_UNSPEC",
+        1: "AF_FILE",
+        2: "AF_INET",
+        3: "AF_AX25",
+        4: "AF_IPX",
+        5: "AF_APPLETALK",
+        6: "AF_NETROM",
+        7: "AF_BRIDGE",
+        8: "AF_ATMPVC",
+        9: "AF_X25",
+        10: "AF_INET6",
+        11: "AF_ROSE",
+        12: "AF_DECnet",
+        13: "AF_NETBEUI",
+        14: "AF_SECURITY",
+        15: "AF_KEY",
+        16: "AF_NETLINK",
+        17: "AF_PACKET",
+        18: "AF_ASH",
+        19: "AF_ECONET",
+        20: "AF_ATMSVC",
+        22: "AF_SNA",
+        23: "AF_IRDA",
+        24: "AF_PPPOX",
+        25: "AF_WANPIPE",
+        31: "AF_BLUETOOTH",
+    }
+
+    SOCKET_TYPE = {
+        1: "SOCK_STREAM",
+        2: "SOCK_DGRAM",
+        3: "SOCK_RAW",
+        4: "SOCK_RDM",
+        5: "SOCK_SEQPACKET",
+        10: "SOCK_PACKET",
+    }
+
     SYSCALL_PROTOTYPES = {
         "accept": ("long", (
             ("int", "sockfd"),
@@ -19336,6 +19394,8 @@ class Debugger(object):
     def __init__(self, pid=None, path=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
+        self.syscall = ''
+        self.values = []
         self.args = []
 
         self.peekIdx = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
@@ -19723,6 +19783,53 @@ class Debugger(object):
 
 
 
+    def convertValue(self, argtype, argname, value):
+        syscall = self.syscall
+
+        # toDo: convert a integer or mask values #
+
+        # handle special syscalls #
+        if syscall == "execve":
+            if argname in ("argv", "envp"):
+                # toDo: handle double pointer values #
+                return value
+        elif syscall == "socketcall":
+            if argname == "call":
+                try:
+                    return SOCKETCALL[value]
+                except:
+                    return value
+            elif name == "args":
+                # toDo: handle socket call args #
+                return value
+        elif syscall == "write" and argname == "buf":
+            # check std fds #
+            fd = self.values[0]
+            if fd < 3:
+                length = self.values[2]
+                return self.readMem(value, length)
+            return value
+        elif argname == "signum":
+            # toDo: handle signal number #
+            return value
+
+        # remove const prefix #
+        if argtype.startswith("const "):
+            argtype = argtype[6:]
+
+        # toDo: handle file path #
+
+        # toDo: handle pointer data type #
+        if argtype.endswith("*"):
+            try:
+                return value
+            except:
+                return value
+
+        return value
+
+
+
     def addArg(self, type, name, value):
         self.args.append([type, name, value])
 
@@ -19747,7 +19854,7 @@ class Debugger(object):
         status = self.status
         regs = self.regs.getdict()
         nrSyscall = regs[sysreg]
-        name = ConfigManager.sysList[nrSyscall][4:]
+        self.syscall = name = ConfigManager.sysList[nrSyscall][4:]
         proto = Debugger.SYSCALL_PROTOTYPES
 
         # enter #
@@ -19760,9 +19867,22 @@ class Debugger(object):
 
             # parse arguments #
             if name in proto:
+                # get data types #
                 self.rettype, formats = proto[name]
+
+                # get values #
+                self.values = \
+                    [value for value, format in zip(regstr, formats)]
+
                 for value, format in zip(regstr, formats):
+                    # get type and name of a argument #
                     argtype, argname = format
+
+                    # convert argument value #
+                    try:
+                        value = self.convertValue(argtype, argname, value)
+                    except:
+                        pass
 
                     # add argument #
                     self.addArg(argtype, argname, value)
@@ -19772,7 +19892,10 @@ class Debugger(object):
             for idx, arg in enumerate(self.args):
                 if arg[0].endswith('*'):
                     # convert pointer to values #
-                    args.append(str(hex(arg[2]).upper()).rstrip('L'))
+                    if type(arg[2]) is bytes:
+                        args.append(repr(arg[2].decode()))
+                    else:
+                        args.append(str(hex(arg[2]).upper()).rstrip('L'))
                 else:
                     args.append(str(arg[2]))
 
@@ -19814,6 +19937,9 @@ class Debugger(object):
 
         self.sysreg = ConfigManager.sysRegList[arch]
         self.retreg = ConfigManager.retRegList[arch]
+
+        # disable extended ascii #
+        SystemManager.supportExtAscii = False
 
         # set PTRACE_O_TRACESYSGOOD #
         cmd = PTRACE_SETOPTIONS = 0x4200
