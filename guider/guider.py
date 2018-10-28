@@ -19893,7 +19893,14 @@ class Debugger(object):
                 if arg[0].endswith('*'):
                     # convert pointer to values #
                     if type(arg[2]) is bytes:
-                        args.append(repr(arg[2].decode()))
+                        text = repr(arg[2].decode())
+
+                        if len(text) > SystemManager.ttyCols:
+                            text = '"%s"...' % text[1:SystemManager.ttyCols>>1]
+                        else:
+                            text = '"%s"' % text[1:-1]
+
+                        args.append(text)
                     else:
                         args.append(str(hex(arg[2]).upper()).rstrip('L'))
                 else:
