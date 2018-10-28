@@ -19895,8 +19895,10 @@ class Debugger(object):
                     if type(arg[2]) is bytes:
                         text = repr(arg[2].decode())
 
-                        if len(text) > SystemManager.ttyCols:
-                            text = '"%s"...' % text[1:SystemManager.ttyCols>>1]
+                        # check output length #
+                        if len(text) > SystemManager.ttyCols >> 1:
+                            text = '"%s"...' % \
+                                text[1:SystemManager.ttyCols >> 1]
                         else:
                             text = '"%s"' % text[1:-1]
 
