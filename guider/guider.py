@@ -8400,6 +8400,13 @@ class SystemManager(object):
 
 
     @staticmethod
+    def printStack():
+        import traceback
+        print(traceback.print_stack())
+
+
+
+    @staticmethod
     def getProcTree():
         procTree = {}
 
@@ -19994,7 +20001,8 @@ class Debugger(object):
 
                 # process syscall #
                 self.processSyscall()
-
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = sys.exc_info()[1]
                 ereason = ' '.join(list(map(str, err.args)))
@@ -20071,7 +20079,9 @@ class Debugger(object):
                 import ctypes
                 SystemManager.ctypesObj = ctypes
             ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, cast, c_int, c_ulong
+        except SystemExit:
+            os._exit(0)
+            sys.exit(0)
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
@@ -20079,8 +20089,11 @@ class Debugger(object):
                 "to call ptrace") % err.args[0])
             sys.exit(0)
 
+        # try to call native ptrace call #
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
+        except SystemExit:
+            os._exit(0)
         except:
             pass
 
@@ -20092,10 +20105,12 @@ class Debugger(object):
 
             # type converting #
             SystemManager.libcObj.ptrace.argtypes = \
-                (c_ulong, c_ulong, c_ulong, c_ulong)
-            SystemManager.libcObj.ptrace.restype = c_ulong
+                (ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong)
+            SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
+        except SystemExit:
+            os._exit(0)
         except:
             SystemManager.printWarning('Fail to call ptrace in libc')
 
