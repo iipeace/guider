@@ -4368,7 +4368,7 @@ class FunctionAnalyzer(object):
         targetCnt = 0
         self.totalTime = float(self.finishTime) - float(SystemManager.startTime)
 
-        SystemManager.printTitle(big=True)
+        SystemManager.printLogo(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -6557,7 +6557,7 @@ class FileAnalyzer(object):
 
         pageSize = SystemManager.pageSize
 
-        SystemManager.printTitle(big=True)
+        SystemManager.printLogo(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -6720,7 +6720,7 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        SystemManager.printTitle(big=True)
+        SystemManager.printLogo(big=True)
 
         # Print system information #
         SystemManager.printInfoBuffer()
@@ -9266,10 +9266,10 @@ OPTIONS:
                 helpStr = defStr + \
                     '''
 Author:
-    {1:1}({2:1})
+    {1:1} ({2:1})
 
 Reporting bugs:
-    {2:1} or {3:1}
+    {2:1} or {3:1}/issues
 
 Copyright:
     {4:1}
@@ -11525,7 +11525,7 @@ Copyright:
                     SystemManager.fileForPrint.truncate()
 
                 # print title #
-                SystemManager.printTitle(absolute=True, big=True)
+                SystemManager.printLogo(absolute=True, big=True)
 
                 # save system info #
                 SystemManager.sysInstance.saveResourceSnapshot()
@@ -11589,7 +11589,7 @@ Copyright:
                 SystemManager.fileForPrint.truncate()
 
             # print title #
-            SystemManager.printTitle(absolute=True, big=True)
+            SystemManager.printLogo(absolute=True, big=True)
 
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
@@ -11983,7 +11983,7 @@ Copyright:
 
 
     @staticmethod
-    def printTitle(absolute=False, big=False):
+    def printLogo(absolute=False, big=False):
         if SystemManager.printEnable is False:
             return
 
@@ -11991,8 +11991,6 @@ Copyright:
             if SystemManager.printStreamEnable:
                 if absolute is False:
                     return
-            else:
-                SystemManager.clearScreen()
 
         if big:
             SystemManager.pipePrint(ConfigManager.logo)
@@ -13464,8 +13462,11 @@ Copyright:
             SystemManager.warningEnable = False
 
         for item in SystemManager.optionList:
-            option = item[0]
-            value = item[1:]
+            try:
+                option = item[0]
+                value = item[1:]
+            except:
+                continue
 
             if option == 'b':
                 try:
@@ -14943,6 +14944,7 @@ Copyright:
     def setDefaultSignal():
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 
@@ -23890,7 +23892,7 @@ class ThreadAnalyzer(object):
 
 
     def printUsage(self):
-        SystemManager.printTitle(big=True)
+        SystemManager.printLogo(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
@@ -33571,7 +33573,9 @@ class ThreadAnalyzer(object):
                 SystemManager.procBufferSize += len(data)
                 SystemManager.clearPrint()
 
-                while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
+                bufferSize = SystemManager.bufferSize
+
+                while SystemManager.procBufferSize > bufferSize > 0:
                     if len(SystemManager.procBuffer) == 1:
                         break
                     SystemManager.procBufferSize -= \
@@ -34195,7 +34199,7 @@ if __name__ == '__main__':
             # get and remove process tree from data file #
             SystemManager.getProcTreeInfo()
 
-            SystemManager.printTitle(big=True)
+            SystemManager.printLogo(big=True)
 
             # print system information #
             SystemManager.pipePrint(SystemManager.systemInfoBuffer)
