@@ -6545,173 +6545,6 @@ class FileAnalyzer(object):
 
 
 
-    def printUsage(self):
-        # print thread usage #
-        self.printResourceUsage()
-
-        # print communication usage #
-        self.printComInfo()
-
-        # print event usage #
-        self.printEventInfo()
-
-        # print block usage #
-        self.printBlockInfo()
-
-        # print resource usage of threads on timeline #
-        self.printIntervalInfo()
-
-        # print kernel module info #
-        self.printModuleInfo()
-
-        # print dependency of threads #
-        self.printDepInfo()
-
-        # print futex and flock of threads #
-        self.printFutexInfo()
-        self.printFlockInfo()
-
-        # print system call usage #
-        self.printSyscallInfo()
-
-        # print kernel messages #
-        self.printConsoleInfo()
-
-
-
-    def printResourceUsage(self):
-        if len(self.procData) == 0:
-            SystemManager.printError('No process profiled')
-            sys.exit(0)
-        if len(self.fileData) == 0:
-            SystemManager.printError('No file profiled')
-            sys.exit(0)
-
-        pageSize = SystemManager.pageSize
-
-        SystemManager.printLogo(big=True)
-
-        # print system information #
-        SystemManager.printInfoBuffer()
-
-        # Print process list #
-        SystemManager.pipePrint((\
-            "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
-            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
-            ('File Process Info', len(self.procData), self.profPageCnt * 4))
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint(\
-            "{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
-            format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
-        SystemManager.pipePrint(twoLine)
-
-        procInfo = "{0:^16}({0:^5})|{1:12} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^5}) |".format('', '')
-        procLength = len(procInfo)
-        threadLength = len(threadInfo)
-        lineLength = SystemManager.lineLength
-
-        for pid, val in sorted(\
-            self.procData.items(), \
-            key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            try:
-                rsize = val['pageCnt'] * pageSize >> 10
-                rsize = "{:,}".format(rsize)
-            except:
-                pass
-
-            printMsg = "{0:>16}({1:>5})|{2:>12} |".format(val['comm'], pid, rsize)
-            linePos = len(printMsg)
-
-            for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = "{0:^16}({1:^5}) |".format(threadVal['comm'], tid)
-
-                linePos += threadLength
-
-                if linePos > lineLength:
-                    linePos = procLength + threadLength
-                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
-
-                printMsg += threadInfo
-
-            SystemManager.pipePrint(printMsg)
-
-        SystemManager.pipePrint("%s\n" % oneLine)
-
-        # Print file list #
-        SystemManager.pipePrint(\
-            "[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
-        SystemManager.pipePrint(twoLine)
-        SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
-            format("RAM(KB)", "File(KB)", "%", "Library & Process"))
-        SystemManager.pipePrint(twoLine)
-
-        for fileName, val in sorted(\
-            self.fileData.items(), \
-            key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            memSize = val['pageCnt'] * pageSize >> 10
-
-            idx = val['totalSize'] + pageSize - 1
-
-            fileSize = \
-                (int(idx / pageSize) * pageSize) >> 10
-
-            if fileSize != 0:
-                per = int(int(memSize) / float(fileSize) * 100)
-            else:
-                per = 0
-
-            try:
-                memSize = "{:,}".format(memSize)
-            except:
-                pass
-
-            try:
-                fileSize = "{:,}".format(fileSize)
-            except:
-                pass
-
-            if val['isRep'] is False:
-                continue
-            else:
-                SystemManager.pipePrint((\
-                    "{0:>11} |{1:>9} |{2:>5} | {3:1} "
-                    "[Proc: {4:1}] [Link: {5:1}]").\
-                    format(memSize, fileSize, per, fileName, \
-                    len(val['pids']), val['hardLink']))
-
-            # prepare for printing process list #
-            pidInfo = ''
-            lineLength = SystemManager.lineLength
-            pidLength = len(" %16s (%5s) |" % ('', ''))
-            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
-            linePos = indentLength + pidLength
-
-            # print hard-linked list #
-            if val['hardLink'] > 1:
-                for fileLink, tmpVal in val['linkList'].items():
-                    if fileName != fileLink:
-                        SystemManager.pipePrint(\
-                            (' ' * indentLength) + '| -> ' + fileLink)
-
-            # print process list #
-            for pid, comm in val['pids'].items():
-                if linePos > lineLength:
-                    linePos = indentLength + pidLength
-                    pidInfo += '\n' + (' ' * indentLength) + '|'
-
-                pidInfo += " %16s (%5s) |" % (comm, pid)
-
-                linePos += pidLength
-
-            SystemManager.pipePrint((' ' * indentLength) + '|' + pidInfo)
-            SystemManager.pipePrint(oneLine)
-
-        SystemManager.pipePrint('\n\n\n')
-
-
-
     def printIntervalInfo(self):
         # Merge process info into a global list #
         for procData in self.intervalProcData:
@@ -6909,6 +6742,139 @@ class FileAnalyzer(object):
 
     def makeReadaheadList(self):
         pass
+
+
+
+    def printUsage(self):
+        if len(self.procData) == 0:
+            SystemManager.printError('No process profiled')
+            sys.exit(0)
+        if len(self.fileData) == 0:
+            SystemManager.printError('No file profiled')
+            sys.exit(0)
+
+        pageSize = SystemManager.pageSize
+
+        SystemManager.printLogo(big=True)
+
+        # print system information #
+        SystemManager.printInfoBuffer()
+
+        # Print process list #
+        SystemManager.pipePrint((\
+            "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
+            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
+            ('File Process Info', len(self.procData), self.profPageCnt * 4))
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            "{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
+            format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
+        SystemManager.pipePrint(twoLine)
+
+        procInfo = "{0:^16}({0:^5})|{1:12} |".format('', '', '')
+        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procLength = len(procInfo)
+        threadLength = len(threadInfo)
+        lineLength = SystemManager.lineLength
+
+        for pid, val in sorted(\
+            self.procData.items(), \
+            key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            try:
+                rsize = val['pageCnt'] * pageSize >> 10
+                rsize = "{:,}".format(rsize)
+            except:
+                pass
+
+            printMsg = "{0:>16}({1:>5})|{2:>12} |".format(val['comm'], pid, rsize)
+            linePos = len(printMsg)
+
+            for tid, threadVal in sorted(val['tids'].items(), reverse=True):
+                threadInfo = "{0:^16}({1:^5}) |".format(threadVal['comm'], tid)
+
+                linePos += threadLength
+
+                if linePos > lineLength:
+                    linePos = procLength + threadLength
+                    printMsg += "\n" + (' ' * (procLength - 1)) + '|'
+
+                printMsg += threadInfo
+
+            SystemManager.pipePrint(printMsg)
+
+        SystemManager.pipePrint("%s\n" % oneLine)
+
+        # Print file list #
+        SystemManager.pipePrint(\
+            "[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
+            format("RAM(KB)", "File(KB)", "%", "Library & Process"))
+        SystemManager.pipePrint(twoLine)
+
+        for fileName, val in sorted(\
+            self.fileData.items(), \
+            key=lambda e: int(e[1]['pageCnt']), reverse=True):
+            memSize = val['pageCnt'] * pageSize >> 10
+
+            idx = val['totalSize'] + pageSize - 1
+
+            fileSize = \
+                (int(idx / pageSize) * pageSize) >> 10
+
+            if fileSize != 0:
+                per = int(int(memSize) / float(fileSize) * 100)
+            else:
+                per = 0
+
+            try:
+                memSize = "{:,}".format(memSize)
+            except:
+                pass
+
+            try:
+                fileSize = "{:,}".format(fileSize)
+            except:
+                pass
+
+            if val['isRep'] is False:
+                continue
+            else:
+                SystemManager.pipePrint((\
+                    "{0:>11} |{1:>9} |{2:>5} | {3:1} "
+                    "[Proc: {4:1}] [Link: {5:1}]").\
+                    format(memSize, fileSize, per, fileName, \
+                    len(val['pids']), val['hardLink']))
+
+            # prepare for printing process list #
+            pidInfo = ''
+            lineLength = SystemManager.lineLength
+            pidLength = len(" %16s (%5s) |" % ('', ''))
+            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
+            linePos = indentLength + pidLength
+
+            # print hard-linked list #
+            if val['hardLink'] > 1:
+                for fileLink, tmpVal in val['linkList'].items():
+                    if fileName != fileLink:
+                        SystemManager.pipePrint(\
+                            (' ' * indentLength) + '| -> ' + fileLink)
+
+            # print process list #
+            for pid, comm in val['pids'].items():
+                if linePos > lineLength:
+                    linePos = indentLength + pidLength
+                    pidInfo += '\n' + (' ' * indentLength) + '|'
+
+                pidInfo += " %16s (%5s) |" % (comm, pid)
+
+                linePos += pidLength
+
+            SystemManager.pipePrint((' ' * indentLength) + '|' + pidInfo)
+            SystemManager.pipePrint(oneLine)
+
+        SystemManager.pipePrint('\n\n\n')
 
 
 
@@ -10586,7 +10552,8 @@ Copyright:
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
             perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(cachemiss), cachemissrate)
+                (perfbuf, SystemManager.convertSize2Unit(cachemiss),\
+                cachemissrate)
         except:
             pass
 
@@ -10596,7 +10563,8 @@ Copyright:
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
             perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(branchmiss), branchmissrate)
+                (perfbuf, SystemManager.convertSize2Unit(branchmiss),\
+                branchmissrate)
         except:
             pass
 
@@ -10674,7 +10642,8 @@ Copyright:
             if SystemManager.userCmd is not None and \
                 cmd[0] in [ucmd.split(':')[0] for ucmd in SystemManager.userCmd]:
                 SystemManager.printError(\
-                    "redundant event name '%s' as user event and kernel event" % cmd[0])
+                    "redundant event name '%s' as user event and kernel event" % \
+                    cmd[0])
                 sys.exit(0)
 
             # make entry commands #
@@ -11996,7 +11965,8 @@ Copyright:
                 pass
 
             SystemManager.printWarning(\
-                "Fail to use %s event, please check kernel configuration" % epath)
+                "Fail to use %s event, please check kernel configuration" % \
+                epath)
             return -1
 
         # apply command #
@@ -12228,10 +12198,11 @@ Copyright:
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
         for item in mountTable:
             m = re.match((\
-                r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+' \
-                r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+' \
-                r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+(?P<freeSize>\S+)\s+' \
-                r'(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
+                r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+'
+                r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+'
+                r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+'
+                r'((?P<freeSize>\S+)\s+?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+'
+                r'(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
             if m is not None:
                 d = m.groupdict()
                 mid = '%s:%s' % (d['maj'], d['min'])
@@ -12672,12 +12643,11 @@ Copyright:
             retstr = ''
 
         # pager initialization #
-        if SystemManager.isHelpMode or \
-            (SystemManager.isTopMode() == \
-                SystemManager.printStreamEnable == False and \
-            SystemManager.pipeForPrint == \
-                SystemManager.printFile == None):
-
+        if (SystemManager.pipeForPrint == \
+                SystemManager.printFile == None) and \
+            (SystemManager.isHelpMode or \
+                SystemManager.isTopMode() == \
+                SystemManager.printStreamEnable == False):
             try:
                 if sys.platform.startswith('linux'):
                     SystemManager.pipeForPrint = os.popen('less -E', 'w')
@@ -12771,12 +12741,14 @@ Copyright:
                     "Fail to write to file because %s" % sys.exc_info()[1])
         # console output #
         else:
+            ttyCols = SystemManager.ttyCols
+
             # cut output by terminal size #
-            if SystemManager.ttyCols == 0:
+            if ttyCols == 0:
                 line = '\n'.join([nline for nline in line.split('\n')])
             else:
                 line = '\n'.join(\
-                    [nline[:SystemManager.ttyCols-1] for nline in line.split('\n')])
+                    [nline[:ttyCols-1] for nline in line.split('\n')])
 
             # convert to extended ascii #
             line = SystemManager.convertExtAscii(line)
@@ -24099,6 +24071,40 @@ class ThreadAnalyzer(object):
 
 
     def printUsage(self):
+        # print thread usage #
+        self.printResourceUsage()
+
+        # print communication usage #
+        self.printComInfo()
+
+        # print event usage #
+        self.printEventInfo()
+
+        # print block usage #
+        self.printBlockInfo()
+
+        # print resource usage of threads on timeline #
+        self.printIntervalInfo()
+
+        # print kernel module info #
+        self.printModuleInfo()
+
+        # print dependency of threads #
+        self.printDepInfo()
+
+        # print futex and flock of threads #
+        self.printFutexInfo()
+        self.printFlockInfo()
+
+        # print systemcall usage #
+        self.printSyscallInfo()
+
+        # print kernel messages #
+        self.printConsoleInfo()
+
+
+
+    def printResourceUsage(self):
         SystemManager.printLogo(big=True)
 
         # print system information #
