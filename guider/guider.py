@@ -16723,10 +16723,6 @@ Copyright:
 
         try:
             osf = open(OSFile, 'r')
-        except:
-            return
-
-        try:
             self.osData = osf.readlines()
             osf.close()
         except:
@@ -21497,6 +21493,7 @@ class ThreadAnalyzer(object):
                     item['readStart'] = 0
                 else:
                     break
+
             # waiting for synchronous write #
             for idx, item in sorted(\
                 self.threadData.items(), \
@@ -21504,7 +21501,7 @@ class ThreadAnalyzer(object):
 
                 # cancel to add blocking time for write because async write #
                 break
-
+                '''
                 if item['writeStart'] > 0:
                     waitTime = float(self.finishTime) - item['writeStart']
                     item['ioWrWait'] += waitTime
@@ -21512,6 +21509,8 @@ class ThreadAnalyzer(object):
                     item['writeStart'] = 0
                 else:
                     break
+                '''
+
             # warn uncompleted block request #
             if len(self.ioData) > 0:
                 SystemManager.printWarning(\
@@ -29046,7 +29045,8 @@ class ThreadAnalyzer(object):
                     SystemManager.printWarning("Fail to recognize '%s' event" % func)
 
             elif func == "softirq_exit":
-                m = re.match(r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
+                m = re.match(\
+                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
                 if m is not None:
                     d = m.groupdict()
 
