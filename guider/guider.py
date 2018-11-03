@@ -696,8 +696,6 @@ class ConfigManager(object):
         'PERF_COUNT_HW_CACHE_RESULT_MISS',
         ]
 
-    taskChainEnable = None
-
 
 
     @staticmethod
@@ -3064,22 +3062,22 @@ class FunctionAnalyzer(object):
             pass
 
         # cut stacks by depth #
-        if SystemManager.depth > 0:
+        if SystemManager.funcDepth > 0:
             ksize = len(self.nowCtx['kernelCallStack'])
-            if ksize >= SystemManager.depth:
+            if ksize >= SystemManager.funcDepth:
                 self.nowCtx['kernelLastPos'] = \
-                    self.nowCtx['kernelCallStack'][-SystemManager.depth]
+                    self.nowCtx['kernelCallStack'][-SystemManager.funcDepth]
                 self.nowCtx['kernelCallStack'] = \
-                    self.nowCtx['kernelCallStack'][-SystemManager.depth + 1:]
+                    self.nowCtx['kernelCallStack'][-SystemManager.funcDepth + 1:]
 
             usize = len(self.nowCtx['userCallStack'])
-            if usize >= SystemManager.depth:
+            if usize >= SystemManager.funcDepth:
                 self.nowCtx['userLastPos'] = \
-                    self.nowCtx['userCallStack'][-SystemManager.depth]
+                    self.nowCtx['userCallStack'][-SystemManager.funcDepth]
                 self.nowCtx['userCallStack'] = \
-                    self.nowCtx['userCallStack'][-SystemManager.depth + 1:]
+                    self.nowCtx['userCallStack'][-SystemManager.funcDepth + 1:]
 
-            if SystemManager.depth == 1:
+            if SystemManager.funcDepth == 1:
                 self.nowCtx['kernelCallStack'] = []
                 self.nowCtx['userCallStack'] = []
 
@@ -3239,7 +3237,7 @@ class FunctionAnalyzer(object):
                 self.posData[pos]['origBin'] = path
                 self.posData[pos]['binary'] = SystemManager.rootPath + path
                 self.posData[pos]['binary'] = \
-                    self.posData[pos]['binary'].replace('//', '/')
+                    os.path.normpath(self.posData[pos]['binary'])
 
                 # Set offset #
                 if offset is not None:
@@ -6548,6 +6546,40 @@ class FileAnalyzer(object):
 
 
     def printUsage(self):
+        # print thread usage #
+        self.printResourceUsage()
+
+        # print communication usage #
+        self.printComInfo()
+
+        # print event usage #
+        self.printEventInfo()
+
+        # print block usage #
+        self.printBlockInfo()
+
+        # print resource usage of threads on timeline #
+        self.printIntervalInfo()
+
+        # print kernel module info #
+        self.printModuleInfo()
+
+        # print dependency of threads #
+        self.printDepInfo()
+
+        # print futex and flock of threads #
+        self.printFutexInfo()
+        self.printFlockInfo()
+
+        # print system call usage #
+        self.printSyscallInfo()
+
+        # print kernel messages #
+        self.printConsoleInfo()
+
+
+
+    def printResourceUsage(self):
         if len(self.procData) == 0:
             SystemManager.printError('No process profiled')
             sys.exit(0)
@@ -7376,7 +7408,7 @@ class SystemManager(object):
     lineLength = 154
     pid = 0
     prio = None
-    depth = 0
+    funcDepth = 0
     maxPid = 32768
     pidDigit = 5
 
@@ -7392,6 +7424,7 @@ class SystemManager(object):
     isLinux = True
     isAndroid = False
     isRootMode = None
+    isHelpMode = False
     drawMode = False
     archOption = None
     mountPath = None
@@ -7482,7 +7515,6 @@ class SystemManager(object):
 
     showAll = False
     disableAll = False
-    selectMenu = None
     intervalNow = 0
     recordStatus = False
     condExit = False
@@ -7867,7 +7899,7 @@ class SystemManager(object):
                         "Fail to get cpu affinity of %s task" % tid)
                 else:
                     SystemManager.printInfo(\
-                        'affinity of %s task is %s' % (tid, mask))
+                        'affinity of task %s is %s' % (tid, mask))
 
             sys.exit(0)
         except SystemExit:
@@ -8323,13 +8355,12 @@ class SystemManager(object):
             option == 'L' or option == 'l' or option == 'm' or \
             option == 'M' or option == 'n' or option == 'N' or \
             option == 'o' or option == 'O' or option == 'P' or \
-            option == 'p' or option == 'q' or option == 'Q' or \
-            option == 'r' or option == 'R' or option == 'S' or \
-            option == 's' or option == 'T' or option == 't' or \
-            option == 'u' or option == 'U' or option == 'v' or \
-            option == 'w' or option == 'W' or option == 'x' or \
-            option == 'X' or option == 'Y' or option == 'y' or \
-            option == 'Z':
+            option == 'p' or option == 'Q' or option == 'r' or \
+            option == 'R' or option == 'S' or option == 's' or \
+            option == 'T' or option == 't' or option == 'u' or \
+            option == 'U' or option == 'v' or option == 'w' or \
+            option == 'W' or option == 'x' or option == 'X' or \
+            option == 'Y' or option == 'y' or option == 'Z':
             return True
         else:
             return False
@@ -8487,11 +8518,16 @@ class SystemManager(object):
             '--help' in sys.argv or \
             '-h' in sys.argv:
 
+            # enable help mode #
+            SystemManager.isHelpMode = True
+
+            # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
                 cmd = os.environ['CMDLINE']
             else:
                 cmd = sys.argv[0]
 
+            # remove pyc file extention #
             if cmd.find('.pyc') >= 0:
                 cmd = cmd[:cmd.find('.pyc')]
 
@@ -8500,7 +8536,7 @@ class SystemManager(object):
 
             defStr = '''
 Usage:
-    $ {0:1} COMMAND|FILE [OPTIONS] [--help] [--examples] [--version]
+    $ {0:1} COMMAND|FILE [OPTIONS] [--help] [--version]
                 '''.format(cmd)
 
             # command help #
@@ -8509,6 +8545,12 @@ Usage:
                 '-h' in sys.argv):
 
                 mode = sys.argv[1]
+
+                # clear screen #
+                SystemManager.clearScreen()
+
+                # print small logo #
+                SystemManager.printLogo()
 
                 topCommonStr = '''
         -o  <DIR|FILE>              save output data
@@ -8563,6 +8605,55 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                topExamStr = '''
+Examples:
+    - Monitor status of processes used cpu resource more than 1%
+        # {0:1} {1:1}
+
+    - Monitor status of all processes sorted by memory(RSS)
+        # {0:1} {1:1} -S m
+
+    - Report analysis results of processes to ./guider.out when SIGINT signal arrives
+        # {0:1} {1:1} -o .
+
+    - Report analysis results of processes to ./guider.out with unlimited memory buffer
+        # {0:1} {1:1} -o . -b 0
+
+    - Report analysis results of processes to ./guider.out in real-time until SIGINT signal arrives
+        # {0:1} {1:1} -o . -e p
+
+    - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
+        # {0:1} {1:1} -R 3, 5 -o .
+
+    - Monitor status of processes including memory(USS)
+        # {0:1} {1:1} -e u
+
+    - Monitor status of processes including memory(PSS)
+        # {0:1} {1:1} -e S
+
+    - Monitor status of all processes including block usage every 2 seconds
+        # {0:1} {1:1} -e b -i 2 -a
+
+    - Monitor status of processes involved in same process group with specific processes having name including system
+        # {0:1} {1:1} -g system -P
+
+    - Monitor status of processes on the optimized-size terminal
+        # {0:1} {1:1} -m
+
+    - Report analysis results of processes to ./guider.out and console
+        # {0:1} {1:1} -o . -Q
+
+    - Monitor status of processes and execute special commands
+        # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
+
+    - Monitor status of processes and report to 192.168.0.5:5555 in real-time
+        # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
+
+    - Monitor status of processes after setting configuration from guider.conf
+        # {0:1} {1:1} -I guider.conf
+
+                '''.format(cmd, mode)
+
                 # function record #
                 if SystemManager.isFuncRecordMode():
                     helpStr = '''
@@ -8583,10 +8674,10 @@ OPTIONS:
               c:cpu | e:encode | a:all | u:user
         -s  <DIR|FILE>              save trace data
         -u                          run in the background
-        -W                          wait for signal
         -b  <SIZE:KB>               set buffer size
         -t  <SYSCALL>               trace syscall
         -C  <DIR|FILE>              set command script path
+        -W                          wait for signal
         -w  <TIME:FILE{:VALUE}>     set additional command
         -M  <FILE>                  set objdump path
         -U  <NAME:FUNC|ADDR:FILE>   set user event
@@ -8619,6 +8710,48 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                    helpStr += '''
+Examples:
+    - record default function events of all threads to ./guider.dat
+        # {0:1} funcrecord -s .
+
+    - report function analysis result of all threads to ./guider.out
+        # {0:1} guider.dat -o .
+
+    - report all function analysis result with maximum 3-depth of a specific thread having TID 1234 to ./guider.out
+        # {0:1} guider.dat -o . -g 1234 -H 3
+
+    - report all function analysis result of specific threads including other threads involved in the same process to ./guider.out
+        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
+
+    - record default function events of all threads to ./guider.dat for only 3 seconds
+        # {0:1} guider.dat -o . -R 3
+
+    - record default function events of specific threads having TID bigger than 1024 to ./guider.dat in the background
+        # {0:1} funcrecord -s . -g 1024\< -u
+
+    - record specific function events including memory, block, heap of all threads to ./guider.dat
+        # {0:1} funcrecord -s . -e m, b, h
+
+    - record specific function events including all systemcalls of all threads to ./guider.dat
+        # {0:1} funcrecord -s . -t
+
+    - record specific function events including softirq_entry event of all threads to ./guider.dat
+        # {0:1} funcrecord -s . -c softirq_entry:vec==1
+
+    - record specific function events including segmentation fault of all threads to ./guider.dat in real-time
+        # {0:1} funcrecord -s . -K segflt:bad_area -e p
+
+    - record specific function events including blocking of all threads to ./guider.dat
+        # {0:1} funcrecord -s . -K block:schedule
+
+    - record default function events of all threads to ./guider.dat and execute user commands
+        # {0:1} funcrecord -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+
+    - record all kernel function calls of all threads to ./guider.dat
+        # {0:1} funcrecord -s . -e g
+                    '''.format(cmd, mode)
+
                 # file record #
                 elif SystemManager.isFileRecordMode():
                     helpStr = '''
@@ -8648,6 +8781,15 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                    helpStr += '''
+Examples:
+    - report all analysis results of files mapped to all processes to ./guider.out
+        # {0:1} filerecord -o . -a
+
+    - report analysis result on each intervals of files mapped to all processes to ./guider.out
+        # {0:1} filerecord -o . -i
+                    '''.format(cmd, mode)
+
                 # system record #
                 elif SystemManager.isSystemRecordMode():
                     helpStr = '''
@@ -8673,6 +8815,12 @@ OPTIONS:
         -E  <FILE>                  set error log path
         -v                          verbose
                     '''
+
+                    helpStr += '''
+Examples:
+    - report analysis results of system to ./guider.out
+        # {0:1} sysrecord -o .
+                    '''.format(cmd, mode)
 
                 # thread record #
                 elif SystemManager.isThreadRecordMode():
@@ -8730,6 +8878,54 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                    helpStr += '''
+Examples:
+    - record default events of all threads to ./guider.dat
+        # {0:1} record -s .
+
+    - report analysis result of all threads to ./guider.out
+        # {0:1} guider.dat -o .
+
+    - report all analysis results of a specific thread having TID 1234 to ./guider.out
+        # {0:1} guider.dat -o . -g 1234 -a
+
+    - report all analysis results including interval information of all threads to ./guider.out
+        # {0:1} guider.dat -o . -a -i
+
+    - record default events of all threads to ./guider.dat for only 3 seconds
+        # {0:1} guider.dat -o . -R 3
+
+    - record specific events including memory, block, irq of all threads to ./guider.dat in the background
+        # {0:1} record -s . -e m, b, i -u
+
+    - record default events including specific systemcalls of all threads to ./guider.dat
+        # {0:1} record -s . -t sys_read, write
+
+    - record default events including lock of all threads to ./guider.dat
+        # {0:1} record -s . -e L
+
+    - record default events including specific user function of all threads to ./guider.dat
+        # {0:1} record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
+
+    - record default events including specific kernel function of all threads to ./guider.dat
+        # {0:1} record -s . -K evt1:func1, evt2:0x1234
+
+    - record default events including specific kernel function with register values of all threads to ./guider.dat
+        # {0:1} record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
+
+    - record default events including specific kernel function with the return value of all threads to ./guider.dat
+        # {0:1} record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
+
+    - record default events of all threads to ./guider.dat and execute user commands
+        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+
+    - report all analysis results including specific threads's preemption of all threads to ./guider.out
+        # {0:1} guider.dat -o . -p 1234, 4567 -a
+
+    - report all analysis results of specific threads including other threads involved in the same process to ./guider.out
+        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
+                    '''.format(cmd, mode)
+
                 # file top #
                 elif SystemManager.isFileTopMode():
                     fileTopStr = '''
@@ -8769,10 +8965,24 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor open file / socket / pipe status
+    Monitor the status of open files / sockets / pipes
                         '''.format(cmd, mode)
 
-                    helpStr += fileTopStr
+                    examStr = '''
+Examples:
+    - Monitor open files of all processes that which name include null
+        # {0:1} {1:1} -g :null
+
+    - Monitor open files of specific processes that which name include system
+        # {0:1} {1:1} -g system
+
+    - Report analysis result of open files to ./guider.out
+        # {0:1} {1:1} -o .
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += fileTopStr + examStr
 
                 # thread top #
                 elif SystemManager.isThreadTopMode():
@@ -8784,7 +8994,15 @@ Description:
     Monitor thread status
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor status of all threads
+        # {0:1} {1:1} -a
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # stack top #
                 elif SystemManager.isStackTopMode():
@@ -8796,7 +9014,15 @@ Description:
     Monitor stack status
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor stacks of specific threads
+        # {0:1} {1:1} -g chrome
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # perf top #
                 elif SystemManager.isPerfTopMode():
@@ -8805,10 +9031,18 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor PMU status
+    Monitor PMU(Performance Monitoring Unit) status
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor performance stats of specific threads
+        # {0:1} {1:1} -g chrome
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # mem top #
                 elif SystemManager.isMemTopMode():
@@ -8820,7 +9054,15 @@ Description:
     Monitor memory details
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor memory details of specific processes
+        # {0:1} {1:1} -g chrome
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # wss top #
                 elif SystemManager.isWssTopMode():
@@ -8829,10 +9071,18 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor Working Set Size
+    Monitor WSS(Working Set Size) of processes after clearing page reference bits
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor WSS(Working Set Size) change of specific processes
+        # {0:1} {1:1} -g chrome
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # report top #
                 elif SystemManager.isReportTopMode():
@@ -8841,10 +9091,21 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor system status in json format
+    Report system status in json format
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Report system status in json format to ./guider.report in the background every second
+        # {0:1} {1:1} -j . -u
+
+    - Stop reporting processes in the background
+        # {0:1} stop
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # background top #
                 elif SystemManager.isBgTopMode():
@@ -8853,10 +9114,21 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor system status in the background
+    Collect system status in the background until get a stop signal
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Collect system status to ./guider.out in the background
+        # {0:1} {1:1} -o .
+
+    - Stop collecting processes in the background and let them report system analysis result
+        # {0:1} stop
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # disk top #
                 elif SystemManager.isDiskTopMode():
@@ -8865,10 +9137,18 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor disk status
+    Monitor storage status
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    examStr = '''
+Examples:
+    - Monitor status of all storages
+        # {0:1} {1:1} -g chrome
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # process top #
                 elif SystemManager.isTopMode():
@@ -8880,7 +9160,7 @@ Description:
     Monitor process status
                         '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr
+                    helpStr += topSubStr + topCommonStr + topExamStr
 
                 # strace #
                 elif SystemManager.isStraceMode():
@@ -8906,6 +9186,12 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                    helpStr +=  '''
+Examles:
+    - Trace read systemcall for a specific thread
+        # {0:1} strace -g 1234 -t read
+                    '''.format(cmd, mode)
+
                 # mem #
                 elif SystemManager.isMemMode():
                     helpStr = '''
@@ -8930,11 +9216,17 @@ OPTIONS:
         -v                          verbose
                     '''
 
+                    helpStr +=  '''
+Examles:
+    - Analyze page attributes in specific area for a specific process
+        # {0:1} mem -g 1234 -I 0x0-0x4000
+                    '''.format(cmd, mode)
+
                 # cpu draw #
                 elif SystemManager.isCpuDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
     Draw cpu graphs and memory chart
@@ -8942,11 +9234,17 @@ Description:
 
                     helpStr += drawSubStr
 
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of cpu usage and memory chart
+        # {0:1} cpudraw guider.out
+                    '''.format(cmd, mode)
+
                 # memory draw #
                 elif SystemManager.isMemDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
     Draw system memory graphs and memory chart
@@ -8954,47 +9252,71 @@ Description:
 
                     helpStr += drawSubStr
 
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of memory usage and memory chart
+        # {0:1} memdraw guider.out
+                    '''.format(cmd, mode)
+
                 # vss draw #
                 elif SystemManager.isVssDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
-    Draw process memory(vss) graphs and memory chart
+    Draw process memory(VSS) graphs and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr
+
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of memory(VSS) usage and memory chart
+        # {0:1} vssdraw guider.out
+                    '''.format(cmd, mode)
 
                 # rss draw #
                 elif SystemManager.isRssDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
-    Draw process memory(rss) graphs and memory chart
+    Draw process memory(RSS) graphs and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr
+
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of memory(RSS) usage and memory chart
+        # {0:1} rssdraw guider.out
+                    '''.format(cmd, mode)
 
                 # leak draw #
                 elif SystemManager.isLeakDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
-    Draw memory(vss) graphs of suspected processes of memory leak and memory chart
+    Draw memory(VSS) graphs of suspected processes of memory leak and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr
+
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of memory(VSS) usage of suspected processes of memory leak and memory chart
+        # {0:1} leakdraw guider.out
+                    '''.format(cmd, mode)
 
                 # I/O draw #
                 elif SystemManager.isIoDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
     Draw system I/O graphs and memory chart
@@ -9002,11 +9324,17 @@ Description:
 
                     helpStr += drawSubStr
 
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of I/O usage and memory chart
+        # {0:1} iodraw guider.out
+                    '''.format(cmd, mode)
+
                 # draw #
                 elif SystemManager.isDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
     Draw system resource graphs and memory chart
@@ -9014,20 +9342,37 @@ Description:
 
                     helpStr += drawSubStr
 
+                    helpStr +=  '''
+Examles:
+    - Draw graphs of system resource usage
+        # {0:1} draw guider.out
+
+    - Draw graphs of system resource usage including only cpu and I/O and memory chart
+        # {0:1} draw guider.out -L cpu, io
+                    '''.format(cmd, mode)
+
                 # kill / send #
                 elif SystemManager.isSendMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [-<SIGNUM|SIGNAME> -g <PID>] [OPTIONS] [--help]
+    # {0:1} {1:1} [-<SIGNUM|SIGNAME> <PID>] [OPTIONS] [--help]
 
 Description:
     Send specific signal to specific processes or all running guider processes
 
 OPTIONS:
-        -g  <COMM|PID>              set filter
         -E  <FILE>                  set error log path
         -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examles:
+    - Send the notification signal to all running guider processes
+        # {0:1} kill
+
+    - Send SIGSTOP signal to a specific process
+        # {0:1} kill -sigstop 1234
+                    '''.format(cmd, mode)
 
                 # cpulimit #
                 elif SystemManager.isCpuLimitMode():
@@ -9039,10 +9384,17 @@ Description:
     Limit cpu usage of threads / processes
 
 OPTIONS:
+        -g  <TID>                   set filter
         -P                          group threads in same process
         -E  <FILE>                  set error log path
         -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examles:
+    - Limit cpu usage of specific threads
+        # {0:1} cpulimit -g 1234:10, 1235:20
+                    '''.format(cmd, mode)
 
                 # convert #
                 elif SystemManager.isConvertMode():
@@ -9058,14 +9410,20 @@ OPTIONS:
         -v                          verbose
                         '''.format(cmd, mode)
 
+                    helpStr +=  '''
+Examles:
+    - Convert a text file to a image file
+        # {0:1} convert guider.out
+                    '''.format(cmd, mode)
+
                 # setsched #
                 elif SystemManager.isSetSchedMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <POLICY:PRIORITY|TIME:TID|PID> -g <TID|PID> [OPTIONS] [--help]
+    # {0:1} {1:1} <POLICY:PRIORITY|TIME:TID|PID> [OPTIONS] [--help]
 
 Description:
-    Change cpu scheduler policy and priority of threads / processes
+    Set cpu scheduler policy and priority of threads / processes
 
     [POLICY]
         c: CFS
@@ -9081,6 +9439,18 @@ OPTIONS:
         -v                          verbose
                         '''.format(cmd, mode)
 
+                    helpStr +=  '''
+Examles:
+    - Set cpu scheduler policy(CFS), priority(-20) for a specific thread
+        # {0:1} setsched c:-20:1234
+
+    - Set cpu scheduler policy(FIFO), priority(90) for a specific thread
+        # {0:1} setsched f:90:1234
+
+    - Set cpu scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
+        # {0:1} setsched d:1000/10000/10000:1234
+                    '''.format(cmd, mode)
+
                 # getaffinity #
                 elif SystemManager.isGetAffinityMode():
                     helpStr = '''
@@ -9094,6 +9464,12 @@ OPTIONS:
         -E  <FILE>                  set error log path
         -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examles:
+    - Get cpu affinity of a specific thread
+        # {0:1} getaffinity 1234
+                    '''.format(cmd, mode)
 
                 # setaffinity #
                 elif SystemManager.isSetAffinityMode():
@@ -9110,6 +9486,12 @@ OPTIONS:
         -v                          verbose
                         '''.format(cmd, mode)
 
+                    helpStr +=  '''
+Examles:
+    - Set cpu affinity of a specific thread to use only cpu 1 and cpu 2
+        # {0:1} setaffinity 3:1234
+                    '''.format(cmd, mode)
+
                 # alloctest #
                 elif SystemManager.isAllocTestMode():
                     helpStr = '''
@@ -9123,6 +9505,12 @@ OPTIONS:
         -E  <FILE>                  set error log path
         -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examles:
+    - Allocate physical memory 1G
+        # {0:1} alloctest 1G
+                    '''.format(cmd, mode)
 
                 # list #
                 elif SystemManager.isListMode():
@@ -9159,12 +9547,18 @@ Usage:
     # {0:1} {1:1} [<EVENT>] [OPTIONS] [--help]
 
 Description:
-    Send data to all running guider processes to notify event
+    Send the event signal to all running guider processes
 
 OPTIONS:
         -E  <FILE>                  set error log path
         -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examles:
+    - Send scene1 event to running guider processes
+        # {0:1} event scene1
+                    '''.format(cmd, mode)
 
                 # server #
                 elif SystemManager.isServerMode():
@@ -9183,7 +9577,7 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                 # client #
-                elif SystemManager.isServerMode():
+                elif SystemManager.isClientMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -9198,13 +9592,8 @@ OPTIONS:
         -v                          verbose
                         '''.format(cmd, mode)
 
-
-
-
                 # default #
-                else:
-                    SystemManager.printRawTitle(False, True, True)
-
+                elif mode.startswith('-'):
                     helpStr = defStr + \
                         '''
 COMMAND:
@@ -9257,8 +9646,14 @@ FILE:
     Report  file (e.g. guider.out)
 
 OPTIONS:
-    Options for each COMMAND, Check it with --help
-                    '''
+    Check COMMAND with --help (e.g. {0:1} top --help)
+                    '''.format(cmd)
+
+                # wrong command #
+                else:
+                    SystemManager.printError(\
+                        'wrong command %s' % mode)
+                    sys.exit(0)
 
                 pipePrint(helpStr)
 
@@ -9278,264 +9673,12 @@ Copyright:
                     '''.format(cmd, __author__, __email__, \
                         __repository__, __copyright__, __license__)
 
-                print(helpStr)
+                pipePrint(helpStr)
 
             sys.exit(0)
 
         # version #
         elif sys.argv[1] == '--version':
-
-            sys.exit(0)
-
-        # examples #
-        elif sys.argv[1] == '--examples' or \
-            sys.argv[1] == '--exam':
-
-            if 'CMDLINE' in os.environ:
-                cmd = os.environ['CMDLINE']
-            else:
-                cmd = sys.argv[0]
-
-            if cmd.find('.pyc') >= 0:
-                cmd = cmd[:cmd.find('.pyc')]
-
-            SystemManager.printRawTitle(False, True, True)
-
-            examStr = '''
-[ record examples ]
-
-    - record and save CPU events of threads to ./guider.dat
-        # {0:1} record -s .
-
-    - record and save specific resource events of threads to ./guider.dat in the background
-        # {0:1} record -s . -e m, b, i -u
-
-    - record and save specific resource events excluding CPU of threads to ./guider.dat in the background
-        # {0:1} record -s . -e m, b, i -d c -u
-
-    - record and save specific system call events of specific threads to ./guider.dat
-        # {0:1} record -s . -t sys_read, write -g 1234
-
-    - record and save lock events of threads to ./guider.dat
-        # {0:1} record -s . -e L
-
-    - record and save specific user function events of threads to ./guider.dat
-        # {0:1} record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
-
-    - record and save specific kernel function events of threads to ./guider.dat
-        # {0:1} record -s . -K evt1:func1, evt2:0x1234
-
-    - record and save specific kernel function events with register values to ./guider.dat
-        # {0:1} record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
-
-    - record and save specific kernel function events with the return value to ./guider.dat
-        # {0:1} record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
-
-    - execute special commands and record and save CPU events of threads to ./guider.dat
-        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
-
-    - report all possible information from guider.dat to ./guider.out
-        # {0:1} guider.dat -o . -a -i
-
-    - report stats on a specific interval from guider.dat to ./guider.out
-        # {0:1} guider.dat -o . -R 3
-
-    - report stats including preemption of specific threads from guider.data to ./guider.out
-        # {0:1} guider.dat -o . -p 1234, 4567
-
-    - report stats including specific threads involved in the specific processes from guider.dat to guider.out
-        # {0:1} guider.dat -o . -P -g 1234, 4567
-
-    - draw graph and chart from trace data to png files
-        # {0:1} draw guider.dat
-
-[ funcrecord examples ]
-
-    - record and report CPU function events of threads to ./guider.dat
-        # {0:1} funcrecord -s .
-
-    - record and save CPU function events of specific threads having TID bigger than 1024 to ./guider.dat
-        # {0:1} funcrecord -s . -g 1024\<
-
-    - record and save specific function events of threads except for user-mode to ./guider.dat
-        # {0:1} funcrecord -s . -d u -c sched/sched_switch
-
-    - record and save specific resource function events specific threads to ./guider.dat
-        # {0:1} funcrecord -s . -e m, b, h -g 1234
-
-    - record and save specific function events of threads with specific argument condition to ./guider.dat
-        # {0:1} funcrecord -s . -c softirq_entry:vec══1
-
-    - record and save segmentation fault function events of threads to ./guider.dat
-        # {0:1} funcrecord -s . -K segflt:bad_area -e p
-
-    - record and save blocking function events of threads to ./guider.dat
-        # {0:1} funcrecord -s . -K block:schedule
-
-    - execute special commands and record and save CPU function events of threads to ./guider.dat
-        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
-
-    - report all possible information from guider.dat using specific toolchain tools to ./guider.out
-        # {0:1} guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
-
-    - report all possible information about only lower than 3 function levels from guider.dat to ./guider.out
-        # {0:1} guider.dat -o . -H 3
-
-[ top examples ]
-
-    - show resource usage of processes in real-time
-        # {0:1} top
-
-    - show resource usage of processes on the fixed-size terminal in real-time
-        # {0:1} top -m
-
-    - show files opened via processes in real-time
-        # {0:1} filetop
-
-    - show specific files opened via specific processes in real-time
-        # {0:1} filetop -g init, lightdm : home, var
-
-    - show performance stats of specific processes in real-time
-        # {0:1} perftop -g init, lightdm
-
-    - show resource usage of processes by sorting memory in real-time
-        # {0:1} top -S m
-
-    - show resource usage of processes by sorting file in real-time
-        # {0:1} top -S f
-
-    - show resource usage of processes only 5 times in real-time
-        # {0:1} top -R 5
-
-    - show resource usage of processes only 5 times per 3-sec interval in real-time
-        # {0:1} top -R 3, 5
-
-    - show resource usage including block of threads per 2-sec interval in real-time
-        # {0:1} threadtop -e b -i 2 -a
-
-    - show resource usage of specific processes/threads involved in specific process group in real-time
-        # {0:1} top -g 1234,4567 -P
-
-    - monitor and save resource usage of processes to ./guider.out in real-time
-        # {0:1} top -o . -e p
-
-    - monitor and print to console and save resource usage of processes to ./guider.out in real-time
-        # {0:1} top -o . -Q
-
-    - monitor and save resource usage of processes to a specific file in the background
-        # {0:1} bgtop
-        # {0:1} top -o . -u
-
-    - report system stats to ./guider.report in json format in the background
-        # {0:1} reporttop -j . -u
-
-    - monitor and save resource usage of processes to ./guider.report in the background
-        # {0:1} reptop -o . -u
-
-    - monitor and save resource usage of processes to ./guider.out and report system stats to the specific image files
-        # {0:1} top -o . -e r, I
-
-    - monitor and save resource usage of processes to ./guider.out and report it to the specific files if only specific events occur
-        # {0:1} top -o . -e R
-
-    - monitor resource usage of processes and execute special commands every interval
-        # {0:1} top -w AFTER:/tmp/touched:1, AFTER:ls
-
-    - monitor storage usage in real-time
-        # {0:1} disktop
-
-    - trace memory working set of specific processes
-        # {0:1} wsstop -g chrome
-
-    - draw graph and chart to specific image files
-        # {0:1} draw guider.out
-
-    - draw graph and chart for specific process group to specific image files
-        # {0:1} draw guider.out -g chrome
-
-    - draw CPU and memory graphs of specific processes to a specific image file proportionally
-        # {0:1} draw guider.out -g chrome -L cpu:5, mem:5
-
-    - draw VSS graph and chart for specific processes to specific image files
-        # {0:1} vssdraw guider.out -g chrome
-
-    - draw leak graph and chart to specific image files
-        # {0:1} leakdraw guider.out
-
-    - monitor and report resource usage of processes to specific server
-        # {0:1} top -e r -N REPORT_ALWAYS@192.168.0.5:5555
-
-    - monitor and report resource usage of processes to specific clients that asked it
-        # {0:1} top -x 5555
-
-    - handle report data from the server
-        # {0:1} top -x 5555 -X
-
-    - monitor resource usage of processes and set condition file path for the report
-        # {0:1} top -I guider.json
-
-[ filerecord examples ]
-
-    - trace memory usage of files mapped to processes and save it to ./guider.out
-        # {0:1} filerecord -o .
-
-    - trace memory usage of files mapped to processes each interval and save it to ./guider.out
-        # {0:1} filerecord -i
-
-[ etc examples ]
-
-    - check the property of specific pages
-        # {0:1} mem -g 1234 -I 0x7abc1234-0x7abc6789
-
-    - convert a text file guider.out to an image file
-        # {0:1} convert guider.out
-
-    - wait for the signal to start
-        # {0:1} record│top -W
-
-    - show running guider processes
-        # {0:1} list
-
-    - send the signal to all guider processes
-        # {0:1} send
-        # {0:1} kill
-
-    - send the stop signal to all guider processes
-        # {0:1} stop
-
-    - send specific signals to specific processes
-        # {0:1} send -9 1234, 4567
-        # {0:1} kill -kill 1234, 4567
-
-    - change the priority of tasks
-        # {0:1} setsched c:-19, r:90:1217, i:0:1209
-
-    - change the priority of tasks in a group
-        # {0:1} setsched c:-19, r:90:1217 -P
-
-    - update priority of all tasks shown to real-time 90
-        # {0:1} top -Y r:90:ALL
-
-    - update priority of all tasks shown to the deadline policy
-        # {0:1} top -Y d:1000000/20000000/20000000:ALL
-
-    - update the priority of a task continuously to real-time 90
-        # {0:1} top -Y r:90:1234:CONT
-
-    - update CPU affinity of all tasks shown
-        # {0:1} top -z f:ALL
-
-    - update CPU affinity of tasks continuously
-        # {0:1} top -z f:1234:CONT
-
-    - limit CPU usage of specific processes
-        # {0:1} cpulimit -g 1234:40, 5678:10
-
-    - limit CPU usage of specific threads
-        # {0:1} cpulimit -g 1234:40, 5678:10 -e t
-            '''.format(cmd)
-
-            pipePrint(examStr)
 
             sys.exit(0)
 
@@ -11466,11 +11609,11 @@ Copyright:
         # print options #
         if enableStat != '':
             SystemManager.printInfo(\
-                "enabled recording options [ %s]" % enableStat)
+                "enabled record options [ %s]" % enableStat)
 
         if disableStat != '':
             SystemManager.printInfo(\
-                "disabled recording options [ %s]" % disableStat)
+                "disabled record options [ %s]" % disableStat)
 
 
 
@@ -11540,6 +11683,7 @@ Copyright:
                         int(os.path.getsize(SystemManager.inputFile)))
                 except:
                     fsize = '?'
+
                 SystemManager.printInfo(\
                     "finish saving results based monitoring into "
                     "%s [%s] successfully" % \
@@ -11613,6 +11757,7 @@ Copyright:
                     int(os.path.getsize(SystemManager.inputFile)))
             except:
                 fsize = '?'
+
             SystemManager.printInfo(\
                 "finish saving results based monitoring into "
                 "%s [%s] successfully" % \
@@ -11955,6 +12100,9 @@ Copyright:
 
     @staticmethod
     def printRawTitle(absolute=False, big=False, pager=False):
+        # check extended ascii support #
+        SystemManager.convertExtAscii(ConfigManager.logo)
+
         if big:
             if pager:
                 SystemManager.pipePrint(ConfigManager.logo)
@@ -12132,9 +12280,10 @@ Copyright:
         # check whether there is launch option in saved buffer #
         infoBuf = SystemManager.systemInfoBuffer
 
+        # get position of launch option #
         if infoBuf == '':
             return
-        launchPosStart = infoBuf .find('Launch')
+        launchPosStart = infoBuf.find('Launch')
         if launchPosStart == -1:
             return
         launchPosEnd = infoBuf.find('\n', launchPosStart)
@@ -12142,7 +12291,7 @@ Copyright:
             return
 
         # get launch option recorded #
-        SystemManager.launchBuffer = infoBuf[launchPosStart:launchPosEnd]\
+        SystemManager.launchBuffer = infoBuf[launchPosStart:launchPosEnd]
 
         # apply arch type #
         if SystemManager.archOption is None:
@@ -12164,8 +12313,7 @@ Copyright:
                 (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
-        launchPosStart = SystemManager.launchBuffer.find(' -f')
-        if launchPosStart > -1 or \
+        if SystemManager.launchBuffer.find(' -f') > -1 or \
             SystemManager.launchBuffer.find(' funcrecord') > -1:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
@@ -12199,13 +12347,11 @@ Copyright:
                     ', '.join(SystemManager.filterGroup))
 
         # apply dependency option #
-        launchPosStart = SystemManager.launchBuffer.find(' -D')
-        if launchPosStart > -1:
+        if SystemManager.launchBuffer.find(' -D') > -1:
             SystemManager.depEnable = True
 
         # apply syscall option #
-        launchPosStart = SystemManager.launchBuffer.find(' -t')
-        if launchPosStart > -1:
+        if SystemManager.launchBuffer.find(' -t') > -1:
             SystemManager.sysEnable = True
 
         # apply disable option #
@@ -12396,7 +12542,7 @@ Copyright:
             return
 
         # set image file extension #
-        SystemManager.imagePath += '.' + imageType
+        SystemManager.imagePath += '.%s' % imageType
 
         if SystemManager.fontPath is not None:
             try:
@@ -12519,23 +12665,26 @@ Copyright:
         if SystemManager.printEnable is False:
             return
 
+        # check newline argument #
         if newline:
             retstr = '\n'
         else:
             retstr = ''
 
         # pager initialization #
-        if SystemManager.isTopMode() is False and \
-            SystemManager.pipeForPrint == None and \
-            SystemManager.printFile == None and \
-            SystemManager.printStreamEnable is False and \
-            SystemManager.selectMenu == None:
+        if SystemManager.isHelpMode or \
+            (SystemManager.isTopMode() == \
+                SystemManager.printStreamEnable == False and \
+            SystemManager.pipeForPrint == \
+                SystemManager.printFile == None):
+
             try:
                 if sys.platform.startswith('linux'):
                     SystemManager.pipeForPrint = os.popen('less -E', 'w')
                 elif sys.platform.startswith('win'):
                     SystemManager.pipeForPrint = os.popen('more', 'w')
                 else:
+                    # no supported OS #
                     pass
             except:
                 SystemManager.printError(\
@@ -12558,43 +12707,36 @@ Copyright:
         if SystemManager.printFile != None and \
             SystemManager.fileForPrint == None:
 
-            if sys.platform.startswith('linux'):
-                token = '/'
-            elif sys.platform.startswith('win'):
-                token = '\\'
-            else:
-                pass
-
-            # analysis mode #
-            if SystemManager.isRecordMode() is False and \
-                SystemManager.isTopMode() is False:
-                fileNamePos = SystemManager.inputFile.rfind(token)
-                if  fileNamePos >= 0:
-                    SystemManager.inputFile = \
-                        SystemManager.inputFile[fileNamePos + 1:]
-
+            # runtime #
+            if SystemManager.isRuntimeMode():
+                # dir #
                 if os.path.isdir(SystemManager.printFile):
-                    newInputFile = SystemManager.inputFile.replace('.dat', '.out')
-                    if SystemManager.inputFile == newInputFile:
-                        newInputFile = '%s.out' % newInputFile
                     SystemManager.inputFile = \
-                        SystemManager.printFile + token + newInputFile
+                        os.path.join(SystemManager.printFile, 'guider.out')
+                # file #
                 else:
                     SystemManager.inputFile = SystemManager.printFile
+            # analysis #
             else:
+                # dir #
                 if os.path.isdir(SystemManager.printFile):
+                    name, ext = os.path.splitext(SystemManager.inputFile)
+                    if ext == '.dat':
+                        name = '%s.out' % name
                     SystemManager.inputFile = \
-                        SystemManager.printFile + token + 'guider.out'
+                        os.path.join(SystemManager.printFile, name)
+                # file #
                 else:
                     SystemManager.inputFile = SystemManager.printFile
 
+            # convert abnormal characters from full path #
             SystemManager.inputFile = \
-                SystemManager.inputFile.replace(token * 2, token)
+                os.path.normpath(SystemManager.inputFile)
 
+            # backup a exist output file #
             try:
-                # backup exist output file #
                 if os.path.isfile(SystemManager.inputFile):
-                    backupFile = os.path.join(SystemManager.inputFile + '.old')
+                    backupFile = '%s.old' % SystemManager.inputFile
                     shutil.move(SystemManager.inputFile, backupFile)
                     SystemManager.printInfo('%s is renamed to %s' % \
                         (SystemManager.inputFile, backupFile))
@@ -12602,6 +12744,7 @@ Copyright:
                 SystemManager.printWarning(\
                     "Fail to backup %s" % SystemManager.inputFile)
 
+            # open output file #
             try:
                 SystemManager.fileForPrint = \
                     open(SystemManager.inputFile, 'w+')
@@ -12609,7 +12752,7 @@ Copyright:
                 # print output file name #
                 if SystemManager.printFile != None:
                     SystemManager.printInfo(\
-                        "wait for writing statistics to %s" % \
+                        "ready for writing statistics to %s" % \
                         SystemManager.inputFile)
             except:
                 SystemManager.printError(\
@@ -12895,43 +13038,37 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'o':
-                # get output path #
-                SystemManager.printFile = str(value)
-                if len(SystemManager.printFile) == 0:
+                # check output path #
+                if len(value) == 0:
                     SystemManager.printError("no option value with -o option")
                     sys.exit(0)
 
-                # check output path #
-                if os.path.isdir(SystemManager.printFile) == False:
-                    outputPath = SystemManager.printFile
-                    upDirPos = SystemManager.printFile.rfind('/')
-                    if upDirPos > 0 and \
-                        os.path.isdir(outputPath[:upDirPos]) is False:
-                        SystemManager.printError(\
-                            "wrong path %s with -o option" % outputPath)
-                        sys.exit(0)
+                # check writable access #
+                if os.access(value, os.W_OK) is False and \
+                    os.access(os.path.dirname(value), os.W_OK) is False:
+                    SystemManager.printError(\
+                        "wrong path %s with -o option" % value)
+                    sys.exit(0)
 
-            elif option == 'I' and SystemManager.isTopMode():
+                SystemManager.printFile = os.path.normpath(value)
+
+            elif option == 'I':
                 SystemManager.sourceFile = value
 
-            elif option == 'L' and SystemManager.isTopMode():
+            elif option == 'L':
                 SystemManager.layout = value
                 if len(value) == 0:
                     SystemManager.printError("no option value with -L option")
                     sys.exit(0)
 
-            elif option == 'w' and SystemManager.isTopMode():
+            elif option == 'w':
                 SystemManager.rcmdList = \
                     SystemManager.parseCustomRecordCmd(value)
 
             elif option == 'a':
                 SystemManager.showAll = True
 
-            elif option == 'q':
-                SystemManager.selectMenu = True
-                ConfigManager.taskChainEnable = True
-
-            elif option == 'D' and SystemManager.isTopMode() is False:
+            elif option == 'D':
                 SystemManager.depEnable = True
 
             elif option == 'P':
@@ -12943,7 +13080,7 @@ Copyright:
 
                 SystemManager.groupProcEnable = True
 
-            elif option == 'p' and SystemManager.isTopMode() is False:
+            elif option == 'p':
                 if SystemManager.findOption('i'):
                     SystemManager.printError(\
                         "wrong option with -p, -i option is already used")
@@ -13143,10 +13280,10 @@ Copyright:
             elif option == 'f' and SystemManager.isFunctionMode():
                 SystemManager.functionEnable = True
 
-            elif option == 'l' and SystemManager.isTopMode() is False:
+            elif option == 'l':
                 SystemManager.addr2linePath = value.split(',')
 
-            elif option == 'r' and SystemManager.isTopMode() is False:
+            elif option == 'r':
                 SystemManager.rootPath = value
 
             elif option == 'T':
@@ -13251,7 +13388,7 @@ Copyright:
                             "input number in integer format")
                     sys.exit(0)
 
-            elif option == 'N' and SystemManager.isTopMode():
+            elif option == 'N':
                 ret = SystemManager.parseAddr(value)
 
                 (service, ip, port) = ret
@@ -13287,7 +13424,7 @@ Copyright:
                 SystemManager.printInfo(\
                     "use %s:%d as remote address" % (ip, port))
 
-            elif option == 'j' and SystemManager.isTopMode():
+            elif option == 'j':
                 if SystemManager.checkReportTopCond(value) is False:
                     sys.exit(0)
 
@@ -13388,8 +13525,8 @@ Copyright:
 
             elif option == 'H':
                 try:
-                    SystemManager.depth = int(value)
-                    if SystemManager.depth < 0:
+                    SystemManager.funcDepth = int(value)
+                    if SystemManager.funcDepth < 0:
                         raise Exception()
                 except:
                     SystemManager.printError(\
@@ -13565,46 +13702,45 @@ Copyright:
             elif option == 's':
                 if SystemManager.isRecordMode() is False:
                     SystemManager.printError(\
-                        "Fail to save data because it is not in recording mode")
+                        "Fail to save data because it is not in record mode")
                     sys.exit(0)
 
                 # change output path #
+                try:
+                    if os.access(value, os.F_OK) or \
+                        os.access(os.path.dirname(value), os.W_OK):
+                        if os.path.isdir(value):
+                            SystemManager.outputFile = \
+                                '%s/guider.dat' % value
+                        else:
+                            SystemManager.outputFile = \
+                                '%s.dat' % os.path.splitext(value)[0]
+                    else:
+                        raise Exception()
+                except:
+                    SystemManager.printError(\
+                        "wrong option value %s with -s option" % value)
+                    sys.exit(0)
+
+                # remove double slashs #
+                SystemManager.outputFile = \
+                    os.path.normpath(SystemManager.outputFile)
+
+                # support no-report record mode #
                 if SystemManager.isFileRecordMode() or \
                     SystemManager.findOption('F') or \
                     SystemManager.isSystemRecordMode() or \
                     SystemManager.findOption('y'):
-                    SystemManager.printFile = str(value)
-                    if len(SystemManager.printFile) == 0:
-                        SystemManager.printError(\
-                            "No option value with -o option")
-                        sys.exit(0)
-                    continue
-
-                SystemManager.outputFile = str(value)
-
-                if os.path.isdir(SystemManager.outputFile):
-                    SystemManager.outputFile = \
-                        '%s/guider.dat' % SystemManager.outputFile
-                else:
-                    fpos = SystemManager.outputFile.rfind('/')
-                    if fpos <= 0 or \
-                        os.path.isdir(SystemManager.outputFile[:fpos]):
-                        continue
-                    else:
-                        SystemManager.printError(\
-                            "wrong option value with -s option")
-                        sys.exit(0)
-
-                SystemManager.outputFile = \
-                    SystemManager.outputFile.replace('//', '/')
+                    SystemManager.printFile = \
+                        SystemManager.outputFile
 
             elif option == 'D':
                 SystemManager.depEnable = True
 
             elif option == 'H':
                 try:
-                    SystemManager.depth = int(value)
-                    if SystemManager.depth < 0:
+                    SystemManager.funcDepth = int(value)
+                    if SystemManager.funcDepth < 0:
                         raise Exception()
                 except:
                     SystemManager.printError(\
@@ -13636,8 +13772,6 @@ Copyright:
                 SystemManager.fileEnable = True
 
             elif option == 'C':
-                SystemManager.cmdEnable = str(value)
-
                 # get output path #
                 if len(value) == 0:
                     SystemManager.printError((\
@@ -13645,19 +13779,25 @@ Copyright:
                         "input path to make command script"))
                     sys.exit(0)
 
-                # check output path #
-                if os.path.isfile(value):
-                    outputPath = value
-                    upDirPos = value.rfind('/')
-                    if upDirPos > 0 and \
-                        os.path.isdir(outputPath[:upDirPos]) is False:
-                        SystemManager.printError(\
-                            "wrong path %s with -C option" % outputPath)
-                        sys.exit(0)
-                elif os.path.isdir(value):
-                    SystemManager.cmdEnable = '%s/guider.cmd' % value
-                    SystemManager.cmdEnable = \
-                        SystemManager.cmdEnable.replace('//', '/')
+                # change output path #
+                try:
+                    if os.access(value, os.F_OK) or \
+                        os.access(os.path.dirname(value), os.W_OK):
+                        if os.path.isdir(value):
+                            SystemManager.cmdEnable = \
+                                '%s/guider.cmd' % value
+                        else:
+                            SystemManager.cmdEnable = value
+                    else:
+                        raise Exception()
+                except:
+                    SystemManager.printError(\
+                        "wrong option value %s with -C option" % value)
+                    sys.exit(0)
+
+                # remove double slashs #
+                SystemManager.cmdEnable = \
+                    os.path.normpath(SystemManager.cmdEnable)
 
             elif option == 't':
                 SystemManager.sysEnable = True
@@ -13847,6 +13987,9 @@ Copyright:
 
     @staticmethod
     def isThreadRecordMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'record':
             return True
         else:
@@ -13856,6 +13999,9 @@ Copyright:
 
     @staticmethod
     def isFuncRecordMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'funcrecord':
             return True
         else:
@@ -13865,6 +14011,9 @@ Copyright:
 
     @staticmethod
     def isFileRecordMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'filerecord':
             return True
         else:
@@ -13874,6 +14023,9 @@ Copyright:
 
     @staticmethod
     def isSystemRecordMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'sysrecord':
             return True
         else:
@@ -13883,6 +14035,9 @@ Copyright:
 
     @staticmethod
     def isStartMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'start':
             return True
         else:
@@ -13891,6 +14046,9 @@ Copyright:
 
     @staticmethod
     def isServerMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'server':
             return True
         else:
@@ -13900,6 +14058,9 @@ Copyright:
 
     @staticmethod
     def isClientMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'client':
             return True
         else:
@@ -13909,6 +14070,9 @@ Copyright:
 
     @staticmethod
     def isListMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'list':
             return True
         else:
@@ -13918,6 +14082,9 @@ Copyright:
 
     @staticmethod
     def isStopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'stop':
             return True
         else:
@@ -13926,6 +14093,9 @@ Copyright:
 
     @staticmethod
     def isSendMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'send' or sys.argv[1] == 'kill':
             return True
         else:
@@ -13935,6 +14105,9 @@ Copyright:
 
     @staticmethod
     def isAllocTestMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'alloctest':
             return True
         else:
@@ -13944,6 +14117,9 @@ Copyright:
 
     @staticmethod
     def isSetSchedMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'setsched':
             return True
         else:
@@ -13953,6 +14129,9 @@ Copyright:
 
     @staticmethod
     def isConvertMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'convert':
             return True
         else:
@@ -13962,6 +14141,9 @@ Copyright:
 
     @staticmethod
     def isStraceMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'strace':
             return True
         else:
@@ -13971,6 +14153,9 @@ Copyright:
 
     @staticmethod
     def isSetAffinityMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'setaffinity':
             return True
         else:
@@ -13980,6 +14165,9 @@ Copyright:
 
     @staticmethod
     def isGetAffinityMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'getaffinity':
             return True
         else:
@@ -13989,6 +14177,9 @@ Copyright:
 
     @staticmethod
     def isCpuLimitMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'cpulimit':
             return True
         else:
@@ -13998,6 +14189,9 @@ Copyright:
 
     @staticmethod
     def isPerfTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'perftop':
             return True
         else:
@@ -14007,6 +14201,9 @@ Copyright:
 
     @staticmethod
     def isMemTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'memtop':
             return True
         else:
@@ -14016,6 +14213,9 @@ Copyright:
 
     @staticmethod
     def isWssTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'wsstop':
             return True
         else:
@@ -14025,6 +14225,9 @@ Copyright:
 
     @staticmethod
     def isBgTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'bgtop':
             return True
         else:
@@ -14034,6 +14237,9 @@ Copyright:
 
     @staticmethod
     def isDiskTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'disktop':
             return True
         else:
@@ -14043,6 +14249,9 @@ Copyright:
 
     @staticmethod
     def isStackTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'stacktop':
             return True
         else:
@@ -14052,6 +14261,9 @@ Copyright:
 
     @staticmethod
     def isFileTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'filetop':
             return True
         else:
@@ -14061,6 +14273,9 @@ Copyright:
 
     @staticmethod
     def isReportTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'reptop':
             return True
         else:
@@ -14070,6 +14285,9 @@ Copyright:
 
     @staticmethod
     def isThreadTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'threadtop':
             return True
         else:
@@ -14079,6 +14297,9 @@ Copyright:
 
     @staticmethod
     def isTopMode():
+        if len(sys.argv) == 1:
+            return False
+
         if sys.argv[1] == 'top':
             return True
         elif SystemManager.isFileTopMode() or \
@@ -14093,6 +14314,16 @@ Copyright:
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def isRuntimeMode():
+        if SystemManager.isRecordMode() or \
+            SystemManager.isTopMode() or \
+            SystemManager.isStraceMode():
+            return True
+        return False
 
 
 
@@ -14385,7 +14616,7 @@ Copyright:
 
         # remove redundant slashes and save it as the global report path #
         SystemManager.reportPath = \
-            reportPath.replace('//', '/')
+            os.path.normpath(reportPath)
 
         SystemManager.reportEnable = True
 
@@ -15485,6 +15716,9 @@ Copyright:
                 "Wrong path %s to convert file" % value)
             sys.exit(0)
 
+        # set output file name #
+        SystemManager.imagePath = os.path.splitext(value)[0]
+
         # open text file #
         try:
             with open(value, 'r') as fd:
@@ -16269,7 +16503,7 @@ Copyright:
                     raise Exception()
 
             SystemManager.printInfo(\
-                'priority of %d task is changed to %d[%s]' % \
+                'priority of task %d is changed to %d[%s]' % \
                 (pid, pri, upolicy))
         except:
             err = ''
@@ -16843,8 +17077,11 @@ Copyright:
 
         if SystemManager.fileForPrint is not None:
             try:
+                SystemManager.fileForPrint.flush()
+
                 fsize = SystemManager.convertSize2Unit(\
                     int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
+
                 SystemManager.printInfo(\
                     "finish saving results into %s [%s] successfully" % \
                     (SystemManager.fileForPrint.name, fsize))
@@ -17083,7 +17320,7 @@ Copyright:
                 SystemManager.writeCmd('../trace_options', 'funcgraph-overhead')
                 SystemManager.writeCmd('../trace_options', 'funcgraph-duration')
                 SystemManager.writeCmd(\
-                    '../max_graph_depth', str(SystemManager.depth))
+                    '../max_graph_depth', str(SystemManager.funcDepth))
 
                 if SystemManager.customCmd is None:
                     SystemManager.writeCmd('../set_ftrace_filter', '')
@@ -17874,7 +18111,7 @@ Copyright:
 
             try:
                 rpath = os.path.realpath(dev)
-                dev = rpath[rpath.rfind('/')+1:]
+                dev = os.path.basename(rpath)
 
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
@@ -23396,12 +23633,20 @@ class ThreadAnalyzer(object):
 
 
     def sampleStack(self, period):
+        def findNthStr(s, x, n, i = 0):
+            i = s.find(x, i)
+            if n == 1 or i == -1:
+                return i 
+            else:
+                return findNthStr(s, x, n - 1, i + len(x))
+
         start = time.time()
 
         while 1:
             for idx in list(self.stackTable.keys()):
                 item = self.stackTable[idx]
 
+                # read stack #
                 try:
                     item['fd'].seek(0)
                     stack = item['fd'].read()
@@ -23411,6 +23656,15 @@ class ThreadAnalyzer(object):
                     self.stackTable.pop(idx, None)
                     continue
 
+                # cut stack length #
+                try:
+                    if SystemManager.funcDepth > 0:
+                        nth = findNthStr(stack, '\n', SystemManager.funcDepth)
+                        stack = stack[:nth]
+                except:
+                    pass
+
+                # count sampled stack #
                 try:
                     item['total'] += 1
                     item['stack'][stack] += 1
@@ -23424,53 +23678,6 @@ class ThreadAnalyzer(object):
 
             # set 1ms as sampling rate #
             time.sleep(0.001)
-
-
-
-    def makeTaskChainList(self):
-        if ConfigManager.taskChainEnable != True:
-            return
-
-        while 1:
-            eventInput = raw_input('\nInput event(file) name for taskchain: ')
-            fd = ConfigManager.openConfFile(eventInput)
-            if fd != None:
-                break
-
-        ConfigManager.writeConfData(fd, '[%s]\n' % (eventInput))
-        threadInput = \
-            raw_input(\
-            'Input id of target threads for taskchain (ex. 13,144,235): ')
-        threadList = threadInput.split(',')
-        ConfigManager.writeConfData(fd, 'nr_tid=' + str(len(threadList)) + '\n')
-
-        for index, t in enumerate(threadList):
-            cmdline = ConfigManager.readProcData(t, 'cmdline', 0)
-            if cmdline == None:
-                continue
-
-            cmdline = cmdline[0:cmdline.find('\x00')]
-            cmdline = cmdline[0:cmdline.rfind('/')]
-            cmdline = cmdline.replace(' ', '-')
-            if len(cmdline) > 256:
-                cmdline = cmdline[0:255]
-
-            try:
-                self.threadData[t]
-            except:
-                SystemManager.printWarning(\
-                    "thread [%s] is not in profiled data" % t)
-                continue
-
-            ConfigManager.writeConfData(fd,\
-                str(index) + '=' + \
-                ConfigManager.readProcData(t, 'stat', 2).replace('\x00', '-') + \
-                '+' + cmdline + ' ' + str(self.threadData[t]['ioRank']) + ' ' + \
-                str(self.threadData[t]['reqRdBlock']) + ' ' + \
-                str(self.threadData[t]['cpuRank']) + ' ' + \
-                str(self.threadData[t]['usage']) + '\n')
-
-        SystemManager.pipePrint("%s.tc is written successfully" % eventInput)
 
 
 
@@ -24379,7 +24586,7 @@ class ThreadAnalyzer(object):
             self.threadData.items(), \
             key=lambda e: e[1]['new'], reverse=True):
 
-            if value['new'] == ' ' or SystemManager.selectMenu != None:
+            if value['new'] == ' ':
                 break
 
             count += 1
@@ -24473,7 +24680,7 @@ class ThreadAnalyzer(object):
             self.threadData.items(), \
             key=lambda e: e[1]['die'], reverse=True):
 
-            if value['die'] == ' ' or SystemManager.selectMenu != None:
+            if value['die'] == ' ':
                 break
 
             count += 1
@@ -33933,6 +34140,7 @@ class ThreadAnalyzer(object):
                         int(os.path.getsize(filePath)))
                 except:
                     fsize = '?'
+
                 SystemManager.printStatus((\
                     "finish saving results based monitoring "
                     "by event into %s [%s] successfully") % \
@@ -34357,6 +34565,7 @@ if __name__ == '__main__':
             elif SystemManager.isIoDrawMode():
                 SystemManager.layout = 'IO'
 
+            # modify args #
             sys.argv[1] = 'top'
             SystemManager.sourceFile = sys.argv[2]
 
@@ -34497,51 +34706,11 @@ if __name__ == '__main__':
 
     #-------------------- FUNCTION MODE --------------------#
     if SystemManager.isFunctionMode():
-        # create FunctionAnalyzer #
-        fi = FunctionAnalyzer(SystemManager.inputFile)
-
-        # print Function Info #
-        fi.printUsage()
+        FunctionAnalyzer(SystemManager.inputFile).printUsage()
     #-------------------- THREAD MODE --------------------#
     else:
-        # create ThreadAnalyzer #
-        ti = ThreadAnalyzer(SystemManager.inputFile)
-
-        # print thread usage #
-        ti.printUsage()
-
-        # print communication usage #
-        ti.printComInfo()
-
-        # print event usage #
-        ti.printEventInfo()
-
-        # print block usage #
-        ti.printBlockInfo()
-
-        # print resource usage of threads on timeline #
-        ti.printIntervalInfo()
-
-        # print kernel module info #
-        ti.printModuleInfo()
-
-        # print dependency of threads #
-        ti.printDepInfo()
-
-        # print futex and flock of threads #
-        ti.printFutexInfo()
-        ti.printFlockInfo()
-
-        # print system call usage #
-        ti.printSyscallInfo()
-
-        # print kernel messages #
-        ti.printConsoleInfo()
+        ThreadAnalyzer(SystemManager.inputFile).printUsage()
 
     # print event info #
     EventAnalyzer.printEventInfo()
 
-    # start input menu #
-    if SystemManager.selectMenu != None:
-        #ti.makeTaskChainList()
-        pass
