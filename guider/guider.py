@@ -11620,7 +11620,8 @@ Copyright:
     def stopHandler(signum, frame):
         if SystemManager.isFileMode() or SystemManager.isSystemMode():
             SystemManager.condExit = True
-        elif SystemManager.isTopMode():
+        elif SystemManager.isTopMode() or \
+            SystemManager.isStraceMode():
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
 
@@ -15152,6 +15153,15 @@ Copyright:
 
 
     @staticmethod
+    def setNormalSignal():
+        signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
+        signal.signal(signal.SIGINT, SystemManager.stopHandler)
+        signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+
+
+    @staticmethod
     def runServerMode():
         def sendErrMsg(netObj, ip, port, message):
             message = 'ERROR|%s:%s:%s' % (message, ip, port)
@@ -15736,6 +15746,8 @@ Copyright:
 
         # no use pager #
         SystemManager.printStreamEnable = True
+
+        SystemManager.setNormalSignal()
 
         # check tid #
         if SystemManager.isRoot() is False:
@@ -20960,7 +20972,6 @@ class Debugger(object):
                 SystemManager.ctypesObj = ctypes
             ctypes = SystemManager.ctypesObj
         except SystemExit:
-            os._exit(0)
             sys.exit(0)
         except ImportError:
             err = sys.exc_info()[1]
@@ -20973,7 +20984,7 @@ class Debugger(object):
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
         except SystemExit:
-            os._exit(0)
+            sys.exit(0)
         except:
             pass
 
@@ -20990,7 +21001,7 @@ class Debugger(object):
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
-            os._exit(0)
+            sys.exit(0)
         except:
             SystemManager.printWarning('Fail to call ptrace in libc')
 
@@ -34381,9 +34392,8 @@ if __name__ == '__main__':
         if SystemManager.repeatCount > 0 and \
             SystemManager.repeatInterval > 0 and \
             (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
-            signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
-            signal.signal(signal.SIGINT, SystemManager.stopHandler)
-            signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+
+            # set alarm interval #
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.outputFile is None:
@@ -34393,8 +34403,9 @@ if __name__ == '__main__':
         else:
             SystemManager.repeatInterval = 0
             SystemManager.repeatCount = 0
-            signal.signal(signal.SIGINT, SystemManager.stopHandler)
-            signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+
+        # set normal signal #
+        SystemManager.setNormalSignal()
 
         SystemManager.printStatus(\
             r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
@@ -34682,8 +34693,7 @@ if __name__ == '__main__':
 
         # set handler for exit #
         if sys.platform.startswith('linux'):
-            signal.signal(signal.SIGINT, SystemManager.stopHandler)
-            signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+            SystemManager.setNormalSignal()
 
         # run in the background #
         if SystemManager.backgroundEnable:
