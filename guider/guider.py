@@ -22695,7 +22695,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
 
@@ -23046,7 +23046,7 @@ class ThreadAnalyzer(object):
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
-                        fontsize=3.5, loc='upper right', framealpha=0.2)
+                        fontsize=3.5, loc='upper right')
                 else:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
                         loc='upper right')
@@ -23398,7 +23398,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
 
@@ -26057,7 +26057,7 @@ class ThreadAnalyzer(object):
             ylabel('MEMORY(MB)', fontsize=8)
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
 
@@ -26177,7 +26177,7 @@ class ThreadAnalyzer(object):
             totalLabel = cpuLabelList + cpuThrLabelList
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),\
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1), loc='upper right')
 
