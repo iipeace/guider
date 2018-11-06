@@ -13705,7 +13705,7 @@ Copyright:
                     SystemManager.isSystemRecordMode() or \
                     SystemManager.findOption('y'):
                     SystemManager.printFile = \
-                        SystemManager.outputFile
+                        '%s.out' % os.path.splitext(SystemManager.outputFile)[0]
 
             elif option == 'D':
                 SystemManager.depEnable = True
