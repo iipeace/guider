@@ -690,7 +690,7 @@ Output
        
 >>>
        
-    # ./guider.py record -f -s .
+    # ./guider.py funcrecord -s .
     # ./guider.py guider.dat -o . -a
 
     [Function CPU Info] [Cnt: 394] [Interval: 8ms] (USER)
@@ -724,7 +724,7 @@ Output
        
 >>>
        
-    # ./guider.py record -f -e m -s .
+    # ./guider.py funcrecord -e m -s .
     # ./guider.py guider.dat -o . -a
 
     [Function Page Info] [Total: 11416KB] [Alloc: 11444KB(817)] [Free: 188KB(47)] (USER)
@@ -768,7 +768,7 @@ Output
        
 >>>
        
-    # ./guider.py record -F
+    # ./guider.py filerecord
 
     [File Usage Info] [ File: 281 ] [ RAM: 78056(KB) ] [ Keys: Foward/Back/Save/Quit ]
     ==========================================================================================================================================================
@@ -817,19 +817,21 @@ How to use
 =======
 
 ```
-Input a command as below to start tracing for all threads.
-    # ./guider.py record -a
-And input 'Ctrl + c' on keyboard to finish tracing.
-
-Input a command as below to start monitoring for all processes.
-    $ ./guider.py top -a
-And Input 'Ctrl + c' on keyboard to finish monitoring.
-
-Input a command as below to see more instructions.
+Enter the following command to see all commands supported by the guider:
     $ ./guider.py -h
 
-Visit a below link to see the output of guider.
-- https://github.com/iipeace/guider/wiki
+Enter the following command to start tracing for all threads:
+    # ./guider.py record -a
+
+Enter the following command to start monitoring for all processes:
+    $ ./guider.py top -a
+
+Enter the command in the format shown bellow to see options and examples for each command:
+    $ ./guider.py record -h
+    $ ./guider.py top -h
+
+Visit the following link to see the output of guider:
+    - https://github.com/iipeace/guider/wiki
 ```
 
 
@@ -846,15 +848,15 @@ Build & Installation
 =======
 
 ```
-If you can run 'pip' on your system then just input a command as below
+If you can run 'pip' on your system then just enter the following command:
     # pip install guider
-Then you can use 'guider' command
 
-Otherwise, download the source from https://github.com/iipeace/guider
-Then you can just run "guider.py" but it is a little bit heavy 
-If you want to run guider lightly then input a command as below
+Otherwise, download the source from https://github.com/iipeace/guider,
+and just run "guider.py" on shell.
+
+If you want to run guider faster and lighter,
+then build and install it on your system as below.
     # make && make install
-Then you can use 'guider' command
 ```
 
 
@@ -898,364 +900,62 @@ CONFIG_HW_PERF_EVENT
 ```
 
 
-Modes
+Help
 =======
 
 ```
-[analysis]
-    top         [process]
-    bgtop       [background]
-    threadtop   [thread]
-    filetop     [file]
-    stacktop    [stack]
-    perftop     [PMU]
-    memtop      [memory]
-    disktop     [storage]
-    wsstop      [WSS]
-    reptop      [report]
-
-    record      [thread]
-    funcrecord  [function]
-    filerecord  [file]
-    sysrecord   [system]
-
-    draw        [image]
-    cpudraw     [cpu]
-    memdraw     [memory]
-    vssdraw     [vss]
-    rssdraw     [rss]
-    leakdraw    [leak]
-    iodraw      [io]
-
-    mem         [page]
-
-    strace      [syscall]
-
-[control]
-    kill        [signal]
-    setsched    [priority]
-    getaffinity [affinity]
-    setaffinity [affinity]
-    server      [server]
-    client      [client]
-    cpulimit    [cpu]
-
-[test]
-    alloctest   [mem]
-
-[communication]
-    list
-    start
-    send
-    event
-```
-
-
-Options
-=======
-
-* Use comma(,) as delimiter for multiple option values
-
-```
-[record]
-    -e  [enable_options - characters]
-          [common]   {m(em)|b(lock)|e(ncoding)}
-          [function] {h(eap)|L(ock)|p(ipe)|g(raph)}
-          [thread]   {i(rq)|l(ock)|n(et)|p(ipe)|
-                      P(ower)|r(eset)|g(raph)}
-          [top]      {t(hread)|wf(C)|s(tack)|w(ss)|d(isk)|
-                      P(erf)|G(pu)|i(rq)|ps(S)|u(ss)|W(chan)|
-                      I(mage)|a(ffinity)|r(eport)|a(ffinity)|
-                      h(andler)|f(loat)|R(file)}
-    -d  [disable_options - characters]
-          [common]   {c(pu)|e(ncoding)}
-          [thread]   {a(ll)}
-          [function] {a(ll)|u(ser)}
-          [top]      {p(rint)|P(erf)|W(chan)|n(net)}
-    -s  [save_traceData - path]
-    -u  [run_inBackground]
-    -W  [wait_forSignal]
-    -b  [set_bufferSize - KB]
-    -D  [trace_threadDependency]
-    -t  [trace_syscall - syscalls]
-    -T  [set_fontPath - path]
-    -j  [set_reportPath - path]
-    -U  [set_userEvent - name:func|addr:file]
-    -K  [set_kernelEvent - name:func|addr{:%reg/argtype:rettype}]
-    -C  [set_commandScriptPath - path]
-    -w  [set_customRecordCommand - BEFORE|AFTER|STOP:file{:value}]
-    -x  [set_addressForLocalServer - {ip:port}]
-    -X  [set_requestToRemoteServer - {req@ip:port}]
-    -N  [set_reportToRemoteServer - req@ip:port]
-    -M  [set_objdumpPath - file]
-
-[analysis]
-    -o  [save_outputData - path]
-    -S  [sort - c(pu)/m(em)/b(lock)/w(fc)/p(id)/
-                n(ew)/r(untime)/f(ile)/s(yscall)]
-    -O  [set_coreFilter - cores]
-    -P  [group_perProcessBasis]
-    -p  [show_preemptInfo - tids]
-    -l  [set_addr2linePath - files]
-    -r  [set_targetRootPath - dir]
-    -I  [set_inputValue - file|addr]
-    -q  [configure_taskList]
-    -Z  [convert_textToImage]
-    -L  [set_graphLayout - CPU|MEM|IO{:proportion}]
-    -m  [set_terminalSize - {rows:cols}]
-
-[common]
-    -a  [show_allInfo]
-    -Q  [print_allRowsInaStream]
-    -i  [set_interval - sec]
-    -R  [set_repeatCount - {interval:}count]
-    -g  [set_filter - comms|tids{:files}]
-    -A  [set_arch - arm|aarch64|x86|x64]
-    -c  [set_customEvent - event:cond]
-    -E  [set_errorLogPath - file]
-    -H  [set_functionDepth]
-    -k  [set_killList - comms|tids{:CONT}]
-    -z  [set_cpuAffinity - mask:tids|ALL{:CONT}]
-    -Y  [set_schedPriority - policy:prio|times{:tid|ALL:CONT}]
-    -v  [verbose]
-```
-
-
-Examples
-=======
-
-```
-[ thread mode examples ]
-
-    - record and report CPU events of threads
-        # ./guider.py record -s .
-
-    - record and save specific resource events of threads in the background
-        # ./guider.py record -s . -e m, b, i -u
-
-    - record and save specific resource events excluding CPU of threads in the background
-        # ./guider.py record -s . -e m, b, i -d c -u
-
-    - record and save specific system call events of specific threads
-        # ./guider.py record -s . -t sys_read, write -g 1234
-
-    - record and save lock events of threads
-        # ./guider.py record -s . -e L
-
-    - record and save specific user function events of threads
-        # ./guider.py record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
-
-    - record and save specific kernel function events of threads
-        # ./guider.py record -s . -K evt1:func1, evt2:0x1234
-
-    - record and save specific kernel function events with register values
-        # ./guider.py record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
-
-    - record and save specific kernel function events with the return value
-        # ./guider.py record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
-
-    - execute special commands and record and save CPU events of threads
-        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
-
-    - report all possible information from trace data
-        # ./guider.py guider.dat -o . -a -i
-
-    - report stats on a specific interval from trace data
-        # ./guider.py guider.dat -o . -R 3
-
-    - report stats including preemption of specific threads from trace data
-        # ./guider.py guider.dat -o . -p 1234, 4567
-
-    - report stats including specific threads involved in the specific processes from trace data
-        # ./guider.py guider.dat -o . -P -g 1234, 4567
-
-    - draw graph and chart from trace data
-        # ./guider.py draw guider.dat
-
-[ function mode examples ]
-
-    - record and report CPU function events of threads
-        # ./guider.py record -f -s .
-
-    - record and save CPU function events of specific threads having TID bigger than 1024
-        # ./guider.py record -f -s . -g 1024\<
-
-    - record and save specific function events of threads except for user-mode
-        # ./guider.py record -f -s . -d u -c sched/sched_switch
-
-    - record and save specific resource function events specific threads
-        # ./guider.py record -f -s . -e m, b, h -g 1234
-
-    - record and save specific function events of threads with specific argument condition
-        # ./guider.py record -f -s . -c softirq_entry:vec══1
-
-    - record and save segmentation fault function events of threads
-        # ./guider.py record -f -s . -K segflt:bad_area -e p
-
-    - record and save blocking function events of threads
-        # ./guider.py record -f -s . -K block:schedule
-
-    - execute special commands and record and save CPU function events of threads
-        # ./guider.py record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
-
-    - report all possible information from trace data using specific toolchain tools
-        # ./guider.py guider.dat -o . -r /home/target/root -l $(which arm-addr2line) -a
-
-    - report all possible information with remote server support
-        # ./guider.py guider.dat -o . -a -X 10.97.20.53:5555 -x 1234
-
-    - report all possible information about only lower than 3 function levels
-        # ./guider.py guider.dat -o . -H 3
-
-[ top mode examples ]
-
-    - show resource usage of processes in real-time
-        # ./guider.py top
-
-    - show resource usage of processes on the fixed-size terminal in real-time
-        # ./guider.py top -m
-
-    - show files opened via processes in real-time
-        # ./guider.py top -e F
-
-    - show specific files opened via specific processes in real-time
-        # ./guider.py top -e F -g init, lightdm : home, var
-
-    - show performance stats of specific processes in real-time
-        # ./guider.py top -e P -g init, lightdm
-
-    - show resource usage of processes by sorting memory in real-time
-        # ./guider.py top -S m
-
-    - show resource usage of processes by sorting file in real-time
-        # ./guider.py top -S f
-
-    - show resource usage of processes only 5 times in real-time
-        # ./guider.py top -R 5
-
-    - show resource usage of processes only 5 times per 3-sec interval in real-time
-        # ./guider.py top -R 3, 5
-
-    - show resource usage including block of threads per 2-sec interval in real-time
-        # ./guider.py top -e t, b -i 2 -a
-
-    - show resource usage of specific processes/threads involved in specific process group in real-time
-        # ./guider.py top -g 1234,4567 -P
-
-    - save resource usage of processes and write to the specific file in real-time
-        # ./guider.py top -o . -e p
-
-    - save and print resource usage of processes in real-time
-        # ./guider.py top -o . -Q
-
-    - save resource usage of processes in the background
-        # ./guider.py top -o . -u
-
-    - report system stats in the background
-        # ./guider.py reporttop -j . -u
-
-    - save resource usage of processes and report system stats if some events occur
-        # ./guider.py top -o . -e r, R
-
-    - save resource usage of processes and report system status to the specific image
-        # ./guider.py top -o . -e r, I
-
-    - save resource usage of processes and report to file if specific conditions met
-        # ./guider.py top -o . -e R
-
-    - show resource usage of processes and execute special commands every interval
-        # ./guider.py top -w AFTER:/tmp/touched:1, AFTER:ls
-
-    - show storage usage in real-time
-        # ./guider.py disktop
-
-    - trace memory working set of specific processes
-        # ./guider.py wsstop -g chrome
-
-    - draw graph and chart to specific files
-        # ./guider.py draw guider.out
-
-    - draw graph and chart for specific process group to specific files
-        # ./guider.py draw guider.out -g chrome
-
-    - draw CPU and memory graphs of specific processes to a specific file proportionally
-        # ./guider.py draw guider.out -g chrome -L cpu:5, mem:5
-
-    - draw VSS graph and chart for specific processes to specific files
-        # ./guider.py vssdraw guider.out -g chrome
-
-    - draw leak graph and chart to specific files
-        # ./guider.py leakdraw guider.out
-
-    - show and report resource usage of processes to specific server
-        # ./guider.py top -e r -N REPORT_ALWAYS@192.168.0.5:5555
-
-    - show and report resource usage of processes to specific clients that asked it
-        # ./guider.py top -x 5555
-
-    - handle report data from the server
-        # ./guider.py top -x 5555 -X
-
-    - show resource usage of processes and set condition file path for the report
-        # ./guider.py top -I guider.json
-
-[ file mode examples ]
-
-    - trace memory usage of files mapped to processes
-        # ./guider.py record -F -o .
-
-    - trace memory usage of files mapped to processes each interval
-        # ./guider.py record -F -i
-
-[ etc examples ]
-
-    - check the property of specific pages
-        # ./guider.py mem -g 1234 -I 0x7abc1234-0x7abc6789
-
-    - convert a text file to an image file
-        # ./guider.py guider.out -Z
-
-    - wait for the signal to start
-        # ./guider.py record│top -W
-
-    - show guider processes
-        # ./guider.py list
-
-    - send the signal to all guider processes
-        # ./guider.py send
-        # ./guider.py kill 
-
-    - send the stop signal to all guider processes
-        # ./guider.py stop
-
-    - send specific signals to specific processes
-        # ./guider.py send -9 1234, 4567
-        # ./guider.py kill -kill 1234, 4567
-
-    - change the priority of tasks
-        # ./guider.py setsched c:-19, r:90:1217, i:0:1209
-
-    - change the priority of tasks in a group
-        # ./guider.py setsched c:-19, r:90:1217 -P
-
-    - update priority of all tasks shown to real-time 90
-        # ./guider.py top -Y r:90:ALL
-
-    - update priority of all tasks shown to the deadline policy
-        # ./guider.py top -Y d:1000000/20000000/20000000:ALL
-
-    - update the priority of a task continuously to real-time 90
-        # ./guider.py top -Y r:90:1234:CONT
-
-    - update CPU affinity of all tasks shown
-        # ./guider.py top -z f:ALL
-
-    - update CPU affinity of tasks continuously
-        # ./guider.py top -z f:1234:CONT
-
-    - limit CPU usage of specific processes
-        # ./guider.py cpulimit -g 1234:40, 5678:10
-
-    - limit CPU usage of specific threads
-        # ./guider.py cpulimit -g 1234:40, 5678:10 -e t
+Usage:
+    $ ./guider.py COMMAND|FILE [OPTIONS] [--help] [--version]
+
+COMMAND:
+    [monitor]   top         <process>
+                threadtop   <thread>
+                bgtop       <background>
+                stacktop    <stack>
+                perftop     <PMU>
+                memtop      <memory>
+                disktop     <storage>
+                wsstop      <memory>
+                reptop      <json>
+                filetop     <file>
+
+    [profile]   record      <thread>
+                funcrecord  <function>
+                filerecord  <file>
+                sysrecord   <system>
+
+    [trace]     strace      <syscall>
+                mem         <page>
+
+    [visual]    draw        <image>
+                cpudraw     <cpu>
+                memdraw     <memory>
+                vssdraw     <vss>
+                rssdraw     <rss>
+                leakdraw    <leak>
+                iodraw      <I/O>
+
+    [control]   kill        <signal>
+                cpulimit    <cpu>
+                setsched    <priority>
+                getaffinity <affinity>
+                setaffinity <affinity>
+
+    [test]      alloctest   <mem>
+
+    [util]      convert     <text>
+
+    [comm]      list        <list>
+                start       <signal>
+                send        <signal>
+                event       <event>
+                server      <server>
+                client      <client>
+
+FILE:
+    Profile file (e.g. guider.dat)
+    Report  file (e.g. guider.out)
+
+OPTIONS:
+    Check COMMAND with --help (e.g. ./guider.py top --help)
 ```
