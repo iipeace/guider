@@ -92,7 +92,7 @@ class ConfigManager(object):
     }
 
     # Define state of process #
-    procStatList = {
+    PROC_STAT_TYPE = {
         'R': 'running',
         'S': 'sleep',
         'D': 'disk',
@@ -101,8 +101,1809 @@ class ConfigManager(object):
         'W': 'paging'
         }
 
+    # Define socketcall attributes #
+    SOCKETCALL = {
+        1: "socket",
+        2: "bind",
+        3: "connect",
+        4: "listen",
+        5: "accept",
+        6: "getsockname",
+        7: "getpeername",
+        8: "socketpair",
+        9: "send",
+        10: "recv",
+        11: "sendto",
+        12: "recvfrom",
+        13: "shutdown",
+        14: "setsockopt",
+        15: "getsockopt",
+        16: "sendmsg",
+        17: "recvmsg",
+    }
+
+    # Define socket family #
+    SOCKET_FAMILY = {
+        0: "AF_UNSPEC",
+        1: "AF_FILE",
+        2: "AF_INET",
+        3: "AF_AX25",
+        4: "AF_IPX",
+        5: "AF_APPLETALK",
+        6: "AF_NETROM",
+        7: "AF_BRIDGE",
+        8: "AF_ATMPVC",
+        9: "AF_X25",
+        10: "AF_INET6",
+        11: "AF_ROSE",
+        12: "AF_DECnet",
+        13: "AF_NETBEUI",
+        14: "AF_SECURITY",
+        15: "AF_KEY",
+        16: "AF_NETLINK",
+        17: "AF_PACKET",
+        18: "AF_ASH",
+        19: "AF_ECONET",
+        20: "AF_ATMSVC",
+        22: "AF_SNA",
+        23: "AF_IRDA",
+        24: "AF_PPPOX",
+        25: "AF_WANPIPE",
+        31: "AF_BLUETOOTH",
+    }
+
+    # Define socket type #
+    SOCKET_TYPE = {
+        1: "SOCK_STREAM",
+        2: "SOCK_DGRAM",
+        3: "SOCK_RAW",
+        4: "SOCK_RDM",
+        5: "SOCK_SEQPACKET",
+        10: "SOCK_PACKET",
+    }
+
+    # Define syscall prototypes #
+    SYSCALL_PROTOTYPES = {
+        "accept": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int *", "addrlen"),
+        )),
+        "accept4": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int *", "addrlen"),
+            ("int", "flags"),
+        )),
+        "access": ("long", (
+            ("const char *", "filename"),
+            ("int", "mode"),
+        )),
+        "acct": ("long", (
+            ("const char *", "name"),
+        )),
+        "add_key": ("long", (
+            ("const char *", "_type"),
+            ("const char *", "_description"),
+            ("const void *", "_payload"),
+            ("size_t", "plen"),
+            ("key_serial_t", "destringid"),
+        )),
+        "adjtimex": ("long", (
+            ("struct timex *", "txc_p"),
+        )),
+        "alarm": ("long", (
+            ("unsigned int", "seconds"),
+        )),
+        "bdflush": ("long", (
+            ("int", "func"),
+            ("long", "data"),
+        )),
+        "bind": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int", "addrlen"),
+        )),
+        "bpf": ("long", (
+            ("int", "cmd"),
+            ("union bpf_attr *", "attr"),
+            ("unsigned int", "size"),
+        )),
+        "brk": ("long", (
+            ("unsigned long", "brk"),
+        )),
+        "capget": ("long", (
+            ("cap_user_header_t", "header"),
+            ("cap_user_data_t", "dataptr"),
+        )),
+        "capset": ("long", (
+            ("cap_user_header_t", "header"),
+            ("const cap_user_data_t", "data"),
+        )),
+        "chdir": ("long", (
+            ("const char *", "filename"),
+        )),
+        "chmod": ("long", (
+            ("const char *", "filename"),
+            ("umode_t", "mode"),
+        )),
+        "chown": ("long", (
+            ("const char *", "filename"),
+            ("uid_t", "user"),
+            ("gid_t", "group"),
+        )),
+        "chown16": ("long", (
+            ("const char *", "filename"),
+            ("old_uid_t", "user"),
+            ("old_gid_t", "group"),
+        )),
+        "chroot": ("long", (
+            ("const char *", "filename"),
+        )),
+        "clock_adjtime": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct timex *", "tx"),
+        )),
+        "clock_getres": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct timespec *", "tp"),
+        )),
+        "clock_gettime": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct timespec *", "tp"),
+        )),
+        "clock_nanosleep": ("long", (
+            ("clockid_t", "which_clock"),
+            ("int", "flags"),
+            ("const struct timespec *", "rqtp"),
+            ("struct timespec *", "rmtp"),
+        )),
+        "clock_settime": ("long", (
+            ("clockid_t", "which_clock"),
+            ("const struct timespec *", "tp"),
+        )),
+        "clone": ("long", (
+            ("unsigned long", "flags"),
+            ("unsigned long", "child_stack"),
+            ("int *", "ptid"),
+            ("int *", "ctid"),
+            ("unsigned long", "regs"),
+        )),
+        "close": ("long", (
+            ("unsigned int", "fd"),
+        )),
+        "connect": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int", "addrlen"),
+        )),
+        "copy_file_range": ("long", (
+            ("int", "fd_in"),
+            ("loff_t *", "off_in"),
+            ("int", "fd_out"),
+            ("loff_t *", "off_out"),
+            ("size_t", "len"),
+            ("unsigned int", "flags"),
+        )),
+        "creat": ("long", (
+            ("const char *", "pathname"),
+            ("umode_t", "mode"),
+        )),
+        "delete_module": ("long", (
+            ("const char *", "name_user"),
+            ("unsigned int", "flags"),
+        )),
+        "dup": ("long", (
+            ("unsigned int", "fildes"),
+        )),
+        "dup2": ("long", (
+            ("unsigned int", "oldfd"),
+            ("unsigned int", "newfd"),
+        )),
+        "dup3": ("long", (
+            ("unsigned int", "oldfd"),
+            ("unsigned int", "newfd"),
+            ("int", "flags"),
+        )),
+        "epoll_create": ("long", (
+            ("int", "size"),
+        )),
+        "epoll_create1": ("long", (
+            ("int", "flags"),
+        )),
+        "epoll_ctl": ("long", (
+            ("int", "epfd"),
+            ("int", "op"),
+            ("int", "fd"),
+            ("struct epoll_event *", "event"),
+        )),
+        "epoll_pwait": ("long", (
+            ("int", "epfd"),
+            ("struct epoll_event *", "events"),
+            ("int", "maxevents"),
+            ("int", "timeout"),
+            ("const sigset_t *", "sigmask"),
+            ("size_t", "sigsetsize"),
+        )),
+        "epoll_wait": ("long", (
+            ("int", "epfd"),
+            ("struct epoll_event *", "events"),
+            ("int", "maxevents"),
+            ("int", "timeout"),
+        )),
+        "eventfd": ("long", (
+            ("unsigned int", "count"),
+        )),
+        "eventfd2": ("long", (
+            ("unsigned int", "count"),
+            ("int", "flags"),
+        )),
+        "execve": ("long", (
+            ("const char *", "filename"),
+            ("const char *const *", "argv"),
+            ("const char *const *", "envp"),
+        )),
+        "execveat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("const char *const *", "argv"),
+            ("const char *const *", "envp"),
+            ("int", "flags"),
+        )),
+        "exit": ("long", (
+            ("int", "error_code"),
+        )),
+        "exit_group": ("long", (
+            ("int", "error_code"),
+        )),
+        "faccessat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("int", "mode"),
+        )),
+        "fadvise64": ("long", (
+            ("int", "fd"),
+            ("loff_t", "offset"),
+            ("size_t", "len"),
+            ("int", "advice"),
+        )),
+        "fadvise64_64": ("long", (
+            ("int", "fd"),
+            ("loff_t", "offset"),
+            ("loff_t", "len"),
+            ("int", "advice"),
+        )),
+        "fallocate": ("long", (
+            ("int", "fd"),
+            ("int", "mode"),
+            ("loff_t", "offset"),
+            ("loff_t", "len"),
+        )),
+        "fanotify_init": ("long", (
+            ("unsigned int", "flags"),
+            ("unsigned int", "event_f_flags"),
+        )),
+        "fanotify_mark": ("long", (
+            ("int", "fanotify_fd"),
+            ("unsigned int", "flags"),
+            ("u64", "mask"),
+            ("int", "fd"),
+            ("const char *", "pathname"),
+        )),
+        "fchdir": ("long", (
+            ("unsigned int", "fd"),
+        )),
+        "fchmod": ("long", (
+            ("unsigned int", "fd"),
+            ("umode_t", "mode"),
+        )),
+        "fchmodat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("umode_t", "mode"),
+        )),
+        "fchown": ("long", (
+            ("unsigned int", "fd"),
+            ("uid_t", "user"),
+            ("gid_t", "group"),
+        )),
+        "fchown16": ("long", (
+            ("unsigned int", "fd"),
+            ("old_uid_t", "user"),
+            ("old_gid_t", "group"),
+        )),
+        "fchownat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("uid_t", "user"),
+            ("gid_t", "group"),
+            ("int", "flag"),
+        )),
+        "fcntl": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "cmd"),
+            ("unsigned long", "arg"),
+        )),
+        "fcntl64": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "cmd"),
+            ("unsigned long", "arg"),
+        )),
+        "fdatasync": ("long", (
+            ("unsigned int", "fd"),
+        )),
+        "fgetxattr": ("long", (
+            ("int", "fd"),
+            ("const char *", "name"),
+            ("void *", "value"),
+            ("size_t", "size"),
+        )),
+        "finit_module": ("long", (
+            ("int", "fd"),
+            ("const char *", "uargs"),
+            ("int", "flags"),
+        )),
+        "flistxattr": ("long", (
+            ("int", "fd"),
+            ("char *", "list"),
+            ("size_t", "size"),
+        )),
+        "flock": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "cmd"),
+        )),
+        "fork": ("long", (
+        )),
+        "fremovexattr": ("long", (
+            ("int", "fd"),
+            ("const char *", "name"),
+        )),
+        "fsetxattr": ("long", (
+            ("int", "fd"),
+            ("const char *", "name"),
+            ("const void *", "value"),
+            ("size_t", "size"),
+            ("int", "flags"),
+        )),
+        "fstat": ("long", (
+            ("unsigned int", "fd"),
+            ("struct __old_kernel_stat *", "statbuf"),
+        )),
+        "fstat64": ("long", (
+            ("unsigned long", "fd"),
+            ("struct stat64 *", "statbuf"),
+        )),
+        "fstatat64": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("struct stat64 *", "statbuf"),
+            ("int", "flag"),
+        )),
+        "fstatfs": ("long", (
+            ("unsigned int", "fd"),
+            ("struct statfs *", "buf"),
+        )),
+        "fstatfs64": ("long", (
+            ("unsigned int", "fd"),
+            ("size_t", "sz"),
+            ("struct statfs64 *", "buf"),
+        )),
+        "fsync": ("long", (
+            ("unsigned int", "fd"),
+        )),
+        "ftruncate": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned long", "length"),
+        )),
+        "ftruncate64": ("long", (
+            ("unsigned int", "fd"),
+            ("loff_t", "length"),
+        )),
+        "futex": ("long", (
+            ("u32 *", "uaddr"),
+            ("int", "op"),
+            ("u32", "val"),
+            ("struct timespec *", "utime"),
+            ("u32 *", "uaddr2"),
+            ("u32", "val3"),
+        )),
+        "futimesat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("struct timeval *", "utimes"),
+        )),
+        "get_mempolicy": ("long", (
+            ("int *", "policy"),
+            ("unsigned long *", "nmask"),
+            ("unsigned long", "maxnode"),
+            ("unsigned long", "addr"),
+            ("unsigned long", "flags"),
+        )),
+        "get_robust_list": ("long", (
+            ("int", "pid"),
+            ("struct robust_list_head * *", "head_ptr"),
+            ("size_t *", "len_ptr"),
+        )),
+        "getcpu": ("long", (
+            ("unsigned *", "cpu"),
+            ("unsigned *", "node"),
+            ("struct getcpu_cache *", "cache"),
+        )),
+        "getcwd": ("long", (
+            ("char *", "pathname"),
+            ("unsigned long", "size"),
+        )),
+        "getdents": ("long", (
+            ("unsigned int", "fd"),
+            ("struct linux_dirent *", "dirent"),
+            ("unsigned int", "count"),
+        )),
+        "getdents64": ("long", (
+            ("unsigned int", "fd"),
+            ("struct linux_dirent64 *", "dirent"),
+            ("unsigned int", "count"),
+        )),
+        "getegid": ("long", (
+        )),
+        "getegid16": ("long", (
+        )),
+        "geteuid": ("long", (
+        )),
+        "geteuid16": ("long", (
+        )),
+        "getgid": ("long", (
+        )),
+        "getgid16": ("long", (
+        )),
+        "getgroups": ("long", (
+            ("int", "gidsetsize"),
+            ("gid_t *", "grouplist"),
+        )),
+        "getgroups16": ("long", (
+            ("int", "gidsetsize"),
+            ("old_gid_t *", "grouplist"),
+        )),
+        "gethostname": ("long", (
+            ("char *", "name"),
+            ("int", "len"),
+        )),
+        "getitimer": ("long", (
+            ("int", "which"),
+            ("struct itimerval *", "value"),
+        )),
+        "getpeername": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int *", "addrlen"),
+        )),
+        "getpgid": ("long", (
+            ("pid_t", "pid"),
+        )),
+        "getpgrp": ("long", (
+        )),
+        "getpid": ("long", (
+        )),
+        "getppid": ("long", (
+        )),
+        "getpriority": ("long", (
+            ("int", "which"),
+            ("int", "who"),
+        )),
+        "getrandom": ("long", (
+            ("char *", "buf"),
+            ("size_t", "count"),
+            ("unsigned int", "flags"),
+        )),
+        "getresgid": ("long", (
+            ("gid_t *", "rgid"),
+            ("gid_t *", "egid"),
+            ("gid_t *", "sgid"),
+        )),
+        "getresgid16": ("long", (
+            ("old_gid_t *", "rgid"),
+            ("old_gid_t *", "egid"),
+            ("old_gid_t *", "sgid"),
+        )),
+        "getresuid": ("long", (
+            ("uid_t *", "ruid"),
+            ("uid_t *", "euid"),
+            ("uid_t *", "suid"),
+        )),
+        "getresuid16": ("long", (
+            ("old_uid_t *", "ruid"),
+            ("old_uid_t *", "euid"),
+            ("old_uid_t *", "suid"),
+        )),
+        "getrlimit": ("long", (
+            ("unsigned int", "resource"),
+            ("struct rlimit *", "rlim"),
+        )),
+        "getrusage": ("long", (
+            ("int", "who"),
+            ("struct rusage *", "ru"),
+        )),
+        "getsid": ("long", (
+            ("pid_t", "pid"),
+        )),
+        "getsockname": ("long", (
+            ("int", "sockfd"),
+            ("struct sockaddr *", "addr"),
+            ("int *", "addrlen"),
+        )),
+        "getsockopt": ("long", (
+            ("int", "fd"),
+            ("int", "level"),
+            ("int", "optname"),
+            ("char *", "optval"),
+            ("int *", "optlen"),
+        )),
+        "gettid": ("long", (
+        )),
+        "gettimeofday": ("long", (
+            ("struct timeval *", "tv"),
+            ("struct timezone *", "tz"),
+        )),
+        "getuid": ("long", (
+        )),
+        "getuid16": ("long", (
+        )),
+        "getxattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+            ("void *", "value"),
+            ("size_t", "size"),
+        )),
+        "init_module": ("long", (
+            ("void *", "umod"),
+            ("unsigned long", "len"),
+            ("const char *", "uargs"),
+        )),
+        "inotify_add_watch": ("long", (
+            ("int", "fd"),
+            ("const char *", "path"),
+            ("u32", "mask"),
+        )),
+        "inotify_init": ("long", (
+        )),
+        "inotify_init1": ("long", (
+            ("int", "flags"),
+        )),
+        "inotify_rm_watch": ("long", (
+            ("int", "fd"),
+            ("__s32", "wd"),
+        )),
+        "io_cancel": ("long", (
+            ("aio_context_t", "ctx_id"),
+            ("struct iocb *", "iocb"),
+            ("struct io_event *", "result"),
+        )),
+        "io_destroy": ("long", (
+            ("aio_context_t", "ctx"),
+        )),
+        "io_getevents": ("long", (
+            ("aio_context_t", "ctx_id"),
+            ("long", "min_nr"),
+            ("long", "nr"),
+            ("struct io_event *", "events"),
+            ("struct timespec *", "timeout"),
+        )),
+        "io_setup": ("long", (
+            ("unsigned", "nr_reqs"),
+            ("aio_context_t *", "ctx"),
+        )),
+        "io_submit": ("long", (
+            ("aio_context_t", "ctx_id"),
+            ("long", "nr"),
+            ("struct iocb * *", "iocbpp"),
+        )),
+        "ioctl": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "cmd"),
+            ("unsigned long", "arg"),
+        )),
+        "ioperm": ("long", (
+            ("unsigned long", "from"),
+            ("unsigned long", "num"),
+            ("int", "on"),
+        )),
+        "ioprio_get": ("long", (
+            ("int", "which"),
+            ("int", "who"),
+        )),
+        "ioprio_set": ("long", (
+            ("int", "which"),
+            ("int", "who"),
+            ("int", "ioprio"),
+        )),
+        "ipc": ("long", (
+            ("unsigned int", "call"),
+            ("int", "first"),
+            ("unsigned long", "second"),
+            ("unsigned long", "third"),
+            ("void *", "ptr"),
+            ("long", "fifth"),
+        )),
+        "kcmp": ("long", (
+            ("pid_t", "pid1"),
+            ("pid_t", "pid2"),
+            ("int", "type"),
+            ("unsigned long", "idx1"),
+            ("unsigned long", "idx2"),
+        )),
+        "kexec_file_load": ("long", (
+            ("int", "kernel_fd"),
+            ("int", "initrd_fd"),
+            ("unsigned long", "cmdline_len"),
+            ("const char *", "cmdline_ptr"),
+            ("unsigned long", "flags"),
+        )),
+        "kexec_load": ("long", (
+            ("unsigned long", "entry"),
+            ("unsigned long", "nr_segments"),
+            ("struct kexec_segment *", "segments"),
+            ("unsigned long", "flags"),
+        )),
+        "keyctl": ("long", (
+            ("int", "cmd"),
+            ("unsigned long", "arg2"),
+            ("unsigned long", "arg3"),
+            ("unsigned long", "arg4"),
+            ("unsigned long", "arg5"),
+        )),
+        "kill": ("long", (
+            ("int", "pid"),
+            ("int", "sig"),
+        )),
+        "lchown": ("long", (
+            ("const char *", "filename"),
+            ("uid_t", "user"),
+            ("gid_t", "group"),
+        )),
+        "lchown16": ("long", (
+            ("const char *", "filename"),
+            ("old_uid_t", "user"),
+            ("old_gid_t", "group"),
+        )),
+        "lgetxattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+            ("void *", "value"),
+            ("size_t", "size"),
+        )),
+        "link": ("long", (
+            ("const char *", "oldname"),
+            ("const char *", "newname"),
+        )),
+        "linkat": ("long", (
+            ("int", "olddfd"),
+            ("const char *", "oldname"),
+            ("int", "newdfd"),
+            ("const char *", "newname"),
+            ("int", "flags"),
+        )),
+        "listen": ("long", (
+            ("int", "sockfd"),
+            ("int", "backlog"),
+        )),
+        "listxattr": ("long", (
+            ("const char *", "path"),
+            ("char *", "list"),
+            ("size_t", "size"),
+        )),
+        "llistxattr": ("long", (
+            ("const char *", "path"),
+            ("char *", "list"),
+            ("size_t", "size"),
+        )),
+        "llseek": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned long", "offset_high"),
+            ("unsigned long", "offset_low"),
+            ("loff_t *", "result"),
+            ("unsigned int", "whence"),
+        )),
+        "lookup_dcookie": ("long", (
+            ("u64", "cookie64"),
+            ("char *", "buf"),
+            ("size_t", "len"),
+        )),
+        "lremovexattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+        )),
+        "lseek": ("long", (
+            ("unsigned int", "fd"),
+            ("off_t", "offset"),
+            ("unsigned int", "whence"),
+        )),
+        "lsetxattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+            ("const void *", "value"),
+            ("size_t", "size"),
+            ("int", "flags"),
+        )),
+        "lstat": ("long", (
+            ("const char *", "filename"),
+            ("struct __old_kernel_stat *", "statbuf"),
+        )),
+        "lstat64": ("long", (
+            ("const char *", "filename"),
+            ("struct stat64 *", "statbuf"),
+        )),
+        "madvise": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("int", "behavior"),
+        )),
+        "mbind": ("long", (
+            ("unsigned long", "start"),
+            ("unsigned long", "len"),
+            ("unsigned long", "mode"),
+            ("const unsigned long *", "nmask"),
+            ("unsigned long", "maxnode"),
+            ("unsigned", "flags"),
+        )),
+        "membarrier": ("long", (
+            ("int", "cmd"),
+            ("int", "flags"),
+        )),
+        "memfd_create": ("long", (
+            ("const char *", "uname_ptr"),
+            ("unsigned int", "flags"),
+        )),
+        "migrate_pages": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned long", "maxnode"),
+            ("const unsigned long *", "from"),
+            ("const unsigned long *", "to"),
+        )),
+        "mincore": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("unsigned char *", "vec"),
+        )),
+        "mkdir": ("long", (
+            ("const char *", "pathname"),
+            ("umode_t", "mode"),
+        )),
+        "mkdirat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "pathname"),
+            ("umode_t", "mode"),
+        )),
+        "mknod": ("long", (
+            ("const char *", "filename"),
+            ("umode_t", "mode"),
+            ("unsigned", "dev"),
+        )),
+        "mknodat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("umode_t", "mode"),
+            ("unsigned", "dev"),
+        )),
+        "mlock": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+        )),
+        "mlock2": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("int", "flags"),
+        )),
+        "mlockall": ("long", (
+            ("int", "flags"),
+        )),
+        "mmap_pgoff": ("long", (
+            ("unsigned long", "addr"),
+            ("unsigned long", "len"),
+            ("unsigned long", "prot"),
+            ("unsigned long", "flags"),
+            ("unsigned long", "fd"),
+            ("unsigned long", "pgoff"),
+        )),
+        "mount": ("long", (
+            ("char *", "dev_name"),
+            ("char *", "dir_name"),
+            ("char *", "type"),
+            ("unsigned long", "flags"),
+            ("void *", "data"),
+        )),
+        "move_pages": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned long", "nr_pages"),
+            ("const void * *", "pages"),
+            ("const int *", "nodes"),
+            ("int *", "status"),
+            ("int", "flags"),
+        )),
+        "mprotect": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("unsigned long", "prot"),
+        )),
+        "mq_getsetattr": ("long", (
+            ("mqd_t", "mqdes"),
+            ("const struct mq_attr *", "mqstat"),
+            ("struct mq_attr *", "omqstat"),
+        )),
+        "mq_notify": ("long", (
+            ("mqd_t", "mqdes"),
+            ("const struct sigevent *", "notification"),
+        )),
+        "mq_open": ("long", (
+            ("const char *", "name"),
+            ("int", "oflag"),
+            ("umode_t", "mode"),
+            ("struct mq_attr *", "attr"),
+        )),
+        "mq_timedreceive": ("long", (
+            ("mqd_t", "mqdes"),
+            ("char *", "msg_ptr"),
+            ("size_t", "msg_len"),
+            ("unsigned int *", "msg_prio"),
+            ("const struct timespec *", "abs_timeout"),
+        )),
+        "mq_timedsend": ("long", (
+            ("mqd_t", "mqdes"),
+            ("const char *", "msg_ptr"),
+            ("size_t", "msg_len"),
+            ("unsigned int", "msg_prio"),
+            ("const struct timespec *", "abs_timeout"),
+        )),
+        "mq_unlink": ("long", (
+            ("const char *", "name"),
+        )),
+        "mremap": ("long", (
+            ("unsigned long", "addr"),
+            ("unsigned long", "old_len"),
+            ("unsigned long", "new_len"),
+            ("unsigned long", "flags"),
+            ("unsigned long", "new_addr"),
+        )),
+        "msgctl": ("long", (
+            ("int", "msqid"),
+            ("int", "cmd"),
+            ("struct msqid_ds *", "buf"),
+        )),
+        "msgget": ("long", (
+            ("key_t", "key"),
+            ("int", "msgflg"),
+        )),
+        "msgrcv": ("long", (
+            ("int", "msqid"),
+            ("struct msgbuf *", "msgp"),
+            ("size_t", "msgsz"),
+            ("long", "msgtyp"),
+            ("int", "msgflg"),
+        )),
+        "msgsnd": ("long", (
+            ("int", "msqid"),
+            ("struct msgbuf *", "msgp"),
+            ("size_t", "msgsz"),
+            ("int", "msgflg"),
+        )),
+        "msync": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("int", "flags"),
+        )),
+        "munlock": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+        )),
+        "munlockall": ("long", (
+        )),
+        "munmap": ("long", (
+            ("unsigned long", "addr"),
+            ("size_t", "len"),
+        )),
+        "name_to_handle_at": ("long", (
+            ("int", "dfd"),
+            ("const char *", "name"),
+            ("struct file_handle *", "handle"),
+            ("int *", "mnt_id"),
+            ("int", "flag"),
+        )),
+        "nanosleep": ("long", (
+            ("struct timespec *", "rqtp"),
+            ("struct timespec *", "rmtp"),
+        )),
+        "newfstat": ("long", (
+            ("unsigned int", "fd"),
+            ("struct stat *", "statbuf"),
+        )),
+        "newfstatat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("struct stat *", "statbuf"),
+            ("int", "flag"),
+        )),
+        "newlstat": ("long", (
+            ("const char *", "filename"),
+            ("struct stat *", "statbuf"),
+        )),
+        "newstat": ("long", (
+            ("const char *", "filename"),
+            ("struct stat *", "statbuf"),
+        )),
+        "newuname": ("long", (
+            ("struct new_utsname *", "name"),
+        )),
+        "ni_syscall": ("long", (
+        )),
+        "nice": ("long", (
+            ("int", "increment"),
+        )),
+        "old_getrlimit": ("long", (
+            ("unsigned int", "resource"),
+            ("struct rlimit *", "rlim"),
+        )),
+        "old_mmap": ("long", (
+            ("struct mmap_arg_struct *", "arg"),
+        )),
+        "old_readdir": ("long", (
+            ("unsigned int", "fd"),
+            ("struct old_linux_dirent *", "dirp"),
+            ("unsigned int", "count"),
+        )),
+        "old_select": ("long", (
+            ("struct sel_arg_struct *", "arg"),
+        )),
+        "oldumount": ("long", (
+            ("char *", "name"),
+        )),
+        "olduname": ("long", (
+            ("struct oldold_utsname *", "buf"),
+        )),
+        "open": ("long", (
+            ("const char *", "filename"),
+            ("int", "flags"),
+            ("umode_t", "mode"),
+        )),
+        "open_by_handle_at": ("long", (
+            ("int", "mountdirfd"),
+            ("struct file_handle *", "handle"),
+            ("int", "flags"),
+        )),
+        "openat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("int", "flags"),
+            ("umode_t", "mode"),
+        )),
+        "pause": ("long", (
+        )),
+        "pciconfig_iobase": ("long", (
+            ("long", "which"),
+            ("unsigned long", "bus"),
+            ("unsigned long", "devfn"),
+        )),
+        "pciconfig_read": ("long", (
+            ("unsigned long", "bus"),
+            ("unsigned long", "dfn"),
+            ("unsigned long", "off"),
+            ("unsigned long", "len"),
+            ("void *", "buf"),
+        )),
+        "pciconfig_write": ("long", (
+            ("unsigned long", "bus"),
+            ("unsigned long", "dfn"),
+            ("unsigned long", "off"),
+            ("unsigned long", "len"),
+            ("void *", "buf"),
+        )),
+        "perf_event_open": ("long", (
+            ("struct perf_event_attr *", "attr_uptr"),
+            ("pid_t", "pid"),
+            ("int", "cpu"),
+            ("int", "group_fd"),
+            ("unsigned long", "flags"),
+        )),
+        "personality": ("long", (
+            ("unsigned int", "personality"),
+        )),
+        "pipe": ("long", (
+            ("int *", "fildes"),
+        )),
+        "pipe2": ("long", (
+            ("int *", "fildes"),
+            ("int", "flags"),
+        )),
+        "pivot_root": ("long", (
+            ("const char *", "new_root"),
+            ("const char *", "put_old"),
+        )),
+        "poll": ("long", (
+            ("struct pollfd *", "ufds"),
+            ("unsigned int", "nfds"),
+            ("int", "timeout"),
+        )),
+        "ppoll": ("long", (
+            ("struct pollfd *", "fds"),
+            ("unsigned int", "nfds"),
+            ("struct timespec *", "tmo_p"),
+            ("const sigset_t *", "sigmask"),
+            ("size_t", ""),
+        )),
+        "prctl": ("long", (
+            ("int", "option"),
+            ("unsigned long", "arg2"),
+            ("unsigned long", "arg3"),
+            ("unsigned long", "arg4"),
+            ("unsigned long", "arg5"),
+        )),
+        "pread64": ("long", (
+            ("unsigned int", "fd"),
+            ("char *", "buf"),
+            ("size_t", "count"),
+            ("loff_t", "pos"),
+        )),
+        "preadv": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+            ("unsigned long", "pos_l"),
+            ("unsigned long", "pos_h"),
+        )),
+        "prlimit64": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned int", "resource"),
+            ("const struct rlimit64 *", "new_rlim"),
+            ("struct rlimit64 *", "old_rlim"),
+        )),
+        "process_vm_readv": ("long", (
+            ("pid_t", "pid"),
+            ("const struct iovec *", "lvec"),
+            ("unsigned long", "liovcnt"),
+            ("const struct iovec *", "rvec"),
+            ("unsigned long", "riovcnt"),
+            ("unsigned long", "flags"),
+        )),
+        "process_vm_writev": ("long", (
+            ("pid_t", "pid"),
+            ("const struct iovec *", "lvec"),
+            ("unsigned long", "liovcnt"),
+            ("const struct iovec *", "rvec"),
+            ("unsigned long", "riovcnt"),
+            ("unsigned long", "flags"),
+        )),
+        "pselect6": ("long", (
+            ("int", "nfds"),
+            ("fd_set *", "readfds"),
+            ("fd_set *", "writefds"),
+            ("fd_set *", "exceptfds"),
+            ("struct timespec *", "timeout"),
+            ("void *", "sigmask"),
+        )),
+        "ptrace": ("long", (
+            ("long", "request"),
+            ("long", "pid"),
+            ("unsigned long", "addr"),
+            ("unsigned long", "data"),
+        )),
+        "pwrite64": ("long", (
+            ("unsigned int", "fd"),
+            ("const char *", "buf"),
+            ("size_t", "count"),
+            ("loff_t", "pos"),
+        )),
+        "pwritev": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+            ("unsigned long", "pos_l"),
+            ("unsigned long", "pos_h"),
+        )),
+        "quotactl": ("long", (
+            ("unsigned int", "cmd"),
+            ("const char *", "special"),
+            ("qid_t", "id"),
+            ("void *", "addr"),
+        )),
+        "read": ("long", (
+            ("unsigned int", "fd"),
+            ("char *", "buf"),
+            ("size_t", "count"),
+        )),
+        "readahead": ("long", (
+            ("int", "fd"),
+            ("loff_t", "offset"),
+            ("size_t", "count"),
+        )),
+        "readlink": ("long", (
+            ("const char *", "path"),
+            ("char *", "buf"),
+            ("int", "bufsiz"),
+        )),
+        "readlinkat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "path"),
+            ("char *", "buf"),
+            ("int", "bufsiz"),
+        )),
+        "readv": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+        )),
+        "reboot": ("long", (
+            ("int", "magic1"),
+            ("int", "magic2"),
+            ("unsigned int", "cmd"),
+            ("void *", "arg"),
+        )),
+        "recv": ("long", (
+            ("int", "sockfd"),
+            ("void *", "buf"),
+            ("size_t", "len"),
+            ("unsigned", "flags"),
+        )),
+        "recvfrom": ("long", (
+            ("int", "sockfd"),
+            ("void *", "buf"),
+            ("size_t", "len"),
+            ("unsigned", "flags"),
+            ("struct sockaddr *", "src_addr"),
+            ("int *", "addrlen"),
+        )),
+        "recvmmsg": ("long", (
+            ("int", "fd"),
+            ("struct mmsghdr *", "msg"),
+            ("unsigned int", "vlen"),
+            ("unsigned", "flags"),
+            ("struct timespec *", "timeout"),
+        )),
+        "recvmsg": ("long", (
+            ("int", "fd"),
+            ("struct user_msghdr *", "msg"),
+            ("unsigned", "flags"),
+        )),
+        "remap_file_pages": ("long", (
+            ("unsigned long", "start"),
+            ("unsigned long", "size"),
+            ("unsigned long", "prot"),
+            ("unsigned long", "pgoff"),
+            ("unsigned long", "flags"),
+        )),
+        "removexattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+        )),
+        "rename": ("long", (
+            ("const char *", "oldname"),
+            ("const char *", "newname"),
+        )),
+        "renameat": ("long", (
+            ("int", "olddfd"),
+            ("const char *", "oldname"),
+            ("int", "newdfd"),
+            ("const char *", "newname"),
+        )),
+        "renameat2": ("long", (
+            ("int", "olddfd"),
+            ("const char *", "oldname"),
+            ("int", "newdfd"),
+            ("const char *", "newname"),
+            ("unsigned int", "flags"),
+        )),
+        "request_key": ("long", (
+            ("const char *", "_type"),
+            ("const char *", "_description"),
+            ("const char *", "_callout_info"),
+            ("key_serial_t", "destringid"),
+        )),
+        "restart_syscall": ("long", (
+        )),
+        "rmdir": ("long", (
+            ("const char *", "pathname"),
+        )),
+        "rt_sigaction": ("long", (
+            ("int", "signum"),
+            ("const struct sigaction *", "act"),
+            ("struct sigaction *", "oldact"),
+            ("size_t", ""),
+        )),
+        "rt_sigpending": ("long", (
+            ("sigset_t *", "set"),
+            ("size_t", "sigsetsize"),
+        )),
+        "rt_sigprocmask": ("long", (
+            ("int", "how"),
+            ("sigset_t *", "set"),
+            ("sigset_t *", "oset"),
+            ("size_t", "sigsetsize"),
+        )),
+        "rt_sigqueueinfo": ("long", (
+            ("int", "pid"),
+            ("int", "sig"),
+            ("siginfo_t *", "uinfo"),
+        )),
+        "rt_sigsuspend": ("long", (
+            ("sigset_t *", "unewset"),
+            ("size_t", "sigsetsize"),
+        )),
+        "rt_sigtimedwait": ("long", (
+            ("const sigset_t *", "uthese"),
+            ("siginfo_t *", "uinfo"),
+            ("const struct timespec *", "uts"),
+            ("size_t", "sigsetsize"),
+        )),
+        "rt_tgsigqueueinfo": ("long", (
+            ("pid_t", "tgid"),
+            ("pid_t", "pid"),
+            ("int", "sig"),
+            ("siginfo_t *", "uinfo"),
+        )),
+        "sched_get_priority_max": ("long", (
+            ("int", "policy"),
+        )),
+        "sched_get_priority_min": ("long", (
+            ("int", "policy"),
+        )),
+        "sched_getaffinity": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned int", "len"),
+            ("unsigned long *", "user_mask_ptr"),
+        )),
+        "sched_getattr": ("long", (
+            ("pid_t", "pid"),
+            ("struct sched_attr *", "attr"),
+            ("unsigned int", "size"),
+            ("unsigned int", "flags"),
+        )),
+        "sched_getparam": ("long", (
+            ("pid_t", "pid"),
+            ("struct sched_param *", "param"),
+        )),
+        "sched_getscheduler": ("long", (
+            ("pid_t", "pid"),
+        )),
+        "sched_rr_get_interval": ("long", (
+            ("pid_t", "pid"),
+            ("struct timespec *", "interval"),
+        )),
+        "sched_setaffinity": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned int", "len"),
+            ("unsigned long *", "user_mask_ptr"),
+        )),
+        "sched_setattr": ("long", (
+            ("pid_t", "pid"),
+            ("struct sched_attr *", "attr"),
+            ("unsigned int", "flags"),
+        )),
+        "sched_setparam": ("long", (
+            ("pid_t", "pid"),
+            ("struct sched_param *", "param"),
+        )),
+        "sched_setscheduler": ("long", (
+            ("pid_t", "pid"),
+            ("int", "policy"),
+            ("struct sched_param *", "param"),
+        )),
+        "sched_yield": ("long", (
+        )),
+        "seccomp": ("long", (
+            ("unsigned int", "op"),
+            ("unsigned int", "flags"),
+            ("const char *", "uargs"),
+        )),
+        "select": ("long", (
+            ("int", "n"),
+            ("fd_set *", "inp"),
+            ("fd_set *", "outp"),
+            ("fd_set *", "exp"),
+            ("struct timeval *", "tvp"),
+        )),
+        "semctl": ("long", (
+            ("int", "semid"),
+            ("int", "semnum"),
+            ("int", "cmd"),
+            ("unsigned long", "arg"),
+        )),
+        "semget": ("long", (
+            ("key_t", "key"),
+            ("int", "nsems"),
+            ("int", "semflg"),
+        )),
+        "semop": ("long", (
+            ("int", "semid"),
+            ("struct sembuf *", "sops"),
+            ("unsigned", "nsops"),
+        )),
+        "semtimedop": ("long", (
+            ("int", "semid"),
+            ("struct sembuf *", "sops"),
+            ("unsigned", "nsops"),
+            ("const struct timespec *", "timeout"),
+        )),
+        "send": ("long", (
+            ("int", "sockfd"),
+            ("void *", "buf"),
+            ("size_t", "len"),
+            ("unsigned", "flags"),
+        )),
+        "sendfile": ("long", (
+            ("int", "out_fd"),
+            ("int", "in_fd"),
+            ("off_t *", "offset"),
+            ("size_t", "count"),
+        )),
+        "sendfile64": ("long", (
+            ("int", "out_fd"),
+            ("int", "in_fd"),
+            ("loff_t *", "offset"),
+            ("size_t", "count"),
+        )),
+        "sendmmsg": ("long", (
+            ("int", "fd"),
+            ("struct mmsghdr *", "msg"),
+            ("unsigned int", "vlen"),
+            ("unsigned", "flags"),
+        )),
+        "sendmsg": ("long", (
+            ("int", "fd"),
+            ("struct user_msghdr *", "msg"),
+            ("unsigned", "flags"),
+        )),
+        "sendto": ("long", (
+            ("int", "sockfd"),
+            ("void *", "buf"),
+            ("size_t", "len"),
+            ("unsigned", "flags"),
+            ("struct sockaddr *", "dest_addr"),
+            ("int", "addrlen"),
+        )),
+        "set_mempolicy": ("long", (
+            ("int", "mode"),
+            ("const unsigned long *", "nmask"),
+            ("unsigned long", "maxnode"),
+        )),
+        "set_robust_list": ("long", (
+            ("struct robust_list_head *", "head"),
+            ("size_t", "len"),
+        )),
+        "set_tid_address": ("long", (
+            ("int *", "tidptr"),
+        )),
+        "setdomainname": ("long", (
+            ("char *", "name"),
+            ("int", "len"),
+        )),
+        "setfsgid": ("long", (
+            ("gid_t", "gid"),
+        )),
+        "setfsgid16": ("long", (
+            ("old_gid_t", "gid"),
+        )),
+        "setfsuid": ("long", (
+            ("uid_t", "uid"),
+        )),
+        "setfsuid16": ("long", (
+            ("old_uid_t", "uid"),
+        )),
+        "setgid": ("long", (
+            ("gid_t", "gid"),
+        )),
+        "setgid16": ("long", (
+            ("old_gid_t", "gid"),
+        )),
+        "setgroups": ("long", (
+            ("int", "gidsetsize"),
+            ("gid_t *", "grouplist"),
+        )),
+        "setgroups16": ("long", (
+            ("int", "gidsetsize"),
+            ("old_gid_t *", "grouplist"),
+        )),
+        "sethostname": ("long", (
+            ("char *", "name"),
+            ("int", "len"),
+        )),
+        "setitimer": ("long", (
+            ("int", "which"),
+            ("struct itimerval *", "value"),
+            ("struct itimerval *", "ovalue"),
+        )),
+        "setns": ("long", (
+            ("int", "fd"),
+            ("int", "nstype"),
+        )),
+        "setpgid": ("long", (
+            ("pid_t", "pid"),
+            ("pid_t", "pgid"),
+        )),
+        "setpriority": ("long", (
+            ("int", "which"),
+            ("int", "who"),
+            ("int", "niceval"),
+        )),
+        "setregid": ("long", (
+            ("gid_t", "rgid"),
+            ("gid_t", "egid"),
+        )),
+        "setregid16": ("long", (
+            ("old_gid_t", "rgid"),
+            ("old_gid_t", "egid"),
+        )),
+        "setresgid": ("long", (
+            ("gid_t", "rgid"),
+            ("gid_t", "egid"),
+            ("gid_t", "sgid"),
+        )),
+        "setresgid16": ("long", (
+            ("old_gid_t", "rgid"),
+            ("old_gid_t", "egid"),
+            ("old_gid_t", "sgid"),
+        )),
+        "setresuid": ("long", (
+            ("uid_t", "ruid"),
+            ("uid_t", "euid"),
+            ("uid_t", "suid"),
+        )),
+        "setresuid16": ("long", (
+            ("old_uid_t", "ruid"),
+            ("old_uid_t", "euid"),
+            ("old_uid_t", "suid"),
+        )),
+        "setreuid": ("long", (
+            ("uid_t", "ruid"),
+            ("uid_t", "euid"),
+        )),
+        "setreuid16": ("long", (
+            ("old_uid_t", "ruid"),
+            ("old_uid_t", "euid"),
+        )),
+        "setrlimit": ("long", (
+            ("unsigned int", "resource"),
+            ("struct rlimit *", "rlim"),
+        )),
+        "setsid": ("long", (
+        )),
+        "setsockopt": ("long", (
+            ("int", "fd"),
+            ("int", "level"),
+            ("int", "optname"),
+            ("char *", "optval"),
+            ("int", "optlen"),
+        )),
+        "settimeofday": ("long", (
+            ("struct timeval *", "tv"),
+            ("struct timezone *", "tz"),
+        )),
+        "setuid": ("long", (
+            ("uid_t", "uid"),
+        )),
+        "setuid16": ("long", (
+            ("old_uid_t", "uid"),
+        )),
+        "setxattr": ("long", (
+            ("const char *", "path"),
+            ("const char *", "name"),
+            ("const void *", "value"),
+            ("size_t", "size"),
+            ("int", "flags"),
+        )),
+        "sgetmask": ("long", (
+        )),
+        "shmat": ("long", (
+            ("int", "shmid"),
+            ("char *", "shmaddr"),
+            ("int", "shmflg"),
+        )),
+        "shmctl": ("long", (
+            ("int", "shmid"),
+            ("int", "cmd"),
+            ("struct shmid_ds *", "buf"),
+        )),
+        "shmdt": ("long", (
+            ("char *", "shmaddr"),
+        )),
+        "shmget": ("long", (
+            ("key_t", "key"),
+            ("size_t", "size"),
+            ("int", "flag"),
+        )),
+        "shutdown": ("long", (
+            ("int", "sockfd"),
+            ("int", "how"),
+        )),
+        "sigaction": ("long", (
+            ("int", "signum"),
+            ("const struct old_sigaction *", "act"),
+            ("struct old_sigaction *", "oldact"),
+        )),
+        "sigaltstack": ("long", (
+            ("const struct sigaltstack *", "uss"),
+            ("struct sigaltstack *", "uoss"),
+        )),
+        "signal": ("long", (
+            ("int", "sig"),
+            ("__sighandler_t", "handler"),
+        )),
+        "signalfd": ("long", (
+            ("int", "ufd"),
+            ("sigset_t *", "user_mask"),
+            ("size_t", "sizemask"),
+        )),
+        "signalfd4": ("long", (
+            ("int", "ufd"),
+            ("sigset_t *", "user_mask"),
+            ("size_t", "sizemask"),
+            ("int", "flags"),
+        )),
+        "sigpending": ("long", (
+            ("old_sigset_t *", "set"),
+        )),
+        "sigprocmask": ("long", (
+            ("int", "how"),
+            ("old_sigset_t *", "set"),
+            ("old_sigset_t *", "oset"),
+        )),
+        "sigsuspend": ("long", (
+            ("int", "unused1"),
+            ("int", "unused2"),
+            ("old_sigset_t", "mask"),
+        )),
+        "socket": ("long", (
+            ("int", "domain"),
+            ("int", "type"),
+            ("int", "protocol"),
+        )),
+        "socketcall": ("long", (
+            ("int", "call"),
+            ("unsigned long *", "args"),
+        )),
+        "socketpair": ("long", (
+            ("int", "domain"),
+            ("int", "type"),
+            ("int", "protocol"),
+            ("int *", "sv"),
+        )),
+        "splice": ("long", (
+            ("int", "fd_in"),
+            ("loff_t *", "off_in"),
+            ("int", "fd_out"),
+            ("loff_t *", "off_out"),
+            ("size_t", "len"),
+            ("unsigned int", "flags"),
+        )),
+        "spu_create": ("long", (
+            ("const char *", "name"),
+            ("unsigned int", "flags"),
+            ("umode_t", "mode"),
+            ("int", "fd"),
+        )),
+        "spu_run": ("long", (
+            ("int", "fd"),
+            ("__u32 *", "unpc"),
+            ("__u32 *", "ustatus"),
+        )),
+        "ssetmask": ("long", (
+            ("int", "newmask"),
+        )),
+        "stat": ("long", (
+            ("const char *", "filename"),
+            ("struct __old_kernel_stat *", "statbuf"),
+        )),
+        "stat64": ("long", (
+            ("const char *", "filename"),
+            ("struct stat64 *", "statbuf"),
+        )),
+        "statfs": ("long", (
+            ("const char *", "path"),
+            ("struct statfs *", "buf"),
+        )),
+        "statfs64": ("long", (
+            ("const char *", "path"),
+            ("size_t", "sz"),
+            ("struct statfs64 *", "buf"),
+        )),
+        "stime": ("long", (
+            ("time_t *", "tptr"),
+        )),
+        "swapoff": ("long", (
+            ("const char *", "specialfile"),
+        )),
+        "swapon": ("long", (
+            ("const char *", "specialfile"),
+            ("int", "swap_flags"),
+        )),
+        "symlink": ("long", (
+            ("const char *", "old"),
+            ("const char *", "new"),
+        )),
+        "symlinkat": ("long", (
+            ("const char *", "oldname"),
+            ("int", "newdfd"),
+            ("const char *", "newname"),
+        )),
+        "sync": ("long", (
+        )),
+        "sync_file_range": ("long", (
+            ("int", "fd"),
+            ("loff_t", "offset"),
+            ("loff_t", "nbytes"),
+            ("unsigned int", "flags"),
+        )),
+        "sync_file_range2": ("long", (
+            ("int", "fd"),
+            ("unsigned int", "flags"),
+            ("loff_t", "offset"),
+            ("loff_t", "nbytes"),
+        )),
+        "syncfs": ("long", (
+            ("int", "fd"),
+        )),
+        "sysctl": ("long", (
+            ("struct __sysctl_args *", "args"),
+        )),
+        "sysfs": ("long", (
+            ("int", "option"),
+            ("unsigned long", "arg1"),
+            ("unsigned long", "arg2"),
+        )),
+        "sysinfo": ("long", (
+            ("struct sysinfo *", "info"),
+        )),
+        "syslog": ("long", (
+            ("int", "type"),
+            ("char *", "buf"),
+            ("int", "len"),
+        )),
+        "tee": ("long", (
+            ("int", "fdin"),
+            ("int", "fdout"),
+            ("size_t", "len"),
+            ("unsigned int", "flags"),
+        )),
+        "tgkill": ("long", (
+            ("int", "tgid"),
+            ("int", "pid"),
+            ("int", "sig"),
+        )),
+        "time": ("long", (
+            ("time_t *", "tloc"),
+        )),
+        "timer_create": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct sigevent *", "timer_event_spec"),
+            ("timer_t *", "created_timer_id"),
+        )),
+        "timer_delete": ("long", (
+            ("timer_t", "timer_id"),
+        )),
+        "timer_getoverrun": ("long", (
+            ("timer_t", "timer_id"),
+        )),
+        "timer_gettime": ("long", (
+            ("timer_t", "timer_id"),
+            ("struct itimerspec *", "setting"),
+        )),
+        "timer_settime": ("long", (
+            ("timer_t", "timer_id"),
+            ("int", "flags"),
+            ("const struct itimerspec *", "new_setting"),
+            ("struct itimerspec *", "old_setting"),
+        )),
+        "timerfd_create": ("long", (
+            ("int", "clockid"),
+            ("int", "flags"),
+        )),
+        "timerfd_gettime": ("long", (
+            ("int", "ufd"),
+            ("struct itimerspec *", "otmr"),
+        )),
+        "timerfd_settime": ("long", (
+            ("int", "ufd"),
+            ("int", "flags"),
+            ("const struct itimerspec *", "utmr"),
+            ("struct itimerspec *", "otmr"),
+        )),
+        "times": ("long", (
+            ("struct tms *", "tbuf"),
+        )),
+        "tkill": ("long", (
+            ("int", "pid"),
+            ("int", "sig"),
+        )),
+        "truncate": ("long", (
+            ("const char *", "path"),
+            ("long", "length"),
+        )),
+        "truncate64": ("long", (
+            ("const char *", "path"),
+            ("loff_t", "length"),
+        )),
+        "umask": ("long", (
+            ("int", "mask"),
+        )),
+        "umount": ("long", (
+            ("char *", "name"),
+            ("int", "flags"),
+        )),
+        "uname": ("long", (
+            ("struct old_utsname *", "buf"),
+        )),
+        "unlink": ("long", (
+            ("const char *", "pathname"),
+        )),
+        "unlinkat": ("long", (
+            ("int", "dfd"),
+            ("const char *", "pathname"),
+            ("int", "flag"),
+        )),
+        "unshare": ("long", (
+            ("unsigned long", "unshare_flags"),
+        )),
+        "uselib": ("long", (
+            ("const char *", "library"),
+        )),
+        "userfaultfd": ("long", (
+            ("int", "flags"),
+        )),
+        "ustat": ("long", (
+            ("unsigned", "dev"),
+            ("struct ustat *", "ubuf"),
+        )),
+        "utime": ("long", (
+            ("char *", "filename"),
+            ("struct utimbuf *", "times"),
+        )),
+        "utimensa": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("struct timespec *", "utimes"),
+            ("int", "flags"),
+        )),
+        "utimes": ("long", (
+            ("char *", "filename"),
+            ("struct timeval *", "utimes"),
+        )),
+        "vfork": ("long", (
+        )),
+        "vhangup": ("long", (
+        )),
+        "vmsplice": ("long", (
+            ("int", "fd"),
+            ("const struct iovec *", "iov"),
+            ("unsigned long", "nr_segs"),
+            ("unsigned int", "flags"),
+        )),
+        "wait4": ("long", (
+            ("pid_t", "pid"),
+            ("int *", "stat_addr"),
+            ("int", "options"),
+            ("struct rusage *", "ru"),
+        )),
+        "waitid": ("long", (
+            ("int", "which"),
+            ("pid_t", "pid"),
+            ("struct siginfo *", "infop"),
+            ("int", "options"),
+            ("struct rusage *", "ru"),
+        )),
+        "waitpid": ("long", (
+            ("pid_t", "pid"),
+            ("int *", "stat_addr"),
+            ("int", "options"),
+        )),
+        "write": ("long", (
+            ("unsigned int", "fd"),
+            ("const char *", "buf"),
+            ("size_t", "count"),
+        )),
+        "writev": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+        )),
+    }
+
     # Define syscall for ARM #
-    sysList_arm = [
+    SYSCALL_ARM = [
         'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read', 'sys_write', 'sys_open',
         'sys_close', 'sys_sys_waitpid', 'sys_creat', 'sys_link', 'sys_unlink', #10#
         'sys_execve', 'sys_chdir', 'sys_time', 'sys_mknod', 'sys_chmod',
@@ -179,7 +1980,7 @@ class ConfigManager(object):
         ]
 
     # Define syscall for AARCH64 #
-    sysList_aarch64 = [
+    SYSCALL_AARCH64 = [
         'sys_io_setup', 'sys_io_destroy', 'sys_io_submit', 'sys_io_cancel', 'sys_io_getevents', #4#
         'sys_setxattr', 'sys_lsetxattr', 'sys_fsetxattr', 'sys_getxattr', 'sys_lgetxattr', #9#
         'sys_fgetxattr', 'sys_listxattr', 'sys_llistxattr', 'sys_flistxattr', 'sys_removexattr', #14#
@@ -241,7 +2042,7 @@ class ConfigManager(object):
         ]
 
     # Define syscall for x86_32 #
-    sysList_x86 = [
+    SYSCALL_X86 = [
         'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read', 'sys_write', 'sys_open', 'sys_close', 'sys_waitpid',
         'sys_creat', 'sys_link', 'sys_unlink', 'sys_execve', 'sys_chdir', 'sys_time', 'sys_mknod', 'sys_chmod',
         'sys_lchown', 'sys_break', 'sys_oldstat', 'sys_lseek', 'sys_getpid', 'sys_mount', 'sys_umount', 'sys_setuid',
@@ -304,7 +2105,7 @@ class ConfigManager(object):
         ]
 
     # Define syscall for x86_64 #
-    sysList_x64 = [
+    SYSCALL_X64 = [
         'sys_read', 'sys_write', 'sys_open', 'sys_close', 'sys_stat', 'sys_fstat', 'sys_lstat', 'sys_poll', 'sys_lseek',
         'sys_mmap', 'sys_mprotect', 'sys_munmap', 'sys_brk', 'sys_rt_sigaction', 'sys_rt_sigprocmask', 'sys_rt_sigreturn',
         'sys_ioctl', 'sys_pread64', 'sys_pwrite64', 'sys_readv', 'sys_writev', 'sys_access', 'sys_pipe', 'sys_select',
@@ -359,10 +2160,10 @@ class ConfigManager(object):
         ]
 
     # Set default syscall table to arm #
-    sysList = sysList_arm
+    sysList = SYSCALL_ARM
 
     # Define systemcall register #
-    sysRegList = {
+    REG_LIST = {
         "powerpc": "gpr0",
         "arm": "r7",
         "aarch64": "r8",
@@ -371,7 +2172,7 @@ class ConfigManager(object):
         }
 
     # Define return register #
-    retRegList = {
+    RET_LIST = {
         "powerpc": "result",
         "arm": "r0",
         "aarch64": "r0",
@@ -380,7 +2181,7 @@ class ConfigManager(object):
         }
 
     # Define signal #
-    sigList = [
+    SIG_LIST = [
         'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
         'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', 'SIGCHLD', 'SIGCONT', #18#
         'SIGSTOP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', 'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', #27#
@@ -388,7 +2189,7 @@ class ConfigManager(object):
         ] + [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
 
     # stat list from http://linux.die.net/man/5/proc #
-    statList = [
+    STAT_ATTR = [
         'PID', 'COMM', 'STATE', 'PPID', 'PGRP', 'SESSIONID', 'NRTTY', 'TPGID', 'FLAGS', 'MINFLT', 'CMINFLT', #10#
         'MAJFLT', 'CMAJFLT', 'UTIME', 'STIME', 'CUTIME', 'CSTIME', 'PRIORITY', 'NICE', 'NRTHREAD', 'ITERALVAL', #20#
         'STARTTIME', 'VSIZE', 'RSS', 'RSSLIM', 'STARTCODE', 'ENDCODE', 'STARTSTACK', 'SP', 'PC', 'SIGNAL', #30#
@@ -396,7 +2197,7 @@ class ConfigManager(object):
         'POLICY', 'DELAYBLKTICK', 'GUESTTIME', 'CGUESTTIME' # 43 #
         ]
 
-    schedList = [
+    SCHED_POLICY = [
         'C', # 0: CFS #
         'F', # 1: FIFO #
         'R', # 2: RR #
@@ -407,7 +2208,7 @@ class ConfigManager(object):
         ]
 
     # Define statm of process #
-    statmList = [
+    STATM_TYPE = [
         'TOTAL',    # 0 #
         'RSS',      # 1 #
         'SHR',      # 2 #
@@ -417,7 +2218,7 @@ class ConfigManager(object):
         'DIRTY',    # 6 #
         ]
 
-    errList = [
+    ERR_TYPE = [
         'EPERM',            # Operation not permitted #
         'ENOENT',           # No such file or directory #
         'ESRCH',            # No such process #
@@ -555,7 +2356,7 @@ class ConfigManager(object):
         ]
 
     # Define rlimit of process #
-    rlimitList = [
+    RLIMIT_TYPE = [
         'RLIMIT_CPU',
         'RLIMIT_FSIZE',
         'RLIMIT_DATA',
@@ -576,7 +2377,7 @@ class ConfigManager(object):
         ]
 
     # Define udp/tcp format of system #
-    udpList = [
+    UDP_ATTR = [
         'sl',
         'local_address',
         'rem_address',
@@ -593,7 +2394,7 @@ class ConfigManager(object):
         ]
 
     # Define uds format of system #
-    udsList = [
+    UDS_ATTR = [
         'Num',
         'RefCount',
         'Protocol',
@@ -605,7 +2406,7 @@ class ConfigManager(object):
         ]
 
     # Define futex operation flags #
-    futexList = [
+    FUTEX_TYPE = [
         'FUTEX_WAIT',
         'FUTEX_WAKE',
         'FUTEX_FD',
@@ -622,7 +2423,7 @@ class ConfigManager(object):
         ]
 
     # Define ptrace request type #
-    ptraceList = [
+    PTRACE_TYPE = [
         'PTRACE_TRACEME',       #0#
         'PTRACE_PEEKTEXT',
         'PTRACE_PEEKDATA',
@@ -644,7 +2445,7 @@ class ConfigManager(object):
         ]
 
     # Define perf event types #
-    perfEventType = [
+    PERF_EVENT_TYPE = [
         'PERF_TYPE_HARDWARE',
         'PERF_TYPE_SOFTWARE',
         'PERF_TYPE_TRACEPOINT',
@@ -652,7 +2453,8 @@ class ConfigManager(object):
         'PERF_TYPE_RAW',
         'PERF_TYPE_BREAKPOINT',
         ]
-    perfEventHWType = [
+
+    PERF_HW_EVENT_TYPE = [
         'PERF_COUNT_HW_CPU_CYCLES',
         'PERF_COUNT_HW_INSTRUCTIONS',
         'PERF_COUNT_HW_CACHE_REFERENCES',
@@ -664,7 +2466,8 @@ class ConfigManager(object):
         'PERF_COUNT_HW_STALLED_CYCLES_BACKEND',
         'PERF_COUNT_HW_REF_CPU_CYCLES',
         ]
-    perfEventSWType = [
+
+    PERF_SW_EVENT_TYPE = [
         'PERF_COUNT_SW_CPU_CLOCK',
         'PERF_COUNT_SW_TASK_CLOCK',
         'PERF_COUNT_SW_PAGE_FAULTS',
@@ -677,7 +2480,8 @@ class ConfigManager(object):
         'PERF_COUNT_SW_DUMMY',
         'PERF_COUNT_SW_BPF_OUTPUT',
         ]
-    perfEventCacheType = [
+
+    PERF_CACHE_EVENT_TYPE = [
         'PERF_COUNT_HW_CACHE_L1D',
         'PERF_COUNT_HW_CACHE_L1I',
         'PERF_COUNT_HW_CACHE_LL',
@@ -686,12 +2490,14 @@ class ConfigManager(object):
         'PERF_COUNT_HW_CACHE_BPU',
         'PERF_COUNT_HW_CACHE_NODE',
         ]
-    perfEventCacheOp = [
+
+    PERF_CACHE_EVENT_OP = [
         'PERF_COUNT_HW_CACHE_OP_READ',
         'PERF_COUNT_HW_CACHE_OP_WRITE',
         'PERF_COUNT_HW_CACHE_OP_PREFETCH',
         ]
-    perfEventCacheOpRes = [
+
+    PERF_CACHE_EVENT_OPRES = [
         'PERF_COUNT_HW_CACHE_RESULT_ACCESS',
         'PERF_COUNT_HW_CACHE_RESULT_MISS',
         ]
@@ -3768,7 +5574,7 @@ class FunctionAnalyzer(object):
                         maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
 
                         addr = l['uaddr'][1:]
-                        flist = ConfigManager.futexList
+                        flist = ConfigManager.FUTEX_TYPE
                         try:
                             event = flist[maskedOp]
                         except:
@@ -3972,7 +5778,7 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
-                if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
                     self.sigEnabled = True
 
                     self.saveEventParam('SIGSEGV_GEN', 0, 0)
@@ -3993,7 +5799,7 @@ class FunctionAnalyzer(object):
             if m is not None:
                 b = m.groupdict()
 
-                if b['sig'] == str(ConfigManager.sigList.index('SIGSEGV')):
+                if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
                     self.sigEnabled = True
 
                     self.saveEventParam('SIGSEGV_DLV', 0, 0)
@@ -7415,7 +9221,7 @@ class SystemManager(object):
     customCmd = None
     userCmd = None
     kernelCmd = None
-    udpListCache = None
+    UDP_ATTRCache = None
     tcpListCache = None
     customEventList = []
     userEventList = []
@@ -7661,7 +9467,7 @@ class SystemManager(object):
         try:
             SystemManager.maxFd = \
                 SystemManager.guiderObj.getrlimit(\
-                    ConfigManager.rlimitList.index('RLIMIT_NOFILE'))
+                    ConfigManager.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
             return
         except:
             pass
@@ -7697,7 +9503,7 @@ class SystemManager(object):
 
             rlim = rlimit()
             ret = SystemManager.libcObj.getrlimit(\
-                ConfigManager.rlimitList.index('RLIMIT_NOFILE'), byref(rlim))
+                ConfigManager.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
 
             SystemManager.maxFd = rlim.rlim_cur
         except:
@@ -8132,8 +9938,8 @@ class SystemManager(object):
         try:
             statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
             fd = open(statmPath, 'r')
-            statmList = fd.readlines()[0].split()
-            return statmList
+            STATM_TYPE = fd.readlines()[0].split()
+            return STATM_TYPE
         except:
             SystemManager.printWarning('Fail to open %s' % statmPath)
             return
@@ -9705,16 +11511,16 @@ Copyright:
 
         # set systemcall table #
         if arch == 'arm':
-            ConfigManager.sysList = ConfigManager.sysList_arm
+            ConfigManager.sysList = ConfigManager.SYSCALL_ARM
             ConfigManager.wordSize = 4
         elif arch == 'aarch64':
-            ConfigManager.sysList = ConfigManager.sysList_aarch64
+            ConfigManager.sysList = ConfigManager.SYSCALL_AARCH64
             ConfigManager.wordSize = 8
         elif arch == 'x86':
-            ConfigManager.sysList = ConfigManager.sysList_x86
+            ConfigManager.sysList = ConfigManager.SYSCALL_X86
             ConfigManager.wordSize = 4
         elif arch == 'x64':
-            ConfigManager.sysList = ConfigManager.sysList_x64
+            ConfigManager.sysList = ConfigManager.SYSCALL_X64
             ConfigManager.wordSize = 8
         else:
             support = ' / '.join(ConfigManager.supportArch)
@@ -9780,12 +11586,12 @@ Copyright:
     @staticmethod
     def openPerfEvent(econfig, cpu=-1, pid=-1):
         try:
-            if econfig in ConfigManager.perfEventHWType:
-                nrType = ConfigManager.perfEventType.index('PERF_TYPE_HARDWARE')
-                nrConfig = ConfigManager.perfEventHWType.index(econfig)
-            elif econfig in ConfigManager.perfEventSWType:
-                nrType = ConfigManager.perfEventType.index('PERF_TYPE_SOFTWARE')
-                nrConfig = ConfigManager.perfEventSWType.index(econfig)
+            if econfig in ConfigManager.PERF_HW_EVENT_TYPE:
+                nrType = ConfigManager.PERF_EVENT_TYPE.index('PERF_TYPE_HARDWARE')
+                nrConfig = ConfigManager.PERF_HW_EVENT_TYPE.index(econfig)
+            elif econfig in ConfigManager.PERF_SW_EVENT_TYPE:
+                nrType = ConfigManager.PERF_EVENT_TYPE.index('PERF_TYPE_SOFTWARE')
+                nrConfig = ConfigManager.PERF_SW_EVENT_TYPE.index(econfig)
             else:
                 raise Exception()
         except:
@@ -11229,21 +13035,21 @@ Copyright:
                 "Fail to open %s to get uds list " % udsPath)
             return udsBuf
 
-        udsList = []
+        UDS_ATTR = []
         for line in udsBuf:
-            udsList.append(line.split())
+            UDS_ATTR.append(line.split())
 
         # remove title #
-        udsList.pop(0)
+        UDS_ATTR.pop(0)
 
-        return udsList
+        return UDS_ATTR
 
 
 
     @staticmethod
-    def getUdpList():
-        if SystemManager.udpListCache != None:
-            return SystemManager.udpListCache
+    def getUDP_ATTR():
+        if SystemManager.UDP_ATTRCache != None:
+            return SystemManager.UDP_ATTRCache
 
         udpBuf = []
         udpPath = '%s/net/udp' % SystemManager.procPath
@@ -11258,16 +13064,16 @@ Copyright:
                 "Fail to open %s to get udp list " % udpPath)
             return udpBuf
 
-        udpList = []
+        UDP_ATTR = []
         for line in udpBuf:
-            udpList.append(line.split())
+            UDP_ATTR.append(line.split())
 
         # remove title #
-        udpList.pop(0)
+        UDP_ATTR.pop(0)
 
-        SystemManager.udpListCache = udpList
+        SystemManager.UDP_ATTRCache = UDP_ATTR
 
-        return udpList
+        return UDP_ATTR
 
 
 
@@ -14649,11 +16455,11 @@ Copyright:
     @staticmethod
     def getSocketPathList(addrList):
         pathList = {}
-        inodeIdx = ConfigManager.udsList.index('Inode')
-        pathIdx = ConfigManager.udsList.index('Path')
+        inodeIdx = ConfigManager.UDS_ATTR.index('Inode')
+        pathIdx = ConfigManager.UDS_ATTR.index('Path')
 
-        udsList = SystemManager.getUdsList()
-        for uds in udsList:
+        UDS_ATTR = SystemManager.getUdsList()
+        for uds in UDS_ATTR:
             try:
                 if uds[inodeIdx] in addrList:
                     pathList[uds[pathIdx]] = None
@@ -14702,12 +16508,12 @@ Copyright:
     @staticmethod
     def getSocketAddrList(addrList):
         portList = {}
-        inodeIdx = ConfigManager.udpList.index('inode')
-        addrIdx = ConfigManager.udpList.index('local_address')
+        inodeIdx = ConfigManager.UDP_ATTR.index('inode')
+        addrIdx = ConfigManager.UDP_ATTR.index('local_address')
 
         # get udp list #
-        udpList = SystemManager.getUdpList()
-        for udp in udpList:
+        UDP_ATTR = SystemManager.getUDP_ATTR()
+        for udp in UDP_ATTR:
             try:
                 if udp[inodeIdx] in addrList:
                     ip, port = udp[addrIdx].split(':')
@@ -14926,7 +16732,7 @@ Copyright:
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
-        gstatList = ConfigManager.statList
+        gSTAT_ATTR = ConfigManager.STAT_ATTR
 
         SystemManager.updateUptime()
 
@@ -14955,21 +16761,21 @@ Copyright:
                 try:
                     statPath = "%s/%s" % (procPath, 'stat')
                     with open(statPath, 'r') as fd:
-                        statList = fd.readlines()[0].split()
+                        STAT_ATTR = fd.readlines()[0].split()
 
-                    commIndex = gstatList.index("COMM")
-                    if statList[commIndex][-1] != ')':
-                        idx = gstatList.index("COMM") + 1
+                    commIndex = gSTAT_ATTR.index("COMM")
+                    if STAT_ATTR[commIndex][-1] != ')':
+                        idx = gSTAT_ATTR.index("COMM") + 1
                         while 1:
-                            tmpStr = str(statList[idx])
-                            statList[commIndex] = \
-                                "%s %s" % (statList[commIndex], tmpStr)
-                            statList.pop(idx)
+                            tmpStr = str(STAT_ATTR[idx])
+                            STAT_ATTR[commIndex] = \
+                                "%s %s" % (STAT_ATTR[commIndex], tmpStr)
+                            STAT_ATTR.pop(idx)
                             if tmpStr.rfind(')') > -1:
                                 break
 
                     procStart = \
-                        float(statList[gstatList.index("STARTTIME")]) / 100
+                        float(STAT_ATTR[gSTAT_ATTR.index("STARTTIME")]) / 100
                     runtime = int(SystemManager.uptime - procStart)
                 except:
                     pass
@@ -15670,8 +17476,8 @@ Copyright:
         nrCore = 0
         if cpuBuf is not None:
             for line in cpuBuf:
-                statList = line.split()
-                cpuId = statList[0]
+                STAT_ATTR = line.split()
+                cpuId = STAT_ATTR[0]
                 if cpuId != 'cpu' and cpuId.startswith('cpu'):
                     nrCore += 1
 
@@ -15802,7 +17608,7 @@ Copyright:
                 "Fail to get memory size of guider")
             sys.exit(0)
 
-        rssIdx = ConfigManager.statmList.index("RSS")
+        rssIdx = ConfigManager.STATM_TYPE.index("RSS")
         rssSize = long(mlist[rssIdx]) << 12
 
         # run in the background #
@@ -15829,11 +17635,11 @@ Copyright:
         CLK_PRECISION = 1000000
         MAX_BUCKET = CLK_PRECISION / 10000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
-        NR_SIGSTOP = ConfigManager.sigList.index('SIGSTOP')
-        NR_SIGCONT = ConfigManager.sigList.index('SIGCONT')
-        COMM_IDX = ConfigManager.statList.index("COMM")
-        UTIME_IDX = ConfigManager.statList.index("UTIME")
-        STIME_IDX = ConfigManager.statList.index("STIME")
+        NR_SIGSTOP = ConfigManager.SIG_LIST.index('SIGSTOP')
+        NR_SIGCONT = ConfigManager.SIG_LIST.index('SIGCONT')
+        COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
+        UTIME_IDX = ConfigManager.STAT_ATTR.index("UTIME")
+        STIME_IDX = ConfigManager.STAT_ATTR.index("STIME")
         NR_TARGET = len(limitInfo)
 
         elapsed = 0
@@ -15870,20 +17676,20 @@ Copyright:
                 return None
 
             # convert string to list #
-            statList = statBuf.split()
+            STAT_ATTR = statBuf.split()
 
             # merge comm parts that splited by space #
-            if statList[COMM_IDX][-1] != ')':
+            if STAT_ATTR[COMM_IDX][-1] != ')':
                 idx = COMM_IDX + 1
                 while 1:
-                    tmpStr = str(statList[idx])
-                    statList[COMM_IDX] = "%s %s" % (statList[COMM_IDX], tmpStr)
-                    statList.pop(idx)
+                    tmpStr = str(STAT_ATTR[idx])
+                    STAT_ATTR[COMM_IDX] = "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
+                    STAT_ATTR.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
 
-            comm = statList[COMM_IDX][1:-1]
-            cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
+            comm = STAT_ATTR[COMM_IDX][1:-1]
+            cputime = long(STAT_ATTR[UTIME_IDX]) + long(STAT_ATTR[STIME_IDX])
             return (comm, cputime)
 
         # initialize task list #
@@ -15982,11 +17788,11 @@ Copyright:
                                 try:
                                     os.kill(tid, NR_SIGSTOP)
                                 except:
-                                    errList = map(str, sys.exc_info()[1].args)
+                                    ERR_TYPE = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
                                         "Fail to send signal SIGSTOP to %s "
                                         "because %s") % \
-                                        (tid, ' '.join(list(errList))))
+                                        (tid, ' '.join(list(ERR_TYPE))))
                             val['running'] = False
                     # continue #
                     else:
@@ -15995,11 +17801,11 @@ Copyright:
                                 try:
                                     os.kill(tid, NR_SIGCONT)
                                 except:
-                                    errList = map(str, sys.exc_info()[1].args)
+                                    ERR_TYPE = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
                                         "Fail to send signal SIGCONT to %s "
                                         "because %s") % \
-                                        (tid, ' '.join(list(errList))))
+                                        (tid, ' '.join(list(ERR_TYPE))))
                             val['running'] = True
 
                 time.sleep(SLEEP_SEC)
@@ -16011,20 +17817,20 @@ Copyright:
                     try:
                         os.kill(tid, NR_SIGCONT)
                     except:
-                        errList = map(str, sys.exc_info()[1].args)
+                        ERR_TYPE = map(str, sys.exc_info()[1].args)
                         SystemManager.printError(
                             "Fail to send signal SIGCONT to %s because %s" % \
-                            (tid, ' '.join(list(errList))))
+                            (tid, ' '.join(list(ERR_TYPE))))
 
 
 
     @staticmethod
     def sendSignalArgs(argList):
         sig = signal.SIGQUIT
-        cSigList = ConfigManager.sigList
+        cSigList = ConfigManager.SIG_LIST
         if argList is not None:
-            sigList = [item for item in argList if item.startswith('-')]
-            for val in sigList:
+            SIG_LIST = [item for item in argList if item.startswith('-')]
+            for val in SIG_LIST:
                 try:
                     if val[1:].upper() in cSigList:
                         sig = cSigList.index(val[1:].upper())
@@ -16054,7 +17860,7 @@ Copyright:
         nrProc = 0
         myPid = str(SystemManager.pid)
         compLen = len(__module__)
-        sigList = ConfigManager.sigList
+        SIG_LIST = ConfigManager.SIG_LIST
 
         if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
@@ -16070,11 +17876,11 @@ Copyright:
                 try:
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
-                        "sent signal %s to %s process" % (sigList[nrSig], pid))
+                        "sent signal %s to %s process" % (SIG_LIST[nrSig], pid))
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because %s" % \
-                        (sigList[nrSig], pid,\
+                        (SIG_LIST[nrSig], pid,\
                         ' '.join(list(map(str, sys.exc_info()[1].args)))))
             return
 
@@ -16124,29 +17930,29 @@ Copyright:
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because %s" % \
-                                (sigList[nrSig], pid, \
+                                (SIG_LIST[nrSig], pid, \
                                 ' '.join(list(map(str, sys.exc_info()[1].args)))))
                     elif SystemManager.isStopMode():
                         try:
                             os.kill(int(pid), nrSig)
                             SystemManager.printInfo(\
                                 "sent signal %s to %s process" % \
-                                (sigList[nrSig], pid))
+                                (SIG_LIST[nrSig], pid))
                         except:
                             SystemManager.printError(\
                                 "Fail to send signal %s to %s because %s" % \
-                                (sigList[nrSig], pid, \
+                                (SIG_LIST[nrSig], pid, \
                                 ' '.join(list(map(str, sys.exc_info()[1].args)))))
                 else:
                     try:
                         os.kill(int(pid), nrSig)
                         SystemManager.printInfo(\
                             "sent signal %s to %s process" % \
-                            (sigList[nrSig], pid))
+                            (SIG_LIST[nrSig], pid))
                     except:
                         SystemManager.printError(\
                             "Fail to send signal %s to %s because %s" % \
-                            (sigList[nrSig], pid, \
+                            (SIG_LIST[nrSig], pid, \
                             ' '.join(list(map(str, sys.exc_info()[1].args)))))
 
                 nrProc += 1
@@ -16256,7 +18062,7 @@ Copyright:
                         raise Exception()
 
                     policy = schedSet[0].upper()
-                    ConfigManager.schedList.index(policy)
+                    ConfigManager.SCHED_POLICY.index(policy)
                     pri = schedSet[1]
 
                     # update priority of all threads #
@@ -16282,11 +18088,11 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                errList = map(str, sys.exc_info()[1].args)
+                ERR_TYPE = map(str, sys.exc_info()[1].args)
                 SystemManager.printError((\
                     "wrong option value %s with -Y because %s, "
                     "input POLICY:PRIORITY|TIME:PID in format") % \
-                    (item, ' '.join(list(errList))))
+                    (item, ' '.join(list(ERR_TYPE))))
                 sys.exit(0)
 
 
@@ -16377,7 +18183,7 @@ Copyright:
         sched_attr.sched_flags = 0
         sched_attr.sched_nice = 0
         sched_attr.sched_priority = 0
-        sched_attr.sched_policy = ConfigManager.schedList.index('D')
+        sched_attr.sched_policy = ConfigManager.SCHED_POLICY.index('D')
 
         # set runtime(ns) #
         sched_attr.sched_runtime = runtime
@@ -16443,7 +18249,7 @@ Copyright:
 
             upolicy = policy.upper()
 
-            argPolicy = ConfigManager.schedList.index(upolicy)
+            argPolicy = ConfigManager.SCHED_POLICY.index(upolicy)
             if SystemManager.guiderObj is None:
                 argPolicy = ctypes.c_int(argPolicy)
 
@@ -17355,7 +19161,7 @@ Copyright:
             if customCmd is None or \
                 True not in [True for evt in customCmd \
                 if evt.startswith('signal')]:
-                sigCmd = "sig == %d" % ConfigManager.sigList.index('SIGSEGV')
+                sigCmd = "sig == %d" % ConfigManager.SIG_LIST.index('SIGSEGV')
                 SystemManager.writeCmd('signal/filter', sigCmd)
 
             # enable cpu events #
@@ -18491,1805 +20297,6 @@ Copyright:
 class Debugger(object):
     """ Debugger for ptrace """
 
-    SOCKETCALL = {
-        1: "socket",
-        2: "bind",
-        3: "connect",
-        4: "listen",
-        5: "accept",
-        6: "getsockname",
-        7: "getpeername",
-        8: "socketpair",
-        9: "send",
-        10: "recv",
-        11: "sendto",
-        12: "recvfrom",
-        13: "shutdown",
-        14: "setsockopt",
-        15: "getsockopt",
-        16: "sendmsg",
-        17: "recvmsg",
-    }
-
-    SOCKET_FAMILY = {
-        0: "AF_UNSPEC",
-        1: "AF_FILE",
-        2: "AF_INET",
-        3: "AF_AX25",
-        4: "AF_IPX",
-        5: "AF_APPLETALK",
-        6: "AF_NETROM",
-        7: "AF_BRIDGE",
-        8: "AF_ATMPVC",
-        9: "AF_X25",
-        10: "AF_INET6",
-        11: "AF_ROSE",
-        12: "AF_DECnet",
-        13: "AF_NETBEUI",
-        14: "AF_SECURITY",
-        15: "AF_KEY",
-        16: "AF_NETLINK",
-        17: "AF_PACKET",
-        18: "AF_ASH",
-        19: "AF_ECONET",
-        20: "AF_ATMSVC",
-        22: "AF_SNA",
-        23: "AF_IRDA",
-        24: "AF_PPPOX",
-        25: "AF_WANPIPE",
-        31: "AF_BLUETOOTH",
-    }
-
-    SOCKET_TYPE = {
-        1: "SOCK_STREAM",
-        2: "SOCK_DGRAM",
-        3: "SOCK_RAW",
-        4: "SOCK_RDM",
-        5: "SOCK_SEQPACKET",
-        10: "SOCK_PACKET",
-    }
-
-    SYSCALL_PROTOTYPES = {
-        "accept": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int *", "addrlen"),
-        )),
-        "accept4": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int *", "addrlen"),
-            ("int", "flags"),
-        )),
-        "access": ("long", (
-            ("const char *", "filename"),
-            ("int", "mode"),
-        )),
-        "acct": ("long", (
-            ("const char *", "name"),
-        )),
-        "add_key": ("long", (
-            ("const char *", "_type"),
-            ("const char *", "_description"),
-            ("const void *", "_payload"),
-            ("size_t", "plen"),
-            ("key_serial_t", "destringid"),
-        )),
-        "adjtimex": ("long", (
-            ("struct timex *", "txc_p"),
-        )),
-        "alarm": ("long", (
-            ("unsigned int", "seconds"),
-        )),
-        "bdflush": ("long", (
-            ("int", "func"),
-            ("long", "data"),
-        )),
-        "bind": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int", "addrlen"),
-        )),
-        "bpf": ("long", (
-            ("int", "cmd"),
-            ("union bpf_attr *", "attr"),
-            ("unsigned int", "size"),
-        )),
-        "brk": ("long", (
-            ("unsigned long", "brk"),
-        )),
-        "capget": ("long", (
-            ("cap_user_header_t", "header"),
-            ("cap_user_data_t", "dataptr"),
-        )),
-        "capset": ("long", (
-            ("cap_user_header_t", "header"),
-            ("const cap_user_data_t", "data"),
-        )),
-        "chdir": ("long", (
-            ("const char *", "filename"),
-        )),
-        "chmod": ("long", (
-            ("const char *", "filename"),
-            ("umode_t", "mode"),
-        )),
-        "chown": ("long", (
-            ("const char *", "filename"),
-            ("uid_t", "user"),
-            ("gid_t", "group"),
-        )),
-        "chown16": ("long", (
-            ("const char *", "filename"),
-            ("old_uid_t", "user"),
-            ("old_gid_t", "group"),
-        )),
-        "chroot": ("long", (
-            ("const char *", "filename"),
-        )),
-        "clock_adjtime": ("long", (
-            ("clockid_t", "which_clock"),
-            ("struct timex *", "tx"),
-        )),
-        "clock_getres": ("long", (
-            ("clockid_t", "which_clock"),
-            ("struct timespec *", "tp"),
-        )),
-        "clock_gettime": ("long", (
-            ("clockid_t", "which_clock"),
-            ("struct timespec *", "tp"),
-        )),
-        "clock_nanosleep": ("long", (
-            ("clockid_t", "which_clock"),
-            ("int", "flags"),
-            ("const struct timespec *", "rqtp"),
-            ("struct timespec *", "rmtp"),
-        )),
-        "clock_settime": ("long", (
-            ("clockid_t", "which_clock"),
-            ("const struct timespec *", "tp"),
-        )),
-        "clone": ("long", (
-            ("unsigned long", "flags"),
-            ("unsigned long", "child_stack"),
-            ("int *", "ptid"),
-            ("int *", "ctid"),
-            ("unsigned long", "regs"),
-        )),
-        "close": ("long", (
-            ("unsigned int", "fd"),
-        )),
-        "connect": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int", "addrlen"),
-        )),
-        "copy_file_range": ("long", (
-            ("int", "fd_in"),
-            ("loff_t *", "off_in"),
-            ("int", "fd_out"),
-            ("loff_t *", "off_out"),
-            ("size_t", "len"),
-            ("unsigned int", "flags"),
-        )),
-        "creat": ("long", (
-            ("const char *", "pathname"),
-            ("umode_t", "mode"),
-        )),
-        "delete_module": ("long", (
-            ("const char *", "name_user"),
-            ("unsigned int", "flags"),
-        )),
-        "dup": ("long", (
-            ("unsigned int", "fildes"),
-        )),
-        "dup2": ("long", (
-            ("unsigned int", "oldfd"),
-            ("unsigned int", "newfd"),
-        )),
-        "dup3": ("long", (
-            ("unsigned int", "oldfd"),
-            ("unsigned int", "newfd"),
-            ("int", "flags"),
-        )),
-        "epoll_create": ("long", (
-            ("int", "size"),
-        )),
-        "epoll_create1": ("long", (
-            ("int", "flags"),
-        )),
-        "epoll_ctl": ("long", (
-            ("int", "epfd"),
-            ("int", "op"),
-            ("int", "fd"),
-            ("struct epoll_event *", "event"),
-        )),
-        "epoll_pwait": ("long", (
-            ("int", "epfd"),
-            ("struct epoll_event *", "events"),
-            ("int", "maxevents"),
-            ("int", "timeout"),
-            ("const sigset_t *", "sigmask"),
-            ("size_t", "sigsetsize"),
-        )),
-        "epoll_wait": ("long", (
-            ("int", "epfd"),
-            ("struct epoll_event *", "events"),
-            ("int", "maxevents"),
-            ("int", "timeout"),
-        )),
-        "eventfd": ("long", (
-            ("unsigned int", "count"),
-        )),
-        "eventfd2": ("long", (
-            ("unsigned int", "count"),
-            ("int", "flags"),
-        )),
-        "execve": ("long", (
-            ("const char *", "filename"),
-            ("const char *const *", "argv"),
-            ("const char *const *", "envp"),
-        )),
-        "execveat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("const char *const *", "argv"),
-            ("const char *const *", "envp"),
-            ("int", "flags"),
-        )),
-        "exit": ("long", (
-            ("int", "error_code"),
-        )),
-        "exit_group": ("long", (
-            ("int", "error_code"),
-        )),
-        "faccessat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("int", "mode"),
-        )),
-        "fadvise64": ("long", (
-            ("int", "fd"),
-            ("loff_t", "offset"),
-            ("size_t", "len"),
-            ("int", "advice"),
-        )),
-        "fadvise64_64": ("long", (
-            ("int", "fd"),
-            ("loff_t", "offset"),
-            ("loff_t", "len"),
-            ("int", "advice"),
-        )),
-        "fallocate": ("long", (
-            ("int", "fd"),
-            ("int", "mode"),
-            ("loff_t", "offset"),
-            ("loff_t", "len"),
-        )),
-        "fanotify_init": ("long", (
-            ("unsigned int", "flags"),
-            ("unsigned int", "event_f_flags"),
-        )),
-        "fanotify_mark": ("long", (
-            ("int", "fanotify_fd"),
-            ("unsigned int", "flags"),
-            ("u64", "mask"),
-            ("int", "fd"),
-            ("const char *", "pathname"),
-        )),
-        "fchdir": ("long", (
-            ("unsigned int", "fd"),
-        )),
-        "fchmod": ("long", (
-            ("unsigned int", "fd"),
-            ("umode_t", "mode"),
-        )),
-        "fchmodat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("umode_t", "mode"),
-        )),
-        "fchown": ("long", (
-            ("unsigned int", "fd"),
-            ("uid_t", "user"),
-            ("gid_t", "group"),
-        )),
-        "fchown16": ("long", (
-            ("unsigned int", "fd"),
-            ("old_uid_t", "user"),
-            ("old_gid_t", "group"),
-        )),
-        "fchownat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("uid_t", "user"),
-            ("gid_t", "group"),
-            ("int", "flag"),
-        )),
-        "fcntl": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned int", "cmd"),
-            ("unsigned long", "arg"),
-        )),
-        "fcntl64": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned int", "cmd"),
-            ("unsigned long", "arg"),
-        )),
-        "fdatasync": ("long", (
-            ("unsigned int", "fd"),
-        )),
-        "fgetxattr": ("long", (
-            ("int", "fd"),
-            ("const char *", "name"),
-            ("void *", "value"),
-            ("size_t", "size"),
-        )),
-        "finit_module": ("long", (
-            ("int", "fd"),
-            ("const char *", "uargs"),
-            ("int", "flags"),
-        )),
-        "flistxattr": ("long", (
-            ("int", "fd"),
-            ("char *", "list"),
-            ("size_t", "size"),
-        )),
-        "flock": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned int", "cmd"),
-        )),
-        "fork": ("long", (
-        )),
-        "fremovexattr": ("long", (
-            ("int", "fd"),
-            ("const char *", "name"),
-        )),
-        "fsetxattr": ("long", (
-            ("int", "fd"),
-            ("const char *", "name"),
-            ("const void *", "value"),
-            ("size_t", "size"),
-            ("int", "flags"),
-        )),
-        "fstat": ("long", (
-            ("unsigned int", "fd"),
-            ("struct __old_kernel_stat *", "statbuf"),
-        )),
-        "fstat64": ("long", (
-            ("unsigned long", "fd"),
-            ("struct stat64 *", "statbuf"),
-        )),
-        "fstatat64": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("struct stat64 *", "statbuf"),
-            ("int", "flag"),
-        )),
-        "fstatfs": ("long", (
-            ("unsigned int", "fd"),
-            ("struct statfs *", "buf"),
-        )),
-        "fstatfs64": ("long", (
-            ("unsigned int", "fd"),
-            ("size_t", "sz"),
-            ("struct statfs64 *", "buf"),
-        )),
-        "fsync": ("long", (
-            ("unsigned int", "fd"),
-        )),
-        "ftruncate": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned long", "length"),
-        )),
-        "ftruncate64": ("long", (
-            ("unsigned int", "fd"),
-            ("loff_t", "length"),
-        )),
-        "futex": ("long", (
-            ("u32 *", "uaddr"),
-            ("int", "op"),
-            ("u32", "val"),
-            ("struct timespec *", "utime"),
-            ("u32 *", "uaddr2"),
-            ("u32", "val3"),
-        )),
-        "futimesat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("struct timeval *", "utimes"),
-        )),
-        "get_mempolicy": ("long", (
-            ("int *", "policy"),
-            ("unsigned long *", "nmask"),
-            ("unsigned long", "maxnode"),
-            ("unsigned long", "addr"),
-            ("unsigned long", "flags"),
-        )),
-        "get_robust_list": ("long", (
-            ("int", "pid"),
-            ("struct robust_list_head * *", "head_ptr"),
-            ("size_t *", "len_ptr"),
-        )),
-        "getcpu": ("long", (
-            ("unsigned *", "cpu"),
-            ("unsigned *", "node"),
-            ("struct getcpu_cache *", "cache"),
-        )),
-        "getcwd": ("long", (
-            ("char *", "pathname"),
-            ("unsigned long", "size"),
-        )),
-        "getdents": ("long", (
-            ("unsigned int", "fd"),
-            ("struct linux_dirent *", "dirent"),
-            ("unsigned int", "count"),
-        )),
-        "getdents64": ("long", (
-            ("unsigned int", "fd"),
-            ("struct linux_dirent64 *", "dirent"),
-            ("unsigned int", "count"),
-        )),
-        "getegid": ("long", (
-        )),
-        "getegid16": ("long", (
-        )),
-        "geteuid": ("long", (
-        )),
-        "geteuid16": ("long", (
-        )),
-        "getgid": ("long", (
-        )),
-        "getgid16": ("long", (
-        )),
-        "getgroups": ("long", (
-            ("int", "gidsetsize"),
-            ("gid_t *", "grouplist"),
-        )),
-        "getgroups16": ("long", (
-            ("int", "gidsetsize"),
-            ("old_gid_t *", "grouplist"),
-        )),
-        "gethostname": ("long", (
-            ("char *", "name"),
-            ("int", "len"),
-        )),
-        "getitimer": ("long", (
-            ("int", "which"),
-            ("struct itimerval *", "value"),
-        )),
-        "getpeername": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int *", "addrlen"),
-        )),
-        "getpgid": ("long", (
-            ("pid_t", "pid"),
-        )),
-        "getpgrp": ("long", (
-        )),
-        "getpid": ("long", (
-        )),
-        "getppid": ("long", (
-        )),
-        "getpriority": ("long", (
-            ("int", "which"),
-            ("int", "who"),
-        )),
-        "getrandom": ("long", (
-            ("char *", "buf"),
-            ("size_t", "count"),
-            ("unsigned int", "flags"),
-        )),
-        "getresgid": ("long", (
-            ("gid_t *", "rgid"),
-            ("gid_t *", "egid"),
-            ("gid_t *", "sgid"),
-        )),
-        "getresgid16": ("long", (
-            ("old_gid_t *", "rgid"),
-            ("old_gid_t *", "egid"),
-            ("old_gid_t *", "sgid"),
-        )),
-        "getresuid": ("long", (
-            ("uid_t *", "ruid"),
-            ("uid_t *", "euid"),
-            ("uid_t *", "suid"),
-        )),
-        "getresuid16": ("long", (
-            ("old_uid_t *", "ruid"),
-            ("old_uid_t *", "euid"),
-            ("old_uid_t *", "suid"),
-        )),
-        "getrlimit": ("long", (
-            ("unsigned int", "resource"),
-            ("struct rlimit *", "rlim"),
-        )),
-        "getrusage": ("long", (
-            ("int", "who"),
-            ("struct rusage *", "ru"),
-        )),
-        "getsid": ("long", (
-            ("pid_t", "pid"),
-        )),
-        "getsockname": ("long", (
-            ("int", "sockfd"),
-            ("struct sockaddr *", "addr"),
-            ("int *", "addrlen"),
-        )),
-        "getsockopt": ("long", (
-            ("int", "fd"),
-            ("int", "level"),
-            ("int", "optname"),
-            ("char *", "optval"),
-            ("int *", "optlen"),
-        )),
-        "gettid": ("long", (
-        )),
-        "gettimeofday": ("long", (
-            ("struct timeval *", "tv"),
-            ("struct timezone *", "tz"),
-        )),
-        "getuid": ("long", (
-        )),
-        "getuid16": ("long", (
-        )),
-        "getxattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-            ("void *", "value"),
-            ("size_t", "size"),
-        )),
-        "init_module": ("long", (
-            ("void *", "umod"),
-            ("unsigned long", "len"),
-            ("const char *", "uargs"),
-        )),
-        "inotify_add_watch": ("long", (
-            ("int", "fd"),
-            ("const char *", "path"),
-            ("u32", "mask"),
-        )),
-        "inotify_init": ("long", (
-        )),
-        "inotify_init1": ("long", (
-            ("int", "flags"),
-        )),
-        "inotify_rm_watch": ("long", (
-            ("int", "fd"),
-            ("__s32", "wd"),
-        )),
-        "io_cancel": ("long", (
-            ("aio_context_t", "ctx_id"),
-            ("struct iocb *", "iocb"),
-            ("struct io_event *", "result"),
-        )),
-        "io_destroy": ("long", (
-            ("aio_context_t", "ctx"),
-        )),
-        "io_getevents": ("long", (
-            ("aio_context_t", "ctx_id"),
-            ("long", "min_nr"),
-            ("long", "nr"),
-            ("struct io_event *", "events"),
-            ("struct timespec *", "timeout"),
-        )),
-        "io_setup": ("long", (
-            ("unsigned", "nr_reqs"),
-            ("aio_context_t *", "ctx"),
-        )),
-        "io_submit": ("long", (
-            ("aio_context_t", "ctx_id"),
-            ("long", "nr"),
-            ("struct iocb * *", "iocbpp"),
-        )),
-        "ioctl": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned int", "cmd"),
-            ("unsigned long", "arg"),
-        )),
-        "ioperm": ("long", (
-            ("unsigned long", "from"),
-            ("unsigned long", "num"),
-            ("int", "on"),
-        )),
-        "ioprio_get": ("long", (
-            ("int", "which"),
-            ("int", "who"),
-        )),
-        "ioprio_set": ("long", (
-            ("int", "which"),
-            ("int", "who"),
-            ("int", "ioprio"),
-        )),
-        "ipc": ("long", (
-            ("unsigned int", "call"),
-            ("int", "first"),
-            ("unsigned long", "second"),
-            ("unsigned long", "third"),
-            ("void *", "ptr"),
-            ("long", "fifth"),
-        )),
-        "kcmp": ("long", (
-            ("pid_t", "pid1"),
-            ("pid_t", "pid2"),
-            ("int", "type"),
-            ("unsigned long", "idx1"),
-            ("unsigned long", "idx2"),
-        )),
-        "kexec_file_load": ("long", (
-            ("int", "kernel_fd"),
-            ("int", "initrd_fd"),
-            ("unsigned long", "cmdline_len"),
-            ("const char *", "cmdline_ptr"),
-            ("unsigned long", "flags"),
-        )),
-        "kexec_load": ("long", (
-            ("unsigned long", "entry"),
-            ("unsigned long", "nr_segments"),
-            ("struct kexec_segment *", "segments"),
-            ("unsigned long", "flags"),
-        )),
-        "keyctl": ("long", (
-            ("int", "cmd"),
-            ("unsigned long", "arg2"),
-            ("unsigned long", "arg3"),
-            ("unsigned long", "arg4"),
-            ("unsigned long", "arg5"),
-        )),
-        "kill": ("long", (
-            ("int", "pid"),
-            ("int", "sig"),
-        )),
-        "lchown": ("long", (
-            ("const char *", "filename"),
-            ("uid_t", "user"),
-            ("gid_t", "group"),
-        )),
-        "lchown16": ("long", (
-            ("const char *", "filename"),
-            ("old_uid_t", "user"),
-            ("old_gid_t", "group"),
-        )),
-        "lgetxattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-            ("void *", "value"),
-            ("size_t", "size"),
-        )),
-        "link": ("long", (
-            ("const char *", "oldname"),
-            ("const char *", "newname"),
-        )),
-        "linkat": ("long", (
-            ("int", "olddfd"),
-            ("const char *", "oldname"),
-            ("int", "newdfd"),
-            ("const char *", "newname"),
-            ("int", "flags"),
-        )),
-        "listen": ("long", (
-            ("int", "sockfd"),
-            ("int", "backlog"),
-        )),
-        "listxattr": ("long", (
-            ("const char *", "path"),
-            ("char *", "list"),
-            ("size_t", "size"),
-        )),
-        "llistxattr": ("long", (
-            ("const char *", "path"),
-            ("char *", "list"),
-            ("size_t", "size"),
-        )),
-        "llseek": ("long", (
-            ("unsigned int", "fd"),
-            ("unsigned long", "offset_high"),
-            ("unsigned long", "offset_low"),
-            ("loff_t *", "result"),
-            ("unsigned int", "whence"),
-        )),
-        "lookup_dcookie": ("long", (
-            ("u64", "cookie64"),
-            ("char *", "buf"),
-            ("size_t", "len"),
-        )),
-        "lremovexattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-        )),
-        "lseek": ("long", (
-            ("unsigned int", "fd"),
-            ("off_t", "offset"),
-            ("unsigned int", "whence"),
-        )),
-        "lsetxattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-            ("const void *", "value"),
-            ("size_t", "size"),
-            ("int", "flags"),
-        )),
-        "lstat": ("long", (
-            ("const char *", "filename"),
-            ("struct __old_kernel_stat *", "statbuf"),
-        )),
-        "lstat64": ("long", (
-            ("const char *", "filename"),
-            ("struct stat64 *", "statbuf"),
-        )),
-        "madvise": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-            ("int", "behavior"),
-        )),
-        "mbind": ("long", (
-            ("unsigned long", "start"),
-            ("unsigned long", "len"),
-            ("unsigned long", "mode"),
-            ("const unsigned long *", "nmask"),
-            ("unsigned long", "maxnode"),
-            ("unsigned", "flags"),
-        )),
-        "membarrier": ("long", (
-            ("int", "cmd"),
-            ("int", "flags"),
-        )),
-        "memfd_create": ("long", (
-            ("const char *", "uname_ptr"),
-            ("unsigned int", "flags"),
-        )),
-        "migrate_pages": ("long", (
-            ("pid_t", "pid"),
-            ("unsigned long", "maxnode"),
-            ("const unsigned long *", "from"),
-            ("const unsigned long *", "to"),
-        )),
-        "mincore": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-            ("unsigned char *", "vec"),
-        )),
-        "mkdir": ("long", (
-            ("const char *", "pathname"),
-            ("umode_t", "mode"),
-        )),
-        "mkdirat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "pathname"),
-            ("umode_t", "mode"),
-        )),
-        "mknod": ("long", (
-            ("const char *", "filename"),
-            ("umode_t", "mode"),
-            ("unsigned", "dev"),
-        )),
-        "mknodat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("umode_t", "mode"),
-            ("unsigned", "dev"),
-        )),
-        "mlock": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-        )),
-        "mlock2": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-            ("int", "flags"),
-        )),
-        "mlockall": ("long", (
-            ("int", "flags"),
-        )),
-        "mmap_pgoff": ("long", (
-            ("unsigned long", "addr"),
-            ("unsigned long", "len"),
-            ("unsigned long", "prot"),
-            ("unsigned long", "flags"),
-            ("unsigned long", "fd"),
-            ("unsigned long", "pgoff"),
-        )),
-        "mount": ("long", (
-            ("char *", "dev_name"),
-            ("char *", "dir_name"),
-            ("char *", "type"),
-            ("unsigned long", "flags"),
-            ("void *", "data"),
-        )),
-        "move_pages": ("long", (
-            ("pid_t", "pid"),
-            ("unsigned long", "nr_pages"),
-            ("const void * *", "pages"),
-            ("const int *", "nodes"),
-            ("int *", "status"),
-            ("int", "flags"),
-        )),
-        "mprotect": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-            ("unsigned long", "prot"),
-        )),
-        "mq_getsetattr": ("long", (
-            ("mqd_t", "mqdes"),
-            ("const struct mq_attr *", "mqstat"),
-            ("struct mq_attr *", "omqstat"),
-        )),
-        "mq_notify": ("long", (
-            ("mqd_t", "mqdes"),
-            ("const struct sigevent *", "notification"),
-        )),
-        "mq_open": ("long", (
-            ("const char *", "name"),
-            ("int", "oflag"),
-            ("umode_t", "mode"),
-            ("struct mq_attr *", "attr"),
-        )),
-        "mq_timedreceive": ("long", (
-            ("mqd_t", "mqdes"),
-            ("char *", "msg_ptr"),
-            ("size_t", "msg_len"),
-            ("unsigned int *", "msg_prio"),
-            ("const struct timespec *", "abs_timeout"),
-        )),
-        "mq_timedsend": ("long", (
-            ("mqd_t", "mqdes"),
-            ("const char *", "msg_ptr"),
-            ("size_t", "msg_len"),
-            ("unsigned int", "msg_prio"),
-            ("const struct timespec *", "abs_timeout"),
-        )),
-        "mq_unlink": ("long", (
-            ("const char *", "name"),
-        )),
-        "mremap": ("long", (
-            ("unsigned long", "addr"),
-            ("unsigned long", "old_len"),
-            ("unsigned long", "new_len"),
-            ("unsigned long", "flags"),
-            ("unsigned long", "new_addr"),
-        )),
-        "msgctl": ("long", (
-            ("int", "msqid"),
-            ("int", "cmd"),
-            ("struct msqid_ds *", "buf"),
-        )),
-        "msgget": ("long", (
-            ("key_t", "key"),
-            ("int", "msgflg"),
-        )),
-        "msgrcv": ("long", (
-            ("int", "msqid"),
-            ("struct msgbuf *", "msgp"),
-            ("size_t", "msgsz"),
-            ("long", "msgtyp"),
-            ("int", "msgflg"),
-        )),
-        "msgsnd": ("long", (
-            ("int", "msqid"),
-            ("struct msgbuf *", "msgp"),
-            ("size_t", "msgsz"),
-            ("int", "msgflg"),
-        )),
-        "msync": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-            ("int", "flags"),
-        )),
-        "munlock": ("long", (
-            ("unsigned long", "start"),
-            ("size_t", "len"),
-        )),
-        "munlockall": ("long", (
-        )),
-        "munmap": ("long", (
-            ("unsigned long", "addr"),
-            ("size_t", "len"),
-        )),
-        "name_to_handle_at": ("long", (
-            ("int", "dfd"),
-            ("const char *", "name"),
-            ("struct file_handle *", "handle"),
-            ("int *", "mnt_id"),
-            ("int", "flag"),
-        )),
-        "nanosleep": ("long", (
-            ("struct timespec *", "rqtp"),
-            ("struct timespec *", "rmtp"),
-        )),
-        "newfstat": ("long", (
-            ("unsigned int", "fd"),
-            ("struct stat *", "statbuf"),
-        )),
-        "newfstatat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("struct stat *", "statbuf"),
-            ("int", "flag"),
-        )),
-        "newlstat": ("long", (
-            ("const char *", "filename"),
-            ("struct stat *", "statbuf"),
-        )),
-        "newstat": ("long", (
-            ("const char *", "filename"),
-            ("struct stat *", "statbuf"),
-        )),
-        "newuname": ("long", (
-            ("struct new_utsname *", "name"),
-        )),
-        "ni_syscall": ("long", (
-        )),
-        "nice": ("long", (
-            ("int", "increment"),
-        )),
-        "old_getrlimit": ("long", (
-            ("unsigned int", "resource"),
-            ("struct rlimit *", "rlim"),
-        )),
-        "old_mmap": ("long", (
-            ("struct mmap_arg_struct *", "arg"),
-        )),
-        "old_readdir": ("long", (
-            ("unsigned int", "fd"),
-            ("struct old_linux_dirent *", "dirp"),
-            ("unsigned int", "count"),
-        )),
-        "old_select": ("long", (
-            ("struct sel_arg_struct *", "arg"),
-        )),
-        "oldumount": ("long", (
-            ("char *", "name"),
-        )),
-        "olduname": ("long", (
-            ("struct oldold_utsname *", "buf"),
-        )),
-        "open": ("long", (
-            ("const char *", "filename"),
-            ("int", "flags"),
-            ("umode_t", "mode"),
-        )),
-        "open_by_handle_at": ("long", (
-            ("int", "mountdirfd"),
-            ("struct file_handle *", "handle"),
-            ("int", "flags"),
-        )),
-        "openat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("int", "flags"),
-            ("umode_t", "mode"),
-        )),
-        "pause": ("long", (
-        )),
-        "pciconfig_iobase": ("long", (
-            ("long", "which"),
-            ("unsigned long", "bus"),
-            ("unsigned long", "devfn"),
-        )),
-        "pciconfig_read": ("long", (
-            ("unsigned long", "bus"),
-            ("unsigned long", "dfn"),
-            ("unsigned long", "off"),
-            ("unsigned long", "len"),
-            ("void *", "buf"),
-        )),
-        "pciconfig_write": ("long", (
-            ("unsigned long", "bus"),
-            ("unsigned long", "dfn"),
-            ("unsigned long", "off"),
-            ("unsigned long", "len"),
-            ("void *", "buf"),
-        )),
-        "perf_event_open": ("long", (
-            ("struct perf_event_attr *", "attr_uptr"),
-            ("pid_t", "pid"),
-            ("int", "cpu"),
-            ("int", "group_fd"),
-            ("unsigned long", "flags"),
-        )),
-        "personality": ("long", (
-            ("unsigned int", "personality"),
-        )),
-        "pipe": ("long", (
-            ("int *", "fildes"),
-        )),
-        "pipe2": ("long", (
-            ("int *", "fildes"),
-            ("int", "flags"),
-        )),
-        "pivot_root": ("long", (
-            ("const char *", "new_root"),
-            ("const char *", "put_old"),
-        )),
-        "poll": ("long", (
-            ("struct pollfd *", "ufds"),
-            ("unsigned int", "nfds"),
-            ("int", "timeout"),
-        )),
-        "ppoll": ("long", (
-            ("struct pollfd *", "fds"),
-            ("unsigned int", "nfds"),
-            ("struct timespec *", "tmo_p"),
-            ("const sigset_t *", "sigmask"),
-            ("size_t", ""),
-        )),
-        "prctl": ("long", (
-            ("int", "option"),
-            ("unsigned long", "arg2"),
-            ("unsigned long", "arg3"),
-            ("unsigned long", "arg4"),
-            ("unsigned long", "arg5"),
-        )),
-        "pread64": ("long", (
-            ("unsigned int", "fd"),
-            ("char *", "buf"),
-            ("size_t", "count"),
-            ("loff_t", "pos"),
-        )),
-        "preadv": ("long", (
-            ("unsigned long", "fd"),
-            ("const struct iovec *", "vec"),
-            ("unsigned long", "vlen"),
-            ("unsigned long", "pos_l"),
-            ("unsigned long", "pos_h"),
-        )),
-        "prlimit64": ("long", (
-            ("pid_t", "pid"),
-            ("unsigned int", "resource"),
-            ("const struct rlimit64 *", "new_rlim"),
-            ("struct rlimit64 *", "old_rlim"),
-        )),
-        "process_vm_readv": ("long", (
-            ("pid_t", "pid"),
-            ("const struct iovec *", "lvec"),
-            ("unsigned long", "liovcnt"),
-            ("const struct iovec *", "rvec"),
-            ("unsigned long", "riovcnt"),
-            ("unsigned long", "flags"),
-        )),
-        "process_vm_writev": ("long", (
-            ("pid_t", "pid"),
-            ("const struct iovec *", "lvec"),
-            ("unsigned long", "liovcnt"),
-            ("const struct iovec *", "rvec"),
-            ("unsigned long", "riovcnt"),
-            ("unsigned long", "flags"),
-        )),
-        "pselect6": ("long", (
-            ("int", "nfds"),
-            ("fd_set *", "readfds"),
-            ("fd_set *", "writefds"),
-            ("fd_set *", "exceptfds"),
-            ("struct timespec *", "timeout"),
-            ("void *", "sigmask"),
-        )),
-        "ptrace": ("long", (
-            ("long", "request"),
-            ("long", "pid"),
-            ("unsigned long", "addr"),
-            ("unsigned long", "data"),
-        )),
-        "pwrite64": ("long", (
-            ("unsigned int", "fd"),
-            ("const char *", "buf"),
-            ("size_t", "count"),
-            ("loff_t", "pos"),
-        )),
-        "pwritev": ("long", (
-            ("unsigned long", "fd"),
-            ("const struct iovec *", "vec"),
-            ("unsigned long", "vlen"),
-            ("unsigned long", "pos_l"),
-            ("unsigned long", "pos_h"),
-        )),
-        "quotactl": ("long", (
-            ("unsigned int", "cmd"),
-            ("const char *", "special"),
-            ("qid_t", "id"),
-            ("void *", "addr"),
-        )),
-        "read": ("long", (
-            ("unsigned int", "fd"),
-            ("char *", "buf"),
-            ("size_t", "count"),
-        )),
-        "readahead": ("long", (
-            ("int", "fd"),
-            ("loff_t", "offset"),
-            ("size_t", "count"),
-        )),
-        "readlink": ("long", (
-            ("const char *", "path"),
-            ("char *", "buf"),
-            ("int", "bufsiz"),
-        )),
-        "readlinkat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "path"),
-            ("char *", "buf"),
-            ("int", "bufsiz"),
-        )),
-        "readv": ("long", (
-            ("unsigned long", "fd"),
-            ("const struct iovec *", "vec"),
-            ("unsigned long", "vlen"),
-        )),
-        "reboot": ("long", (
-            ("int", "magic1"),
-            ("int", "magic2"),
-            ("unsigned int", "cmd"),
-            ("void *", "arg"),
-        )),
-        "recv": ("long", (
-            ("int", "sockfd"),
-            ("void *", "buf"),
-            ("size_t", "len"),
-            ("unsigned", "flags"),
-        )),
-        "recvfrom": ("long", (
-            ("int", "sockfd"),
-            ("void *", "buf"),
-            ("size_t", "len"),
-            ("unsigned", "flags"),
-            ("struct sockaddr *", "src_addr"),
-            ("int *", "addrlen"),
-        )),
-        "recvmmsg": ("long", (
-            ("int", "fd"),
-            ("struct mmsghdr *", "msg"),
-            ("unsigned int", "vlen"),
-            ("unsigned", "flags"),
-            ("struct timespec *", "timeout"),
-        )),
-        "recvmsg": ("long", (
-            ("int", "fd"),
-            ("struct user_msghdr *", "msg"),
-            ("unsigned", "flags"),
-        )),
-        "remap_file_pages": ("long", (
-            ("unsigned long", "start"),
-            ("unsigned long", "size"),
-            ("unsigned long", "prot"),
-            ("unsigned long", "pgoff"),
-            ("unsigned long", "flags"),
-        )),
-        "removexattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-        )),
-        "rename": ("long", (
-            ("const char *", "oldname"),
-            ("const char *", "newname"),
-        )),
-        "renameat": ("long", (
-            ("int", "olddfd"),
-            ("const char *", "oldname"),
-            ("int", "newdfd"),
-            ("const char *", "newname"),
-        )),
-        "renameat2": ("long", (
-            ("int", "olddfd"),
-            ("const char *", "oldname"),
-            ("int", "newdfd"),
-            ("const char *", "newname"),
-            ("unsigned int", "flags"),
-        )),
-        "request_key": ("long", (
-            ("const char *", "_type"),
-            ("const char *", "_description"),
-            ("const char *", "_callout_info"),
-            ("key_serial_t", "destringid"),
-        )),
-        "restart_syscall": ("long", (
-        )),
-        "rmdir": ("long", (
-            ("const char *", "pathname"),
-        )),
-        "rt_sigaction": ("long", (
-            ("int", "signum"),
-            ("const struct sigaction *", "act"),
-            ("struct sigaction *", "oldact"),
-            ("size_t", ""),
-        )),
-        "rt_sigpending": ("long", (
-            ("sigset_t *", "set"),
-            ("size_t", "sigsetsize"),
-        )),
-        "rt_sigprocmask": ("long", (
-            ("int", "how"),
-            ("sigset_t *", "set"),
-            ("sigset_t *", "oset"),
-            ("size_t", "sigsetsize"),
-        )),
-        "rt_sigqueueinfo": ("long", (
-            ("int", "pid"),
-            ("int", "sig"),
-            ("siginfo_t *", "uinfo"),
-        )),
-        "rt_sigsuspend": ("long", (
-            ("sigset_t *", "unewset"),
-            ("size_t", "sigsetsize"),
-        )),
-        "rt_sigtimedwait": ("long", (
-            ("const sigset_t *", "uthese"),
-            ("siginfo_t *", "uinfo"),
-            ("const struct timespec *", "uts"),
-            ("size_t", "sigsetsize"),
-        )),
-        "rt_tgsigqueueinfo": ("long", (
-            ("pid_t", "tgid"),
-            ("pid_t", "pid"),
-            ("int", "sig"),
-            ("siginfo_t *", "uinfo"),
-        )),
-        "sched_get_priority_max": ("long", (
-            ("int", "policy"),
-        )),
-        "sched_get_priority_min": ("long", (
-            ("int", "policy"),
-        )),
-        "sched_getaffinity": ("long", (
-            ("pid_t", "pid"),
-            ("unsigned int", "len"),
-            ("unsigned long *", "user_mask_ptr"),
-        )),
-        "sched_getattr": ("long", (
-            ("pid_t", "pid"),
-            ("struct sched_attr *", "attr"),
-            ("unsigned int", "size"),
-            ("unsigned int", "flags"),
-        )),
-        "sched_getparam": ("long", (
-            ("pid_t", "pid"),
-            ("struct sched_param *", "param"),
-        )),
-        "sched_getscheduler": ("long", (
-            ("pid_t", "pid"),
-        )),
-        "sched_rr_get_interval": ("long", (
-            ("pid_t", "pid"),
-            ("struct timespec *", "interval"),
-        )),
-        "sched_setaffinity": ("long", (
-            ("pid_t", "pid"),
-            ("unsigned int", "len"),
-            ("unsigned long *", "user_mask_ptr"),
-        )),
-        "sched_setattr": ("long", (
-            ("pid_t", "pid"),
-            ("struct sched_attr *", "attr"),
-            ("unsigned int", "flags"),
-        )),
-        "sched_setparam": ("long", (
-            ("pid_t", "pid"),
-            ("struct sched_param *", "param"),
-        )),
-        "sched_setscheduler": ("long", (
-            ("pid_t", "pid"),
-            ("int", "policy"),
-            ("struct sched_param *", "param"),
-        )),
-        "sched_yield": ("long", (
-        )),
-        "seccomp": ("long", (
-            ("unsigned int", "op"),
-            ("unsigned int", "flags"),
-            ("const char *", "uargs"),
-        )),
-        "select": ("long", (
-            ("int", "n"),
-            ("fd_set *", "inp"),
-            ("fd_set *", "outp"),
-            ("fd_set *", "exp"),
-            ("struct timeval *", "tvp"),
-        )),
-        "semctl": ("long", (
-            ("int", "semid"),
-            ("int", "semnum"),
-            ("int", "cmd"),
-            ("unsigned long", "arg"),
-        )),
-        "semget": ("long", (
-            ("key_t", "key"),
-            ("int", "nsems"),
-            ("int", "semflg"),
-        )),
-        "semop": ("long", (
-            ("int", "semid"),
-            ("struct sembuf *", "sops"),
-            ("unsigned", "nsops"),
-        )),
-        "semtimedop": ("long", (
-            ("int", "semid"),
-            ("struct sembuf *", "sops"),
-            ("unsigned", "nsops"),
-            ("const struct timespec *", "timeout"),
-        )),
-        "send": ("long", (
-            ("int", "sockfd"),
-            ("void *", "buf"),
-            ("size_t", "len"),
-            ("unsigned", "flags"),
-        )),
-        "sendfile": ("long", (
-            ("int", "out_fd"),
-            ("int", "in_fd"),
-            ("off_t *", "offset"),
-            ("size_t", "count"),
-        )),
-        "sendfile64": ("long", (
-            ("int", "out_fd"),
-            ("int", "in_fd"),
-            ("loff_t *", "offset"),
-            ("size_t", "count"),
-        )),
-        "sendmmsg": ("long", (
-            ("int", "fd"),
-            ("struct mmsghdr *", "msg"),
-            ("unsigned int", "vlen"),
-            ("unsigned", "flags"),
-        )),
-        "sendmsg": ("long", (
-            ("int", "fd"),
-            ("struct user_msghdr *", "msg"),
-            ("unsigned", "flags"),
-        )),
-        "sendto": ("long", (
-            ("int", "sockfd"),
-            ("void *", "buf"),
-            ("size_t", "len"),
-            ("unsigned", "flags"),
-            ("struct sockaddr *", "dest_addr"),
-            ("int", "addrlen"),
-        )),
-        "set_mempolicy": ("long", (
-            ("int", "mode"),
-            ("const unsigned long *", "nmask"),
-            ("unsigned long", "maxnode"),
-        )),
-        "set_robust_list": ("long", (
-            ("struct robust_list_head *", "head"),
-            ("size_t", "len"),
-        )),
-        "set_tid_address": ("long", (
-            ("int *", "tidptr"),
-        )),
-        "setdomainname": ("long", (
-            ("char *", "name"),
-            ("int", "len"),
-        )),
-        "setfsgid": ("long", (
-            ("gid_t", "gid"),
-        )),
-        "setfsgid16": ("long", (
-            ("old_gid_t", "gid"),
-        )),
-        "setfsuid": ("long", (
-            ("uid_t", "uid"),
-        )),
-        "setfsuid16": ("long", (
-            ("old_uid_t", "uid"),
-        )),
-        "setgid": ("long", (
-            ("gid_t", "gid"),
-        )),
-        "setgid16": ("long", (
-            ("old_gid_t", "gid"),
-        )),
-        "setgroups": ("long", (
-            ("int", "gidsetsize"),
-            ("gid_t *", "grouplist"),
-        )),
-        "setgroups16": ("long", (
-            ("int", "gidsetsize"),
-            ("old_gid_t *", "grouplist"),
-        )),
-        "sethostname": ("long", (
-            ("char *", "name"),
-            ("int", "len"),
-        )),
-        "setitimer": ("long", (
-            ("int", "which"),
-            ("struct itimerval *", "value"),
-            ("struct itimerval *", "ovalue"),
-        )),
-        "setns": ("long", (
-            ("int", "fd"),
-            ("int", "nstype"),
-        )),
-        "setpgid": ("long", (
-            ("pid_t", "pid"),
-            ("pid_t", "pgid"),
-        )),
-        "setpriority": ("long", (
-            ("int", "which"),
-            ("int", "who"),
-            ("int", "niceval"),
-        )),
-        "setregid": ("long", (
-            ("gid_t", "rgid"),
-            ("gid_t", "egid"),
-        )),
-        "setregid16": ("long", (
-            ("old_gid_t", "rgid"),
-            ("old_gid_t", "egid"),
-        )),
-        "setresgid": ("long", (
-            ("gid_t", "rgid"),
-            ("gid_t", "egid"),
-            ("gid_t", "sgid"),
-        )),
-        "setresgid16": ("long", (
-            ("old_gid_t", "rgid"),
-            ("old_gid_t", "egid"),
-            ("old_gid_t", "sgid"),
-        )),
-        "setresuid": ("long", (
-            ("uid_t", "ruid"),
-            ("uid_t", "euid"),
-            ("uid_t", "suid"),
-        )),
-        "setresuid16": ("long", (
-            ("old_uid_t", "ruid"),
-            ("old_uid_t", "euid"),
-            ("old_uid_t", "suid"),
-        )),
-        "setreuid": ("long", (
-            ("uid_t", "ruid"),
-            ("uid_t", "euid"),
-        )),
-        "setreuid16": ("long", (
-            ("old_uid_t", "ruid"),
-            ("old_uid_t", "euid"),
-        )),
-        "setrlimit": ("long", (
-            ("unsigned int", "resource"),
-            ("struct rlimit *", "rlim"),
-        )),
-        "setsid": ("long", (
-        )),
-        "setsockopt": ("long", (
-            ("int", "fd"),
-            ("int", "level"),
-            ("int", "optname"),
-            ("char *", "optval"),
-            ("int", "optlen"),
-        )),
-        "settimeofday": ("long", (
-            ("struct timeval *", "tv"),
-            ("struct timezone *", "tz"),
-        )),
-        "setuid": ("long", (
-            ("uid_t", "uid"),
-        )),
-        "setuid16": ("long", (
-            ("old_uid_t", "uid"),
-        )),
-        "setxattr": ("long", (
-            ("const char *", "path"),
-            ("const char *", "name"),
-            ("const void *", "value"),
-            ("size_t", "size"),
-            ("int", "flags"),
-        )),
-        "sgetmask": ("long", (
-        )),
-        "shmat": ("long", (
-            ("int", "shmid"),
-            ("char *", "shmaddr"),
-            ("int", "shmflg"),
-        )),
-        "shmctl": ("long", (
-            ("int", "shmid"),
-            ("int", "cmd"),
-            ("struct shmid_ds *", "buf"),
-        )),
-        "shmdt": ("long", (
-            ("char *", "shmaddr"),
-        )),
-        "shmget": ("long", (
-            ("key_t", "key"),
-            ("size_t", "size"),
-            ("int", "flag"),
-        )),
-        "shutdown": ("long", (
-            ("int", "sockfd"),
-            ("int", "how"),
-        )),
-        "sigaction": ("long", (
-            ("int", "signum"),
-            ("const struct old_sigaction *", "act"),
-            ("struct old_sigaction *", "oldact"),
-        )),
-        "sigaltstack": ("long", (
-            ("const struct sigaltstack *", "uss"),
-            ("struct sigaltstack *", "uoss"),
-        )),
-        "signal": ("long", (
-            ("int", "sig"),
-            ("__sighandler_t", "handler"),
-        )),
-        "signalfd": ("long", (
-            ("int", "ufd"),
-            ("sigset_t *", "user_mask"),
-            ("size_t", "sizemask"),
-        )),
-        "signalfd4": ("long", (
-            ("int", "ufd"),
-            ("sigset_t *", "user_mask"),
-            ("size_t", "sizemask"),
-            ("int", "flags"),
-        )),
-        "sigpending": ("long", (
-            ("old_sigset_t *", "set"),
-        )),
-        "sigprocmask": ("long", (
-            ("int", "how"),
-            ("old_sigset_t *", "set"),
-            ("old_sigset_t *", "oset"),
-        )),
-        "sigsuspend": ("long", (
-            ("int", "unused1"),
-            ("int", "unused2"),
-            ("old_sigset_t", "mask"),
-        )),
-        "socket": ("long", (
-            ("int", "domain"),
-            ("int", "type"),
-            ("int", "protocol"),
-        )),
-        "socketcall": ("long", (
-            ("int", "call"),
-            ("unsigned long *", "args"),
-        )),
-        "socketpair": ("long", (
-            ("int", "domain"),
-            ("int", "type"),
-            ("int", "protocol"),
-            ("int *", "sv"),
-        )),
-        "splice": ("long", (
-            ("int", "fd_in"),
-            ("loff_t *", "off_in"),
-            ("int", "fd_out"),
-            ("loff_t *", "off_out"),
-            ("size_t", "len"),
-            ("unsigned int", "flags"),
-        )),
-        "spu_create": ("long", (
-            ("const char *", "name"),
-            ("unsigned int", "flags"),
-            ("umode_t", "mode"),
-            ("int", "fd"),
-        )),
-        "spu_run": ("long", (
-            ("int", "fd"),
-            ("__u32 *", "unpc"),
-            ("__u32 *", "ustatus"),
-        )),
-        "ssetmask": ("long", (
-            ("int", "newmask"),
-        )),
-        "stat": ("long", (
-            ("const char *", "filename"),
-            ("struct __old_kernel_stat *", "statbuf"),
-        )),
-        "stat64": ("long", (
-            ("const char *", "filename"),
-            ("struct stat64 *", "statbuf"),
-        )),
-        "statfs": ("long", (
-            ("const char *", "path"),
-            ("struct statfs *", "buf"),
-        )),
-        "statfs64": ("long", (
-            ("const char *", "path"),
-            ("size_t", "sz"),
-            ("struct statfs64 *", "buf"),
-        )),
-        "stime": ("long", (
-            ("time_t *", "tptr"),
-        )),
-        "swapoff": ("long", (
-            ("const char *", "specialfile"),
-        )),
-        "swapon": ("long", (
-            ("const char *", "specialfile"),
-            ("int", "swap_flags"),
-        )),
-        "symlink": ("long", (
-            ("const char *", "old"),
-            ("const char *", "new"),
-        )),
-        "symlinkat": ("long", (
-            ("const char *", "oldname"),
-            ("int", "newdfd"),
-            ("const char *", "newname"),
-        )),
-        "sync": ("long", (
-        )),
-        "sync_file_range": ("long", (
-            ("int", "fd"),
-            ("loff_t", "offset"),
-            ("loff_t", "nbytes"),
-            ("unsigned int", "flags"),
-        )),
-        "sync_file_range2": ("long", (
-            ("int", "fd"),
-            ("unsigned int", "flags"),
-            ("loff_t", "offset"),
-            ("loff_t", "nbytes"),
-        )),
-        "syncfs": ("long", (
-            ("int", "fd"),
-        )),
-        "sysctl": ("long", (
-            ("struct __sysctl_args *", "args"),
-        )),
-        "sysfs": ("long", (
-            ("int", "option"),
-            ("unsigned long", "arg1"),
-            ("unsigned long", "arg2"),
-        )),
-        "sysinfo": ("long", (
-            ("struct sysinfo *", "info"),
-        )),
-        "syslog": ("long", (
-            ("int", "type"),
-            ("char *", "buf"),
-            ("int", "len"),
-        )),
-        "tee": ("long", (
-            ("int", "fdin"),
-            ("int", "fdout"),
-            ("size_t", "len"),
-            ("unsigned int", "flags"),
-        )),
-        "tgkill": ("long", (
-            ("int", "tgid"),
-            ("int", "pid"),
-            ("int", "sig"),
-        )),
-        "time": ("long", (
-            ("time_t *", "tloc"),
-        )),
-        "timer_create": ("long", (
-            ("clockid_t", "which_clock"),
-            ("struct sigevent *", "timer_event_spec"),
-            ("timer_t *", "created_timer_id"),
-        )),
-        "timer_delete": ("long", (
-            ("timer_t", "timer_id"),
-        )),
-        "timer_getoverrun": ("long", (
-            ("timer_t", "timer_id"),
-        )),
-        "timer_gettime": ("long", (
-            ("timer_t", "timer_id"),
-            ("struct itimerspec *", "setting"),
-        )),
-        "timer_settime": ("long", (
-            ("timer_t", "timer_id"),
-            ("int", "flags"),
-            ("const struct itimerspec *", "new_setting"),
-            ("struct itimerspec *", "old_setting"),
-        )),
-        "timerfd_create": ("long", (
-            ("int", "clockid"),
-            ("int", "flags"),
-        )),
-        "timerfd_gettime": ("long", (
-            ("int", "ufd"),
-            ("struct itimerspec *", "otmr"),
-        )),
-        "timerfd_settime": ("long", (
-            ("int", "ufd"),
-            ("int", "flags"),
-            ("const struct itimerspec *", "utmr"),
-            ("struct itimerspec *", "otmr"),
-        )),
-        "times": ("long", (
-            ("struct tms *", "tbuf"),
-        )),
-        "tkill": ("long", (
-            ("int", "pid"),
-            ("int", "sig"),
-        )),
-        "truncate": ("long", (
-            ("const char *", "path"),
-            ("long", "length"),
-        )),
-        "truncate64": ("long", (
-            ("const char *", "path"),
-            ("loff_t", "length"),
-        )),
-        "umask": ("long", (
-            ("int", "mask"),
-        )),
-        "umount": ("long", (
-            ("char *", "name"),
-            ("int", "flags"),
-        )),
-        "uname": ("long", (
-            ("struct old_utsname *", "buf"),
-        )),
-        "unlink": ("long", (
-            ("const char *", "pathname"),
-        )),
-        "unlinkat": ("long", (
-            ("int", "dfd"),
-            ("const char *", "pathname"),
-            ("int", "flag"),
-        )),
-        "unshare": ("long", (
-            ("unsigned long", "unshare_flags"),
-        )),
-        "uselib": ("long", (
-            ("const char *", "library"),
-        )),
-        "userfaultfd": ("long", (
-            ("int", "flags"),
-        )),
-        "ustat": ("long", (
-            ("unsigned", "dev"),
-            ("struct ustat *", "ubuf"),
-        )),
-        "utime": ("long", (
-            ("char *", "filename"),
-            ("struct utimbuf *", "times"),
-        )),
-        "utimensa": ("long", (
-            ("int", "dfd"),
-            ("const char *", "filename"),
-            ("struct timespec *", "utimes"),
-            ("int", "flags"),
-        )),
-        "utimes": ("long", (
-            ("char *", "filename"),
-            ("struct timeval *", "utimes"),
-        )),
-        "vfork": ("long", (
-        )),
-        "vhangup": ("long", (
-        )),
-        "vmsplice": ("long", (
-            ("int", "fd"),
-            ("const struct iovec *", "iov"),
-            ("unsigned long", "nr_segs"),
-            ("unsigned int", "flags"),
-        )),
-        "wait4": ("long", (
-            ("pid_t", "pid"),
-            ("int *", "stat_addr"),
-            ("int", "options"),
-            ("struct rusage *", "ru"),
-        )),
-        "waitid": ("long", (
-            ("int", "which"),
-            ("pid_t", "pid"),
-            ("struct siginfo *", "infop"),
-            ("int", "options"),
-            ("struct rusage *", "ru"),
-        )),
-        "waitpid": ("long", (
-            ("pid_t", "pid"),
-            ("int *", "stat_addr"),
-            ("int", "options"),
-        )),
-        "write": ("long", (
-            ("unsigned int", "fd"),
-            ("const char *", "buf"),
-            ("size_t", "count"),
-        )),
-        "writev": ("long", (
-            ("unsigned long", "fd"),
-            ("const struct iovec *", "vec"),
-            ("unsigned long", "vlen"),
-        )),
-    }
-
-
-
     def __init__(self, pid=None, path=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
@@ -20297,8 +20304,8 @@ class Debugger(object):
         self.values = []
         self.args = []
 
-        self.peekIdx = ConfigManager.ptraceList.index('PTRACE_PEEKTEXT')
-        self.pokeIdx = ConfigManager.ptraceList.index('PTRACE_POKEDATA')
+        self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
+        self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
         try:
             if SystemManager.ctypesObj is None:
@@ -20514,7 +20521,7 @@ class Debugger(object):
             SystemManager.printError('Fail to attach wrong thread %s' % pid)
             return -1
 
-        plist = ConfigManager.ptraceList
+        plist = ConfigManager.PTRACE_TYPE
 
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
@@ -20533,7 +20540,7 @@ class Debugger(object):
             SystemManager.printWarnning('No running thread %s' % pid)
             return -1
 
-        plist = ConfigManager.ptraceList
+        plist = ConfigManager.PTRACE_TYPE
 
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
@@ -20754,7 +20761,7 @@ class Debugger(object):
         regs = self.regs.getdict()
         nrSyscall = regs[sysreg]
         self.syscall = name = ConfigManager.sysList[nrSyscall][4:]
-        proto = Debugger.SYSCALL_PROTOTYPES
+        proto = ConfigManager.SYSCALL_PROTOTYPES
 
         # enter #
         if status == 'enter':
@@ -20825,7 +20832,7 @@ class Debugger(object):
 
             # convert error code #
             if retval < 0:
-                err = '(%s)' % ConfigManager.errList[abs(retval+1)]
+                err = '(%s)' % ConfigManager.ERR_TYPE[abs(retval+1)]
             else:
                 err = ''
 
@@ -20839,12 +20846,12 @@ class Debugger(object):
         pid = self.pid
         regs = None
         arch = SystemManager.getArch()
-        plist = ConfigManager.ptraceList
-        sigTrapIdx = ConfigManager.sigList.index('SIGTRAP')
-        sigStopIdx = ConfigManager.sigList.index('SIGSTOP')
+        plist = ConfigManager.PTRACE_TYPE
+        sigTrapIdx = ConfigManager.SIG_LIST.index('SIGTRAP')
+        sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
 
-        self.sysreg = ConfigManager.sysRegList[arch]
-        self.retreg = ConfigManager.retRegList[arch]
+        self.sysreg = ConfigManager.REG_LIST[arch]
+        self.retreg = ConfigManager.RET_LIST[arch]
 
         # disable extended ascii #
         SystemManager.supportExtAscii = False
@@ -20875,7 +20882,7 @@ class Debugger(object):
                     else:
                         SystemManager.printWarning(\
                             'Blocked thread %s because of %s' % \
-                            (pid, ConfigManager.sigList[stat]))
+                            (pid, ConfigManager.SIG_LIST[stat]))
                 else:
                     raise Exception()
 
@@ -20952,7 +20959,7 @@ class Debugger(object):
             nrWords = ctypes.sizeof(self.regs) * wordSize
             ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
         else:
-            cmd = ConfigManager.ptraceList.index('PTRACE_GETREGS')
+            cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
         if ret is None or ret < 0:
@@ -21294,26 +21301,26 @@ class ThreadAnalyzer(object):
             self.prevSwaps = None
 
             # set index of attributes #
-            self.majfltIdx = ConfigManager.statList.index("MAJFLT")
-            self.utimeIdx = ConfigManager.statList.index("UTIME")
-            self.stimeIdx = ConfigManager.statList.index("STIME")
-            self.cutimeIdx = ConfigManager.statList.index("CUTIME")
-            self.cstimeIdx = ConfigManager.statList.index("CSTIME")
-            self.btimeIdx = ConfigManager.statList.index("DELAYBLKTICK")
-            self.commIdx = ConfigManager.statList.index("COMM")
-            self.ppidIdx = ConfigManager.statList.index("PPID")
-            self.nrthreadIdx = ConfigManager.statList.index("NRTHREAD")
-            self.prioIdx = ConfigManager.statList.index("PRIORITY")
-            self.policyIdx = ConfigManager.statList.index("POLICY")
-            self.vsizeIdx = ConfigManager.statList.index("VSIZE")
-            self.rssIdx = ConfigManager.statList.index("RSS")
-            self.scodeIdx = ConfigManager.statList.index("STARTCODE")
-            self.ecodeIdx = ConfigManager.statList.index("ENDCODE")
-            self.statIdx = ConfigManager.statList.index("STATE")
-            self.starttimeIdx = ConfigManager.statList.index("STARTTIME")
-            self.sidIdx = ConfigManager.statList.index("SESSIONID")
-            self.pgrpIdx = ConfigManager.statList.index("PGRP")
-            self.shrIdx = ConfigManager.statmList.index("SHR")
+            self.majfltIdx = ConfigManager.STAT_ATTR.index("MAJFLT")
+            self.utimeIdx = ConfigManager.STAT_ATTR.index("UTIME")
+            self.stimeIdx = ConfigManager.STAT_ATTR.index("STIME")
+            self.cutimeIdx = ConfigManager.STAT_ATTR.index("CUTIME")
+            self.cstimeIdx = ConfigManager.STAT_ATTR.index("CSTIME")
+            self.btimeIdx = ConfigManager.STAT_ATTR.index("DELAYBLKTICK")
+            self.commIdx = ConfigManager.STAT_ATTR.index("COMM")
+            self.ppidIdx = ConfigManager.STAT_ATTR.index("PPID")
+            self.nrthreadIdx = ConfigManager.STAT_ATTR.index("NRTHREAD")
+            self.prioIdx = ConfigManager.STAT_ATTR.index("PRIORITY")
+            self.policyIdx = ConfigManager.STAT_ATTR.index("POLICY")
+            self.vsizeIdx = ConfigManager.STAT_ATTR.index("VSIZE")
+            self.rssIdx = ConfigManager.STAT_ATTR.index("RSS")
+            self.scodeIdx = ConfigManager.STAT_ATTR.index("STARTCODE")
+            self.ecodeIdx = ConfigManager.STAT_ATTR.index("ENDCODE")
+            self.statIdx = ConfigManager.STAT_ATTR.index("STATE")
+            self.starttimeIdx = ConfigManager.STAT_ATTR.index("STARTTIME")
+            self.sidIdx = ConfigManager.STAT_ATTR.index("SESSIONID")
+            self.pgrpIdx = ConfigManager.STAT_ATTR.index("PGRP")
+            self.shrIdx = ConfigManager.STATM_TYPE.index("SHR")
 
             if SystemManager.graphEnable:
                 # convert statistics in file to graph #
@@ -21651,7 +21658,7 @@ class ThreadAnalyzer(object):
             self.printFileStat(nowFilter)
 
             # flush socket cache #
-            SystemManager.udpListCache = \
+            SystemManager.UDP_ATTRCache = \
                 SystemManager.tcpListCache = None
 
             # check repeat count #
@@ -22695,7 +22702,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
 
@@ -23046,7 +23053,7 @@ class ThreadAnalyzer(object):
             if len(labelList) > 0:
                 if SystemManager.matplotlibVersion >= 1.2:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
-                        fontsize=3.5, loc='upper right', framealpha=0.2)
+                        fontsize=3.5, loc='upper right')
                 else:
                     legend(labelList, bbox_to_anchor=(1.12, 0.95), \
                         loc='upper right')
@@ -23398,7 +23405,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
 
@@ -23618,7 +23625,7 @@ class ThreadAnalyzer(object):
         def findNthStr(s, x, n, i = 0):
             i = s.find(x, i)
             if n == 1 or i == -1:
-                return i 
+                return i
             else:
                 return findNthStr(s, x, n - 1, i + len(x))
 
@@ -23745,7 +23752,7 @@ class ThreadAnalyzer(object):
 
             for val in self.sigData:
                 try:
-                    signal = ConfigManager.sigList[int(val[4])]
+                    signal = ConfigManager.SIG_LIST[int(val[4])]
                 except:
                     signal = 'SIG_%s' % val[4]
 
@@ -25105,7 +25112,7 @@ class ThreadAnalyzer(object):
                     ret = int(value[7])
                     if ret < 0:
                         try:
-                            ret = '%s' % ConfigManager.errList[abs(ret+1)]
+                            ret = '%s' % ConfigManager.ERR_TYPE[abs(ret+1)]
                         except:
                             pass
 
@@ -25263,7 +25270,7 @@ class ThreadAnalyzer(object):
                 "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} "
                 "{6:>5} {7:>10} {8:>16} {9:<1}").format(\
                 "Time", "Name", "Tid", "Core", "Syscall", \
-                "Sid", "Type", "Elapsed", "Return", "Parameter"))
+                "Sid", "Type", "Elapsed", "Return", "Arguments"))
             SystemManager.pipePrint(twoLine)
 
             # remove calls of unavailable threads #
@@ -25277,6 +25284,7 @@ class ThreadAnalyzer(object):
                         break
 
             cnt = 0
+            proto = ConfigManager.SYSCALL_PROTOTYPES
             startTime = float(SystemManager.startTime)
             for icount in xrange(0, len(self.syscallData)):
                 try:
@@ -25313,6 +25321,17 @@ class ThreadAnalyzer(object):
                             elapsed = ' ' * 8
                             param = nowData[5]
                             ret = ' '
+
+                        # trim real arguments #
+                        try:
+                            call = syscall[4:]
+                            nrArgs = len(proto[call][1])
+                            if nrArgs > 0:
+                                param = '(%s)' % ','.join(param[1:-1].split(',')[:nrArgs])
+                            else:
+                                param = ' '
+                        except:
+                            pass
                     elif nowData[0] == 'RET':
                         eventType = nowData[0]
                         eventTime = float(nowData[1]) - startTime
@@ -25328,7 +25347,7 @@ class ThreadAnalyzer(object):
                         # convert error code #
                         nrRet = int(ret)
                         if nrRet < 0:
-                            ret = ConfigManager.errList[abs(nrRet) - 1]
+                            ret = ConfigManager.ERR_TYPE[abs(nrRet) - 1]
                     except:
                         pass
 
@@ -26057,7 +26076,7 @@ class ThreadAnalyzer(object):
             ylabel('MEMORY(MB)', fontsize=8)
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), \
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
 
@@ -26177,7 +26196,7 @@ class ThreadAnalyzer(object):
             totalLabel = cpuLabelList + cpuThrLabelList
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),\
-                    fontsize=3.5, loc='upper right', framealpha=0.2)
+                    fontsize=3.5, loc='upper right')
             else:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1), loc='upper right')
 
@@ -27638,7 +27657,7 @@ class ThreadAnalyzer(object):
 
         # print nodes in tree #
         def printTreeNodes(root, depth):
-            commIdx = ConfigManager.statList.index("COMM")
+            commIdx = ConfigManager.STAT_ATTR.index("COMM")
 
             for pid, childs in root.items():
                 indent = ''
@@ -27668,7 +27687,7 @@ class ThreadAnalyzer(object):
         if SystemManager.procInstance is None:
             return
 
-        statList = ConfigManager.statList
+        STAT_ATTR = ConfigManager.STAT_ATTR
 
         # set comm and pid size #
         pd = SystemManager.pidDigit
@@ -27688,12 +27707,12 @@ class ThreadAnalyzer(object):
 
         cnt = 1
         limitProcCnt = 6
-        commIdx = statList.index("COMM")
-        ppidIdx = statList.index("PPID")
+        commIdx = STAT_ATTR.index("COMM")
+        ppidIdx = STAT_ATTR.index("PPID")
 
         try:
             sortedList = sorted(SystemManager.procInstance.items(), \
-                key=lambda e: long(e[1]['stat'][statList.index("RSS")]), \
+                key=lambda e: long(e[1]['stat'][STAT_ATTR.index("RSS")]), \
                 reverse=True)
         except:
             SystemManager.printWarning(\
@@ -29399,7 +29418,7 @@ class ThreadAnalyzer(object):
                             maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
 
                             addr = l['uaddr'][1:]
-                            flist = ConfigManager.futexList
+                            flist = ConfigManager.FUTEX_TYPE
 
                             try:
                                 op = flist[maskedOp]
@@ -29693,14 +29712,14 @@ class ThreadAnalyzer(object):
 
                     try:
                         # SIGCHLD #
-                        if sig == str(ConfigManager.sigList.index('SIGCHLD')):
+                        if sig == str(ConfigManager.SIG_LIST.index('SIGCHLD')):
                             if self.threadData[pid]['waitStartAsParent'] > 0:
                                 if self.threadData[pid]['waitPid'] == 0 or \
                                     self.threadData[pid]['waitPid'] == int(thread):
                                     diff = float(time) - self.threadData[pid]['waitStartAsParent']
                                     self.threadData[thread]['waitParent'] = diff
                                     self.threadData[pid]['waitChild'] += diff
-                        elif sig == str(ConfigManager.sigList.index('SIGSEGV')):
+                        elif sig == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
                             self.threadData[pid]['die'] = 'F'
                     except:
                         return
@@ -30713,14 +30732,14 @@ class ThreadAnalyzer(object):
 
             pid = value['stat'][self.ppidIdx]
 
-            if ConfigManager.schedList[int(value['stat'][self.policyIdx])] == 'C':
+            if ConfigManager.SCHED_POLICY[int(value['stat'][self.policyIdx])] == 'C':
                 schedValue = "%3d" % (int(value['stat'][self.prioIdx]) - 20)
             else:
                 schedValue = "%3d" % (abs(int(value['stat'][self.prioIdx]) + 1))
 
             procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
                 format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigManager.schedList[int(value['stat'][self.policyIdx])] + \
+                ConfigManager.SCHED_POLICY[int(value['stat'][self.policyIdx])] + \
                 str(schedValue))
 
             procInfoLen = len(procInfo)
@@ -30969,32 +30988,32 @@ class ThreadAnalyzer(object):
             self.cpuData = {}
 
             for line in cpuBuf:
-                statList = line.split()
-                cpuId = statList[0]
+                STAT_ATTR = line.split()
+                cpuId = STAT_ATTR[0]
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
                         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
                         self.cpuData['all'] = \
-                            {'user': long(statList[1]), \
-                            'nice': long(statList[2]), \
-                            'system': long(statList[3]), \
-                            'idle': long(statList[4]), \
-                            'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), \
-                            'softirq': long(statList[7])}
+                            {'user': long(STAT_ATTR[1]), \
+                            'nice': long(STAT_ATTR[2]), \
+                            'system': long(STAT_ATTR[3]), \
+                            'idle': long(STAT_ATTR[4]), \
+                            'iowait': long(STAT_ATTR[5]), \
+                            'irq': long(STAT_ATTR[6]), \
+                            'softirq': long(STAT_ATTR[7])}
                 elif cpuId.rfind('cpu') == 0:
                     if not int(cpuId[3:]) in self.cpuData:
                         self.cpuData[int(cpuId[3:])] = \
-                            {'user': long(statList[1]), \
-                            'nice': long(statList[2]), \
-                            'system': long(statList[3]), \
-                            'idle': long(statList[4]), \
-                            'iowait': long(statList[5]), \
-                            'irq': long(statList[6]), \
-                            'softirq': long(statList[7])}
+                            {'user': long(STAT_ATTR[1]), \
+                            'nice': long(STAT_ATTR[2]), \
+                            'system': long(STAT_ATTR[3]), \
+                            'idle': long(STAT_ATTR[4]), \
+                            'iowait': long(STAT_ATTR[5]), \
+                            'irq': long(STAT_ATTR[6]), \
+                            'softirq': long(STAT_ATTR[7])}
                 else:
                     if not cpuId in self.cpuData:
-                        self.cpuData[cpuId] = {cpuId: long(statList[1])}
+                        self.cpuData[cpuId] = {cpuId: long(STAT_ATTR[1])}
 
             # set the number of core #
             SystemManager.nrCore = 0
@@ -31211,7 +31230,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def getProcTreeFromList(procInstance):
         procTree = {}
-        ppidIdx = ConfigManager.statList.index("PPID")
+        ppidIdx = ConfigManager.STAT_ATTR.index("PPID")
 
         # get a relation list to track ancestors of process #
         def getRelationList(item, procInstance):
@@ -31237,7 +31256,7 @@ class ThreadAnalyzer(object):
                     nodePointer[item] = {}
                 nodePointer = nodePointer[item]
 
-        starttimeIdx = ConfigManager.statList.index("STARTTIME")
+        starttimeIdx = ConfigManager.STAT_ATTR.index("STARTTIME")
         for pid, item in sorted(procInstance.items(), \
             key=lambda e: long(e[1]['stat'][starttimeIdx])):
             ppid = procInstance[pid]['stat'][ppidIdx]
@@ -31484,9 +31503,9 @@ class ThreadAnalyzer(object):
                 return
 
         try:
-            schedList = schedBuf[0].split()
-            self.procData[tid]['execTime'] = float(schedList[0])
-            self.procData[tid]['waitTime'] = float(schedList[1])
+            SCHED_POLICY = schedBuf[0].split()
+            self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
+            self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
         except:
             self.procData[tid]['execTime'] = 0
             self.procData[tid]['waitTime'] = 0
@@ -31588,27 +31607,27 @@ class ThreadAnalyzer(object):
             self.procData[tid]['changed'] = False
         else:
             # convert string to list #
-            statList = statBuf.split()
+            STAT_ATTR = statBuf.split()
 
             # merge comm parts that splited by space #
             commIndex = self.commIdx
-            if statList[commIndex][-1] != ')':
+            if STAT_ATTR[commIndex][-1] != ')':
                 idx = commIndex + 1
                 while 1:
-                    tmpStr = str(statList[idx])
-                    statList[commIndex] = "%s %s" % (statList[commIndex], tmpStr)
-                    statList.pop(idx)
+                    tmpStr = str(STAT_ATTR[idx])
+                    STAT_ATTR[commIndex] = "%s %s" % (STAT_ATTR[commIndex], tmpStr)
+                    STAT_ATTR.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
 
             # convert type of values #
-            self.procData[tid]['stat'] = statList
-            statList[self.majfltIdx] = long(statList[self.majfltIdx])
-            statList[self.utimeIdx] = long(statList[self.utimeIdx])
-            statList[self.stimeIdx] = long(statList[self.stimeIdx])
-            statList[self.btimeIdx] = long(statList[self.btimeIdx])
-            statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
-            statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
+            self.procData[tid]['stat'] = STAT_ATTR
+            STAT_ATTR[self.majfltIdx] = long(STAT_ATTR[self.majfltIdx])
+            STAT_ATTR[self.utimeIdx] = long(STAT_ATTR[self.utimeIdx])
+            STAT_ATTR[self.stimeIdx] = long(STAT_ATTR[self.stimeIdx])
+            STAT_ATTR[self.btimeIdx] = long(STAT_ATTR[self.btimeIdx])
+            STAT_ATTR[self.cutimeIdx] = long(STAT_ATTR[self.cutimeIdx])
+            STAT_ATTR[self.cstimeIdx] = long(STAT_ATTR[self.cstimeIdx])
 
         # change sched priority #
         for item in SystemManager.schedFilter:
@@ -33177,8 +33196,8 @@ class ThreadAnalyzer(object):
             codeSize = (long(stat[self.ecodeIdx]) - \
                 long(stat[self.scodeIdx])) >> 20
 
-            schedList = ConfigManager.schedList
-            if schedList[int(stat[self.policyIdx])] == 'C':
+            SCHED_POLICY = ConfigManager.SCHED_POLICY
+            if SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                 schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
             else:
                 schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
@@ -33315,7 +33334,7 @@ class ThreadAnalyzer(object):
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                schedList[int(stat[self.policyIdx])] + str(schedValue), \
+                SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
                 long(stat[self.vsizeIdx]) >> 20, mems >> 8, codeSize, \
                 shr, vmswp, value['btime'], readSize, writeSize, \
@@ -33443,7 +33462,7 @@ class ThreadAnalyzer(object):
                 codeSize = (long(stat[self.ecodeIdx]) - \
                     long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                     schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
@@ -33475,7 +33494,7 @@ class ThreadAnalyzer(object):
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
                     str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
@@ -33519,7 +33538,7 @@ class ThreadAnalyzer(object):
                 codeSize = (long(stat[self.ecodeIdx]) - \
                     long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                     schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
@@ -33551,7 +33570,7 @@ class ThreadAnalyzer(object):
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
                     str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
@@ -33596,7 +33615,7 @@ class ThreadAnalyzer(object):
                 codeSize = (long(stat[self.ecodeIdx]) - \
                     long(stat[self.scodeIdx])) >> 20
 
-                if ConfigManager.schedList[int(stat[self.policyIdx])] == 'C':
+                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                     schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
                 else:
                     schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
@@ -33628,7 +33647,7 @@ class ThreadAnalyzer(object):
                     "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.schedList[int(stat[self.policyIdx])] + \
+                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
                     str(schedValue), \
                     int(value['ttime']), int(value['utime']), \
                     int(value['stime']), '-', \
