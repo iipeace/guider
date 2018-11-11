@@ -14497,7 +14497,8 @@ Copyright:
             else:
                 # dir #
                 if os.path.isdir(SystemManager.printFile):
-                    name, ext = os.path.splitext(SystemManager.inputFile)
+                    name, ext = os.path.splitext(\
+                        os.path.basename(SystemManager.inputFile))
                     if ext == '.dat':
                         name = '%s.out' % name
                     SystemManager.inputFile = \
@@ -16015,6 +16016,18 @@ Copyright:
 
 
     @staticmethod
+    def isSimpleTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'simpletop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isDiskTopMode():
         if len(sys.argv) == 1:
             return False
@@ -16089,6 +16102,7 @@ Copyright:
             SystemManager.isWssTopMode() or \
             SystemManager.isReportTopMode() or \
             SystemManager.isBgTopMode() or \
+            SystemManager.isSimpleTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -16817,24 +16831,27 @@ Copyright:
 
     @staticmethod
     def doUserInput():
-        if SystemManager.printFile is None and \
-            SystemManager.isReportTopMode() is False and \
-            SystemManager.selectObject != None and \
-            SystemManager.selectObject.select(\
-            [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-            sys.stdout.write('\b' * SystemManager.ttyCols)
-            SystemManager.pipePrint((\
-                "[ Input command... "
-                "( Help / Filter / Kill / Sched / Affinity / Quit ) ]"))
+        try:
+            if SystemManager.printFile is None and \
+                SystemManager.isReportTopMode() is False and \
+                SystemManager.selectObject != None and \
+                SystemManager.selectObject.select(\
+                [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                sys.stdout.write('\b' * SystemManager.ttyCols)
+                SystemManager.pipePrint((\
+                    "[ Input command... "
+                    "( Help / Filter / Kill / Sched / Affinity / Quit ) ]"))
 
-            # flush buffered enter key #
-            sys.stdin.readline()
+                # flush buffered enter key #
+                sys.stdin.readline()
 
-            sys.stdout.write('=> ')
-            sys.stdout.flush()
+                sys.stdout.write('=> ')
+                sys.stdout.flush()
 
-            # process user input #
-            SystemManager.procUserInput(sys.stdin.readline())
+                # process user input #
+                SystemManager.procUserInput(sys.stdin.readline())
+        except:
+            pass
 
 
 
@@ -21632,11 +21649,8 @@ class ThreadAnalyzer(object):
         time.sleep(1)
 
         while 1:
-            try:
-                # pause and resume by enter key #
-                SystemManager.doUserInput()
-            except:
-                pass
+            # pause and resume by enter key #
+            SystemManager.doUserInput()
 
             # collect file stats as soon as possible #
             self.saveFileStat()
@@ -21722,11 +21736,8 @@ class ThreadAnalyzer(object):
 
                 continue
 
-            try:
-                # pause and resume by enter key #
-                SystemManager.doUserInput()
-            except:
-                pass
+            # pause and resume by enter key #
+            SystemManager.doUserInput()
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
@@ -21738,8 +21749,12 @@ class ThreadAnalyzer(object):
             SystemManager.updateTty()
 
             if self.prevProcData != {}:
-                # print system status #
-                self.printSystemStat()
+                if SystemManager.isSimpleTopMode():
+                    # print simple system status #
+                    self.printSimpleStat()
+                else:
+                    # print system status #
+                    self.printSystemStat()
 
                 # report system status #
                 self.reportSystemStat()
@@ -23676,19 +23691,27 @@ class ThreadAnalyzer(object):
 
 
     def printCreationTree(self, tid, loc):
-        childList = self.threadData[tid]['childList']
+        try:
+            childList = self.threadData[tid]['childList']
+        except:
+            return
+
         threadName = "%s(%s)" % (self.threadData[tid]['comm'], tid)
 
         if self.threadData[tid]['createdTime'] > 0:
             threadName += " /%2.3f/" % \
                 (self.threadData[tid]['createdTime'] - \
                 float(SystemManager.startTime))
+
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
+
         if self.threadData[tid]['childList'] is not None:
             threadName += " |%d|" % (len(self.threadData[tid]['childList']))
+
         if self.threadData[tid]['waitChild'] > 0:
             threadName += " {%1.3f}" % (self.threadData[tid]['waitChild'])
+
         if self.threadData[tid]['waitParent'] > 0:
             threadName += " [%1.3f]" % (self.threadData[tid]['waitParent'])
 
@@ -24122,6 +24145,8 @@ class ThreadAnalyzer(object):
 
 
     def printResourceUsage(self):
+        title = 'Thread Info'
+
         SystemManager.printLogo(big=True)
 
         # print system information #
@@ -24137,13 +24162,13 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint((\
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %d ] " + \
             "[ ContextSwitch: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
-            ('Thread Info', 'Elapsed', round(float(self.totalTime), 7), \
+            (title, 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.pipePrint(twoLine)
 
         SystemManager.pipePrint("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-            format("Thread Info", "CPU Info", "SCHED Info", \
+            format(title, "CPU Info", "SCHED Info", \
             "BLOCK Info", "MEM Info"))
         SystemManager.pipePrint("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
             format("", "", "", "", "", ""))
@@ -24859,7 +24884,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint('\n[Thread Module History]\n')
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint(\
-            "{3:>16} ({4:^5})|{0:^6}|{1:^12}|{2:^16}|{5:^12}|{6:^8}|\n".\
+            "{3:>16} ({4:^5})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
             format("Type", "Time", "Module", "Comm", "Tid", "Elapsed", "RefCnt"))
         SystemManager.addPrint('%s\n' % twoLine)
 
@@ -24890,7 +24915,7 @@ class ThreadAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SystemManager.addPrint(\
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('LOAD', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -24906,7 +24931,7 @@ class ThreadAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SystemManager.addPrint(\
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('FREE', current, module, comm, tid, lifetime, refCnt))
                 printCnt += 1
 
@@ -24917,7 +24942,7 @@ class ThreadAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SystemManager.addPrint(\
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('GET', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -24936,7 +24961,7 @@ class ThreadAnalyzer(object):
                     elapsed = ''
 
                 SystemManager.addPrint(\
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^16}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('PUT', current, module, comm, tid, elapsed, refCnt))
                 printCnt += 1
 
@@ -24949,7 +24974,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Thread Module Info]')
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:^16}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|".\
+            "{0:^32}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|".\
             format("Module", "LoadCnt", "LoadTime", "FreeCnt", "GetCnt", "PutCnt"))
         SystemManager.pipePrint(twoLine)
 
@@ -24957,7 +24982,7 @@ class ThreadAnalyzer(object):
         for module, value in moduleTable.items():
             elapsed = '%.6f' % value['elapsed']
             SystemManager.pipePrint(\
-                "{0:^16}|{1:^10}|{2:>12}|{3:^10}|{4:^10}|{5:^10}|".\
+                "{0:^32}|{1:^10}|{2:>12}|{3:^10}|{4:^10}|{5:^10}|".\
                 format(module, value['loadCnt'], elapsed, \
                 value['freeCnt'], value['getCnt'], value['putCnt']))
             printCnt += 1
@@ -32676,53 +32701,53 @@ class ThreadAnalyzer(object):
 
                 try:
                     prop = 'Size:'
-                    tmpstr = "%s%s%5s / " % \
-                        (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                    tmpstr = "%s%s%7s / " % \
+                        (tmpstr, "VSS:", \
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                 except:
-                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Rss:'
-                    tmpstr = "%s%s%5s / " % \
+                    tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                     rss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Pss:'
-                    tmpstr = "%s%s%5s / " % \
+                    tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                     pss += item[prop]
                 except:
-                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'Swap:'
-                    tmpstr = "%s%s%5s / " % \
+                    tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                 except:
-                    tmpstr = "%s%s%4sK / " % (tmpstr, prop.upper(), 0)
+                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
                 try:
                     prop = 'AnonHugePages:'
-                    tmpstr = "%s%s:%4s / " % \
+                    tmpstr = "%s%s:%5s / " % \
                         (tmpstr, 'HUGE', \
                         SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s:%3sK / " % (tmpstr, 'HUGE', 0)
+                    tmpstr = "%s%s:%5s / " % (tmpstr, 'HUGE', 0)
 
                 try:
                     prop = 'Locked:'
-                    tmpstr = "%s%s%5s / " % \
+                    tmpstr = "%s%s%6s / " % \
                         (tmpstr, 'LOCK:', \
                         SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s%4sK / " % (tmpstr, 'LOCK:', 0)
+                    tmpstr = "%s%s%6s / " % (tmpstr, 'LOCK:', 0)
 
                 try:
                     prop = 'Shared_Clean:'
@@ -32733,27 +32758,29 @@ class ThreadAnalyzer(object):
                 try:
                     prop = 'Shared_Dirty:'
                     sss += item[prop]
-                    tmpstr = "%s%s:%5s / " % \
+                    tmpstr = "%s%s:%7s / " % \
                         (tmpstr, 'SDRT', \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                 except:
-                    tmpstr = "%s%s:%4sK / " % (tmpstr, 'SDRT', 0)
+                    tmpstr = "%s%s:%7s / " % (tmpstr, 'SDRT', 0)
 
                 try:
                     prop = 'Private_Dirty:'
-                    tmpstr = "%s%s:%5s / " % \
+                    tmpstr = "%s%s:%7s" % \
                         (tmpstr, 'PDRT', \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        SystemManager.convertSize2Unit(item[prop] << 10))
                 except:
-                    tmpstr = "%s%s:%4sK" % (tmpstr, 'PDRT', 0)
+                    tmpstr = "%s%s:%7s" % (tmpstr, 'PDRT', 0)
 
+                '''
                 try:
                     prop = 'NOPM'
                     tmpstr = "%s%s:%5s" % \
                         (tmpstr, prop, \
                         SystemManager.convertSize2Unit(item[prop] << 10, True))
                 except:
-                    tmpstr = "%s%s:%4sK" % (tmpstr, prop, 0)
+                    tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
+                '''
 
                 mtype = '(%s)[%s]' % (item['count'], key)
                 memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
@@ -32762,7 +32789,7 @@ class ThreadAnalyzer(object):
                     # get current WSS size #
                     try:
                         wss =  SystemManager.convertSize2Unit(\
-                            item['Referenced:'] << 10)
+                            item['Referenced:'] << 10, False)
                     except:
                         wss =  0
 
@@ -32785,9 +32812,9 @@ class ThreadAnalyzer(object):
                     try:
                         history = self.procData[idx]['wss'][key]
                         self.procData[idx]['wss'][key] = \
-                            '%s -> %5s' % (history, wss)
+                            '%s -> %7s' % (history, wss)
                     except:
-                        self.procData[idx]['wss'][key] = '[%5s]' % wss
+                        self.procData[idx]['wss'][key] = '[%7s]' % wss
 
             # update pss #
             if SystemManager.pssEnable:
@@ -32800,6 +32827,78 @@ class ThreadAnalyzer(object):
             return memBuf, mems
         else:
             return [], mems
+
+
+
+    def printDefaultUsage(self, title):
+        nrNewThreads = \
+            self.cpuData['processes']['processes'] - \
+            self.prevCpuData['processes']['processes']
+
+        try:
+            loadlist = SystemManager.loadavg.split()[:3]
+            for idx, load in enumerate(loadlist):
+                loadlist[idx] = str('%.1f' % float(load))
+            loadavg = '/'.join(loadlist)
+        except:
+            loadavg = '?'
+
+        SystemManager.addPrint(\
+            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] " \
+            "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
+            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
+            (title, SystemManager.uptime, SystemManager.uptimeDiff, \
+            self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
+            nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
+            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
+            SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
+            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
+
+
+
+    def printIrqUsage(self, nrIndent):
+        if len(self.irqData) == 0:
+            return
+
+        nrIrq = 0
+        irqData = '%s [IRQ > ' % (' ' * nrIndent)
+        lenIrq = len(irqData)
+
+        for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
+            self.irqData[e[0]] if not e[0] in self.prevIrqData \
+            else e[1] - self.prevIrqData[e[0]], reverse=True):
+
+            if not irq in self.prevIrqData:
+                irqDiff = cnt
+            else:
+                irqDiff = cnt - self.prevIrqData[irq]
+
+            if irqDiff <= 0:
+                break
+
+            nrIrq += 1
+            newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
+            lenNewIrq = len(newIrq)
+
+            if lenIrq + lenNewIrq >= len(oneLine):
+                irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
+                lenIrq = nrIndent
+
+            irqData = '%s%s' % (irqData, newIrq)
+            lenIrq += lenNewIrq
+
+        if nrIrq > 0:
+            SystemManager.addPrint("{0:<1}]\n".format(irqData[:-2]))
+
+
+
+    def printPerfUsage(self, nrIndent):
+        if len(SystemManager.perfEventData) == 0:
+            return
+
+        perfString = SystemManager.getPerfString(SystemManager.perfEventData)
+        if len(perfString) > 0:
+            SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
 
 
@@ -33369,7 +33468,9 @@ class ThreadAnalyzer(object):
                 if SystemManager.wssEnable:
                     # split a long line #
                     tstr = ''
-                    indent = 48
+                    indent = 54
+                    indenta = 5
+                    lenItem = 7
                     isFirstLined = True
                     limit = SystemManager.lineLength - indent
                     pstr = procData[idx]['wss'][mprop]
@@ -33377,10 +33478,13 @@ class ThreadAnalyzer(object):
                     while len(pstr) > limit:
                         slimit = len(pstr[:limit])
                         des = '%s' % pstr[:slimit]
-                        tstr = '%s%s\n%s' % (tstr, des, ' ' * (indent + 7))
+                        tstr = '%s%s\n%s' % \
+                            (tstr, des, ' ' * (indent + indenta))
+
                         if isFirstLined:
-                            limit -= 7
+                            limit -= indenta + lenItem
                             isFirstLined = False
+
                         pstr = '%s' % pstr[slimit:]
                     tstr = '%s%s' % (tstr, pstr)
 
@@ -33393,7 +33497,7 @@ class ThreadAnalyzer(object):
                         return
 
                     SystemManager.addPrint(\
-                        "{0:>39} |  WSS: {1:1}\n".format(' ', tstr), newline)
+                        "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -34214,69 +34318,23 @@ class ThreadAnalyzer(object):
 
 
 
+    def printSimpleStat(self):
+        pass
+
+
+
     def printSystemStat(self):
-        nrIndent = len('[Top Info]')
+        title = '[Top Info]'
+        nrIndent = len(title)
 
-        nrNewThreads = \
-            self.cpuData['processes']['processes'] - \
-            self.prevCpuData['processes']['processes']
+        # print default stats #
+        self.printDefaultUsage(title)
 
-        try:
-            loadlist = SystemManager.loadavg.split()[:3]
-            for idx, load in enumerate(loadlist):
-                loadlist[idx] = str('%.1f' % float(load))
-            loadavg = '/'.join(loadlist)
-        except:
-            loadavg = '?'
-
-        SystemManager.addPrint(\
-            ("[Top Info] [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] " \
-            "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
-            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
-            (SystemManager.uptime, SystemManager.uptimeDiff, \
-            self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
-            nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
-            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
-            SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
-            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
-
-        # print interrupts #
-        if len(self.irqData) > 0:
-            nrIrq = 0
-            irqData = '%s [IRQ > ' % (' ' * nrIndent)
-            lenIrq = len(irqData)
-
-            for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
-                self.irqData[e[0]] if not e[0] in self.prevIrqData \
-                else e[1] - self.prevIrqData[e[0]], reverse=True):
-
-                if not irq in self.prevIrqData:
-                    irqDiff = cnt
-                else:
-                    irqDiff = cnt - self.prevIrqData[irq]
-
-                if irqDiff <= 0:
-                    break
-
-                nrIrq += 1
-                newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
-                lenNewIrq = len(newIrq)
-
-                if lenIrq + lenNewIrq >= len(oneLine):
-                    irqData = '%s\n%s %s' % (irqData, ' ' * 7, ' ' * nrIndent)
-                    lenIrq = nrIndent
-
-                irqData = '%s%s' % (irqData, newIrq)
-                lenIrq += lenNewIrq
-
-            if nrIrq > 0:
-                SystemManager.addPrint("{0:<1}]\n".format(irqData[:-2]))
+        # print irq stats #
+        self.printIrqUsage(nrIndent)
 
         # print PMU stat #
-        if len(SystemManager.perfEventData) > 0:
-            perfString = SystemManager.getPerfString(SystemManager.perfEventData)
-            if len(perfString) > 0:
-                SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
+        self.printPerfUsage(nrIndent)
 
         # print system stat #
         self.printSystemUsage()
