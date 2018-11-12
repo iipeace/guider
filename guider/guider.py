@@ -10395,7 +10395,7 @@ Examples:
         # {0:1} {1:1} -o . -e p
 
     - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
-        # {0:1} {1:1} -R 3, 5 -o .
+        # {0:1} {1:1} -R 3:5 -o .
 
     - Monitor status of processes including memory(USS)
         # {0:1} {1:1} -e u
