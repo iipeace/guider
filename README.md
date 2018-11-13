@@ -39,7 +39,7 @@ The features of Guider are as follows.
 
 Output
 =======
-    # ./guider.py top -a
+    $ ./guider.py top -a
 
     [Top Info] [Time: 71406.120] [Interval: 1.0] [Ctxt: 52687] [Life: +0/-0] [IRQ: 12517] [Core: 24] [Task: 326/433] [Load: 0.2/0.4/0.5] [RAM: 63876] [Swap: 65491]
                [Cycle: 2G / Inst: 6G / IPC: 2.45 / CacheMiss: 77K(6%) / BranchMiss: 857K(0%) / Clock: 22G / MinFlt: 4 / MajFlt: 0]
@@ -98,7 +98,7 @@ Output
 
 >>>
            
-    # ./guider.py threadtop
+    $ ./guider.py threadtop
 
     [Top Info] [Time: 7175936.960] [Interval: 1.0] [Ctxt: 11934] [Life: +176/-177] [IRQ: 25109] [Core: 24] [Task: 389/493] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 46G / Inst: 34G / IPC: 0.75 / CacheMiss: 23M(7%) / BranchMiss: 290M(4%) / Clock: 23G / MinFlt: 154,525 / MajFlt: 0]
@@ -231,8 +231,8 @@ Output
 
 >>>
            
-    # ./guider.py reporttop -j . -u
-    # cat guider.report
+    $ ./guider.py reptop -j . -u
+    $ cat guider.report
 
     {
       "task": {
@@ -530,7 +530,7 @@ Output
        
 >>>
        
-    # ./guider.py record -t
+    # ./guider.py syscrecord
 
     [Thread Syscall Info] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -852,11 +852,11 @@ If you can run 'pip' on your system then just enter the following command:
     # pip install guider
 
 Otherwise, download the source from https://github.com/iipeace/guider,
-and just run "guider.py" on shell.
+and just run "guider/guider.py" on shell.
 
 If you want to run guider faster and lighter,
 then build and install it on your system as below.
-    # make && make install
+    # cd guider && make && make install
 ```
 
 

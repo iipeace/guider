@@ -10341,7 +10341,7 @@ Usage:
         -P                          group threads in same process
         -I  <DIR|FILE>              set input path
         -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats
+        -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT>        set repeat count
@@ -10371,7 +10371,7 @@ OPTIONS:
 OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -o  <DIR>                   save output data
-        -a                          show all stats
+        -a                          show all stats and events
         -L  <RES:PER>               set graph Layout
         -E  <FILE>                  set error log path
         -v                          verbose
@@ -10467,7 +10467,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
 
     [common]
-        -a                          show all stats
+        -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -R  <INTERVAL:COUNT>        set repeat count
         -Q                          print all rows in a stream
@@ -10546,7 +10546,7 @@ OPTIONS:
         -w  <TIME:FILE{:VALUE}>     set additional command
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats
+        -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -Q                          print all rows in a stream
         -E  <FILE>                  set error log path
@@ -10560,6 +10560,45 @@ Examples:
 
     - report analysis result on each intervals of files mapped to all processes to ./guider.out
         # {0:1} filerecord -o . -i
+                    '''.format(cmd, mode)
+
+                # syscall record #
+                elif SystemManager.isSyscallRecordMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Record syscall events
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+OPTIONS:
+        -e  <CHARACTER>             enable options
+              p:pipe | e:encode
+        -d  <CHARACTER>             disable options
+              e:encode
+        -s  <DIR|FILE>              save trace data
+        -u                          run in the background
+        -b  <SIZE:KB>               set buffer size
+        -t  <SYSCALL>               trace syscall
+        -W                          wait for signal
+        -w  <TIME:FILE{:VALUE}>     set additional command
+        -o  <DIR|FILE>              save output data
+        -m  <ROWS:COLS>             set terminal size
+        -a                          show all stats and events
+        -g  <COMM|TID{:FILE}>       set filter
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - record all syscall events of all threads to ./guider.dat
+        # {0:1} syscrecord -s .
+
+    - report analysis result of specific syscalls to ./guider.out
+        # {0:1} guider.dat -o . -t read, write
                     '''.format(cmd, mode)
 
                 # system record #
@@ -10625,7 +10664,7 @@ OPTIONS:
         -R  <INTERVAL:COUNT>        set repeat count
 
     [report]
-        -a                          show all stats
+        -a                          show all stats and events
         -o  <DIR|FILE>              save output data
         -S  <c:cpu/m:memory/p:pid/  sort by key
              b:block/w:wfc/n:new/
@@ -10719,7 +10758,7 @@ OPTIONS:
              b:block/w:wfc/n:new/
              r:runtime/f:file>
         -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats
+        -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT>        set repeat count
@@ -11383,6 +11422,7 @@ COMMAND:
     [profile]   record      <thread>
                 funcrecord  <function>
                 filerecord  <file>
+                syscrecord  <syscall>
                 sysrecord   <system>
 
     [trace]     strace      <syscall>
@@ -15758,6 +15798,7 @@ Copyright:
         if SystemManager.isThreadRecordMode() or \
             SystemManager.isFuncRecordMode() or \
             SystemManager.isFileRecordMode() or \
+            SystemManager.isSyscallRecordMode() or \
             SystemManager.isSystemRecordMode():
             return True
         else:
@@ -15795,6 +15836,18 @@ Copyright:
             return False
 
         if sys.argv[1] == 'filerecord':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isSyscallRecordMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'syscrecord':
             return True
         else:
             return False
@@ -25250,6 +25303,7 @@ class ThreadAnalyzer(object):
             threadInfo = ''
             syscallInfo = ''
 
+            # skip swapper #
             if key[0:2] == '0[':
                 continue
 
@@ -25268,6 +25322,12 @@ class ThreadAnalyzer(object):
                 if val['count'] == 0:
                     continue
 
+                # apply syscall filter #
+                if len(SystemManager.syscallList) > 0 and \
+                    int(sysId) not in SystemManager.syscallList:
+                        continue
+
+                # print per-thread syscall table #
                 try:
                     val['average'] = '%.6f' % (val['usage'] / val['count'])
                     syscall = ConfigManager.sysList[int(sysId)][4:]
@@ -29426,7 +29486,7 @@ class ThreadAnalyzer(object):
                     args = d['args']
                     td = self.threadData[thread]
 
-                    # apply filter #
+                    # apply thread filter #
                     if SystemManager.isExceptTarget(thread, self.threadData):
                         return
 
@@ -29525,9 +29585,10 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['lastNrSyscall'] = int(nr)
                     self.threadData[thread]['syscallInfo'][nr]['last'] = float(time)
 
+                    # apply syscall filter #
                     if len(SystemManager.syscallList) > 0:
                         try:
-                            idx = SystemManager.syscallList.index(nr)
+                            idx = SystemManager.syscallList.index(int(nr))
                         except:
                             idx = -1
 
@@ -29685,18 +29746,16 @@ class ThreadAnalyzer(object):
                             dict(self.init_syscallInfo)
 
                     diff = ''
-                    if self.threadData[thread]['syscallInfo'][nr]['last'] > 0:
-                        diff = float(time) - \
-                            self.threadData[thread]['syscallInfo'][nr]['last']
+                    sysItem = self.threadData[thread]['syscallInfo'][nr]
+                    if sysItem['last'] > 0:
+                        diff = float(time) - sysItem['last']
                         self.threadData[thread]['syscallInfo'][nr]['usage'] += diff
                         self.threadData[thread]['syscallInfo'][nr]['last'] = 0
                         self.threadData[thread]['syscallInfo'][nr]['count'] += 1
 
-                        if self.threadData[thread]['syscallInfo'][nr]['max'] == 0 or \
-                            self.threadData[thread]['syscallInfo'][nr]['max'] < diff:
+                        if sysItem['max'] == 0 or sysItem['max'] < diff:
                             self.threadData[thread]['syscallInfo'][nr]['max'] = diff
-                        if self.threadData[thread]['syscallInfo'][nr]['min'] <= 0 or \
-                            self.threadData[thread]['syscallInfo'][nr]['min'] > diff:
+                        if sysItem['min'] <= 0 or sysItem['min'] > diff:
                             self.threadData[thread]['syscallInfo'][nr]['min'] = diff
 
                         if ret[0] == '-':
@@ -29704,16 +29763,19 @@ class ThreadAnalyzer(object):
 
                     if len(SystemManager.syscallList) > 0:
                         try:
-                            idx = SystemManager.syscallList.index(nr)
+                            idx = SystemManager.syscallList.index(int(nr))
                         except:
                             idx = -1
 
                         if idx >= 0:
-                            self.syscallData.append(['RET', time, thread, core, nr, ret, diff])
+                            self.syscallData.append(\
+                                ['RET', time, thread, core, nr, ret, diff])
                     else:
-                        self.syscallData.append(['RET', time, thread, core, nr, ret, diff])
+                        self.syscallData.append(\
+                            ['RET', time, thread, core, nr, ret, diff])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "signal_generate":
                 m = re.match((\
@@ -34438,6 +34500,11 @@ if __name__ == '__main__':
         # file #
         elif SystemManager.isFileRecordMode():
             SystemManager.fileEnable = True
+
+        # syscall #
+        elif SystemManager.isSyscallRecordMode():
+            SystemManager.sysEnable = True
+            SystemManager.cpuEnable = False
 
         # system #
         elif SystemManager.isSystemRecordMode():
