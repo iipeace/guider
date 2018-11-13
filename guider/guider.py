@@ -10249,18 +10249,27 @@ class SystemManager(object):
 
     @staticmethod
     def checkEnv():
+        # check os #
         if sys.platform.startswith('linux'):
             SystemManager.isLinux = True
+
+            # android #
             if 'ANDROID_ROOT' in os.environ:
                 SystemManager.isAndroid = True
                 SystemManager.libcPath = 'libc.so'
         elif sys.platform.startswith('win'):
             SystemManager.isLinux = False
+            if SystemManager.isDrawMode() is False:
+                SystemManager.printError(\
+                    '%s platform is supported only for draw commands now' \
+                    % sys.platform)
+                sys.exit(0)
         else:
             SystemManager.printError(\
-                '%s platform is not supported yet' % sys.platform)
+                '%s platform is not supported now' % sys.platform)
             sys.exit(0)
 
+        # check python #
         if sys.version_info < (2, 6):
             SystemManager.printWarning(\
                 'python version is %d.%d so that some features may not work' \
@@ -10282,7 +10291,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printOptions():
+    def printHelp():
         pipePrint = SystemManager.pipePrint
 
         # help #
@@ -34439,8 +34448,8 @@ if __name__ == '__main__':
     # print logo #
     SystemManager.printRawTitle(big=True)
 
-    # print options #
-    SystemManager.printOptions()
+    # print help #
+    SystemManager.printHelp()
 
     # set default io #
     SystemManager.inputFile = sys.argv[1]
@@ -34764,8 +34773,10 @@ if __name__ == '__main__':
             from matplotlib.ticker import MaxNLocator
         except ImportError:
             err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s" % err.args[0])
+            SystemManager.printError((\
+                "Fail to import python package: %s\n"
+                "\tTry to enter %s command to install the package") % \
+                    (err.args[0], "'pip install matplotlib'"))
             sys.exit(0)
 
     #-------------------- REALTIME MODE --------------------
