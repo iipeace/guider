@@ -24,7 +24,6 @@ try:
     import os
     import shutil
     import gc
-    import imp
     import atexit
     import struct
     import errno
@@ -8277,12 +8276,6 @@ class FileAnalyzer(object):
                 err = sys.exc_info()[1]
                 SystemManager.printError(\
                     "Fail to import python package: %s" % err.args[0])
-                sys.exit(0)
-
-            try:
-                imp.find_module('ctypes')
-            except:
-                SystemManager.printError('Fail to find ctypes package')
                 sys.exit(0)
 
             try:
@@ -29112,10 +29105,12 @@ class ThreadAnalyzer(object):
 
                         self.irqData[irqId]['start'] = 0
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "softirq_entry":
-                m = re.match(r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
+                m = re.match(\
+                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -29166,7 +29161,8 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['irqList'][irqId]['start'] = float(time)
                     self.threadData[thread]['irqList'][irqId]['count'] += 1
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "softirq_exit":
                 m = re.match(\
@@ -29207,14 +29203,17 @@ class ThreadAnalyzer(object):
                     if self.irqData[irqId]['start'] > 0:
                         diff = float(time) - self.irqData[irqId]['start']
                         # save softirq period #
-                        if diff > self.irqData[irqId]['max'] or self.irqData[irqId]['max'] <= 0:
+                        if diff > self.irqData[irqId]['max'] or \
+                            self.irqData[irqId]['max'] <= 0:
                             self.irqData[irqId]['max'] = diff
-                        if diff < self.irqData[irqId]['min'] or self.irqData[irqId]['min'] <= 0:
+                        if diff < self.irqData[irqId]['min'] or \
+                            self.irqData[irqId]['min'] <= 0:
                             self.irqData[irqId]['min'] = diff
 
                         self.irqData[irqId]['start'] = 0
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sched_migrate_task":
                 m = re.match((\
@@ -29241,7 +29240,8 @@ class ThreadAnalyzer(object):
                         if index >= 0:
                             self.preemptData[index][3] = core
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_alloc":
                 m = re.match((\
@@ -29302,7 +29302,8 @@ class ThreadAnalyzer(object):
                         self.pageTable[pfnv]['type'] = pageType
                         self.pageTable[pfnv]['time'] = time
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "mm_page_free" or func == "mm_page_free_direct":
                 m = re.match((\
@@ -29345,7 +29346,8 @@ class ThreadAnalyzer(object):
                             self.threadData[thread]['anonReclaimedPages'] += 1
                             self.threadData[coreId]['anonReclaimedPages'] += 1
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "mm_filemap_delete_from_page_cache":
                 m = re.match((\
@@ -29377,7 +29379,8 @@ class ThreadAnalyzer(object):
                     except:
                         return
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "kmalloc":
                 m = re.match((\
@@ -29408,10 +29411,12 @@ class ThreadAnalyzer(object):
                     self.threadData[coreId]['remainKmem'] += alloc
                     self.threadData[coreId]['wasteKmem'] += alloc - req
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "kfree":
-                m = re.match(r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
+                m = re.match(\
+                    r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
@@ -29421,14 +29426,15 @@ class ThreadAnalyzer(object):
                     ptr = d['ptr']
 
                     try:
-                        self.threadData[self.kmemTable[ptr]['tid']]['remainKmem'] -= \
-                            self.kmemTable[ptr]['alloc']
-                        self.threadData[self.kmemTable[ptr]['core']]['remainKmem'] -= \
-                            self.kmemTable[ptr]['alloc']
-                        self.threadData[self.kmemTable[ptr]['tid']]['wasteKmem'] -= \
-                            self.kmemTable[ptr]['waste']
-                        self.threadData[self.kmemTable[ptr]['core']]['wasteKmem'] -= \
-                            self.kmemTable[ptr]['waste']
+                        pageObj = self.kmemTable[ptr]
+                        self.threadData[pageObj['tid']]['remainKmem'] -= \
+                            pageObj['alloc']
+                        self.threadData[pageObj['core']]['remainKmem'] -= \
+                            pageObj['alloc']
+                        self.threadData[pageObj['tid']]['wasteKmem'] -= \
+                            pageObj['waste']
+                        self.threadData[pageObj['core']]['wasteKmem'] -= \
+                            pageObj['waste']
 
                         self.kmemTable.pop(ptr)
                     except:
@@ -29438,7 +29444,8 @@ class ThreadAnalyzer(object):
                         '''
                         return
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sched_wakeup" or func == "sched_wakeup_new":
                 m = re.match((\
@@ -29484,14 +29491,15 @@ class ThreadAnalyzer(object):
                         self.wakeupData['from'] = self.wakeupData['tid']
                         self.wakeupData['to'] = pid
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sys_enter":
                 m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
                 if m is not None:
                     d = m.groupdict()
 
-                    nr = d['nr']
+                    nr = int(d['nr'])
                     args = d['args']
                     td = self.threadData[thread]
 
@@ -29500,7 +29508,7 @@ class ThreadAnalyzer(object):
                         return
 
                     # update futex lock stat #
-                    if nr == str(ConfigManager.sysList.index("sys_futex")):
+                    if nr == ConfigManager.sysList.index("sys_futex"):
                         n = re.match((\
                             r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                             r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
@@ -29566,9 +29574,9 @@ class ThreadAnalyzer(object):
                             float(time) - float(SystemManager.startTime)
 
                     # write syscall #
-                    if nr == str(ConfigManager.sysList.index("sys_write")):
+                    if nr == ConfigManager.sysList.index("sys_write"):
                         self.wakeupData['tid'] = thread
-                        self.wakeupData['nr'] = nr
+                        self.wakeupData['nr'] = str(nr)
                         self.wakeupData['args'] = args
 
                         if (self.wakeupData['valid'] > 0 and \
@@ -29586,27 +29594,28 @@ class ThreadAnalyzer(object):
                     except:
                         self.threadData[thread]['syscallInfo'] = {}
                     try:
-                        self.threadData[thread]['syscallInfo'][nr]
+                        self.threadData[thread]['syscallInfo'][str(nr)]
                     except:
-                        self.threadData[thread]['syscallInfo'][nr] = \
+                        self.threadData[thread]['syscallInfo'][str(nr)] = \
                             dict(self.init_syscallInfo)
 
-                    self.threadData[thread]['lastNrSyscall'] = int(nr)
-                    self.threadData[thread]['syscallInfo'][nr]['last'] = float(time)
+                    self.threadData[thread]['lastNrSyscall'] = nr
+                    self.threadData[thread]['syscallInfo'][str(nr)]['last'] = \
+                        float(time)
 
                     # apply syscall filter #
                     if len(SystemManager.syscallList) > 0:
                         try:
-                            idx = SystemManager.syscallList.index(int(nr))
+                            idx = SystemManager.syscallList.index(nr)
                         except:
                             idx = -1
 
                         if idx >= 0:
                             self.syscallData.append(\
-                                ['ENT', time, thread, core, nr, args])
+                                ['ENT', time, thread, core, str(nr), args])
                     else:
                         self.syscallData.append(\
-                            ['ENT', time, thread, core, nr, args])
+                            ['ENT', time, thread, core, str(nr), args])
                 else:
                     SystemManager.printWarning(\
                         "Fail to recognize '%s' event" % func)
@@ -29616,7 +29625,7 @@ class ThreadAnalyzer(object):
                 if m is not None:
                     d = m.groupdict()
 
-                    nr = d['nr']
+                    nr = int(d['nr'])
                     ret = d['ret']
                     td = self.threadData[thread]
 
@@ -29625,12 +29634,11 @@ class ThreadAnalyzer(object):
                         return
 
                     # handle wrong syscall number #
-                    if int(nr) < 0:
-                        if td['lastNrSyscall'] >= 0:
-                            nr = str(td['lastNrSyscall'])
+                    if nr < 0 and td['lastNrSyscall'] >= 0:
+                        nr = td['lastNrSyscall']
 
                     # update futex lock stat #
-                    if nr == str(ConfigManager.sysList.index("sys_futex")):
+                    if nr == ConfigManager.sysList.index("sys_futex"):
                         lockEnter = td['ftxEnter']
                         lockStat = td['ftxStat']
 
@@ -29704,13 +29712,13 @@ class ThreadAnalyzer(object):
                     try:
                         if SystemManager.depEnable is False:
                             raise Exception()
-                        elif nr == str(ConfigManager.sysList.index("sys_write")) and \
+                        elif nr == ConfigManager.sysList.index("sys_write") and \
                             self.wakeupData['valid'] > 0:
                             self.wakeupData['valid'] -= 1
                         elif SystemManager.arch != 'aarch64' and \
-                            (nr == str(ConfigManager.sysList.index("sys_poll")) or \
-                            nr == str(ConfigManager.sysList.index("sys_select")) or \
-                            nr == str(ConfigManager.sysList.index("sys_epoll_wait"))):
+                            (nr == ConfigManager.sysList.index("sys_poll") or \
+                            nr == ConfigManager.sysList.index("sys_select") or \
+                            nr == ConfigManager.sysList.index("sys_epoll_wait")):
                             if (self.lastJob[core]['job'] == "sched_switch" or \
                                 self.lastJob[core]['job'] == "sched_wakeup" or \
                                 self.lastJob[core]['job'] == "sched_wakeup_new") and \
@@ -29726,10 +29734,10 @@ class ThreadAnalyzer(object):
                                     float(time) - float(SystemManager.startTime)
                                 self.lastJob[core]['prevWakeupTid'] = thread
                         elif (SystemManager.arch == 'arm' and \
-                            nr == str(ConfigManager.sysList.index("sys_recv"))) or \
-                            nr == str(ConfigManager.sysList.index("sys_recvfrom")) or \
-                            nr == str(ConfigManager.sysList.index("sys_recvmsg")) or \
-                            nr == str(ConfigManager.sysList.index("sys_recvmmsg")):
+                            nr == ConfigManager.sysList.index("sys_recv")) or \
+                            nr == ConfigManager.sysList.index("sys_recvfrom") or \
+                            nr == ConfigManager.sysList.index("sys_recvmsg") or \
+                            nr == ConfigManager.sysList.index("sys_recvmmsg"):
                             if self.lastJob[core]['prevWakeupTid'] != thread:
                                 ttime = float(time) - float(SystemManager.startTime)
                                 itime = ttime - float(self.wakeupData['time'])
@@ -29749,39 +29757,39 @@ class ThreadAnalyzer(object):
                     except:
                         self.threadData[thread]['syscallInfo'] = {}
                     try:
-                        self.threadData[thread]['syscallInfo'][nr]
+                        self.threadData[thread]['syscallInfo'][str(nr)]
                     except:
-                        self.threadData[thread]['syscallInfo'][nr] = \
+                        self.threadData[thread]['syscallInfo'][str(nr)] = \
                             dict(self.init_syscallInfo)
 
                     diff = ''
-                    sysItem = self.threadData[thread]['syscallInfo'][nr]
+                    sysItem = self.threadData[thread]['syscallInfo'][str(nr)]
                     if sysItem['last'] > 0:
                         diff = float(time) - sysItem['last']
-                        self.threadData[thread]['syscallInfo'][nr]['usage'] += diff
-                        self.threadData[thread]['syscallInfo'][nr]['last'] = 0
-                        self.threadData[thread]['syscallInfo'][nr]['count'] += 1
+                        self.threadData[thread]['syscallInfo'][str(nr)]['usage'] += diff
+                        self.threadData[thread]['syscallInfo'][str(nr)]['last'] = 0
+                        self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
 
                         if sysItem['max'] == 0 or sysItem['max'] < diff:
-                            self.threadData[thread]['syscallInfo'][nr]['max'] = diff
+                            self.threadData[thread]['syscallInfo'][str(nr)]['max'] = diff
                         if sysItem['min'] <= 0 or sysItem['min'] > diff:
-                            self.threadData[thread]['syscallInfo'][nr]['min'] = diff
+                            self.threadData[thread]['syscallInfo'][str(nr)]['min'] = diff
 
                         if ret[0] == '-':
-                            self.threadData[thread]['syscallInfo'][nr]['err'] += 1
+                            self.threadData[thread]['syscallInfo'][str(nr)]['err'] += 1
 
                     if len(SystemManager.syscallList) > 0:
                         try:
-                            idx = SystemManager.syscallList.index(int(nr))
+                            idx = SystemManager.syscallList.index(nr)
                         except:
                             idx = -1
 
                         if idx >= 0:
                             self.syscallData.append(\
-                                ['RET', time, thread, core, nr, ret, diff])
+                                ['RET', time, thread, core, str(nr), ret, diff])
                     else:
                         self.syscallData.append(\
-                            ['RET', time, thread, core, nr, ret, diff])
+                            ['RET', time, thread, core, str(nr), ret, diff])
                 else:
                     SystemManager.printWarning(\
                         "Fail to recognize '%s' event" % func)
@@ -29798,9 +29806,12 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
                     ttime = float(time) - float(SystemManager.startTime)
 
-                    self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
-                        (round(ttime, 7), round(ttime - float(self.wakeupData['time']), 7), \
-                        self.threadData[thread]['comm'], thread, target_comm, pid, "sigsend", sig))
+                    self.depData.append(\
+                        "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
+                        (round(ttime, 7), \
+                        round(ttime - float(self.wakeupData['time']), 7), \
+                        self.threadData[thread]['comm'], thread, \
+                        target_comm, pid, "sigsend", sig))
 
                     self.sigData.append(('SEND', ttime, thread, pid, sig))
 
@@ -29812,7 +29823,8 @@ class ThreadAnalyzer(object):
                             if self.threadData[pid]['waitStartAsParent'] > 0:
                                 if self.threadData[pid]['waitPid'] == 0 or \
                                     self.threadData[pid]['waitPid'] == int(thread):
-                                    diff = float(time) - self.threadData[pid]['waitStartAsParent']
+                                    diff = float(time) - \
+                                        self.threadData[pid]['waitStartAsParent']
                                     self.threadData[thread]['waitParent'] = diff
                                     self.threadData[pid]['waitChild'] += diff
                         elif sig == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
@@ -29820,7 +29832,8 @@ class ThreadAnalyzer(object):
                     except:
                         return
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "signal_deliver":
                 m = re.match((\
@@ -29834,7 +29847,8 @@ class ThreadAnalyzer(object):
 
                     ttime = float(time) - float(SystemManager.startTime)
                     itime = ttime - float(self.wakeupData['time'])
-                    self.depData.append("\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
+                    self.depData.append(\
+                        "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
                         (round(ttime, 7), round(itime, 7), "", "", \
                         self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
@@ -29842,7 +29856,8 @@ class ThreadAnalyzer(object):
 
                     self.wakeupData['time'] = ttime
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "block_bio_queue" or func == "block_bio_remap":
                 m = re.match((\
@@ -29891,7 +29906,8 @@ class ThreadAnalyzer(object):
                             self.threadData[thread]['writeStart'] = float(time)
 
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "block_rq_complete":
                 m = re.match((\
@@ -30031,7 +30047,8 @@ class ThreadAnalyzer(object):
                                 self.threadData[request['thread']]['writeStart'] = 0
 
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "writeback_dirty_page":
                 m = re.match((\
@@ -30052,7 +30069,8 @@ class ThreadAnalyzer(object):
                     self.saveBlkOpt(\
                         thread, comm, 'W', d['major'], d['minor'], bid, 1)
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "wbc_writepage":
                 m = re.match((\
@@ -30072,7 +30090,8 @@ class ThreadAnalyzer(object):
                         self.saveBlkOpt(\
                             thread, comm, 'W', d['major'], d['minor'], d['towrt'], 1)
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "mm_vmscan_wakeup_kswapd":
                 try:
@@ -30114,7 +30133,8 @@ class ThreadAnalyzer(object):
 
                     self.threadData[thread]['dReclaimStart'] = 0
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "task_newtask":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
@@ -30140,7 +30160,8 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['childList'].append(pid)
                         self.nrNewTask += 1
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sched_process_fork":
                 m = re.match((\
@@ -30169,7 +30190,8 @@ class ThreadAnalyzer(object):
                         self.threadData[thread]['childList'].append(cpid)
                         self.nrNewTask += 1
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "task_rename":
                 m = re.match((\
@@ -30190,7 +30212,8 @@ class ThreadAnalyzer(object):
 
                     self.threadData[pid]['comm'] = newcomm
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "locks_get_lock_context":
                 m = re.match((\
@@ -30274,7 +30297,8 @@ class ThreadAnalyzer(object):
                     if self.threadData[pid]['die'] != 'F':
                         self.threadData[pid]['die'] = 'D'
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "sched_process_wait":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -30284,7 +30308,8 @@ class ThreadAnalyzer(object):
                     self.threadData[thread]['waitStartAsParent'] = float(time)
                     self.threadData[thread]['waitPid'] = int(d['pid'])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "suspend_resume":
                 SystemManager.powerEnable = True
@@ -30321,7 +30346,8 @@ class ThreadAnalyzer(object):
 
                     self.moduleData.append(['load', thread, time, module, address])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "module_free":
                 m = re.match(r'^\s*(?P<module>.*)', etc)
@@ -30332,7 +30358,8 @@ class ThreadAnalyzer(object):
 
                     self.moduleData.append(['free', thread, time, module, None])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "module_put":
                 m = re.match((\
@@ -30346,7 +30373,8 @@ class ThreadAnalyzer(object):
 
                     self.moduleData.append(['put', thread, time, module, refcnt])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "module_get":
                 m = re.match((\
@@ -30360,7 +30388,8 @@ class ThreadAnalyzer(object):
 
                     self.moduleData.append(['get', thread, time, module, refcnt])
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "cpu_idle":
                 m = re.match(\
@@ -30392,7 +30421,8 @@ class ThreadAnalyzer(object):
                             (float(time) - self.threadData[tid]['lastOff'])
                         self.threadData[tid]['lastOff'] = float(0)
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             elif func == "cpu_frequency":
                 # toDo: calculate power consumption for DVFS system #
@@ -30441,7 +30471,8 @@ class ThreadAnalyzer(object):
                     self.handleUserEvent(d['event'], time)
 
                 else:
-                    SystemManager.printWarning("Fail to recognize '%s' event" % func)
+                    SystemManager.printWarning(\
+                        "Fail to recognize '%s' event" % func)
 
             # custom event #
             elif func in SystemManager.customEventList or \
@@ -34437,10 +34468,10 @@ class ThreadAnalyzer(object):
 
 
 
-if __name__ == '__main__':
-
-    oneLine = "-" * SystemManager.lineLength
-    twoLine = "=" * SystemManager.lineLength
+def main(args=None):
+    # update arguments #
+    if type(args) is str:
+        sys.argv = ['guider'] + args.split()
 
     # register exit handler #
     atexit.register(SystemManager.closeAllForPrint)
@@ -34884,4 +34915,13 @@ if __name__ == '__main__':
 
     # print event info #
     EventAnalyzer.printEventInfo()
+
+
+
+# define global line variables #
+oneLine = "-" * SystemManager.lineLength
+twoLine = "=" * SystemManager.lineLength
+
+if __name__ == '__main__':
+    main()
 
