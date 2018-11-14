@@ -818,7 +818,9 @@ How to use
 
 ```
 Enter the following command to see all commands supported by the guider:
-    $ ./guider.py -h
+    $ ./guider.py --help
+    $ python -m guider --help
+    $ guider --help
 
 Enter the following command to start tracing for all threads:
     # ./guider.py record -a
@@ -850,11 +852,14 @@ Build & Installation
 ```
 If you can run 'pip' on your system then just enter the following command:
     # pip install guider
+and just run the following commands:
+    # python -m guider
+    # guider
 
 Otherwise, download the source from https://github.com/iipeace/guider,
 and just run "guider/guider.py" on shell.
 
-If you want to run guider faster and lighter,
+If you want to run guider faster and lighter after downloading the source,
 then build and install it on your system as below.
     # cd guider && make && make install
 ```
