@@ -5858,12 +5858,14 @@ class FunctionAnalyzer(object):
             # record-tgid option #
             m = re.match((\
                 r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
-                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+' \
+                r'(?P<func>\S+)(?P<etc>.+)'), string)
             if m is None:
                 # print-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)\s+' \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+' \
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
         else:
             m = re.match((\
                 r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
@@ -5964,7 +5966,8 @@ class FunctionAnalyzer(object):
             elif d['func'] == "sched_process_fork:":
                 m = re.match((\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
-                    r'child_comm=(?P<child_comm>.*)\s+child_pid=(?P<child_pid>[0-9]+)'), d['etc'])
+                    r'child_comm=(?P<child_comm>.*)\s+'\
+                    r'child_pid=(?P<child_pid>[0-9]+)'), d['etc'])
                 if m is not None:
                     p = m.groupdict()
 
@@ -5980,7 +5983,8 @@ class FunctionAnalyzer(object):
 
             # Make thread name #
             elif d['func'] == "task_newtask:":
-                m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', d['etc'])
+                m = re.match(\
+                    r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', d['etc'])
                 if m is not None:
                     p = m.groupdict()
 
@@ -6016,8 +6020,9 @@ class FunctionAnalyzer(object):
         # Parse call stack #
         else:
             pos = string.find('=>  <')
-            m = re.match(\
-                r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] \<(?P<pos>.\S+)\>', string)
+            m = re.match((\
+                r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] '\
+                r'\<(?P<pos>.\S+)\>'), string)
 
             # exist path, offset, pos #
             if m is not None:
@@ -28521,6 +28526,11 @@ class ThreadAnalyzer(object):
 
 
     def parse(self, string):
+        def printEventWarning(func):
+            SystemManager.printWarning(\
+                "Fail to recognize '%s' event at line %d" % \
+                (func, SystemManager.curLine))
+
         SystemManager.curLine += 1
 
         if SystemManager.tgidEnable:
@@ -28634,1354 +28644,1402 @@ class ThreadAnalyzer(object):
 
             if func == "sched_switch":
                 m = re.match((\
-                    r'^\s*prev_comm=(?P<prev_comm>.*)\s+prev_pid=(?P<prev_pid>[0-9]+)\s+' \
-                    r'prev_prio=(?P<prev_prio>\S+)\s+prev_state=(?P<prev_state>\S+)\s+==>\s+' \
-                    r'next_comm=(?P<next_comm>.*)\s+next_pid=(?P<next_pid>[0-9]+)\s+' \
+                    r'^\s*prev_comm=(?P<prev_comm>.*)\s+' \
+                    r'prev_pid=(?P<prev_pid>[0-9]+)\s+' \
+                    r'prev_prio=(?P<prev_prio>\S+)\s+' \
+                    r'prev_state=(?P<prev_state>\S+)\s+==>\s+' \
+                    r'next_comm=(?P<next_comm>.*)\s+' \
+                    r'next_pid=(?P<next_pid>[0-9]+)\s+' \
                     r'next_prio=(?P<next_prio>\S+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.cpuEnable = True
+                d = m.groupdict()
 
-                    self.cxtSwitch += 1
+                SystemManager.cpuEnable = True
 
-                    '''
-                    /* states in TASK_REPORT: */
-                    "R (running)",      /* 0x00 */
-                    "S (sleeping)",     /* 0x01 */
-                    "D (disk sleep)",   /* 0x02 */
-                    "T (stopped)",      /* 0x04 */
-                    "t (tracing stop)", /* 0x08 */
-                    "X (dead)",     /* 0x10 */
-                    "Z (zombie)",       /* 0x20 */
-                    "P (parked)",       /* 0x40 */
+                self.cxtSwitch += 1
 
-                    /* states beyond TASK_REPORT: */
-                    "I (idle)",     /* 0x80 */
-                    '''
+                '''
+                /* states in TASK_REPORT: */
+                "R (running)",      /* 0x00 */
+                "S (sleeping)",     /* 0x01 */
+                "D (disk sleep)",   /* 0x02 */
+                "T (stopped)",      /* 0x04 */
+                "t (tracing stop)", /* 0x08 */
+                "X (dead)",     /* 0x10 */
+                "Z (zombie)",       /* 0x20 */
+                "P (parked)",       /* 0x40 */
 
-                    prev_comm = d['prev_comm']
-                    prev_pid = d['prev_pid']
+                /* states beyond TASK_REPORT: */
+                "I (idle)",     /* 0x80 */
+                '''
+
+                prev_comm = d['prev_comm']
+                prev_pid = d['prev_pid']
+                prev_id = prev_pid
+
+                coreId = '0[%s]' % core
+
+                if int(d['prev_pid']) == 0:
+                    prev_id = coreId
+                else:
                     prev_id = prev_pid
 
-                    coreId = '0[%s]' % core
+                next_comm = d['next_comm']
+                next_pid = d['next_pid']
 
-                    if int(d['prev_pid']) == 0:
-                        prev_id = coreId
-                    else:
-                        prev_id = prev_pid
+                if int(d['next_pid']) == 0:
+                    next_id = coreId
+                else:
+                    next_id = next_pid
 
-                    next_comm = d['next_comm']
-                    next_pid = d['next_pid']
+                # check cpu wakeup #
+                if self.threadData[coreId]['lastOff'] > 0:
+                    diff = float(time) - self.threadData[coreId]['lastOff']
+                    self.threadData[coreId]['offTime'] += diff
+                    self.threadData[coreId]['lastOff'] = 0
 
-                    if int(d['next_pid']) == 0:
-                        next_id = coreId
-                    else:
-                        next_id = next_pid
+                # initialize thread data #
+                self.threadData.setdefault(prev_id, dict(self.init_threadData))
+                self.threadData.setdefault(next_id, dict(self.init_threadData))
 
-                    # check cpu wakeup #
-                    if self.threadData[coreId]['lastOff'] > 0:
-                        diff = float(time) - self.threadData[coreId]['lastOff']
-                        self.threadData[coreId]['offTime'] += diff
-                        self.threadData[coreId]['lastOff'] = 0
+                # initialize core data #
+                try:
+                    self.threadData[coreId]
+                except:
+                    self.threadData[coreId] = dict(self.init_threadData)
+                    self.threadData[coreId]['comm'] = 'swapper/%s' % core
 
-                    # initialize thread data #
-                    self.threadData.setdefault(prev_id, dict(self.init_threadData))
-                    self.threadData.setdefault(next_id, dict(self.init_threadData))
+                if self.wakeupData['valid'] > 0 and \
+                    self.wakeupData['tid'] == prev_id:
+                    self.wakeupData['valid'] -= 1
 
-                    # initialize core data #
-                    try:
-                        self.threadData[coreId]
-                    except:
-                        self.threadData[coreId] = dict(self.init_threadData)
-                        self.threadData[coreId]['comm'] = 'swapper/%s' % core
+                # update comm #
+                self.threadData[prev_id]['comm'] = prev_comm
+                self.threadData[next_id]['comm'] = next_comm
 
-                    if self.wakeupData['valid'] > 0 and self.wakeupData['tid'] == prev_id:
-                        self.wakeupData['valid'] -= 1
-
-                    # update comm #
+                # update anonymous comm #
+                if self.threadData[prev_id]['comm'] == '<...>':
                     self.threadData[prev_id]['comm'] = prev_comm
+                if self.threadData[next_id]['comm'] == '<...>':
                     self.threadData[next_id]['comm'] = next_comm
 
-                    # update anonymous comm #
-                    if self.threadData[prev_id]['comm'] == '<...>':
-                        self.threadData[prev_id]['comm'] = prev_comm
-                    if self.threadData[next_id]['comm'] == '<...>':
-                        self.threadData[next_id]['comm'] = next_comm
+                # check event loss #
+                if self.threadData[prev_id]['lastStatus'] != 'R' and \
+                    self.threadData[coreId]['coreSchedCnt'] > 0:
+                    self.threadData[prev_id]['start'] = float(time)
 
-                    # check event loss #
-                    if self.threadData[prev_id]['lastStatus'] != 'R' and \
-                        self.threadData[coreId]['coreSchedCnt'] > 0:
-                        self.threadData[prev_id]['start'] = float(time)
+                # write current time #
+                self.threadData[prev_id]['stop'] = float(time)
+                self.threadData[next_id]['start'] = float(time)
+                self.threadData[next_id]['waitStartAsParent'] = float(0)
 
-                    # write current time #
-                    self.threadData[prev_id]['stop'] = float(time)
-                    self.threadData[next_id]['start'] = float(time)
-                    self.threadData[next_id]['waitStartAsParent'] = float(0)
+                # update priority of thread to highest one #
+                if self.threadData[prev_id]['pri'] == '?' or \
+                    int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
+                    self.threadData[prev_id]['pri'] = d['prev_prio']
+                if self.threadData[next_id]['pri'] == '?' or \
+                    int(self.threadData[next_id]['pri']) > int(d['next_prio']):
+                    self.threadData[next_id]['pri'] = d['next_prio']
 
-                    # update priority of thread to highest one #
-                    if self.threadData[prev_id]['pri'] == '?' or \
-                        int(self.threadData[prev_id]['pri']) > int(d['prev_prio']):
-                        self.threadData[prev_id]['pri'] = d['prev_prio']
-                    if self.threadData[next_id]['pri'] == '?' or \
-                        int(self.threadData[next_id]['pri']) > int(d['next_prio']):
-                        self.threadData[next_id]['pri'] = d['next_prio']
+                # update cpu time by futex #
+                if self.threadData[prev_id]['ftxEnter'] > 0:
+                    cstart = self.threadData[prev_id]['start']
+                    fstart = self.threadData[prev_id]['ftxEnter']
 
-                    # update cpu time by futex #
-                    if self.threadData[prev_id]['ftxEnter'] > 0:
-                        cstart = self.threadData[prev_id]['start']
-                        fstart = self.threadData[prev_id]['ftxEnter']
+                    if cstart > fstart:
+                        tstart = cstart
+                    else:
+                        tstart = fstart
 
-                        if cstart > fstart:
-                            tstart = cstart
-                        else:
-                            tstart = fstart
+                    stime = float(time) - tstart
+                    self.threadData[prev_id]['ftxProcess'] += stime
+                    self.threadData[prev_id]['ftxBlock'] = float(time)
+                    self.threadData[prev_id]['ftxBlockCnt'] += 1
 
-                        stime = float(time) - tstart
-                        self.threadData[prev_id]['ftxProcess'] += stime
-                        self.threadData[prev_id]['ftxBlock'] = float(time)
-                        self.threadData[prev_id]['ftxBlockCnt'] += 1
+                    opt = '{0:^24}'.format('BLOCK')
+                    otype = '{0:<10}'.format('ENT')
+                    stime = '%.6f' % stime
+                    self.futexData.append(\
+                        [prev_id, time, core, opt, otype, stime, '', '', ''])
 
-                        opt = '{0:^24}'.format('BLOCK')
-                        otype = '{0:<10}'.format('ENT')
-                        stime = '%.6f' % stime
-                        self.futexData.append(\
-                            [prev_id, time, core, opt, otype, stime, '', '', ''])
+                # save block time with lock by futex #
+                try:
+                    if len(self.threadData[prev_id]['futexObj']) > 0:
+                        self.threadData[prev_id]['ftxLBlock'] = float(time)
+                        self.threadData[prev_id]['ftxLSwitch'] += 1
 
-                    # save block time with lock by futex #
-                    try:
-                        if len(self.threadData[prev_id]['futexObj']) > 0:
-                            self.threadData[prev_id]['ftxLBlock'] = float(time)
-                            self.threadData[prev_id]['ftxLSwitch'] += 1
-
-                            # remove previous BLOCK enter event #
-                            if len(self.futexData) > 0 and self.futexData[-1][1] == time:
-                                del self.futexData[-1]
-
-                            opt = '{0:^24}'.format('LOCK_BLOCK')
-                            otype = '{0:<10}'.format('ENT')
-                            locks = ', '.join(self.threadData[prev_id]['futexObj'])
-                            self.futexData.append(\
-                                [prev_id, time, core, opt, otype, '', locks, '', ''])
-                    except:
-                        pass
-
-                    # update total block time with lock by futex #
-                    if self.threadData[next_id]['ftxLBlock'] > 0:
-                        cstop = self.threadData[next_id]['ftxLBlock']
-                        btime = float(time) - cstop
-                        self.threadData[next_id]['ftxLBlockTotal'] += btime
-                        self.threadData[next_id]['ftxLBlock'] = 0
+                        # remove previous BLOCK enter event #
+                        if len(self.futexData) > 0 and \
+                            self.futexData[-1][1] == time:
+                            del self.futexData[-1]
 
                         opt = '{0:^24}'.format('LOCK_BLOCK')
-                        otype = '{0:>10}'.format('RET')
-                        try:
-                            locks = ', '.join(self.threadData[next_id]['futexObj'])
-                        except:
-                            locks = ''
-                        btime = '%.6f' % btime
+                        otype = '{0:<10}'.format('ENT')
+                        locks = ', '.join(self.threadData[prev_id]['futexObj'])
                         self.futexData.append(\
-                            [next_id, time, core, opt, otype, btime, locks, '', ''])
+                            [prev_id, time, core, opt, otype, \
+                            '', locks, '', ''])
+                except:
+                    pass
 
-                    # save block time by futex #
-                    if self.threadData[next_id]['ftxBlock'] > 0:
-                        cstop = self.threadData[next_id]['ftxBlock']
-                        btime = float(time) - cstop
-                        self.threadData[next_id]['ftxBlockTotal'] += btime
-                        self.threadData[next_id]['ftxBlock'] = 0
+                # update total block time with lock by futex #
+                if self.threadData[next_id]['ftxLBlock'] > 0:
+                    cstop = self.threadData[next_id]['ftxLBlock']
+                    btime = float(time) - cstop
+                    self.threadData[next_id]['ftxLBlockTotal'] += btime
+                    self.threadData[next_id]['ftxLBlock'] = 0
 
-                        opt = '{0:^24}'.format('BLOCK')
-                        otype = '{0:>10}'.format('RET')
-                        btime = '%.6f' % btime
-                        self.futexData.append(\
-                            [next_id, time, core, opt, otype, btime, '', '', ''])
+                    opt = '{0:^24}'.format('LOCK_BLOCK')
+                    otype = '{0:>10}'.format('RET')
+                    try:
+                        locks = ', '.join(self.threadData[next_id]['futexObj'])
+                    except:
+                        locks = ''
+                    btime = '%.6f' % btime
+                    self.futexData.append(\
+                        [next_id, time, core, opt, otype, \
+                        btime, locks, '', ''])
 
-                    # calculate running time of previous thread #
-                    diff = 0
-                    if self.threadData[prev_id]['start'] == 0:
-                        ''' calculate running time of previous thread started
-                            before starting to profile '''
-                        if self.threadData[coreId]['coreSchedCnt'] == 0:
-                            diff = float(time) - float(SystemManager.startTime)
-                            self.threadData[prev_id]['usage'] = diff
-                        # it is possible that log was loss #
-                        else:
-                            pass
+                # save block time by futex #
+                if self.threadData[next_id]['ftxBlock'] > 0:
+                    cstop = self.threadData[next_id]['ftxBlock']
+                    btime = float(time) - cstop
+                    self.threadData[next_id]['ftxBlockTotal'] += btime
+                    self.threadData[next_id]['ftxBlock'] = 0
+
+                    opt = '{0:^24}'.format('BLOCK')
+                    otype = '{0:>10}'.format('RET')
+                    btime = '%.6f' % btime
+                    self.futexData.append(\
+                        [next_id, time, core, opt, otype, \
+                        btime, '', '', ''])
+
+                # calculate running time of previous thread #
+                diff = 0
+                if self.threadData[prev_id]['start'] == 0:
+                    ''' calculate running time of previous thread started
+                        before starting to profile '''
+                    if self.threadData[coreId]['coreSchedCnt'] == 0:
+                        diff = float(time) - float(SystemManager.startTime)
+                        self.threadData[prev_id]['usage'] = diff
+                    # it is possible that log was loss #
                     else:
-                        diff = self.threadData[prev_id]['stop'] - \
-                            self.threadData[prev_id]['start']
-                        if diff >= 0:
-                            self.threadData[prev_id]['usage'] += diff
+                        pass
+                else:
+                    diff = self.threadData[prev_id]['stop'] - \
+                        self.threadData[prev_id]['start']
+                    if diff >= 0:
+                        self.threadData[prev_id]['usage'] += diff
 
-                            if self.threadData[prev_id]['maxRuntime'] < diff:
-                                self.threadData[prev_id]['maxRuntime'] = diff
-                        else:
-                            SystemManager.printWarning(\
-                                "usage time of %s(%s) is negative at line %d" % \
-                                (prev_comm, prev_id, SystemManager.curLine))
+                        if self.threadData[prev_id]['maxRuntime'] < diff:
+                            self.threadData[prev_id]['maxRuntime'] = diff
+                    else:
+                        SystemManager.printWarning(\
+                            "usage time of %s(%s) is negative at line %d" % \
+                            (prev_comm, prev_id, SystemManager.curLine))
 
-                    if diff > int(SystemManager.intervalEnable):
-                        self.threadData[prev_id]['longRunCore'] = int(core)
+                if diff > int(SystemManager.intervalEnable):
+                    self.threadData[prev_id]['longRunCore'] = int(core)
 
-                    # update core info #
-                    self.threadData[coreId]['coreSchedCnt'] += 1
-                    self.lastTidPerCore[core] = next_id
+                # update core info #
+                self.threadData[coreId]['coreSchedCnt'] += 1
+                self.lastTidPerCore[core] = next_id
 
-                    # calculate preempted time of threads blocked #
-                    if SystemManager.preemptGroup != None:
-                        for value in SystemManager.preemptGroup:
-                            index = SystemManager.preemptGroup.index(value)
-                            if self.preemptData[index][0] and \
-                                self.preemptData[index][3] == core:
-                                try:
-                                    self.preemptData[index][1][prev_id]
-                                except:
-                                    self.preemptData[index][1][prev_id] = \
-                                        dict(self.init_preemptData)
-
-                                self.preemptData[index][1][prev_id]['usage'] +=  \
-                                    self.threadData[prev_id]['stop'] - \
-                                    self.threadData[prev_id]['start']
-                                self.preemptData[index][4] += \
-                                    self.threadData[prev_id]['stop'] - \
-                                    self.threadData[prev_id]['start']
-
-                    # set sched status #
-                    if d['prev_state'][0] == 'R':
-                        # except for core sched event #
-                        if prev_id != coreId:
-                            self.threadData[prev_id]['preempted'] += 1
-                            self.threadData[coreId]['preempted'] += 1
-
-                        # except for core sched event #
-                        if next_id != coreId:
-                            self.threadData[next_id]['preemption'] += 1
-                            self.threadData[coreId]['preemption'] += 1
-
-                        self.threadData[prev_id]['lastStatus'] = 'P'
-
-                        if SystemManager.preemptGroup != None:
-                            # enable preempted bit #
+                # calculate preempted time of threads blocked #
+                if SystemManager.preemptGroup != None:
+                    for value in SystemManager.preemptGroup:
+                        index = SystemManager.preemptGroup.index(value)
+                        if self.preemptData[index][0] and \
+                            self.preemptData[index][3] == core:
                             try:
-                                index = SystemManager.preemptGroup.index(prev_id)
+                                self.preemptData[index][1][prev_id]
                             except:
-                                index = -1
+                                self.preemptData[index][1][prev_id] = \
+                                    dict(self.init_preemptData)
 
-                            if index >= 0:
-                                self.preemptData[index][0] = True
-                                try:
-                                    self.preemptData[index][1][next_id]
-                                except:
-                                    self.preemptData[index][1][next_id] = \
-                                        dict(self.init_preemptData)
+                            self.preemptData[index][1][prev_id]['usage'] +=  \
+                                self.threadData[prev_id]['stop'] - \
+                                self.threadData[prev_id]['start']
+                            self.preemptData[index][4] += \
+                                self.threadData[prev_id]['stop'] - \
+                                self.threadData[prev_id]['start']
 
-                                self.preemptData[index][2] = float(time)
-                                self.preemptData[index][3] = core
+                # set sched status #
+                if d['prev_state'][0] == 'R':
+                    # except for core sched event #
+                    if prev_id != coreId:
+                        self.threadData[prev_id]['preempted'] += 1
+                        self.threadData[coreId]['preempted'] += 1
 
-                    elif d['prev_state'][0] == 'S' or \
-                        d['prev_state'][0] == 'D' or \
-                        d['prev_state'][0] == 't' or \
-                        d['prev_state'][0] == 'T':
-                        # except for core sched event #
-                        if prev_id != coreId:
-                            self.threadData[prev_id]['yield'] += 1
-                            self.threadData[coreId]['yield'] += 1
+                    # except for core sched event #
+                    if next_id != coreId:
+                        self.threadData[next_id]['preemption'] += 1
+                        self.threadData[coreId]['preemption'] += 1
 
-                        self.threadData[prev_id]['stop'] = 0
-                        self.threadData[prev_id]['lastStatus'] = 'S'
+                    self.threadData[prev_id]['lastStatus'] = 'P'
 
-                    else:
-                        self.threadData[prev_id]['stop'] = 0
-                        self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
-
-                    # calculate preempted time of next thread #
-                    if self.threadData[next_id]['stop'] == 0:
-                        # no stop time of next thread because of some reasons #
-                        self.threadData[next_id]['stop'] = 0
-
-                        # calculate sched latency  of next thread #
-                        if self.threadData[next_id]['schedReady'] > 0:
-                            self.threadData[next_id]['schedLatency'] += \
-                                (float(time) - self.threadData[next_id]['schedReady'])
-                            self.threadData[coreId]['schedLatency'] += \
-                                (float(time) - self.threadData[next_id]['schedReady'])
-                            self.threadData[next_id]['schedReady'] = 0
-                    # set sched status of next thread #
-                    elif self.threadData[next_id]['lastStatus'] == 'P':
-                        preemptedTime = \
-                            self.threadData[next_id]['start'] - \
-                            self.threadData[next_id]['stop']
-
-                        if preemptedTime >= 0:
-                            self.threadData[next_id]['cpuWait'] += preemptedTime
-                        else:
-                            SystemManager.printWarning(\
-                                "preempted time of %s(%d) is negative at line %d" % \
-                                (next_comm, next_id, SystemManager.curLine))
-
-                        if preemptedTime > self.threadData[next_id]['maxPreempted']:
-                            self.threadData[next_id]['maxPreempted'] = preemptedTime
-
-                        try:
-                            nextIdx = SystemManager.preemptGroup.index(next_id)
-                            self.preemptData[nextIdx][0] = False
-                        except:
-                            pass
-
-                    self.threadData[next_id]['lastStatus'] = 'R'
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event at line %d" % (func, SystemManager.curLine))
-
-            elif func == "irq_handler_entry":
-                m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    irqId = 'irq/%s' % (d['irq'])
-
-                    # make irq list #
-                    try:
-                        self.irqData[irqId]
-                    except:
-                        self.irqData[irqId] = dict(self.init_irqData)
-                        self.irqData[irqId]['name'] = {}
-
-                    self.irqData[irqId]['name'].setdefault(d['name'], 0)
-
-                    # make per-thread irq list #
-                    self.threadData[thread].setdefault('irqList', dict())
-                    self.threadData[thread]['irqList'].setdefault(\
-                        irqId, dict(self.init_irqData))
-                    self.threadData[thread]['irqList'][irqId]['name'] = d['name']
-
-                    # save irq period per thread #
-                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
-                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
-                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
-                            self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
-
-                    # save irq period #
-                    if self.irqData[irqId]['start'] > 0:
-                        diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['maxPeriod'] or \
-                            self.irqData[irqId]['maxPeriod'] <= 0:
-                            self.irqData[irqId]['maxPeriod'] = diff
-                        if diff < self.irqData[irqId]['minPeriod'] or \
-                            self.irqData[irqId]['minPeriod'] <= 0:
-                            self.irqData[irqId]['minPeriod'] = diff
-
-                    self.irqData[irqId]['start'] = float(time)
-                    self.irqData[irqId]['count'] += 1
-                    self.threadData[thread]['irqList'][irqId]['start'] = float(time)
-                    self.threadData[thread]['irqList'][irqId]['count'] += 1
-
-            elif func == "irq_handler_exit":
-                m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    irqId = 'irq/%s' % (d['irq'])
-
-                    # make list #
-                    try:
-                        self.irqData[irqId]
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        return
-
-                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
-                        # save softirq usage #
-                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        self.threadData[thread]['irqList'][irqId]['usage'] += diff
-                        self.threadData[thread]['irq'] += diff
-                        self.irqData[irqId]['usage'] += diff
-
-                        # add cpu usage of this thread to core usage #
-                        if coreId != thread:
-                            self.threadData[coreId]['irq'] += diff
-
-                        # save softirq period per thread #
-                        if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
-                            self.threadData[thread]['irqList'][irqId]['max'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['max'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
-                            self.threadData[thread]['irqList'][irqId]['min'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['min'] = diff
-
-                        self.threadData[thread]['irqList'][irqId]['start'] = 0
-
-                    if self.irqData[irqId]['start'] > 0:
-                        diff = float(time) - self.irqData[irqId]['start']
-                        # save softirq period #
-                        if diff > self.irqData[irqId]['max'] or \
-                            self.irqData[irqId]['max'] <= 0:
-                            self.irqData[irqId]['max'] = diff
-                        if diff < self.irqData[irqId]['min'] or \
-                            self.irqData[irqId]['min'] <= 0:
-                            self.irqData[irqId]['min'] = diff
-
-                        self.irqData[irqId]['start'] = 0
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
-
-            elif func == "softirq_entry":
-                m = re.match(\
-                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    irqId = 'softirq/%s' % (d['vector'])
-
-                    # make irq list #
-                    try:
-                        self.irqData[irqId]
-                    except:
-                        self.irqData[irqId] = dict(self.init_irqData)
-                        self.irqData[irqId]['name'] = {}
-
-                    self.irqData[irqId]['name'].setdefault(d['action'], 0)
-
-                    # make per-thread irq list #
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'] = {}
-                    try:
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
-                        self.threadData[thread]['irqList'][irqId]['name'] = d['action']
-
-                    # save softirq period per thread #
-                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
-                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
-                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
-                            self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
-
-                    # save softirq period #
-                    if self.irqData[irqId]['start'] > 0:
-                        diff = float(time) - self.irqData[irqId]['start']
-                        if diff > self.irqData[irqId]['maxPeriod'] or \
-                            self.irqData[irqId]['maxPeriod'] <= 0:
-                            self.irqData[irqId]['maxPeriod'] = diff
-                        if diff < self.irqData[irqId]['minPeriod'] or \
-                            self.irqData[irqId]['minPeriod'] <= 0:
-                            self.irqData[irqId]['minPeriod'] = diff
-
-                    self.irqData[irqId]['start'] = float(time)
-                    self.irqData[irqId]['count'] += 1
-                    self.threadData[thread]['irqList'][irqId]['start'] = float(time)
-                    self.threadData[thread]['irqList'][irqId]['count'] += 1
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
-
-            elif func == "softirq_exit":
-                m = re.match(\
-                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    irqId = 'softirq/%s' % (d['vector'])
-
-                    # make list #
-                    try:
-                        self.irqData[irqId]
-                        self.threadData[thread]['irqList'][irqId]
-                    except:
-                        return
-
-                    if self.threadData[thread]['irqList'][irqId]['start'] > 0:
-                        # save softirq usage #
-                        diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                        self.threadData[thread]['irqList'][irqId]['usage'] += diff
-                        self.threadData[thread]['irq'] += diff
-                        self.irqData[irqId]['usage'] += diff
-
-                        # add cpu usage of this thread to core usage #
-                        if coreId != thread:
-                            self.threadData[coreId]['irq'] += diff
-
-                        # save softirq period per thread #
-                        if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
-                            self.threadData[thread]['irqList'][irqId]['max'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['max'] = diff
-                        if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
-                            self.threadData[thread]['irqList'][irqId]['min'] <= 0:
-                            self.threadData[thread]['irqList'][irqId]['min'] = diff
-
-                        self.threadData[thread]['irqList'][irqId]['start'] = 0
-
-                    if self.irqData[irqId]['start'] > 0:
-                        diff = float(time) - self.irqData[irqId]['start']
-                        # save softirq period #
-                        if diff > self.irqData[irqId]['max'] or \
-                            self.irqData[irqId]['max'] <= 0:
-                            self.irqData[irqId]['max'] = diff
-                        if diff < self.irqData[irqId]['min'] or \
-                            self.irqData[irqId]['min'] <= 0:
-                            self.irqData[irqId]['min'] = diff
-
-                        self.irqData[irqId]['start'] = 0
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
-
-            elif func == "sched_migrate_task":
-                m = re.match((\
-                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+prio=(?P<prio>[0-9]+)\s+' \
-                    r'orig_cpu=(?P<orig_cpu>[0-9]+)\s+dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    pid = d['pid']
-
-                    self.threadData.setdefault(pid, dict(self.init_threadData))
-                    self.threadData[pid]['comm'] = d['comm']
-
-                    self.threadData[pid]['migrate'] += 1
-                    self.threadData[coreId]['migrate'] += 1
-
-                    # update core data for preempted info #
                     if SystemManager.preemptGroup != None:
+                        # enable preempted bit #
                         try:
-                            index = SystemManager.preemptGroup.index(thread)
+                            index = SystemManager.preemptGroup.index(prev_id)
                         except:
                             index = -1
 
                         if index >= 0:
+                            self.preemptData[index][0] = True
+                            try:
+                                self.preemptData[index][1][next_id]
+                            except:
+                                self.preemptData[index][1][next_id] = \
+                                    dict(self.init_preemptData)
+
+                            self.preemptData[index][2] = float(time)
                             self.preemptData[index][3] = core
+
+                elif d['prev_state'][0] == 'S' or \
+                    d['prev_state'][0] == 'D' or \
+                    d['prev_state'][0] == 't' or \
+                    d['prev_state'][0] == 'T':
+                    # except for core sched event #
+                    if prev_id != coreId:
+                        self.threadData[prev_id]['yield'] += 1
+                        self.threadData[coreId]['yield'] += 1
+
+                    self.threadData[prev_id]['stop'] = 0
+                    self.threadData[prev_id]['lastStatus'] = 'S'
+
                 else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    self.threadData[prev_id]['stop'] = 0
+                    self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
+
+                # calculate preempted time of next thread #
+                if self.threadData[next_id]['stop'] == 0:
+                    # no stop time of next thread because of some reasons #
+                    self.threadData[next_id]['stop'] = 0
+
+                    # calculate sched latency  of next thread #
+                    if self.threadData[next_id]['schedReady'] > 0:
+                        self.threadData[next_id]['schedLatency'] += \
+                            (float(time) - self.threadData[next_id]['schedReady'])
+                        self.threadData[coreId]['schedLatency'] += \
+                            (float(time) - self.threadData[next_id]['schedReady'])
+                        self.threadData[next_id]['schedReady'] = 0
+                # set sched status of next thread #
+                elif self.threadData[next_id]['lastStatus'] == 'P':
+                    preemptedTime = \
+                        self.threadData[next_id]['start'] - \
+                        self.threadData[next_id]['stop']
+
+                    if preemptedTime >= 0:
+                        self.threadData[next_id]['cpuWait'] += preemptedTime
+                    else:
+                        SystemManager.printWarning(\
+                            "preempted time of %s(%d) is negative at line %d" % \
+                            (next_comm, next_id, SystemManager.curLine))
+
+                    if preemptedTime > self.threadData[next_id]['maxPreempted']:
+                        self.threadData[next_id]['maxPreempted'] = preemptedTime
+
+                    try:
+                        nextIdx = SystemManager.preemptGroup.index(next_id)
+                        self.preemptData[nextIdx][0] = False
+                    except:
+                        pass
+
+                self.threadData[next_id]['lastStatus'] = 'R'
+
+            elif func == "irq_handler_entry":
+                m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                irqId = 'irq/%s' % (d['irq'])
+
+                # make irq list #
+                try:
+                    self.irqData[irqId]
+                except:
+                    self.irqData[irqId] = dict(self.init_irqData)
+                    self.irqData[irqId]['name'] = {}
+
+                self.irqData[irqId]['name'].setdefault(d['name'], 0)
+
+                # make per-thread irq list #
+                self.threadData[thread].setdefault('irqList', dict())
+                self.threadData[thread]['irqList'].setdefault(\
+                    irqId, dict(self.init_irqData))
+                self.threadData[thread]['irqList'][irqId]['name'] = d['name']
+
+                # save irq period per thread #
+                if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                    diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
+                    if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
+                        self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
+                    if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
+                        self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
+
+                # save irq period #
+                if self.irqData[irqId]['start'] > 0:
+                    diff = float(time) - self.irqData[irqId]['start']
+                    if diff > self.irqData[irqId]['maxPeriod'] or \
+                        self.irqData[irqId]['maxPeriod'] <= 0:
+                        self.irqData[irqId]['maxPeriod'] = diff
+                    if diff < self.irqData[irqId]['minPeriod'] or \
+                        self.irqData[irqId]['minPeriod'] <= 0:
+                        self.irqData[irqId]['minPeriod'] = diff
+
+                self.irqData[irqId]['start'] = float(time)
+                self.irqData[irqId]['count'] += 1
+                self.threadData[thread]['irqList'][irqId]['start'] = float(time)
+                self.threadData[thread]['irqList'][irqId]['count'] += 1
+
+            elif func == "irq_handler_exit":
+                m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                irqId = 'irq/%s' % (d['irq'])
+
+                # make list #
+                try:
+                    self.irqData[irqId]
+                    self.threadData[thread]['irqList'][irqId]
+                except:
+                    return
+
+                if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                    # save softirq usage #
+                    diff = float(time) - \
+                        self.threadData[thread]['irqList'][irqId]['start']
+                    self.threadData[thread]['irqList'][irqId]['usage'] += diff
+                    self.threadData[thread]['irq'] += diff
+                    self.irqData[irqId]['usage'] += diff
+
+                    # add cpu usage of this thread to core usage #
+                    if coreId != thread:
+                        self.threadData[coreId]['irq'] += diff
+
+                    # save softirq period per thread #
+                    if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
+                        self.threadData[thread]['irqList'][irqId]['max'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['max'] = diff
+                    if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
+                        self.threadData[thread]['irqList'][irqId]['min'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['min'] = diff
+
+                    self.threadData[thread]['irqList'][irqId]['start'] = 0
+
+                if self.irqData[irqId]['start'] > 0:
+                    diff = float(time) - self.irqData[irqId]['start']
+                    # save softirq period #
+                    if diff > self.irqData[irqId]['max'] or \
+                        self.irqData[irqId]['max'] <= 0:
+                        self.irqData[irqId]['max'] = diff
+                    if diff < self.irqData[irqId]['min'] or \
+                        self.irqData[irqId]['min'] <= 0:
+                        self.irqData[irqId]['min'] = diff
+
+                    self.irqData[irqId]['start'] = 0
+
+            elif func == "softirq_entry":
+                m = re.match(\
+                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                irqId = 'softirq/%s' % (d['vector'])
+
+                # make irq list #
+                try:
+                    self.irqData[irqId]
+                except:
+                    self.irqData[irqId] = dict(self.init_irqData)
+                    self.irqData[irqId]['name'] = {}
+
+                self.irqData[irqId]['name'].setdefault(d['action'], 0)
+
+                # make per-thread irq list #
+                try:
+                    self.threadData[thread]['irqList'][irqId]
+                except:
+                    self.threadData[thread]['irqList'] = {}
+                try:
+                    self.threadData[thread]['irqList'][irqId]
+                except:
+                    self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
+                    self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+
+                # save softirq period per thread #
+                if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                    diff = float(time) - \
+                        self.threadData[thread]['irqList'][irqId]['start']
+                    if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
+                        self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
+                    if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
+                        self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
+
+                # save softirq period #
+                if self.irqData[irqId]['start'] > 0:
+                    diff = float(time) - self.irqData[irqId]['start']
+                    if diff > self.irqData[irqId]['maxPeriod'] or \
+                        self.irqData[irqId]['maxPeriod'] <= 0:
+                        self.irqData[irqId]['maxPeriod'] = diff
+                    if diff < self.irqData[irqId]['minPeriod'] or \
+                        self.irqData[irqId]['minPeriod'] <= 0:
+                        self.irqData[irqId]['minPeriod'] = diff
+
+                self.irqData[irqId]['start'] = float(time)
+                self.irqData[irqId]['count'] += 1
+                self.threadData[thread]['irqList'][irqId]['start'] = float(time)
+                self.threadData[thread]['irqList'][irqId]['count'] += 1
+
+            elif func == "softirq_exit":
+                m = re.match(\
+                    r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                irqId = 'softirq/%s' % (d['vector'])
+
+                # make list #
+                try:
+                    self.irqData[irqId]
+                    self.threadData[thread]['irqList'][irqId]
+                except:
+                    return
+
+                if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+                    # save softirq usage #
+                    diff = float(time) - \
+                        self.threadData[thread]['irqList'][irqId]['start']
+                    self.threadData[thread]['irqList'][irqId]['usage'] += diff
+                    self.threadData[thread]['irq'] += diff
+                    self.irqData[irqId]['usage'] += diff
+
+                    # add cpu usage of this thread to core usage #
+                    if coreId != thread:
+                        self.threadData[coreId]['irq'] += diff
+
+                    # save softirq period per thread #
+                    if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
+                        self.threadData[thread]['irqList'][irqId]['max'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['max'] = diff
+                    if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
+                        self.threadData[thread]['irqList'][irqId]['min'] <= 0:
+                        self.threadData[thread]['irqList'][irqId]['min'] = diff
+
+                    self.threadData[thread]['irqList'][irqId]['start'] = 0
+
+                if self.irqData[irqId]['start'] > 0:
+                    diff = float(time) - self.irqData[irqId]['start']
+                    # save softirq period #
+                    if diff > self.irqData[irqId]['max'] or \
+                        self.irqData[irqId]['max'] <= 0:
+                        self.irqData[irqId]['max'] = diff
+                    if diff < self.irqData[irqId]['min'] or \
+                        self.irqData[irqId]['min'] <= 0:
+                        self.irqData[irqId]['min'] = diff
+
+                    self.irqData[irqId]['start'] = 0
+
+            elif func == "sched_migrate_task":
+                m = re.match((\
+                    r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+' \
+                    r'prio=(?P<prio>[0-9]+)\s+orig_cpu=(?P<orig_cpu>[0-9]+)\s+' \
+                    r'dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                pid = d['pid']
+
+                self.threadData.setdefault(pid, dict(self.init_threadData))
+                self.threadData[pid]['comm'] = d['comm']
+
+                self.threadData[pid]['migrate'] += 1
+                self.threadData[coreId]['migrate'] += 1
+
+                # update core data for preempted info #
+                if SystemManager.preemptGroup != None:
+                    try:
+                        index = SystemManager.preemptGroup.index(thread)
+                    except:
+                        index = -1
+
+                    if index >= 0:
+                        self.preemptData[index][3] = core
 
             elif func == "mm_page_alloc":
                 m = re.match((\
                     r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' \
                     r'order=(?P<order>[0-9]+)\s+' \
                     r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.memEnable = True
+                d = m.groupdict()
 
-                    # check whether it is huge page #
-                    if d['page'] == '(null)':
-                        page = 'huge'
-                    else:
-                        page = d['page']
+                SystemManager.memEnable = True
 
-                    pfn = int(d['pfn'])
-                    flags = d['flags']
-                    order = int(d['order'])
-
-                    self.threadData[thread]['nrPages'] += pow(2, order)
-                    self.threadData[coreId]['nrPages'] += pow(2, order)
-
-                    if flags.find('NOFS') >= 0 or \
-                        flags.find('GFP_WRITE') >= 0 or \
-                        flags.find('0x1000000') >= 0:
-
-                        pageType = 'CACHE'
-                        self.threadData[thread]['cachePages'] += pow(2, order)
-                        self.threadData[coreId]['cachePages'] += pow(2, order)
-                    elif flags.find('USER') >= 0:
-                        pageType = 'USER'
-                        self.threadData[thread]['userPages'] += pow(2, order)
-                        self.threadData[coreId]['userPages'] += pow(2, order)
-                    else:
-                        pageType = 'KERNEL'
-                        self.threadData[thread]['kernelPages'] += pow(2, order)
-                        self.threadData[coreId]['kernelPages'] += pow(2, order)
-
-                    # make PTE in page table #
-                    for cnt in xrange(0, pow(2, order)):
-                        pfnv = pfn + cnt
-
-                        try:
-                            # this allocated page is not freed #
-                            if self.pageTable[pfnv] == {}:
-                                raise Exception()
-                            else:
-                                self.threadData[thread]['nrPages'] -= 1
-                                self.threadData[coreId]['nrPages'] -= 1
-                        except:
-                            self.pageTable[pfnv] = dict(self.init_pageData)
-
-                        self.pageTable[pfnv]['tid'] = thread
-                        self.pageTable[pfnv]['page'] = page
-                        self.pageTable[pfnv]['flags'] = flags
-                        self.pageTable[pfnv]['type'] = pageType
-                        self.pageTable[pfnv]['time'] = time
+                # check whether it is huge page #
+                if d['page'] == '(null)':
+                    page = 'huge'
                 else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    page = d['page']
+
+                pfn = int(d['pfn'])
+                flags = d['flags']
+                order = int(d['order'])
+
+                self.threadData[thread]['nrPages'] += pow(2, order)
+                self.threadData[coreId]['nrPages'] += pow(2, order)
+
+                if flags.find('NOFS') >= 0 or \
+                    flags.find('GFP_WRITE') >= 0 or \
+                    flags.find('0x1000000') >= 0:
+
+                    pageType = 'CACHE'
+                    self.threadData[thread]['cachePages'] += pow(2, order)
+                    self.threadData[coreId]['cachePages'] += pow(2, order)
+                elif flags.find('USER') >= 0:
+                    pageType = 'USER'
+                    self.threadData[thread]['userPages'] += pow(2, order)
+                    self.threadData[coreId]['userPages'] += pow(2, order)
+                else:
+                    pageType = 'KERNEL'
+                    self.threadData[thread]['kernelPages'] += pow(2, order)
+                    self.threadData[coreId]['kernelPages'] += pow(2, order)
+
+                # make PTE in page table #
+                for cnt in xrange(0, pow(2, order)):
+                    pfnv = pfn + cnt
+
+                    try:
+                        # this allocated page is not freed #
+                        if self.pageTable[pfnv] == {}:
+                            raise Exception()
+                        else:
+                            self.threadData[thread]['nrPages'] -= 1
+                            self.threadData[coreId]['nrPages'] -= 1
+                    except:
+                        self.pageTable[pfnv] = dict(self.init_pageData)
+
+                    self.pageTable[pfnv]['tid'] = thread
+                    self.pageTable[pfnv]['page'] = page
+                    self.pageTable[pfnv]['flags'] = flags
+                    self.pageTable[pfnv]['type'] = pageType
+                    self.pageTable[pfnv]['time'] = time
 
             elif func == "mm_page_free" or func == "mm_page_free_direct":
                 m = re.match((\
                     r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'
                     r'\s+order=(?P<order>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.memEnable = True
+                d = m.groupdict()
 
-                    page = d['page']
-                    pfn = int(d['pfn'])
-                    order = int(d['order'])
+                SystemManager.memEnable = True
 
-                    for cnt in xrange(0, pow(2, order)):
-                        pfnv = pfn + cnt
+                page = d['page']
+                pfn = int(d['pfn'])
+                order = int(d['order'])
 
-                        try:
-                            owner = self.pageTable[pfnv]['tid']
-                            self.threadData[owner]['nrPages'] -= 1
-                            self.threadData[coreId]['nrPages'] -= 1
+                for cnt in xrange(0, pow(2, order)):
+                    pfnv = pfn + cnt
 
-                            if thread != owner:
-                                self.threadData[owner]['reclaimedPages'] += 1
-                                self.threadData[coreId]['reclaimedPages'] += 1
+                    try:
+                        owner = self.pageTable[pfnv]['tid']
+                        self.threadData[owner]['nrPages'] -= 1
+                        self.threadData[coreId]['nrPages'] -= 1
 
-                            if self.pageTable[pfnv]['type'] == 'CACHE':
-                                self.threadData[owner]['cachePages'] -= 1
-                                self.threadData[coreId]['cachePages'] -= 1
-                            elif self.pageTable[pfnv]['type'] == 'USER':
-                                self.threadData[owner]['userPages'] -= 1
-                                self.threadData[coreId]['userPages'] -= 1
-                            elif self.pageTable[pfnv]['type'] == 'KERNEL':
-                                self.threadData[owner]['kernelPages'] -= 1
-                                self.threadData[coreId]['kernelPages'] -= 1
+                        if thread != owner:
+                            self.threadData[owner]['reclaimedPages'] += 1
+                            self.threadData[coreId]['reclaimedPages'] += 1
 
-                            self.pageTable.pop(pfnv)
-                        except:
-                            # this page is allocated before starting profile #
-                            self.threadData[thread]['anonReclaimedPages'] += 1
-                            self.threadData[coreId]['anonReclaimedPages'] += 1
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                        if self.pageTable[pfnv]['type'] == 'CACHE':
+                            self.threadData[owner]['cachePages'] -= 1
+                            self.threadData[coreId]['cachePages'] -= 1
+                        elif self.pageTable[pfnv]['type'] == 'USER':
+                            self.threadData[owner]['userPages'] -= 1
+                            self.threadData[coreId]['userPages'] -= 1
+                        elif self.pageTable[pfnv]['type'] == 'KERNEL':
+                            self.threadData[owner]['kernelPages'] -= 1
+                            self.threadData[coreId]['kernelPages'] -= 1
+
+                        self.pageTable.pop(pfnv)
+                    except:
+                        # this page is allocated before starting profile #
+                        self.threadData[thread]['anonReclaimedPages'] += 1
+                        self.threadData[coreId]['anonReclaimedPages'] += 1
 
             elif func == "mm_filemap_delete_from_page_cache":
                 m = re.match((\
                     r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' \
                     r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.memEnable = True
+                d = m.groupdict()
 
-                    pfn = int(d['pfn'])
+                SystemManager.memEnable = True
 
-                    try:
-                        owner = self.pageTable[pfn]['tid']
+                pfn = int(d['pfn'])
 
-                        # attribute of page is changed to file #
-                        if self.pageTable[pfn]['type'] == 'USER':
-                            self.threadData[owner]['userPages'] -= 1
-                            self.threadData[coreId]['userPages'] -= 1
-                            self.threadData[owner]['cachePages'] += 1
-                            self.threadData[coreId]['cachePages'] += 1
-                        elif self.pageTable[pfn]['type'] == 'KERNEL':
-                            self.threadData[owner]['kernelPages'] -= 1
-                            self.threadData[coreId]['kernelPages'] -= 1
-                            self.threadData[owner]['cachePages'] += 1
-                            self.threadData[coreId]['cachePages'] += 1
+                try:
+                    owner = self.pageTable[pfn]['tid']
 
-                        self.pageTable[pfn]['type'] = 'CACHE'
-                    except:
-                        return
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    # attribute of page is changed to file #
+                    if self.pageTable[pfn]['type'] == 'USER':
+                        self.threadData[owner]['userPages'] -= 1
+                        self.threadData[coreId]['userPages'] -= 1
+                        self.threadData[owner]['cachePages'] += 1
+                        self.threadData[coreId]['cachePages'] += 1
+                    elif self.pageTable[pfn]['type'] == 'KERNEL':
+                        self.threadData[owner]['kernelPages'] -= 1
+                        self.threadData[coreId]['kernelPages'] -= 1
+                        self.threadData[owner]['cachePages'] += 1
+                        self.threadData[coreId]['cachePages'] += 1
+
+                    self.pageTable[pfn]['type'] = 'CACHE'
+                except:
+                    return
 
             elif func == "kmalloc":
                 m = re.match((\
                     r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+' \
                     r'bytes_req=(?P<req>[0-9]+)\s+' \
-                    r'bytes_alloc=(?P<alloc>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                    r'bytes_alloc=(?P<alloc>[0-9]+)\s+' \
+                    r'gfp_flags=(?P<flags>\S+)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.memEnable = True
+                d = m.groupdict()
 
-                    caller = d['caller']
-                    ptr = d['ptr']
-                    req = int(d['req'])
-                    alloc = int(d['alloc'])
+                SystemManager.memEnable = True
 
-                    self.kmemTable.setdefault(ptr, dict(self.init_kmallocData))
+                caller = d['caller']
+                ptr = d['ptr']
+                req = int(d['req'])
+                alloc = int(d['alloc'])
 
-                    self.kmemTable[ptr]['tid'] = thread
-                    self.kmemTable[ptr]['caller'] = caller
-                    self.kmemTable[ptr]['req'] = req
-                    self.kmemTable[ptr]['alloc'] = alloc
-                    self.kmemTable[ptr]['waste'] = alloc - req
-                    self.kmemTable[ptr]['core'] = coreId
+                self.kmemTable.setdefault(ptr, dict(self.init_kmallocData))
 
-                    self.threadData[thread]['remainKmem'] += alloc
-                    self.threadData[thread]['wasteKmem'] += alloc - req
-                    self.threadData[coreId]['remainKmem'] += alloc
-                    self.threadData[coreId]['wasteKmem'] += alloc - req
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                self.kmemTable[ptr]['tid'] = thread
+                self.kmemTable[ptr]['caller'] = caller
+                self.kmemTable[ptr]['req'] = req
+                self.kmemTable[ptr]['alloc'] = alloc
+                self.kmemTable[ptr]['waste'] = alloc - req
+                self.kmemTable[ptr]['core'] = coreId
+
+                self.threadData[thread]['remainKmem'] += alloc
+                self.threadData[thread]['wasteKmem'] += alloc - req
+                self.threadData[coreId]['remainKmem'] += alloc
+                self.threadData[coreId]['wasteKmem'] += alloc - req
 
             elif func == "kfree":
                 m = re.match(\
                     r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.memEnable = True
+                d = m.groupdict()
 
-                    caller = d['caller']
-                    ptr = d['ptr']
+                SystemManager.memEnable = True
 
-                    try:
-                        pageObj = self.kmemTable[ptr]
-                        self.threadData[pageObj['tid']]['remainKmem'] -= \
-                            pageObj['alloc']
-                        self.threadData[pageObj['core']]['remainKmem'] -= \
-                            pageObj['alloc']
-                        self.threadData[pageObj['tid']]['wasteKmem'] -= \
-                            pageObj['waste']
-                        self.threadData[pageObj['core']]['wasteKmem'] -= \
-                            pageObj['waste']
+                caller = d['caller']
+                ptr = d['ptr']
 
-                        self.kmemTable.pop(ptr)
-                    except:
-                        '''
-                        this allocated object is not logged or \
-                        this object is allocated before starting profile
-                        '''
-                        return
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                try:
+                    pageObj = self.kmemTable[ptr]
+                    self.threadData[pageObj['tid']]['remainKmem'] -= \
+                        pageObj['alloc']
+                    self.threadData[pageObj['core']]['remainKmem'] -= \
+                        pageObj['alloc']
+                    self.threadData[pageObj['tid']]['wasteKmem'] -= \
+                        pageObj['waste']
+                    self.threadData[pageObj['core']]['wasteKmem'] -= \
+                        pageObj['waste']
+
+                    self.kmemTable.pop(ptr)
+                except:
+                    '''
+                    this allocated object is not logged or \
+                    this object is allocated before starting profile
+                    '''
+                    return
 
             elif func == "sched_wakeup" or func == "sched_wakeup_new":
                 m = re.match((\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+' \
                     r'prio=(?P<prio>[0-9]+)\s+'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    target_comm = d['comm']
-                    pid = d['pid']
+                d = m.groupdict()
 
-                    self.threadData.setdefault(pid, dict(self.init_threadData))
-                    self.threadData[pid]['comm'] = target_comm
-                    self.threadData[pid]['schedReady'] = float(time)
+                target_comm = d['comm']
+                pid = d['pid']
 
-                    if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = \
-                            float(time) - float(SystemManager.startTime)
-                    elif thread[0] == '0' or pid == '0':
-                        return
-                    elif self.wakeupData['valid'] > 0 and \
-                        (self.wakeupData['from'] != self.wakeupData['tid'] or \
-                        self.wakeupData['to'] != pid):
-                        if self.wakeupData['valid'] == 1 and \
-                            self.wakeupData['corrupt'] == '0':
-                            try:
-                                kicker = self.threadData[self.wakeupData['tid']]['comm']
-                            except:
-                                kicker = "NULL"
+                self.threadData.setdefault(pid, dict(self.init_threadData))
+                self.threadData[pid]['comm'] = target_comm
+                self.threadData[pid]['schedReady'] = float(time)
 
-                            kicker_pid = self.wakeupData['tid']
-                        else:
-                            kicker = self.threadData[thread]['comm']
-                            kicker_pid = thread
+                if self.wakeupData['tid'] == '0':
+                    self.wakeupData['time'] = \
+                        float(time) - float(SystemManager.startTime)
+                elif thread[0] == '0' or pid == '0':
+                    return
+                elif self.wakeupData['valid'] > 0 and \
+                    (self.wakeupData['from'] != self.wakeupData['tid'] or \
+                    self.wakeupData['to'] != pid):
+                    if self.wakeupData['valid'] == 1 and \
+                        self.wakeupData['corrupt'] == '0':
+                        try:
+                            kicker = self.threadData[self.wakeupData['tid']]['comm']
+                        except:
+                            kicker = "NULL"
 
-                        ntime = round(float(time) - float(SystemManager.startTime), 7)
-                        self.depData.append("\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
-                            (ntime, round(ntime - float(self.wakeupData['time']), 7), \
-                            kicker, kicker_pid, target_comm, pid, "kick"))
+                        kicker_pid = self.wakeupData['tid']
+                    else:
+                        kicker = self.threadData[thread]['comm']
+                        kicker_pid = thread
 
-                        self.wakeupData['time'] = \
-                            float(time) - float(SystemManager.startTime)
-                        self.wakeupData['from'] = self.wakeupData['tid']
-                        self.wakeupData['to'] = pid
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    ntime = round(float(time) - \
+                        float(SystemManager.startTime), 7)
+                    self.depData.append(\
+                        "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
+                        (ntime, round(ntime - float(self.wakeupData['time']), 7), \
+                        kicker, kicker_pid, target_comm, pid, "kick"))
+
+                    self.wakeupData['time'] = \
+                        float(time) - float(SystemManager.startTime)
+                    self.wakeupData['from'] = self.wakeupData['tid']
+                    self.wakeupData['to'] = pid
 
             elif func == "sys_enter":
                 m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    nr = int(d['nr'])
-                    args = d['args']
-                    td = self.threadData[thread]
+                d = m.groupdict()
 
-                    # apply thread filter #
-                    if SystemManager.isExceptTarget(thread, self.threadData):
-                        return
+                nr = int(d['nr'])
+                args = d['args']
+                td = self.threadData[thread]
 
-                    # update futex lock stat #
-                    if nr == ConfigManager.sysList.index("sys_futex"):
-                        n = re.match((\
-                            r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
-                            r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
-                        if n is not None:
-                            l = n.groupdict()
+                # apply thread filter #
+                if SystemManager.isExceptTarget(thread, self.threadData):
+                    return
 
-                            FUTEX_CMD_MASK = ~(128|256)
-                            # FUTEX_PRIVATE_FLAG: 128, FUTEX_CLOCK_REALTIME: 256 #
-                            maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
+                # update futex lock stat #
+                if nr == ConfigManager.sysList.index("sys_futex"):
+                    n = re.match((\
+                        r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
+                        r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
+                    if n is not None:
+                        l = n.groupdict()
 
-                            addr = l['uaddr'][1:]
-                            flist = ConfigManager.FUTEX_TYPE
+                        FUTEX_CMD_MASK = ~(128|256)
+                        # FUTEX_PRIVATE_FLAG: 128, FUTEX_CLOCK_REALTIME: 256 #
+                        maskedOp = int(l['op'], base=16) & FUTEX_CMD_MASK
 
-                            try:
-                                op = flist[maskedOp]
-                            except:
-                                op = l['op']
+                        addr = l['uaddr'][1:]
+                        flist = ConfigManager.FUTEX_TYPE
 
-                            # check recursive entry caused by log loss #
-                            if td['ftxEnter'] > 0:
-                                SystemManager.printWarning((\
-                                    "Fail to find return of %s for thread %s at %s line\n"\
-                                    "\tso report results may differ from actual") %\
-                                    (td['ftxEnt'], thread, SystemManager.curLine))
-
-                            # futex operation #
-                            td['ftxEnt'] = op
-
-                            # futex object address #
-                            td['futexCandObj'] = addr
-
-                            # try to lock #
-                            if maskedOp == flist.index("FUTEX_LOCK_PI") or \
-                                maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
-                                td['ftxStat'] = 'L'
-                                td['ftxLockCnt'] += 1
-
-                                # remove already unlocked futex #
-                                try:
-                                    td['futexObj'].pop(addr, None)
-                                except:
-                                    pass
-                            # wait #
-                            elif maskedOp == flist.index("FUTEX_WAIT") or \
-                                maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
-                                maskedOp == flist.index("FUTEX_WAIT_BITSET"):
-                                td['ftxStat'] = 'W'
-                                td['ftxWaitCnt'] += 1
-                            # try to unlock #
-                            elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
-                                td['ftxStat'] = 'U'
-                            else:
-                                td['ftxStat'] = '?'
-
-                            td['ftxEnter'] = float(time)
-                            otype = '{0:<10}'.format('ENT')
-                            self.futexData.append(\
-                                [thread, time, core, op, otype, '',\
-                                addr, l['val'], l['timer']])
-
-                    if self.wakeupData['tid'] == '0':
-                        self.wakeupData['time'] = \
-                            float(time) - float(SystemManager.startTime)
-
-                    # write syscall #
-                    if nr == ConfigManager.sysList.index("sys_write"):
-                        self.wakeupData['tid'] = thread
-                        self.wakeupData['nr'] = str(nr)
-                        self.wakeupData['args'] = args
-
-                        if (self.wakeupData['valid'] > 0 and \
-                            (self.wakeupData['tid'] == thread and \
-                            self.wakeupData['from'] == comm)) is False:
-                            self.wakeupData['valid'] += 1
-
-                            if self.wakeupData['valid'] > 1:
-                                self.wakeupData['corrupt'] = '1'
-                            else:
-                                self.wakeupData['corrupt'] = '0'
-
-                    try:
-                        self.threadData[thread]['syscallInfo']
-                    except:
-                        self.threadData[thread]['syscallInfo'] = {}
-                    try:
-                        self.threadData[thread]['syscallInfo'][str(nr)]
-                    except:
-                        self.threadData[thread]['syscallInfo'][str(nr)] = \
-                            dict(self.init_syscallInfo)
-
-                    self.threadData[thread]['lastNrSyscall'] = nr
-                    self.threadData[thread]['syscallInfo'][str(nr)]['last'] = \
-                        float(time)
-
-                    # apply syscall filter #
-                    if len(SystemManager.syscallList) > 0:
                         try:
-                            idx = SystemManager.syscallList.index(nr)
+                            op = flist[maskedOp]
                         except:
-                            idx = -1
+                            op = l['op']
 
-                        if idx >= 0:
-                            self.syscallData.append(\
-                                ['ENT', time, thread, core, str(nr), args])
-                    else:
+                        # check recursive entry caused by log loss #
+                        if td['ftxEnter'] > 0:
+                            SystemManager.printWarning((\
+                                "Fail to find return of %s for thread %s at %s line\n"\
+                                "\tso report results may differ from actual") %\
+                                (td['ftxEnt'], thread, SystemManager.curLine))
+
+                        # futex operation #
+                        td['ftxEnt'] = op
+
+                        # futex object address #
+                        td['futexCandObj'] = addr
+
+                        # try to lock #
+                        if maskedOp == flist.index("FUTEX_LOCK_PI") or \
+                            maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
+                            td['ftxStat'] = 'L'
+                            td['ftxLockCnt'] += 1
+
+                            # remove already unlocked futex #
+                            try:
+                                td['futexObj'].pop(addr, None)
+                            except:
+                                pass
+                        # wait #
+                        elif maskedOp == flist.index("FUTEX_WAIT") or \
+                            maskedOp == flist.index("FUTEX_WAIT_REQUEUE_PI") or \
+                            maskedOp == flist.index("FUTEX_WAIT_BITSET"):
+                            td['ftxStat'] = 'W'
+                            td['ftxWaitCnt'] += 1
+                        # try to unlock #
+                        elif maskedOp == flist.index("FUTEX_UNLOCK_PI"):
+                            td['ftxStat'] = 'U'
+                        else:
+                            td['ftxStat'] = '?'
+
+                        td['ftxEnter'] = float(time)
+                        otype = '{0:<10}'.format('ENT')
+                        self.futexData.append(\
+                            [thread, time, core, op, otype, '',\
+                            addr, l['val'], l['timer']])
+
+                if self.wakeupData['tid'] == '0':
+                    self.wakeupData['time'] = \
+                        float(time) - float(SystemManager.startTime)
+
+                # write syscall #
+                if nr == ConfigManager.sysList.index("sys_write"):
+                    self.wakeupData['tid'] = thread
+                    self.wakeupData['nr'] = str(nr)
+                    self.wakeupData['args'] = args
+
+                    if (self.wakeupData['valid'] > 0 and \
+                        (self.wakeupData['tid'] == thread and \
+                        self.wakeupData['from'] == comm)) is False:
+                        self.wakeupData['valid'] += 1
+
+                        if self.wakeupData['valid'] > 1:
+                            self.wakeupData['corrupt'] = '1'
+                        else:
+                            self.wakeupData['corrupt'] = '0'
+
+                try:
+                    self.threadData[thread]['syscallInfo']
+                except:
+                    self.threadData[thread]['syscallInfo'] = {}
+                try:
+                    self.threadData[thread]['syscallInfo'][str(nr)]
+                except:
+                    self.threadData[thread]['syscallInfo'][str(nr)] = \
+                        dict(self.init_syscallInfo)
+
+                self.threadData[thread]['lastNrSyscall'] = nr
+                self.threadData[thread]['syscallInfo'][str(nr)]['last'] = \
+                    float(time)
+
+                # apply syscall filter #
+                if len(SystemManager.syscallList) > 0:
+                    try:
+                        idx = SystemManager.syscallList.index(nr)
+                    except:
+                        idx = -1
+
+                    if idx >= 0:
                         self.syscallData.append(\
                             ['ENT', time, thread, core, str(nr), args])
                 else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    self.syscallData.append(\
+                        ['ENT', time, thread, core, str(nr), args])
 
             elif func == "sys_exit":
                 m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    nr = int(d['nr'])
-                    ret = d['ret']
-                    td = self.threadData[thread]
+                d = m.groupdict()
 
-                    # apply filter #
-                    if SystemManager.isExceptTarget(thread, self.threadData):
-                        return
+                nr = int(d['nr'])
+                ret = d['ret']
+                td = self.threadData[thread]
 
-                    # handle wrong syscall number #
-                    if nr < 0 and td['lastNrSyscall'] >= 0:
-                        nr = td['lastNrSyscall']
+                # apply filter #
+                if SystemManager.isExceptTarget(thread, self.threadData):
+                    return
 
-                    # update futex lock stat #
-                    if nr == ConfigManager.sysList.index("sys_futex"):
-                        lockEnter = td['ftxEnter']
-                        lockStat = td['ftxStat']
+                # handle wrong syscall number #
+                if nr < 0 and td['lastNrSyscall'] >= 0:
+                    nr = td['lastNrSyscall']
 
-                        # futex call status #
-                        if lockEnter > 0:
-                            # elasped time #
-                            futexTime = float(time) - lockEnter
+                # update futex lock stat #
+                if nr == ConfigManager.sysList.index("sys_futex"):
+                    lockEnter = td['ftxEnter']
+                    lockStat = td['ftxStat']
 
-                            if futexTime > td['ftxMax']:
-                                td['ftxMax'] = futexTime
+                    # futex call status #
+                    if lockEnter > 0:
+                        # elasped time #
+                        futexTime = float(time) - lockEnter
 
-                            td['ftxTotal'] += futexTime
-                            td['ftxEnter'] = 0
+                        if futexTime > td['ftxMax']:
+                            td['ftxMax'] = futexTime
 
-                            # update cpu time by futex #
-                            if td['start'] > lockEnter:
-                                ctime = float(time) - td['start']
-                                td['ftxProcess'] += ctime
-                            elif td['ftxBlock'] == 0 and td['ftxLBlock'] == 0:
-                                ctime = float(time) - lockEnter
-                                td['ftxProcess'] += ctime
+                        td['ftxTotal'] += futexTime
+                        td['ftxEnter'] = 0
 
-                            # handle lock object #
-                            if (lockStat == 'L' or lockStat == 'U') and ret[0] == '0':
-                                # target object #
+                        # update cpu time by futex #
+                        if td['start'] > lockEnter:
+                            ctime = float(time) - td['start']
+                            td['ftxProcess'] += ctime
+                        elif td['ftxBlock'] == 0 and td['ftxLBlock'] == 0:
+                            ctime = float(time) - lockEnter
+                            td['ftxProcess'] += ctime
+
+                        # handle lock object #
+                        if (lockStat == 'L' or lockStat == 'U') and \
+                            ret[0] == '0':
+                            # target object #
+                            try:
+                                candObj = td['futexCandObj']
+                            except:
+                                candObj = None
+
+                            # lock context #
+                            if lockStat == 'L':
+                                # register lock object #
                                 try:
-                                    candObj = td['futexCandObj']
+                                    td['futexObj'][candObj] = float(time)
                                 except:
-                                    candObj = None
+                                    td['futexObj'] = {}
+                                    td['futexObj'][candObj] = float(time)
+                            # unlock context #
+                            elif lockStat == 'U':
+                                # remove lock object #
+                                try:
+                                    lockStart = td['futexObj'][candObj]
+                                    td['futexObj'].pop(candObj, None)
+                                except:
+                                    lockStart = 0
 
-                                # lock context #
-                                if lockStat == 'L':
-                                    # register lock object #
-                                    try:
-                                        td['futexObj'][candObj] = float(time)
-                                    except:
-                                        td['futexObj'] = {}
-                                        td['futexObj'][candObj] = float(time)
-                                # unlock context #
-                                elif lockStat == 'U':
-                                    # remove lock object #
-                                    try:
-                                        lockStart = td['futexObj'][candObj]
-                                        td['futexObj'].pop(candObj, None)
-                                    except:
-                                        lockStart = 0
+                                # calculate lock time #
+                                if lockStart > 0:
+                                    ltime = float(time) - lockStart
+                                    td['ftxLock'] += ltime
+                                    if td['ftxLockMax'] < ltime:
+                                        td['ftxLockMax'] = ltime
 
-                                    # calculate lock time #
-                                    if lockStart > 0:
-                                        ltime = float(time) - lockStart
-                                        td['ftxLock'] += ltime
-                                        if td['ftxLockMax'] < ltime:
-                                            td['ftxLockMax'] = ltime
-
-                            futexTime = '%.6f' % futexTime
-                        else:
-                            td['ftxStat'] = '?'
-                            futexTime = ''
-
-                        if td['ftxEnt'] != None:
-                            op = td['ftxEnt']
-                            td['ftxEnt'] = None
-                        else:
-                            op = ''
-
-                        otype = '{0:>10}'.format('RET')
-
-                        self.futexData.append(\
-                            [thread, time, core, op, otype, futexTime, '', d['ret'], ''])
-
-                    try:
-                        if SystemManager.depEnable is False:
-                            raise Exception()
-                        elif nr == ConfigManager.sysList.index("sys_write") and \
-                            self.wakeupData['valid'] > 0:
-                            self.wakeupData['valid'] -= 1
-                        elif SystemManager.arch != 'aarch64' and \
-                            (nr == ConfigManager.sysList.index("sys_poll") or \
-                            nr == ConfigManager.sysList.index("sys_select") or \
-                            nr == ConfigManager.sysList.index("sys_epoll_wait")):
-                            if (self.lastJob[core]['job'] == "sched_switch" or \
-                                self.lastJob[core]['job'] == "sched_wakeup" or \
-                                self.lastJob[core]['job'] == "sched_wakeup_new") and \
-                                self.lastJob[core]['prevWakeupTid'] != thread:
-                                ttime = float(time) - float(SystemManager.startTime)
-                                itime = ttime - float(self.wakeupData['time'])
-                                self.depData.append(\
-                                    "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(ttime, 7), round(itime, 7), " ", " ", \
-                                    self.threadData[thread]['comm'], thread, "wakeup"))
-
-                                self.wakeupData['time'] = \
-                                    float(time) - float(SystemManager.startTime)
-                                self.lastJob[core]['prevWakeupTid'] = thread
-                        elif (SystemManager.arch == 'arm' and \
-                            nr == ConfigManager.sysList.index("sys_recv")) or \
-                            nr == ConfigManager.sysList.index("sys_recvfrom") or \
-                            nr == ConfigManager.sysList.index("sys_recvmsg") or \
-                            nr == ConfigManager.sysList.index("sys_recvmmsg"):
-                            if self.lastJob[core]['prevWakeupTid'] != thread:
-                                ttime = float(time) - float(SystemManager.startTime)
-                                itime = ttime - float(self.wakeupData['time'])
-                                self.depData.append(\
-                                    "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
-                                    (round(ttime, 7), round(itime, 7), " ", " ", \
-                                    self.threadData[thread]['comm'], thread, "recv"))
-
-                                self.wakeupData['time'] = \
-                                    float(time) - float(SystemManager.startTime)
-                                self.lastJob[core]['prevWakeupTid'] = thread
-                    except:
-                        pass
-
-                    try:
-                        self.threadData[thread]['syscallInfo']
-                    except:
-                        self.threadData[thread]['syscallInfo'] = {}
-                    try:
-                        self.threadData[thread]['syscallInfo'][str(nr)]
-                    except:
-                        self.threadData[thread]['syscallInfo'][str(nr)] = \
-                            dict(self.init_syscallInfo)
-
-                    diff = ''
-                    sysItem = self.threadData[thread]['syscallInfo'][str(nr)]
-                    if sysItem['last'] > 0:
-                        diff = float(time) - sysItem['last']
-                        self.threadData[thread]['syscallInfo'][str(nr)]['usage'] += diff
-                        self.threadData[thread]['syscallInfo'][str(nr)]['last'] = 0
-                        self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
-
-                        if sysItem['max'] == 0 or sysItem['max'] < diff:
-                            self.threadData[thread]['syscallInfo'][str(nr)]['max'] = diff
-                        if sysItem['min'] <= 0 or sysItem['min'] > diff:
-                            self.threadData[thread]['syscallInfo'][str(nr)]['min'] = diff
-
-                        if ret[0] == '-':
-                            self.threadData[thread]['syscallInfo'][str(nr)]['err'] += 1
-
-                    if len(SystemManager.syscallList) > 0:
-                        try:
-                            idx = SystemManager.syscallList.index(nr)
-                        except:
-                            idx = -1
-
-                        if idx >= 0:
-                            self.syscallData.append(\
-                                ['RET', time, thread, core, str(nr), ret, diff])
+                        futexTime = '%.6f' % futexTime
                     else:
+                        td['ftxStat'] = '?'
+                        futexTime = ''
+
+                    if td['ftxEnt'] != None:
+                        op = td['ftxEnt']
+                        td['ftxEnt'] = None
+                    else:
+                        op = ''
+
+                    otype = '{0:>10}'.format('RET')
+
+                    # add futex data #
+                    self.futexData.append(\
+                        [thread, time, core, op, otype, \
+                        futexTime, '', d['ret'], ''])
+
+                try:
+                    if SystemManager.depEnable is False:
+                        raise Exception()
+                    elif nr == ConfigManager.sysList.index("sys_write") and \
+                        self.wakeupData['valid'] > 0:
+                        self.wakeupData['valid'] -= 1
+                    elif SystemManager.arch != 'aarch64' and \
+                        (nr == ConfigManager.sysList.index("sys_poll") or \
+                        nr == ConfigManager.sysList.index("sys_select") or \
+                        nr == ConfigManager.sysList.index("sys_epoll_wait")):
+                        if (self.lastJob[core]['job'] == "sched_switch" or \
+                            self.lastJob[core]['job'] == "sched_wakeup" or \
+                            self.lastJob[core]['job'] == "sched_wakeup_new") and \
+                            self.lastJob[core]['prevWakeupTid'] != thread:
+                            ttime = float(time) - float(SystemManager.startTime)
+                            itime = ttime - float(self.wakeupData['time'])
+                            self.depData.append(\
+                                "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                (round(ttime, 7), round(itime, 7), " ", " ", \
+                                self.threadData[thread]['comm'], thread, "wakeup"))
+
+                            self.wakeupData['time'] = \
+                                float(time) - float(SystemManager.startTime)
+                            self.lastJob[core]['prevWakeupTid'] = thread
+                    elif (SystemManager.arch == 'arm' and \
+                        nr == ConfigManager.sysList.index("sys_recv")) or \
+                        nr == ConfigManager.sysList.index("sys_recvfrom") or \
+                        nr == ConfigManager.sysList.index("sys_recvmsg") or \
+                        nr == ConfigManager.sysList.index("sys_recvmmsg"):
+                        if self.lastJob[core]['prevWakeupTid'] != thread:
+                            ttime = float(time) - float(SystemManager.startTime)
+                            itime = ttime - float(self.wakeupData['time'])
+                            self.depData.append(\
+                                "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                                (round(ttime, 7), round(itime, 7), " ", " ", \
+                                self.threadData[thread]['comm'], thread, "recv"))
+
+                            self.wakeupData['time'] = \
+                                float(time) - float(SystemManager.startTime)
+                            self.lastJob[core]['prevWakeupTid'] = thread
+                except:
+                    pass
+
+                try:
+                    self.threadData[thread]['syscallInfo']
+                except:
+                    self.threadData[thread]['syscallInfo'] = {}
+                try:
+                    self.threadData[thread]['syscallInfo'][str(nr)]
+                except:
+                    self.threadData[thread]['syscallInfo'][str(nr)] = \
+                        dict(self.init_syscallInfo)
+
+                diff = ''
+                sysItem = self.threadData[thread]['syscallInfo'][str(nr)]
+                if sysItem['last'] > 0:
+                    diff = float(time) - sysItem['last']
+                    self.threadData[thread]['syscallInfo'][str(nr)]['usage'] += diff
+                    self.threadData[thread]['syscallInfo'][str(nr)]['last'] = 0
+                    self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
+
+                    if sysItem['max'] == 0 or sysItem['max'] < diff:
+                        self.threadData[thread]['syscallInfo'][str(nr)]['max'] = diff
+                    if sysItem['min'] <= 0 or sysItem['min'] > diff:
+                        self.threadData[thread]['syscallInfo'][str(nr)]['min'] = diff
+
+                    if ret[0] == '-':
+                        self.threadData[thread]['syscallInfo'][str(nr)]['err'] += 1
+
+                if len(SystemManager.syscallList) > 0:
+                    try:
+                        idx = SystemManager.syscallList.index(nr)
+                    except:
+                        idx = -1
+
+                    if idx >= 0:
                         self.syscallData.append(\
                             ['RET', time, thread, core, str(nr), ret, diff])
                 else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    self.syscallData.append(\
+                        ['RET', time, thread, core, str(nr), ret, diff])
 
             elif func == "signal_generate":
                 m = re.match((\
                     r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
-                    r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                    r'code=(?P<code>.*) comm=(?P<comm>.*) ' \
+                    r'pid=(?P<pid>[0-9]+)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    sig = d['sig']
-                    target_comm = d['comm']
-                    pid = d['pid']
-                    ttime = float(time) - float(SystemManager.startTime)
+                d = m.groupdict()
 
-                    self.depData.append(\
-                        "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
-                        (round(ttime, 7), \
-                        round(ttime - float(self.wakeupData['time']), 7), \
-                        self.threadData[thread]['comm'], thread, \
-                        target_comm, pid, "sigsend", sig))
+                sig = d['sig']
+                target_comm = d['comm']
+                pid = d['pid']
+                ttime = float(time) - float(SystemManager.startTime)
 
-                    self.sigData.append(('SEND', ttime, thread, pid, sig))
+                self.depData.append(\
+                    "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
+                    (round(ttime, 7), \
+                    round(ttime - float(self.wakeupData['time']), 7), \
+                    self.threadData[thread]['comm'], thread, \
+                    target_comm, pid, "sigsend", sig))
 
-                    self.wakeupData['time'] = ttime
+                self.sigData.append(('SEND', ttime, thread, pid, sig))
 
-                    try:
-                        # SIGCHLD #
-                        if sig == str(ConfigManager.SIG_LIST.index('SIGCHLD')):
-                            if self.threadData[pid]['waitStartAsParent'] > 0:
-                                if self.threadData[pid]['waitPid'] == 0 or \
-                                    self.threadData[pid]['waitPid'] == int(thread):
-                                    diff = float(time) - \
-                                        self.threadData[pid]['waitStartAsParent']
-                                    self.threadData[thread]['waitParent'] = diff
-                                    self.threadData[pid]['waitChild'] += diff
-                        elif sig == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
-                            self.threadData[pid]['die'] = 'F'
-                    except:
-                        return
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                self.wakeupData['time'] = ttime
+
+                try:
+                    # SIGCHLD #
+                    if sig == str(ConfigManager.SIG_LIST.index('SIGCHLD')):
+                        if self.threadData[pid]['waitStartAsParent'] > 0:
+                            if self.threadData[pid]['waitPid'] == 0 or \
+                                self.threadData[pid]['waitPid'] == int(thread):
+                                diff = float(time) - \
+                                    self.threadData[pid]['waitStartAsParent']
+                                self.threadData[thread]['waitParent'] = diff
+                                self.threadData[pid]['waitChild'] += diff
+                    elif sig == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
+                        self.threadData[pid]['die'] = 'F'
+                except:
+                    return
 
             elif func == "signal_deliver":
                 m = re.match((\
-                    r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' \
-                    r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                    r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
+                    r'code=(?P<code>.*) sa_handler=(?P<handler>.*) ' \
+                    r'sa_flags=(?P<flags>.*)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    sig = d['sig']
-                    flags = d['flags']
+                d = m.groupdict()
 
-                    ttime = float(time) - float(SystemManager.startTime)
-                    itime = ttime - float(self.wakeupData['time'])
-                    self.depData.append(\
-                        "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
-                        (round(ttime, 7), round(itime, 7), "", "", \
-                        self.threadData[thread]['comm'], thread, "sigrecv", sig))
+                sig = d['sig']
+                flags = d['flags']
 
-                    self.sigData.append(('RECV', ttime, None, thread, sig))
+                ttime = float(time) - float(SystemManager.startTime)
+                itime = ttime - float(self.wakeupData['time'])
+                self.depData.append(\
+                    "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
+                    (round(ttime, 7), round(itime, 7), "", "", \
+                    self.threadData[thread]['comm'], thread, "sigrecv", sig))
 
-                    self.wakeupData['time'] = ttime
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                self.sigData.append(('RECV', ttime, None, thread, sig))
+
+                self.wakeupData['time'] = ttime
 
             elif func == "block_bio_queue" or func == "block_bio_remap":
                 m = re.match((\
-                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' \
-                    r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*' \
+                    r'(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+' \
+                    r'(?P<size>[0-9]+)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.blockEnable = True
+                d = m.groupdict()
 
-                    opt = d['operation']
+                SystemManager.blockEnable = True
 
-                    bio = '%s/%s/%s/%s' % \
-                        (d['major'], d['minor'], d['operation'][0], d['address'])
+                opt = d['operation']
 
-                    # skip redundant operation #
-                    if func == "block_bio_queue" and bio in self.ioData:
-                        return
+                bio = '%s/%s/%s/%s' % \
+                    (d['major'], d['minor'], d['operation'][0], d['address'])
 
-                    self.ioData[bio] = {'thread': thread, 'time': float(time), \
-                        'major': d['major'], 'minor': d['minor'], \
-                        'address': int(d['address']), 'size': int(d['size'])}
+                # skip redundant operation #
+                if func == "block_bio_queue" and bio in self.ioData:
+                    return
 
-                    self.saveBlkOpt(thread, comm, opt[0], d['major'], d['minor'], \
-                        d['address'], SystemManager.blockSize * int(d['size']))
+                self.ioData[bio] = {'thread': thread, 'time': float(time), \
+                    'major': d['major'], 'minor': d['minor'], \
+                    'address': int(d['address']), 'size': int(d['size'])}
 
-                    # read operations #
-                    if opt[0] == 'R':
-                        self.threadData[thread]['reqRdBlock'] += int(d['size'])
-                        self.threadData[thread]['readQueueCnt'] += 1
-                        self.threadData[thread]['readBlockCnt'] += 1
-                        self.threadData[thread]['blkCore'] = coreId
-                        self.threadData[coreId]['readBlockCnt'] += 1
+                self.saveBlkOpt(thread, comm, opt[0], d['major'], d['minor'], \
+                    d['address'], SystemManager.blockSize * int(d['size']))
 
-                        if self.threadData[thread]['readStart'] == 0:
-                            self.threadData[thread]['readStart'] = float(time)
-                    # synchronous write operation #
-                    elif opt == 'WS':
-                        self.threadData[thread]['reqWrBlock'] += int(d['size'])
-                        self.threadData[thread]['writeQueueCnt'] += 1
-                        self.threadData[thread]['writeBlockCnt'] += 1
-                        self.threadData[thread]['blkCore'] = coreId
-                        self.threadData[coreId]['writeBlockCnt'] += 1
+                # read operations #
+                if opt[0] == 'R':
+                    self.threadData[thread]['reqRdBlock'] += int(d['size'])
+                    self.threadData[thread]['readQueueCnt'] += 1
+                    self.threadData[thread]['readBlockCnt'] += 1
+                    self.threadData[thread]['blkCore'] = coreId
+                    self.threadData[coreId]['readBlockCnt'] += 1
 
-                        if self.threadData[thread]['writeStart'] == 0:
-                            self.threadData[thread]['writeStart'] = float(time)
+                    if self.threadData[thread]['readStart'] == 0:
+                        self.threadData[thread]['readStart'] = float(time)
+                # synchronous write operation #
+                elif opt == 'WS':
+                    self.threadData[thread]['reqWrBlock'] += int(d['size'])
+                    self.threadData[thread]['writeQueueCnt'] += 1
+                    self.threadData[thread]['writeBlockCnt'] += 1
+                    self.threadData[thread]['blkCore'] = coreId
+                    self.threadData[coreId]['writeBlockCnt'] += 1
 
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    if self.threadData[thread]['writeStart'] == 0:
+                        self.threadData[thread]['writeStart'] = float(time)
 
             elif func == "block_rq_complete":
                 m = re.match((\
-                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)' \
+                    r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)'
                     r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    address = d['address']
-                    size = d['size']
-                    opt = d['operation']
+                d = m.groupdict()
 
-                    bio = '%s/%s/%s/%s' % \
-                        (d['major'], d['minor'], opt[0], d['address'])
+                address = d['address']
+                size = d['size']
+                opt = d['operation']
 
-                    bioStart = int(address)
-                    bioEnd = int(address) + int(size)
+                bio = '%s/%s/%s/%s' % \
+                    (d['major'], d['minor'], opt[0], d['address'])
 
-                    for key, request in sorted(\
-                        self.ioData.items(), key=lambda e: e[1]['address'], \
-                        reverse=False):
+                bioStart = int(address)
+                bioEnd = int(address) + int(size)
 
-                        # skip different requests with device number #
-                        if request['major'] != d['major'] or \
-                            request['minor'] != d['minor']:
+                for key, request in sorted(\
+                    self.ioData.items(), key=lambda e: e[1]['address'], \
+                    reverse=False):
+
+                    # skip different requests with device number #
+                    if request['major'] != d['major'] or \
+                        request['minor'] != d['minor']:
+                        continue
+
+                    rBioEnd = request['address'] + request['size']
+
+                    # skip irrelevant requests #
+                    if (bioStart <= request['address'] < bioEnd or \
+                        bioStart < rBioEnd <= bioEnd) is False:
+                        continue
+
+                    # remove bio request in table #
+                    self.ioData.pop(key, None)
+
+                    matchBlock = 0
+
+                    if bioStart < request['address']:
+                        matchStart = request['address']
+                    else:
+                        matchStart = bioStart
+
+                    if bioEnd > rBioEnd:
+                        matchEnd = rBioEnd
+                    else:
+                        matchEnd = bioEnd
+
+                    # simple case #
+                    if matchStart == request['address']:
+                        matchBlock = matchEnd - request['address']
+                        request['size'] = rBioEnd - matchEnd
+                        request['address'] = matchEnd
+
+                        if request['size'] > 0:
+                            try:
+                                mbio = '%s/%s/%s/%s' % \
+                                    (request['major'], request['minor'],\
+                                    opt[0], request['address'] + request['size'])
+
+                                request['size'] += self.ioData[mbio]['size']
+
+                                # remove bio request in table #
+                                self.ioData.pop(mbio, None)
+                            except:
+                                pass
+
+                            # recreate partial ioData uncompleted #
+                            bio = '%s/%s/%s/%s' % \
+                                (request['major'], request['minor'], \
+                                opt[0], request['address'])
+                            self.ioData[bio] = request
+                    # complex case #
+                    elif matchStart > request['address']:
+                        if matchEnd == request['address'] + request['size']:
+                            matchBlock = matchEnd - matchStart
+                            request['size'] = matchStart - request['address']
+
+                            # recreate partial ioData uncompleted #
+                            bio = '%s/%s/%s/%s' % \
+                                (request['major'], request['minor'], \
+                                opt[0], request['address'])
+                            self.ioData[bio] = request
+                        else:
+                            continue
+                    else:
+                        continue
+
+                    # just ignore error ;( #
+                    if bioEnd < request['address'] + request['size']:
+                        pass
+
+                    if opt[0] == 'R':
+                        self.threadData[request['thread']]['readBlock'] += \
+                            matchBlock
+                        self.threadData[coreId]['readBlock'] += matchBlock
+
+                        if request['size'] != 0:
                             continue
 
-                        # skip irrelevant requests #
-                        if (bioStart <= request['address'] < bioEnd or \
-                            bioStart < request['address'] + request['size'] <= bioEnd) is False:
+                        if self.threadData[request['thread']]['readQueueCnt'] > 0:
+                            self.threadData[request['thread']]['readQueueCnt'] -= 1
+
+                        """
+                        if error of size and time of block read is big then \
+                        consider inserting below conditions
+                        # self.threadData[request['thread']]['readQueueCnt'] == 0 #
+                        """
+                        if self.threadData[request['thread']]['readStart'] > 0:
+                            waitTime = \
+                                float(time) - \
+                                self.threadData[request['thread']]['readStart']
+                            self.threadData[coreId]['ioRdWait'] += waitTime
+                            self.threadData[request['thread']]['ioRdWait'] += waitTime
+                            self.threadData[request['thread']]['readStart'] = 0
+
+                    elif opt == 'WS':
+                        self.threadData[request['thread']]['writeBlock'] += matchBlock
+                        self.threadData[coreId]['writeBlock'] += matchBlock
+
+                        if thread != request['thread'] or request['size'] != 0:
                             continue
 
-                        # remove bio request in table #
-                        self.ioData.pop(key, None)
+                        if self.threadData[request['thread']]['writeQueueCnt'] > 0:
+                            self.threadData[request['thread']]['writeQueueCnt'] -= 1
 
-                        matchBlock = 0
-
-                        if bioStart < request['address']:
-                            matchStart = request['address']
-                        else:
-                            matchStart = bioStart
-
-                        if bioEnd > request['address'] + request['size']:
-                            matchEnd = request['address'] + request['size']
-                        else:
-                            matchEnd = bioEnd
-
-                        # simple case #
-                        if matchStart == request['address']:
-                            matchBlock = matchEnd - request['address']
-                            request['size'] = \
-                                request['address'] + request['size'] - matchEnd
-                            request['address'] = matchEnd
-
-                            if request['size'] > 0:
-                                try:
-                                    mbio = '%s/%s/%s/%s' % \
-                                        (request['major'], request['minor'],\
-                                        opt[0], request['address'] + request['size'])
-
-                                    request['size'] += self.ioData[mbio]['size']
-
-                                    # remove bio request in table #
-                                    self.ioData.pop(mbio, None)
-                                except:
-                                    pass
-
-                                # recreate partial ioData uncompleted #
-                                bio = '%s/%s/%s/%s' % \
-                                    (request['major'], request['minor'], \
-                                    opt[0], request['address'])
-                                self.ioData[bio] = request
-                        # complex case #
-                        elif matchStart > request['address']:
-                            if matchEnd == request['address'] + request['size']:
-                                matchBlock = matchEnd - matchStart
-                                request['size'] = matchStart - request['address']
-
-                                # recreate partial ioData uncompleted #
-                                bio = '%s/%s/%s/%s' % \
-                                    (request['major'], request['minor'], \
-                                    opt[0], request['address'])
-                                self.ioData[bio] = request
-                            else:
-                                continue
-                        else:
-                            continue
-
-                        # just ignore error ;( #
-                        if bioEnd < request['address'] + request['size']:
-                            pass
-
-                        if opt[0] == 'R':
-                            self.threadData[request['thread']]['readBlock'] += matchBlock
-                            self.threadData[coreId]['readBlock'] += matchBlock
-
-                            if request['size'] != 0:
-                                continue
-
-                            if self.threadData[request['thread']]['readQueueCnt'] > 0:
-                                self.threadData[request['thread']]['readQueueCnt'] -= 1
-
-                            """
-                            if error of size and time of block read is big then \
-                            consider inserting below conditions
-                            # self.threadData[request['thread']]['readQueueCnt'] == 0 #
-                            """
-                            if self.threadData[request['thread']]['readStart'] > 0:
-                                waitTime = \
-                                    float(time) - \
-                                    self.threadData[request['thread']]['readStart']
-                                self.threadData[coreId]['ioRdWait'] += waitTime
-                                self.threadData[request['thread']]['ioRdWait'] += waitTime
-                                self.threadData[request['thread']]['readStart'] = 0
-
-                        elif opt == 'WS':
-                            self.threadData[request['thread']]['writeBlock'] += matchBlock
-                            self.threadData[coreId]['writeBlock'] += matchBlock
-
-                            if thread != request['thread'] or request['size'] != 0:
-                                continue
-
-                            if self.threadData[request['thread']]['writeQueueCnt'] > 0:
-                                self.threadData[request['thread']]['writeQueueCnt'] -= 1
-
-                            """
-                            if error of size and time of block read is big then \
-                            consider inserting below conditions
-                            # self.threadData[request['thread']]['writeQueueCnt'] == 0 #
-                            """
-                            if self.threadData[request['thread']]['writeStart'] > 0:
-                                waitTime = \
-                                    float(time) - \
-                                    self.threadData[request['thread']]['writeStart']
-                                self.threadData[coreId]['ioWrWait'] += waitTime
-                                self.threadData[request['thread']]['ioWrWait'] += waitTime
-                                self.threadData[request['thread']]['writeStart'] = 0
-
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                        """
+                        if error of size and time of block read is big then \
+                        consider inserting below conditions
+                        # self.threadData[request['thread']]['writeQueueCnt'] == 0 #
+                        """
+                        if self.threadData[request['thread']]['writeStart'] > 0:
+                            waitTime = \
+                                float(time) - \
+                                self.threadData[request['thread']]['writeStart']
+                            self.threadData[coreId]['ioWrWait'] += waitTime
+                            self.threadData[request['thread']]['ioWrWait'] += waitTime
+                            self.threadData[request['thread']]['writeStart'] = 0
 
             elif func == "writeback_dirty_page":
                 m = re.match((\
                     r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
                     r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
+                d = m.groupdict()
+
+                SystemManager.blockEnable = True
+
+                bid = d['ino'] + d['index']
+
+                self.threadData[thread]['awriteBlock'] += 1
+                self.threadData[thread]['awriteBlockCnt'] += 1
+                self.threadData[coreId]['awriteBlock'] += 1
+                self.threadData[coreId]['awriteBlockCnt'] += 1
+
+                self.saveBlkOpt(\
+                    thread, comm, 'W', d['major'], d['minor'], bid, 1)
+
+            elif func == "wbc_writepage":
+                m = re.match((\
+                    r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
+                if m is None:
+                    printEventWarning(func)
+                    return
+
+                d = m.groupdict()
+
+                if d['skip'] == '0':
                     SystemManager.blockEnable = True
-
-                    bid = d['ino'] + d['index']
 
                     self.threadData[thread]['awriteBlock'] += 1
                     self.threadData[thread]['awriteBlockCnt'] += 1
@@ -29989,31 +30047,7 @@ class ThreadAnalyzer(object):
                     self.threadData[coreId]['awriteBlockCnt'] += 1
 
                     self.saveBlkOpt(\
-                        thread, comm, 'W', d['major'], d['minor'], bid, 1)
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
-
-            elif func == "wbc_writepage":
-                m = re.match((\
-                    r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
-                    r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
-
-                    if d['skip'] == '0':
-                        SystemManager.blockEnable = True
-
-                        self.threadData[thread]['awriteBlock'] += 1
-                        self.threadData[thread]['awriteBlockCnt'] += 1
-                        self.threadData[coreId]['awriteBlock'] += 1
-                        self.threadData[coreId]['awriteBlockCnt'] += 1
-
-                        self.saveBlkOpt(\
-                            thread, comm, 'W', d['major'], d['minor'], d['towrt'], 1)
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                        thread, comm, 'W', d['major'], d['minor'], d['towrt'], 1)
 
             elif func == "mm_vmscan_wakeup_kswapd":
                 try:
@@ -30044,194 +30078,197 @@ class ThreadAnalyzer(object):
 
             elif func == "mm_vmscan_direct_reclaim_end":
                 m = re.match(r'^\s*nr_reclaimed=(?P<nr>[0-9]+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    if self.threadData[thread]['dReclaimStart'] > 0:
-                        self.threadData[thread]['dReclaimWait'] += \
-                            float(time) - self.threadData[thread]['dReclaimStart']
-                        self.threadData[coreId]['dReclaimWait'] += \
-                            float(time) - self.threadData[thread]['dReclaimStart']
+                d = m.groupdict()
 
-                    self.threadData[thread]['dReclaimStart'] = 0
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                if self.threadData[thread]['dReclaimStart'] > 0:
+                    self.threadData[thread]['dReclaimWait'] += \
+                        float(time) - self.threadData[thread]['dReclaimStart']
+                    self.threadData[coreId]['dReclaimWait'] += \
+                        float(time) - self.threadData[thread]['dReclaimStart']
+
+                self.threadData[thread]['dReclaimStart'] = 0
 
             elif func == "task_newtask":
                 m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    pid = d['pid']
+                d = m.groupdict()
 
-                    try:
-                        self.threadData[pid]
-                        SystemManager.printWarning(\
-                            "Fail to handle new task because it is already exist")
-                    except:
-                        self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = d['comm']
-                        self.threadData[pid]['ptid'] = thread
-                        self.threadData[pid]['new'] = 'N'
-                        self.threadData[pid]['createdTime'] = float(time)
+                pid = d['pid']
 
-                        if self.threadData[thread]['childList'] is None:
-                            self.threadData[thread]['childList'] = list()
-
-                        self.threadData[thread]['childList'].append(pid)
-                        self.nrNewTask += 1
-                else:
+                try:
+                    self.threadData[pid]
                     SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                        "Fail to handle new task because it is already exist")
+                except:
+                    self.threadData[pid] = dict(self.init_threadData)
+                    self.threadData[pid]['comm'] = d['comm']
+                    self.threadData[pid]['ptid'] = thread
+                    self.threadData[pid]['new'] = 'N'
+                    self.threadData[pid]['createdTime'] = float(time)
+
+                    if self.threadData[thread]['childList'] is None:
+                        self.threadData[thread]['childList'] = list()
+
+                    self.threadData[thread]['childList'].append(pid)
+                    self.nrNewTask += 1
 
             elif func == "sched_process_fork":
                 m = re.match((\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
                     r'child_comm=(?P<child_comm>.*)\s+child_pid=(?P<child_pid>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    cpid = d['child_pid']
-                    ccomm = d['child_comm']
+                d = m.groupdict()
 
-                    try:
-                        self.threadData[cpid]
-                        SystemManager.printWarning(\
-                            "Fail to handle new task because it is already exist")
-                    except:
-                        self.threadData[cpid] = dict(self.init_threadData)
-                        self.threadData[cpid]['comm'] = ccomm
-                        self.threadData[cpid]['ptid'] = thread
-                        self.threadData[cpid]['new'] = 'N'
-                        self.threadData[cpid]['createdTime'] = float(time)
+                cpid = d['child_pid']
+                ccomm = d['child_comm']
 
-                        if self.threadData[thread]['childList'] is None:
-                            self.threadData[thread]['childList'] = list()
-
-                        self.threadData[thread]['childList'].append(cpid)
-                        self.nrNewTask += 1
-                else:
+                try:
+                    self.threadData[cpid]
                     SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                        "Fail to handle new task because it is already exist")
+                except:
+                    self.threadData[cpid] = dict(self.init_threadData)
+                    self.threadData[cpid]['comm'] = ccomm
+                    self.threadData[cpid]['ptid'] = thread
+                    self.threadData[cpid]['new'] = 'N'
+                    self.threadData[cpid]['createdTime'] = float(time)
+
+                    if self.threadData[thread]['childList'] is None:
+                        self.threadData[thread]['childList'] = list()
+
+                    self.threadData[thread]['childList'].append(cpid)
+                    self.nrNewTask += 1
 
             elif func == "task_rename":
                 m = re.match((\
                     r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' \
                     r'newcomm=(?P<newcomm>.*)\s+oom_score_adj'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    pid = d['pid']
-                    newcomm = d['newcomm']
+                d = m.groupdict()
 
-                    try:
-                        self.threadData[pid]
-                    except:
-                        self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = newcomm
-                        self.threadData[pid]['ptid'] = thread
+                pid = d['pid']
+                newcomm = d['newcomm']
 
+                try:
+                    self.threadData[pid]
+                except:
+                    self.threadData[pid] = dict(self.init_threadData)
                     self.threadData[pid]['comm'] = newcomm
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    self.threadData[pid]['ptid'] = thread
+
+                self.threadData[pid]['comm'] = newcomm
 
             elif func == "locks_get_lock_context":
                 m = re.match((\
                     r'^\s*dev=(?P<dev>.+)\s+ino=(?P<ino>.+)'\
                     r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    fid = '%s%s' % (d['dev'], d['ino'])
-                    ltype = d['type']
-                    ctx = d['ctx']
+                d = m.groupdict()
 
-                    # save lock data #
-                    self.flockData.append([thread, time, core, ltype, fid, ctx])
+                fid = '%s%s' % (d['dev'], d['ino'])
+                ltype = d['type']
+                ctx = d['ctx']
 
-                    # unlock #
-                    if ltype == 'F_UNLCK':
-                        try:
-                            if self.lockTable[fid]['owner'] == thread:
-                                self.threadData[thread]['lockTime'] += \
-                                    float(time) - self.lockTable[fid]['time']
-                                self.threadData[thread]['lockCnt'] += 1
-                        except:
-                            self.lockTable[fid] = {}
+                # save lock data #
+                self.flockData.append([thread, time, core, ltype, fid, ctx])
+
+                # unlock #
+                if ltype == 'F_UNLCK':
+                    try:
+                        if self.lockTable[fid]['owner'] == thread:
+                            self.threadData[thread]['lockTime'] += \
+                                float(time) - self.lockTable[fid]['time']
                             self.threadData[thread]['lockCnt'] += 1
+                    except:
+                        self.lockTable[fid] = {}
+                        self.threadData[thread]['lockCnt'] += 1
 
-                        # initialize lock data #
-                        self.lockTable[fid]['owner'] = None
-                        self.lockTable[fid]['time'] = 0
-                        self.lockTable[fid]['type'] = None
-                    # try to lock #
-                    else:
-                        self.threadData[thread]['tryLockCnt'] += 1
+                    # initialize lock data #
+                    self.lockTable[fid]['owner'] = None
+                    self.lockTable[fid]['time'] = 0
+                    self.lockTable[fid]['type'] = None
+                # try to lock #
+                else:
+                    self.threadData[thread]['tryLockCnt'] += 1
 
-                        try:
-                            # get lock #
-                            if self.lockTable[fid]['owner'] is None:
-                                self.lockTable[fid]['owner'] = thread
-                                self.lockTable[fid]['time'] = float(time)
-                                self.lockTable[fid]['type'] = ltype
-                                self.threadData[thread]['lastLockTime'] = float(time)
-
-                                # add wait time to get lock #
-                                if self.threadData[thread]['lastLockWait'] > 0:
-                                    llw = self.threadData[thread]['lastLockWait']
-                                    self.threadData[thread]['lockWait'] += \
-                                        float(time) - llw
-
-                                    self.threadData[thread]['lastLockWait'] = 0
-                            # wait lock #
-                            else:
-                                # add wait time to get lock #
-                                if self.threadData[thread]['lastLockWait'] > 0:
-                                    llw = self.threadData[thread]['lastLockWait']
-                                    self.threadData[thread]['lockWait'] += \
-                                        float(time) - llw
-
-                                self.threadData[thread]['lastLockWait'] = float(time)
-                        except:
-                            # no lock #
-                            self.lockTable[fid] = {}
+                    try:
+                        # get lock #
+                        if self.lockTable[fid]['owner'] is None:
                             self.lockTable[fid]['owner'] = thread
                             self.lockTable[fid]['time'] = float(time)
                             self.lockTable[fid]['type'] = ltype
                             self.threadData[thread]['lastLockTime'] = float(time)
 
+                            # add wait time to get lock #
+                            if self.threadData[thread]['lastLockWait'] > 0:
+                                llw = self.threadData[thread]['lastLockWait']
+                                self.threadData[thread]['lockWait'] += \
+                                    float(time) - llw
+
+                                self.threadData[thread]['lastLockWait'] = 0
+                        # wait lock #
+                        else:
+                            # add wait time to get lock #
+                            if self.threadData[thread]['lastLockWait'] > 0:
+                                llw = self.threadData[thread]['lastLockWait']
+                                self.threadData[thread]['lockWait'] += \
+                                    float(time) - llw
+
+                            self.threadData[thread]['lastLockWait'] = float(time)
+                    except:
+                        # no lock #
+                        self.lockTable[fid] = {}
+                        self.lockTable[fid]['owner'] = thread
+                        self.lockTable[fid]['time'] = float(time)
+                        self.lockTable[fid]['type'] = ltype
+                        self.threadData[thread]['lastLockTime'] = float(time)
+
             elif func == "sched_process_exit":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    pid = d['pid']
+                d = m.groupdict()
 
-                    try:
-                        self.threadData[pid]
-                    except:
-                        self.threadData[pid] = dict(self.init_threadData)
-                        self.threadData[pid]['comm'] = d['comm']
-                        self.threadData[pid]['die'] = 'D'
+                pid = d['pid']
 
-                    if self.threadData[pid]['die'] != 'F':
-                        self.threadData[pid]['die'] = 'D'
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                try:
+                    self.threadData[pid]
+                except:
+                    self.threadData[pid] = dict(self.init_threadData)
+                    self.threadData[pid]['comm'] = d['comm']
+                    self.threadData[pid]['die'] = 'D'
+
+                if self.threadData[pid]['die'] != 'F':
+                    self.threadData[pid]['die'] = 'D'
 
             elif func == "sched_process_wait":
                 m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    self.threadData[thread]['waitStartAsParent'] = float(time)
-                    self.threadData[thread]['waitPid'] = int(d['pid'])
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                d = m.groupdict()
+
+                self.threadData[thread]['waitStartAsParent'] = float(time)
+                self.threadData[thread]['waitPid'] = int(d['pid'])
 
             elif func == "suspend_resume":
                 SystemManager.powerEnable = True
@@ -30260,91 +30297,91 @@ class ThreadAnalyzer(object):
 
             elif func == "module_load":
                 m = re.match(r'^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    module = d['module']
-                    address = d['address']
+                d = m.groupdict()
 
-                    self.moduleData.append(['load', thread, time, module, address])
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                module = d['module']
+                address = d['address']
+
+                self.moduleData.append(['load', thread, time, module, address])
 
             elif func == "module_free":
                 m = re.match(r'^\s*(?P<module>.*)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    module = d['module']
+                d = m.groupdict()
 
-                    self.moduleData.append(['free', thread, time, module, None])
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                module = d['module']
+
+                self.moduleData.append(['free', thread, time, module, None])
 
             elif func == "module_put":
                 m = re.match((\
                     r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
                     r'refcnt=(?P<refcnt>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    module = d['module']
-                    refcnt = int(d['refcnt'])
+                d = m.groupdict()
 
-                    self.moduleData.append(['put', thread, time, module, refcnt])
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                module = d['module']
+                refcnt = int(d['refcnt'])
+
+                self.moduleData.append(['put', thread, time, module, refcnt])
 
             elif func == "module_get":
                 m = re.match((\
                     r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
                     r'refcnt=(?P<refcnt>[0-9]+)'), etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    module = d['module']
-                    refcnt = int(d['refcnt'])
+                d = m.groupdict()
 
-                    self.moduleData.append(['get', thread, time, module, refcnt])
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                module = d['module']
+                refcnt = int(d['refcnt'])
+
+                self.moduleData.append(['get', thread, time, module, refcnt])
 
             elif func == "cpu_idle":
                 m = re.match(\
                     r'^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    SystemManager.powerEnable = True
+                d = m.groupdict()
 
-                    tid = '0[' + d['cpu_id']+ ']'
+                SystemManager.powerEnable = True
 
-                    if self.threadData[tid]['lastIdleStatus'] == int(d['state']):
-                        return
-                    else:
-                        self.threadData[tid]['lastIdleStatus'] = int(d['state'])
+                tid = '0[' + d['cpu_id']+ ']'
 
-                    if self.threadData[tid]['coreSchedCnt'] == 0 and \
-                        self.threadData[tid]['offTime'] == 0:
-                        self.threadData[tid]['offTime'] = \
-                            float(time) - float(SystemManager.startTime)
-
-                    # Wake core up, but the number 3 as this condition is not certain #
-                    if int(d['state']) < 3:
-                        self.threadData[tid]['offCnt'] += 1
-                        self.threadData[tid]['lastOff'] = float(time)
-                    # Start to sleep #
-                    elif self.threadData[tid]['lastOff'] > 0:
-                        self.threadData[tid]['offTime'] += \
-                            (float(time) - self.threadData[tid]['lastOff'])
-                        self.threadData[tid]['lastOff'] = float(0)
+                if self.threadData[tid]['lastIdleStatus'] == int(d['state']):
+                    return
                 else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                    self.threadData[tid]['lastIdleStatus'] = int(d['state'])
+
+                if self.threadData[tid]['coreSchedCnt'] == 0 and \
+                    self.threadData[tid]['offTime'] == 0:
+                    self.threadData[tid]['offTime'] = \
+                        float(time) - float(SystemManager.startTime)
+
+                # Wake core up, but the number 3 as this condition is not certain #
+                if int(d['state']) < 3:
+                    self.threadData[tid]['offCnt'] += 1
+                    self.threadData[tid]['lastOff'] = float(time)
+                # Start to sleep #
+                elif self.threadData[tid]['lastOff'] > 0:
+                    self.threadData[tid]['offTime'] += \
+                        (float(time) - self.threadData[tid]['lastOff'])
+                    self.threadData[tid]['lastOff'] = float(0)
 
             elif func == "cpu_frequency":
                 # toDo: calculate power consumption for DVFS system #
@@ -30359,42 +30396,42 @@ class ThreadAnalyzer(object):
 
                     self.handleUserEvent(d['event'], time)
 
-                else:
-                    # process CPU shutdown event #
-                    m = re.match((\
-                        r'^\s*\[\s*(?P<time>\S+)\s*\]\s+'
-                        r'CPU(?P<core>[0-9]+)\: shutdown'), etc)
-                    if m is not None:
-                        ed = m.groupdict()
+                    return
 
-                        try:
-                            # set status of thread #
-                            lastTid = self.lastTidPerCore[ed['core']]
-                            self.threadData[lastTid]['stop'] = float(ed['time'])
-                            self.threadData[lastTid]['lastStatus'] = 'S'
+                # process CPU shutdown event #
+                m = re.match((\
+                    r'^\s*\[\s*(?P<time>\S+)\s*\]\s+'
+                    r'CPU(?P<core>[0-9]+)\: shutdown'), etc)
+                if m is not None:
+                    ed = m.groupdict()
 
-                            # set status of core #
-                            scoreId = '0[%s]' % ed['core']
-                            self.threadData[scoreId]['offCnt'] += 1
-                            self.threadData[scoreId]['lastOff'] = float(ed['time'])
-                            self.threadData[scoreId]['start'] = float(ed['time'])
-                            self.threadData[scoreId]['lastStatus'] = 'R'
-                        except:
-                            pass
+                    try:
+                        # set status of thread #
+                        lastTid = self.lastTidPerCore[ed['core']]
+                        self.threadData[lastTid]['stop'] = float(ed['time'])
+                        self.threadData[lastTid]['lastStatus'] = 'S'
 
-                    # save consol log #
-                    self.consoleData.append([d['thread'], core, time, etc])
+                        # set status of core #
+                        scoreId = '0[%s]' % ed['core']
+                        self.threadData[scoreId]['offCnt'] += 1
+                        self.threadData[scoreId]['lastOff'] = float(ed['time'])
+                        self.threadData[scoreId]['start'] = float(ed['time'])
+                        self.threadData[scoreId]['lastStatus'] = 'R'
+                    except:
+                        pass
+
+                # save consol log #
+                self.consoleData.append([d['thread'], core, time, etc])
 
             elif func == "tracing_mark_write" or func == "0":
                 m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
-                if m is not None:
-                    d = m.groupdict()
+                if m is None:
+                    printEventWarning(func)
+                    return
 
-                    self.handleUserEvent(d['event'], time)
+                d = m.groupdict()
 
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize '%s' event" % func)
+                self.handleUserEvent(d['event'], time)
 
             # custom event #
             elif func in SystemManager.customEventList or \
