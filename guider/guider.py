@@ -22,7 +22,6 @@ try:
     import signal
     import time
     import os
-    import shutil
     import gc
     import atexit
     import struct
@@ -2581,18 +2580,9 @@ class NetworkManager(object):
         self.ignore = 0
         self.fileno = -1
 
-        try:
-            if SystemManager.socketObj is None:
-                import socket
-                SystemManager.socketObj = socket
-
-            socket = SystemManager.socketObj
-            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
+        # get socket object #
+        socket = SystemManager.getPkg('socket')
+        from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
 
         if mode == 'server':
             try:
@@ -2729,6 +2719,9 @@ class NetworkManager(object):
             if receiver == None:
                 return
 
+            # get select object #
+            selectObj = SystemManager.getPkg('select')
+
             # save file #
             try:
                 dirPos = targetPath.rfind('/')
@@ -2738,8 +2731,7 @@ class NetworkManager(object):
 
                 with open(targetPath, 'wb') as fd:
                     while 1:
-                        SystemManager.selectObject.select(\
-                            [receiver.socket], [], [], 3)
+                        selectObj.select([receiver.socket], [], [], 3)
 
                         buf = receiver.recv(1024)
                         if buf:
@@ -2824,13 +2816,15 @@ class NetworkManager(object):
             if conn == None:
                 return
 
+            # get select object #
+            selectObj = SystemManager.getPkg('select')
+
             # run mainloop #
             buf = ''
             while 1:
                 try:
                     [readSock, writeSock, errorSock] = \
-                        SystemManager.selectObject.select(\
-                        [conn.socket], [], [])
+                        selectObj.select([conn.socket], [], [])
 
                     output = conn.recvfrom()[0]
                     if not output:
@@ -2850,16 +2844,8 @@ class NetworkManager(object):
 
 
 
-        # import select package #
-        try:
-            if SystemManager.selectObject == None:
-                import select
-                SystemManager.selectObject = select
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                "Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
+        # get select object #
+        SystemManager.getPkg('select')
 
         # unmarshalling #
         if type(req) is tuple:
@@ -3122,19 +3108,11 @@ class NetworkManager(object):
 
     @staticmethod
     def getPublicIp():
-        try:
-            if SystemManager.socketObj is None:
-                import socket
-                SystemManager.socketObj = socket
-
-            socket = SystemManager.socketObj
-            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to get public IP address") % err.args[0])
+        # get socket object #
+        socket = SystemManager.getPkg('socket', False)
+        if socket is None:
             return
+        from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
 
         ret = None
 
@@ -4550,16 +4528,8 @@ class FunctionAnalyzer(object):
 
 
     def getSymbolInfo(self, binPath, offsetList):
-        try:
-            if SystemManager.subprocessObject == None:
-                import subprocess
-                SystemManager.subprocessObject = subprocess
-            subprocess = SystemManager.subprocessObject
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
+        # get subprocess object #
+        subprocess = SystemManager.getPkg('subprocess')
 
         # Recognize binary type #
         relocated = SystemManager.isRelocatableFile(binPath)
@@ -8266,17 +8236,9 @@ class FileAnalyzer(object):
             SystemManager.filterGroup.insert(0, '')
 
         if SystemManager.guiderObj is None:
-            try:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printError(\
-                    "Fail to import python package: %s" % err.args[0])
-                sys.exit(0)
+            # get ctypes object #
+            ctypes = SystemManager.getPkg('ctypes')
+            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
 
             try:
                 # load standard libc library #
@@ -9036,10 +8998,8 @@ class FileAnalyzer(object):
                 # unmap #
                 SystemManager.guiderObj.munmap(mm, size)
             else:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
+                # get ctypes object #
+                ctypes = SystemManager.getPkg('ctypes')
                 from  ctypes import POINTER, c_char, c_ubyte, cast
 
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
@@ -9222,11 +9182,9 @@ class SystemManager(object):
     perfEventChannel = {}
     perfTargetEvent = []
     perfEventData = {}
+    impPkg = {}
     guiderObj = None
-    ctypesObj = None
-    socketObj = None
     libcObj = None
-    fcntlObj = None
     libcPath = 'libc.so.6'
     matplotlibVersion = 0
 
@@ -9235,8 +9193,6 @@ class SystemManager(object):
     addrListForPrint = {}
     addrListForReport = {}
     jsonObject = None
-    selectObject = None
-    subprocessObject = None
 
     tgidEnable = True
     binEnable = False
@@ -9411,7 +9367,8 @@ class SystemManager(object):
 
     @staticmethod
     def setErrorLogger():
-        sys.stderr = LogManager()
+        if SystemManager.isLinux:
+            sys.stderr = LogManager()
 
 
 
@@ -9446,15 +9403,12 @@ class SystemManager(object):
         '''
 
         # try to set maxFd with hard limit #
-        try:
-            import resource
+        resource = SystemManager.getPkg('resource', False, True)
+        if resource != None:
             soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
             resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
             SystemManager.maxFd = hard
-            del resource
             return
-        except:
-            pass
 
         # try to get maxFd by native call #
         try:
@@ -9465,25 +9419,17 @@ class SystemManager(object):
         except:
             pass
 
-        # try to load ctypes package #
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
-
-            class rlimit(Structure):
-                _fields_ = (
-                    ("rlim_cur", c_uint),
-                    ("rlim_max", c_uint),
-                )
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to get the number of maximum file descriptor") % err.args[0])
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
             return
+        from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
+
+        class rlimit(Structure):
+            _fields_ = (
+                ("rlim_cur", c_uint),
+                ("rlim_max", c_uint),
+            )
 
         # try to get maxFd by standard library call #
         try:
@@ -9501,12 +9447,13 @@ class SystemManager(object):
             SystemManager.maxFd = rlim.rlim_cur
         except:
             SystemManager.printWarning(\
-                "Fail to get the number of maximum file descriptor because of getrlimit fail")
+                "Fail to get the number of maximum file descriptor "
+                "because of getrlimit fail")
 
 
 
     @staticmethod
-    def importModule():
+    def importNative():
         try:
             import guider
             guider.check()
@@ -9725,19 +9672,11 @@ class SystemManager(object):
                 except:
                     pass
 
-                # try to load ctypes package #
-                try:
-                    if SystemManager.ctypesObj is None:
-                        import ctypes
-                        SystemManager.ctypesObj = ctypes
-                    ctypes = SystemManager.ctypesObj
-                    from ctypes import cdll, POINTER, c_int, c_ulong, byref
-                except ImportError:
-                    err = sys.exc_info()[1]
-                    SystemManager.printWarning(\
-                        ("Fail to import python package: %s "
-                        "to set cpu affinity of tasks") % err.args[0])
+                # get ctypes object #
+                ctypes = SystemManager.getPkg('ctypes', False)
+                if ctypes is None:
                     return
+                from ctypes import cdll, POINTER, c_int, c_ulong, byref
 
                 try:
                     # load standard libc library #
@@ -9774,20 +9713,11 @@ class SystemManager(object):
         except:
             pass
 
-        # try to load ctypes package #
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
-
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to get cpu affinity of tasks") % err.args[0])
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
             return
+        from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         try:
             # load standard libc library #
@@ -9828,18 +9758,11 @@ class SystemManager(object):
         except:
             pass
 
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, c_char_p
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to set comm of process") % err.args[0])
+        # get cyptes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
             return
+        from ctypes import cdll, POINTER, c_char_p
 
         try:
             # load standard libc library #
@@ -9854,26 +9777,34 @@ class SystemManager(object):
 
 
     @staticmethod
-    def importJson():
-        if SystemManager.jsonObject != None:
-            return
+    def getPkg(name, isExit=True, isTemp=False, isRoot=True):
+        try:
+            return SystemManager.impPkg[name]
+        except:
+            pass
 
         try:
-            import json
-            SystemManager.jsonObject = json
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s " % err.args[0])
-            sys.exit(0)
+            # import package #
+            obj =  __import__(name, fromlist = [name] if isRoot else [None])
+        except:
+            SystemManager.printWarning(\
+                "Fail to import python package: %s " % name, \
+                True if isExit else False)
+            if isExit:
+                sys.exit(0)
+            return None
+
+        # save package object #
+        if isTemp is False:
+            SystemManager.impPkg[name] = obj
+
+        return obj
 
 
 
     @staticmethod
     def makeJsonString(dictObj):
-        SystemManager.importJson()
-
-        return SystemManager.jsonObject.dumps(dictObj, indent=2)
+        return SystemManager.getPkg('json').dumps(dictObj, indent=2)
 
 
 
@@ -10184,11 +10115,9 @@ class SystemManager(object):
 
     @staticmethod
     def makeJsonDict(strObj):
-        SystemManager.importJson()
-
         try:
             strObj = strObj.replace("'", '"')
-            return SystemManager.jsonObject.loads(strObj)
+            return SystemManager.getPkg('json').loads(strObj)
         except:
             return None
 
@@ -10196,7 +10125,7 @@ class SystemManager(object):
 
     @staticmethod
     def printStack():
-        import traceback
+        traceback = SystemManager.getPkg('traceback')
         print(traceback.print_stack())
 
 
@@ -10252,10 +10181,11 @@ class SystemManager(object):
                 SystemManager.libcPath = 'libc.so'
         elif sys.platform.startswith('win'):
             SystemManager.isLinux = False
-            if SystemManager.isDrawMode() is False:
+            if SystemManager.isDrawMode() is False and \
+                SystemManager.isConvertMode() is False:
                 SystemManager.printError(\
-                    '%s platform is supported only for draw commands now' \
-                    % sys.platform)
+                    '%s platform is supported for %s command now' \
+                    % (sys.platform, sys.argv[1]))
                 sys.exit(0)
         else:
             SystemManager.printError(\
@@ -11577,17 +11507,9 @@ Copyright:
 
     @staticmethod
     def syscall(syscall, *args):
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                "Fail to import python package: %s to call syscall" % err.args[0])
-            return
+        # import ctypes #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
 
         try:
             # load standard libc library #
@@ -11656,21 +11578,14 @@ Copyright:
             else:
                 return fd
 
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
-                c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to open perf event") % err.args[0])
+        # import ctypes #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
             SystemManager.perfEnable = False
             SystemManager.perfGroupEnable = False
             return
+        from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
+            c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
         # load standard libc library #
         try:
@@ -12038,19 +11953,12 @@ Copyright:
 
             return retList
 
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
-                c_uint64, c_uint, c_uint32, c_int, c_ulong
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to read perf event") % err.args[0])
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
             return
+        from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
+            c_uint64, c_uint, c_uint32, c_int, c_ulong
 
         # load standard libc library #
         try:
@@ -12777,17 +12685,8 @@ Copyright:
 
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
-        # load subprocess package #
-        try:
-            if SystemManager.subprocessObject == None:
-                import subprocess
-                SystemManager.subprocessObject = subprocess
-            subprocess = SystemManager.subprocessObject
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
+        # get subprocess object #
+        subprocess = SystemManager.getPkg('subprocess')
 
         syms = []
         disline = []
@@ -13503,7 +13402,7 @@ Copyright:
                     fsize = '?'
 
                 SystemManager.printInfo(\
-                    "finish saving results based monitoring into "
+                    "save results based monitoring into "
                     "%s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
 
@@ -13577,7 +13476,7 @@ Copyright:
                 fsize = '?'
 
             SystemManager.printInfo(\
-                "finish saving results based monitoring into "
+                "save results based monitoring into "
                 "%s [%s] successfully" % \
                 (SystemManager.inputFile, fsize))
         elif SystemManager.resetEnable:
@@ -13685,9 +13584,14 @@ Copyright:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile):
                     backupFile = os.path.join(SystemManager.outputFile + '.old')
-                    shutil.move(SystemManager.outputFile, backupFile)
-                    SystemManager.printInfo('%s is renamed to %s' % \
-                        (SystemManager.outputFile, backupFile))
+
+                    try:
+                        SystemManager.getPkg('shutil', False).move(\
+                            SystemManager.outputFile, backupFile)
+                        SystemManager.printInfo('%s is renamed to %s' % \
+                            (SystemManager.outputFile, backupFile))
+                    except:
+                        pass
 
                 f = open(SystemManager.outputFile, 'w')
 
@@ -14328,34 +14232,39 @@ Copyright:
     def drawText(lines):
         imageType = None
 
-        # load textwrap package #
-        try:
-            import textwrap
-            from PIL import Image, ImageFont, ImageDraw
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError(\
-                "Fail to import python package: %s" % err.args[0])
-            return
+        # get textwrap object #
+        textwrap = SystemManager.getPkg('textwrap')
+
+        # get PIL object #
+        pilObj = SystemManager.getPkg('PIL', False)
+        if pilObj is None:
+            SystemManager.printWarning((\
+                "Fail to import python package: PIL\n"
+                "\tTry to enter %s command to install the package") % \
+                    ("'pip install pillow'"))
+            sys.exit(0)
+        from PIL import Image, ImageFont, ImageDraw
 
         # load jpeg plugin #
         try:
-            from PIL import JpegImagePlugin
-            imageType = 'jpg'
+            if imageType is None:
+                from PIL import JpegImagePlugin
+                imageType = 'jpg'
         except ImportError:
             err = sys.exc_info()[1]
             SystemManager.printWarning(\
                 "Fail to import python package: %s" % err.args[0])
 
-            # load bmp plugin instead of jpeg #
-            try:
+        # load bmp plugin instead of jpeg #
+        try:
+            if imageType is None:
                 from PIL import BmpImagePlugin
                 imageType = 'bmp'
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printError(\
-                    "Fail to import python package: %s" % err.args[0])
-                return
+        except ImportError:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to import python package: %s" % err.args[0])
+            return
 
         if SystemManager.imagePath is None:
             SystemManager.printError("Fail to load image path")
@@ -14400,7 +14309,7 @@ Copyright:
         # make new blink image #
         if imageType == 'jpg':
             imageObject = \
-                Image.new("RGBA", (imageSizeX, imageSizeY), (255, 255, 255))
+                Image.new("RGB", (imageSizeX, imageSizeY), (255, 255, 255))
         elif imageType == 'bmp':
             imageObject = \
                 Image.new("RGB", (900, imageSizeY), (255, 255, 255))
@@ -14419,6 +14328,7 @@ Copyright:
             # write text on image #
             drawnImage.text((1, imagePosY), text, (0,0,0), font=imageFont)
 
+        imageObject.save(SystemManager.imagePath)
         try:
             # save image as file #
             imageObject.save(SystemManager.imagePath)
@@ -14554,15 +14464,17 @@ Copyright:
                 os.path.normpath(SystemManager.inputFile)
 
             # backup a exist output file #
-            try:
-                if os.path.isfile(SystemManager.inputFile):
-                    backupFile = '%s.old' % SystemManager.inputFile
-                    shutil.move(SystemManager.inputFile, backupFile)
+            if os.path.isfile(SystemManager.inputFile):
+                backupFile = '%s.old' % SystemManager.inputFile
+
+                try:
+                    SystemManager.getPkg('shutil', False).move(\
+                        SystemManager.inputFile, backupFile)
                     SystemManager.printInfo('%s is renamed to %s' % \
                         (SystemManager.inputFile, backupFile))
-            except:
-                SystemManager.printWarning(\
-                    "Fail to backup %s" % SystemManager.inputFile)
+                except:
+                    SystemManager.printWarning(\
+                        "Fail to backup %s" % SystemManager.inputFile)
 
             # open output file #
             try:
@@ -15060,7 +14972,6 @@ Copyright:
                     SystemManager.fileTopEnable = True
 
                 if options.rfind('R') > -1:
-                    SystemManager.importJson()
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
 
@@ -15088,7 +14999,6 @@ Copyright:
                         sys.exit(0)
 
                 if options.rfind('r') > -1:
-                    SystemManager.importJson()
                     SystemManager.reportEnable = True
 
                 if options.rfind('d') > -1:
@@ -16886,11 +16796,15 @@ Copyright:
 
     @staticmethod
     def doUserInput():
+        # get select object #
+        selectObj = SystemManager.getPkg('select', False)
+        if selectObj is None:
+            return
+
         try:
             if SystemManager.printFile is None and \
                 SystemManager.isReportTopMode() is False and \
-                SystemManager.selectObject != None and \
-                SystemManager.selectObject.select(\
+                selectObj.select(\
                 [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
                 SystemManager.pipePrint((\
@@ -17125,14 +17039,16 @@ Copyright:
                     'Failed to connect to client because of no response', True)
                 return
 
+            # get select object #
+            selectObj = SystemManager.getPkg('select')
+
             # save file #
             try:
                 origPath = src.strip()
                 targetPath = des.strip()
                 with open(targetPath, 'wb') as fd:
                     while 1:
-                        SystemManager.selectObject.select(\
-                            [receiver], [], [], 3)
+                        selectObj.select([receiver], [], [], 3)
 
                         buf = receiver.recv(1024)
                         if buf:
@@ -17170,17 +17086,8 @@ Copyright:
                     'Failed to connect to client because of no response', True)
                 return
 
-            # load subprocess package #
-            try:
-                if SystemManager.subprocessObject == None:
-                    import subprocess
-                    SystemManager.subprocessObject = subprocess
-                subprocess = SystemManager.subprocessObject
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printError(\
-                    "Fail to import python package: %s" % err.args[0])
-                sys.exit(0)
+            # get subprocess object #
+            subprocess = SystemManager.getPkg('subprocess')
 
             # run command #
             try:
@@ -17205,13 +17112,15 @@ Copyright:
                     "'%s' command is executed for %s" % \
                     (value, ':'.join(list(map(str, addr)))))
 
+                # get select object #
+                selectObj = SystemManager.getPkg('select')
+
                 # run mainloop #
                 while 1:
                     try:
                         # wait for event #
                         [read, write, error] = \
-                            SystemManager.selectObject.select(\
-                                [procObj.stdout], [], [], 1)
+                            selectObj.select([procObj.stdout], [], [], 1)
 
                         # read from process #
                         if len(read) > 0:
@@ -17303,15 +17212,7 @@ Copyright:
         SystemManager.printInfo("SERVER MODE")
 
         # import select package #
-        try:
-            if SystemManager.selectObject == None:
-                import select
-                SystemManager.selectObject = select
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                "Fail to import python package: %s" % err.args[0])
-            sys.exit(0)
+        SystemManager.getPkg('select')
 
         # get address value #
         if SystemManager.findOption('u'):
@@ -18189,20 +18090,10 @@ Copyright:
                 "to set deadline priority") % err.args[0], True)
             return -1
 
-        # load ctypes package #
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
-                c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to set deadline priority") % err.args[0], True)
-            sys.exit(0)
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
+            c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
 
         # load standard libc library #
         try:
@@ -18298,19 +18189,11 @@ Copyright:
     @staticmethod
     def setPriority(pid, policy, pri, runtime=0, deadline=0, period=0):
         if SystemManager.guiderObj is None:
-            # load ctypes package #
-            try:
-                if SystemManager.ctypesObj is None:
-                    import ctypes
-                    SystemManager.ctypesObj = ctypes
-                ctypes = SystemManager.ctypesObj
-                from ctypes import cdll, POINTER
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    ("Fail to import python package: %s "
-                    "to set priority") % err.args[0])
+            # get ctypes object #
+            ctypes = SystemManager.getPkg('ctypes', False)
+            if ctypes is None:
                 return
+            from ctypes import cdll, POINTER
 
         try:
             # load standard libc library #
@@ -18407,16 +18290,15 @@ Copyright:
 
         try:
             if SystemManager.termSetId is None:
-                import termios
+                termios = SystemManager.getPkg('termios', False)
                 SystemManager.termSetId = \
                     getattr(termios, 'TIOCSWINSZ', -2146929561)
 
-            if SystemManager.fcntlObj is None:
-                import fcntl
-                SystemManager.fcntlObj = fcntl
+            # get fcntl object #
+            fcntlObj = SystemManager.getPkg('fcntl', False)
 
             # set terminal width size #
-            SystemManager.fcntlObj.ioctl(\
+            fcntlObj.ioctl(\
                 sys.stdout.fileno(), SystemManager.termSetId,\
                 struct.pack("HHHH", rows, cols, 0, 0))
 
@@ -18431,10 +18313,8 @@ Copyright:
             pass
 
         try:
-            int(rows)
-            int(cols)
-            os.system('stty rows %s 2> /dev/null' % (rows))
-            os.system('stty cols %s 2> /dev/null' % (cols))
+            os.system('stty rows %d 2> /dev/null' % (int(rows)))
+            os.system('stty cols %d 2> /dev/null' % (int(cols)))
             SystemManager.ttyRows = rows
             SystemManager.ttyCols = cols
         except:
@@ -18447,12 +18327,15 @@ Copyright:
         if SystemManager.isLinux is False:
             return
 
-        if SystemManager.termGetId is None or SystemManager.fcntlObj is None:
+        # get fcntl object #
+        fcntlObj = SystemManager.getPkg('fcntl', False)
+
+        if SystemManager.termGetId is None or fcntlObj is None:
             return
 
         try:
             SystemManager.ttyRows, SystemManager.ttyCols = \
-                struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
+                struct.unpack('hh', fcntlObj.ioctl(\
                     sys.stdout.fileno(), SystemManager.termGetId, '1234'))
         except:
             pass
@@ -18466,15 +18349,14 @@ Copyright:
 
         try:
             if SystemManager.termGetId is None:
-                import termios
+                termios = SystemManager.getPkg('termios', False)
                 SystemManager.termGetId = termios.TIOCGWINSZ
 
-            if SystemManager.fcntlObj is None:
-                import fcntl
-                SystemManager.fcntlObj = fcntl
+            # get fcntl object #
+            fcntlObj = SystemManager.getPkg('fcntl', False)
 
             SystemManager.ttyRows, SystemManager.ttyCols = \
-                struct.unpack('hh', SystemManager.fcntlObj.ioctl(\
+                struct.unpack('hh', fcntlObj.ioctl(\
                     sys.stdout.fileno(), SystemManager.termGetId, '1234'))
 
             return
@@ -18941,7 +18823,7 @@ Copyright:
                     int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
 
                 SystemManager.printInfo(\
-                    "finish saving results into %s [%s] successfully" % \
+                    "finish saving all results into %s [%s] successfully" % \
                     (SystemManager.fileForPrint.name, fsize))
                 SystemManager.fileForPrint.close()
             except:
@@ -20379,165 +20261,155 @@ class Debugger(object):
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-            from ctypes import cdll, Structure, sizeof, addressof,\
-                c_ulong, c_int, c_uint, c_uint32, byref
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, Structure, sizeof, addressof,\
+            c_ulong, c_int, c_uint, c_uint32, byref
 
-            class user_regs_struct(Structure):
-                def getdict(struct):
-                    return dict((field, getattr(struct, field)) \
-                        for field, _ in struct._fields_)
+        class user_regs_struct(Structure):
+            def getdict(struct):
+                return dict((field, getattr(struct, field)) \
+                    for field, _ in struct._fields_)
 
-                if arch == 'powerpc':
-                    _fields_ = (
-                        ("gpr0", c_ulong),
-                        ("gpr1", c_ulong),
-                        ("gpr2", c_ulong),
-                        ("gpr3", c_ulong),
-                        ("gpr4", c_ulong),
-                        ("gpr5", c_ulong),
-                        ("gpr6", c_ulong),
-                        ("gpr7", c_ulong),
-                        ("gpr8", c_ulong),
-                        ("gpr9", c_ulong),
-                        ("gpr10", c_ulong),
-                        ("gpr11", c_ulong),
-                        ("gpr12", c_ulong),
-                        ("gpr13", c_ulong),
-                        ("gpr14", c_ulong),
-                        ("gpr15", c_ulong),
-                        ("gpr16", c_ulong),
-                        ("gpr17", c_ulong),
-                        ("gpr18", c_ulong),
-                        ("gpr19", c_ulong),
-                        ("gpr20", c_ulong),
-                        ("gpr21", c_ulong),
-                        ("gpr22", c_ulong),
-                        ("gpr23", c_ulong),
-                        ("gpr24", c_ulong),
-                        ("gpr25", c_ulong),
-                        ("gpr26", c_ulong),
-                        ("gpr27", c_ulong),
-                        ("gpr28", c_ulong),
-                        ("gpr29", c_ulong),
-                        ("gpr30", c_ulong),
-                        ("gpr31", c_ulong),
-                        ("nip", c_ulong),
-                        ("msr", c_ulong),
-                        ("orig_gpr3", c_ulong),
-                        ("ctr", c_ulong),
-                        ("link", c_ulong),
-                        ("xer", c_ulong),
-                        ("ccr", c_ulong),
-                        ("mq", c_ulong),  # FIXME: ppc64 => softe
-                        ("trap", c_ulong),
-                        ("dar", c_ulong),
-                        ("dsisr", c_ulong),
-                        ("result", c_ulong),
-                    )
-
-                elif arch == 'arm':
-                    _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
-
-                elif arch == 'aarch64':
-                    _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
-
-                elif arch == 'x64':
-                    _fields_ = (
-                        ("r15", c_ulong),
-                        ("r14", c_ulong),
-                        ("r13", c_ulong),
-                        ("r12", c_ulong),
-                        ("rbp", c_ulong),
-                        ("rbx", c_ulong),
-                        ("r11", c_ulong),
-                        ("r10", c_ulong),
-                        ("r9", c_ulong),
-                        ("r8", c_ulong),
-                        ("rax", c_ulong),
-                        ("rcx", c_ulong),
-                        ("rdx", c_ulong),
-                        ("rsi", c_ulong),
-                        ("rdi", c_ulong),
-                        ("orig_rax", c_ulong),
-                        ("rip", c_ulong),
-                        ("cs", c_ulong),
-                        ("eflags", c_ulong),
-                        ("rsp", c_ulong),
-                        ("ss", c_ulong),
-                        ("fs_base", c_ulong),
-                        ("gs_base", c_ulong),
-                        ("ds", c_ulong),
-                        ("es", c_ulong),
-                        ("fs", c_ulong),
-                        ("gs", c_ulong)
-                    )
-
-                elif arch == 'x86':
-                    _fields_ = (
-                        ("ebx", c_ulong),
-                        ("ecx", c_ulong),
-                        ("edx", c_ulong),
-                        ("esi", c_ulong),
-                        ("edi", c_ulong),
-                        ("ebp", c_ulong),
-                        ("eax", c_ulong),
-                        ("ds", c_ushort),
-                        ("__ds", c_ushort),
-                        ("es", c_ushort),
-                        ("__es", c_ushort),
-                        ("fs", c_ushort),
-                        ("__fs", c_ushort),
-                        ("gs", c_ushort),
-                        ("__gs", c_ushort),
-                        ("orig_eax", c_ulong),
-                        ("eip", c_ulong),
-                        ("cs", c_ushort),
-                        ("__cs", c_ushort),
-                        ("eflags", c_ulong),
-                        ("esp", c_ulong),
-                        ("ss", c_ushort),
-                        ("__ss", c_ushort),
-                    )
-
-            # running #
-            if self.checkPid(pid) >= 0:
-                self.pid = pid
-                self.attach()
-                self.isRunning = True
-            # execute #
-            elif path is not None:
-                self.execute(path)
-                self.isRunning = False
-            # ready #
-            else:
-                self.pid = None
-                self.isRunning = False
-
-            # set register variable #
-            self.regs = user_regs_struct()
-
-            # for ARCH_REGS_FOR_GETREGSET #
-            class iovec(Structure):
+            if arch == 'powerpc':
                 _fields_ = (
-                    ("iov_base", c_ulong),
-                    ("iov_len", c_uint32),
+                    ("gpr0", c_ulong),
+                    ("gpr1", c_ulong),
+                    ("gpr2", c_ulong),
+                    ("gpr3", c_ulong),
+                    ("gpr4", c_ulong),
+                    ("gpr5", c_ulong),
+                    ("gpr6", c_ulong),
+                    ("gpr7", c_ulong),
+                    ("gpr8", c_ulong),
+                    ("gpr9", c_ulong),
+                    ("gpr10", c_ulong),
+                    ("gpr11", c_ulong),
+                    ("gpr12", c_ulong),
+                    ("gpr13", c_ulong),
+                    ("gpr14", c_ulong),
+                    ("gpr15", c_ulong),
+                    ("gpr16", c_ulong),
+                    ("gpr17", c_ulong),
+                    ("gpr18", c_ulong),
+                    ("gpr19", c_ulong),
+                    ("gpr20", c_ulong),
+                    ("gpr21", c_ulong),
+                    ("gpr22", c_ulong),
+                    ("gpr23", c_ulong),
+                    ("gpr24", c_ulong),
+                    ("gpr25", c_ulong),
+                    ("gpr26", c_ulong),
+                    ("gpr27", c_ulong),
+                    ("gpr28", c_ulong),
+                    ("gpr29", c_ulong),
+                    ("gpr30", c_ulong),
+                    ("gpr31", c_ulong),
+                    ("nip", c_ulong),
+                    ("msr", c_ulong),
+                    ("orig_gpr3", c_ulong),
+                    ("ctr", c_ulong),
+                    ("link", c_ulong),
+                    ("xer", c_ulong),
+                    ("ccr", c_ulong),
+                    ("mq", c_ulong),  # FIXME: ppc64 => softe
+                    ("trap", c_ulong),
+                    ("dar", c_ulong),
+                    ("dsisr", c_ulong),
+                    ("result", c_ulong),
                 )
 
-            self.iovec = iovec(\
-                iov_base=ctypes.addressof(self.regs),\
-                iov_len=ctypes.sizeof(self.regs))
+            elif arch == 'arm':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
 
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to call ptrace") % err.args[0])
-            sys.exit(0)
+            elif arch == 'aarch64':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
+
+            elif arch == 'x64':
+                _fields_ = (
+                    ("r15", c_ulong),
+                    ("r14", c_ulong),
+                    ("r13", c_ulong),
+                    ("r12", c_ulong),
+                    ("rbp", c_ulong),
+                    ("rbx", c_ulong),
+                    ("r11", c_ulong),
+                    ("r10", c_ulong),
+                    ("r9", c_ulong),
+                    ("r8", c_ulong),
+                    ("rax", c_ulong),
+                    ("rcx", c_ulong),
+                    ("rdx", c_ulong),
+                    ("rsi", c_ulong),
+                    ("rdi", c_ulong),
+                    ("orig_rax", c_ulong),
+                    ("rip", c_ulong),
+                    ("cs", c_ulong),
+                    ("eflags", c_ulong),
+                    ("rsp", c_ulong),
+                    ("ss", c_ulong),
+                    ("fs_base", c_ulong),
+                    ("gs_base", c_ulong),
+                    ("ds", c_ulong),
+                    ("es", c_ulong),
+                    ("fs", c_ulong),
+                    ("gs", c_ulong)
+                )
+
+            elif arch == 'x86':
+                _fields_ = (
+                    ("ebx", c_ulong),
+                    ("ecx", c_ulong),
+                    ("edx", c_ulong),
+                    ("esi", c_ulong),
+                    ("edi", c_ulong),
+                    ("ebp", c_ulong),
+                    ("eax", c_ulong),
+                    ("ds", c_ushort),
+                    ("__ds", c_ushort),
+                    ("es", c_ushort),
+                    ("__es", c_ushort),
+                    ("fs", c_ushort),
+                    ("__fs", c_ushort),
+                    ("gs", c_ushort),
+                    ("__gs", c_ushort),
+                    ("orig_eax", c_ulong),
+                    ("eip", c_ulong),
+                    ("cs", c_ushort),
+                    ("__cs", c_ushort),
+                    ("eflags", c_ulong),
+                    ("esp", c_ulong),
+                    ("ss", c_ushort),
+                    ("__ss", c_ushort),
+                )
+
+        # running #
+        if self.checkPid(pid) >= 0:
+            self.pid = pid
+            self.attach()
+            self.isRunning = True
+        # execute #
+        elif path is not None:
+            self.execute(path)
+            self.isRunning = False
+        # ready #
+        else:
+            self.pid = None
+            self.isRunning = False
+
+        # set register variable #
+        self.regs = user_regs_struct()
+
+        # for ARCH_REGS_FOR_GETREGSET #
+        class iovec(Structure):
+            _fields_ = (
+                ("iov_base", c_ulong),
+                ("iov_len", c_uint32),
+            )
+
+        self.iovec = iovec(\
+            iov_base=ctypes.addressof(self.regs),\
+            iov_len=ctypes.sizeof(self.regs))
 
 
 
@@ -21020,7 +20892,7 @@ class Debugger(object):
 
     def getRegs(self):
         pid = self.pid
-        ctypes = SystemManager.ctypesObj
+        ctypes = SystemManager.getPkg('ctypes')
         arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
@@ -21044,21 +20916,7 @@ class Debugger(object):
     def ptrace(self, req, addr=0, data=0):
         pid = self.pid
 
-        # try to load ctypes package #
-        try:
-            if SystemManager.ctypesObj is None:
-                import ctypes
-                SystemManager.ctypesObj = ctypes
-            ctypes = SystemManager.ctypesObj
-        except SystemExit:
-            sys.exit(0)
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                ("Fail to import python package: %s "
-                "to call ptrace") % err.args[0])
-            sys.exit(0)
-
+        '''
         # try to call native ptrace call #
         try:
             return SystemManager.guiderObj.ptrace(req, pid, addr, data)
@@ -21066,17 +20924,22 @@ class Debugger(object):
             sys.exit(0)
         except:
             pass
+        '''
+
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, c_ulong, c_ulong, c_ulong, c_ulong
 
         try:
             # load standard libc library #
             if SystemManager.libcObj is None:
                 SystemManager.libcObj = \
-                    ctypes.cdll.LoadLibrary(SystemManager.libcPath)
+                    cdll.LoadLibrary(SystemManager.libcPath)
 
             # type converting #
             SystemManager.libcObj.ptrace.argtypes = \
-                (ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong)
-            SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
+                (c_ulong, c_ulong, c_ulong, c_ulong)
+            SystemManager.libcObj.ptrace.restype = c_ulong
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
@@ -21687,16 +21550,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package in the foreground #
-        selectObject = None
         if SystemManager.printFile is None:
-            try:
-                if SystemManager.selectObject == None:
-                    import select
-                    SystemManager.selectObject = select
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    "Fail to import python package: %s" % err.args[0])
+            SystemManager.getPkg('select', False)
 
         prevFilter = []
 
@@ -21762,16 +21617,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package in the foreground #
-        selectObject = None
         if SystemManager.printFile is None:
-            try:
-                if SystemManager.selectObject == None:
-                    import select
-                    SystemManager.selectObject = select
-            except ImportError:
-                err = sys.exc_info()[1]
-                SystemManager.printWarning(\
-                    "Fail to import python package: %s" % err.args[0])
+            SystemManager.getPkg('select', False)
 
         # set network configuration #
         if SystemManager.netEnable:
@@ -23531,6 +23378,29 @@ class ThreadAnalyzer(object):
 
         #==================== body part ====================#
 
+        # get matplotlib object #
+        matplotlib = SystemManager.getPkg('matplotlib', False)
+        if matplotlib is None:
+            SystemManager.printWarning((\
+                "Fail to import python package: matplotlib\n"
+                "Try to enter %s command to install the package") % \
+                    ("'pip install matplotlib'"), True)
+            sys.exit(0)
+        from matplotlib.ticker import MaxNLocator
+
+        SystemManager.matplotlibVersion = \
+            float('.'.join(matplotlib.__version__.split('.')[:2]))
+
+        matplotlib.use('Agg')
+
+        # get pylab object #
+        pylab = SystemManager.getPkg('pylab')
+        from pylab import \
+            rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
+            pie, axis, subplots_adjust, legend, figure, savefig, clf, \
+            ticklabel_format, suptitle, grid, yticks, xticks, \
+            locator_params, subplot2grid, ylim, xlim, tick_params
+
         '''
         initialize list that count the number of process
         using resource more than 1% #
@@ -23672,6 +23542,10 @@ class ThreadAnalyzer(object):
             SystemManager.printError(\
                 "Fail to draw image caused by wrong file path %s" % outputFile)
             return
+
+        # get pylab object #
+        pylab = SystemManager.getPkg('pylab')
+        from pylab import savefig, clf
 
         try:
             # save graph #
@@ -24872,6 +24746,10 @@ class ThreadAnalyzer(object):
 
         # prepare to draw graph #
         if SystemManager.isRecordMode() is False and SystemManager.graphEnable:
+            # get pylab object #
+            pylab = SystemManager.getPkg('pylab')
+            from pylab import rc, rcParams
+
             if SystemManager.intervalEnable > 0:
                 os.environ['DISPLAY'] = 'localhost:0'
                 rc('legend', fontsize=5)
@@ -24905,12 +24783,9 @@ class ThreadAnalyzer(object):
                     SystemManager.sourceFile)
                 sys.exit(0)
 
-            # import json package #
-            SystemManager.importJson()
-
             try:
                 confBuf = confBuf.replace("'", '"')
-                confDict = SystemManager.jsonObject.loads(confBuf)
+                confDict = SystemManager.getPkg('json').loads(confBuf)
 
                 if 'bound' in confDict:
                     ThreadAnalyzer.reportBoundary = confDict['bound']
@@ -26122,6 +25997,30 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(SystemManager.bufferString)
         SystemManager.pipePrint(oneLine)
         SystemManager.clearPrint()
+
+        if SystemManager.graphEnable:
+            # get matplotlib object #
+            matplotlib = SystemManager.getPkg('matplotlib', False)
+            if matplotlib is None:
+                SystemManager.printWarning((\
+                    "Fail to import python package: matplotlib\n"
+                    "Try to enter %s command to install the package") % \
+                        ("'pip install matplotlib'"), True)
+                sys.exit(0)
+            from matplotlib.ticker import MaxNLocator
+
+            SystemManager.matplotlibVersion = \
+                float('.'.join(matplotlib.__version__.split('.')[:2]))
+
+            matplotlib.use('Agg')
+
+            # get pylab object #
+            pylab = SystemManager.getPkg('pylab')
+            from pylab import \
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
+                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
+                ticklabel_format, suptitle, grid, yticks, xticks, \
+                locator_params, subplot2grid, ylim, xlim, tick_params
 
         # draw io graph #
         if SystemManager.graphEnable and len(ioUsageList) > 0:
@@ -33987,8 +33886,6 @@ class ThreadAnalyzer(object):
 
         # REPORT service #
         if data[0] == '{':
-            SystemManager.importJson()
-
             # convert report data to dictionary type #
             reportStat = SystemManager.makeJsonDict(data)
 
@@ -34384,8 +34281,8 @@ class ThreadAnalyzer(object):
                     fsize = '?'
 
                 SystemManager.printStatus((\
-                    "finish saving results based monitoring "
-                    "by event into %s [%s] successfully") % \
+                    "save results based monitoring into "
+                    "%s [%s] successfully") % \
                     (filePath, fsize))
             except SystemExit:
                 sys.exit(0)
@@ -34495,8 +34392,8 @@ def main(args=None):
     # set error logger #
     SystemManager.setErrorLogger()
 
-    # import module #
-    SystemManager.importModule()
+    # import guider native module #
+    SystemManager.importNative()
 
     # set comm #
     SystemManager.setComm(__module__)
@@ -34788,27 +34685,6 @@ def main(args=None):
     if SystemManager.isTopMode() and \
         SystemManager.ttyEnable is False:
         SystemManager.setTtyAuto(True, False)
-
-    # import packages to draw graph #
-    if SystemManager.graphEnable:
-        try:
-            import matplotlib
-            SystemManager.matplotlibVersion = \
-                float('.'.join(matplotlib.__version__.split('.')[:2]))
-            matplotlib.use('Agg')
-            from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
-                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-                ticklabel_format, suptitle, grid, yticks, xticks, \
-                locator_params, subplot2grid, ylim, xlim, tick_params
-            from matplotlib.ticker import MaxNLocator
-        except ImportError:
-            err = sys.exc_info()[1]
-            SystemManager.printError((\
-                "Fail to import python package: %s\n"
-                "\tTry to enter %s command to install the package") % \
-                    (err.args[0], "'pip install matplotlib'"))
-            sys.exit(0)
 
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
