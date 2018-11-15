@@ -22218,18 +22218,6 @@ class ThreadAnalyzer(object):
         if len(data) == 0:
             return
 
-        seq = 0
-        height = \
-            int(len(data) / 2) \
-            if len(data) % 2 == 0 else int(len(data) / 2 + 1)
-        colors = \
-            ['pink', 'lightgreen', 'skyblue', \
-            'lightcoral', 'gold', 'yellowgreen']
-        propList = \
-            ['count', 'vmem', 'rss', 'pss', 'swap', \
-            'huge', 'locked', 'pdirty', 'sdirty']
-        suptitle('guider memory chart', fontsize=8)
-
         def make_autopct(values):
             def autopct(pct):
                 total = sum(values)
@@ -22242,6 +22230,41 @@ class ThreadAnalyzer(object):
                 self.tmpCnt += 1
                 return string
             return autopct
+
+        # get matplotlib object #
+        matplotlib = SystemManager.getPkg('matplotlib', False)
+        if matplotlib is None:
+            SystemManager.printWarning((\
+                "Fail to import python package: matplotlib\n"
+                "Try to enter %s command to install the package") % \
+                    ("'pip install matplotlib'"), True)
+            sys.exit(0)
+        from matplotlib.ticker import MaxNLocator
+
+        SystemManager.matplotlibVersion = \
+            float('.'.join(matplotlib.__version__.split('.')[:2]))
+
+        matplotlib.use('Agg')
+
+        # get pylab object #
+        pylab = SystemManager.getPkg('pylab')
+        from pylab import \
+            rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
+            pie, axis, subplots_adjust, legend, figure, savefig, clf, \
+            ticklabel_format, suptitle, grid, yticks, xticks, \
+            locator_params, subplot2grid, ylim, xlim, tick_params
+
+        seq = 0
+        height = \
+            int(len(data) / 2) \
+            if len(data) % 2 == 0 else int(len(data) / 2 + 1)
+        colors = \
+            ['pink', 'lightgreen', 'skyblue', \
+            'lightcoral', 'gold', 'yellowgreen']
+        propList = \
+            ['count', 'vmem', 'rss', 'pss', 'swap', \
+            'huge', 'locked', 'pdirty', 'sdirty']
+        suptitle('guider memory chart', fontsize=8)
 
         for idx, item in sorted(data.items(),\
             key=lambda e: e[1]['[TOTAL]'][propList.index('rss')] +\
