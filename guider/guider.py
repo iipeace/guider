@@ -17556,7 +17556,7 @@ Copyright:
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        Debugger(pid=pid).strace()
+        Debugger(pid=pid).trace()
 
         sys.exit(0)
 
@@ -20791,7 +20791,7 @@ class Debugger(object):
 
 
 
-    def strace(self):
+    def trace(self, mode='syscall'):
         pid = self.pid
         regs = None
         arch = SystemManager.getArch()
@@ -20805,12 +20805,34 @@ class Debugger(object):
         # disable extended ascii #
         SystemManager.supportExtAscii = False
 
+        # check the process is running #
+        try:
+            os.kill(pid, 0)
+        except:
+            err = sys.exc_info()[1]
+            ereason = ' '.join(list(map(str, err.args)))
+            if ereason != '0':
+                SystemManager.printError(\
+                    'Fail to trace thread %s because %s' % \
+                    (pid, ereason))
+            sys.exit(0)
+
         # set PTRACE_O_TRACESYSGOOD #
         cmd = PTRACE_SETOPTIONS = 0x4200
         ret = self.ptrace(cmd, 0, 1)
 
-        while 1:
+        # select trap command #
+        if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
+        elif mode == 'inst':
+            cmd = plist.index('PTRACE_SINGLESTEP')
+        else:
+            SystemManager.printError(\
+                "Fail to recognize trace mode '%s'" % mode)
+            sys.exit(0)
+
+        while 1:
+            # setup trap #
             ret = self.ptrace(cmd, 0, 0)
 
             try:
@@ -20821,18 +20843,7 @@ class Debugger(object):
                 stat = Debugger.processStatus(ret[1])
 
                 # check status of process #
-                if type(stat) is int:
-                    if stat == sigTrapIdx:
-                        pass
-                    elif stat == sigTrapIdx | 0x80:
-                        pass
-                    elif stat == sigStopIdx:
-                        pass
-                    else:
-                        SystemManager.printWarning(\
-                            'Blocked thread %s because of %s' % \
-                            (pid, ConfigManager.SIG_LIST[stat]))
-                else:
+                if type(stat) is not int:
                     raise Exception()
 
                 # get register set #
@@ -20842,13 +20853,25 @@ class Debugger(object):
                         "Fail to trace syscall of thread %d" % pid)
                     return
 
-                # filter syscall #
-                if len(SystemManager.syscallList) > 0:
-                    if self.getNrSyscall() not in SystemManager.syscallList:
-                        continue
+                # inst #
+                if stat == sigTrapIdx:
+                    pass
+                # syscall #
+                elif stat == sigTrapIdx | 0x80:
+                    # filter syscall #
+                    if mode == 'syscall' and len(SystemManager.syscallList) > 0:
+                        if self.getNrSyscall() not in SystemManager.syscallList:
+                            continue
 
-                # process syscall #
-                self.processSyscall()
+                    # process syscall #
+                    self.processSyscall()
+                # signal #
+                elif stat == sigStopIdx:
+                    pass
+                else:
+                    SystemManager.printWarning(\
+                        'Blocked thread %s because of %s' % \
+                        (pid, ConfigManager.SIG_LIST[stat]))
             except SystemExit:
                 sys.exit(0)
             except:
