@@ -20831,6 +20831,7 @@ class Debugger(object):
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
 
+        # enter trace loop #
         while 1:
             # setup trap #
             ret = self.ptrace(cmd, 0, 0)
@@ -20865,13 +20866,14 @@ class Debugger(object):
 
                     # process syscall #
                     self.processSyscall()
-                # signal #
+                # stop signal #
                 elif stat == sigStopIdx:
                     pass
+                # signal #
                 else:
                     SystemManager.printWarning(\
                         'Blocked thread %s because of %s' % \
-                        (pid, ConfigManager.SIG_LIST[stat]))
+                        (pid, ConfigManager.SIG_LIST[stat]), True)
             except SystemExit:
                 sys.exit(0)
             except:
