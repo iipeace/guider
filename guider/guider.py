@@ -30122,7 +30122,8 @@ class ThreadAnalyzer(object):
             elif func == "sched_process_fork":
                 m = re.match((\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
-                    r'child_comm=(?P<child_comm>.*)\s+child_pid=(?P<child_pid>[0-9]+)'), etc)
+                    r'child_comm=(?P<child_comm>.*)\s+'\
+                    r'child_pid=(?P<child_pid>[0-9]+)'), etc)
                 if m is None:
                     printEventWarning(func)
                     return
@@ -30594,32 +30595,34 @@ class ThreadAnalyzer(object):
                                 SystemManager.printWarning(\
                                     "Fail to recognize '%s' kernel event" % etc)
 
-                        if isSaved:
-                            # get interval #
-                            interDiff = 0
-                            if eventObj['start'] > 0:
-                                interDiff = float(time) - eventObj['start']
+                        if isSaved is False:
+                            continue
 
-                            self.threadData[thread]['kernelEvent'][name]['count'] += 1
-                            self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
+                        # get interval #
+                        interDiff = 0
+                        if eventObj['start'] > 0:
+                            interDiff = float(time) - eventObj['start']
 
-                            # update period of thread #
-                            if interDiff > eventObj['maxPeriod'] or \
-                                eventObj['maxPeriod'] == 0:
-                                self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
-                            if interDiff < eventObj['minPeriod'] or \
-                                eventObj['minPeriod'] == 0:
-                                self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
+                        self.threadData[thread]['kernelEvent'][name]['count'] += 1
+                        self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
 
-                            self.kernelEventInfo[name]['count'] += 1
+                        # update period of thread #
+                        if interDiff > eventObj['maxPeriod'] or \
+                            eventObj['maxPeriod'] == 0:
+                            self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
+                        if interDiff < eventObj['minPeriod'] or \
+                            eventObj['minPeriod'] == 0:
+                            self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
 
-                            # update period of system #
-                            if interDiff > self.kernelEventInfo[name]['maxPeriod'] or \
-                                self.kernelEventInfo[name]['maxPeriod'] == 0:
-                                self.kernelEventInfo[name]['maxPeriod'] = interDiff
-                            if interDiff < self.kernelEventInfo[name]['minPeriod'] or \
-                                self.kernelEventInfo[name]['minPeriod'] == 0:
-                                self.kernelEventInfo[name]['minPeriod'] = interDiff
+                        self.kernelEventInfo[name]['count'] += 1
+
+                        # update period of system #
+                        if interDiff > self.kernelEventInfo[name]['maxPeriod'] or \
+                            self.kernelEventInfo[name]['maxPeriod'] == 0:
+                            self.kernelEventInfo[name]['maxPeriod'] = interDiff
+                        if interDiff < self.kernelEventInfo[name]['minPeriod'] or \
+                            self.kernelEventInfo[name]['minPeriod'] == 0:
+                            self.kernelEventInfo[name]['minPeriod'] = interDiff
 
                     elif func == '%s_exit' % name:
                         # add data into list #
@@ -30632,8 +30635,8 @@ class ThreadAnalyzer(object):
                         if m is not None:
                             d = m.groupdict()
                             self.kernelEventData.append(\
-                                ['EXIT', name, d['addr'], comm, thread, ntime, d['caller'], \
-                                d['args'], d['caddr']])
+                                ['EXIT', name, d['addr'], comm, thread, ntime, \
+                                d['caller'], d['args'], d['caddr']])
                         else:
                             m = re.match((\
                                 r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- '
@@ -30641,36 +30644,38 @@ class ThreadAnalyzer(object):
                             if m is not None:
                                 d = m.groupdict()
                                 self.kernelEventData.append(\
-                                    ['EXIT', name, '', comm, thread, ntime, d['caller'], \
-                                    d['args'], ''])
+                                    ['EXIT', name, '', comm, thread, ntime, \
+                                    d['caller'], d['args'], ''])
                             else:
                                 isSaved = False
                                 SystemManager.printWarning(\
                                     "Fail to recognize '%s' kernel event" % etc)
 
-                        if isSaved:
-                            # get usage #
-                            usage = 0
-                            if eventObj['start'] > 0:
-                                usage = float(time) - eventObj['start']
-                                self.threadData[thread]['kernelEvent'][name]['usage'] += usage
-                                self.kernelEventInfo[name]['usage'] += usage
+                        if isSaved is False:
+                            continue
 
-                                # update usage of thread #
-                                if usage > eventObj['max'] or \
-                                    eventObj['max'] == 0:
-                                    self.threadData[thread]['kernelEvent'][name]['max'] = usage
-                                if usage < eventObj['min'] or \
-                                    eventObj['min'] == 0:
-                                    self.threadData[thread]['kernelEvent'][name]['min'] = usage
+                        # get usage #
+                        usage = 0
+                        if eventObj['start'] > 0:
+                            usage = float(time) - eventObj['start']
+                            self.threadData[thread]['kernelEvent'][name]['usage'] += usage
+                            self.kernelEventInfo[name]['usage'] += usage
 
-                                # update usage of system #
-                                if usage > self.kernelEventInfo[name]['max'] or \
-                                    self.kernelEventInfo[name]['max'] == 0:
-                                    self.kernelEventInfo[name]['max'] = usage
-                                if usage < self.kernelEventInfo[name]['min'] or \
-                                    self.kernelEventInfo[name]['min'] == 0:
-                                    self.kernelEventInfo[name]['min'] = usage
+                            # update usage of thread #
+                            if usage > eventObj['max'] or \
+                                eventObj['max'] == 0:
+                                self.threadData[thread]['kernelEvent'][name]['max'] = usage
+                            if usage < eventObj['min'] or \
+                                eventObj['min'] == 0:
+                                self.threadData[thread]['kernelEvent'][name]['min'] = usage
+
+                            # update usage of system #
+                            if usage > self.kernelEventInfo[name]['max'] or \
+                                self.kernelEventInfo[name]['max'] == 0:
+                                self.kernelEventInfo[name]['max'] = usage
+                            if usage < self.kernelEventInfo[name]['min'] or \
+                                self.kernelEventInfo[name]['min'] == 0:
+                                self.kernelEventInfo[name]['min'] = usage
         else:
             # handle modified type of event #
             if SystemManager.tgidEnable:
