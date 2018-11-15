@@ -4,6 +4,7 @@
 *.swp
 *.png
 *.jpg
+*.bmp
 *.out*
 *.dat*
 *.report
@@ -14,3 +15,5 @@ __pycache__
 
 # Distribution / packaging
 build/
+dist/
+MANIFEST
