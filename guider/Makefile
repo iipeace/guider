@@ -90,10 +90,13 @@ install: all
 	$(Q)$(INSTALL) -d -m 755 $(INSTALL_DIR)
 	$(Q)$(INSTALL) -d -m 755 $(SBIN_DIR)
 	$(Q)$(INSTALL) -d -m 755 $(LIB_DIR)
+
 	$(call QUIET_INSTALL, $(TARGET_PYC))
 	$(Q)$(INSTALL) $(TARGET_PYC) $(INSTALL_DIR)/$(TARGET_PYC)
+
 	$(call QUIET_INSTALL, $(TARGET_BIN))
 	$(Q)$(INSTALL) $(TARGET_BIN) $(SBIN_DIR)/$(TARGET_BIN)
+
 	$(call QUIET_INSTALL, $(TARGET_LIB))
 	$(Q)$(INSTALL) $(TARGET_LIB) $(LIB_DIR)/$(TARGET_LIB)
 	$(Q)$(SED) -i "s%PREFIX_DIR=%PREFIX_DIR=$(prefix)%g" $(SBIN_DIR)/$(TARGET_BIN)
@@ -110,5 +113,8 @@ clean:
 	$(Q)$(RM) $(INSTALL_DIR)/*
 	$(Q)$(RM) $(SBIN_DIR)/$(TARGET_BIN)
 	$(Q)$(RM) $(LIB_DIR)/$(TARGET_LIB)
+
 	$(call QUIET_CLEAN, kernel-module)
-	-$(Q)$(MAKE) -sC /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	-$(Q)if [ -d /lib/modules/$(shell uname -r)/build ]; then \
+		$(MAKE) -sC /lib/modules/$(shell uname -r)/build M=$(PWD) clean; \
+	fi
