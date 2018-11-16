@@ -100,7 +100,7 @@ install: all
 
 .PHONY: kernel
 kernel: all
-	$(Q)$(MAKE) -C $(KPATH) M=$(PWD) modules
+	-$(Q)$(MAKE) -C $(KPATH) M=$(PWD) modules
 
 .PHONY: clean
 clean:
@@ -111,4 +111,4 @@ clean:
 	$(Q)$(RM) $(SBIN_DIR)/$(TARGET_BIN)
 	$(Q)$(RM) $(LIB_DIR)/$(TARGET_LIB)
 	$(call QUIET_CLEAN, kernel-module)
-	$(Q)$(MAKE) -sC /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	-$(Q)$(MAKE) -sC /lib/modules/$(shell uname -r)/build M=$(PWD) clean
