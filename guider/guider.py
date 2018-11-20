@@ -9141,6 +9141,7 @@ class SystemManager(object):
     funcDepth = 0
     maxPid = 32768
     pidDigit = 5
+    stderr = sys.stderr
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -14560,18 +14561,23 @@ Copyright:
 
     @staticmethod
     def printWarning(line, always=False):
-        if SystemManager.warningEnable or always:
-            print('\n%s%s%s%s' % \
-                (ConfigManager.WARNING, '[Warning] ', line,\
-                ConfigManager.ENDC))
+        if SystemManager.warningEnable is False and always is False:
+            return
+
+        print('\n%s%s%s%s' % \
+            (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC),
+            file=SystemManager.stderr)
 
 
 
     @staticmethod
     def printError(line):
+        # prepare to exit #
         SystemManager.closeAllForPrint()
+
         print('\n%s%s%s%s\n' % \
-            (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
+            (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC),
+            file=SystemManager.stderr)
 
 
 
