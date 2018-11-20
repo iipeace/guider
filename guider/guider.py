@@ -10140,9 +10140,9 @@ class SystemManager(object):
 
 
     @staticmethod
-    def printStack():
+    def printBacktrace():
         traceback = SystemManager.getPkg('traceback')
-        print(traceback.print_stack())
+        traceback.print_stack(file=SystemManager.stderr)
 
 
 
@@ -20911,8 +20911,14 @@ class Debugger(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                err = sys.exc_info()[1]
-                ereason = ' '.join(list(map(str, err.args)))
+                # check whether process is alive #
+                try:
+                    ret = os.waitpid(int(pid), 0)
+
+                    err = sys.exc_info()[1]
+                    ereason = ' '.join(list(map(str, err.args)))
+                except:
+                    ereason = 'the process is terminated'
 
                 # check error reason #
                 if ereason != '0' and len(ereason) > 0:
