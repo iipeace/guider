@@ -14620,9 +14620,10 @@ Copyright:
         if SystemManager.warningEnable is False and always is False:
             return
 
-        print('\n%s%s%s%s' % \
-            (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC),
-            file=SystemManager.stderr)
+        msg = ('\n%s%s%s%s' % \
+            (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
+
+        SystemManager.stderr.write(msg)
 
 
 
@@ -14631,9 +14632,10 @@ Copyright:
         # prepare to exit #
         SystemManager.closeAllForPrint()
 
-        print('\n%s%s%s%s\n' % \
-            (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC),
-            file=SystemManager.stderr)
+        msg = ('\n%s%s%s%s\n' % \
+            (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
+
+        SystemManager.stderr.write(msg)
 
 
 
@@ -20964,7 +20966,7 @@ class Debugger(object):
                     err = sys.exc_info()[1]
                     ereason = ' '.join(list(map(str, err.args)))
                 except:
-                    ereason = 'the process is terminated'
+                    ereason = 'the thread is terminated'
 
                 # check error reason #
                 if ereason != '0' and len(ereason) > 0:
