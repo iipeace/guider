@@ -20661,7 +20661,10 @@ class Debugger(object):
             # check std fds #
             fd = self.values[0]
             if fd < 3:
-                length = self.values[2]
+                if self.values[2] > self.pbufsize:
+                    length = self.pbufsize
+                else:
+                    length = self.values[2]
                 return self.readMem(value, length)
             return value
         elif argname == "signum":
@@ -20707,6 +20710,7 @@ class Debugger(object):
         sysreg = self.sysreg
         retreg = self.retreg
         status = self.status
+        pbufsize = self.pbufsize
         regs = self.regs.getdict()
         nrSyscall = regs[sysreg]
         self.syscall = name = ConfigManager.sysList[nrSyscall][4:]
@@ -20751,9 +20755,9 @@ class Debugger(object):
                         text = repr(arg[2].decode())
 
                         # check output length #
-                        if len(text) > SystemManager.ttyCols >> 1:
+                        if len(text) > pbufsize:
                             text = '"%s"...' % \
-                                text[1:SystemManager.ttyCols >> 1]
+                                text[1:pbufsize]
                         else:
                             text = '"%s"' % text[1:-1]
 
@@ -20801,6 +20805,7 @@ class Debugger(object):
 
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
+        self.pbufsize = SystemManager.ttyCols >> 1
 
         # disable extended ascii #
         SystemManager.supportExtAscii = False
