@@ -5131,6 +5131,14 @@ class FunctionAnalyzer(object):
                 self.customEventTable[cmd[0]+'_enter'] = None
                 self.customEventTable[cmd[0]+'_exit'] = None
 
+        # get pid filter by comm in advance #
+        plist = {}
+        if SystemManager.groupProcEnable:
+            for key, value in self.getTargetList(lines).items():
+                for item in desc:
+                    if value['comm'].find(item) >= 0:
+                        plist[value['tgid']] = 0
+
         # start parsing logs #
         for liter in lines:
             curIdx += 1
@@ -5138,7 +5146,7 @@ class FunctionAnalyzer(object):
             SystemManager.curLine += 1
             SystemManager.dbgEventLine += 1
 
-            ret = self.parseEventLog(liter, desc)
+            ret = self.parseEventLog(liter, desc, plist)
             SystemManager.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
@@ -5852,25 +5860,38 @@ class FunctionAnalyzer(object):
 
 
 
-    def parseEventLog(self, string, desc):
-        # Filter for event #
-        if SystemManager.tgidEnable:
-            # record-tgid option #
-            m = re.match((\
-                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
-                r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+' \
-                r'(?P<func>\S+)(?P<etc>.+)'), string)
-            if m is None:
-                # print-tgid option #
-                m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+' \
-                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
-                    r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
-        else:
-            m = re.match((\
-                r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
-                r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+    def getTargetList(self, tlist):
+        threadData = {}
 
+        for liter in tlist:
+            m = SystemManager.getTraceItem(liter)
+            if m is not None:
+                d = m.groupdict()
+
+                # Make thread entity #
+                thread = d['thread']
+                try:
+                    threadData[thread]['comm'] = d['comm']
+                except:
+                    threadData[thread] = dict()
+                    threadData[thread]['comm'] = d['comm']
+
+                # set tgid #
+                try:
+                    threadData[thread]['tgid'] = d['tgid']
+                except:
+                    try:
+                        threadData[thread]['tgid'] = \
+                            SystemManager.savedProcTree[thread]
+                    except:
+                        pass
+
+        return threadData
+
+
+
+    def parseEventLog(self, string, desc, plist=[]):
+        m = SystemManager.getTraceItem(string)
         if m is not None:
             d = m.groupdict()
 
@@ -6009,7 +6030,8 @@ class FunctionAnalyzer(object):
                 return False
 
             # apply filter #
-            if SystemManager.isExceptTarget(thread, self.threadData):
+            if SystemManager.isExceptTarget(\
+                thread, self.threadData, plist=plist):
                 return False
             else:
                 self.threadData[thread]['target'] = True
@@ -9992,45 +10014,69 @@ class SystemManager(object):
     @staticmethod
     def isExceptTarget(tid, tdata, comm=None, plist=[]):
         tlist = SystemManager.filterGroup
+
+        # check filter #
         if tlist == []:
             return False
 
+        # get comm #
         if comm is None:
             comm = tdata[tid]['comm']
 
-        exceptFlag = True
+        # check a thread #
         for item in tlist:
             if item == tid or \
                 comm.find(item) >= 0 or \
                 item == '' or \
                 SystemManager.isEffectiveTid(tid, item):
-                exceptFlag = False
-                break
+                return False
 
-        if exceptFlag == False:
-            return exceptFlag
-        elif SystemManager.groupProcEnable:
+        # check all threads in a same process #
+        if SystemManager.groupProcEnable:
             tgid = tdata[tid]['tgid']
 
+            # check tgid in process list by tid #
             if str(tgid) in plist:
                 return False
 
+            # check tgid in filter list by tid #
             for item in tlist:
                 try:
-                    # check tgid #
                     if item == tgid or \
                         SystemManager.isEffectiveTid(tgid, item):
-                        exceptFlag = False
-                        break
-                    # check tgid of other threads #
+                        return False
                     elif tgid == tdata[item]['tgid'] or \
                         tgid == SystemManager.savedProcTree[item]:
-                        exceptFlag = False
-                        break
+                        return False
                 except:
                     pass
 
-        return exceptFlag
+        return True
+
+
+
+    @staticmethod
+    def getTraceItem(string):
+        if SystemManager.tgidEnable:
+            # record-tgid option #
+            m = re.match((\
+                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
+                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+' \
+                r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+            if m is None:
+                # print-tgid option #
+                m = re.match((\
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+' \
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+
+            return m
+
+        m = re.match((\
+            r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
+            r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
+
+        return m
 
 
 
@@ -12923,9 +12969,9 @@ Copyright:
             disableStat += 'ALL '
 
         if SystemManager.groupProcEnable:
-            enableStat += 'PGROUP '
+            enableStat += 'PGRP '
         else:
-            disableStat += 'PGROUP '
+            disableStat += 'PGRP '
 
         if SystemManager.cpuEnable:
             enableStat += 'CPU '
@@ -27980,8 +28026,9 @@ class ThreadAnalyzer(object):
 
                 # print-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\(\s*(?P<tgid>\S+)\)' \
-                    r'\s+\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
@@ -27989,8 +28036,9 @@ class ThreadAnalyzer(object):
 
                 # record-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
-                    r'\s+\(\s*(?P<tgid>.+)\)\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
+                    r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+' \
+                    r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
@@ -27998,8 +28046,9 @@ class ThreadAnalyzer(object):
 
                 # no tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]' \
-                    r'\s+(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
+                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+' \
+                    r'(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
                     SystemManager.tgidEnable = False
@@ -28604,22 +28653,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.curLine += 1
 
-        if SystemManager.tgidEnable:
-            # record-tgid option #
-            m = re.match((\
-                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
-                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
-                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
-            if m is None:
-                # print-tgid option #
-                m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
-                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
-                    r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
-        else:
-            m = re.match((\
-                r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
-                r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), string)
+        m = SystemManager.getTraceItem(string)
         if m is not None:
             d = m.groupdict()
             comm = d['comm']
@@ -30749,24 +30783,7 @@ class ThreadAnalyzer(object):
                                 self.kernelEventInfo[name]['min'] = usage
         else:
             # handle modified type of event #
-            if SystemManager.tgidEnable:
-                # record-tgid option #
-                m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
-                    r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
-                    r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
-                if m is None:
-                    # print-tgid option #
-                    m = re.match((\
-                        r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\(\s*'
-                        r'(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
-                        r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
-            else:
-                m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
-                    r'\[(?P<core>[0-9]+)\]\s+'
-                    r'(?P<time>\S+):\s+(?P<func>.+):(?P<etc>.+)'), string)
-
+            m = SystemManager.getTraceItem(string)
             if m is not None:
                 d = m.groupdict()
                 comm = d['comm']
