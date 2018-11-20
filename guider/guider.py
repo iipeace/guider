@@ -9816,13 +9816,23 @@ class SystemManager(object):
 
     @staticmethod
     def word2bstring(word):
-        return struct.pack('L', word)
+        try:
+            return struct.pack('L', word)
+        except:
+            SystemManager.printError(\
+                "Fail to convert word %s to string" % word)
+            return None
 
 
 
     @staticmethod
     def bstring2word(bstring):
-        return struct.unpack('L', bstring)[0]
+        try:
+            return struct.unpack('L', bstring)[0]
+        except:
+            SystemManager.printError(\
+                "Fail to convert string %s to word" % bstring)
+            return None
 
 
 
@@ -20628,9 +20638,17 @@ class Debugger(object):
 
         # read words from target address space #
         while size > 0:
+            # read a word #
             word = self.accessMem(self.peekIdx, addr)
+            if word < 0:
+                SystemManager.printError(\
+                    "Fail to read memory %x of thread %s" % (addr, self.pid))
+                return
 
+            # convert a word to a byte string #
             word = SystemManager.word2bstring(word)
+            if word is None:
+                return
 
             if size < wordSize:
                 data += word[:size]
@@ -20664,14 +20682,19 @@ class Debugger(object):
                 # toDo: handle socket call args #
                 return value
         elif syscall == "write" and argname == "buf":
-            # check std fds #
+            # check std fds for dereferencing the pointer #
             fd = self.values[0]
             if fd < 3:
                 if self.values[2] > self.pbufsize:
                     length = self.pbufsize
                 else:
                     length = self.values[2]
-                return self.readMem(value, length)
+
+                # read string from address #
+                ret = self.readMem(value, length)
+                if ret != None:
+                    value = ret
+
             return value
         elif argname == "signum":
             # toDo: handle signal number #
@@ -20744,10 +20767,7 @@ class Debugger(object):
                     argtype, argname = format
 
                     # convert argument value #
-                    try:
-                        value = self.convertValue(argtype, argname, value)
-                    except:
-                        pass
+                    value = self.convertValue(argtype, argname, value)
 
                     # add argument #
                     self.addArg(argtype, argname, value)
@@ -20758,7 +20778,10 @@ class Debugger(object):
                 if arg[0].endswith('*'):
                     # convert pointer to values #
                     if type(arg[2]) is bytes:
-                        text = repr(arg[2].decode())
+                        try:
+                            text = repr(arg[2].decode())
+                        except:
+                            text = arg[2]
 
                         # check output length #
                         if len(text) > pbufsize:
@@ -20890,10 +20913,16 @@ class Debugger(object):
             except:
                 err = sys.exc_info()[1]
                 ereason = ' '.join(list(map(str, err.args)))
-                if ereason != '0':
-                    SystemManager.printError(\
-                        'Terminated tracing thread %s because %s' % \
-                        (pid, ereason))
+
+                # check error reason #
+                if ereason != '0' and len(ereason) > 0:
+                    ereason = 'because %s' % ereason
+                else:
+                    ereason = ''
+
+                SystemManager.printError(\
+                    "Terminated tracing thread %s %s" % \
+                    (pid, ereason))
                 break
 
 
