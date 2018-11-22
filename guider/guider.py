@@ -20783,7 +20783,7 @@ class Debugger(object):
 
 
 
-    def processSyscall(self):
+    def handleSyscall(self):
         sysreg = self.sysreg
         retreg = self.retreg
         status = self.status
@@ -20848,7 +20848,7 @@ class Debugger(object):
 
             SystemManager.pipePrint('%s(%s) ' % (name, argText), False)
         # exit #
-        else:
+        elif status == 'exit':
             # set next status #
             self.status = 'enter'
 
@@ -20869,6 +20869,9 @@ class Debugger(object):
             SystemManager.pipePrint('= %s %s' % (retval, err))
 
             self.clearArgs()
+        else:
+            SystemManager.printError(\
+                'Fail to recognize syscall status')
 
 
 
@@ -20879,6 +20882,7 @@ class Debugger(object):
         plist = ConfigManager.PTRACE_TYPE
         sigTrapIdx = ConfigManager.SIG_LIST.index('SIGTRAP')
         sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
+        sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
 
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
@@ -20916,45 +20920,70 @@ class Debugger(object):
         # enter trace loop #
         while 1:
             # setup trap #
-            ret = self.ptrace(cmd, 0, 0)
+            if self.status == 'stop':
+                self.status = 'enter'
+            else:
+                ret = self.ptrace(cmd, 0, 0)
 
             try:
                 # wait process #
                 ret = os.waitpid(int(pid), 0)
 
                 # get status of process #
-                stat = Debugger.processStatus(ret[1])
+                stat = Debugger.getStatus(ret[1])
 
                 # check status of process #
                 if type(stat) is not int:
                     raise Exception()
 
-                # get register set #
-                regs = self.getRegs()
-                if regs is None:
-                    SystemManager.printError(\
-                        "Fail to trace syscall of thread %d" % pid)
-                    return
-
                 # inst #
                 if stat == sigTrapIdx:
-                    pass
+                    previous = self.status
+                    self.status = 'inst'
+
+                    # toDo: insert instruction tracing code #
+
+                    self.status = previous
                 # syscall #
                 elif stat == sigTrapIdx | 0x80:
                     # filter syscall #
-                    if mode == 'syscall' and len(SystemManager.syscallList) > 0:
-                        if self.getNrSyscall() not in SystemManager.syscallList:
-                            continue
+                    if mode != 'syscall':
+                        continue
 
-                    # process syscall #
-                    self.processSyscall()
+                    # get register set #
+                    if self.getRegs() is None:
+                        SystemManager.printError(\
+                            "Fail to get register values of thread %d" % pid)
+                        return
+
+                    if len(SystemManager.syscallList) > 0 and \
+                        self.getNrSyscall() not in SystemManager.syscallList:
+                        continue
+
+                    # interprete syscall context #
+                    self.handleSyscall()
                 # stop signal #
                 elif stat == sigStopIdx:
-                    pass
-                # signal #
-                else:
+                    self.status = 'stop'
                     SystemManager.printWarning(\
                         'Blocked thread %s because of %s' % \
+                        (pid, ConfigManager.SIG_LIST[stat]), True)
+                    continue
+                # kill signal #
+                elif stat == sigKillIdx:
+                    SystemManager.printError(\
+                        'Terminated thread %s because of %s' % \
+                        (pid, ConfigManager.SIG_LIST[stat]))
+                    sys.exit(0)
+                # exit #
+                elif stat == -1:
+                    SystemManager.printError(\
+                        'Terminated thread %s' % pid)
+                    sys.exit(0)
+                # other #
+                else:
+                    SystemManager.printWarning(\
+                        'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
             except SystemExit:
                 sys.exit(0)
@@ -20982,23 +21011,24 @@ class Debugger(object):
 
 
     @staticmethod
-    def processStatus(status):
+    def getStatus(status):
         ret = None
 
         # Process exited?
         if os.WIFEXITED(status):
             code = os.WEXITSTATUS(status)
-            ret = False
+            ret = -1
 
         # Process killed by a signal?
         elif os.WIFSIGNALED(status):
             signum = os.WTERMSIG(status)
-            ret = False
+            ret = signum
 
         # Invalid process status?
         elif not os.WIFSTOPPED(status):
             pass
 
+        # Process stopped by a signal?
         else:
             signum = os.WSTOPSIG(status)
             ret = signum
