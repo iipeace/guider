@@ -16990,9 +16990,35 @@ Copyright:
 
 
     @staticmethod
+    def createChildProcess():
+        return os.fork()
+
+
+
+    @staticmethod
+    def setChildFd(mute=True):
+        # close all fds wighout standard #
+        for fd in range(3, SystemManager.maxFd):
+            try:
+                os.close(fd)
+            except:
+                pass
+
+        # redirect stdout and stderr to null #
+        if mute:
+            try:
+                fd = open('/dev/null', 'wb')
+                os.dup2(fd.fileno(), 1)
+                os.dup2(1, 2)
+                fd.close()
+            except:
+                pass
+
+
+
+    @staticmethod
     def runBackgroundMode():
-        # fork process #
-        pid = os.fork()
+        pid = SystemManager.createChildProcess()
 
         if pid > 0:
             # terminate parent process #
@@ -17597,21 +17623,34 @@ Copyright:
 
         SystemManager.setNormalSignal()
 
+        # define wait syscall #
+        wait = None
+
         # check tid #
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
                 "Fail to get root permission to trace systemcall")
             sys.exit(0)
+        elif SystemManager.sourceFile is not None:
+            pid = SystemManager.createChildProcess()
+            if pid == 0:
+                source = SystemManager.sourceFile.split()
+
+                SystemManager.setChildFd()
+
+                os.execvp(source[0], source)
+            else:
+                wait = 'execve'
         elif len(SystemManager.filterGroup) == 0:
             SystemManager.printError("No tid with -g option")
             sys.exit(0)
         elif len(SystemManager.filterGroup) > 1:
             SystemManager.printError(\
-                "wrong option wigh -g, input only one tid")
+                "wrong option with -g, input only one tid")
             sys.exit(0)
         elif SystemManager.filterGroup[0].isdigit() is False:
             SystemManager.printError(\
-                "wrong option wigh -g, input tid in integer format")
+                "wrong option with -g, input tid in integer format")
             sys.exit(0)
         else:
             pid = int(SystemManager.filterGroup[0])
@@ -17620,7 +17659,7 @@ Copyright:
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        Debugger(pid=pid).trace()
+        Debugger(pid=pid).trace(wait=wait)
 
         sys.exit(0)
 
@@ -18962,7 +19001,7 @@ Copyright:
 
 
     def runPeriodProc(self):
-        pid = os.fork()
+        pid = SystemManager.createChildProcess()
 
         if pid == 0:
             signal.signal(signal.SIGINT, 0)
@@ -20798,6 +20837,10 @@ class Debugger(object):
             # set next status #
             self.status = 'exit'
 
+            # check wait condition #
+            if self.wait is not None:
+                return
+
             # get argument values from register #
             regstr = self.readArgValues()
 
@@ -20860,6 +20903,14 @@ class Debugger(object):
             if retval & 0x8000000000000000:
                 retval = retval - 0x10000000000000000
 
+            # check wait condition #
+            if self.wait is not None:
+                if self.wait == name and \
+                    retval == 0:
+                    # unset wait condition #
+                    self.wait = None
+                return
+
             # convert error code #
             if retval < 0:
                 err = '(%s)' % ConfigManager.ERR_TYPE[abs(retval+1)]
@@ -20875,7 +20926,7 @@ class Debugger(object):
 
 
 
-    def trace(self, mode='syscall'):
+    def trace(self, mode='syscall', wait=None):
         pid = self.pid
         regs = None
         arch = SystemManager.getArch()
@@ -20884,6 +20935,7 @@ class Debugger(object):
         sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
         sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
 
+        self.wait = wait
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.pbufsize = SystemManager.ttyCols >> 1
