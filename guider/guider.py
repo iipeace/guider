@@ -2442,6 +2442,18 @@ class ConfigManager(object):
         'PTRACE_SYSCALL',        #24#
         ]
 
+    # Define ptrace event type #
+    PTRACE_EVENT_TYPE = [
+        'PTRACE_EVENT_NONE',
+        'PTRACE_EVENT_FORK',
+        'PTRACE_EVENT_VFORK',
+        'PTRACE_EVENT_CLONE',
+        'PTRACE_EVENT_EXEC',
+        'PTRACE_EVENT_VFORK_DONE',
+        'PTRACE_EVENT_EXIT',
+        'PTRACE_EVENT_SECCOMP',
+        ] + [ 'NONE' for idx in xrange(0, 120, 1)] + ['PTRACE_EVENT_STOP']
+
     # Define perf event types #
     PERF_EVENT_TYPE = [
         'PERF_TYPE_HARDWARE',
@@ -16990,8 +17002,10 @@ Copyright:
 
 
     @staticmethod
-    def createChildProcess():
-        return os.fork()
+    def createProcess():
+        pid = os.fork()
+        SystemManager.pid = os.getpid()
+        return pid
 
 
 
@@ -17018,14 +17032,13 @@ Copyright:
 
     @staticmethod
     def runBackgroundMode():
-        pid = SystemManager.createChildProcess()
+        pid = SystemManager.createProcess()
 
         if pid > 0:
             # terminate parent process #
             sys.exit(0)
         else:
             # continue child process #
-            SystemManager.pid = os.getpid()
             SystemManager.printStatus(\
                 "background running as process %s" % SystemManager.pid)
 
@@ -17625,6 +17638,7 @@ Copyright:
 
         # define wait syscall #
         wait = None
+        execCmd = None
 
         # check tid #
         if SystemManager.isRoot() is False:
@@ -17632,15 +17646,8 @@ Copyright:
                 "Fail to get root permission to trace systemcall")
             sys.exit(0)
         elif SystemManager.sourceFile is not None:
-            pid = SystemManager.createChildProcess()
-            if pid == 0:
-                source = SystemManager.sourceFile.split()
-
-                SystemManager.setChildFd()
-
-                os.execvp(source[0], source)
-            else:
-                wait = 'execve'
+            pid = None
+            execCmd = SystemManager.sourceFile.split()
         elif len(SystemManager.filterGroup) == 0:
             SystemManager.printError("No tid with -g option")
             sys.exit(0)
@@ -17659,7 +17666,8 @@ Copyright:
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        Debugger(pid=pid).trace(wait=wait)
+        # start tracing #
+        Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
 
         sys.exit(0)
 
@@ -19001,7 +19009,7 @@ Copyright:
 
 
     def runPeriodProc(self):
-        pid = SystemManager.createChildProcess()
+        pid = SystemManager.createProcess()
 
         if pid == 0:
             signal.signal(signal.SIGINT, 0)
@@ -20359,7 +20367,7 @@ Copyright:
 class Debugger(object):
     """ Debugger for ptrace """
 
-    def __init__(self, pid=None, path=None):
+    def __init__(self, pid=None, execCmd=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
         self.syscall = ''
@@ -20497,8 +20505,8 @@ class Debugger(object):
             self.attach()
             self.isRunning = True
         # execute #
-        elif path is not None:
-            self.execute(path)
+        elif execCmd is not None:
+            self.execute(execCmd)
             self.isRunning = False
         # ready #
         else:
@@ -20560,8 +20568,22 @@ class Debugger(object):
 
 
 
-    def execute(self, path=None):
-        pass
+    def execute(self, execCmd):
+        pid = SystemManager.createProcess()
+        if pid == 0:
+            self.pid = SystemManager.pid
+
+            # set tracee flag #
+            cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_TRACEME')
+            self.ptrace(cmd, 0, 0)
+
+            # close most fds #
+            SystemManager.setChildFd()
+
+            # execute command #
+            os.execvp(execCmd[0], execCmd)
+        else:
+            self.pid = pid
 
 
 
@@ -20934,6 +20956,8 @@ class Debugger(object):
         sigTrapIdx = ConfigManager.SIG_LIST.index('SIGTRAP')
         sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
         sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
+        sigTrapFlag = sigTrapIdx | \
+            ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
         self.wait = wait
         self.sysreg = ConfigManager.REG_LIST[arch]
@@ -20955,9 +20979,12 @@ class Debugger(object):
                     (pid, ereason))
             sys.exit(0)
 
-        # set PTRACE_O_TRACESYSGOOD #
-        cmd = PTRACE_SETOPTIONS = 0x4200
-        ret = self.ptrace(cmd, 0, 1)
+        # set trap event type #
+        if self.isRunning:
+            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+        else:
+            self.ptraceEvent('PTRACE_O_TRACEEXEC')
+            self.status = 'ready'
 
         # select trap command #
         if mode == 'syscall':
@@ -20974,6 +21001,8 @@ class Debugger(object):
             # setup trap #
             if self.status == 'stop':
                 self.status = 'enter'
+            elif self.status == 'ready':
+                pass
             else:
                 ret = self.ptrace(cmd, 0, 0)
 
@@ -20988,14 +21017,22 @@ class Debugger(object):
                 if type(stat) is not int:
                     raise Exception()
 
-                # inst #
+                # trap #
                 if stat == sigTrapIdx:
-                    previous = self.status
-                    self.status = 'inst'
+                    # after execve() #
+                    if mode == 'syscall' and self.status == 'ready':
+                        self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+                        ret = self.ptrace(cmd, 0, 0)
+                        self.status = 'enter'
+                        continue
+                    # inst #
+                    else:
+                        previous = self.status
+                        self.status = 'inst'
 
-                    # toDo: insert instruction tracing code #
+                        # toDo: insert instruction tracing code #
 
-                    self.status = previous
+                        self.status = previous
                 # syscall #
                 elif stat == sigTrapIdx | 0x80:
                     # filter syscall #
@@ -21066,31 +21103,28 @@ class Debugger(object):
     def getStatus(status):
         ret = None
 
-        # Process exited?
+        # Process exited #
         if os.WIFEXITED(status):
             code = os.WEXITSTATUS(status)
             ret = -1
 
-        # Process killed by a signal?
+        # Process killed by a signal #
         elif os.WIFSIGNALED(status):
             signum = os.WTERMSIG(status)
             ret = signum
 
-        # Invalid process status?
+        # Invalid process status #
         elif not os.WIFSTOPPED(status):
             pass
 
-        # Process stopped by a signal?
+        # Ptrace Event #
+        elif status >> 8 == 0:
+            print(status >> 16)
+
+        # Process stopped by a signal #
         else:
             signum = os.WSTOPSIG(status)
             ret = signum
-
-        '''
-        # Ptrace event?
-        elif HAS_PTRACE_EVENTS and WPTRACEEVENT(status):
-            event = WPTRACEEVENT(status)
-            event = self.ptraceEvent(event)
-        '''
 
         return ret
 
@@ -21116,6 +21150,36 @@ class Debugger(object):
             return None
         else:
             return self.regs
+
+
+
+    def ptraceEvent(self, req):
+        # define architect-independant constant #
+        PTRACE_SETOPTIONS = 0x4200
+        PTRACE_GETEVENTMSG = 0x4201
+        PTRACE_GETSIGINFO = 0x4202
+        PTRACE_SETSIGINFO = 0x4203
+
+        plist = ConfigManager.PTRACE_EVENT_TYPE
+
+        if req == 'PTRACE_O_TRACESYSGOOD':
+            option = 1
+        elif req == 'PTRACE_O_TRACEFORK':
+            option = 1 << plist.index('PTRACE_EVENT_FORK')
+        elif req == 'PTRACE_O_TRACEVFORK':
+            option = 1 << plist.index('PTRACE_EVENT_VFORK')
+        elif req == 'PTRACE_O_TRACECLONE':
+            option = 1 << plist.index('PTRACE_EVENT_CLONE')
+        elif req == 'PTRACE_O_TRACEEXEC':
+            option = 1 << plist.index('PTRACE_EVENT_EXEC')
+        elif req == 'PTRACE_O_TRACEVFORKDONE':
+            option = 1 << plist.index('PTRACE_EVENT_VFORK_DONE')
+        elif req == 'PTRACE_O_TRACEEXIT':
+            option = 1 << plist.index('PTRACE_EVENT_EXIT')
+        elif req == 'PTRACE_O_TRACESECCOMP':
+            option = 1 << plist.index('PTRACE_EVENT_SECCOMP')
+
+        return self.ptrace(PTRACE_SETOPTIONS, 0, option)
 
 
 
