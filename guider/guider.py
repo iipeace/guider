@@ -9210,7 +9210,6 @@ class SystemManager(object):
     sourceFile = None
     printFile = None
     optionList = None
-    savedOptionList = None
     customCmd = None
     userCmd = None
     kernelCmd = None
@@ -14125,7 +14124,7 @@ Copyright:
         launchPosStart = SystemManager.launchBuffer.find(' -g')
         if SystemManager.isThreadMode() and launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.filterGroup = filterList.split(',')
             SystemManager.removeEmptyValue(SystemManager.filterGroup)
             SystemManager.printInfo(\
@@ -14156,7 +14155,7 @@ Copyright:
         launchPosStart = SystemManager.launchBuffer.find(' -d')
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')]
             if filterList.find('u') > -1:
                 SystemManager.userEnable = False
                 SystemManager.userRecordEnable = False
@@ -14173,7 +14172,7 @@ Copyright:
         launchPosStart = SystemManager.launchBuffer.find(' -e')
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')]
             if filterList.find('m') > -1:
                 SystemManager.memEnable = True
             if filterList.find('b') > -1:
@@ -14218,7 +14217,7 @@ Copyright:
         if launchPosStart > -1:
             SystemManager.ueventEnable = True
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.userCmd = str(filterList).split(',')
             SystemManager.removeEmptyValue(SystemManager.userCmd)
             SystemManager.printInfo("profiled user events [ %s ]" % \
@@ -14231,7 +14230,7 @@ Copyright:
         if launchPosStart > -1:
             SystemManager.keventEnable = True
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.kernelCmd = str(filterList).split(',')
             SystemManager.removeEmptyValue(SystemManager.kernelCmd)
             SystemManager.printInfo("profiled kernel events [ %s ]" % \
@@ -14243,7 +14242,7 @@ Copyright:
         launchPosStart = SystemManager.launchBuffer.find(' -A')
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
-            filterList = filterList[:filterList.find(' -')].replace(" ", "")
+            filterList = filterList[:filterList.find(' -')].strip()
 
             if SystemManager.arch != filterList:
                 SystemManager.printError((\
@@ -14738,27 +14737,32 @@ Copyright:
 
     @staticmethod
     def parseOption():
-        if SystemManager.savedOptionList is not None:
+        if SystemManager.optionList is not None:
             return
 
+        # parse options #
+        parsedOpt = []
+        previousIdx = 0
+        optList = sys.argv[1:]
+        for idx, opt in enumerate(optList):
+            if opt.startswith('-'):
+                parsedOpt.append(''.join(optList[previousIdx:idx])[1:])
+                previousIdx = idx
+        parsedOpt.append(''.join(optList[previousIdx:])[1:])
+
+        # save parsed option #
+        SystemManager.optionList = parsedOpt[1:]
+
+        # check double option #
         usedOpt = {}
-        SystemManager.savedOptionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-        for seq in xrange(0, len(SystemManager.savedOptionList)):
-            SystemManager.savedOptionList[seq] = \
-                SystemManager.savedOptionList[seq].replace(" ", "")
-            try:
-                usedOpt[SystemManager.savedOptionList[seq][0]]
-                SystemManager.printError(\
-                    "wrong -%s option because it is used more than once" %\
-                        SystemManager.savedOptionList[seq][0])
-                sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                try:
-                    usedOpt[SystemManager.savedOptionList[seq][0]] = True
-                except:
-                    pass
+        for opt in SystemManager.optionList:
+            if opt[0] not in usedOpt:
+                usedOpt[opt[0]] = True
+                continue
+
+            SystemManager.printError(\
+                "wrong -%s option because it is used more than once" % opt[0])
+            sys.exit(0)
 
 
 
@@ -14769,7 +14773,7 @@ Copyright:
 
         SystemManager.parseOption()
 
-        for item in SystemManager.savedOptionList:
+        for item in SystemManager.optionList:
             if item == '':
                 pass
             elif item[0] == option:
@@ -14786,7 +14790,7 @@ Copyright:
 
         SystemManager.parseOption()
 
-        for item in SystemManager.savedOptionList:
+        for item in SystemManager.optionList:
             if item == '':
                 pass
             elif item[0] == option and len(item[1:]) > 0:
@@ -14813,10 +14817,7 @@ Copyright:
         if len(sys.argv) <= 2:
             return
 
-        SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-        for seq in xrange(0, len(SystemManager.optionList)):
-            SystemManager.optionList[seq] = \
-                SystemManager.optionList[seq].replace(" ", "")
+        SystemManager.parseOption()
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
@@ -15401,10 +15402,7 @@ Copyright:
         if len(sys.argv) <= 2:
             return
 
-        SystemManager.optionList = ' '.join(sys.argv[1:]).split(' -')[1:]
-        for seq in xrange(0, len(SystemManager.optionList)):
-            SystemManager.optionList[seq] = \
-                SystemManager.optionList[seq].replace(" ", "")
+        SystemManager.parseOption()
 
         if SystemManager.findOption('v'):
             SystemManager.warningEnable = True
@@ -23973,16 +23971,21 @@ class ThreadAnalyzer(object):
             SystemManager.pipePrint((\
                 '\n[Thread Creation Info] [Alive: +] [Die: -] '
                 '[CreatedTime: //] [ChildCount: ||] '
-                '[CpuUsage: <>] [WaitTimeForChilds: {}] [WaitTimeOfParent: []]'))
+                '[CpuUsage: <>] [WaitTimeForChilds: {}] '
+                '[WaitTimeOfParent: []]'))
             SystemManager.pipePrint(twoLine)
 
+            cnt = 0
             for key, value in sorted(\
                 self.threadData.items(), \
                 key=lambda e: e[1]['waitChild'], reverse=True):
 
                 # print tree from root threads #
                 if value['childList'] is not None and value['new'] == ' ':
+                    cnt += 1
                     self.printCreationTree(key, 0)
+            if cnt == 0:
+                SystemManager.pipePrint('\tNone')
             SystemManager.pipePrint(oneLine)
 
         # print signal traffic #
@@ -23995,6 +23998,7 @@ class ThreadAnalyzer(object):
                 format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemManager.pipePrint(twoLine)
 
+            cnt = 0
             for val in self.sigData:
                 try:
                     signal = ConfigManager.SIG_LIST[int(val[4])]
@@ -24005,6 +24009,13 @@ class ThreadAnalyzer(object):
                 stime = val[1]
                 stid = val[2]
                 rtid = val[3]
+
+                # skip useless signal log #
+                if ((stid != None and stid[0] == '0') or \
+                    stid not in self.threadData) and \
+                    ((rtid != None and rtid[0] == '0') or \
+                    rtid not in self.threadData):
+                    continue
 
                 try:
                     scomm = self.threadData[stid]['comm']
@@ -24026,6 +24037,8 @@ class ThreadAnalyzer(object):
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
+            if cnt == 0:
+                SystemManager.pipePrint('\tNone')
             SystemManager.pipePrint(oneLine)
 
         # print interrupt information #
@@ -25123,7 +25136,7 @@ class ThreadAnalyzer(object):
             try:
                 comm = self.threadData[tid]['comm']
             except:
-                comm = '?'
+                continue
 
             moduleTable.setdefault(module, dict(init_moduleData))
 
@@ -25495,7 +25508,7 @@ class ThreadAnalyzer(object):
                 # apply syscall filter #
                 if len(SystemManager.syscallList) > 0 and \
                     int(sysId) not in SystemManager.syscallList:
-                        continue
+                    continue
 
                 # print per-thread syscall table #
                 try:
@@ -28806,7 +28819,7 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
             comm = d['comm']
             core = str(int(d['core']))
-            func = d['func']
+            func = d['func'][:-1]
             etc = d['etc']
             time = d['time']
 
@@ -35101,4 +35114,3 @@ twoLine = "=" * SystemManager.lineLength
 
 if __name__ == '__main__':
     main()
-
