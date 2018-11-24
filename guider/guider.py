@@ -10996,6 +10996,7 @@ OPTIONS:
               e:encode
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
+        -I  <COMMAND>               set command
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
         -E  <FILE>                  set error log path
@@ -11006,6 +11007,9 @@ OPTIONS:
 Examles:
     - Trace read systemcall for a specific thread
         # {0:1} strace -g 1234 -t read
+
+    - Trace write systemcall with specific command
+        # {0:1} strace -I "ls -al" -t write
                     '''.format(cmd, mode)
 
                 # mem #
