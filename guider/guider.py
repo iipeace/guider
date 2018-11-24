@@ -20778,7 +20778,23 @@ class Debugger(object):
 
 
 
-    def convertValue(self, argtype, argname, value):
+    def readCString(self, addr, chunk=256):
+        ret = b''
+        while 1:
+            string = self.readMem(addr, chunk)
+            try:
+                idx = string.index(b'\0')
+                ret += string[:idx]
+                return ret
+            except:
+                ret += string
+
+                if len(ret) > SystemManager.pageSize:
+                    return ret
+
+
+
+    def convertValue(self, argtype, argname, value, seq=0):
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
@@ -20788,7 +20804,11 @@ class Debugger(object):
             if argname in ("argv", "envp"):
                 # toDo: handle double pointer values #
                 return value
-        elif syscall == "socketcall":
+        if argtype == "const char *" and \
+            (argname.endswith("name") or argname.endswith("path")):
+            # toDo: add more argnames #
+            return self.readCString(self.values[seq])
+        if syscall == "socketcall":
             if argname == "call":
                 try:
                     return SOCKETCALL[value]
@@ -20797,7 +20817,7 @@ class Debugger(object):
             elif name == "args":
                 # toDo: handle socket call args #
                 return value
-        elif syscall == "write" and argname == "buf":
+        if syscall == "write" and argname == "buf":
             # check std fds for dereferencing the pointer #
             fd = self.values[0]
             if fd < 3:
@@ -20812,7 +20832,7 @@ class Debugger(object):
                     value = ret
 
             return value
-        elif argname == "signum":
+        if argname == "signum":
             # toDo: handle signal number #
             return value
 
@@ -20882,15 +20902,18 @@ class Debugger(object):
                 self.values = \
                     [value for value, format in zip(regstr, formats)]
 
+                seq = 0
                 for value, format in zip(regstr, formats):
                     # get type and name of a argument #
                     argtype, argname = format
 
                     # convert argument value #
-                    value = self.convertValue(argtype, argname, value)
+                    value = self.convertValue(argtype, argname, value, seq)
 
                     # add argument #
                     self.addArg(argtype, argname, value)
+
+                    seq += 1
 
             # pick values from argument list #
             args = []
