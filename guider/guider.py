@@ -17646,6 +17646,11 @@ Copyright:
         elif SystemManager.sourceFile is not None:
             pid = None
             execCmd = SystemManager.sourceFile.split()
+        elif len(SystemManager.filterGroup) == 0 and \
+            SystemManager.sourceFile is None:
+            SystemManager.printError(\
+                "No tid with -g option or command with -I")
+            sys.exit(0)
         elif len(SystemManager.filterGroup) == 0:
             SystemManager.printError("No tid with -g option")
             sys.exit(0)
