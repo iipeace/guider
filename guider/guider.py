@@ -17884,11 +17884,11 @@ Copyright:
                                 try:
                                     os.kill(tid, NR_SIGSTOP)
                                 except:
-                                    ERR_TYPE = map(str, sys.exc_info()[1].args)
+                                    err = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
                                         "Fail to send signal SIGSTOP to %s "
                                         "because %s") % \
-                                        (tid, ' '.join(list(ERR_TYPE))))
+                                        (tid, ' '.join(list(err))))
                             val['running'] = False
                     # continue #
                     else:
@@ -17897,11 +17897,11 @@ Copyright:
                                 try:
                                     os.kill(tid, NR_SIGCONT)
                                 except:
-                                    ERR_TYPE = map(str, sys.exc_info()[1].args)
+                                    err = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
                                         "Fail to send signal SIGCONT to %s "
                                         "because %s") % \
-                                        (tid, ' '.join(list(ERR_TYPE))))
+                                        (tid, ' '.join(list(err))))
                             val['running'] = True
 
                 time.sleep(SLEEP_SEC)
@@ -17913,10 +17913,10 @@ Copyright:
                     try:
                         os.kill(tid, NR_SIGCONT)
                     except:
-                        ERR_TYPE = map(str, sys.exc_info()[1].args)
+                        err = map(str, sys.exc_info()[1].args)
                         SystemManager.printError(
                             "Fail to send signal SIGCONT to %s because %s" % \
-                            (tid, ' '.join(list(ERR_TYPE))))
+                            (tid, ' '.join(list(err))))
 
 
 
@@ -18184,11 +18184,11 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                ERR_TYPE = map(str, sys.exc_info()[1].args)
+                err = map(str, sys.exc_info()[1].args)
                 SystemManager.printError((\
                     "wrong option value %s with -Y because %s, "
                     "input POLICY:PRIORITY|TIME:PID in format") % \
-                    (item, ' '.join(list(ERR_TYPE))))
+                    (item, ' '.join(list(err))))
                 sys.exit(0)
 
 
@@ -20965,7 +20965,9 @@ class Debugger(object):
 
             # convert error code #
             if retval < 0:
-                err = '(%s)' % ConfigManager.ERR_TYPE[abs(retval+1)]
+                err = '%s (%s)' % \
+                    (ConfigManager.ERR_TYPE[abs(retval+1)], \
+                    os.strerror(abs(retval)))
             else:
                 err = ''
 
