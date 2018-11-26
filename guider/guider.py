@@ -32073,41 +32073,13 @@ class ThreadAnalyzer(object):
                         self.procData[tid]['io'] = {}
                         self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
-        # init perf event #
+        # save perf fds #
         if SystemManager.perfGroupEnable:
-            if len(SystemManager.filterGroup) == 0:
-                SystemManager.printError(\
-                    "wrong option with -e + P, "
-                    "use also -g option with values to show performance stat")
-                sys.exit(0)
-
-            filterGroup = SystemManager.filterGroup
-
-            if SystemManager.groupProcEnable:
-                if SystemManager.processEnable:
-                    if self.procData[tid]['stat'][self.ppidIdx] in filterGroup:
-                        pass
-                    elif tid in filterGroup:
-                        pass
-                    else:
-                        return
-                elif self.procData[tid]['mainID'] not in filterGroup:
-                    return
-            else:
-                if tid in filterGroup:
-                    pass
-                elif True in [self.procData[tid]['stat'][self.commIdx].find(val) >= 0 \
-                    for val in filterGroup]:
-                    pass
-                else:
-                    return
-
             try:
                 self.procData[tid]['perfFds'] = \
                     self.prevProcData[tid]['perfFds']
             except:
-                self.procData[tid]['perfFds'] = \
-                    SystemManager.initProcPerfEvents(int(tid))
+                pass
 
 
 
@@ -33504,7 +33476,7 @@ class ThreadAnalyzer(object):
             # apply filter #
             exceptFlag = False
             for item in SystemManager.filterGroup:
-                exceptFlag = True
+                exceptFlag = False
                 # group mode #
                 if SystemManager.groupProcEnable:
                     # process mode #
@@ -33513,28 +33485,25 @@ class ThreadAnalyzer(object):
 
                         # check current pid #
                         if idx  == item:
-                            exceptFlag = False
                             break
                         # check current thread comm #
                         elif stat[self.commIdx].find(item) >= 0:
-                            exceptFlag = False
                             break
                         # check current's parent pid by comm #
                         elif ppid in plist:
-                            exceptFlag = False
                             break
                         # check current's parent comm #
                         elif ppid in procData and \
                             procData[ppid]['stat'][self.commIdx].find(item) >= 0:
-                            exceptFlag = False
                             break
                         # check current's parent pid #
                         elif item.isdigit() and \
                             item in procData and \
                             procData[item]['stat'][self.ppidIdx] == \
                             stat[self.ppidIdx]:
-                            exceptFlag = False
                             break
+                        else:
+                            exceptFlag = True
                     # thread mode #
                     else:
                         pid = procData[idx]['mainID']
@@ -33542,30 +33511,28 @@ class ThreadAnalyzer(object):
                         # check current process comm #
                         if pid in procData and \
                             procData[pid]['stat'][self.commIdx].find(item) >= 0:
-                            exceptFlag = False
                             break
                         # check current pid by comm #
                         elif pid in plist:
-                            exceptFlag = False
                             break
                         # check current's pid #
                         elif item.isdigit() and \
                             item in procData and \
                             procData[item]['mainID'] == value['mainID']:
-                            exceptFlag = False
                             break
                         elif idx == item or \
                             value['mainID'] == item:
-                            exceptFlag = False
                             break
+                        else:
+                            exceptFlag = True
                 # single mode #
                 else:
                     if idx == item:
-                        exceptFlag = False
                         break
                     elif stat[self.commIdx].find(item) >= 0:
-                        exceptFlag = False
                         break
+                    else:
+                        exceptFlag = True
 
             # check exception flag #
             if exceptFlag:
@@ -33790,17 +33757,20 @@ class ThreadAnalyzer(object):
                 lifeTime, etc, cl=cl, pd=pd))
 
             # print PMU stats #
-            try:
-                perfData = SystemManager.collectProcPerfData(value['perfFds'])
-                perfString = SystemManager.getPerfString(perfData)
-                if len(perfString) > 0:
-                    SystemManager.addPrint(\
-                        "{0:>40}| {1:1}\n".format(' ', perfString))
-                    needLine = True
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+            if SystemManager.perfGroupEnable:
+                try:
+                    perfData = \
+                        SystemManager.collectProcPerfData(value['perfFds'])
+                    perfString = SystemManager.getPerfString(perfData)
+                    if len(perfString) > 0:
+                        SystemManager.addPrint(\
+                            "{0:>40}| {1:1}\n".format(' ', perfString))
+                        needLine = True
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    self.procData[idx]['perfFds'] = \
+                        SystemManager.initProcPerfEvents(int(idx))
 
             # print memory details #
             for memData in memBuf:
@@ -35056,6 +35026,7 @@ def main(args=None):
         # perf #
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
+                SystemManager.processEnable = False
                 SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
