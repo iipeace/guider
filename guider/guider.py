@@ -20926,12 +20926,18 @@ class Debugger(object):
                         except:
                             text = arg[2]
 
+                        # define start index by encoding type #
+                        if type(arg[2]) is str:
+                            start = 2
+                        else:
+                            start = 1
+
                         # check output length #
                         if len(text) > pbufsize:
                             text = '"%s"...' % \
-                                text[1:pbufsize]
+                                text[start:pbufsize]
                         else:
-                            text = '"%s"' % text[1:-1]
+                            text = '"%s"' % text[start:-1]
 
                         args.append(text)
                     else:
@@ -32075,6 +32081,12 @@ class ThreadAnalyzer(object):
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
+            if len(SystemManager.filterGroup) == 0:
+                SystemManager.printError(\
+                    "wrong option with -e + P, "
+                    "use also -g option with values to show performance stat")
+                sys.exit(0)
+
             try:
                 self.procData[tid]['perfFds'] = \
                     self.prevProcData[tid]['perfFds']
