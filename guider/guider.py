@@ -14033,19 +14033,21 @@ Copyright:
                 r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+'
                 r'((?P<freeSize>\S+)\s+?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+'
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
-            if m is not None:
-                d = m.groupdict()
-                mid = '%s:%s' % (d['maj'], d['min'])
-                SystemManager.savedMountTree[mid] = dict(init_mountData)
-                SystemManager.savedMountTree[mid]['dev'] = d['dev']
-                SystemManager.savedMountTree[mid]['filesystem'] = d['filesystem']
-                SystemManager.savedMountTree[mid]['mount'] = d['mount']
-                try:
-                    start, end = d['range'].split('-')
-                    SystemManager.savedMountTree[mid]['start'] = int(start)
-                    SystemManager.savedMountTree[mid]['end'] = int(end)
-                except:
-                    pass
+            if m is None:
+                continue
+
+            d = m.groupdict()
+            mid = '%s:%s' % (d['maj'], d['min'])
+            SystemManager.savedMountTree[mid] = dict(init_mountData)
+            SystemManager.savedMountTree[mid]['dev'] = d['dev']
+            SystemManager.savedMountTree[mid]['filesystem'] = d['filesystem']
+            SystemManager.savedMountTree[mid]['mount'] = d['mount']
+            try:
+                start, end = d['range'].split('-')
+                SystemManager.savedMountTree[mid]['start'] = int(start)
+                SystemManager.savedMountTree[mid]['end'] = int(end)
+            except:
+                pass
 
 
 
@@ -19691,11 +19693,13 @@ Copyright:
 
         self.printStorageInfo()
 
-        self.printProcInfo()
+        self.printCgroupInfo()
+
+        self.printProcTreeInfo()
 
 
 
-    def printProcInfo(self):
+    def printProcTreeInfo(self):
         if self.procData is not None:
             SystemManager.infoBufferPrint(self.procData)
 
@@ -20092,6 +20096,69 @@ Copyright:
             pass
 
         return storageData
+
+
+
+    def getCgroupPath(self):
+        if self.mountData is None:
+            return None
+
+        cgroupDir = None
+        for mount in self.mountData:
+            mountList = mount.split()
+            if len(mountList) > 2 and \
+                mountList[0] == 'cgroup' and \
+                mountList[2] == 'tmpfs':
+                cgroupDir = mountList[1]
+                break
+
+        return cgroupDir
+
+
+
+    def getCgroupTree(self):
+        def setSubDirs(root, dirList):
+            for dirpath, dirnames, filenames in dirList:
+                for directory in dirnames:
+                    subdir = os.path.join(dirpath, directory)
+                    root[subdir] = None
+                    setSubDirs(root, os.walk(subdir))
+
+        cgroupPath = self.getCgroupPath()
+        if cgroupPath is None:
+            return None
+
+        # get full path list #
+        dirList = dict()
+        setSubDirs(dirList, os.walk(cgroupPath))
+
+        # split a path to multiple tokens #
+        dirDict = {}
+        for item in dirList:
+            p = dirDict
+            for x in item[len(cgroupPath):].split('/')[1:]:
+                p = p.setdefault(x, {})
+
+        return dirDict
+
+
+
+    def printCgroupInfo(self):
+        def printDirTree(root, indent):
+            for curdir, subdir in sorted(root.items()):
+                SystemManager.infoBufferPrint(\
+                    '%s- %s' % (' ' * indent, curdir))
+                printDirTree(subdir, indent + len(curdir) + 2)
+
+        cgroupTree = self.getCgroupTree()
+        if cgroupTree is None:
+            return
+
+        # print cgroup info #
+        SystemManager.infoBufferPrint('\n[System Cgroup Info]')
+        SystemManager.infoBufferPrint(twoLine)
+        printDirTree(cgroupTree, 0)
+        SystemManager.infoBufferPrint(twoLine)
 
 
 
