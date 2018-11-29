@@ -10730,6 +10730,7 @@ Examples:
         # {0:1} record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
     - record default events including specific kernel function with the return value of all threads to ./guider.dat
+        # {0:1} record -s . -K openfile:getname::*string, access:0x1234:NONE:*string
         # {0:1} record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
 
     - record default events of all threads to ./guider.dat and execute user commands
