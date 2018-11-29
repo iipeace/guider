@@ -19691,9 +19691,9 @@ Copyright:
 
         self.printMemInfo()
 
-        self.printStorageInfo()
-
         self.printCgroupInfo()
+
+        self.printStorageInfo()
 
         self.printProcTreeInfo()
 
