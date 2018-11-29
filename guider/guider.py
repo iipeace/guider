@@ -20107,8 +20107,8 @@ Copyright:
         for mount in self.mountData:
             mountList = mount.split()
             if len(mountList) > 2 and \
-                mountList[0] == 'cgroup' and \
-                mountList[2] == 'tmpfs':
+                mountList[2] == 'tmpfs' and \
+                mountList[1].endswith('cgroup'):
                 cgroupDir = mountList[1]
                 break
 
