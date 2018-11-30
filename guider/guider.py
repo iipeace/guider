@@ -20145,11 +20145,27 @@ Copyright:
 
 
     def printCgroupInfo(self):
-        def printDirTree(root, indent):
+        def printDirTree(root, depth):
             for curdir, subdir in sorted(root.items()):
-                SystemManager.infoBufferPrint(\
-                    '%s- %s' % (' ' * indent, curdir))
-                printDirTree(subdir, indent + len(curdir) + 2)
+                indent = ''
+                if depth == 0:
+                    indent = '\n'
+
+                for idx in xrange(0, depth):
+                    indent = '%s%s|' % (indent, '     ')
+
+                nrChild = len(subdir)
+                if nrChild > 0:
+                    SystemManager.infoBufferPrint(\
+                        '%s- %s[%s]' % (indent, curdir, nrChild))
+                else:
+                    SystemManager.infoBufferPrint(\
+                        '%s- %s' % (indent, curdir))
+
+                printDirTree(subdir, depth + 1)
+
+            if depth == 0:
+                SystemManager.infoBufferPrint('\n')
 
         cgroupTree = self.getCgroupTree()
         if cgroupTree is None:
@@ -28062,6 +28078,7 @@ class ThreadAnalyzer(object):
             for pid, childs in root.items():
                 indent = ''
                 comm = SystemManager.procInstance[pid]['stat'][commIdx][1:-1]
+
                 if depth == 0:
                     indent = '\n'
 
@@ -28075,6 +28092,7 @@ class ThreadAnalyzer(object):
                 else:
                     SystemManager.pipePrint(\
                         '%s- %s(%s)\n' % (indent, comm, pid))
+
                 printTreeNodes(childs, depth + 1)
 
         # print process/thread tree #
