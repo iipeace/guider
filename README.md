@@ -4,8 +4,6 @@
 [![license](http://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/iipeace/guider/master/LICENSE)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Intro
-=======
 <pre><code>
                 _      _
    __ _  _   _ (_)  __| |   
@@ -14,8 +12,50 @@ Intro
   \__, | \__,_||_| \__,_| \___||_|   
    |___/   
 
-</pre></code>
+</code></pre>
 
+
+
+Table of contents
+=================
+<!--ts-->
+   * [Intro](#Intro)
+   * [Output](#Output)
+      * top
+         * process
+         * thread
+         * file
+         * stack
+         * perf
+         * memory
+         * report
+         * wss
+      * control
+         * cpulimit
+         * setsched
+         * kill
+      * record
+         * thread
+         * syscall
+         * block
+         * lock
+         * kernel event
+      * funcrecord
+         * cpu
+         * memory
+      * filerecord
+      * draw
+   * [How to use](#How-to-use)
+   * [Requirement](#Requirement)
+   * [Build & Installation](#Build-&-Installation)
+   * [Kernel Configuration](#Kernel-Configuration)
+   * [Help](#Help)
+<!--te-->
+
+
+
+Intro
+=======
 Do you struggle to improve system performance or to find root cause that makes system abnormal?   
 Guider is made to measure the amount of system resource usage and to trace system behavior.   
 You can analyze your performance issues effectively with this tool.   
@@ -27,12 +67,12 @@ Guider pursues characteristics as below.
 >4. Submit the report in detail: show as much information as possible
 
 It usually supports all platforms based on the Linux kernel as shown below.
-- Android
-- distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
-- webOS
-- ccOS
-- Tizen
-- Windows (only for drawing, reporting, networking)
+>* Android
+>* distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
+>* webOS
+>* ccOS
+>* Tizen
+>* Windows (only for drawing, reporting, networking)
 
 The features of Guider are as follows.
 ![guider_mindmap](https://user-images.githubusercontent.com/15862689/46118768-27bb8c00-c243-11e8-8fae-a23c38d5bca3.png)
@@ -45,6 +85,7 @@ Output
                [Cycle: 2G / Inst: 6G / IPC: 2.45 / CacheMiss: 77K(6%) / BranchMiss: 857K(0%) / Clock: 22G / MinFlt: 4 / MajFlt: 0]
     ==========================================================================================================================================================
       ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Diff/ User/Cache/Kern)| Swap (Diff/  I/O  )|NrPgRclm | BlkRW | NrFlt | NrBlk | NrSIRQ | NrMlk | NrDrt  |  Network   |
+      
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
     Total  |  6 %( 4 / 0 / 0 / 0 )|11074(   0/  905/50751/1146)|  0   ( 0  /  0/0  )|   0/0   |  0/0  |   0   |   0   |  1658  |   0   |   7    |   1K/11K   |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -231,6 +272,30 @@ Output
 
 >>>
            
+    # ./guider.py wsstop -g yes
+
+    [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
+               [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
+    ==========================================================================================================================================================
+      ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Diff/ User/Cache/Kern)| Swap (Diff/  I/O  )|NrPgRclm | BlkRW | NrFlt | NrBlk | NrSIRQ | NrMlk | NrDrt  |  Network   |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Total  |  5 %( 4 / 0 / 0 / 0 )| 4719(   0/  856/57152/1149)|  0   ( 0  /  0/0  )|   0/0   |  0/0  |   0   |   0   |  2410  |   0   |   2    |   1K/5K    |
+    ==========================================================================================================================================================
+        Process      (  PID/ PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  Mem(RSS/Txt/Shr/Swp)| Blk( RD / WR /NrFlt)| Yld | Prmt | FD | LifeTime|     WaitChannel     |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+                 yes (22371/ 9085/   1/R 90)|  99( 99/  0/  0)|    8(  0/  0/  0/  0)|   0(   -/   -/    0)|    0|     0| 256|  0: 5:25|       RUNNING       |
+                                 (1)[STACK] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   8K / NOPM:   0K|
+                                            |  WSS: [   8K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
+                                  (4)[FILE] | SIZE:   7M / RSS:   1M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  40K / NOPM:2048K|
+                                            |  WSS: [   1M] ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M
+                                   (3)[ETC] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   0K / NOPM:   0K|
+                                            |  WSS: [   4K] ->    4K ->    4K ->    4K ->    4K ->     0 ->     0 ->     0 ->     0 ->     0 ->    4K ->    4K
+                                  (5)[ANON] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  48K / NOPM:   0K|
+                                            |  WSS: [  48K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+           
     $ ./guider.py reptop -j . -u
     $ cat guider.report
 
@@ -265,22 +330,6 @@ Output
             "runtime": "110:43:32",
             "rss": 104
           },
-          "27977": {
-            "text": 0,
-            "pid": 27977,
-            "rank": 10,
-            "comm": "/usr/sbin/apach",
-            "runtime": "34:46:1",
-            "rss": 36
-          },
-          "31050": {
-            "text": 0,
-            "pid": 31050,
-            "rank": 8,
-            "comm": "/usr/sbin/apach",
-            "runtime": "10:21:44",
-            "rss": 38
-          },
       },
       "storage": {
         "total": {
@@ -306,20 +355,6 @@ Output
           "usage": 645251,
           "total": 938900,
           "usageper": 68
-        },
-        "/dev/sda1": {
-          "read": 0,
-          "mount": {
-            "path": "/",
-            "fs": "ext4",
-            "option": "rw,relatime,errors=remount-ro,data=ordered"
-          },
-          "favail": 26727712,
-          "free": 374921,
-          "write": 0,
-          "usage": 41335,
-          "total": 416256,
-          "usageper": 9
         },
       },
       "system": {
@@ -352,15 +387,6 @@ Output
             "user": 99,
             "total": 100
           },
-          "14594": {
-            "kernel": 0,
-            "runtime": "0:0:46",
-            "pid": 14594,
-            "rank": 12,
-            "comm": "yes",
-            "user": 100,
-            "total": 100
-          },
       },
       "swap": {
         "usage": 76,
@@ -387,24 +413,6 @@ Output
             "rank": 3,
             "comm": "yes",
             "user": 99,
-            "total": 100
-          },
-          "14593": {
-            "kernel": 0,
-            "runtime": "0:0:46",
-            "pid": 14593,
-            "rank": 10,
-            "comm": "yes",
-            "user": 99,
-            "total": 100
-          },
-          "14594": {
-            "kernel": 0,
-            "runtime": "0:0:46",
-            "pid": 14594,
-            "rank": 12,
-            "comm": "yes",
-            "user": 100,
             "total": 100
           },
       },
@@ -469,30 +477,6 @@ Output
 
 
     [Info] sent signal SIGSTOP to 10594 process
-
->>>
-           
-    # ./guider.py wsstop -g yes
-
-    [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
-               [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
-    ==========================================================================================================================================================
-      ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Diff/ User/Cache/Kern)| Swap (Diff/  I/O  )|NrPgRclm | BlkRW | NrFlt | NrBlk | NrSIRQ | NrMlk | NrDrt  |  Network   |
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-    Total  |  5 %( 4 / 0 / 0 / 0 )| 4719(   0/  856/57152/1149)|  0   ( 0  /  0/0  )|   0/0   |  0/0  |   0   |   0   |  2410  |   0   |   2    |   1K/5K    |
-    ==========================================================================================================================================================
-        Process      (  PID/ PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  Mem(RSS/Txt/Shr/Swp)| Blk( RD / WR /NrFlt)| Yld | Prmt | FD | LifeTime|     WaitChannel     |
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-                 yes (22371/ 9085/   1/R 90)|  99( 99/  0/  0)|    8(  0/  0/  0/  0)|   0(   -/   -/    0)|    0|     0| 256|  0: 5:25|       RUNNING       |
-                                 (1)[STACK] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   8K / NOPM:   0K|
-                                            |  WSS: [   8K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
-                                  (4)[FILE] | SIZE:   7M / RSS:   1M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  40K / NOPM:2048K|
-                                            |  WSS: [   1M] ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M ->    1M
-                                   (3)[ETC] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   0K / NOPM:   0K|
-                                            |  WSS: [   4K] ->    4K ->    4K ->    4K ->    4K ->     0 ->     0 ->     0 ->     0 ->     0 ->    4K ->    4K
-                                  (5)[ANON] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  48K / NOPM:   0K|
-                                            |  WSS: [  48K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
            
