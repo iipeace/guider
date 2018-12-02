@@ -61,18 +61,18 @@ Guider is made to measure the amount of system resource usage and to trace syste
 You can analyze your performance issues effectively with this tool.   
 
 Guider pursues characteristics as below.
->1. Easy to use: just run without any setting and package installation
->2. Measure correctly: count, time in from us, size in from byte
->3. Provide all features: enough functions for experiment and analysis
->4. Submit the report in detail: show as much information as possible
+1. Easy to use: just run without any setting and package installation
+2. Measure correctly: count, time in from us, size in from byte
+3. Provide all features: enough functions for experiment and analysis
+4. Submit the report in detail: show as much information as possible
 
 It usually supports all platforms based on the Linux kernel as shown below.
->* Android
->* distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
->* webOS
->* ccOS
->* Tizen
->* Windows (only for drawing, reporting, networking)
+* Android
+* distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
+* webOS
+* ccOS
+* Tizen
+* Windows (only for drawing, reporting, networking)
 
 The features of Guider are as follows.
 ![guider_mindmap](https://user-images.githubusercontent.com/15862689/46118768-27bb8c00-c243-11e8-8fae-a23c38d5bca3.png)
