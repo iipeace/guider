@@ -22549,17 +22549,26 @@ class ThreadAnalyzer(object):
             sline = line.split('|')
             slen = len(sline)
 
-            if slen == 13:
-                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
-                if m is not None:
-                    d = m.groupdict()
-                    pid = d['pid']
-                    comm = d['comm'].strip()
-                    pname = '%s(%s)' % (comm, pid)
-                    prop[pname] = {}
+            if slen != 13:
+                continue
+
+            m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
+            if m is not None:
+                d = m.groupdict()
+                pid = d['pid']
+                comm = d['comm'].strip()
+                pname = '%s(%s)' % (comm, pid)
+                prop[pname] = {}
+
+                try:
                     prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
-                elif int(pid) > 0:
+                except:
+                    pass
+            elif int(pid) > 0:
+                try:
                     prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
+                except:
+                    pass
 
         # get total size of RAM and swap #
         try:
