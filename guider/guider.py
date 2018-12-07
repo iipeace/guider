@@ -20167,8 +20167,11 @@ Copyright:
             if depth == 0:
                 SystemManager.infoBufferPrint('\n')
 
-        cgroupTree = self.getCgroupTree()
-        if cgroupTree is None:
+        try:
+            cgroupTree = self.getCgroupTree()
+            if cgroupTree is None:
+                return
+        except:
             return
 
         # print cgroup info #
