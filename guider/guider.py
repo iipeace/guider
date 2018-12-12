@@ -97,7 +97,7 @@ class ConfigManager(object):
         'Z': 'zombie',
         'T': 'traced',
         'W': 'paging'
-        }
+    }
 
     # Define socketcall attributes #
     SOCKETCALL = {
@@ -23474,21 +23474,41 @@ class ThreadAnalyzer(object):
         strPos = line.find('[RAM')
         sline = line[strPos:].split()
         try:
-            totalRAM = sline[1][:-1]
+            totalRam = sline[1][:-1]
         except:
-            totalRAM = None
+            totalRam = None
         try:
             totalSwap = sline[3][:-1]
         except:
             totalSwap = None
 
+        # set graph argument list #
+        graphStats = {
+            'cpuUsage': cpuUsage,
+            'cpuProcUsage': cpuProcUsage,
+            'blkWait': blkWait,
+            'blkProcUsage': blkProcUsage,
+            'blkRead': blkRead,
+            'blkWrite': blkWrite,
+            'netRead': netRead,
+            'netWrite': netWrite,
+            'memFree': memFree,
+            'memAnon': memAnon,
+            'memCache': memCache,
+            'memProcUsage': memProcUsage,
+            'gpuUsage': gpuUsage,
+            'totalRam': totalRam,
+            'swapUsage': swapUsage,
+            'totalSwap': totalSwap,
+            'reclaimBg': reclaimBg,
+            'reclaimDr': reclaimDr,
+            'storageUsage': storageUsage,
+            'nrCore': nrCore,
+        }
+
         # draw and save graph #
         try:
-            self.drawGraph(timeline, labelList, cpuUsage, cpuProcUsage,\
-                blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-                memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
-                swapUsage, totalSwap, reclaimBg, reclaimDr, storageUsage,\
-                nrCore, eventList, logFile)
+            self.drawGraph(timeline, graphStats, eventList, logFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -23692,11 +23712,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawGraph(self, timeline, labelList, cpuUsage, cpuProcUsage,\
-        blkWait, blkProcUsage, blkRead, blkWrite, netRead, netWrite,\
-        memFree, memAnon, memCache, memProcUsage, gpuUsage, totalRAM,\
-        swapUsage, totalSwap, reclaimBg, reclaimDr, storageUsage,\
-        nrCore, eventList, logFile):
+    def drawGraph(self, timeline, graphStats, eventList, logFile):
 
         #==================== define part ====================#
 
@@ -23759,8 +23775,14 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        def drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
-            blkWait, blkProcUsage, gpuUsage, xtype, pos, size):
+        def drawCpu(timeline, graphStats, xtype, pos, size):
+            # pick stats #
+            labelList = []
+            cpuUsage = graphStats['cpuUsage']
+            cpuProcUsage = graphStats['cpuProcUsage']
+            blkWait = graphStats['blkWait']
+            blkProcUsage = graphStats['blkProcUsage']
+            gpuUsage = graphStats['gpuUsage']
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -23975,9 +23997,19 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
-            reclaimBg, reclaimDr, storageUsage, xtype, pos, size):
+        def drawIo(timeline, graphStats, xtype, pos, size):
+            # pick stats #
+            labelList = []
+            blkRead = graphStats['blkRead']
+            blkWrite = graphStats['blkWrite']
+            blkProcUsage = graphStats['blkProcUsage']
+            netRead = graphStats['netRead']
+            netWrite = graphStats['netWrite']
+            reclaimBg = graphStats['reclaimBg']
+            reclaimDr = graphStats['reclaimDr']
+            storageUsage = graphStats['storageUsage']
 
+            # set convert size #
             convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
@@ -24345,9 +24377,18 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawMem(timeline, labelList, memFree, memAnon, memCache, \
-            memProcUsage, totalRAM, swapUsage, totalSwap, xtype, pos, size):
+        def drawMem(timeline, graphStats, xtype, pos, size):
+            # pick stats #
+            labelList = []
+            memFree = graphStats['memFree']
+            memAnon = graphStats['memAnon']
+            memCache = graphStats['memCache']
+            memProcUsage = graphStats['memProcUsage']
+            totalRam = graphStats['totalRam']
+            swapUsage = graphStats['swapUsage']
+            totalSwap = graphStats['totalSwap']
 
+            # set convert size #
             convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
@@ -24380,9 +24421,9 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', \
                     linewidth=1, solid_capstyle='round')
-                if totalRAM is not None:
+                if totalRam is not None:
                     label = 'RAM Total [%s]\nRAM Free' % \
-                        convertSize2Unit(long(totalRAM) << 20)
+                        convertSize2Unit(long(totalRam) << 20)
                     labelList.append(label)
                 else:
                     labelList.append('RAM Free')
@@ -24725,17 +24766,14 @@ class ThreadAnalyzer(object):
         effectProcList = [0] * len(timeline)
 
         if SystemManager.layout is None:
-            drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
-                blkWait, blkProcUsage, gpuUsage, 3, 0, 4)
+            drawCpu(timeline, graphStats, 3, 0, 4)
 
             # draw events on graphs #
             drawEvent(timeline, eventList)
 
-            drawIo(timeline, labelList, blkRead, blkWrite, netRead, netWrite,\
-                reclaimBg, reclaimDr, storageUsage, 2, 4, 1)
+            drawIo(timeline, graphStats, 2, 4, 1)
 
-            drawMem(timeline, labelList, memFree, memAnon, memCache, \
-                memProcUsage, totalRAM, swapUsage, totalSwap, 1, 5, 1)
+            drawMem(timeline, graphStats, 1, 5, 1)
         else:
             pos = 0
             total = 0
@@ -24791,16 +24829,11 @@ class ThreadAnalyzer(object):
                     targetc = target.upper()
 
                     if targetc == 'CPU' or targetc.startswith('C'):
-                        drawCpu(timeline, labelList, cpuUsage, cpuProcUsage,\
-                            blkWait, blkProcUsage, gpuUsage, xtype, pos, size)
+                        drawCpu(timeline, graphStats, xtype, pos, size)
                     elif targetc == 'MEM' or targetc.startswith('M'):
-                        drawMem(timeline, labelList, memFree, memAnon, \
-                            memCache, memProcUsage, totalRAM, swapUsage, \
-                            totalSwap, xtype, pos, size)
+                        drawMem(timeline, graphStats, xtype, pos, size)
                     elif targetc == 'IO' or targetc.startswith('I'):
-                        drawIo(timeline, labelList, blkRead, blkWrite, \
-                            netRead, netWrite, reclaimBg, reclaimDr, \
-                            storageUsage, xtype, pos, size)
+                        drawIo(timeline, graphStats, xtype, pos, size)
                     else:
                         SystemManager.printError(\
                             "Fail to draw graph "
