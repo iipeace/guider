@@ -3204,7 +3204,8 @@ class PageAnalyzer(object):
             sys.exit(0)
         elif vaddr is None:
             PageAnalyzer.printMemoryArea(pid)
-            SystemManager.printError("Fail to recognize address, use -I option")
+            SystemManager.printError(\
+                "Fail to recognize address, use -I option")
             sys.exit(0)
 
         vrange = vaddr.split('-')
@@ -10490,7 +10491,7 @@ OPTIONS:
                     helpStr += '''
 Examples:
     - record default function events of all threads to ./guider.dat
-        # {0:1} funcrecord -s .
+        # {0:1} {1:1} -s .
 
     - report function analysis result of all threads to ./guider.out
         # {0:1} guider.dat -o .
@@ -10505,28 +10506,28 @@ Examples:
         # {0:1} guider.dat -o . -R 3
 
     - record default function events of specific threads having TID bigger than 1024 to ./guider.dat in the background
-        # {0:1} funcrecord -s . -g 1024\< -u
+        # {0:1} {1:1} -s . -g 1024\< -u
 
     - record specific function events including memory, block, heap of all threads to ./guider.dat
-        # {0:1} funcrecord -s . -e m, b, h
+        # {0:1} {1:1} -s . -e m, b, h
 
     - record specific function events including all systemcalls of all threads to ./guider.dat
-        # {0:1} funcrecord -s . -t
+        # {0:1} {1:1} -s . -t
 
     - record specific function events including softirq_entry event of all threads to ./guider.dat
-        # {0:1} funcrecord -s . -c softirq_entry:vec==1
+        # {0:1} {1:1} -s . -c softirq_entry:vec==1
 
     - record specific function events including segmentation fault of all threads to ./guider.dat in real-time
-        # {0:1} funcrecord -s . -K segflt:bad_area -e p
+        # {0:1} {1:1} -s . -K segflt:bad_area -e p
 
     - record specific function events including blocking of all threads to ./guider.dat
-        # {0:1} funcrecord -s . -K block:schedule
+        # {0:1} {1:1} -s . -K block:schedule
 
     - record default function events of all threads to ./guider.dat and execute user commands
-        # {0:1} funcrecord -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+        # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - record all kernel function calls of all threads to ./guider.dat
-        # {0:1} funcrecord -s . -e g
+        # {0:1} {1:1} -s . -e g
                     '''.format(cmd, mode)
 
                 # file record #
@@ -10561,10 +10562,10 @@ OPTIONS:
                     helpStr += '''
 Examples:
     - report all analysis results of files mapped to all processes to ./guider.out
-        # {0:1} filerecord -o . -a
+        # {0:1} {1:1} -o . -a
 
     - report analysis result on each intervals of files mapped to all processes to ./guider.out
-        # {0:1} filerecord -o . -i
+        # {0:1} {1:1} -o . -i
                     '''.format(cmd, mode)
 
                 # syscall record #
@@ -10600,7 +10601,7 @@ OPTIONS:
                     helpStr += '''
 Examples:
     - record all syscall events of all threads to ./guider.dat
-        # {0:1} syscrecord -s .
+        # {0:1} {1:1} -s .
 
     - report analysis result of specific syscalls to ./guider.out
         # {0:1} guider.dat -o . -t read, write
@@ -10635,7 +10636,7 @@ OPTIONS:
                     helpStr += '''
 Examples:
     - report analysis results of system to ./guider.out
-        # {0:1} sysrecord -o .
+        # {0:1} {1:1} -o .
                     '''.format(cmd, mode)
 
                 # thread record #
@@ -10697,7 +10698,7 @@ OPTIONS:
                     helpStr += '''
 Examples:
     - record default events of all threads to ./guider.dat
-        # {0:1} record -s .
+        # {0:1} {1:1} -s .
 
     - report analysis result of all threads to ./guider.out
         # {0:1} guider.dat -o .
@@ -10712,29 +10713,29 @@ Examples:
         # {0:1} guider.dat -o . -R 3
 
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
-        # {0:1} record -s . -e m, b, i -u
+        # {0:1} {1:1} -s . -e m, b, i -u
 
     - record default events including specific systemcalls of all threads to ./guider.dat
-        # {0:1} record -s . -t sys_read, write
+        # {0:1} {1:1} -s . -t sys_read, write
 
     - record default events including lock of all threads to ./guider.dat
-        # {0:1} record -s . -e L
+        # {0:1} {1:1} -s . -e L
 
     - record default events including specific user function of all threads to ./guider.dat
-        # {0:1} record -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
+        # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
 
     - record default events including specific kernel function of all threads to ./guider.dat
-        # {0:1} record -s . -K evt1:func1, evt2:0x1234
+        # {0:1} {1:1} -s . -K evt1:func1, evt2:0x1234
 
     - record default events including specific kernel function with register values of all threads to ./guider.dat
-        # {0:1} record -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
+        # {0:1} {1:1} -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
     - record default events including specific kernel function with the return value of all threads to ./guider.dat
-        # {0:1} record -s . -K openfile:getname::*string, access:0x1234:NONE:*string
-        # {0:1} record -s . -K openfile:getname::**string, access:0x1234:NONE:*string
+        # {0:1} {1:1} -s . -K openfile:getname::*string, access:0x1234:NONE:*string
+        # {0:1} {1:1} -s . -K openfile:getname::**string, access:0x1234:NONE:*string
 
     - record default events of all threads to ./guider.dat and execute user commands
-        # {0:1} record -s . -w BEFORE:/tmp/started:1, BEFORE:ls
+        # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
     - report all analysis results including specific threads's preemption of all threads to ./guider.out
         # {0:1} guider.dat -o . -p 1234, 4567 -a
@@ -11005,12 +11006,12 @@ OPTIONS:
                     '''
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Trace read systemcall for a specific thread
-        # {0:1} strace -g 1234 -t read
+        # {0:1} {1:1} -g 1234 -t read
 
     - Trace write systemcall with specific command
-        # {0:1} strace -I "ls -al" -t write
+        # {0:1} {1:1} -I "ls -al" -t write
                     '''.format(cmd, mode)
 
                 # mem #
@@ -11038,9 +11039,9 @@ OPTIONS:
                     '''
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Analyze page attributes in specific area for a specific process
-        # {0:1} mem -g 1234 -I 0x0-0x4000
+        # {0:1} {1:1} -g 1234 -I 0x0-0x4000
                     '''.format(cmd, mode)
 
                 # cpu draw #
@@ -11056,9 +11057,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of cpu usage and memory chart
-        # {0:1} cpudraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # memory draw #
@@ -11074,9 +11075,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of memory usage and memory chart
-        # {0:1} memdraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # vss draw #
@@ -11092,9 +11093,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of memory(VSS) usage and memory chart
-        # {0:1} vssdraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # rss draw #
@@ -11110,9 +11111,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of memory(RSS) usage and memory chart
-        # {0:1} rssdraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # leak draw #
@@ -11128,9 +11129,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of memory(VSS) usage of suspected processes of memory leak and memory chart
-        # {0:1} leakdraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # I/O draw #
@@ -11146,9 +11147,9 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of I/O usage and memory chart
-        # {0:1} iodraw guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # draw #
@@ -11164,12 +11165,12 @@ Description:
                     helpStr += drawSubStr
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Draw graphs of system resource usage
-        # {0:1} draw guider.out
+        # {0:1} {1:1} guider.out
 
     - Draw graphs of system resource usage including only cpu and I/O and memory chart
-        # {0:1} draw guider.out -L cpu, io
+        # {0:1} {1:1} guider.out -L cpu, io
                     '''.format(cmd, mode)
 
                 # kill / send #
@@ -11187,13 +11188,35 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Send the notification signal to all running guider processes
-        # {0:1} kill
+        # {0:1} {1:1} 
 
     - Send SIGSTOP signal to a specific process
-        # {0:1} kill -sigstop 1234
+        # {0:1} {1:1} -sigstop 1234
                     '''.format(cmd, mode)
+
+                # pause #
+                elif SystemManager.isPauseMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+
+Description:
+    Pause specific running threads
+
+OPTIONS:
+        -g  <TID>                   set filter
+        -u                          run in the background
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Pause specific running threads
+        # {0:1} {1:1} -g 1234
+                    '''.format(cmd, mode)
+
 
                 # cpulimit #
                 elif SystemManager.isCpuLimitMode():
@@ -11212,9 +11235,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Limit cpu usage of specific threads
-        # {0:1} cpulimit -g 1234:10, 1235:20
+        # {0:1} {1:1} -g 1234:10, 1235:20
                     '''.format(cmd, mode)
 
                 # convert #
@@ -11232,9 +11255,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Convert a text file to a image file
-        # {0:1} convert guider.out
+        # {0:1} {1:1} guider.out
                     '''.format(cmd, mode)
 
                 # setsched #
@@ -11261,15 +11284,15 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Set cpu scheduler policy(CFS), priority(-20) for a specific thread
-        # {0:1} setsched c:-20:1234
+        # {0:1} {1:1} c:-20:1234
 
     - Set cpu scheduler policy(FIFO), priority(90) for a specific thread
-        # {0:1} setsched f:90:1234
+        # {0:1} {1:1} f:90:1234
 
     - Set cpu scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
-        # {0:1} setsched d:1000/10000/10000:1234
+        # {0:1} {1:1} d:1000/10000/10000:1234
                     '''.format(cmd, mode)
 
                 # getaffinity #
@@ -11287,9 +11310,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Get cpu affinity of a specific thread
-        # {0:1} getaffinity 1234
+        # {0:1} {1:1} 1234
                     '''.format(cmd, mode)
 
                 # setaffinity #
@@ -11308,9 +11331,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Set cpu affinity of a specific thread to use only cpu 1 and cpu 2
-        # {0:1} setaffinity 3:1234
+        # {0:1} {1:1} 3:1234
                     '''.format(cmd, mode)
 
                 # alloctest #
@@ -11328,9 +11351,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Allocate physical memory 1G
-        # {0:1} alloctest 1G
+        # {0:1} {1:1} 1G
                     '''.format(cmd, mode)
 
                 # list #
@@ -11376,9 +11399,9 @@ OPTIONS:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-Examles:
+Examples:
     - Send scene1 event to running guider processes
-        # {0:1} event scene1
+        # {0:1} {1:1} scene1
                     '''.format(cmd, mode)
 
                 # server #
@@ -11447,6 +11470,7 @@ COMMAND:
                 iodraw      <I/O>
 
     [control]   kill        <signal>
+                pause       <thread>
                 cpulimit    <cpu>
                 setsched    <priority>
                 getaffinity <affinity>
@@ -16208,6 +16232,15 @@ Copyright:
             SystemManager.sendSignalArgs(argList)
             sys.exit(0)
 
+        # PAUSE MODE #
+        if SystemManager.isPauseMode():
+            # parse options #
+            SystemManager.parseAnalOption()
+
+            Debugger.pauseThreads(SystemManager.filterGroup)
+
+            sys.exit(0)
+
         # PAGE MODE #
         if SystemManager.isMemMode():
             # parse options #
@@ -16363,6 +16396,15 @@ Copyright:
             return True
         else:
             SystemManager.drawMode = orig
+            return False
+
+
+
+    @staticmethod
+    def isPauseMode():
+        if sys.argv[1] == 'pause':
+            return True
+        else:
             return False
 
 
@@ -17172,7 +17214,8 @@ Copyright:
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
                     (targetPath, \
-                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)), \
+                    SystemManager.convertSize2Unit(\
+                        os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), origPath))
             except:
                 err = sys.exc_info()[1]
@@ -20624,7 +20667,7 @@ class Debugger(object):
 
 
     def __del__(self):
-        pass
+        self.detach()
 
 
 
@@ -20713,7 +20756,7 @@ class Debugger(object):
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret <= 0:
-            SystemManager.printError('Fail to detach thread %s' % pid)
+            SystemManager.printWarning('Fail to detach thread %s' % pid)
             return -1
         else:
             return 0
@@ -21221,6 +21264,43 @@ class Debugger(object):
                     "Terminated tracing thread %s %s" % \
                     (pid, ereason))
                 break
+
+
+
+    @staticmethod
+    def pauseThreads(tlist):
+        # check root permission #
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                'Fail to get root permission to pause threads')
+            return
+
+        # check thread list #
+        if len(tlist) == 0:
+            SystemManager.printError(\
+                "Fail to recognize tids, use -g option")
+            return
+
+        dlist = []
+        lastTid = 0
+        try:
+            for tid in tlist:
+                lastTid = tid
+                dlist.append(Debugger(int(tid)))
+
+                SystemManager.printInfo("paused thread %s" % tid)
+
+            signal.pause()
+        except SystemExit:
+            return
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                'Fail to pause thread %s because %s' % \
+                (lastTid, ' '.join(list(map(str, err.args)))))
+        finally:
+            for item in dlist:
+                del item
 
 
 
