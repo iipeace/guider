@@ -21875,6 +21875,7 @@ class ElfAnalyzer(object):
 
         # define attributes #
         self.path = path
+        self.attr = {}
 
         try:
             fd = self.fd = open(path, 'rb')
@@ -21967,13 +21968,32 @@ class ElfAnalyzer(object):
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
                 struct.unpack('QQIHHHHHH', fd.read(32))
 
+        # save header info #
+        self.attr['elfHeader'] = dict()
+        self.attr['elfHeader']['magic'] = \
+            ("%02x %02x %02x %02x %02x %02x %02x %02x" %
+            (ei_mag0, ei_mag1, ei_mag2, ei_mag3, ei_class, ei_data,\
+            ei_version, ei_pad))
+        self.attr['elfHeader']['class'] = e_class
+        self.attr['elfHeader']['data'] = e_data
+        self.attr['elfHeader']['type'] = e_type
+        self.attr['elfHeader']['machine'] = e_machine
+        self.attr['elfHeader']['version'] = e_version
+        self.attr['elfHeader']['entry'] = e_entry
+        self.attr['elfHeader']['phoff'] = e_phoff
+        self.attr['elfHeader']['shoff'] = e_shoff
+        self.attr['elfHeader']['flags'] = e_flags
+        self.attr['elfHeader']['ehsize'] = e_ehsize
+        self.attr['elfHeader']['phentsize'] = e_phentsize
+        self.attr['elfHeader']['shnum'] = e_shnum
+        self.attr['elfHeader']['shentsize'] = e_shentsize
+        self.attr['elfHeader']['shnum'] = e_shnum
+        self.attr['elfHeader']['shstrndx'] = e_shstrndx
+
         # print header info #
         if debug:
             print("[ELF Header]")
-            print(\
-                "Magic: %02x %02x %02x %02x %02x %02x %02x %02x" % \
-                (ei_mag0, ei_mag1, ei_mag2, ei_mag3, ei_class, ei_data, \
-                ei_version, ei_pad))
+            print("Magic: %s" % self.attr['elfHeader']['magic'])
             print("Class: %s" %(e_class))
             print("Data: %s" %(e_data))
             print("Type: %s" %(e_type))
@@ -22013,13 +22033,15 @@ class ElfAnalyzer(object):
             string_table[lastnull] = str_section[lastnull:i]
             lastnull = i + 1
 
+        # define program info #
+        self.attr['progHeader'] = list()
+
         # print program header title #
         if debug:
             print("\n[Program Headers]")
-            print(\
-                "%10s 0x%10s 0x%14s 0x%14s 0x%10s 0x%10s %010s" % \
-                ("Type", "Offset", "VirtAddr", "PhysAddr", "FileSiz", \
-                "MemSiz", "Flags"))
+            print("%10s %10s %16s %16s %12s %12s %10s" % \
+                ("Type", "Offset", "VirtAddr", "PhysAddr", "FileSize", \
+                "MemSize", "Flags"))
 
         # parse program sections #
         e_shinterpndx = -1
@@ -22039,14 +22061,21 @@ class ElfAnalyzer(object):
             if p_type == 3:
                 e_shinterpndx = i
 
+            # save program info #
+            self.attr['progHeader'].append([\
+                ElfAnalyzer.PT_TYPE[p_type] \
+                    if p_type in ElfAnalyzer.PT_TYPE else p_type, \
+                p_offset, p_vaddr, p_paddr, p_filesz, \
+                p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
+
             # print program header #
             if debug:
                 print(\
                     "%10s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
                     (ElfAnalyzer.PT_TYPE[p_type] \
-                        if p_type in ElfAnalyzer.PT_TYPE \
-                        else p_type,p_offset, p_vaddr, p_paddr, \
-                        p_filesz, p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+                        if p_type in ElfAnalyzer.PT_TYPE else p_type, \
+                    p_offset, p_vaddr, p_paddr, p_filesz, \
+                    p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
 
         if e_shinterpndx >= 0:
             fd.seek(e_phoff + e_phentsize * e_shinterpndx)
@@ -22071,6 +22100,9 @@ class ElfAnalyzer(object):
         e_shdynsym = -1
         e_shdynstr = -1
         e_shdynamic = -1
+
+        # define section info #
+        self.attr['sectionHeader'] = dict()
 
         # print section header title #
         if debug:
@@ -22105,6 +22137,19 @@ class ElfAnalyzer(object):
             if sh_flags & ElfAnalyzer.SHF_MASKPROC:
                 f += "M"
 
+            # save section info #
+            if sh_name in string_table:
+                shname = string_table[sh_name]
+            else:
+                shname = sh_name
+
+            self.attr['sectionHeader'][shname] = {
+                'type': ElfAnalyzer.SH_TYPE[sh_type] \
+                    if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
+                'addr': sh_addr, 'offset': sh_offset, 'size': sh_size, \
+                'entSize': sh_entsize, 'flag': f, 'link': sh_link, \
+                'info': sh_info, 'align': sh_addralign}
+
             # count the number of each tables #
             if sh_name in string_table:
                 # print section header #
@@ -22112,9 +22157,9 @@ class ElfAnalyzer(object):
                     print("[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                         (i, string_table[sh_name], \
                         ElfAnalyzer.SH_TYPE[sh_type] \
-                            if sh_type in ElfAnalyzer.SH_TYPE \
-                            else sh_type, sh_addr, sh_offset, sh_size, \
-                                sh_entsize, f, sh_link, sh_info, sh_addralign))
+                            if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
+                        sh_addr, sh_offset, sh_size, sh_entsize, \
+                        f, sh_link, sh_info, sh_addralign))
 
                 if string_table[sh_name] == '.symtab':
                     e_shsymndx = i
@@ -22131,14 +22176,16 @@ class ElfAnalyzer(object):
                 if string_table[sh_name] == '.dynamic':
                     e_shdynamic = i
 
-            else:
-                if debug:
-                    print("[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
-                        (i, sh_name, \
-                        ElfAnalyzer.SH_TYPE[sh_type] \
-                            if sh_type in ElfAnalyzer.SH_TYPE \
-                            else sh_type, sh_addr, sh_offset, sh_size, \
-                                sh_entsize, f, sh_link, sh_info, sh_addralign))
+            elif debug:
+                print("[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                    (i, sh_name, \
+                    ElfAnalyzer.SH_TYPE[sh_type] \
+                        if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
+                    sh_addr, sh_offset, sh_size, sh_entsize, \
+                    f, sh_link, sh_info, sh_addralign))
+
+        # define .dynsym info #
+        self.attr['dynsymTable'] = dict()
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
@@ -22179,17 +22226,10 @@ class ElfAnalyzer(object):
 
             # print .dynsym table title #
             if debug:
-                if ei_class == 1:
-                    nrEntry = int(sh_size / 16)
-                else:
-                    nrEntry = int(sh_size / 24)
-
-                if debug:
-                    print("\n[Symbol table '.dynsym' contains %d entries]" % \
-                        nrEntry)
-                    print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
-                        ("Num", "Value", "Size", "Type", \
-                        "Bind", "Vis", "Ndx", "Name"))
+                print("\n[Symbol table '.dynsym']")
+                print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
+                    ("Num", "Value", "Size", "Type", \
+                    "Bind", "Vis", "Ndx", "Name"))
 
             for i in range(0, int(sh_size / 24)):
                 if ei_class == 1:
@@ -22199,28 +22239,46 @@ class ElfAnalyzer(object):
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', dynsym_section[i*24:(i+1)*24])
 
+                # save .dynsym table #
+                if st_name in dynsymbol_table:
+                    stname = dynsymbol_table[st_name]
+                else:
+                    stname = st_name
+
+                self.attr['dynsymTable'][stname] = {\
+                    'value': st_value, 'size': st_size, \
+                    'type': ElfAnalyzer.STT_TYPE[ \
+                        ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                    'bind': ElfAnalyzer.STB_BIND_TYPE[\
+                        ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                    'vis': ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                    'ndx': st_shndx}
+
                 # print .dynsym table #
-                if debug:
-                    if st_name in dynsymbol_table:
-                        print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
-                            (i, st_value, st_size, \
-                            ElfAnalyzer.STT_TYPE[ \
-                                ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                            ElfAnalyzer.STB_BIND_TYPE[\
-                                ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                            ElfAnalyzer.STV_VISIBILITY_TYPE[\
-                                ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                            st_shndx, dynsymbol_table[st_name],))
-                    else:
-                        print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
-                            (i, st_value, st_size, \
-                            ElfAnalyzer.STT_TYPE[\
-                                ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                            ElfAnalyzer.STB_BIND_TYPE[\
-                                ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                            ElfAnalyzer.STV_VISIBILITY_TYPE[\
-                                ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                            st_shndx, st_name,))
+                if debug and st_name in dynsymbol_table:
+                    print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.STT_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                        ElfAnalyzer.STB_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, dynsymbol_table[st_name],))
+                elif debug:
+                    print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.STT_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                        ElfAnalyzer.STB_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, st_name,))
+
+        # define .sym info #
+        self.attr['symTable'] = dict()
 
         # parse .sym table #
         if e_shsymndx >= 0 and e_shstrndx >= 0:
@@ -22235,7 +22293,7 @@ class ElfAnalyzer(object):
                     struct.unpack('IIQQQQIIQQ', fd.read(64))
 
             fd.seek(sh_offset)
-            sym_section = fd.read(sh_size)
+            sym_section = fd.read(sh_size).decode()
             lastnull = 0
             symbol_table = {}
             for i, s in enumerate(sym_section):
@@ -22259,17 +22317,10 @@ class ElfAnalyzer(object):
 
             # parse .sym table title #
             if debug:
-                if ei_class == 1:
-                    nrEntry = int(sh_size / 16)
-                else:
-                    nrEntry = int(sh_size / 24)
-
-                if debug:
-                    print("\n[Symbol table '.symtab' contains %d entries]" % \
-                        nrEntry)
-                    print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
-                        ("Num", "Value", "Size", "Type", \
-                        "Bind", "Vis", "Ndx", "Name"))
+                print("\n[Symbol table '.symtab']")
+                print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
+                    ("Num", "Value", "Size", "Type", \
+                    "Bind", "Vis", "Ndx", "Name"))
 
             for i in range(0, int(sh_size / 24)):
                 if ei_class == 1:
@@ -22281,22 +22332,43 @@ class ElfAnalyzer(object):
                         st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', sym_section[i*24:(i+1)*24])
 
+                # save .sym table #
+                if st_name in symbol_table:
+                    stname = symbol_table[st_name]
+                else:
+                    stname = st_name
+
+                self.attr['symTable'][stname] = {\
+                    'value': st_value, 'size': st_size, \
+                    'type': ElfAnalyzer.STT_TYPE[\
+                    ElfAnalyzer.ELF_ST_TYPE(st_info)],
+                    'bind': ElfAnalyzer.STB_BIND_TYPE[\
+                    ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                    'vis': ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                    ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                    'ndx': st_shndx}
+
                 # parse .sym table #
-                if debug:
-                    if st_name in symbol_table:
-                        print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
-                            (i, st_value, st_size, \
-                            STT_TYPE[ELF_ST_TYPE(st_info)],
-                            STB_BIND[ELF_ST_BIND(st_info)], \
-                            STV_VISIBILITY[ELF_ST_VISIBILITY(st_other)], \
-                            st_shndx, symbol_table[st_name],))
-                    else:
-                        print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
-                            (i, st_value, st_size, \
-                            STT_TYPE[ELF_ST_TYPE(st_info)],
-                            STB_BIND[ELF_ST_BIND(st_info)], \
-                            STV_VISIBILITY[ELF_ST_VISIBILITY(st_other)], \
-                            st_shndx, st_name,))
+                if debug and st_name in symbol_table:
+                    print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.STT_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)],
+                        ElfAnalyzer.STB_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, symbol_table[st_name],))
+                elif debug:
+                    print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.STT_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)],
+                        ElfAnalyzer.STB_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, st_name,))
 
         # parse dynamic section #
         if e_shdynamic >= 0:
