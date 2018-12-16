@@ -11190,7 +11190,7 @@ OPTIONS:
                     helpStr +=  '''
 Examples:
     - Send the notification signal to all running guider processes
-        # {0:1} {1:1} 
+        # {0:1} {1:1}
 
     - Send SIGSTOP signal to a specific process
         # {0:1} {1:1} -sigstop 1234
@@ -20747,7 +20747,7 @@ class Debugger(object):
         pid = self.pid
 
         if self.isRunning is False:
-            SystemManager.printWarnning('No running thread %s' % pid)
+            SystemManager.printWarning('No running thread %s' % pid)
             return -1
 
         plist = ConfigManager.PTRACE_TYPE
