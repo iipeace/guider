@@ -17682,8 +17682,6 @@ Copyright:
         # no use pager #
         SystemManager.printStreamEnable = True
 
-        SystemManager.setNormalSignal()
-
         # define wait syscall #
         wait = None
         execCmd = None
@@ -20734,6 +20732,7 @@ class Debugger(object):
 
         plist = ConfigManager.PTRACE_TYPE
 
+        # attach the thread #
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret < 0:
@@ -20753,9 +20752,10 @@ class Debugger(object):
 
         plist = ConfigManager.PTRACE_TYPE
 
+        # detach the thread #
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
-        if ret <= 0:
+        if ret < 0:
             SystemManager.printWarning('Fail to detach thread %s' % pid)
             return -1
         else:
@@ -21250,7 +21250,7 @@ class Debugger(object):
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
             except SystemExit:
-                sys.exit(0)
+                return
             except:
                 # check whether process is alive #
                 try:
@@ -21331,7 +21331,7 @@ class Debugger(object):
 
         # Ptrace Event #
         elif status >> 8 == 0:
-            print(status >> 16)
+            ret = status >> 16
 
         # Process stopped by a signal #
         else:
