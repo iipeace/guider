@@ -21132,6 +21132,13 @@ class Debugger(object):
         self.retreg = ConfigManager.RET_LIST[arch]
         self.pbufsize = SystemManager.ttyCols >> 1
 
+        # Don't wait on children of other threads in this group #
+        __WNOTHREAD = 0x20000000
+        # Wait on all children, regardless of type #
+        __WALL = 0x40000000
+        # Wait only on non-SIGCHLD children #
+        __WCLONE = 0x80000000
+
         # disable extended ascii #
         SystemManager.supportExtAscii = False
 
@@ -21176,7 +21183,7 @@ class Debugger(object):
 
             try:
                 # wait process #
-                ret = os.waitpid(int(pid), 0)
+                ret = self.waitpid(int(pid), __WALL)
 
                 # get status of process #
                 stat = Debugger.getStatus(ret[1])
@@ -21247,7 +21254,7 @@ class Debugger(object):
             except:
                 # check whether process is alive #
                 try:
-                    ret = os.waitpid(int(pid), 0)
+                    ret = self.waitpid(int(pid), __WALL)
 
                     err = sys.exc_info()[1]
                     ereason = ' '.join(list(map(str, err.args)))
@@ -21388,6 +21395,32 @@ class Debugger(object):
 
 
 
+    def waitpid(self, pid, options=0):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, c_int, c_ulong, pointer, POINTER
+
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+
+            # type converting #
+            SystemManager.libcObj.waitpid.argtypes = \
+                (c_int, POINTER(None), c_int)
+            SystemManager.libcObj.waitpid.restype = c_int
+
+            status = ctypes.c_uint(0)
+            ret = SystemManager.libcObj.waitpid(pid, pointer(status), options)
+            return ret, status.value
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printWarning('Fail to call waitpid in libc')
+
+
+
     def ptrace(self, req, addr=0, data=0):
         pid = self.pid
 
@@ -21403,7 +21436,7 @@ class Debugger(object):
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, c_ulong, c_ulong, c_ulong, c_ulong
+        from ctypes import cdll, c_ulong
 
         try:
             # load standard libc library #
