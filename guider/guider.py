@@ -901,6 +901,26 @@ class ConfigManager(object):
             ("unsigned long", "fd"),
             ("unsigned long", "pgoff"),
         )),
+        "mmap": ("long", (
+            ("unsigned long", "addr"),
+            ("unsigned long", "len"),
+            ("unsigned long", "prot"),
+            ("unsigned long", "flags"),
+            ("unsigned long", "fd"),
+            ("unsigned long", "pgoff"),
+        )),
+        "mmap2": ("long", (
+            ("unsigned long", "addr"),
+            ("unsigned long", "len"),
+            ("unsigned long", "prot"),
+            ("unsigned long", "flags"),
+            ("unsigned long", "fd"),
+            ("unsigned long", "pgoff"),
+        )),
+        "arch_prctl": ("int", (
+            ("int", "code"),
+            ("unsigned long", "addr"),
+        )),
         "mount": ("long", (
             ("char *", "dev_name"),
             ("char *", "dir_name"),
@@ -21124,6 +21144,7 @@ class Debugger(object):
         sigTrapIdx = ConfigManager.SIG_LIST.index('SIGTRAP')
         sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
         sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
+        sigSegvIdx = ConfigManager.SIG_LIST.index('SIGSEGV')
         sigTrapFlag = sigTrapIdx | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
@@ -21234,7 +21255,7 @@ class Debugger(object):
                         (pid, ConfigManager.SIG_LIST[stat]), True)
                     continue
                 # kill signal #
-                elif stat == sigKillIdx:
+                elif stat == sigKillIdx or stat == sigSegvIdx:
                     SystemManager.printError(\
                         'Terminated thread %s because of %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
@@ -21249,6 +21270,7 @@ class Debugger(object):
                     SystemManager.printWarning(\
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
+                    raise Exception()
             except SystemExit:
                 return
             except:
