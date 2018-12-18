@@ -11237,6 +11237,25 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
+                # readelf #
+                elif SystemManager.isReadElfMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+
+Description:
+    Show information about ELF file
+
+OPTIONS:
+        -I  <FILE>                   set input path
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Pause specific running threads
+        # {0:1} {1:1} -g 1234
+                    '''.format(cmd, mode)
 
                 # cpulimit #
                 elif SystemManager.isCpuLimitMode():
@@ -11499,6 +11518,7 @@ COMMAND:
     [test]      alloctest   <mem>
 
     [util]      convert     <text>
+                readelf     <file>
 
     [comm]      list        <list>
                 start       <signal>
@@ -16261,6 +16281,20 @@ Copyright:
 
             sys.exit(0)
 
+        # READELF MODE #
+        if SystemManager.isReadElfMode():
+            # parse options #
+            SystemManager.parseAnalOption()
+
+            if SystemManager.sourceFile is None:
+                SystemManager.printError(\
+                    "No file path with -I")
+                sys.exit(0)
+
+            ElfAnalyzer(SystemManager.sourceFile, debug=True)
+
+            sys.exit(0)
+
         # PAGE MODE #
         if SystemManager.isMemMode():
             # parse options #
@@ -16423,6 +16457,15 @@ Copyright:
     @staticmethod
     def isPauseMode():
         if sys.argv[1] == 'pause':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isReadElfMode():
+        if sys.argv[1] == 'readelf':
             return True
         else:
             return False
@@ -22129,6 +22172,7 @@ class ElfAnalyzer(object):
         if debug:
             SystemManager.pipePrint('''\
 [ELF Header]
+%s
 Magic: %s
 Class: %s
 Data: %s
@@ -22145,10 +22189,12 @@ Number of program headers: %d
 Size of section headers: %d (bytes)
 Number of section headers: %d
 Section header string table index: %d
-            ''' % (self.attr['elfHeader']['magic'], \
+%s
+            ''' % (twoLine, self.attr['elfHeader']['magic'], \
                 e_class, e_data, e_type, e_machine, e_version, \
                 e_entry, e_phoff, e_shoff, e_flags, e_ehsize, \
-                e_phentsize, e_shnum, e_shentsize, e_shnum, e_shstrndx))
+                e_phentsize, e_shnum, e_shentsize, e_shnum, \
+                e_shstrndx, twoLine))
 
         # parse program header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
@@ -22179,10 +22225,10 @@ Section header string table index: %d
         # print program header title #
         if debug:
             SystemManager.pipePrint((\
-                "[Program Headers]\n"
-                "%10s %10s %16s %16s %12s %12s %10s") % \
-                ("Type", "Offset", "VirtAddr", "PhysAddr", "FileSize", \
-                "MemSize", "Flags"))
+                "[Program Headers]\n%s\n"
+                "%10s %10s %16s %16s %12s %12s %10s\n%s") % \
+                (twoLine, "Type", "Offset", "VirtAddr", \
+                "PhysAddr", "FileSize", "MemSize", "Flags", twoLine))
 
         # parse program sections #
         e_shinterpndx = -1
@@ -22217,6 +22263,8 @@ Section header string table index: %d
                         if p_type in ElfAnalyzer.PT_TYPE else p_type, \
                     p_offset, p_vaddr, p_paddr, p_filesz, \
                     p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+        if debug:
+            SystemManager.pipePrint(oneLine)
 
         if e_shinterpndx >= 0:
             fd.seek(e_phoff + e_phentsize * e_shinterpndx)
@@ -22232,9 +22280,6 @@ Section header string table index: %d
             fd.seek(p_offset)
             interp = fd.read(p_filesz)
 
-            if debug:
-                SystemManager.pipePrint("\nInterp: %s" % interp.decode())
-
         # initialize indexes #
         e_shsymndx = -1
         e_shstrndx = -1
@@ -22248,10 +22293,10 @@ Section header string table index: %d
         # print section header title #
         if debug:
             SystemManager.pipePrint(\
-                ("\n[Section Headers]\n"
-                "[NR] %20s%10s%15s%10s%8s%8s%5s%5s%5s%6s") % \
-                ("Name", "Type", "Address", "Offset", "Size", \
-                "EntSize", "Flag", "Link", "Info", "Align"))
+                ("\n[Section Headers]\n%s\n"
+                "[NR] %20s%10s%15s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
+                (twoLine, "Name", "Type", "Address", "Offset", "Size", \
+                "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
         # parse section header #
         for i in range(0, e_shnum):
@@ -22327,6 +22372,8 @@ Section header string table index: %d
                         if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
                     sh_addr, sh_offset, sh_size, sh_entsize, \
                     f, sh_link, sh_info, sh_addralign))
+        if debug:
+            SystemManager.pipePrint(oneLine)
 
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
@@ -22371,10 +22418,10 @@ Section header string table index: %d
             # print .dynsym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol table '.dynsym']\n"
-                    "%04s%10s%10s%10s%10s%10s%10s%30s") % \
-                    ("Num", "Value", "Size", "Type", \
-                    "Bind", "Vis", "Ndx", "Name"))
+                    "\n[Symbol table '.dynsym']\n%s\n"
+                    "%04s%10s%10s%10s%10s%10s%10s%30s\n%s") % \
+                    (twoLine, "Num", "Value", "Size", "Type", \
+                    "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / 24)):
                 if ei_class == 1:
@@ -22423,6 +22470,8 @@ Section header string table index: %d
                         ElfAnalyzer.STV_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
+        if debug:
+            SystemManager.pipePrint(oneLine)
 
         # define .sym info #
         self.attr['symTable'] = dict()
@@ -22465,10 +22514,10 @@ Section header string table index: %d
             # parse .sym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol table '.symtab']\n"
-                    "%04s%10s%10s%10s%10s%10s%10s%30s") % \
-                    ("Num", "Value", "Size", "Type", \
-                    "Bind", "Vis", "Ndx", "Name"))
+                    "\n[Symbol table '.symtab']\n%s\n"
+                    "%04s%10s%10s%10s%10s%10s%10s%30s\n%s") % \
+                    (twoLine, "Num", "Value", "Size", "Type", \
+                    "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / 24)):
                 if ei_class == 1:
@@ -22519,53 +22568,59 @@ Section header string table index: %d
                         ElfAnalyzer.STV_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
+        if debug:
+            SystemManager.pipePrint(oneLine)
+
+        if e_shdynamic < 0:
+            return
 
         # parse dynamic section #
-        if e_shdynamic >= 0:
-            fd.seek(e_shoff + e_shentsize * e_shdynamic)
-            if ei_class == 1:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+        fd.seek(e_shoff + e_shentsize * e_shdynamic)
+        if ei_class == 1:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                struct.unpack('IIIHHIIIII', fd.read(48))
+        else:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                struct.unpack('IIQQQQIIQQ', fd.read(64))
 
-            fd.seek(sh_offset)
-            dynamic_section = fd.read(sh_size)
+        fd.seek(sh_offset)
+        dynamic_section = fd.read(sh_size)
 
-            if debug:
-                SystemManager.pipePrint((\
-                    '\n[Dynamic section]\n'
-                    '%20s %20s %20s') % \
-                    ("Tag", "Type", "Name/Value"))
+        if debug:
+            SystemManager.pipePrint((\
+                '\n[Dynamic section]\n%s\n'
+                '%20s %20s %20s\n%s') % \
+                (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
-            if ei_class != 1:
-                for i in range(0, int(sh_size / 16)):
-                    fd.seek(sh_offset + i * 16)
-                    d_tag, d_un = struct.unpack('QQ', fd.read(16))
+        if ei_class != 1:
+            for i in range(0, int(sh_size / 16)):
+                fd.seek(sh_offset + i * 16)
+                d_tag, d_un = struct.unpack('QQ', fd.read(16))
 
-                    if debug:
-                        if d_tag in ElfAnalyzer.TAG_TYPE:
-                            if d_tag == 1 or d_tag == 15:
-                                SystemManager.pipePrint(\
-                                    '0x%018x %20s %20s' % \
-                                    (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
-                                    dynsymbol_table[d_un]))
-                            else:
-                                SystemManager.pipePrint(\
-                                    '0x%018x %20s %20s' % \
-                                    (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
+                if debug:
+                    if d_tag in ElfAnalyzer.TAG_TYPE:
+                        if d_tag == 1 or d_tag == 15:
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %20s' % \
+                                (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
+                                dynsymbol_table[d_un]))
                         else:
-                            if d_tag == 1 or d_tag == 15:
-                                SystemManager.pipePrint(\
-                                    '0x%018x %20s %20s' % \
-                                    (d_tag, d_tag, dynsymbol_table[d_un]))
-                            else:
-                                SystemManager.pipePrint(\
-                                    '0x%018x %20s %20s' % \
-                                    (d_tag, d_tag, d_un))
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %20s' % \
+                                (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
+                    else:
+                        if d_tag == 1 or d_tag == 15:
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %20s' % \
+                                (d_tag, d_tag, dynsymbol_table[d_un]))
+                        else:
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %20s' % \
+                                (d_tag, d_tag, d_un))
+        if debug:
+            SystemManager.pipePrint(oneLine)
 
 
 
