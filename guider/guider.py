@@ -22105,23 +22105,28 @@ class ElfAnalyzer(object):
 
         # print header info #
         if debug:
-            print("[ELF Header]")
-            print("Magic: %s" % self.attr['elfHeader']['magic'])
-            print("Class: %s" %(e_class))
-            print("Data: %s" %(e_data))
-            print("Type: %s" %(e_type))
-            print("Machine: %s" %(e_machine))
-            print("Version: %s" %(e_version))
-            print("Entry point address: 0x%x" %(e_entry));
-            print("Start of program headers: %d (bytes into file)" % e_phoff)
-            print("Start of section headers: %d (bytes into file)" % e_shoff)
-            print("Flags: 0x%02x" % e_flags)
-            print("Size of this header: %d (bytes)" % e_ehsize)
-            print("Size of program header: %d (bytes)" % e_phentsize)
-            print("Number of program headers: %d" % e_shnum)
-            print("Size of section headers: %d (bytes)" % e_shentsize)
-            print("Number of section headers: %d" % e_shnum)
-            print("Section header string table index: %d" % e_shstrndx)
+            SystemManager.pipePrint('''\
+[ELF Header]
+Magic: %s
+Class: %s
+Data: %s
+Type: %s
+Machine: %s
+Version: %s
+Entry point address: 0x%x
+Start of program headers: %d (bytes into file)
+Start of section headers: %d (bytes into file)
+Flags: 0x%02x
+Size of this header: %d (bytes)
+Size of program header: %d (bytes)
+Number of program headers: %d
+Size of section headers: %d (bytes)
+Number of section headers: %d
+Section header string table index: %d
+            ''' % (self.attr['elfHeader']['magic'], \
+                e_class, e_data, e_type, e_machine, e_version, \
+                e_entry, e_phoff, e_shoff, e_flags, e_ehsize, \
+                e_phentsize, e_shnum, e_shentsize, e_shnum, e_shstrndx))
 
         # parse program header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
@@ -22151,8 +22156,9 @@ class ElfAnalyzer(object):
 
         # print program header title #
         if debug:
-            print("\n[Program Headers]")
-            print("%10s %10s %16s %16s %12s %12s %10s" % \
+            SystemManager.pipePrint((\
+                "[Program Headers]\n"
+                "%10s %10s %16s %16s %12s %12s %10s") % \
                 ("Type", "Offset", "VirtAddr", "PhysAddr", "FileSize", \
                 "MemSize", "Flags"))
 
@@ -22183,7 +22189,7 @@ class ElfAnalyzer(object):
 
             # print program header #
             if debug:
-                print(\
+                SystemManager.pipePrint(\
                     "%10s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
                     (ElfAnalyzer.PT_TYPE[p_type] \
                         if p_type in ElfAnalyzer.PT_TYPE else p_type, \
@@ -22205,7 +22211,7 @@ class ElfAnalyzer(object):
             interp = fd.read(p_filesz)
 
             if debug:
-                print("\nInterp: %s" % interp)
+                SystemManager.pipePrint("\nInterp: %s" % interp.decode())
 
         # initialize indexes #
         e_shsymndx = -1
@@ -22219,8 +22225,9 @@ class ElfAnalyzer(object):
 
         # print section header title #
         if debug:
-            print("\n[Section Headers]")
-            print("[NR] %20s%10s%15s%10s%8s%8s%5s%5s%5s%6s" % \
+            SystemManager.pipePrint(\
+                ("\n[Section Headers]\n"
+                "[NR] %20s%10s%15s%10s%8s%8s%5s%5s%5s%6s") % \
                 ("Name", "Type", "Address", "Offset", "Size", \
                 "EntSize", "Flag", "Link", "Info", "Align"))
 
@@ -22267,7 +22274,8 @@ class ElfAnalyzer(object):
             if sh_name in string_table:
                 # print section header #
                 if debug:
-                    print("[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                    SystemManager.pipePrint(\
+                        "[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                         (i, string_table[sh_name], \
                         ElfAnalyzer.SH_TYPE[sh_type] \
                             if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
@@ -22290,7 +22298,8 @@ class ElfAnalyzer(object):
                     e_shdynamic = i
 
             elif debug:
-                print("[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                SystemManager.pipePrint(\
+                    "[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                     (i, sh_name, \
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
@@ -22339,8 +22348,9 @@ class ElfAnalyzer(object):
 
             # print .dynsym table title #
             if debug:
-                print("\n[Symbol table '.dynsym']")
-                print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
+                SystemManager.pipePrint((\
+                    "\n[Symbol table '.dynsym']\n"
+                    "%04s%10s%10s%10s%10s%10s%10s%30s") % \
                     ("Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name"))
 
@@ -22370,7 +22380,8 @@ class ElfAnalyzer(object):
 
                 # print .dynsym table #
                 if debug and st_name in dynsymbol_table:
-                    print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                    SystemManager.pipePrint(\
+                        "%04d%10d%10d%10s%10s%10s%10d%30s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22380,7 +22391,8 @@ class ElfAnalyzer(object):
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, dynsymbol_table[st_name],))
                 elif debug:
-                    print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                    SystemManager.pipePrint(\
+                        "%04d%10d%10d%10s%10s%10s%10d%30d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22430,8 +22442,9 @@ class ElfAnalyzer(object):
 
             # parse .sym table title #
             if debug:
-                print("\n[Symbol table '.symtab']")
-                print("%04s%10s%10s%10s%10s%10s%10s%30s" % \
+                SystemManager.pipePrint((\
+                    "\n[Symbol table '.symtab']\n"
+                    "%04s%10s%10s%10s%10s%10s%10s%30s") % \
                     ("Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name"))
 
@@ -22463,7 +22476,8 @@ class ElfAnalyzer(object):
 
                 # parse .sym table #
                 if debug and st_name in symbol_table:
-                    print("%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                    SystemManager.pipePrint(\
+                        "%04d%10d%10d%10s%10s%10s%10d%30s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -22473,7 +22487,8 @@ class ElfAnalyzer(object):
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, symbol_table[st_name],))
                 elif debug:
-                    print("%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                    SystemManager.pipePrint(\
+                        "%04d%10d%10d%10s%10s%10s%10d%30d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -22499,8 +22514,10 @@ class ElfAnalyzer(object):
             dynamic_section = fd.read(sh_size)
 
             if debug:
-                print('\n[Dynamic section]')
-                print('%20s %20s %20s' % ("Tag", "Type", "Name/Value"))
+                SystemManager.pipePrint((\
+                    '\n[Dynamic section]\n'
+                    '%20s %20s %20s') % \
+                    ("Tag", "Type", "Name/Value"))
 
             if ei_class != 1:
                 for i in range(0, int(sh_size / 16)):
@@ -22510,18 +22527,22 @@ class ElfAnalyzer(object):
                     if debug:
                         if d_tag in ElfAnalyzer.TAG_TYPE:
                             if d_tag == 1 or d_tag == 15:
-                                print('0x%018x %20s %20s' % \
+                                SystemManager.pipePrint(\
+                                    '0x%018x %20s %20s' % \
                                     (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
                                     dynsymbol_table[d_un]))
                             else:
-                                print('0x%018x %20s %20s' % \
+                                SystemManager.pipePrint(\
+                                    '0x%018x %20s %20s' % \
                                     (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
                         else:
                             if d_tag == 1 or d_tag == 15:
-                                print('0x%018x %20s %20s' % \
+                                SystemManager.pipePrint(\
+                                    '0x%018x %20s %20s' % \
                                     (d_tag, d_tag, dynsymbol_table[d_un]))
                             else:
-                                print('0x%018x %20s %20s' % \
+                                SystemManager.pipePrint(\
+                                    '0x%018x %20s %20s' % \
                                     (d_tag, d_tag, d_un))
 
 
