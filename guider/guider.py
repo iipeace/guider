@@ -3219,7 +3219,7 @@ class PageAnalyzer(object):
             SystemManager.printError(\
                 "Fail to get root permission analyze pages")
             sys.exit(0)
-        elif pid is None:
+        elif len(pid) == 0:
             SystemManager.printError("Fail to recognize pid, use -g option")
             sys.exit(0)
         elif vaddr is None:
@@ -8273,7 +8273,7 @@ class FileAnalyzer(object):
         'pids': None, 'linkCnt': int(0), 'inode': None, \
         'accessTime': None, 'devid': None, 'isRep': True, \
         'repFile': None, 'hardLink': int(1), 'linkList': None, \
-        'vstart': int(0), 'vend': int(0)}
+        'vstart': int(0), 'vend': int(0), 'elfInfo': None}
 
 
 
@@ -8317,7 +8317,8 @@ class FileAnalyzer(object):
                 SystemManager.libcObj.mmap.restype = POINTER(None)
 
                 # define munmap types #
-                SystemManager.libcObj.munmap.argtypes = [POINTER(None), c_size_t]
+                SystemManager.libcObj.munmap.argtypes = \
+                    [POINTER(None), c_size_t]
                 SystemManager.libcObj.munmap.restype = c_int
 
                 # define mincore types #
@@ -14619,7 +14620,7 @@ Copyright:
                 if os.path.isdir(SystemManager.printFile):
                     name, ext = os.path.splitext(\
                         os.path.basename(SystemManager.inputFile))
-                    if ext == '.dat':
+                    if ext == '' or ext == '.dat':
                         name = '%s.out' % name
                     SystemManager.inputFile = \
                         os.path.join(SystemManager.printFile, name)
