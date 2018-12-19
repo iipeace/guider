@@ -5443,7 +5443,7 @@ class FunctionAnalyzer(object):
         # memory free event #
         elif isFixedEvent and \
             (func == "mm_page_free:" or func == "mm_page_free_direct:"):
-            m = re.match((r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' \
+            m = re.match((r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
                 r'order=(?P<order>[0-9]+)'), args)
             if m is not None:
                 d = m.groupdict()
@@ -5710,7 +5710,7 @@ class FunctionAnalyzer(object):
         # block request event #
         elif isFixedEvent and func == "block_bio_queue:":
             m = re.match((\
-                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*' \
+                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*'
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), args)
             if m is not None:
                 b = m.groupdict()
@@ -5745,7 +5745,7 @@ class FunctionAnalyzer(object):
 
         # block write request event #
         elif isFixedEvent and func == "writeback_dirty_page:":
-            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), args)
             if m is not None:
                 b = m.groupdict()
@@ -5763,7 +5763,7 @@ class FunctionAnalyzer(object):
 
         # block write request event #
         elif isFixedEvent and func == "wbc_writepage:":
-            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+            m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), args)
             if m is not None:
                 d = m.groupdict()
@@ -5783,7 +5783,7 @@ class FunctionAnalyzer(object):
 
         # segmentation fault generation event #
         elif isFixedEvent and func == "signal_generate:":
-            m = re.match((r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
+            m = re.match((r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
                 r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), args)
             if m is not None:
                 b = m.groupdict()
@@ -5804,7 +5804,7 @@ class FunctionAnalyzer(object):
 
         elif isFixedEvent and func == "signal_deliver:":
             m = re.match((\
-                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) ' \
+                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) '
                 r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), args)
             if m is not None:
                 b = m.groupdict()
@@ -6113,7 +6113,7 @@ class FunctionAnalyzer(object):
 
     def parseMapLine(self, string):
         m = re.match((\
-            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' \
+            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
             r'(?P<binName>.\S+)'), string)
         if m is not None:
@@ -8267,6 +8267,16 @@ class FunctionAnalyzer(object):
 class FileAnalyzer(object):
     """ Analyzer for file profiling """
 
+    init_mapData = \
+        {'offset': int(0), 'size': int(0), 'pageCnt': int(0), \
+        'fd': None, 'totalSize': int(0), 'fileMap': None, \
+        'pids': None, 'linkCnt': int(0), 'inode': None, \
+        'accessTime': None, 'devid': None, 'isRep': True, \
+        'repFile': None, 'hardLink': int(1), 'linkList': None, \
+        'vstart': int(0), 'vend': int(0)}
+
+
+
     def __init__(self):
         self.profSuccessCnt = 0
         self.profFailedCnt = 0
@@ -8285,11 +8295,6 @@ class FileAnalyzer(object):
             {'tids': None, 'pageCnt': int(0), 'procMap': None, 'comm': ''}
         self.init_threadData = {'comm': ''}
         self.init_inodeData = {}
-        self.init_mapData = \
-            {'offset': int(0), 'size': int(0), 'pageCnt': int(0), 'fd': None, \
-            'totalSize': int(0), 'fileMap': None, 'pids': None, \
-            'linkCnt': int(0), 'inode': None, 'accessTime': None, 'devid': None, \
-            'isRep': True, 'repFile': None, 'hardLink': int(1), 'linkList': None}
 
         # handle no target case #
         if len(SystemManager.filterGroup) == 0:
@@ -8398,7 +8403,7 @@ class FileAnalyzer(object):
                     if self.fileList[fileName]['pageCnt'] < fileStat['pageCnt']:
                         self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
                 except:
-                    self.fileList[fileName] = dict(self.init_mapData)
+                    self.fileList[fileName] = dict(FileAnalzyer.init_mapData)
                     self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
                     self.fileList[fileName]['totalSize'] = fileStat['totalSize']
 
@@ -8563,6 +8568,86 @@ class FileAnalyzer(object):
 
     def makeReadaheadList(self):
         pass
+
+
+
+    @staticmethod
+    def getProcMapInfo(pid):
+        path = '%s/%s/maps' % (SystemManager.procPath, pid)
+
+        # open maps #
+        try:
+            fd = open(path, 'r')
+        except:
+            SystemManager.printWarning('Fail to open %s' % (path))
+            return
+
+        # read maps #
+        mapBuf = fd.readlines()
+
+        fileMap = dict()
+
+        # parse and merge lines in maps #
+        for val in mapBuf:
+            FileAnalyzer.mergeMapLine(val, fileMap)
+
+        return fileMap
+
+
+
+    @staticmethod
+    def mergeMapLine(string, procMap):
+        m = re.match((\
+            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
+            r'(?P<binName>.+)'), string)
+        if m is None:
+            if SystemManager.showAll:
+                SystemManager.printWarning(\
+                    "Fail to recognize '%s' line in maps" % string)
+            return
+
+        d = m.groupdict()
+
+        fileName = d['binName']
+        startAddr = int(d['startAddr'], 16)
+        endAddr = int(d['endAddr'], 16)
+
+        newOffset = int(d['offset'], 16)
+        newSize = endAddr - startAddr
+        newEnd = newOffset + newSize
+
+        try:
+            savedOffset = procMap[fileName]['offset']
+            savedSize = procMap[fileName]['size']
+            savedEnd = savedOffset + savedSize
+
+            # bigger start address then saved one #
+            if savedOffset <= newOffset:
+                # merge bigger end address then saved one #
+                if savedEnd < newEnd:
+                    procMap[fileName]['size'] += \
+                        (newEnd - savedOffset - savedSize)
+                # ignore smaller end address then saved one #
+                else:
+                    pass
+            # smaller start address then saved one #
+            else:
+                if savedEnd >= newEnd:
+                    procMap[fileName]['size'] += (savedOffset - newOffset)
+                else:
+                    procMap[fileName]['size'] = newSize
+
+                procMap[fileName]['offset'] = newOffset
+        except:
+            procMap[fileName] = dict(FileAnalyzer.init_mapData)
+            procMap[fileName]['offset'] = newOffset
+            procMap[fileName]['size'] = newSize
+
+        # set mapped addr #
+        if newOffset == 0:
+            procMap[fileName]['vstart'] = startAddr
+        procMap[fileName]['vend'] = endAddr
 
 
 
@@ -8775,7 +8860,8 @@ class FileAnalyzer(object):
                             self.procData[pid]['comm'] = pidComm
 
                             # make or update mapInfo per process #
-                            self.makeProcMapInfo(pid)
+                            self.procData[pid]['procMap'] = \
+                                FileAnalyzer.getProcMapInfo(pid)
 
                         # access threadData #
                         try:
@@ -8815,25 +8901,6 @@ class FileAnalyzer(object):
 
 
 
-    def makeProcMapInfo(self, pid):
-        path = '%s/%s/maps' % (SystemManager.procPath, pid)
-
-        # open maps #
-        try:
-            fd = open(path, 'r')
-        except:
-            SystemManager.printWarning('Fail to open %s' % (path))
-            return
-
-        # read maps #
-        mapBuf = fd.readlines()
-
-        # parse and merge lines in maps #
-        for val in mapBuf:
-            self.mergeMapLine(val, self.procData[pid]['procMap'])
-
-
-
     def mergeFileMapInfo(self):
         for pid, val in self.procData.items():
             for fileName, scope in val['procMap'].items():
@@ -8870,59 +8937,11 @@ class FileAnalyzer(object):
 
                         self.fileData[fileName]['offset'] = newOffset
                 except:
-                    self.fileData[fileName] = dict(self.init_mapData)
+                    self.fileData[fileName] = dict(FileAnalyzer.init_mapData)
                     self.fileData[fileName]['offset'] = newOffset
                     self.fileData[fileName]['size'] = newSize
                     self.fileData[fileName]['pids'] = dict()
                     self.fileData[fileName]['pids'][pid] = val['comm']
-
-
-
-    def mergeMapLine(self, string, procMap):
-        m = re.match((r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) ' \
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*(?P<binName>.+)'), string)
-        if m is None:
-            if SystemManager.showAll:
-                SystemManager.printWarning(\
-                    "Fail to recognize '%s' line in maps" % string)
-            return
-
-        d = m.groupdict()
-
-        fileName = d['binName']
-        startAddr = int(d['startAddr'], 16)
-        endAddr = int(d['endAddr'], 16)
-
-        newOffset = int(d['offset'], 16)
-        newSize = endAddr - startAddr
-        newEnd = newOffset + newSize
-
-        try:
-            savedOffset = procMap[fileName]['offset']
-            savedSize = procMap[fileName]['size']
-            savedEnd = savedOffset + savedSize
-
-            # bigger start address then saved one #
-            if savedOffset <= newOffset:
-                # merge bigger end address then saved one #
-                if savedEnd < newEnd:
-                    procMap[fileName]['size'] += \
-                        (newEnd - savedOffset - savedSize)
-                # ignore smaller end address then saved one #
-                else:
-                    pass
-            # smaller start address then saved one #
-            else:
-                if savedEnd >= newEnd:
-                    procMap[fileName]['size'] += (savedOffset - newOffset)
-                else:
-                    procMap[fileName]['size'] = newSize
-
-                procMap[fileName]['offset'] = newOffset
-        except:
-            procMap[fileName] = dict(self.init_mapData)
-            procMap[fileName]['offset'] = newOffset
-            procMap[fileName]['size'] = newSize
 
 
 
@@ -10095,20 +10114,20 @@ class SystemManager(object):
         if SystemManager.tgidEnable:
             # record-tgid option #
             m = re.match((\
-                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
-                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+' \
+                r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
+                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                 r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
             if m is None:
                 # print-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+' \
-                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
 
             return m
 
         m = re.match((\
-            r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+' \
+            r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+\[(?P<core>[0-9]+)\]\s+'
             r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
 
         return m
@@ -10281,7 +10300,7 @@ class SystemManager(object):
             if SystemManager.isDrawMode() is False and \
                 SystemManager.isConvertMode() is False:
                 SystemManager.printError(\
-                    '%s platform is supported for %s command now' \
+                    '%s platform is supported for %s command now'
                     % (sys.platform, sys.argv[1]))
                 sys.exit(0)
         else:
@@ -10292,7 +10311,7 @@ class SystemManager(object):
         # check python #
         if sys.version_info < (2, 6):
             SystemManager.printWarning(\
-                'python version is %d.%d so that some features may not work' \
+                'python version is %d.%d so that some features may not work'
                 % (sys.version_info[0], sys.version_info[1]))
 
 
@@ -25896,8 +25915,8 @@ class ThreadAnalyzer(object):
                     dreclaimedCnt = '-'
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
                     "%3s|%3s|%4s(%2s)|\n") % \
                         (value['comm'], '-'*5, '-'*5, '-', '-', \
                         cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
@@ -26119,8 +26138,8 @@ class ThreadAnalyzer(object):
                 totalDreclaimedCnt = '-'
 
             SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
                 "%3s|%3s|%4s(%2s)|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], \
                 cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
@@ -26174,8 +26193,8 @@ class ThreadAnalyzer(object):
             pass
 
         SystemManager.pipePrint(\
-            ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+            ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
             "%3s|%3s|%4s(%2s)|\n") % \
             ('{0:^29}'.format('[ TOTAL ]'), ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
@@ -26209,7 +26228,7 @@ class ThreadAnalyzer(object):
                 count += 1
                 if float(self.preemptData[index][4]) == 0:
                     break
-                SystemManager.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n" \
+                SystemManager.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n"
                     % (self.threadData[key]['comm'], key, '0', \
                     self.threadData[key]['new'], \
                     self.threadData[key]['die'], value['usage'], \
@@ -26300,8 +26319,8 @@ class ThreadAnalyzer(object):
                     dreclaimedCnt = '-'
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
                     "%3s|%3s|%4s(%2s)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
@@ -26394,8 +26413,8 @@ class ThreadAnalyzer(object):
                     dreclaimedCnt = '-'
 
                 SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|" \
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|" \
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
                     "%3s|%3s|%4s(%2s)|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'], \
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
@@ -28194,10 +28213,10 @@ class ThreadAnalyzer(object):
         # Get time info #
         if 'time' not in TA.procIntData[index]:
             m = re.match((\
-                r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+' \
-                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+' \
-                r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+' \
-                r'\[Core:\s*(?P<nrCore>[0-9]+)\].+' \
+                r'.+\[Time:\s*(?P<time>[0-9]+.[0-9]+)\].+'
+                r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+'
+                r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+'
+                r'\[Core:\s*(?P<nrCore>[0-9]+)\].+'
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
             if m is not None:
                 d = m.groupdict()
@@ -28218,9 +28237,9 @@ class ThreadAnalyzer(object):
 
             # CPU & BLOCK stat #
             m = re.match((\
-                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*' \
-                r'(?P<user>\-*[0-9]+)\s*\/s*\s*' \
-                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*' \
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*'
+                r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
+                r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<block>\-*[0-9]+)'), tokenList[1])
             if m is None:
                 return
@@ -28561,8 +28580,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         SystemManager.pipePrint((\
-            "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | " \
-            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | " \
+            "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | "
+            "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | "
             "{12:^4} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU', 'Free/User/Cache', \
                 'BlkRW', 'Blk', 'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', \
@@ -28581,8 +28600,8 @@ class ThreadAnalyzer(object):
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
             SystemManager.pipePrint((\
-                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | " \
-                "{5:^7} | {6:>3} | {7:>4} | {8:^9} | {9:>5} | {10:>6} | " \
+                "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | "
+                "{5:^7} | {6:>3} | {7:>4} | {8:^9} | {9:>5} | {10:>6} | "
                 "{11:>6} | {12:>8} | {13:^4} | {14:^8} |\n").\
                 format(idx + 1, before, val['time'], val['total']['cpu'],\
                 '%s/%s/%s' % (val['total']['mem'], val['total']['anonmem'], \
@@ -29550,8 +29569,8 @@ class ThreadAnalyzer(object):
 
                 # print-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
-                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+' \
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
@@ -29560,8 +29579,8 @@ class ThreadAnalyzer(object):
 
                 # record-tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
-                    r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+' \
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
+                    r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
@@ -29570,8 +29589,8 @@ class ThreadAnalyzer(object):
 
                 # no tgid option #
                 m = re.match((\
-                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+' \
-                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+' \
+                    r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
+                    r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+'
                     r'(?P<func>\S+):(?P<etc>.+)'), line)
                 if m is not None:
                     d = m.groupdict()
@@ -30291,12 +30310,12 @@ class ThreadAnalyzer(object):
 
         if func == "sched_switch":
             m = re.match((\
-                r'^\s*prev_comm=(?P<prev_comm>.*)\s+' \
-                r'prev_pid=(?P<prev_pid>[0-9]+)\s+' \
-                r'prev_prio=(?P<prev_prio>\S+)\s+' \
-                r'prev_state=(?P<prev_state>\S+)\s+==>\s+' \
-                r'next_comm=(?P<next_comm>.*)\s+' \
-                r'next_pid=(?P<next_pid>[0-9]+)\s+' \
+                r'^\s*prev_comm=(?P<prev_comm>.*)\s+'
+                r'prev_pid=(?P<prev_pid>[0-9]+)\s+'
+                r'prev_prio=(?P<prev_prio>\S+)\s+'
+                r'prev_state=(?P<prev_state>\S+)\s+==>\s+'
+                r'next_comm=(?P<next_comm>.*)\s+'
+                r'next_pid=(?P<next_pid>[0-9]+)\s+'
                 r'next_prio=(?P<next_prio>\S+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -30810,8 +30829,8 @@ class ThreadAnalyzer(object):
 
         elif func == "sched_migrate_task":
             m = re.match((\
-                r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+' \
-                r'prio=(?P<prio>[0-9]+)\s+orig_cpu=(?P<orig_cpu>[0-9]+)\s+' \
+                r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'
+                r'prio=(?P<prio>[0-9]+)\s+orig_cpu=(?P<orig_cpu>[0-9]+)\s+'
                 r'dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -30839,8 +30858,8 @@ class ThreadAnalyzer(object):
 
         elif func == "mm_page_alloc":
             m = re.match((\
-                r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+' \
-                r'order=(?P<order>[0-9]+)\s+' \
+                r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
+                r'order=(?P<order>[0-9]+)\s+'
                 r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -30945,7 +30964,7 @@ class ThreadAnalyzer(object):
 
         elif func == "mm_filemap_delete_from_page_cache":
             m = re.match((\
-                r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+' \
+                r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+'
                 r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -30978,9 +30997,9 @@ class ThreadAnalyzer(object):
 
         elif func == "kmalloc":
             m = re.match((\
-                r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+' \
-                r'bytes_req=(?P<req>[0-9]+)\s+' \
-                r'bytes_alloc=(?P<alloc>[0-9]+)\s+' \
+                r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+'
+                r'bytes_req=(?P<req>[0-9]+)\s+'
+                r'bytes_alloc=(?P<alloc>[0-9]+)\s+'
                 r'gfp_flags=(?P<flags>\S+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31044,7 +31063,7 @@ class ThreadAnalyzer(object):
 
         elif func == "sched_wakeup" or func == "sched_wakeup_new":
             m = re.match((\
-                r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+' \
+                r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'
                 r'prio=(?P<prio>[0-9]+)\s+'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31396,8 +31415,8 @@ class ThreadAnalyzer(object):
 
         elif func == "signal_generate":
             m = re.match((\
-                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
-                r'code=(?P<code>.*) comm=(?P<comm>.*) ' \
+                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
+                r'code=(?P<code>.*) comm=(?P<comm>.*) '
                 r'pid=(?P<pid>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31438,8 +31457,8 @@ class ThreadAnalyzer(object):
 
         elif func == "signal_deliver":
             m = re.match((\
-                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) ' \
-                r'code=(?P<code>.*) sa_handler=(?P<handler>.*) ' \
+                r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
+                r'code=(?P<code>.*) sa_handler=(?P<handler>.*) '
                 r'sa_flags=(?P<flags>.*)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31463,8 +31482,8 @@ class ThreadAnalyzer(object):
 
         elif func == "block_bio_queue" or func == "block_bio_remap":
             m = re.match((\
-                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*' \
-                r'(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+' \
+                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*'
+                r'(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+'
                 r'(?P<size>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31655,7 +31674,7 @@ class ThreadAnalyzer(object):
 
         elif func == "writeback_dirty_page":
             m = re.match((\
-                r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31677,7 +31696,7 @@ class ThreadAnalyzer(object):
 
         elif func == "wbc_writepage":
             m = re.match((\
-                r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*' \
+                r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31799,7 +31818,7 @@ class ThreadAnalyzer(object):
 
         elif func == "task_rename":
             m = re.match((\
-                r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+' \
+                r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+'
                 r'newcomm=(?P<newcomm>.*)\s+oom_score_adj'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31970,7 +31989,7 @@ class ThreadAnalyzer(object):
 
         elif func == "module_put":
             m = re.match((\
-                r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
+                r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+'
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -31985,7 +32004,7 @@ class ThreadAnalyzer(object):
 
         elif func == "module_get":
             m = re.match((\
-                r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+' \
+                r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+'
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
             if m is None:
                 printEventWarning(func)
@@ -33829,7 +33848,7 @@ class ThreadAnalyzer(object):
 
         # make total stat string #
         totalCoreStat = \
-            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|" \
+            ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, \
@@ -34501,7 +34520,7 @@ class ThreadAnalyzer(object):
             loadavg = '?'
 
         SystemManager.addPrint(\
-            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] " \
+            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
             (title, SystemManager.uptime, SystemManager.uptimeDiff, \
@@ -34757,9 +34776,9 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint("%s\n" % twoLine + \
             ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-            "{5:^3}({6:^3}/{7:^3}/{8:^3})| " \
+            "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
-            "{14:^3}({15:^4}/{16:^4}/{17:^5})|" \
+            "{14:^3}({15:^4}/{16:^4}/{17:^5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "Mem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
@@ -35080,9 +35099,9 @@ class ThreadAnalyzer(object):
             # print stats of a process #
             SystemManager.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue), \
@@ -35248,9 +35267,9 @@ class ThreadAnalyzer(object):
                 # print new thread information #
                 SystemManager.addPrint(\
                     ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                     ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
@@ -35324,9 +35343,9 @@ class ThreadAnalyzer(object):
                 # print new thread information #
                 SystemManager.addPrint(\
                     ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                     ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
@@ -35401,9 +35420,9 @@ class ThreadAnalyzer(object):
                 # print terminated thread information #
                 SystemManager.addPrint(\
                     ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| " \
+                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                     "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|" \
+                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
                     "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
                     format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                     ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
@@ -35555,7 +35574,7 @@ class ThreadAnalyzer(object):
         # DUPLICATED response #
         elif data == 'PRINT' or data.startswith('REPORT'):
             SystemManager.printError(\
-                "Fail to request service " \
+                "Fail to request service "
                 "because of same port used between client and sever")
             sys.exit(0)
 
