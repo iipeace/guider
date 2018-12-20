@@ -14727,7 +14727,7 @@ Copyright:
         if SystemManager.warningEnable is False and always is False:
             return
 
-        msg = ('\n%s%s%s%s' % \
+        msg = ('\n%s%s%s%s\n' % \
             (ConfigManager.WARNING, '[Warning] ', line, ConfigManager.ENDC))
 
         SystemManager.stderr.write(msg)
