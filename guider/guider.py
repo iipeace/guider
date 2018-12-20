@@ -22449,7 +22449,7 @@ Section header string table index: %d
             if debug:
                 SystemManager.pipePrint((\
                     "\n[Symbol table '.dynsym']\n%s\n"
-                    "%04s%10s%10s%10s%10s%10s%10s%30s\n%s") % \
+                    "%04s%10s%10s%10s%10s%10s%10s %30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
@@ -22480,7 +22480,7 @@ Section header string table index: %d
                 # print .dynsym table #
                 if debug and st_name in dynsymbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                        "%04d%10d%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22491,7 +22491,7 @@ Section header string table index: %d
                         st_shndx, dynsymbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                        "%04d%10d%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22500,8 +22500,8 @@ Section header string table index: %d
                         ElfAnalyzer.STV_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
-        if debug:
-            SystemManager.pipePrint(oneLine)
+            if debug:
+                SystemManager.pipePrint(oneLine)
 
         # define .sym info #
         self.attr['symTable'] = dict()
@@ -22578,7 +22578,7 @@ Section header string table index: %d
                 # parse .sym table #
                 if debug and st_name in symbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d%30s" % \
+                        "%04d%10d%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -22589,7 +22589,7 @@ Section header string table index: %d
                         st_shndx, symbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d%30d" % \
+                        "%04d%10d%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -22598,8 +22598,8 @@ Section header string table index: %d
                         ElfAnalyzer.STV_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
-        if debug:
-            SystemManager.pipePrint(oneLine)
+            if debug:
+                SystemManager.pipePrint(oneLine)
 
         if e_shdynamic < 0:
             return
