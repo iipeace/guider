@@ -8418,8 +8418,9 @@ class FileAnalyzer(object):
         SystemManager.printInfoBuffer()
 
         # Print process list #
-        SystemManager.pipePrint(\
-            "[%s] [ Process : %d ] [ LastRAM: %d(KB) ][ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]" % \
+        SystemManager.pipePrint((\
+            "[%s] [ Process : %d ] [ LastRAM: %d(KB) ]"
+            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
             ('File Process Info', len(self.procList), self.profPageCnt * 4))
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
@@ -21082,6 +21083,21 @@ class Debugger(object):
 
     def clearArgs(self):
         self.args = []
+
+
+
+    def getSymbol(self, vaddr):
+        pass
+
+
+
+    def getFileFromMap(self, pmap, vaddr):
+        pass
+
+
+
+    def getSymbolFromFile(self, mfile, offset):
+        pass
 
 
 
