@@ -22104,14 +22104,15 @@ class ElfAnalyzer(object):
             ei_mag1 != ord('E') and \
             ei_mag2 != ord('L') and \
             ei_mag3 != ord('F'):
-            SystemManager.printError(\
-                "Fail to parse elf binary %s" % path)
+            SystemManager.printError((\
+                "Fail to recognize '%s', "
+                "check it is elf-format binary") % path)
             return None
 
         # check 32/64-bit type #
         if ei_class == 0:
             SystemManager.printError((\
-                "Fail to parse elf binary %s "
+                "Fail to recognize elf-format binary '%s'"
                 "because it is invalid class") % path)
             return None
         elif ei_class == 1:
@@ -22122,7 +22123,7 @@ class ElfAnalyzer(object):
         # check data encoding (endian) #
         if ei_data == 0:
             SystemManager.printError((\
-                "Fail to parse elf binary %s "
+                "Fail to recognize elf-format binary '%s'"
                 "because it is invalid for data encoding") % path)
             return None
         elif ei_data == 1:
