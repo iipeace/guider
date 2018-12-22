@@ -20601,6 +20601,10 @@ class Debugger(object):
         self.syscall = ''
         self.values = []
         self.args = []
+        self.pmap = None
+        self.fileList = []
+        self.addrList = []
+        self.elfList = {}
 
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -21087,17 +21091,81 @@ class Debugger(object):
 
 
     def getSymbol(self, vaddr):
-        pass
+        if self.pid is None:
+            SystemManager.printError("Fail to get pid to get symbol")
+            return
+
+        if self.pmap is None:
+            # get process memory map #
+            self.pmap = FileAnalyzer.getProcMapInfo(self.pid)
+
+            # get sorted lists from process memory map #
+            self.fileList, self.addrList = self.getAddrLists()
+            if len(self.fileList) == 0:
+                SystemManager.printWarning(\
+                    'Fail to get mapped file list to get symbol from addr')
+                return None
+
+        # get name by address #
+        fname = self.getFileFromMap(vaddr)
+        if fname is None:
+            SystemManager.printWarning(\
+                'Fail to get file name to get symbol from addr')
+            return None
+
+        # get offset in the file #
+        offset = vaddr - self.pmap[fname]['vstart']
+        if offset < 0:
+            SystemManager.printWarning(\
+                'Fail to get offset to get symbol from addr '
+                'because wrong process memory map')
+            return None
+
+        # get elf object #
+        if fname not in self.elfList:
+            self.elfList[fname] = ElfAnalyzer(fname)
+
+        try:
+            return self.elfList[fname].getSymbolByOffset(offset)
+        except:
+            return None
 
 
 
-    def getFileFromMap(self, pmap, vaddr):
-        pass
+    def getAddrLists(self):
+        fileList = []
+        addrList = []
+
+        if self.pmap is None:
+            return [], []
+
+        for f, item in sorted(\
+            self.pmap.items(), key=lambda x: x[1]['vend']):
+            fileList.append(f)
+            addrList.append(item['vend'])
+
+        return fileList, addrList
 
 
 
-    def getSymbolFromFile(self, mfile, offset):
-        pass
+    def getFileFromMap(self, vaddr):
+        def bisect_left(a, x, lo=0, hi=None):
+            # copied from python standard library bisect.py #
+            if lo < 0:
+                raise ValueError('lo must be non-negative')
+            if hi is None:
+                hi = len(a)
+            while lo < hi:
+                mid = (lo+hi)//2
+                if a[mid] < x: lo = mid+1
+                else: hi = mid
+            return lo
+
+        try:
+            idx = bisect_left(self.addrList, vaddr)
+            return self.fileList[idx]
+        except:
+            return None
 
 
 
@@ -22070,6 +22138,11 @@ class ElfAnalyzer(object):
     @staticmethod
     def ELF_ST_VISIBILITY(i):
         return ((i)&0x3)
+
+
+
+    def getSymbolByOffset(self, offset):
+        pass
 
 
 
