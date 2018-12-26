@@ -14561,7 +14561,7 @@ Copyright:
 
 
     @staticmethod
-    def pipePrint(line, newline=True):
+    def pipePrint(line, newline=True, flush=False):
         if SystemManager.printEnable is False:
             return
 
@@ -14691,7 +14691,7 @@ Copyright:
                 else:
                     sys.stdout.write(line)
 
-                if SystemManager.remoteRun:
+                if flush or SystemManager.remoteRun:
                     sys.stdout.flush()
             except:
                 pass
@@ -20832,10 +20832,11 @@ class Debugger(object):
         # attach the thread #
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
-        if ret < 0:
+        if ret != 0:
             SystemManager.printError('Fail to attach thread %s' % pid)
             return -1
         else:
+            SystemManager.printInfo('Attached to thread %d' % pid)
             return 0
 
 
@@ -20852,10 +20853,11 @@ class Debugger(object):
         # detach the thread #
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
-        if ret < 0:
+        if ret != 0:
             SystemManager.printWarning('Fail to detach thread %s' % pid)
             return -1
         else:
+            SystemManager.printInfo('Detached from thread %d' % pid)
             return 0
 
 
@@ -21253,7 +21255,8 @@ class Debugger(object):
 
             argText = ', '.join(args)
 
-            SystemManager.pipePrint('%s(%s) ' % (name, argText), False)
+            SystemManager.pipePrint(\
+                '%s(%s) ' % (name, argText), newline=False, flush=True)
         # exit #
         elif status == 'exit':
             # set next status #
@@ -21283,7 +21286,7 @@ class Debugger(object):
             else:
                 err = ''
 
-            SystemManager.pipePrint('= %s %s' % (retval, err))
+            SystemManager.pipePrint('= %s %s' % (retval, err), flush=True)
 
             self.clearArgs()
         else:
@@ -21301,6 +21304,7 @@ class Debugger(object):
         sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
         sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
         sigSegvIdx = ConfigManager.SIG_LIST.index('SIGSEGV')
+        sigChldIdx = ConfigManager.SIG_LIST.index('SIGCHLD')
         sigTrapFlag = sigTrapIdx | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
@@ -21331,6 +21335,10 @@ class Debugger(object):
                     (pid, ereason))
             sys.exit(0)
 
+        # print message #
+        SystemManager.printInfo(\
+            "Start tracing %s of thread %d" % (mode, pid))
+
         # set trap event type #
         if self.isRunning:
             self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
@@ -21348,14 +21356,17 @@ class Debugger(object):
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
 
+        SystemManager.pipePrint('')
+
         # enter trace loop #
         while 1:
-            # setup trap #
+            # set status #
             if self.status == 'stop':
                 self.status = 'enter'
             elif self.status == 'ready':
                 pass
             else:
+                # setup trap #
                 ret = self.ptrace(cmd, 0, 0)
 
             try:
@@ -21408,7 +21419,11 @@ class Debugger(object):
                     self.status = 'stop'
                     SystemManager.printWarning(\
                         'Blocked thread %s because of %s' % \
-                        (pid, ConfigManager.SIG_LIST[stat]), True)
+                        (pid, ConfigManager.SIG_LIST[stat]))
+
+                    # set up trap again #
+                    self.ptrace(cmd, 0, 0)
+
                     continue
                 # kill signal #
                 elif stat == sigKillIdx or stat == sigSegvIdx:
@@ -21430,7 +21445,7 @@ class Debugger(object):
             except SystemExit:
                 return
             except:
-                # check whether process is alive #
+                # check whether the process is alive #
                 try:
                     ret = self.waitpid(int(pid), __WALL)
 
