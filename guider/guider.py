@@ -12264,7 +12264,8 @@ Copyright:
                 SystemManager.libcObj.ioctl(fd, PERF_EVENT_IOC_RESET, 0)
 
                 # cast buffer to data #
-                retList.append(ctypes.cast(pbuf, POINTER(c_ulong)).contents.value)
+                retList.append(\
+                    ctypes.cast(pbuf, POINTER(c_ulong)).contents.value)
             except:
                 retList.append(None)
 
@@ -12297,8 +12298,9 @@ Copyright:
                         fd.seek(0)
                         # write all privilege to read perf events #
                         fd.write('-1')
-                        SystemManager.printWarning(\
-                            'Change value of %s from %s to -1 to read all perf events' % \
+                        SystemManager.printWarning((\
+                            'Change value of %s from %s to -1 '
+                            'to read all perf events') % \
                             (attrPath, paranoid))
             except:
                 SystemManager.printWarning(\
@@ -17807,7 +17809,10 @@ Copyright:
             SystemManager.runBackgroundMode()
 
         # start tracing #
-        Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+        try:
+            Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+        except:
+            pass
 
         sys.exit(0)
 
@@ -20614,6 +20619,10 @@ class Debugger(object):
         from ctypes import cdll, Structure, sizeof, addressof,\
             c_ulong, c_int, c_uint, c_uint32, byref
 
+        # check ptrace scope #
+        if Debugger.checkPtraceScope() < 0:
+            raise Exception()
+
         class user_regs_struct(Structure):
             def getdict(struct):
                 return dict((field, getattr(struct, field)) \
@@ -20842,7 +20851,10 @@ class Debugger(object):
 
 
     def detach(self):
-        pid = self.pid
+        if hasattr(self, 'pid'):
+            pid = self.pid
+        else:
+            return
 
         if self.isRunning is False:
             SystemManager.printWarning('No running thread %s' % pid)
@@ -21468,11 +21480,55 @@ class Debugger(object):
 
 
     @staticmethod
+    def checkPtraceScope():
+        filePath = \
+            '%s/sys/kernel/yama/ptrace_scope' % SystemManager.procPath
+
+        try:
+            with open(filePath, 'r') as fd:
+                '''
+0 - classic ptrace permissions: a process can PTRACE_ATTACH to any other
+process running under the same uid, as long as it is dumpable (i.e.
+did not transition uids, start privileged, or have called
+prctl(PR_SET_DUMPABLE...) already). Similarly, PTRACE_TRACEME is
+unchanged.
+
+1 - restricted ptrace: a process must have a predefined relationship
+with the inferior it wants to call PTRACE_ATTACH on. By default,
+this relationship is that of only its descendants when the above
+classic criteria is also met. To change the relationship, an
+inferior can call prctl(PR_SET_PTRACER, debugger, ...) to declare
+an allowed debugger PID to call PTRACE_ATTACH on the inferior.
+Using PTRACE_TRACEME is unchanged.
+
+2 - admin-only attach: only processes with CAP_SYS_PTRACE may use ptrace
+with PTRACE_ATTACH, or through children calling PTRACE_TRACEME.
+
+3 - no attach: no processes may use ptrace with PTRACE_ATTACH nor via
+PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
+                '''
+                perm = int(fd.readline()[:-1])
+                if perm == 3:
+                    SystemManager.printError((\
+                        'Fail to use ptrace because it is not allowed, '
+                        'check %s') % filePath)
+                    return -1
+                return 0
+        except:
+            return 0
+
+
+
+    @staticmethod
     def pauseThreads(tlist):
         # check root permission #
         if SystemManager.isRoot() is False:
             SystemManager.printError(\
                 'Fail to get root permission to pause threads')
+            return
+
+        # check ptrace scope #
+        if Debugger.checkPtraceScope() < 0:
             return
 
         # check thread list #
