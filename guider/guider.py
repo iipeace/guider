@@ -9301,7 +9301,7 @@ class SystemManager(object):
     reportEnable = False
     truncEnable = True
     countEnable = False
-    reportPath = None
+    reportObject = None
     reportFileEnable = False
     graphEnable = False
     procBuffer = []
@@ -10209,22 +10209,30 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeJsonObject(jsonObj, path=None, trunc=False, fd=None):
+    def writeJsonObject(jsonObj, fd=None, trunc=False, path=None):
+        if fd is not None:
+            try:
+                if trunc:
+                    fd.seek(0, 0)
+                    fd.truncate()
+
+                fd.write(jsonObj)
+
+                fd.flush()
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printWarning(\
+                    "Fail to write json-format data because %s" % \
+                    (' '.join(list(map(str, err.args)))), True)
+            return
+
+        # check write option #
         if trunc:
             perm = 'w'
         else:
             perm = 'a'
 
-        if fd is not None:
-            try:
-                    fd.write(jsonObj)
-            except:
-                err = sys.exc_info()[1]
-                SystemManager.printError(\
-                    "Fail to write json-format data because %s" % \
-                    (' '.join(list(map(str, err.args)))))
-            return
-
+        # open the file #
         try:
             with open(path, perm) as fd:
                 fd.write(jsonObj)
@@ -16602,8 +16610,7 @@ Copyright:
             reportPath = '%s/guider.report' % reportPath
 
         # remove redundant slashes and save it as the global report path #
-        SystemManager.reportPath = \
-            os.path.normpath(reportPath)
+        reportPath = os.path.normpath(reportPath)
 
         # backup a exist output file #
         if os.path.isfile(reportPath):
@@ -16618,10 +16625,25 @@ Copyright:
                 SystemManager.printWarning(\
                     "Fail to backup %s" % reportPath)
 
+        # open report file #
+        try:
+            if SystemManager.truncEnable:
+                perm = 'w'
+            else:
+                perm = 'a'
+
+            SystemManager.reportObject = open(reportPath, perm)
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s because %s" % \
+                (reportPath, ' '.join(list(map(str, err.args)))))
+            sys.exit(0)
+
         SystemManager.reportEnable = True
 
         SystemManager.printInfo(\
-            "start writing report to %s" % SystemManager.reportPath)
+            "start writing report to %s" % reportPath)
 
         return True
 
@@ -36160,9 +36182,10 @@ class ThreadAnalyzer(object):
             return
 
         # report system status to file #
-        if SystemManager.reportPath != None:
+        if SystemManager.reportObject != None:
             SystemManager.writeJsonObject(\
-                jsonObj, SystemManager.reportPath, SystemManager.truncEnable)
+                jsonObj, fd=SystemManager.reportObject, \
+                trunc=SystemManager.truncEnable)
 
         # report system status to socket #
         for addr, cli in SystemManager.addrListForReport.items():
