@@ -10208,9 +10208,14 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeJsonObject(jsonObj):
+    def writeJsonObject(jsonObj, append=False):
+        if append:
+            perm = 'a'
+        else:
+            perm = 'w'
+
         try:
-            fd = open(SystemManager.reportPath, 'w')
+            fd = open(SystemManager.reportPath, perm)
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
@@ -16594,6 +16599,12 @@ Copyright:
         # remove redundant slashes and save it as the global report path #
         SystemManager.reportPath = \
             os.path.normpath(reportPath)
+
+        # remove exist file #
+        try:
+            os.remove(reportPath)
+        except:
+            pass
 
         SystemManager.reportEnable = True
 
