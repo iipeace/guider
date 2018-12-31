@@ -34027,6 +34027,9 @@ class ThreadAnalyzer(object):
         if SystemManager.reportEnable:
             self.reportData = {}
 
+            # timestamp #
+            self.reportData['timestamp'] = SystemManager.uptime
+
             # system #
             self.reportData['system'] = {}
             self.reportData['system']['pid'] = SystemManager.pid
