@@ -16600,11 +16600,18 @@ Copyright:
         SystemManager.reportPath = \
             os.path.normpath(reportPath)
 
-        # remove exist file #
-        try:
-            os.remove(reportPath)
-        except:
-            pass
+        # backup a exist output file #
+        if os.path.isfile(reportPath):
+            backupFile = '%s.old' % reportPath
+
+            try:
+                SystemManager.getPkg('shutil', False).move(\
+                    reportPath, backupFile)
+                SystemManager.printInfo('%s is renamed to %s' % \
+                    (reportPath, backupFile))
+            except:
+                SystemManager.printWarning(\
+                    "Fail to backup %s" % reportPath)
 
         SystemManager.reportEnable = True
 
