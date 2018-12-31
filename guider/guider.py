@@ -9299,6 +9299,7 @@ class SystemManager(object):
 
     printStreamEnable = False
     reportEnable = False
+    truncEnable = True
     countEnable = False
     reportPath = None
     reportFileEnable = False
@@ -10208,30 +10209,20 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeJsonObject(jsonObj, append=False):
-        if append:
-            perm = 'a'
-        else:
+    def writeJsonObject(jsonObj, path, trunc=False):
+        if trunc:
             perm = 'w'
+        else:
+            perm = 'a'
 
         try:
-            fd = open(SystemManager.reportPath, perm)
+            with open(path, perm) as fd:
+                fd.write(jsonObj)
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                "Fail to open %s to write json data because %s" % \
-                (SystemManager.reportPath, ' '.join(list(map(str, err.args)))))
-            sys.exit(0)
-
-        try:
-            fd.write(jsonObj)
-            fd.close()
-        except:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning(\
-                "Fail to write json data to %s because %s" % \
-                (SystemManager.reportPath, \
-                ' '.join(list(map(str, err.args)))), True)
+                "Fail to write json-format data to %s because %s" % \
+                (path, ' '.join(list(map(str, err.args)))))
             sys.exit(0)
 
 
@@ -10419,7 +10410,8 @@ OPTIONS:
                 a:affinity | r:report | W:wchan | h:handler
                 f:float | R:freport
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | p:print | P:perf | W:wchan | n:net
+                c:cpu | e:encode | p:print | P:perf
+                W:wchan | n:net | t:truncate
                     '''
 
                 drawSubStr = '''
@@ -15048,6 +15040,9 @@ Copyright:
 
                 if options.rfind('n') > -1:
                     SystemManager.netEnable = False
+
+                if options.rfind('t') > -1:
+                    SystemManager.truncEnable = False
 
                 if options.rfind('e') > -1:
                     SystemManager.supportExtAscii = False
@@ -36155,7 +36150,8 @@ class ThreadAnalyzer(object):
 
         # report system status to file #
         if SystemManager.reportPath != None:
-            SystemManager.writeJsonObject(jsonObj)
+            SystemManager.writeJsonObject(\
+                jsonObj, SystemManager.reportPath, SystemManager.truncEnable)
 
         # report system status to socket #
         for addr, cli in SystemManager.addrListForReport.items():
