@@ -16643,7 +16643,7 @@ Copyright:
         SystemManager.reportEnable = True
 
         SystemManager.printInfo(\
-            "start writing report to %s" % reportPath)
+            "start writing json-format report to %s" % reportPath)
 
         return True
 
