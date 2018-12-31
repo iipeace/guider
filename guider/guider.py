@@ -10209,11 +10209,21 @@ class SystemManager(object):
 
 
     @staticmethod
-    def writeJsonObject(jsonObj, path, trunc=False):
+    def writeJsonObject(jsonObj, path=None, trunc=False, fd=None):
         if trunc:
             perm = 'w'
         else:
             perm = 'a'
+
+        if fd is not None:
+            try:
+                    fd.write(jsonObj)
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to write json-format data because %s" % \
+                    (' '.join(list(map(str, err.args)))))
+            return
 
         try:
             with open(path, perm) as fd:
@@ -36139,7 +36149,8 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 SystemManager.printWarning(\
-                    "Fail to rename %s to %s" % SystemManager.inputFile, filePath)
+                    "Fail to rename %s to %s" % \
+                    SystemManager.inputFile, filePath)
 
         # convert dict data to json data #
         jsonObj = SystemManager.makeJsonString(self.reportData)
