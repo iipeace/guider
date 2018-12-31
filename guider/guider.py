@@ -13133,7 +13133,7 @@ Copyright:
                 "enabled analysis options [ %s]" % enableStat)
 
         if disableStat != '':
-            SystemManager.printInfo(\
+            SystemManager.printWarning(\
                 "disabled analysis options [ %s]" % disableStat)
 
 
@@ -13505,7 +13505,7 @@ Copyright:
                 "enabled record options [ %s]" % enableStat)
 
         if disableStat != '':
-            SystemManager.printInfo(\
+            SystemManager.printWarning(\
                 "disabled record options [ %s]" % disableStat)
 
 
