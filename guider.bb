@@ -7,7 +7,7 @@ LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2c1c00f9d3ed9e24fa69b932b7e7aff2"
 
 SRC_URI = "git://github.com/iipeace/${BPN}"
-SRCREV = "ac05a2ce0ab480957d642d947d8f617bd224031d"
+SRCREV = "${AUTOREV}"
 
 S = "${WORKDIR}/git"
 R = "${RECIPE_SYSROOT_NATIVE}"
@@ -29,6 +29,3 @@ do_install() {
 
 RDEPENDS_${PN} = "python-ctypes python-shell \
                   python-json python-subprocess"
-
-FILES_SOLIBSDEV = ""
-#FILES_${PN} = "usr"
