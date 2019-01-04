@@ -11286,13 +11286,32 @@ Description:
     Show information about ELF file
 
 OPTIONS:
-        -I  <FILE>                   set input path
+        -I  <FILE>                  set input path
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
     - Pause specific running threads
+        # {0:1} {1:1} -g 1234
+                    '''.format(cmd, mode)
+
+                # printenv #
+                elif SystemManager.isPrintEnvMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+
+Description:
+    Show environment variables for a specific process
+
+OPTIONS:
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print environemtn variables for a specific process
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
@@ -11557,6 +11576,7 @@ COMMAND:
     [test]      alloctest   <mem>
 
     [util]      convert     <text>
+                printenv    <env>
                 readelf     <file>
 
     [comm]      list        <list>
@@ -16093,6 +16113,18 @@ Copyright:
 
 
     @staticmethod
+    def isPrintEnvMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'printenv':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSetAffinityMode():
         if len(sys.argv) == 1:
             return False
@@ -16387,6 +16419,10 @@ Copyright:
         # STRACE MODE #
         if SystemManager.isStraceMode():
             SystemManager.doStrace()
+
+        # PRINTENV MODE #
+        if SystemManager.isPrintEnvMode():
+            SystemManager.doPrintEnv()
 
         # AFFINITY MODE #
         if SystemManager.isSetAffinityMode():
@@ -17811,6 +17847,40 @@ Copyright:
 
 
     @staticmethod
+    def doPrintEnv():
+        # parse options #
+        SystemManager.parseAnalOption()
+
+        # check tid #
+        if SystemManager.isRoot() is False:
+            SystemManager.printError(\
+                "Fail to get root permission to print environment variables")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) == 0:
+            SystemManager.printError(\
+                "No tid with -g option")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) > 1:
+            SystemManager.printError(\
+                "wrong option with -g, input only one tid")
+            sys.exit(0)
+        else:
+            pid = int(SystemManager.filterGroup[0])
+
+        envs = SystemManager.getEnv(pid)
+
+        SystemManager.pipePrint('')
+
+        for env in envs:
+            SystemManager.pipePrint(env)
+
+        SystemManager.pipePrint('')
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def doStrace():
         # parse options #
         SystemManager.parseAnalOption()
@@ -18489,6 +18559,23 @@ Copyright:
                 (pid, runtime, deadline, period))
 
         return ret
+
+
+
+    @staticmethod
+    def getEnv(pid):
+        path = "%s/%s/environ" % (SystemManager.procPath, pid)
+
+        # open the environ file #
+        try:
+            with open(path, 'r') as fd:
+                return fd.readlines()[0].split('\x00')[:-1]
+        except:
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Fail to open %s because %s" % \
+                (path, ' '.join(list(map(str, err.args)))))
+            return
 
 
 
