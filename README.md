@@ -22,27 +22,13 @@ Table of contents
    * [Intro](#Intro)
    * [Output](#Output)
       * top
-         * process
-         * thread
-         * file
-         * stack
-         * perf
-         * memory
-         * report
-         * wss
+         * process / thread / file / stack / perf / memory / report/ wss
       * control
-         * cpulimit
-         * setsched
-         * kill
+         * cpulimit / setsched / kill
       * record
-         * thread
-         * syscall
-         * block
-         * lock
-         * kernel event
+         * thread / syscall / block / lock / kernel event
       * funcrecord
-         * cpu
-         * memory
+         * cpu / memory
       * filerecord
       * draw
    * [How to use](#How-to-use)
