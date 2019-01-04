@@ -20742,6 +20742,7 @@ class Debugger(object):
         self.fileList = []
         self.addrList = []
         self.elfList = {}
+        self.breakList = {}
 
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -20960,6 +20961,36 @@ class Debugger(object):
 
 
 
+    def unsetBreakpoint(self, addr):
+        if addr not in self.breakList:
+            SystemManager.printWarning(\
+                'No breakpoint registered with addr %s' % addr, True)
+            return False
+
+        self.writeMem(addr, self.breakList[addr]['word'])
+
+        self.breakList.pop(addr, None)
+
+        return True
+
+
+
+    def setBreakpoint(self, addr):
+        origWord = self.readMem(addr)
+
+        ret = self.writeMem(addr, b'\xCC' * ConfigManager.wordSize)
+        if ret < 0:
+            SystemManager.printWarning(\
+                'Fail to set breakpoint wigh addr %s' % addr, True)
+            return False
+
+        self.breakList[addr] = dict()
+        self.breakList[addr]['word'] = origWord
+
+        return True
+
+
+
     def attach(self, pid=None):
         if pid is None:
             pid = self.pid
@@ -20987,10 +21018,6 @@ class Debugger(object):
             pid = self.pid
         else:
             return
-
-        if self.isRunning is False:
-            SystemManager.printWarning('No running thread %s' % pid)
-            return -1
 
         plist = ConfigManager.PTRACE_TYPE
 
