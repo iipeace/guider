@@ -8621,6 +8621,11 @@ class FileAnalyzer(object):
 
         try:
             savedOffset = procMap[fileName]['offset']
+
+            # handle overlapped area in a same file #
+            if savedOffset == 0:
+                return
+
             savedSize = procMap[fileName]['size']
             savedEnd = savedOffset + savedSize
 
@@ -22643,7 +22648,7 @@ Section header string table index: %d
         if debug:
             SystemManager.pipePrint(\
                 ("\n[Section Headers]\n%s\n"
-                "[NR] %20s%10s%15s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
+                "[NR] %32s%10s%15s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
                 (twoLine, "Name", "Type", "Address", "Offset", "Size", \
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
@@ -22691,7 +22696,7 @@ Section header string table index: %d
                 # print section header #
                 if debug:
                     SystemManager.pipePrint(\
-                        "[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                        "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                         (i, string_table[sh_name], \
                         ElfAnalyzer.SH_TYPE[sh_type] \
                             if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
@@ -22715,7 +22720,7 @@ Section header string table index: %d
 
             elif debug:
                 SystemManager.pipePrint(\
-                    "[%02d]%20s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                    "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                     (i, sh_name, \
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
@@ -22768,7 +22773,7 @@ Section header string table index: %d
             if debug:
                 SystemManager.pipePrint((\
                     "\n[Symbol table '.dynsym']\n%s\n"
-                    "%04s%10s%10s%10s%10s%10s%10s %30s\n%s") % \
+                    "%04s%16s%10s%10s%10s%10s%10s %30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
@@ -22799,7 +22804,7 @@ Section header string table index: %d
                 # print .dynsym table #
                 if debug and st_name in dynsymbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d %s" % \
+                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22810,7 +22815,7 @@ Section header string table index: %d
                         st_shndx, dynsymbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d %d" % \
+                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -22864,7 +22869,7 @@ Section header string table index: %d
             if debug:
                 SystemManager.pipePrint((\
                     "\n[Symbol table '.symtab']\n%s\n"
-                    "%04s%10s%10s%10s%10s%10s%10s%30s\n%s") % \
+                    "%04s%16s%10s%10s%10s%10s%10s%30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
@@ -22897,7 +22902,7 @@ Section header string table index: %d
                 # parse .sym table #
                 if debug and st_name in symbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d %s" % \
+                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -22908,7 +22913,7 @@ Section header string table index: %d
                         st_shndx, symbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%10d%10d%10s%10s%10s%10d %d" % \
+                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.STT_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
