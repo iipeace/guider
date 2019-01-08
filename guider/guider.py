@@ -4565,7 +4565,7 @@ class FunctionAnalyzer(object):
         subprocess = SystemManager.getPkg('subprocess')
 
         # Recognize binary type #
-        relocated = SystemManager.isRelocatableFile(binPath)
+        relocated = ElfAnalyzer.isRelocatableFile(binPath)
 
         # No file exist #
         if os.path.isfile(binPath) == False:
@@ -5049,7 +5049,7 @@ class FunctionAnalyzer(object):
 
                 # Set offset #
                 if offset is not None:
-                    if SystemManager.isRelocatableFile(path):
+                    if ElfAnalyzer.isRelocatableFile(path):
                         self.posData[pos]['offset'] = offset
 
             # Save pos #
@@ -6129,7 +6129,7 @@ class FunctionAnalyzer(object):
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
-                if SystemManager.isRelocatableFile(data['binName']):
+                if ElfAnalyzer.isRelocatableFile(data['binName']):
                         # Return full path and offset of address in mapping table
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16) - int(data['startAddr'], 16))
@@ -13701,17 +13701,6 @@ Copyright:
         SystemManager.printError('Terminated by user\n')
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
-
-
-
-    @staticmethod
-    def isRelocatableFile(path):
-        if path.find('.so') == -1 and \
-            path.find('.ttf') == -1 and \
-            path.find('.pak') == -1:
-            return False
-        else:
-            return True
 
 
 
@@ -22350,6 +22339,9 @@ class ElfAnalyzer(object):
         243:"RISC-V",
     }
 
+    headerFiles = {}
+    symbolFiles = {}
+
 
 
     @staticmethod
@@ -22376,12 +22368,38 @@ class ElfAnalyzer(object):
 
 
 
+    @staticmethod
+    def isRelocatableFile(path):
+        try:
+            if path not in ElfAnalyzer.headerFiles:
+                ElfAnalyzer.headerFiles[path] = \
+                    ElfAnalyzer(path, default=True)
+
+            etype = ElfAnalyzer.headerFiles[path].attr['elfHeader']['type']
+            if etype == 'Relocatable' or \
+                etype == 'Shared-object':
+                return True
+            else:
+                return False
+        except:
+            pass
+
+        # check file name #
+        if path.find('.so') < 0 and \
+            path.find('.ttf') < 0 and \
+            path.find('.pak') < 0:
+            return False
+        else:
+            return True
+
+
+
     def getSymbolByOffset(self, offset):
         pass
 
 
 
-    def __init__(self, path, debug=False):
+    def __init__(self, path, debug=False, default=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -22458,15 +22476,15 @@ class ElfAnalyzer(object):
         # check file type #
         ei_type  = struct.unpack('H', fd.read(2))[0]
         if ei_type == 0:
-            e_type = 'No file type'
+            e_type = 'No-type'
         elif ei_type == 1:
-            e_type = 'Relocatable file'
+            e_type = 'Relocatable'
         elif ei_type == 2:
-            e_type = 'Executable file'
+            e_type = 'Executable'
         elif ei_type == 3:
-            e_type = 'Shared object file'
+            e_type = 'Shared-object'
         elif ei_type == 4:
-            e_type = 'Core file'
+            e_type = 'Core'
         elif ei_type == 0xff00:
             e_type = 'Processor-specific'
         elif ei_type == 0xffff:
@@ -22549,6 +22567,10 @@ Section header string table index: %d
                 e_entry, e_phoff, e_shoff, e_flags, e_ehsize, \
                 e_phentsize, e_shnum, e_shentsize, e_shnum, \
                 e_shstrndx, twoLine))
+
+        # break if only header info needed #
+        if default:
+            return
 
         # parse program header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
