@@ -22107,6 +22107,8 @@ class ElfAnalyzer(object):
         0: 'LOCAL',
         1: 'GLOBAL',
         2: 'WEAK',
+        10: 'LOOS',
+        12: 'HIOS',
         13: 'LOPROC',
         15: 'HIPROC'
     }
