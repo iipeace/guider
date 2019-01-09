@@ -4591,11 +4591,28 @@ class FunctionAnalyzer(object):
                     SystemManager.printWarning("Fail to find address %s" % addr)
             return -1
 
-        # Check addr2line path #
+        # check user-mode enabled #
         if SystemManager.userEnable is False:
             return
-        elif SystemManager.addr2linePath is None:
-            # get addr2line path #
+
+        # Check addr2line path #
+        if SystemManager.addr2linePath is None:
+            # try to get symbol myself #
+            try:
+                raise Exception()
+                symbolList = list()
+                binObj = ElfAnalyzer.cachedFiles[binPath]
+                for offset in offsetList:
+                    symbol = binObj.getSymbolByOffset(offset)
+                    if symbol is None:
+                        symbolList.append('??')
+                    else:
+                        symbolList.append(symbol)
+                return symbolList
+            except:
+                pass
+
+            # get system addr2line path #
             addr2linePath = SystemManager.which('addr2line')
 
             if addr2linePath != None:
@@ -20735,7 +20752,6 @@ class Debugger(object):
         self.pmap = None
         self.fileList = []
         self.addrList = []
-        self.elfList = {}
         self.breakList = {}
 
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
@@ -21289,11 +21305,11 @@ class Debugger(object):
             return None
 
         # get elf object #
-        if fname not in self.elfList:
-            self.elfList[fname] = ElfAnalyzer(fname)
+        if fname not in ElfAnalyzer.cachedFiles:
+            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
 
         try:
-            return self.elfList[fname].getSymbolByOffset(offset)
+            return ElfAnalyzer.cachedFiles[fname].getSymbolByOffset(offset)
         except:
             return None
 
@@ -22341,8 +22357,9 @@ class ElfAnalyzer(object):
         243:"RISC-V",
     }
 
-    headerFiles = {}
-    symbolFiles = {}
+    cachedFiles = {}
+    sortedSymTable = []
+    sortedAddrTable = []
 
 
 
@@ -22373,11 +22390,10 @@ class ElfAnalyzer(object):
     @staticmethod
     def isRelocatableFile(path):
         try:
-            if path not in ElfAnalyzer.headerFiles:
-                ElfAnalyzer.headerFiles[path] = \
-                    ElfAnalyzer(path, default=True)
+            if path not in ElfAnalyzer.cachedFiles:
+                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
 
-            etype = ElfAnalyzer.headerFiles[path].attr['elfHeader']['type']
+            etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
             if etype == 'Relocatable' or \
                 etype == 'Shared-object':
                 return True
@@ -22396,12 +22412,47 @@ class ElfAnalyzer(object):
 
 
 
+    def mergeSymTable(self):
+        # merge symbol tables #
+        tempSymTable = copy.deepcopy(self.attr['symTable'])
+        tempSymTable.update(self.attr['dynsymTable'])
+
+        # sort and convert table #
+        for idx, item in sorted(tempSymTable.items(),\
+            key=lambda e: e[1]['value'], reverse=False):
+            self.sortedAddrTable.append(item['value'])
+            self.sortedSymTable.append([idx, item['size']])
+
+
+
     def getSymbolByOffset(self, offset):
-        pass
+        def bisect_left(a, x, lo=0, hi=None):
+            # copied from python standard library bisect.py #
+            if lo < 0:
+                raise ValueError('lo must be non-negative')
+            if hi is None:
+                hi = len(a)
+            while lo < hi:
+                mid = (lo+hi)//2
+                if a[mid] < x: lo = mid+1
+                else: hi = mid
+            return lo
+
+        if len(self.sortedSymTable) == 0:
+            self.mergeSymTable()
+
+        try:
+            idx = bisect_left(self.sortedAddrList, offset)
+            maxAddr = self.sortedAddrTable[idx] + self.sortedSymTable[idx][1]
+            if offset >= self.sortedAddrTable[idx] and \
+                offset <= maxAddr:
+                return self.sortedSymTable[idx][0]
+        except:
+            return None
 
 
 
-    def __init__(self, path, debug=False, default=False):
+    def __init__(self, path, debug=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -22569,10 +22620,6 @@ Section header string table index: %d
                 e_entry, e_phoff, e_shoff, e_flags, e_ehsize, \
                 e_phentsize, e_shnum, e_shentsize, e_shnum, \
                 e_shstrndx, twoLine))
-
-        # break if only header info needed #
-        if default:
-            return
 
         # parse program header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
