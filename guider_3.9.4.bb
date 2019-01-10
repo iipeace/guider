@@ -25,10 +25,10 @@ do_install() {
     python ${S}/setup.py install
 
     install -d ${D}${bindir}
-    install -v -m 0755 ${PKGD}/${bindir}/${GUIDER_SCRIPT} ${D}${bindir}/${GUIDER_SCRIPT}
+    install -v -m 0755 ${STAGING_BINDIR_NATIVE}/${GUIDER_SCRIPT} ${D}${bindir}/${GUIDER_SCRIPT}
 
     install -d ${D}${datadir}/${BPN}
-    install -v -m 0755 ${PKGD}/${datadir}/${BPN}/${GUIDER_OBJ} ${D}${datadir}/${BPN}/${GUIDER_OBJ}
+    install -v -m 0755 ${STAGING_LIBDIR_NATIVE}/python${PYTHON_BASEVERSION}/site-packages/${BPN}/${GUIDER_OBJ} ${D}${datadir}/${BPN}/${GUIDER_OBJ}
 }
 
 RDEPENDS_${PN} = "python-ctypes python-shell \
