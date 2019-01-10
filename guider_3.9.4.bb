@@ -6,11 +6,15 @@ AUTHOR = "Peace Lee <ipeace5@gmail.com>"
 LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2c1c00f9d3ed9e24fa69b932b7e7aff2"
 
+PV = "3.9.4+git${SRCPV}"
+PR = "r0"
+
 SRC_URI = "git://github.com/iipeace/${BPN}"
-SRCREV = "${AUTOREV}"
+#SRCREV = "${AUTOREV}"
+SRCREV = "b433f3805674ef4588c1a161986c74eeac6a48e7"
 
 S = "${WORKDIR}/git"
-R = "${RECIPE_SYSROOT_NATIVE}"
+R = "${RECIPE_SYSROOT}"
 
 inherit distutils
 
@@ -21,10 +25,10 @@ do_install() {
     python ${S}/setup.py install
 
     install -d ${D}${bindir}
-    install -v -m 0755 ${R}/${bindir}/${GUIDER_SCRIPT} ${D}${bindir}/${GUIDER_SCRIPT}
+    install -v -m 0755 ${PKGD}/${bindir}/${GUIDER_SCRIPT} ${D}${bindir}/${GUIDER_SCRIPT}
 
     install -d ${D}${datadir}/${BPN}
-    install -v -m 0755 ${R}/${datadir}/${BPN}/${GUIDER_OBJ} ${D}${datadir}/${BPN}/${GUIDER_OBJ}
+    install -v -m 0755 ${PKGD}/${datadir}/${BPN}/${GUIDER_OBJ} ${D}${datadir}/${BPN}/${GUIDER_OBJ}
 }
 
 RDEPENDS_${PN} = "python-ctypes python-shell \

@@ -1,4 +1,4 @@
-import site, os, sys
+import site, os, sys, shutil
 from distutils.core import setup
 
 setup(
@@ -48,10 +48,15 @@ for path in site.getsitepackages():
 
     try:
         # prepare source pyc file #
-        pycTmpPath = '%s/guider/__pycache__/' % path
-        if os.path.isdir(pycTmpPath):
-            for cache in os.listdir(pycTmpPath):
-                os.rename('%s%s' % (pycTmpPath, cache), pycSrcPath)
+        pycTmpDir = '%s/guider/__pycache__/' % path
+        if os.path.isdir(pycTmpDir):
+            for cache in os.listdir(pycTmpDir):
+                if cache.startswith('guider') is False:
+                    continue
+
+                pycTmpFile = '%s%s' % (pycTmpDir, cache)
+                os.rename(pycTmpFile, pycSrcPath)
+                shutil.copy2(pycTmpFile, '%s/../' % (pycTmpFile))
 
         # check pyc source file #
         if os.path.isfile(pycSrcPath) is False:
