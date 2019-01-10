@@ -4561,6 +4561,62 @@ class FunctionAnalyzer(object):
 
 
     def getSymbolInfo(self, binPath, offsetList):
+        def updateSymbol(addr, symbol, src, relocated):
+            if not addr:
+                return -1
+            elif symbol == '??':
+                symbol = addr
+
+            # Check whether the file is relocatable or not #
+            if relocated is False:
+                try:
+                    savedSymbol = self.posData[addr]['symbol']
+                except:
+                    return -1
+
+                '''
+                Check whether saved symbol found by
+                previous addr2line is right #
+                '''
+                if savedSymbol == None or savedSymbol == '' or \
+                    savedSymbol == addr or savedSymbol[0] == '$':
+                    self.posData[addr]['symbol'] = symbol
+
+                    if SystemManager.showAll:
+                        self.posData[addr]['src'] = src
+                    else:
+                        fileIdx = src.rfind('/')
+                        if fileIdx >= 0:
+                            self.posData[addr]['src'] = src[fileIdx + 1:]
+            else:
+                inBinArea = False
+
+                for idx, value in sorted(self.posData.items(), \
+                    key=lambda e: e[1]['binary'], reverse=True):
+                    if value['binary'] == binPath:
+                        inBinArea = True
+
+                        if value['offset'] == hex(int(addr, 16)):
+                            savedSymbol = self.posData[idx]['symbol']
+
+                            if savedSymbol == None or \
+                                savedSymbol == '' or \
+                                savedSymbol == addr or \
+                                savedSymbol[0] == '$':
+                                self.posData[idx]['symbol'] = symbol
+
+                                if SystemManager.showAll:
+                                    self.posData[idx]['src'] = src
+                                else:
+                                    fileIdx = src.rfind('/')
+                                    if fileIdx >= 0:
+                                        self.posData[idx]['src'] = \
+                                            src[fileIdx + 1:]
+
+                                break
+                    elif inBinArea:
+                        break
+
         # get subprocess object #
         subprocess = SystemManager.getPkg('subprocess')
 
@@ -4608,7 +4664,9 @@ class FunctionAnalyzer(object):
                         symbolList.append('??')
                     else:
                         symbolList.append(symbol)
-                return symbolList
+
+                    updateSymbol(offset, symbol, '??', relocated)
+                return
             except:
                 pass
 
@@ -4687,61 +4745,8 @@ class FunctionAnalyzer(object):
                     if len(err) > 0:
                         SystemManager.printWarning(err[err.find(':') + 2:])
 
-                    # End of return #
-                    if not addr:
+                    if updateSymbol(addr, symbol, src, relocated) is not None:
                         break
-                    elif symbol == '??':
-                        symbol = addr
-
-                    # Check whether the file is relocatable or not #
-                    if relocated is False:
-                        try:
-                            savedSymbol = self.posData[addr]['symbol']
-                        except:
-                            continue
-
-                        '''
-                        Check whether saved symbol found by
-                        previous addr2line is right #
-                        '''
-                        if savedSymbol == None or savedSymbol == '' or \
-                            savedSymbol == addr or savedSymbol[0] == '$':
-                            self.posData[addr]['symbol'] = symbol
-
-                            if SystemManager.showAll:
-                                self.posData[addr]['src'] = src
-                            else:
-                                fileIdx = src.rfind('/')
-                                if fileIdx >= 0:
-                                    self.posData[addr]['src'] = src[fileIdx + 1:]
-                    else:
-                        inBinArea = False
-
-                        for idx, value in sorted(self.posData.items(), \
-                            key=lambda e: e[1]['binary'], reverse=True):
-                            if value['binary'] == binPath:
-                                inBinArea = True
-
-                                if value['offset'] == hex(int(addr, 16)):
-                                    savedSymbol = self.posData[idx]['symbol']
-
-                                    if savedSymbol == None or \
-                                        savedSymbol == '' or \
-                                        savedSymbol == addr or \
-                                        savedSymbol[0] == '$':
-                                        self.posData[idx]['symbol'] = symbol
-
-                                        if SystemManager.showAll:
-                                            self.posData[idx]['src'] = src
-                                        else:
-                                            fileIdx = src.rfind('/')
-                                            if fileIdx >= 0:
-                                                self.posData[idx]['src'] = \
-                                                    src[fileIdx + 1:]
-
-                                        break
-                            elif inBinArea:
-                                break
 
 
 
@@ -22358,8 +22363,6 @@ class ElfAnalyzer(object):
     }
 
     cachedFiles = {}
-    sortedSymTable = []
-    sortedAddrTable = []
 
 
 
@@ -22442,10 +22445,10 @@ class ElfAnalyzer(object):
             self.mergeSymTable()
 
         try:
-            idx = bisect_left(self.sortedAddrList, offset)
+            offset = int(offset, 16)
+            idx = bisect_left(self.sortedAddrTable, offset) - 1
             maxAddr = self.sortedAddrTable[idx] + self.sortedSymTable[idx][1]
-            if offset >= self.sortedAddrTable[idx] and \
-                offset <= maxAddr:
+            if offset >= self.sortedAddrTable[idx] and offset <= maxAddr:
                 return self.sortedSymTable[idx][0]
         except:
             return None
@@ -22478,6 +22481,8 @@ class ElfAnalyzer(object):
         # define attributes #
         self.path = path
         self.attr = {}
+        self.sortedSymTable = []
+        self.sortedAddrTable = []
 
         try:
             fd = self.fd = open(path, 'rb')
@@ -22499,9 +22504,9 @@ class ElfAnalyzer(object):
             ei_mag1 != ord('E') and \
             ei_mag2 != ord('L') and \
             ei_mag3 != ord('F'):
-            SystemManager.printError((\
+            SystemManager.printWarning((\
                 "Fail to recognize '%s', "
-                "check it is elf-format binary") % path)
+                "check it is elf-format binary") % path, True)
             return None
 
         # check 32/64-bit type #
