@@ -11319,8 +11319,8 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Pause specific running threads
-        # {0:1} {1:1} -g 1234
+    - Print ELF infomation of specific file
+        # {0:1} {1:1} -I /usr/bin/yes
                     '''.format(cmd, mode)
 
                 # printenv #
