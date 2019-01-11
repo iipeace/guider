@@ -22188,6 +22188,7 @@ class ElfAnalyzer(object):
         4: 'FILE',
         5: 'COMMON',
         6: 'TLS',
+        7: 'NUM',
         10: 'LOOS',
         12: 'HIOS',
         13: 'LOPROC',
@@ -22199,6 +22200,7 @@ class ElfAnalyzer(object):
         0: 'LOCAL',
         1: 'GLOBAL',
         2: 'WEAK',
+        3: 'NUM',
         10: 'LOOS',
         12: 'HIOS',
         13: 'LOPROC',
@@ -22512,6 +22514,7 @@ class ElfAnalyzer(object):
                 else: hi = mid
             return lo
 
+        # check symbol table #
         if len(self.sortedSymTable) == 0:
             self.mergeSymTable()
 
@@ -22520,6 +22523,7 @@ class ElfAnalyzer(object):
             addrTable = self.sortedAddrTable
             symTable = self.sortedSymTable
 
+            # get target index from address table #
             idx = bisect_left(self.sortedAddrTable, offset) - 1
 
             while 1:
