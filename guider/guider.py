@@ -4655,7 +4655,9 @@ class FunctionAnalyzer(object):
         if SystemManager.addr2linePath is None:
             # try to get symbol myself #
             try:
+                # disable self-resolving-symbol feature yet #
                 raise Exception()
+
                 symbolList = list()
                 binObj = ElfAnalyzer.cachedFiles[binPath]
                 for offset in offsetList:
@@ -11263,7 +11265,7 @@ Examples:
                 elif SystemManager.isSendMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [-<SIGNUM|SIGNAME> <PID>] [OPTIONS] [--help]
+    # {0:1} {1:1} [-<SIGNUM|SIGNAME> <PID> [OPTIONS] [--help]
 
 Description:
     Send specific signal to specific processes or all running guider processes
@@ -11286,7 +11288,7 @@ Examples:
                 elif SystemManager.isPauseMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID> [OPTIONS] [--help]
 
 Description:
     Pause specific running threads
@@ -11304,10 +11306,10 @@ Examples:
                     '''.format(cmd, mode)
 
                 # readelf #
-                elif SystemManager.isReadElfMode():
+                elif SystemManager.isReadelfMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+    # {0:1} {1:1} -I <FILE> [OPTIONS] [--help]
 
 Description:
     Show information about ELF file
@@ -11323,11 +11325,32 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes
                     '''.format(cmd, mode)
 
+                # addr2line #
+                elif SystemManager.isAddr2lineMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <FILE> -g <OFFSET> [OPTIONS] [--help]
+
+Description:
+    Show symbols of specific addresses in a file
+
+OPTIONS:
+        -I  <FILE>                  set input path
+        -g  <OFFSET>                set offset
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print symbol infomation of specific addresses in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
+                    '''.format(cmd, mode)
+
                 # printenv #
                 elif SystemManager.isPrintEnvMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID>] [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID> [OPTIONS] [--help]
 
 Description:
     Show environment variables for a specific process
@@ -11605,6 +11628,7 @@ COMMAND:
     [util]      convert     <text>
                 printenv    <env>
                 readelf     <file>
+                addr2line   <symbol>
 
     [comm]      list        <list>
                 start       <signal>
@@ -16376,7 +16400,7 @@ Copyright:
             sys.exit(0)
 
         # READELF MODE #
-        if SystemManager.isReadElfMode():
+        if SystemManager.isReadelfMode():
             # parse options #
             SystemManager.parseAnalOption()
 
@@ -16386,6 +16410,44 @@ Copyright:
                 sys.exit(0)
 
             ElfAnalyzer(SystemManager.sourceFile, debug=True)
+
+            sys.exit(0)
+
+        # ADDR2LINE MODE #
+        if SystemManager.isAddr2lineMode():
+            # parse options #
+            SystemManager.parseAnalOption()
+
+            if SystemManager.sourceFile is None:
+                SystemManager.printError(\
+                    "No file path with -I")
+                sys.exit(0)
+
+            if len(SystemManager.filterGroup) == 0:
+                SystemManager.printError(\
+                    "No offset with -g")
+                sys.exit(0)
+
+            # create elf object #
+            try:
+                binObj = ElfAnalyzer(SystemManager.sourceFile)
+            except:
+                sys.exit(0)
+
+            SystemManager.pipePrint("\n[Symbol Info]\n%s" % twoLine)
+
+            SystemManager.pipePrint(\
+                "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
+
+            # print symbols from offset list #
+            for offset in SystemManager.filterGroup:
+                symbol = binObj.getSymbolByOffset(offset)
+                if symbol is None:
+                    symbol = 'N/A'
+                SystemManager.pipePrint(\
+                    "{0:>18} {1:<1}".format('0x'+str(offset), symbol))
+
+            SystemManager.pipePrint(oneLine + '\n')
 
             sys.exit(0)
 
@@ -16562,8 +16624,17 @@ Copyright:
 
 
     @staticmethod
-    def isReadElfMode():
+    def isReadelfMode():
         if sys.argv[1] == 'readelf':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isAddr2lineMode():
+        if sys.argv[1] == 'addr2line':
             return True
         else:
             return False
@@ -22446,12 +22517,27 @@ class ElfAnalyzer(object):
 
         try:
             offset = int(offset, 16)
+            addrTable = self.sortedAddrTable
+            symTable = self.sortedSymTable
+
             idx = bisect_left(self.sortedAddrTable, offset) - 1
-            maxAddr = self.sortedAddrTable[idx] + self.sortedSymTable[idx][1]
-            if offset >= self.sortedAddrTable[idx] and offset <= maxAddr:
-                return self.sortedSymTable[idx][0]
+
+            while 1:
+                if addrTable[idx] > offset:
+                    return
+
+                maxAddr = addrTable[idx] + symTable[idx][1]
+                if offset >= addrTable[idx] and offset <= maxAddr:
+                    return symTable[idx][0]
+
+                idx += 1
         except:
-            return None
+            return
+
+
+
+    def __del__(self):
+        pass
 
 
 
@@ -22488,7 +22574,7 @@ class ElfAnalyzer(object):
             fd = self.fd = open(path, 'rb')
         except:
             SystemManager.printError("Fail to open %s" % path)
-            return None
+            raise Exception()
 
         # define default file type #
         e_type = e_class = 'dummpy'
