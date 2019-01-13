@@ -22176,6 +22176,8 @@ class ElfAnalyzer(object):
         5: "SHLIB",
         6: "PHDR",
         7: "TLS",
+        0x60000000: "PTLOOS",
+        0x6fffffff: "PTHIOS",
         0x70000000: "LOPROC",
         0x7fffffff: "HPROC"
     }
@@ -22227,6 +22229,7 @@ class ElfAnalyzer(object):
         9:"REL",
         10:"SHLIB",
         11:"DYNSYM",
+        12:"NUM",
         14:"INIT_ARRAY",
         15:"FINI_ARRAY",
         16:"PREINIT_ARRAY",
@@ -22460,6 +22463,30 @@ class ElfAnalyzer(object):
     @staticmethod
     def ELF_ST_VISIBILITY(i):
         return ((i)&0x3)
+
+
+
+    @staticmethod
+    def ELF32_R_SYM(i):
+        return ((i) >> 8)
+
+
+
+    @staticmethod
+    def ELF32_R_TYPE(i):
+        return ((i)&0xff)
+
+
+
+    @staticmethod
+    def ELF64_R_SYM(i):
+        return ((i) >> 32)
+
+
+
+    @staticmethod
+    def ELF64_R_TYPE(i):
+        return ((i)&0xffffffff)
 
 
 
