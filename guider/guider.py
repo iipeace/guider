@@ -23345,6 +23345,7 @@ class ThreadAnalyzer(object):
             self.irqData = {}
             self.prevIrqData = {}
             self.memData = {}
+            self.prevMemData = {}
             self.vmData = {}
             self.prevVmData = {}
             self.stackTable = {}
@@ -33282,6 +33283,8 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % memPath)
 
         if memBuf is not None:
+            self.prevMemData = self.memData
+
             self.memData = {}
 
             for line in memBuf:
@@ -34024,6 +34027,18 @@ class ThreadAnalyzer(object):
         except:
             freeMem = freeMemDiff = 0
             SystemManager.printWarning("Fail to get freeMem")
+
+        # available memory #
+        try:
+            availMem = self.memData['MemAvailable'] >> 10
+            if 'MemAvailable' in self.prevMemData:
+                availMemDiff = \
+                    availMem - (self.prevMemData['MemAvailable'] >> 10)
+            else:
+                availMem = 0
+        except:
+            availMem = availMemDiff = 0
+            SystemManager.printWarning("Fail to get availableMem")
 
         # anonymous memory #
         try:
