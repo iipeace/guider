@@ -20728,87 +20728,102 @@ Copyright:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
-        beforeInfo = self.memInfo['before']
-        afterInfo = self.memInfo['after']
+        before = self.memInfo['before']
+        after = self.memInfo['after']
 
         # check items for compatibility #
         try:
-            beforeInfo['Shmem']
+            before['Shmem']
         except:
-            beforeInfo['Shmem'] = '0'
-            afterInfo['Shmem'] = '0'
+            before['Shmem'] = '0'
+            after['Shmem'] = '0'
         try:
-            beforeInfo['SReclaimable']
+            before['SReclaimable']
         except:
-            beforeInfo['SReclaimable'] = '0'
-            afterInfo['SReclaimable'] = '0'
+            before['SReclaimable'] = '0'
+            after['SReclaimable'] = '0'
         try:
-            beforeInfo['Sunreclaim']
+            before['Sunreclaim']
         except:
-            beforeInfo['Sunreclaim'] = '0'
-            afterInfo['Sunreclaim'] = '0'
+            before['Sunreclaim'] = '0'
+            after['Sunreclaim'] = '0'
         try:
-            beforeInfo['Mlocked']
+            before['Mlocked']
         except:
-            beforeInfo['Mlocked'] = '0'
-            afterInfo['Mlocked'] = '0'
+            before['Mlocked'] = '0'
+            after['Mlocked'] = '0'
 
         # print memory info #
         SystemManager.infoBufferPrint('\n[System Memory Info] (Unit: MB)')
         SystemManager.infoBufferPrint(twoLine)
-        SystemManager.infoBufferPrint(\
-            "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
-            ("DESC ", "Memory", "Swap", "Buffer", "Cache", "Shared", "Mapped", \
-            "Active", "Inactive", "PageTables", "Slab", "SlabRclm", "SlabUnRclm", "Mlocked"))
+        SystemManager.infoBufferPrint((\
+            "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s "
+            "%10s %10s %10s %10s %10s") % \
+            ("DESC ", "Memory", "Swap", "Buffer", "Cache", "Shared", \
+            "Mapped", "Active", "Inactive", "PageTables", "Slab", \
+	    "SlabRclm", "SlabUnRclm", "Mlocked"))
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
-            (int(beforeInfo['MemTotal']) >> 10, int(beforeInfo['SwapTotal']) >> 10))
+            (int(before['MemTotal']) >> 10, int(before['SwapTotal']) >> 10))
         SystemManager.infoBufferPrint("[ FREE ] %10s %10s" % \
-            (int(beforeInfo['MemFree']) >> 10, int(beforeInfo['SwapFree']) >> 10))
+            (int(before['MemFree']) >> 10, int(before['SwapFree']) >> 10))
+        if 'MemAvailable' in before:
+            SystemManager.infoBufferPrint("[ AVAIL] %10s %10s" % \
+                (int(before['MemAvailable']) >> 10, \
+                int(before['SwapFree']) >> 10))
         SystemManager.infoBufferPrint(oneLine)
 
-        memBeforeUsage = int(beforeInfo['MemTotal']) - int(beforeInfo['MemFree'])
-        swapBeforeUsage = int(beforeInfo['SwapTotal']) - int(beforeInfo['SwapFree'])
-        memAfterUsage = int(afterInfo['MemTotal']) - int(afterInfo['MemFree'])
-        swapAfterUsage = int(afterInfo['SwapTotal']) - int(afterInfo['SwapFree'])
+        if 'MemAvailable' in before:
+            memBeforeUsage = int(before['MemTotal']) - int(before['MemAvailable'])
+        else:
+            memBeforeUsage = int(before['MemTotal']) - int(before['MemFree'])
+        swapBeforeUsage = int(before['SwapTotal']) - int(before['SwapFree'])
+        if 'MemAvailable' in before:
+            memAfterUsage = int(after['MemTotal']) - int(after['MemAvailable'])
+        else:
+            memAfterUsage = int(after['MemTotal']) - int(after['MemFree'])
+        swapAfterUsage = int(after['SwapTotal']) - int(after['SwapFree'])
 
-        SystemManager.infoBufferPrint(\
-            "[ START] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemManager.infoBufferPrint((\
+            "[ USE1 ] %10s %10s %10s %10s %10s %10s %10s "
+            "%10s %10s %10s %10s %10s %10s") % \
                 (memBeforeUsage >> 10, swapBeforeUsage >> 10, \
-                int(beforeInfo['Buffers']) >> 10, int(beforeInfo['Cached']) >> 10, \
-                int(beforeInfo['Shmem']) >> 10, int(beforeInfo['Mapped']) >> 10, \
-                int(beforeInfo['Active']) >> 10, int(beforeInfo['Inactive']) >> 10, \
-                int(beforeInfo['PageTables']) >> 10, int(beforeInfo['Slab']) >> 10, \
-                int(beforeInfo['SReclaimable']) >> 10, int(beforeInfo['SUnreclaim']) >> 10, \
-                int(beforeInfo['Mlocked']) >> 10))
+                int(before['Buffers']) >> 10, int(before['Cached']) >> 10, \
+                int(before['Shmem']) >> 10, int(before['Mapped']) >> 10, \
+                int(before['Active']) >> 10, int(before['Inactive']) >> 10, \
+                int(before['PageTables']) >> 10, int(before['Slab']) >> 10, \
+                int(before['SReclaimable']) >> 10, int(before['SUnreclaim']) >> 10, \
+                int(before['Mlocked']) >> 10))
 
-        SystemManager.infoBufferPrint(\
-            "[  END ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemManager.infoBufferPrint((\
+            "[ USE2 ] %10s %10s %10s %10s %10s %10s %10s "
+            "%10s %10s %10s %10s %10s %10s") % \
                 (memAfterUsage >> 10, swapAfterUsage >> 10, \
-                int(afterInfo['Buffers']) >> 10, int(afterInfo['Cached']) >> 10, \
-                int(afterInfo['Shmem']) >> 10, int(afterInfo['Mapped']) >> 10, \
-                int(afterInfo['Active']) >> 10, int(afterInfo['Inactive']) >> 10, \
-                int(afterInfo['PageTables']) >> 10, int(afterInfo['Slab']) >> 10, \
-                int(afterInfo['SReclaimable']) >> 10, int(afterInfo['SUnreclaim']) >> 10, \
-                int(afterInfo['Mlocked']) >> 10))
+                int(after['Buffers']) >> 10, int(after['Cached']) >> 10, \
+                int(after['Shmem']) >> 10, int(after['Mapped']) >> 10, \
+                int(after['Active']) >> 10, int(after['Inactive']) >> 10, \
+                int(after['PageTables']) >> 10, int(after['Slab']) >> 10, \
+                int(after['SReclaimable']) >> 10, int(after['SUnreclaim']) >> 10, \
+                int(after['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint(oneLine)
 
-        SystemManager.infoBufferPrint(\
-            "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s" % \
+        SystemManager.infoBufferPrint((\
+            "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s "
+            "%10s %10s %10s %10s %10s %10s") % \
                 ((memAfterUsage - memBeforeUsage ) >> 10, \
                 (swapAfterUsage - swapBeforeUsage) >> 10, \
-                (int(afterInfo['Buffers']) - int(beforeInfo['Buffers'])) >> 10, \
-                (int(afterInfo['Cached']) - int(beforeInfo['Cached'])) >> 10, \
-                (int(afterInfo['Shmem']) - int(beforeInfo['Shmem'])) >> 10, \
-                (int(afterInfo['Mapped']) - int(beforeInfo['Mapped'])) >> 10, \
-                (int(afterInfo['Active']) - int(beforeInfo['Active'])) >> 10, \
-                (int(afterInfo['Inactive']) - int(beforeInfo['Inactive'])) >> 10, \
-                (int(afterInfo['PageTables']) - int(beforeInfo['PageTables'])) >> 10, \
-                (int(afterInfo['Slab']) - int(beforeInfo['Slab'])) >> 10, \
-                (int(afterInfo['SReclaimable']) - int(beforeInfo['SReclaimable'])) >> 10, \
-                (int(afterInfo['SUnreclaim']) - int(beforeInfo['SUnreclaim'])) >> 10, \
-                (int(afterInfo['Mlocked']) - int(beforeInfo['Mlocked'])) >> 10))
+                (int(after['Buffers']) - int(before['Buffers'])) >> 10, \
+                (int(after['Cached']) - int(before['Cached'])) >> 10, \
+                (int(after['Shmem']) - int(before['Shmem'])) >> 10, \
+                (int(after['Mapped']) - int(before['Mapped'])) >> 10, \
+                (int(after['Active']) - int(before['Active'])) >> 10, \
+                (int(after['Inactive']) - int(before['Inactive'])) >> 10, \
+                (int(after['PageTables']) - int(before['PageTables'])) >> 10, \
+                (int(after['Slab']) - int(before['Slab'])) >> 10, \
+                (int(after['SReclaimable']) - int(before['SReclaimable'])) >> 10, \
+                (int(after['SUnreclaim']) - int(before['SUnreclaim'])) >> 10, \
+                (int(after['Mlocked']) - int(before['Mlocked'])) >> 10))
 
         SystemManager.infoBufferPrint(twoLine)
 
@@ -25261,11 +25276,11 @@ class ThreadAnalyzer(object):
                 plot(timeline, usage, '-', c='blue', \
                     linewidth=1, solid_capstyle='round')
                 if totalRam is not None:
-                    label = 'RAM Total [%s]\nRAM Free' % \
+                    label = 'RAM Total [%s]\nRAM Available' % \
                         convertSize2Unit(long(totalRam) << 20)
                     labelList.append(label)
                 else:
-                    labelList.append('RAM Free')
+                    labelList.append('RAM Available')
 
                 # System Anon Memory #
                 usage = list(map(int, memAnon))
@@ -29103,7 +29118,7 @@ class ThreadAnalyzer(object):
             "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | "
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | "
             "{12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Free/User/Cache', \
+            format('IDX', 'Interval', 'CPU', 'Avail/User/Cache', \
                 'BlkRW', 'Blk', 'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', \
                 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % twoLine)
@@ -34012,28 +34027,31 @@ class ThreadAnalyzer(object):
 
     def printSystemUsage(self):
         vmData = self.vmData
+        prevVmData = self.prevVmData
+        memData = self.memData
+        prevMemData = self.prevMemData
 
         # total memory #
         try:
-            totalMem = self.memData['MemTotal'] >> 10
+            totalMem = memData['MemTotal'] >> 10
         except:
             totalMem = 0
             SystemManager.printWarning("Fail to get totalMem")
 
         # free memory #
         try:
-            freeMem = vmData['nr_free_pages'] >> 8
-            freeMemDiff = freeMem - (self.prevVmData['nr_free_pages'] >> 8)
+            freeMem = memData['MemFree'] >> 10
+            freeMemDiff = freeMem - (prevMemData['MemFree'] >> 10)
         except:
             freeMem = freeMemDiff = 0
             SystemManager.printWarning("Fail to get freeMem")
 
         # available memory #
         try:
-            availMem = self.memData['MemAvailable'] >> 10
-            if 'MemAvailable' in self.prevMemData:
+            availMem = memData['MemAvailable'] >> 10
+            if 'MemAvailable' in prevMemData:
                 availMemDiff = \
-                    availMem - (self.prevMemData['MemAvailable'] >> 10)
+                    availMem - (prevMemData['MemAvailable'] >> 10)
             else:
                 availMem = 0
         except:
@@ -34238,15 +34256,15 @@ class ThreadAnalyzer(object):
 
         # cma mem #
         try:
-            if 'CmaTotal' in self.memData:
-                cmaTotalMem = self.memData['CmaTotal']
+            if 'CmaTotal' in memData:
+                cmaTotalMem = memData['CmaTotal']
 
-                if 'CmaFree' in self.memData:
-                    cmaFreeMem = self.memData['CmaFree']
+                if 'CmaFree' in memData:
+                    cmaFreeMem = memData['CmaFree']
                 else:
                     cmaFreeMem = 0
-                if 'CmaDeviceAlloc' in self.memData:
-                    cmaDevMem = self.memData['CmaDeviceAlloc']
+                if 'CmaDeviceAlloc' in memData:
+                    cmaDevMem = memData['CmaDeviceAlloc']
                 else:
                     cmaDevMem = 0
             else:
@@ -34380,13 +34398,18 @@ class ThreadAnalyzer(object):
         except:
             netIO = '-/-'
 
+        # check available memory #
+        if availMem == 0:
+            availMem = freeMem
+            availMemDiff = freeMemDiff
+
         # make total stat string #
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
             "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, \
-            ioUsage, irqUsage, freeMem, freeMemDiff, totalAnonMem, \
+            ioUsage, irqUsage, availMem, availMemDiff, totalAnonMem, \
             totalCacheMem, totalKernelMem, swapUsage, swapUsageDiff, \
             '%s/%s' % (swapInMem, swapOutMem), \
             '%s/%s' % (pgRclmBg, pgRclmFg), \
@@ -34431,6 +34454,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem'] = {}
             self.reportData['mem']['total'] = totalMem
             self.reportData['mem']['free'] = freeMem
+            self.reportData['mem']['available'] = availMem
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
@@ -34438,6 +34462,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['cache'] = totalCacheMem
             self.reportData['mem']['kernel'] = totalKernelMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
+            self.reportData['mem']['availableDiff'] = availMemDiff
             self.reportData['mem']['anonDiff'] = anonMemDiff
             self.reportData['mem']['fileDiff'] = fileMemDiff
             self.reportData['mem']['slabDiff'] = slabMemDiff
