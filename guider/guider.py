@@ -22191,13 +22191,17 @@ class ElfAnalyzer(object):
         5: "SHLIB",
         6: "PHDR",
         7: "TLS",
+        8: "NUM",
         0x60000000: "PTLOOS",
         0x6fffffff: "PTHIOS",
         0x70000000: "LOPROC",
-        0x7fffffff: "HPROC"
+        0x7fffffff: "HPROC",
+        0x6474e550: "GNU_EH_FRAME",
+        0x6474e551: "GNU_STACK",
+        0x6474e552: "GNU_RELRO",
     }
 
-    STT_TYPE = {
+    ST_TYPE = {
         0: 'NOTYPE',
         1: 'OBJECT',
         2: 'FUNC',
@@ -22213,7 +22217,7 @@ class ElfAnalyzer(object):
     }
 
 
-    STB_BIND_TYPE = {
+    ST_BIND_TYPE = {
         0: 'LOCAL',
         1: 'GLOBAL',
         2: 'WEAK',
@@ -22224,7 +22228,7 @@ class ElfAnalyzer(object):
         15: 'HIPROC'
     }
 
-    STV_VISIBILITY_TYPE = {
+    ST_VISIBILITY_TYPE = {
         0: 'DEFAULT',
         1: 'INTERNAL',
         2: 'HIDDEN',
@@ -22250,12 +22254,480 @@ class ElfAnalyzer(object):
         16:"PREINIT_ARRAY",
         17:"GROUP",
         18:"SYMTAB_SHNDX",
+        19:"NUM",
         0x60000000:"LOOS",
         0x6fffffff:"HIOS",
         0x70000000:"LOPROC",
         0x7fffffff:"HIPROC",
         0x80000000:"LOUSER",
         0xffffffff:"HIUSER",
+    }
+
+    DT_TYPE = {
+        0:"NULL",
+        1:"NEEDED",
+        2:"PLTRELSZ",
+        3:"PLTGOT",
+        4:"HASH",
+        5:"STRTAB",
+        6:"SYMTAB",
+        7:"RELA",
+        8:"RELASZ",
+        9:"RELAENT",
+        10:"STRSZ",
+        11:"SYMENT",
+        12:"INIT",
+        13:"FINI",
+        14:"SONAME",
+        15:"RPATH",
+        16:"SYMBOLIC",
+        17:"REL",
+        18:"RELSZ",
+        19:"RELENT",
+        20:"PLTREL",
+        21:"DEBUG",
+        22:"TEXTREL",
+        23:"JMPREL",
+        24:"BIND_NOW",
+        25:"INIT_ARRAY",
+        26:"FINI_ARRAY",
+        27:"INIT_ARRAYSZ",
+        28:"FINI_ARRAYSZ",
+        29:"RUNPATH",
+        30:"FLAGS",
+        31:"ENCODING",
+        32:"PREINIT_ARRAY",
+        33:"PREINIT_ARRAYSZ",
+        34:"NUM	",
+        0x6000000d:"LOOS",
+        0x6ffff000:"HIOS",
+        0x70000000:"LOPROC",
+        0x7fffffff:"HIPROC",
+        0x35:"PROCNUM",
+        0x6ffffd00:"VALRNGLO",
+        0x6ffffdf5:"GNU_PRELINKED",
+        0x6ffffdf6:"GNU_CONFLICTSZ",
+        0x6ffffdf7:"GNU_LIBLISTSZ",
+        0x6ffffdf8:"CHECKSUM",
+        0x6ffffdf9:"PLTPADSZ",
+        0x6ffffdfa:"MOVEENT",
+        0x6ffffdfb:"MOVESZ",
+        0x6ffffdfe:"SYMINSZ",
+        0x6ffffdff:"SYMINENT",
+        0x6ffffef5:"GNU_HASH",
+        0x6ffffef6:"TLSDESC_PLT",
+        0x6ffffef7:"TLSDESC_GOT",
+        0x6ffffef8:"GNU_CONFLICT",
+        0x6ffffef9:"GNU_LIBLIST",
+        0x6ffffefa:"CONFIG",
+        0x6ffffefb:"DEPAUDIT",
+        0x6ffffefc:"AUDIT",
+        0x6ffffefd:"PLTPAD",
+        0x6ffffefe:"MOVETAB",
+        0x6ffffeff:"SYMINFO",
+        0x6ffffff0:"VERSYM",
+        0x6ffffff9:"RELACOUNT",
+        0x6ffffffa:"RELCOUNT",
+        0x6ffffffb:"FLAGS_1",
+        0x6ffffffc:"VERDEF",
+        0x6ffffffd:"VERDEFNUM",
+        0x6ffffffe:"VERNEED",
+        0x6fffffff:"VERNEEDNUM",
+        0x7ffffffd:"AUXILIARY",
+        0x7fffffff:"FILTER",
+    }
+
+    EI_OSABI = {
+        0:"SYSV",
+        1:"HPUX",
+        2:"NETBSD",
+        3:"LINUX",
+        4:"HURD",
+        6:"SOLARIS",
+        7:"AIX",
+        8:"IRIX",
+        9:"FREEBSD",
+        10:"TRU64",
+        11:"MODESTO",
+        12:"OPENBSD",
+        13:"OPENVMS",
+        14:"NSK",
+        15:"AROS",
+        16:"FENIXOS",
+        17:"CLOUD",
+        53:"SORTIX",
+        64:"ARM_AEABI",
+        97:"ARM",
+        255:"STANDALONE",
+    }
+
+    DT_FLAGS = {
+        0x1:"ORIGIN",
+        0x2:"SYMBOLIC",
+        0x4:"TEXTREL",
+        0x8:"BIND_NOW",
+        0x10:"STATIC_TLS",
+    }
+
+    DT_FLAGS_1 = {
+        0x1:"NOW",
+        0x2:"GLOBAL",
+        0x4:"GROUP",
+        0x8:"NODELETE",
+        0x10:"LOADFLTR",
+        0x20:"INITFIRST",
+        0x40:"NOOPEN",
+        0x80:"ORIGIN",
+        0x100:"DIRECT",
+        0x200:"TRANS",
+        0x400:"INTERPOSE",
+        0x800:"NODEFLIB",
+        0x1000:"NODUMP",
+        0x2000:"CONFALT",
+        0x4000:"ENDFILTEE",
+        0x8000:"DISPRELDNE",
+        0x10000:"DISPRELPND",
+        0x20000:"NODIRECT",
+        0x40000:"IGNMULDEF",
+        0x80000:"NOKSYMS",
+        0x100000:"NOHDR",
+        0x200000:"EDITED",
+        0x400000:"NORELOC",
+        0x800000:"SYMINTPOSE",
+        0x1000000:"GLOBAUDIT",
+        0x2000000:"SINGLETON",
+        0x4000000:"STUB",
+        0x8000000:"PIE",
+    }
+
+    RELOC_TYPE_x86 = {
+        0:"R_386_NONE",
+        1:"R_386_32",
+        2:"R_386_PC32",
+        3:"R_386_GOT32",
+        4:"R_386_PLT32",
+        5:"R_386_COPY",
+        6:"R_386_GLOB_DAT",
+        7:"R_386_JUMP_SLOT",
+        8:"R_386_RELATIVE",
+        9:"R_386_GOTOFF",
+        10:"R_386_GOTPC",
+        11:"R_386_32PLT",
+        14:"R_386_TLS_TPOFF",
+        15:"R_386_TLS_IE",
+        16:"R_386_TLS_GOTIE",
+        17:"R_386_TLS_LE",
+        18:"R_386_TLS_GD",
+        19:"R_386_TLS_LDM",
+        20:"R_386_16",
+        21:"R_386_PC16",
+        22:"R_386_8",
+        23:"R_386_PC8",
+        24:"R_386_TLS_GD_32",
+        25:"R_386_TLS_GD_PUSH",
+        26:"R_386_TLS_GD_CALL",
+        27:"R_386_TLS_GD_POP",
+        28:"R_386_TLS_LDM_32",
+        29:"R_386_TLS_LDM_PUSH",
+        30:"R_386_TLS_LDM_CALL",
+        31:"R_386_TLS_LDM_POP",
+        32:"R_386_TLS_LDO_32",
+        33:"R_386_TLS_IE_32",
+        34:"R_386_TLS_LE_32",
+        35:"R_386_TLS_DTPMOD32",
+        36:"R_386_TLS_DTPOFF32",
+        37:"R_386_TLS_TPOFF32",
+        39:"R_386_TLS_GOTDESC",
+        40:"R_386_TLS_DESC_CALL",
+        41:"R_386_TLS_DESC",
+        42:"R_386_IRELATIVE",
+        200:"R_386_USED_BY_INTEL_200",
+        250:"R_386_GNU_VTINHERIT",
+        251:"R_386_GNU_VTENTRY",
+    }
+
+    RELOC_TYPE_x64 = {
+        0:"R_X86_64_NONE",
+        1:"R_X86_64_64",
+        2:"R_X86_64_PC32",
+        3:"R_X86_64_GOT32",
+        4:"R_X86_64_PLT32",
+        5:"R_X86_64_COPY",
+        6:"R_X86_64_GLOB_DAT",
+        7:"R_X86_64_JUMP_SLOT",
+        8:"R_X86_64_RELATIVE",
+        9:"R_X86_64_GOTPCREL",
+        10:"R_X86_64_32",
+        11:"R_X86_64_32S",
+        12:"R_X86_64_16",
+        13:"R_X86_64_PC16",
+        14:"R_X86_64_8",
+        15:"R_X86_64_PC8",
+        16:"R_X86_64_DTPMOD64",
+        17:"R_X86_64_DTPOFF64",
+        18:"R_X86_64_TPOFF64",
+        19:"R_X86_64_TLSGD",
+        20:"R_X86_64_TLSLD",
+        21:"R_X86_64_DTPOFF32",
+        22:"R_X86_64_GOTTPOFF",
+        23:"R_X86_64_TPOFF32",
+        24:"R_X86_64_PC64",
+        25:"R_X86_64_GOTOFF64",
+        26:"R_X86_64_GOTPC32",
+        27:"R_X86_64_GOT64",
+        28:"R_X86_64_GOTPCREL64",
+        29:"R_X86_64_GOTPC64",
+        30:"R_X86_64_GOTPLT64",
+        31:"R_X86_64_PLTOFF64",
+        34:"R_X86_64_GOTPC32_TLSDESC",
+        35:"R_X86_64_TLSDESC_CALL",
+        36:"R_X86_64_TLSDESC",
+        37:"R_X86_64_IRELATIVE",
+        250:"R_X86_64_GNU_VTINHERIT",
+        251:"R_X86_64_GNU_VTENTRY",
+    }
+
+    RELOC_TYPE_ARM = {
+        0:"R_ARM_NONE",
+        1:"R_ARM_PC24",
+        2:"R_ARM_ABS32",
+        3:"R_ARM_REL32",
+        4:"R_ARM_LDR_PC_G0",
+        5:"R_ARM_ABS16",
+        6:"R_ARM_ABS12",
+        7:"R_ARM_THM_ABS5",
+        8:"R_ARM_ABS8",
+        9:"R_ARM_SBREL32",
+        10:"R_ARM_THM_CALL",
+        11:"R_ARM_THM_PC8",
+        12:"R_ARM_BREL_ADJ",
+        13:"R_ARM_SWI24",
+        14:"R_ARM_THM_SWI8",
+        15:"R_ARM_XPC25",
+        16:"R_ARM_THM_XPC22",
+        17:"R_ARM_TLS_DTPMOD32",
+        18:"R_ARM_TLS_DTPOFF32",
+        19:"R_ARM_TLS_TPOFF32",
+        20:"R_ARM_COPY",
+        21:"R_ARM_GLOB_DAT",
+        22:"R_ARM_JUMP_SLOT",
+        23:"R_ARM_RELATIVE",
+        24:"R_ARM_GOTOFF32",
+        25:"R_ARM_BASE_PREL",
+        26:"R_ARM_GOT_BREL",
+        27:"R_ARM_PLT32",
+        28:"R_ARM_CALL",
+        29:"R_ARM_JUMP24",
+        30:"R_ARM_THM_JUMP24",
+        31:"R_ARM_BASE_ABS",
+        32:"R_ARM_ALU_PCREL_7_0",
+        33:"R_ARM_ALU_PCREL_15_8",
+        34:"R_ARM_ALU_PCREL_23_15",
+        35:"R_ARM_LDR_SBREL_11_0_NC",
+        36:"R_ARM_ALU_SBREL_19_12_NC",
+        37:"R_ARM_ALU_SBREL_27_20_CK",
+        38:"R_ARM_TARGET1",
+        39:"R_ARM_SBREL31",
+        40:"R_ARM_V4BX",
+        41:"R_ARM_TARGET2",
+        42:"R_ARM_PREL31",
+        43:"R_ARM_MOVW_ABS_NC",
+        44:"R_ARM_MOVT_ABS",
+        45:"R_ARM_MOVW_PREL_NC",
+        46:"R_ARM_MOVT_PREL",
+        47:"R_ARM_THM_MOVW_ABS_NC",
+        48:"R_ARM_THM_MOVT_ABS",
+        49:"R_ARM_THM_MOVW_PREL_NC",
+        50:"R_ARM_THM_MOVT_PREL",
+        51:"R_ARM_THM_JUMP19",
+        52:"R_ARM_THM_JUMP6",
+        53:"R_ARM_THM_ALU_PREL_11_0",
+        54:"R_ARM_THM_PC12",
+        55:"R_ARM_ABS32_NOI",
+        56:"R_ARM_REL32_NOI",
+        57:"R_ARM_ALU_PC_G0_NC",
+        58:"R_ARM_ALU_PC_G0",
+        59:"R_ARM_ALU_PC_G1_NC",
+        60:"R_ARM_ALU_PC_G1",
+        61:"R_ARM_ALU_PC_G2",
+        62:"R_ARM_LDR_PC_G1",
+        63:"R_ARM_LDR_PC_G2",
+        64:"R_ARM_LDRS_PC_G0",
+        65:"R_ARM_LDRS_PC_G1",
+        66:"R_ARM_LDRS_PC_G2",
+        67:"R_ARM_LDC_PC_G0",
+        68:"R_ARM_LDC_PC_G1",
+        69:"R_ARM_LDC_PC_G2",
+        70:"R_ARM_ALU_SB_G0_NC",
+        71:"R_ARM_ALU_SB_G0",
+        72:"R_ARM_ALU_SB_G1_NC",
+        73:"R_ARM_ALU_SB_G1",
+        74:"R_ARM_ALU_SB_G2",
+        75:"R_ARM_LDR_SB_G0",
+        76:"R_ARM_LDR_SB_G1",
+        77:"R_ARM_LDR_SB_G2",
+        78:"R_ARM_LDRS_SB_G0",
+        79:"R_ARM_LDRS_SB_G1",
+        80:"R_ARM_LDRS_SB_G2",
+        81:"R_ARM_LDC_SB_G0",
+        82:"R_ARM_LDC_SB_G1",
+        83:"R_ARM_LDC_SB_G2",
+        84:"R_ARM_MOVW_BREL_NC",
+        85:"R_ARM_MOVT_BREL",
+        86:"R_ARM_MOVW_BREL",
+        87:"R_ARM_THM_MOVW_BREL_NC",
+        88:"R_ARM_THM_MOVT_BREL",
+        89:"R_ARM_THM_MOVW_BREL",
+        94:"R_ARM_PLT32_ABS",
+        95:"R_ARM_GOT_ABS",
+        96:"R_ARM_GOT_PREL",
+        97:"R_ARM_GOT_BREL12",
+        98:"R_ARM_GOTOFF12",
+        99:"R_ARM_GOTRELAX",
+        100:"R_ARM_GNU_VTENTRY",
+        101:"R_ARM_GNU_VTINHERIT",
+        102:"R_ARM_THM_JUMP11",
+        103:"R_ARM_THM_JUMP8",
+        104:"R_ARM_TLS_GD32",
+        105:"R_ARM_TLS_LDM32",
+        106:"R_ARM_TLS_LDO32",
+        107:"R_ARM_TLS_IE32",
+        108:"R_ARM_TLS_LE32",
+        109:"R_ARM_TLS_LDO12",
+        110:"R_ARM_TLS_LE12",
+        111:"R_ARM_TLS_IE12GP",
+        112:"R_ARM_PRIVATE_0",
+        113:"R_ARM_PRIVATE_1",
+        114:"R_ARM_PRIVATE_2",
+        115:"R_ARM_PRIVATE_3",
+        116:"R_ARM_PRIVATE_4",
+        117:"R_ARM_PRIVATE_5",
+        118:"R_ARM_PRIVATE_6",
+        119:"R_ARM_PRIVATE_7",
+        120:"R_ARM_PRIVATE_8",
+        121:"R_ARM_PRIVATE_9",
+        122:"R_ARM_PRIVATE_10",
+        123:"R_ARM_PRIVATE_11",
+        124:"R_ARM_PRIVATE_12",
+        125:"R_ARM_PRIVATE_13",
+        126:"R_ARM_PRIVATE_14",
+        127:"R_ARM_PRIVATE_15",
+        128:"R_ARM_ME_TOO",
+        129:"R_ARM_THM_TLS_DESCSEQ16",
+        130:"R_ARM_THM_TLS_DESCSEQ32",
+        131:"R_ARM_THM_GOT_BREL12",
+        140:"R_ARM_IRELATIVE",
+    }
+
+    RELOC_TYPE_AARCH64 = {
+        256:"R_AARCH64_NONE",
+        257:"R_AARCH64_ABS64",
+        258:"R_AARCH64_ABS32",
+        259:"R_AARCH64_ABS16",
+        260:"R_AARCH64_PREL64",
+        261:"R_AARCH64_PREL32",
+        262:"R_AARCH64_PREL16",
+        263:"R_AARCH64_MOVW_UABS_G0",
+        264:"R_AARCH64_MOVW_UABS_G0_NC",
+        265:"R_AARCH64_MOVW_UABS_G1",
+        266:"R_AARCH64_MOVW_UABS_G1_NC",
+        267:"R_AARCH64_MOVW_UABS_G2",
+        268:"R_AARCH64_MOVW_UABS_G2_NC",
+        269:"R_AARCH64_MOVW_UABS_G3",
+        270:"R_AARCH64_MOVW_SABS_G0",
+        271:"R_AARCH64_MOVW_SABS_G1",
+        272:"R_AARCH64_MOVW_SABS_G2",
+        273:"R_AARCH64_LD_PREL_LO19",
+        274:"R_AARCH64_ADR_PREL_LO21",
+        275:"R_AARCH64_ADR_PREL_PG_HI21",
+        276:"R_AARCH64_ADR_PREL_PG_HI21_NC",
+        277:"R_AARCH64_ADD_ABS_LO12_NC",
+        278:"R_AARCH64_LDST8_ABS_LO12_NC",
+        279:"R_AARCH64_TSTBR14",
+        280:"R_AARCH64_CONDBR19",
+        282:"R_AARCH64_JUMP26",
+        283:"R_AARCH64_CALL26",
+        284:"R_AARCH64_LDST16_ABS_LO12_NC",
+        285:"R_AARCH64_LDST32_ABS_LO12_NC",
+        286:"R_AARCH64_LDST64_ABS_LO12_NC",
+        287:"R_AARCH64_MOVW_PREL_G0",
+        288:"R_AARCH64_MOVW_PREL_G0_NC",
+        289:"R_AARCH64_MOVW_PREL_G1",
+        290:"R_AARCH64_MOVW_PREL_G1_NC",
+        291:"R_AARCH64_MOVW_PREL_G2",
+        292:"R_AARCH64_MOVW_PREL_G2_NC",
+        293:"R_AARCH64_MOVW_PREL_G3",
+        300:"R_AARCH64_MOVW_GOTOFF_G0",
+        301:"R_AARCH64_MOVW_GOTOFF_G0_NC",
+        302:"R_AARCH64_MOVW_GOTOFF_G1",
+        303:"R_AARCH64_MOVW_GOTOFF_G1_NC",
+        304:"R_AARCH64_MOVW_GOTOFF_G2",
+        305:"R_AARCH64_MOVW_GOTOFF_G2_NC",
+        306:"R_AARCH64_MOVW_GOTOFF_G3",
+        307:"R_AARCH64_GOTREL64",
+        308:"R_AARCH64_GOTREL32",
+        309:"R_AARCH64_GOT_LD_PREL19",
+        310:"R_AARCH64_LD64_GOTOFF_LO15",
+        311:"R_AARCH64_ADR_GOT_PAGE",
+        312:"R_AARCH64_LD64_GOT_LO12_NC",
+        512:"R_AARCH64_TLSGD_ADR_PREL21",
+        513:"R_AARCH64_TLSGD_ADR_PAGE21",
+        514:"R_AARCH64_TLSGD_ADD_LO12_NC",
+        515:"R_AARCH64_TLSGD_MOVW_G1",
+        516:"R_AARCH64_TLSGD_MOVW_G0_NC",
+        517:"R_AARCH64_TLSLD_ADR_PREL21",
+        518:"R_AARCH64_TLSLD_ADR_PAGE21",
+        519:"R_AARCH64_TLSLD_ADD_LO12_NC",
+        520:"R_AARCH64_TLSLD_MOVW_G1",
+        521:"R_AARCH64_TLSLD_MOVW_G0_NC",
+        522:"R_AARCH64_TLSLD_LD_PREL19",
+        523:"R_AARCH64_TLSLD_MOVW_DTPREL_G2",
+        524:"R_AARCH64_TLSLD_MOVW_DTPREL_G1",
+        525:"R_AARCH64_TLSLD_MOVW_DTPREL_G1_NC",
+        526:"R_AARCH64_TLSLD_MOVW_DTPREL_G0",
+        527:"R_AARCH64_TLSLD_MOVW_DTPREL_G0_NC",
+        528:"R_AARCH64_TLSLD_ADD_DTPREL_HI12",
+        529:"R_AARCH64_TLSLD_ADD_DTPREL_LO12",
+        530:"R_AARCH64_TLSLD_ADD_DTPREL_LO12_NC",
+        531:"R_AARCH64_TLSLD_LDST8_DTPREL_LO12",
+        532:"R_AARCH64_TLSLD_LDST8_DTPREL_LO12_NC",
+        533:"R_AARCH64_TLSLD_LDST16_DTPREL_LO12",
+        534:"R_AARCH64_TLSLD_LDST16_DTPREL_LO12_NC",
+        535:"R_AARCH64_TLSLD_LDST32_DTPREL_LO12",
+        536:"R_AARCH64_TLSLD_LDST32_DTPREL_LO12_NC",
+        537:"R_AARCH64_TLSLD_LDST64_DTPREL_LO12",
+        538:"R_AARCH64_TLSLD_LDST64_DTPREL_LO12_NC",
+        539:"R_AARCH64_TLSIE_MOVW_GOTTPREL_G1",
+        540:"R_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC",
+        541:"R_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21",
+        542:"R_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC",
+        543:"R_AARCH64_TLSIE_LD_GOTTPREL_PREL19",
+        544:"R_AARCH64_TLSLE_MOVW_TPREL_G2",
+        545:"R_AARCH64_TLSLE_MOVW_TPREL_G1",
+        546:"R_AARCH64_TLSLE_MOVW_TPREL_G1_NC",
+        547:"R_AARCH64_TLSLE_MOVW_TPREL_G0",
+        548:"R_AARCH64_TLSLE_MOVW_TPREL_G0_NC",
+        549:"R_AARCH64_TLSLE_ADD_TPREL_HI12",
+        550:"R_AARCH64_TLSLE_ADD_TPREL_LO12",
+        551:"R_AARCH64_TLSLE_ADD_TPREL_LO12_NC",
+        552:"R_AARCH64_TLSLE_LDST8_TPREL_LO12",
+        553:"R_AARCH64_TLSLE_LDST8_TPREL_LO12_NC",
+        554:"R_AARCH64_TLSLE_LDST16_TPREL_LO12",
+        555:"R_AARCH64_TLSLE_LDST16_TPREL_LO12_NC",
+        556:"R_AARCH64_TLSLE_LDST32_TPREL_LO12",
+        557:"R_AARCH64_TLSLE_LDST32_TPREL_LO12_NC",
+        558:"R_AARCH64_TLSLE_LDST64_TPREL_LO12",
+        559:"R_AARCH64_TLSLE_LDST64_TPREL_LO12_NC",
+        1024:"R_AARCH64_COPY",
+        1025:"R_AARCH64_GLOB_DAT",
+        1026:"R_AARCH64_JUMP_SLOT",
+        1027:"R_AARCH64_RELATIVE",
+        1028:"R_AARCH64_TLS_DTPREL64",
+        1029:"R_AARCH64_TLS_DTPMOD64",
+        1030:"R_AARCH64_TLS_TPREL64",
+        1031:"R_AARCH64_TLS_DTPREL32",
+        1032:"R_AARCH64_TLS_DTPMOD32",
+        1033:"R_AARCH64_TLS_TPREL32",
     }
 
     EI_MACHINE_TYPE = {
@@ -22494,6 +22966,12 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def ELF32_R_INFO(sym, type):
+        return (((sym) << 8) + ((type) & 0xff))
+
+
+
+    @staticmethod
     def ELF64_R_SYM(i):
         return ((i) >> 32)
 
@@ -22502,6 +22980,12 @@ class ElfAnalyzer(object):
     @staticmethod
     def ELF64_R_TYPE(i):
         return ((i)&0xffffffff)
+
+
+
+    @staticmethod
+    def ELF64_R_INFO(sym, type):
+        return ((sym << 32) + (type))
 
 
 
@@ -22613,6 +23097,7 @@ class ElfAnalyzer(object):
         # define attributes #
         self.path = path
         self.attr = {}
+        self.is32Bit = True
         self.sortedSymTable = []
         self.sortedAddrTable = []
 
@@ -22638,24 +23123,26 @@ class ElfAnalyzer(object):
             ei_mag3 != ord('F'):
             SystemManager.printWarning((\
                 "Fail to recognize '%s', "
-                "check it is elf-format binary") % path, True)
+                "check it is elf-format object") % path, True)
             return None
 
         # check 32/64-bit type #
         if ei_class == 0:
             SystemManager.printError((\
-                "Fail to recognize elf-format binary '%s'"
+                "Fail to recognize elf-format object '%s'"
                 "because it is invalid class") % path)
             return None
         elif ei_class == 1:
+            self.is32Bit = True
             e_class = '32-bit objects'
         elif ei_class == 2:
+            self.is32Bit = False
             e_class = '64-bit objects'
 
         # check data encoding (endian) #
         if ei_data == 0:
             SystemManager.printError((\
-                "Fail to recognize elf-format binary '%s'"
+                "Fail to recognize elf-format object '%s'"
                 "because it is invalid for data encoding") % path)
             return None
         elif ei_data == 1:
@@ -22694,13 +23181,14 @@ class ElfAnalyzer(object):
         else:
             e_version = str(ei_version)
 
-        # parse elf header by 32/64-bit type #
-        if ei_class == 1:
+        # parse 32-bit elf header #
+        if self.is32Bit:
             ei_entry = struct.unpack('I', fd.read(4))[0]
             e_entry = ei_entry
             e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
                 struct.unpack('IIIHHHHHH', fd.read(24))
+        # parse 64-bit elf header #
         else:
             ei_entry = struct.unpack('Q', fd.read(8))[0]
             e_entry = ei_entry
@@ -22760,10 +23248,13 @@ Section header string table index: %d
 
         # parse program header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
-        if ei_class == 1:
+
+        # 32-bit #
+        if self.is32Bit:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
                 sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
                 struct.unpack('IIIHHIIIII', fd.read(48))
+        # 64-bit #
         else:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
                 sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -22788,7 +23279,7 @@ Section header string table index: %d
         if debug:
             SystemManager.pipePrint((\
                 "[Program Headers]\n%s\n"
-                "%10s %10s %16s %16s %12s %12s %10s\n%s") % \
+                "%16s %10s %16s %16s %12s %12s %10s\n%s") % \
                 (twoLine, "Type", "Offset", "VirtAddr", \
                 "PhysAddr", "FileSize", "MemSize", "Flags", twoLine))
 
@@ -22797,10 +23288,12 @@ Section header string table index: %d
         for i in range(0, e_phnum):
             fd.seek(e_phoff + e_phentsize * i)
 
-            if ei_class == 1:
+            # 32-bit #
+            if self.is32Bit:
                 p_type, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_flags, p_align = \
                     strcut.unpack('IIIIIIII', fd.read(32))
+            # 64-bit #
             else:
                 p_type, p_flags, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_align = \
@@ -22820,7 +23313,7 @@ Section header string table index: %d
             # print program header #
             if debug:
                 SystemManager.pipePrint(\
-                    "%10s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
+                    "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
                     (ElfAnalyzer.PT_TYPE[p_type] \
                         if p_type in ElfAnalyzer.PT_TYPE else p_type, \
                     p_offset, p_vaddr, p_paddr, p_filesz, \
@@ -22830,10 +23323,13 @@ Section header string table index: %d
 
         if e_shinterpndx >= 0:
             fd.seek(e_phoff + e_phentsize * e_shinterpndx)
-            if ei_class == 1:
+
+            # 32-bit #
+            if self.is32Bit:
                 p_type, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_flags, p_align = \
                     strcut.unpack('IIIIIIII', fd.read(32))
+            # 64-bit #
             else:
                 p_type, p_flags, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_align = \
@@ -22848,6 +23344,7 @@ Section header string table index: %d
         e_shdynsym = -1
         e_shdynstr = -1
         e_shdynamic = -1
+        e_shreladyn = -1
 
         # define section info #
         self.attr['sectionHeader'] = dict()
@@ -22864,11 +23361,13 @@ Section header string table index: %d
         for i in range(0, e_shnum):
             fd.seek(e_shoff + e_shentsize * i)
 
-            if ei_class == 1:
+            # 32-bit #
+            if self.is32Bit:
                 sh_name, sh_type, sh_flags, sh_addr, \
                     sh_offset, sh_size, sh_link, sh_info, \
                     sh_addralign, sh_entsize  = \
                     struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
             else:
                 sh_name, sh_type, sh_flags, sh_addr, \
                     sh_offset,  sh_size, sh_link, sh_info, \
@@ -22926,6 +23425,9 @@ Section header string table index: %d
                 if string_table[sh_name] == '.dynamic':
                     e_shdynamic = i
 
+                if string_table[sh_name] == '.rela.dyn':
+                    e_shreladyn = i
+
             elif debug:
                 SystemManager.pipePrint(\
                     "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
@@ -22943,11 +23445,14 @@ Section header string table index: %d
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
             fd.seek(e_shoff + e_shentsize * e_shdynstr)
-            if ei_class == 1:
+
+            # 32-bit #
+            if self.is32Bit:
                 sh_name, sh_type, sh_flags, sh_addr, \
                     sh_offset, sh_size, sh_link, sh_info, \
                     sh_addralign, sh_entsize  = \
                     struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
             else:
                 sh_name, sh_type, sh_flags, sh_addr, \
                     sh_offset, sh_size, sh_link, sh_info, \
@@ -22965,10 +23470,12 @@ Section header string table index: %d
 
             fd.seek(e_shoff + e_shentsize * e_shdynsym)
 
-            if ei_class == 1:
+            # 32-bit #
+            if self.is32Bit:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
                     struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
             else:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -22986,9 +23493,11 @@ Section header string table index: %d
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / 24)):
-                if ei_class == 1:
+                # 32-bit #
+                if self.is32Bit:
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
                         struct.unpack('IIIBBH', dynsym_section[i*16:(i+1)*16])
+                # 64-bit #
                 else:
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', dynsym_section[i*24:(i+1)*24])
@@ -23001,11 +23510,11 @@ Section header string table index: %d
 
                 self.attr['dynsymTable'][stname] = {\
                     'value': st_value, 'size': st_size, \
-                    'type': ElfAnalyzer.STT_TYPE[ \
+                    'type': ElfAnalyzer.ST_TYPE[ \
                         ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                    'bind': ElfAnalyzer.STB_BIND_TYPE[\
+                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
                         ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                    'vis': ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
                         ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                     'ndx': st_shndx}
 
@@ -23014,22 +23523,22 @@ Section header string table index: %d
                     SystemManager.pipePrint(\
                         "%04d%16x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
-                        ElfAnalyzer.STT_TYPE[\
+                        ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                        ElfAnalyzer.STB_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[\
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, dynsymbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
                         "%04d%16x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
-                        ElfAnalyzer.STT_TYPE[\
+                        ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                        ElfAnalyzer.STB_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[\
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
             if debug:
@@ -23041,10 +23550,13 @@ Section header string table index: %d
         # parse .sym table #
         if e_shsymndx >= 0 and e_shstrndx >= 0:
             fd.seek(e_shoff + e_shentsize * e_shstrndx)
-            if ei_class == 1:
+
+            # 32-bit #
+            if self.is32Bit:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
                     struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
             else:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -23061,10 +23573,12 @@ Section header string table index: %d
 
             fd.seek(e_shoff + e_shentsize * e_shsymndx)
 
-            if ei_class == 1:
+            # 32-bit #
+            if self.is32Bit:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
                     struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
             else:
                 sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                     sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -23082,10 +23596,12 @@ Section header string table index: %d
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / 24)):
-                if ei_class == 1:
+                # 32-bit #
+                if self.is32Bit:
                     st_name, st_info, st_other, \
                         st_shndx, st_value, st_size = \
                         struct.unpack('IIIBBH', sym_section[i*16:(i+1)*16])
+                # 64-bit #
                 else:
                     st_name, st_info, st_other, \
                         st_shndx, st_value, st_size = \
@@ -23099,11 +23615,11 @@ Section header string table index: %d
 
                 self.attr['symTable'][stname] = {\
                     'value': st_value, 'size': st_size, \
-                    'type': ElfAnalyzer.STT_TYPE[\
+                    'type': ElfAnalyzer.ST_TYPE[\
                     ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                    'bind': ElfAnalyzer.STB_BIND_TYPE[\
+                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
                     ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                    'vis': ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
                     ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                     'ndx': st_shndx}
 
@@ -23112,36 +23628,143 @@ Section header string table index: %d
                     SystemManager.pipePrint(\
                         "%04d%16x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
-                        ElfAnalyzer.STT_TYPE[\
+                        ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                        ElfAnalyzer.STB_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[\
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, symbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
                         "%04d%16x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
-                        ElfAnalyzer.STT_TYPE[\
+                        ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                        ElfAnalyzer.STB_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[\
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.STV_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                         st_shndx, st_name,))
             if debug:
                 SystemManager.pipePrint(oneLine)
 
+        '''
+        # define .rela.dyn info #
+        self.attr['relaDynTable'] = dict()
+
+        # parse .rela.dyn table #
+        if e_shreladyn >= 0:
+            fd.seek(e_shoff + e_shentsize * e_shreladyn)
+
+            # 32-bit #
+            if self.is32Bit:
+                sh_offset, sh_info, sh_addend = \
+                    struct.unpack('III', fd.read(12))
+            # 64-bit #
+            else:
+                sh_offset, sh_info, sh_addend = \
+                    struct.unpack('IIQ', fd.read(16))
+
+            fd.seek(sh_offset)
+            dynsym_section = fd.read(sh_size).decode()
+            dynsymbol_table = {}
+            lastnull = 0
+            for i, s in enumerate(dynsym_section):
+                if s == '\0':
+                    dynsymbol_table[lastnull] = dynsym_section[lastnull:i]
+                    lastnull = i + 1
+
+            fd.seek(e_shoff + e_shentsize * e_shdynsym)
+
+            # 32-bit #
+            if self.is32Bit:
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
+                    struct.unpack('IIIHHIIIII', fd.read(48))
+            # 64-bit #
+            else:
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
+                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+
+            fd.seek(sh_offset)
+            dynsym_section = fd.read(sh_size)
+
+            # print .dynsym table title #
+            if debug:
+                SystemManager.pipePrint((\
+                    "\n[Symbol table '.dynsym']\n%s\n"
+                    "%04s%16s%10s%10s%10s%10s%10s %30s\n%s") % \
+                    (twoLine, "Num", "Value", "Size", "Type", \
+                    "Bind", "Vis", "Ndx", "Name", twoLine))
+
+            for i in range(0, int(sh_size / 24)):
+                # 32-bit #
+                if self.is32Bit:
+                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                        struct.unpack('IIIBBH', dynsym_section[i*16:(i+1)*16])
+                # 64-bit #
+                else:
+                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                        struct.unpack('IBBHQQ', dynsym_section[i*24:(i+1)*24])
+
+                # save .dynsym table #
+                if st_name in dynsymbol_table:
+                    stname = dynsymbol_table[st_name]
+                else:
+                    stname = st_name
+
+                self.attr['dynsymTable'][stname] = {\
+                    'value': st_value, 'size': st_size, \
+                    'type': ElfAnalyzer.ST_TYPE[ \
+                        ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
+                        ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                    'ndx': st_shndx}
+
+                # print .dynsym table #
+                if debug and st_name in dynsymbol_table:
+                    SystemManager.pipePrint(\
+                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.ST_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                        ElfAnalyzer.ST_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, dynsymbol_table[st_name],))
+                elif debug:
+                    SystemManager.pipePrint(\
+                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
+                        (i, st_value, st_size, \
+                        ElfAnalyzer.ST_TYPE[\
+                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
+                        ElfAnalyzer.ST_BIND_TYPE[\
+                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
+                        st_shndx, st_name,))
+            if debug:
+                SystemManager.pipePrint(oneLine)
+        '''
+
+        # check dynamic section #
         if e_shdynamic < 0:
             return
 
         # parse dynamic section #
         fd.seek(e_shoff + e_shentsize * e_shdynamic)
-        if ei_class == 1:
+
+        # 32-bit #
+        if self.is32Bit:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 struct.unpack('IIIHHIIIII', fd.read(48))
+        # 64-bit #
         else:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -23153,10 +23776,13 @@ Section header string table index: %d
         if debug:
             SystemManager.pipePrint((\
                 '\n[Dynamic section]\n%s\n'
-                '%20s %20s %20s\n%s') % \
+                '%20s %20s %32s\n%s') % \
                 (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
-        if ei_class != 1:
+        # 64-bit #
+        if self.is32Bit:
+            pass
+        else:
             for i in range(0, int(sh_size / 16)):
                 fd.seek(sh_offset + i * 16)
                 d_tag, d_un = struct.unpack('QQ', fd.read(16))
@@ -23165,22 +23791,37 @@ Section header string table index: %d
                     if d_tag in ElfAnalyzer.TAG_TYPE:
                         if d_tag == 1 or d_tag == 15:
                             SystemManager.pipePrint(\
-                                '0x%018x %20s %20s' % \
+                                '0x%018x %20s %32s' % \
                                 (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
                                 dynsymbol_table[d_un]))
                         else:
                             SystemManager.pipePrint(\
-                                '0x%018x %20s %20s' % \
+                                '0x%018x %20s %32s' % \
                                 (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
+                    elif d_tag in ElfAnalyzer.DT_TYPE:
+                        if d_tag == 1 or d_tag == 15:
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %32s' % \
+                                (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
+                                dynsymbol_table[d_un]))
+                        else:
+                            SystemManager.pipePrint(\
+                                '0x%018x %20s %32s' % \
+                                (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
                     else:
                         if d_tag == 1 or d_tag == 15:
                             SystemManager.pipePrint(\
-                                '0x%018x %20s %20s' % \
+                                '0x%018x %20s %32s' % \
                                 (d_tag, d_tag, dynsymbol_table[d_un]))
                         else:
                             SystemManager.pipePrint(\
-                                '0x%018x %20s %20s' % \
+                                '0x%018x %20s %32s' % \
                                 (d_tag, d_tag, d_un))
+
+                # NULL termination #
+                if d_tag == d_un == 0:
+                    break
+
         if debug:
             SystemManager.pipePrint(oneLine)
 
