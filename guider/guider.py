@@ -22261,6 +22261,18 @@ class ElfAnalyzer(object):
         0x7fffffff:"HIPROC",
         0x80000000:"LOUSER",
         0xffffffff:"HIUSER",
+        0x6ffffff5:"GNU_ATTRIBUTES",
+        0x6ffffff6:"GNU_HASH",
+        0x6ffffff7:"GNU_LIBLIST",
+        0x6ffffff8:"CHECKSUM",
+        0x6ffffffa:"LOSUNW",
+        0x6ffffffa:"SUNW_move",
+        0x6ffffffb:"SUNW_COMDAT",
+        0x6ffffffc:"SUNW_syminfo",
+        0x6ffffffd:"GNU_verdef",
+        0x6ffffffe:"GNU_verneed",
+        0x6fffffff:"GNU_versym",
+        0x6fffffff:"HISUNW",
     }
 
     DT_TYPE = {
@@ -22399,6 +22411,8 @@ class ElfAnalyzer(object):
         0x4000000:"STUB",
         0x8000000:"PIE",
     }
+
+    RELOC_TYPE = {}
 
     RELOC_TYPE_x86 = {
         0:"R_386_NONE",
@@ -23066,6 +23080,14 @@ class ElfAnalyzer(object):
 
 
 
+    def getSectionInfo(self, fd):
+        if self.is32Bit:
+            return struct.unpack('IIIIIIIIII', fd.read(40))
+        else:
+            return struct.unpack('IIQQQQIIQQ', fd.read(64))
+
+
+
     def __del__(self):
         pass
 
@@ -23076,22 +23098,73 @@ class ElfAnalyzer(object):
         '''
         #define EI_NIDENT 16
 
-        typedef struct{
-            unsigned char e_ident[EI_NIDENT];
-            Elf32_Half e_type;
-            Elf32_Half e_machine;
-            Elf32_Word e_version;
-            Elf32_Addr e_entry;
-            Elf32_Off e_phoff;
-            Elf32_Off e_shoff;
-            Elf32_Word e_flags;
-            Elf32_Half e_ehsize;
-            Elf32_Half e_phentsize;
-            Elf32_Half e_phnum;
-            Elf32_Half e_shentsize;
-            Elf32_Half e_shnum;
-            Elf32_Half e_shstrndx;
+        /* Type for a 16-bit quantity.  */
+        typedef uint16_t Elf32_Half;
+        typedef uint16_t Elf64_Half;
+
+        /* Types for signed and unsigned 32-bit quantities.  */
+        typedef uint32_t Elf32_Word;
+        typedef	int32_t  Elf32_Sword;
+        typedef uint32_t Elf64_Word;
+        typedef	int32_t  Elf64_Sword;
+
+        /* Types for signed and unsigned 64-bit quantities.  */
+        typedef uint64_t Elf32_Xword;
+        typedef	int64_t  Elf32_Sxword;
+        typedef uint64_t Elf64_Xword;
+        typedef	int64_t  Elf64_Sxword;
+
+        /* Type of addresses.  */
+        typedef uint32_t Elf32_Addr;
+        typedef uint64_t Elf64_Addr;
+
+        /* Type of file offsets.  */
+        typedef uint32_t Elf32_Off;
+        typedef uint64_t Elf64_Off;
+
+        /* Type for section indices, which are 16-bit quantities.  */
+        typedef uint16_t Elf32_Section;
+        typedef uint16_t Elf64_Section;
+
+        /* Type for version symbol information.  */
+        typedef Elf32_Half Elf32_Versym;
+        typedef Elf64_Half Elf64_Versym;
+
+        typedef struct
+        {
+          unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
+          Elf32_Half	e_type;			/* Object file type */
+          Elf32_Half	e_machine;		/* Architecture */
+          Elf32_Word	e_version;		/* Object file version */
+          Elf32_Addr	e_entry;		/* Entry point virtual address */
+          Elf32_Off	e_phoff;		/* Program header table file offset */
+          Elf32_Off	e_shoff;		/* Section header table file offset */
+          Elf32_Word	e_flags;		/* Processor-specific flags */
+          Elf32_Half	e_ehsize;		/* ELF header size in bytes */
+          Elf32_Half	e_phentsize;		/* Program header table entry size */
+          Elf32_Half	e_phnum;		/* Program header table entry count */
+          Elf32_Half	e_shentsize;		/* Section header table entry size */
+          Elf32_Half	e_shnum;		/* Section header table entry count */
+          Elf32_Half	e_shstrndx;		/* Section header string table index */
         } Elf32_Ehdr;
+
+        typedef struct
+        {
+          unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
+          Elf64_Half	e_type;			/* Object file type */
+          Elf64_Half	e_machine;		/* Architecture */
+          Elf64_Word	e_version;		/* Object file version */
+          Elf64_Addr	e_entry;		/* Entry point virtual address */
+          Elf64_Off	e_phoff;		/* Program header table file offset */
+          Elf64_Off	e_shoff;		/* Section header table file offset */
+          Elf64_Word	e_flags;		/* Processor-specific flags */
+          Elf64_Half	e_ehsize;		/* ELF header size in bytes */
+          Elf64_Half	e_phentsize;		/* Program header table entry size */
+          Elf64_Half	e_phnum;		/* Program header table entry count */
+          Elf64_Half	e_shentsize;		/* Section header table entry size */
+          Elf64_Half	e_shnum;		/* Section header table entry count */
+          Elf64_Half	e_shstrndx;		/* Section header string table index */
+        } Elf64_Ehdr;
         '''
 
         # define attributes #
@@ -23109,9 +23182,10 @@ class ElfAnalyzer(object):
 
         # define default file type #
         e_type = e_class = 'dummpy'
+        EI_NIDENT = 16
 
-        # parse header #
-        ei_ident = struct.unpack('16B', fd.read(16))
+        # parse elf header #
+        ei_ident = struct.unpack('16B', fd.read(EI_NIDENT))
         ei_mag0, ei_mag1,ei_mag2, ei_mag3, \
             ei_class, ei_data, ei_version, ei_pad = ei_ident[:8]
         ei_nident = ei_ident[8:]
@@ -23174,6 +23248,38 @@ class ElfAnalyzer(object):
         else:
             e_machine = 'Unknow machine'
 
+        # update Program Table on arch #
+        if e_machine.startswith('ARM'):
+            ElfAnalyzer.PT_TYPE.update(\
+                {0x70000000:"ARCHEXT",
+                0x70000001:"EXIDX"})
+
+            if e_machine.startswith('ARM 32'):
+                ElfAnalyzer.SH_TYPE.update(\
+                    {0x70000001:"EXIDX",
+                    0x70000002:"PREEMPTMAP",
+                    0x70000003:"ATTRIBUTES"})
+
+                ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_ARM
+            else:
+                ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_AARCH64
+        elif e_machine.startswith('AMD x86-64') or \
+            e_machine.startswith('Intel IA-64'):
+            ElfAnalyzer.PT_TYPE.update(\
+                {0x60000012:"HP_OPT_ANOT",
+                0x60000013:"HP_HSL_ANOT",
+                0x60000014:"HP_STACK",
+                0x70000000:"ARCHEXT",
+                0x70000001:"UNWIND"})
+
+            ElfAnalyzer.SH_TYPE.update(\
+                {0x70000000:"EXT",
+                0x70000001:"UNWIND"})
+
+            ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_x64
+        elif e_machine.startswith('Intel '):
+            ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_x86
+
         # check version #
         ei_version = struct.unpack('I', fd.read(4))[0]
         if ei_version == 0:
@@ -23183,18 +23289,14 @@ class ElfAnalyzer(object):
 
         # parse 32-bit elf header #
         if self.is32Bit:
-            ei_entry = struct.unpack('I', fd.read(4))[0]
-            e_entry = ei_entry
-            e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
+            e_entry, e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
-                struct.unpack('IIIHHHHHH', fd.read(24))
+                struct.unpack('IIIIHHHHHH', fd.read(28))
         # parse 64-bit elf header #
         else:
-            ei_entry = struct.unpack('Q', fd.read(8))[0]
-            e_entry = ei_entry
-            e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
+            e_entry, e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
-                struct.unpack('QQIHHHHHH', fd.read(32))
+                struct.unpack('QQQIHHHHHH', fd.read(40))
 
         # save header info #
         self.attr['elfHeader'] = dict()
@@ -23246,19 +23348,42 @@ Section header string table index: %d
                 e_phentsize, e_shnum, e_shentsize, e_shnum, \
                 e_shstrndx, twoLine))
 
-        # parse program header #
+        '''
+        typedef struct
+        {
+          Elf32_Word	sh_name;		/* Section name (string tbl index) */
+          Elf32_Word	sh_type;		/* Section type */
+          Elf32_Word	sh_flags;		/* Section flags */
+          Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
+          Elf32_Off	sh_offset;		/* Section file offset */
+          Elf32_Word	sh_size;		/* Section size in bytes */
+          Elf32_Word	sh_link;		/* Link to another section */
+          Elf32_Word	sh_info;		/* Additional section information */
+          Elf32_Word	sh_addralign;		/* Section alignment */
+          Elf32_Word	sh_entsize;		/* Entry size if section holds table */
+        } Elf32_Shdr;
+
+        typedef struct
+        {
+          Elf64_Word	sh_name;		/* Section name (string tbl index) */
+          Elf64_Word	sh_type;		/* Section type */
+          Elf64_Xword	sh_flags;		/* Section flags */
+          Elf64_Addr	sh_addr;		/* Section virtual addr at execution */
+          Elf64_Off	sh_offset;		/* Section file offset */
+          Elf64_Xword	sh_size;		/* Section size in bytes */
+          Elf64_Word	sh_link;		/* Link to another section */
+          Elf64_Word	sh_info;		/* Additional section information */
+          Elf64_Xword	sh_addralign;		/* Section alignment */
+          Elf64_Xword	sh_entsize;		/* Entry size if section holds table */
+        } Elf64_Shdr;
+        '''
+
+        # parse section header #
         fd.seek(e_shoff + e_shentsize * e_shstrndx)
 
-        # 32-bit #
-        if self.is32Bit:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
-                sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
-                struct.unpack('IIIHHIIIII', fd.read(48))
-        # 64-bit #
-        else:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
-                sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
-                struct.unpack('IIQQQQIIQQ', fd.read(64))
+        sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
+            sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
+            self.getSectionInfo(fd)
 
         # parse string section #
         fd.seek(sh_offset)
@@ -23271,6 +23396,33 @@ Section header string table index: %d
                 continue
             string_table[lastnull] = str_section[lastnull:i]
             lastnull = i + 1
+
+        '''
+        typedef struct
+        {
+          Elf32_Word	p_type;			/* Segment type */
+          Elf32_Off	p_offset;		/* Segment file offset */
+          Elf32_Addr	p_vaddr;		/* Segment virtual address */
+          Elf32_Addr	p_paddr;		/* Segment physical address */
+          Elf32_Word	p_filesz;		/* Segment size in file */
+          Elf32_Word	p_memsz;		/* Segment size in memory */
+          Elf32_Word	p_flags;		/* Segment flags */
+          Elf32_Word	p_align;		/* Segment alignment */
+        } Elf32_Phdr;
+
+        typedef struct
+        {
+          Elf64_Word	p_type;			/* Segment type */
+          Elf64_Word	p_flags;		/* Segment flags */
+          Elf64_Off	p_offset;		/* Segment file offset */
+          Elf64_Addr	p_vaddr;		/* Segment virtual address */
+          Elf64_Addr	p_paddr;		/* Segment physical address */
+          Elf64_Xword	p_filesz;		/* Segment size in file */
+          Elf64_Xword	p_memsz;		/* Segment size in memory */
+          Elf64_Xword	p_align;		/* Segment alignment */
+        } Elf64_Phdr;
+
+        '''
 
         # define program info #
         self.attr['progHeader'] = list()
@@ -23292,7 +23444,7 @@ Section header string table index: %d
             if self.is32Bit:
                 p_type, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_flags, p_align = \
-                    strcut.unpack('IIIIIIII', fd.read(32))
+                    struct.unpack('IIIIIIII', fd.read(32))
             # 64-bit #
             else:
                 p_type, p_flags, p_offset, p_vaddr, p_paddr, \
@@ -23315,7 +23467,7 @@ Section header string table index: %d
                 SystemManager.pipePrint(\
                     "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
                     (ElfAnalyzer.PT_TYPE[p_type] \
-                        if p_type in ElfAnalyzer.PT_TYPE else p_type, \
+                        if p_type in ElfAnalyzer.PT_TYPE else hex(p_type), \
                     p_offset, p_vaddr, p_paddr, p_filesz, \
                     p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
         if debug:
@@ -23328,7 +23480,7 @@ Section header string table index: %d
             if self.is32Bit:
                 p_type, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, p_flags, p_align = \
-                    strcut.unpack('IIIIIIII', fd.read(32))
+                    struct.unpack('IIIIIIII', fd.read(32))
             # 64-bit #
             else:
                 p_type, p_flags, p_offset, p_vaddr, p_paddr, \
@@ -23344,7 +23496,7 @@ Section header string table index: %d
         e_shdynsym = -1
         e_shdynstr = -1
         e_shdynamic = -1
-        e_shreladyn = -1
+        e_shrelalist = []
 
         # define section info #
         self.attr['sectionHeader'] = dict()
@@ -23361,18 +23513,10 @@ Section header string table index: %d
         for i in range(0, e_shnum):
             fd.seek(e_shoff + e_shentsize * i)
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, \
-                    sh_offset, sh_size, sh_link, sh_info, \
-                    sh_addralign, sh_entsize  = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, \
-                    sh_offset,  sh_size, sh_link, sh_info, \
-                    sh_addralign, sh_entsize  = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+            sh_name, sh_type, sh_flags, sh_addr, \
+                sh_offset, sh_size, sh_link, sh_info, \
+                sh_addralign, sh_entsize  = \
+                self.getSectionInfo(fd)
 
             # check permission #
             f = ""
@@ -23406,7 +23550,7 @@ Section header string table index: %d
                         "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
                         (i, string_table[sh_name], \
                         ElfAnalyzer.SH_TYPE[sh_type] \
-                            if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
+                            if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type), \
                         sh_addr, sh_offset, sh_size, sh_entsize, \
                         f, sh_link, sh_info, sh_addralign))
 
@@ -23425,8 +23569,8 @@ Section header string table index: %d
                 if string_table[sh_name] == '.dynamic':
                     e_shdynamic = i
 
-                if string_table[sh_name] == '.rela.dyn':
-                    e_shreladyn = i
+                if string_table[sh_name].startswith('.rela'):
+                    e_shrelalist.append(i)
 
             elif debug:
                 SystemManager.pipePrint(\
@@ -23439,6 +23583,28 @@ Section header string table index: %d
         if debug:
             SystemManager.pipePrint(oneLine)
 
+        '''
+        typedef struct
+        {
+          Elf32_Word	st_name;		/* Symbol name (string tbl index) */
+          Elf32_Addr	st_value;		/* Symbol value */
+          Elf32_Word	st_size;		/* Symbol size */
+          unsigned char	st_info;		/* Symbol type and binding */
+          unsigned char	st_other;		/* Symbol visibility */
+          Elf32_Section	st_shndx;		/* Section index */
+        } Elf32_Sym;
+
+        typedef struct
+        {
+          Elf64_Word	st_name;		/* Symbol name (string tbl index) */
+          unsigned char	st_info;		/* Symbol type and binding */
+          unsigned char st_other;		/* Symbol visibility */
+          Elf64_Section	st_shndx;		/* Section index */
+          Elf64_Addr	st_value;		/* Symbol value */
+          Elf64_Xword	st_size;		/* Symbol size */
+        } Elf64_Sym;
+        '''
+
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
 
@@ -23446,23 +23612,16 @@ Section header string table index: %d
         if e_shdynsym >= 0 and e_shdynstr >= 0:
             fd.seek(e_shoff + e_shentsize * e_shdynstr)
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, \
-                    sh_offset, sh_size, sh_link, sh_info, \
-                    sh_addralign, sh_entsize  = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, \
-                    sh_offset, sh_size, sh_link, sh_info, \
-                    sh_addralign, sh_entsize  = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+            sh_name, sh_type, sh_flags, sh_addr, \
+                sh_offset, sh_size, sh_link, sh_info, \
+                sh_addralign, sh_entsize  = \
+                self.getSectionInfo(fd)
 
             fd.seek(sh_offset)
             dynsym_section = fd.read(sh_size).decode()
             dynsymbol_table = {}
             lastnull = 0
+
             for i, s in enumerate(dynsym_section):
                 if s == '\0':
                     dynsymbol_table[lastnull] = dynsym_section[lastnull:i]
@@ -23470,16 +23629,9 @@ Section header string table index: %d
 
             fd.seek(e_shoff + e_shentsize * e_shdynsym)
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd)
 
             fd.seek(sh_offset)
             dynsym_section = fd.read(sh_size)
@@ -23487,20 +23639,22 @@ Section header string table index: %d
             # print .dynsym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol table '.dynsym']\n%s\n"
+                    "\n[Symbol Table '.dynsym']\n%s\n"
                     "%04s%16s%10s%10s%10s%10s%10s %30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
-            for i in range(0, int(sh_size / 24)):
+            for i in range(0, int(sh_size / sh_entsize)):
                 # 32-bit #
                 if self.is32Bit:
-                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
-                        struct.unpack('IIIBBH', dynsym_section[i*16:(i+1)*16])
+                    st_name, st_value, st_size, st_info, st_other, st_shndx = \
+                        struct.unpack('IIIBBH', \
+                        dynsym_section[i*sh_entsize:(i+1)*sh_entsize])
                 # 64-bit #
                 else:
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
-                        struct.unpack('IBBHQQ', dynsym_section[i*24:(i+1)*24])
+                        struct.unpack('IBBHQQ', \
+                        dynsym_section[i*sh_entsize:(i+1)*sh_entsize])
 
                 # save .dynsym table #
                 if st_name in dynsymbol_table:
@@ -23551,16 +23705,9 @@ Section header string table index: %d
         if e_shsymndx >= 0 and e_shstrndx >= 0:
             fd.seek(e_shoff + e_shentsize * e_shstrndx)
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd)
 
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size).decode()
@@ -23573,16 +23720,9 @@ Section header string table index: %d
 
             fd.seek(e_shoff + e_shentsize * e_shsymndx)
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd)
 
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size)
@@ -23590,22 +23730,22 @@ Section header string table index: %d
             # parse .sym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol table '.symtab']\n%s\n"
+                    "\n[Symbol Table '.symtab']\n%s\n"
                     "%04s%16s%10s%10s%10s%10s%10s%30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
-            for i in range(0, int(sh_size / 24)):
+            for i in range(0, int(sh_size / sh_entsize)):
                 # 32-bit #
                 if self.is32Bit:
-                    st_name, st_info, st_other, \
-                        st_shndx, st_value, st_size = \
-                        struct.unpack('IIIBBH', sym_section[i*16:(i+1)*16])
+                    st_name, st_value, st_size, st_info, st_other, st_shndx = \
+                        struct.unpack('IIIBBH', \
+                        sym_section[i*sh_entsize:(i+1)*sh_entsize])
                 # 64-bit #
                 else:
-                    st_name, st_info, st_other, \
-                        st_shndx, st_value, st_size = \
-                        struct.unpack('IBBHQQ', sym_section[i*24:(i+1)*24])
+                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                        struct.unpack('IBBHQQ', \
+                        sym_section[i*sh_entsize:(i+1)*sh_entsize])
 
                 # save .sym table #
                 if st_name in symbol_table:
@@ -23650,107 +23790,70 @@ Section header string table index: %d
                 SystemManager.pipePrint(oneLine)
 
         '''
-        # define .rela.dyn info #
-        self.attr['relaDynTable'] = dict()
+        typedef struct
+        {
+          Elf32_Addr	r_offset;		/* Address */
+          Elf32_Word	r_info;			/* Relocation type and symbol index */
+        } Elf32_Rel;
 
-        # parse .rela.dyn table #
-        if e_shreladyn >= 0:
-            fd.seek(e_shoff + e_shentsize * e_shreladyn)
+        /* I have seen two different definitions of the Elf64_Rel and
+           Elf64_Rela structures, so we'll leave them out until Novell (or
+           whoever) gets their act together.  */
+        /* The following, at least, is used on Sparc v9, MIPS, and Alpha.  */
 
-            # 32-bit #
-            if self.is32Bit:
-                sh_offset, sh_info, sh_addend = \
-                    struct.unpack('III', fd.read(12))
-            # 64-bit #
-            else:
-                sh_offset, sh_info, sh_addend = \
-                    struct.unpack('IIQ', fd.read(16))
+        typedef struct
+        {
+          Elf64_Addr	r_offset;		/* Address */
+          Elf64_Xword	r_info;			/* Relocation type and symbol index */
+        } Elf64_Rel;
+
+        /* Relocation table entry with addend (in section of type SHT_RELA).  */
+
+        typedef struct
+        {
+          Elf32_Addr	r_offset;		/* Address */
+          Elf32_Word	r_info;			/* Relocation type and symbol index */
+          Elf32_Sword	r_addend;		/* Addend */
+        } Elf32_Rela;
+
+        typedef struct
+        {
+          Elf64_Addr	r_offset;		/* Address */
+          Elf64_Xword	r_info;			/* Relocation type and symbol index */
+          Elf64_Sxword	r_addend;		/* Addend */
+        } Elf64_Rela;
+        '''
+
+        # define .rela info #
+        self.attr['relaTable'] = dict()
+
+        # parse .rela table #
+        for idx in e_shrelalist:
+            fd.seek(e_shoff + e_shentsize * idx)
+
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd)
 
             fd.seek(sh_offset)
-            dynsym_section = fd.read(sh_size).decode()
-            dynsymbol_table = {}
-            lastnull = 0
-            for i, s in enumerate(dynsym_section):
-                if s == '\0':
-                    dynsymbol_table[lastnull] = dynsym_section[lastnull:i]
-                    lastnull = i + 1
 
-            fd.seek(e_shoff + e_shentsize * e_shdynsym)
-
-            # 32-bit #
-            if self.is32Bit:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIIHHIIIII', fd.read(48))
-            # 64-bit #
-            else:
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    struct.unpack('IIQQQQIIQQ', fd.read(64))
-
-            fd.seek(sh_offset)
-            dynsym_section = fd.read(sh_size)
-
-            # print .dynsym table title #
-            if debug:
-                SystemManager.pipePrint((\
-                    "\n[Symbol table '.dynsym']\n%s\n"
-                    "%04s%16s%10s%10s%10s%10s%10s %30s\n%s") % \
-                    (twoLine, "Num", "Value", "Size", "Type", \
-                    "Bind", "Vis", "Ndx", "Name", twoLine))
-
-            for i in range(0, int(sh_size / 24)):
+            for i in range(0, int(sh_size / sh_entsize)):
                 # 32-bit #
                 if self.is32Bit:
-                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
-                        struct.unpack('IIIBBH', dynsym_section[i*16:(i+1)*16])
+                    sh_offset, sh_info, sh_addend = \
+                        struct.unpack('III', fd.read(12))
+
+                    rsym = ElfAnalyzer.ELF32_R_SYM(sh_info)
+                    rtype = ElfAnalyzer.ELF32_R_TYPE(sh_info)
                 # 64-bit #
                 else:
-                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
-                        struct.unpack('IBBHQQ', dynsym_section[i*24:(i+1)*24])
+                    sh_offset, sh_info, sh_addend = \
+                        struct.unpack('QQQ', fd.read(24))
 
-                # save .dynsym table #
-                if st_name in dynsymbol_table:
-                    stname = dynsymbol_table[st_name]
-                else:
-                    stname = st_name
+                    rsym = ElfAnalyzer.ELF64_R_SYM(sh_info)
+                    rtype = ElfAnalyzer.ELF64_R_TYPE(sh_info)
 
-                self.attr['dynsymTable'][stname] = {\
-                    'value': st_value, 'size': st_size, \
-                    'type': ElfAnalyzer.ST_TYPE[ \
-                        ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
-                        ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
-                        ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                    'ndx': st_shndx}
-
-                # print .dynsym table #
-                if debug and st_name in dynsymbol_table:
-                    SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
-                        (i, st_value, st_size, \
-                        ElfAnalyzer.ST_TYPE[\
-                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                        ElfAnalyzer.ST_BIND_TYPE[\
-                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
-                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, dynsymbol_table[st_name],))
-                elif debug:
-                    SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
-                        (i, st_value, st_size, \
-                        ElfAnalyzer.ST_TYPE[\
-                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                        ElfAnalyzer.ST_BIND_TYPE[\
-                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
-                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, st_name,))
-            if debug:
-                SystemManager.pipePrint(oneLine)
-        '''
+                RTYPE = ElfAnalyzer.RELOC_TYPE[rtype]
 
         # check dynamic section #
         if e_shdynamic < 0:
@@ -23759,16 +23862,9 @@ Section header string table index: %d
         # parse dynamic section #
         fd.seek(e_shoff + e_shentsize * e_shdynamic)
 
-        # 32-bit #
-        if self.is32Bit:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                sh_link, sh_info, sh_addralign, sh_entsize = \
-                struct.unpack('IIIHHIIIII', fd.read(48))
-        # 64-bit #
-        else:
-            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
-                sh_link, sh_info, sh_addralign, sh_entsize = \
-                struct.unpack('IIQQQQIIQQ', fd.read(64))
+        sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+            sh_link, sh_info, sh_addralign, sh_entsize = \
+            self.getSectionInfo(fd)
 
         fd.seek(sh_offset)
         dynamic_section = fd.read(sh_size)
@@ -23779,48 +23875,48 @@ Section header string table index: %d
                 '%20s %20s %32s\n%s') % \
                 (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
-        # 64-bit #
-        if self.is32Bit:
-            pass
-        else:
-            for i in range(0, int(sh_size / 16)):
-                fd.seek(sh_offset + i * 16)
-                d_tag, d_un = struct.unpack('QQ', fd.read(16))
+        for i in range(0, int(sh_size / sh_entsize)):
+            fd.seek(sh_offset + i * sh_entsize)
 
-                if debug:
-                    if d_tag in ElfAnalyzer.TAG_TYPE:
-                        if d_tag == 1 or d_tag == 15:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
-                                dynsymbol_table[d_un]))
-                        else:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
-                    elif d_tag in ElfAnalyzer.DT_TYPE:
-                        if d_tag == 1 or d_tag == 15:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
-                                dynsymbol_table[d_un]))
-                        else:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
+            if self.is32Bit:
+                d_tag, d_un = struct.unpack('II', fd.read(sh_entsize))
+            else:
+                d_tag, d_un = struct.unpack('QQ', fd.read(sh_entsize))
+
+            if debug:
+                if d_tag in ElfAnalyzer.TAG_TYPE:
+                    if d_tag == 1 or d_tag == 15:
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
+                            dynsymbol_table[d_un]))
                     else:
-                        if d_tag == 1 or d_tag == 15:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, d_tag, dynsymbol_table[d_un]))
-                        else:
-                            SystemManager.pipePrint(\
-                                '0x%018x %20s %32s' % \
-                                (d_tag, d_tag, d_un))
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
+                elif d_tag in ElfAnalyzer.DT_TYPE:
+                    if d_tag == 1 or d_tag == 15:
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
+                            dynsymbol_table[d_un]))
+                    else:
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
+                else:
+                    if d_tag == 1 or d_tag == 15:
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, d_tag, dynsymbol_table[d_un]))
+                    else:
+                        SystemManager.pipePrint(\
+                            '0x%018x %20s %32s' % \
+                            (d_tag, d_tag, d_un))
 
-                # NULL termination #
-                if d_tag == d_un == 0:
-                    break
+            # NULL termination #
+            if d_tag == d_un == 0:
+                break
 
         if debug:
             SystemManager.pipePrint(oneLine)
