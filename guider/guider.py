@@ -14260,9 +14260,19 @@ Copyright:
         launchPosEnd = infoBuf.find('\n', launchPosStart)
         if launchPosEnd == -1:
             return
-
-        # get launch option recorded #
         SystemManager.launchBuffer = infoBuf[launchPosStart:launchPosEnd]
+
+        # check version #
+        try:
+            verPosStart = infoBuf.find('Version')
+            verPosEnd = infoBuf.find('\n', verPosStart)
+            recVer = infoBuf[verPosStart:verPosEnd].split()[1]
+            if recVer != __version__:
+                SystemManager.printWarning(\
+                    "Data version (%s) is different from current one (%s)" % \
+                    (__version__, recVer), True)
+        except:
+            pass
 
         # apply arch type #
         if SystemManager.archOption is None:
@@ -16409,7 +16419,10 @@ Copyright:
                     "No file path with -I")
                 sys.exit(0)
 
-            ElfAnalyzer(SystemManager.sourceFile, debug=True)
+            try:
+                ElfAnalyzer(SystemManager.sourceFile, debug=True)
+            except:
+                pass
 
             sys.exit(0)
 
@@ -20123,6 +20136,12 @@ Copyright:
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
+                format('Version', '%s' % __version__))
+        except:
+            pass
+
+        try:
+            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SystemManager.arch))
         except:
             pass
@@ -22083,6 +22102,8 @@ class ElfAnalyzer(object):
     SHF_EXECINSTR = 0x4
     SHF_MASKPROC = 0xF0000000
 
+    DT_VERSIONTAGNUM = 16
+
     TAG_TYPE = {
         0:"NULL",
         1:"NEEDED",
@@ -22348,6 +22369,10 @@ class ElfAnalyzer(object):
         0x7ffffffd:"AUXILIARY",
         0x7fffffff:"FILTER",
     }
+
+    DT_VERSYM = 0x6ffffff0
+    DT_VERDEF = 0x6ffffffc
+    DT_VERNEEDNUM = 0x6fffffff
 
     EI_OSABI = {
         0:"SYSV",
@@ -23004,6 +23029,12 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def DT_VERSIONTAGIDX(tag):
+        return (ElfAnalyzer.DT_VERNEEDNUM - (tag))
+
+
+
+    @staticmethod
     def isRelocatableFile(path):
         try:
             if path not in ElfAnalyzer.cachedFiles:
@@ -23496,6 +23527,7 @@ Section header string table index: %d
         e_shdynsym = -1
         e_shdynstr = -1
         e_shdynamic = -1
+        e_shrellist = []
         e_shrelalist = []
 
         # define section info #
@@ -23529,18 +23561,19 @@ Section header string table index: %d
             if sh_flags & ElfAnalyzer.SHF_MASKPROC:
                 f += "M"
 
-            # save section info #
+            # get section name #
             if sh_name in string_table:
                 shname = string_table[sh_name]
             else:
                 shname = sh_name
 
+            stype = ElfAnalyzer.SH_TYPE[sh_type] \
+                if sh_type in ElfAnalyzer.SH_TYPE else sh_type
+
             self.attr['sectionHeader'][shname] = {
-                'type': ElfAnalyzer.SH_TYPE[sh_type] \
-                    if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
-                'addr': sh_addr, 'offset': sh_offset, 'size': sh_size, \
-                'entSize': sh_entsize, 'flag': f, 'link': sh_link, \
-                'info': sh_info, 'align': sh_addralign}
+                'type': stype, 'addr': sh_addr, 'offset': sh_offset, \
+                'size': sh_size, 'entSize': sh_entsize, 'flag': f, \
+                'link': sh_link, 'info': sh_info, 'align': sh_addralign}
 
             # count the number of each tables #
             if sh_name in string_table:
@@ -23556,20 +23589,17 @@ Section header string table index: %d
 
                 if string_table[sh_name] == '.symtab':
                     e_shsymndx = i
-
-                if string_table[sh_name] == '.strtab':
+                elif string_table[sh_name] == '.strtab':
                     e_shstrndx = i
-
-                if string_table[sh_name] == '.dynsym':
+                elif string_table[sh_name] == '.dynsym':
                     e_shdynsym = i
-
-                if string_table[sh_name] == '.dynstr':
+                elif string_table[sh_name] == '.dynstr':
                     e_shdynstr = i
-
-                if string_table[sh_name] == '.dynamic':
+                elif string_table[sh_name] == '.dynamic':
                     e_shdynamic = i
-
-                if string_table[sh_name].startswith('.rela'):
+                elif stype == 'REL':
+                    e_shrellist.append(i)
+                elif stype == 'RELA':
                     e_shrelalist.append(i)
 
             elif debug:
@@ -23607,6 +23637,7 @@ Section header string table index: %d
 
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
+        self.attr['dynsymList'] = list()
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
@@ -23639,8 +23670,8 @@ Section header string table index: %d
             # print .dynsym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol Table '.dynsym']\n%s\n"
-                    "%04s%16s%10s%10s%10s%10s%10s %30s\n%s") % \
+                    "\n[.dynsym Section]\n%s\n"
+                    "%04s %16s%10s%10s%10s%10s%10s %30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
@@ -23672,10 +23703,13 @@ Section header string table index: %d
                         ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
                     'ndx': st_shndx}
 
+                # register symbol to dynamic symbol list #
+                self.attr['dynsymList'].append(stname)
+
                 # print .dynsym table #
                 if debug and st_name in dynsymbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
+                        "%04d %016x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -23686,7 +23720,7 @@ Section header string table index: %d
                         st_shndx, dynsymbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
+                        "%04d %016x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -23730,8 +23764,8 @@ Section header string table index: %d
             # parse .sym table title #
             if debug:
                 SystemManager.pipePrint((\
-                    "\n[Symbol Table '.symtab']\n%s\n"
-                    "%04s%16s%10s%10s%10s%10s%10s%30s\n%s") % \
+                    "\n[.symtab Section]\n%s\n"
+                    "%04s %16s%10s%10s%10s%10s%10s%30s\n%s") % \
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
@@ -23766,7 +23800,7 @@ Section header string table index: %d
                 # parse .sym table #
                 if debug and st_name in symbol_table:
                     SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %s" % \
+                        "%04d %016x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -23777,7 +23811,7 @@ Section header string table index: %d
                         st_shndx, symbol_table[st_name],))
                 elif debug:
                     SystemManager.pipePrint(\
-                        "%04d%16x%10d%10s%10s%10s%10d %d" % \
+                        "%04d %016x%10d%10s%10s%10s%10d %d" % \
                         (i, st_value, st_size, \
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -23824,16 +23858,94 @@ Section header string table index: %d
         } Elf64_Rela;
         '''
 
-        # define .rela info #
-        self.attr['relaTable'] = dict()
+        # parse REL table #
+        for idx in e_shrellist:
+            fd.seek(e_shoff + e_shentsize * idx)
 
-        # parse .rela table #
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd)
+
+            # get section name #
+            if sh_name in string_table:
+                shname = string_table[sh_name]
+            else:
+                shname = sh_name
+
+            if debug:
+                SystemManager.pipePrint((\
+                    '\n[%s Section]\n%s\n'
+                    '%16s %16s %32s %16s %s\n%s') % \
+                    (shname, twoLine, "Offset", "Info", "Type", \
+                    "Sym.Value", "Sym.Name", twoLine))
+
+            fd.seek(sh_offset)
+
+            for i in range(0, int(sh_size / sh_entsize)):
+                # 32-bit #
+                if self.is32Bit:
+                    sh_offset, sh_info = \
+                        struct.unpack('II', fd.read(8))
+
+                    rsym = ElfAnalyzer.ELF32_R_SYM(sh_info)
+                    rtype = ElfAnalyzer.ELF32_R_TYPE(sh_info)
+                # 64-bit #
+                else:
+                    sh_offset, sh_info = \
+                        struct.unpack('QQ', fd.read(16))
+
+                    rsym = ElfAnalyzer.ELF64_R_SYM(sh_info)
+                    rtype = ElfAnalyzer.ELF64_R_TYPE(sh_info)
+
+                try:
+                    RTYPE = ElfAnalyzer.RELOC_TYPE[rtype]
+                except:
+                    RTYPE = rtype
+
+                try:
+                    symbol = self.attr['dynsymList'][rsym]
+                except:
+                    symbol = rsym
+
+                # update address on dynsym table #
+                if symbol in self.attr['dynsymTable']:
+                    if self.attr['dynsymTable'][symbol]['value'] == 0:
+                        self.attr['dynsymTable'][symbol]['value'] = sh_offset
+
+                # get address of symbol string #
+                if symbol in self.attr['dynsymTable']:
+                    saddr = self.attr['dynsymTable'][symbol]['value']
+                else:
+                    saddr = 0
+
+                if debug:
+                    SystemManager.pipePrint(\
+                        '%016x %016x %32s %016x %s' % \
+                        (sh_offset, sh_info, RTYPE, saddr, symbol))
+
+            if debug:
+                SystemManager.pipePrint(oneLine)
+
+        # parse RELA table #
         for idx in e_shrelalist:
             fd.seek(e_shoff + e_shentsize * idx)
 
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd)
+
+            # get section name #
+            if sh_name in string_table:
+                shname = string_table[sh_name]
+            else:
+                shname = sh_name
+
+            if debug:
+                SystemManager.pipePrint((\
+                    '\n[%s Section]\n%s\n'
+                    '%16s %16s %32s %16s %s\n%s') % \
+                    (shname, twoLine, "Offset", "Info", "Type", \
+                    "Sym.Value", "Sym.Name + Addend", twoLine))
 
             fd.seek(sh_offset)
 
@@ -23853,7 +23965,29 @@ Section header string table index: %d
                     rsym = ElfAnalyzer.ELF64_R_SYM(sh_info)
                     rtype = ElfAnalyzer.ELF64_R_TYPE(sh_info)
 
-                RTYPE = ElfAnalyzer.RELOC_TYPE[rtype]
+                try:
+                    RTYPE = ElfAnalyzer.RELOC_TYPE[rtype]
+                except:
+                    RTYPE = rtype
+
+                try:
+                    symbol = self.attr['dynsymList'][rsym]
+                except:
+                    symbol = rsym
+
+                # update address on dynsym table #
+                if symbol in self.attr['dynsymTable']:
+                    if self.attr['dynsymTable'][symbol]['value'] == 0:
+                        self.attr['dynsymTable'][symbol]['value'] = sh_offset
+
+                if debug:
+                    SystemManager.pipePrint(\
+                        '%016x %016x %32s %016x %s' % \
+                        (sh_offset, sh_info, RTYPE, 0, \
+                        '%s + %x' % (symbol, sh_addend)))
+
+            if debug:
+                SystemManager.pipePrint(oneLine)
 
         # check dynamic section #
         if e_shdynamic < 0:
@@ -23871,8 +24005,8 @@ Section header string table index: %d
 
         if debug:
             SystemManager.pipePrint((\
-                '\n[Dynamic section]\n%s\n'
-                '%20s %20s %32s\n%s') % \
+                '\n[.dynamic Section]\n%s\n'
+                '%16s %20s %32s\n%s') % \
                 (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
         for i in range(0, int(sh_size / sh_entsize)):
@@ -23887,31 +24021,31 @@ Section header string table index: %d
                 if d_tag in ElfAnalyzer.TAG_TYPE:
                     if d_tag == 1 or d_tag == 15:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
                             dynsymbol_table[d_un]))
                     else:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
                 elif d_tag in ElfAnalyzer.DT_TYPE:
                     if d_tag == 1 or d_tag == 15:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
                             dynsymbol_table[d_un]))
                     else:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
                 else:
                     if d_tag == 1 or d_tag == 15:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, d_tag, dynsymbol_table[d_un]))
                     else:
                         SystemManager.pipePrint(\
-                            '0x%018x %20s %32s' % \
+                            '%016x %20s %32s' % \
                             (d_tag, d_tag, d_un))
 
             # NULL termination #
