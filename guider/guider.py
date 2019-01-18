@@ -23639,26 +23639,33 @@ Section header string table index: %d
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
+            # get .dynstr section info #
             sh_name, sh_type, sh_flags, sh_addr, \
                 sh_offset, sh_size, sh_link, sh_info, \
                 sh_addralign, sh_entsize  = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynstr)
 
+            # backup .dynstr offset #
+            dynstr_offset = sh_offset
+
+            # read .dynstr data #
             fd.seek(sh_offset)
-            dynstr_section = fd.read(sh_size).decode()
+            dynstr_section = fd.read(sh_size)
 
             lastnull = 0
             dynsymbol_table = {}
-
-            for i, s in enumerate(dynstr_section):
+            for i, s in enumerate(dynstr_section.decode()):
                 if s == '\0':
-                    dynsymbol_table[lastnull] = dynstr_section[lastnull:i]
+                    dynsymbol_table[lastnull] = \
+                        dynstr_section[lastnull:i].decode()
                     lastnull = i + 1
 
+            # get .dynsym section info #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynsym)
 
+            # read .dynsym data #
             fd.seek(sh_offset)
             dynsym_section = fd.read(sh_size)
 
@@ -23672,23 +23679,30 @@ Section header string table index: %d
 
             for i in range(0, int(sh_size / sh_entsize)):
                 # 32-bit #
+                target = dynsym_section[i*sh_entsize:(i+1)*sh_entsize]
                 if self.is32Bit:
                     st_name, st_value, st_size, st_info, st_other, st_shndx = \
-                        struct.unpack('IIIBBH', \
-                        dynsym_section[i*sh_entsize:(i+1)*sh_entsize])
+                        struct.unpack('IIIBBH', target)
                 # 64-bit #
                 else:
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
-                        struct.unpack('IBBHQQ', \
-                        dynsym_section[i*sh_entsize:(i+1)*sh_entsize])
+                        struct.unpack('IBBHQQ', target)
 
-                # save .dynsym table #
-                if st_name in dynsymbol_table:
-                    stname = dynsymbol_table[st_name]
+                # find the end index of the symbol string #
+                start = end = idx = st_name
+                while 1:
+                    if dynstr_section[idx:idx+1] == b'\x00':
+                        end = idx
+                        break
+                    idx += 1
+
+                # pick symbol string #
+                if start == end:
+                    symbol = ''
                 else:
-                    stname = st_name
+                    symbol = dynstr_section[start:end].decode()
 
-                self.attr['dynsymTable'][stname] = {\
+                self.attr['dynsymTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
                     'type': ElfAnalyzer.ST_TYPE[ \
                         ElfAnalyzer.ELF_ST_TYPE(st_info)], \
@@ -23699,10 +23713,10 @@ Section header string table index: %d
                     'ndx': st_shndx}
 
                 # register symbol to dynamic symbol list #
-                self.attr['dynsymList'].append(stname)
+                self.attr['dynsymList'].append(symbol)
 
                 # print .dynsym table #
-                if debug and st_name in dynsymbol_table:
+                if debug:
                     SystemManager.pipePrint(\
                         "%04d %016x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
@@ -23712,43 +23726,33 @@ Section header string table index: %d
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
                         ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, dynsymbol_table[st_name],))
-                elif debug:
-                    SystemManager.pipePrint(\
-                        "%04d %016x%10d%10s%10s%10s%10d %d" % \
-                        (i, st_value, st_size, \
-                        ElfAnalyzer.ST_TYPE[\
-                            ElfAnalyzer.ELF_ST_TYPE(st_info)], \
-                        ElfAnalyzer.ST_BIND_TYPE[\
-                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
-                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, st_name,))
+                        st_shndx, symbol,))
             if debug:
                 SystemManager.pipePrint(oneLine)
 
         # define .sym info #
         self.attr['symTable'] = dict()
 
-        # parse .sym table #
+        # parse .symtab table #
         if e_shsymndx >= 0 and e_shstrndx >= 0:
+            # get .symtab section info #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
 
-            fd.seek(sh_offset)
-            sym_section = fd.read(sh_size).decode()
-            lastnull = 0
-            symbol_table = {}
-            for i, s in enumerate(sym_section):
-                if s == '\0':
-                    symbol_table[lastnull] = sym_section[lastnull:i]
-                    lastnull = i + 1
+            # backup .strtab offset #
+            strtab_offset = sh_offset
 
+            # read .strtab data #
+            fd.seek(sh_offset)
+            strtab_section = fd.read(sh_size)
+
+            # get .symtab section info #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shsymndx)
 
+            # read .symtab data #
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size)
 
@@ -23772,13 +23776,21 @@ Section header string table index: %d
                         struct.unpack('IBBHQQ', \
                         sym_section[i*sh_entsize:(i+1)*sh_entsize])
 
-                # save .sym table #
-                if st_name in symbol_table:
-                    stname = symbol_table[st_name]
-                else:
-                    stname = st_name
+                # find the end index of the symbol string #
+                start = end = idx = st_name
+                while 1:
+                    if strtab_section[idx:idx+1] == b'\x00':
+                        end = idx
+                        break
+                    idx += 1
 
-                self.attr['symTable'][stname] = {\
+                # pick symbol string #
+                if start == end:
+                    symbol = ''
+                else:
+                    symbol = strtab_section[start:end].decode()
+
+                self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
                     'type': ElfAnalyzer.ST_TYPE[\
                     ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -23789,7 +23801,7 @@ Section header string table index: %d
                     'ndx': st_shndx}
 
                 # parse .sym table #
-                if debug and st_name in symbol_table:
+                if debug:
                     SystemManager.pipePrint(\
                         "%04d %016x%10d%10s%10s%10s%10d %s" % \
                         (i, st_value, st_size, \
@@ -23799,18 +23811,7 @@ Section header string table index: %d
                             ElfAnalyzer.ELF_ST_BIND(st_info)], \
                         ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, symbol_table[st_name],))
-                elif debug:
-                    SystemManager.pipePrint(\
-                        "%04d %016x%10d%10s%10s%10s%10d %d" % \
-                        (i, st_value, st_size, \
-                        ElfAnalyzer.ST_TYPE[\
-                            ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                        ElfAnalyzer.ST_BIND_TYPE[\
-                            ElfAnalyzer.ELF_ST_BIND(st_info)], \
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
-                            ElfAnalyzer.ELF_ST_VISIBILITY(st_other)], \
-                        st_shndx, st_name,))
+                        st_shndx, symbol,))
             if debug:
                 SystemManager.pipePrint(oneLine)
 
