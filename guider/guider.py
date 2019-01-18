@@ -23111,7 +23111,9 @@ class ElfAnalyzer(object):
 
 
 
-    def getSectionInfo(self, fd):
+    def getSectionInfo(self, fd, pos=0):
+        fd.seek(pos)
+
         if self.is32Bit:
             return struct.unpack('IIIIIIIIII', fd.read(40))
         else:
@@ -23410,11 +23412,9 @@ Section header string table index: %d
         '''
 
         # parse section header #
-        fd.seek(e_shoff + e_shentsize * e_shstrndx)
-
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
             sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
-            self.getSectionInfo(fd)
+            self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
 
         # parse string section #
         fd.seek(sh_offset)
@@ -23543,12 +23543,10 @@ Section header string table index: %d
 
         # parse section header #
         for i in range(0, e_shnum):
-            fd.seek(e_shoff + e_shentsize * i)
-
             sh_name, sh_type, sh_flags, sh_addr, \
                 sh_offset, sh_size, sh_link, sh_info, \
                 sh_addralign, sh_entsize  = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * i)
 
             # check permission #
             f = ""
@@ -23641,28 +23639,25 @@ Section header string table index: %d
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
-            fd.seek(e_shoff + e_shentsize * e_shdynstr)
-
             sh_name, sh_type, sh_flags, sh_addr, \
                 sh_offset, sh_size, sh_link, sh_info, \
                 sh_addralign, sh_entsize  = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynstr)
 
             fd.seek(sh_offset)
-            dynsym_section = fd.read(sh_size).decode()
-            dynsymbol_table = {}
+            dynstr_section = fd.read(sh_size).decode()
+
             lastnull = 0
+            dynsymbol_table = {}
 
-            for i, s in enumerate(dynsym_section):
+            for i, s in enumerate(dynstr_section):
                 if s == '\0':
-                    dynsymbol_table[lastnull] = dynsym_section[lastnull:i]
+                    dynsymbol_table[lastnull] = dynstr_section[lastnull:i]
                     lastnull = i + 1
-
-            fd.seek(e_shoff + e_shentsize * e_shdynsym)
 
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynsym)
 
             fd.seek(sh_offset)
             dynsym_section = fd.read(sh_size)
@@ -23737,11 +23732,9 @@ Section header string table index: %d
 
         # parse .sym table #
         if e_shsymndx >= 0 and e_shstrndx >= 0:
-            fd.seek(e_shoff + e_shentsize * e_shstrndx)
-
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shstrndx)
 
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size).decode()
@@ -23752,11 +23745,9 @@ Section header string table index: %d
                     symbol_table[lastnull] = sym_section[lastnull:i]
                     lastnull = i + 1
 
-            fd.seek(e_shoff + e_shentsize * e_shsymndx)
-
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shsymndx)
 
             fd.seek(sh_offset)
             sym_section = fd.read(sh_size)
@@ -23860,11 +23851,9 @@ Section header string table index: %d
 
         # parse REL table #
         for idx in e_shrellist:
-            fd.seek(e_shoff + e_shentsize * idx)
-
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
 
             # get section name #
             if sh_name in string_table:
@@ -23928,11 +23917,9 @@ Section header string table index: %d
 
         # parse RELA table #
         for idx in e_shrelalist:
-            fd.seek(e_shoff + e_shentsize * idx)
-
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
 
             # get section name #
             if sh_name in string_table:
@@ -23994,11 +23981,9 @@ Section header string table index: %d
             return
 
         # parse dynamic section #
-        fd.seek(e_shoff + e_shentsize * e_shdynamic)
-
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
             sh_link, sh_info, sh_addralign, sh_entsize = \
-            self.getSectionInfo(fd)
+            self.getSectionInfo(fd, e_shoff + e_shentsize * e_shdynamic)
 
         fd.seek(sh_offset)
         dynamic_section = fd.read(sh_size)
