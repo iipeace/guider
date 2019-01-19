@@ -9338,6 +9338,7 @@ class SystemManager(object):
     fileInstance = None
     sysInstance = None
     procBufferSize = 0
+    bufferOverflowed = False
     bufferString = ''
     bufferRows = 0
     systemInfoBuffer = ''
@@ -14627,6 +14628,13 @@ Copyright:
             SystemManager.clearPrint()
 
             while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
+                if SystemManager.bufferOverflowed is False:
+                    SystemManager.printWarning((\
+                        "New data is going to be overwrote to buffer "
+                        "because of buffer size %dKB") % \
+                            (SystemManager.bufferSize >> 10), True)
+                    SystemManager.bufferOverflowed = True
+
                 if len(SystemManager.procBuffer) == 1:
                     break
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
@@ -24300,10 +24308,10 @@ class ThreadAnalyzer(object):
 
             # set log buffer size #
             if SystemManager.bufferSize == -1:
-                # 512KB #
-                SystemManager.bufferSize = 512 << 10
+                # default unlimited #
+                SystemManager.bufferSize = 0
             else:
-                # Change from KiloByte to Byte #
+                # change unit from KB to Byte #
                 SystemManager.bufferSize = int(SystemManager.bufferSize) << 10
 
             if SystemManager.printFile is not None:
@@ -34913,7 +34921,6 @@ class ThreadAnalyzer(object):
                 availMem = 0
         except:
             availMem = availMemDiff = 0
-            SystemManager.printWarning("Fail to get availableMem")
 
         # anonymous memory #
         try:
@@ -37014,6 +37021,13 @@ class ThreadAnalyzer(object):
                 bufferSize = SystemManager.bufferSize
 
                 while SystemManager.procBufferSize > bufferSize > 0:
+                    if SystemManager.bufferOverflowed is False:
+                        SystemManager.printWarning((\
+                            "New data is going to be overwrote to buffer "
+                            "because of buffer size %dKB") % \
+                                (SystemManager.bufferSize >> 10), True)
+                        SystemManager.bufferOverflowed = True
+
                     if len(SystemManager.procBuffer) == 1:
                         break
                     SystemManager.procBufferSize -= \
