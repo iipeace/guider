@@ -14630,8 +14630,10 @@ Copyright:
             while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
                 if SystemManager.bufferOverflowed is False:
                     SystemManager.printWarning((\
-                        "New data is going to be overwrote to buffer "
-                        "because of buffer size %dKB") % \
+                        "New data is going to be overwritten to the buffer"
+                        " because of buffer overflow\n"
+                        "\tIncrease Buffer size (%dKB) with -b option"
+                        " if you want to prevent data loss") % \
                             (SystemManager.bufferSize >> 10), True)
                     SystemManager.bufferOverflowed = True
 
@@ -37023,8 +37025,10 @@ class ThreadAnalyzer(object):
                 while SystemManager.procBufferSize > bufferSize > 0:
                     if SystemManager.bufferOverflowed is False:
                         SystemManager.printWarning((\
-                            "New data is going to be overwrote to buffer "
-                            "because of buffer size %dKB") % \
+                            "New data is going to be overwritten to the buffer"
+                            " because of buffer overflow\n"
+                            "\tIncrease Buffer size (%dKB) with -b option"
+                            " if you want to prevent data loss") % \
                                 (SystemManager.bufferSize >> 10), True)
                         SystemManager.bufferOverflowed = True
 
