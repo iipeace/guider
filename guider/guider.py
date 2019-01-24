@@ -4505,6 +4505,7 @@ class FunctionAnalyzer(object):
                 value['symbol'] = 'ThumbCode'
                 continue
 
+            # Handle address #
             if value['binary'] == '':
                 # user pos without offset #
                 if value['symbol'] == '' or value['symbol'] == '??':
@@ -4596,7 +4597,7 @@ class FunctionAnalyzer(object):
                     if value['binary'] == binPath:
                         inBinArea = True
 
-                        if value['offset'] == hex(int(addr, 16)):
+                        if value['offset'] == addr:
                             savedSymbol = self.posData[idx]['symbol']
 
                             if savedSymbol == None or \
@@ -4653,19 +4654,13 @@ class FunctionAnalyzer(object):
 
         # Check addr2line path #
         if SystemManager.addr2linePath is None:
-            # try to get symbol myself #
             try:
-                # disable self-resolving-symbol feature yet #
-                raise Exception()
-
                 symbolList = list()
                 binObj = ElfAnalyzer.cachedFiles[binPath]
                 for offset in offsetList:
                     symbol = binObj.getSymbolByOffset(offset)
-                    if symbol is None:
-                        symbolList.append('??')
-                    else:
-                        symbolList.append(symbol)
+
+                    symbolList.append('??')
 
                     updateSymbol(offset, symbol, '??', relocated)
                 return
@@ -5067,7 +5062,8 @@ class FunctionAnalyzer(object):
             # Set path #
             if path is not None:
                 self.posData[pos]['origBin'] = path
-                self.posData[pos]['binary'] = SystemManager.rootPath + path
+                self.posData[pos]['binary'] = \
+                    os.path.join(SystemManager.rootPath, path)
                 self.posData[pos]['binary'] = \
                     os.path.normpath(self.posData[pos]['binary'])
 
@@ -9298,7 +9294,9 @@ class SystemManager(object):
     impPkg = {}
     guiderObj = None
     libcObj = None
+    libcppObj = None
     libcPath = 'libc.so.6'
+    libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
 
     localServObj = None
@@ -13786,7 +13784,7 @@ Copyright:
                     SystemManager.sysInstance.saveResourceSnapshot()
 
                     with open(os.path.join(\
-                        SystemManager.mountPath + '../trace'), 'r') as fr:
+                        SystemManager.mountPath, '../trace'), 'r') as fr:
                         with open(output, 'w') as fw:
                             SystemManager.printInfo(\
                                 "wait for writing data to %s" % (fw.name))
@@ -13829,7 +13827,7 @@ Copyright:
             try:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile):
-                    backupFile = os.path.join(SystemManager.outputFile + '.old')
+                    backupFile = SystemManager.outputFile + '.old'
 
                     try:
                         SystemManager.getPkg('shutil', False).move(\
@@ -16465,7 +16463,7 @@ Copyright:
             # print symbols from offset list #
             for offset in SystemManager.filterGroup:
                 symbol = binObj.getSymbolByOffset(offset)
-                if symbol is None:
+                if symbol == '??':
                     symbol = 'N/A'
                 SystemManager.pipePrint(\
                     "{0:>18} {1:<1}".format('0x'+str(offset), symbol))
@@ -17364,6 +17362,9 @@ Copyright:
         pid = SystemManager.createProcess()
 
         if pid > 0:
+            # wait a minute for child message #
+            time.sleep(0.1)
+
             # terminate parent process #
             sys.exit(0)
         else:
@@ -19256,7 +19257,7 @@ Copyright:
                 pd.close()
 
                 # read the remaining data under 4k from log buffer #
-                tpath = os.path.join(SystemManager.mountPath + '../trace')
+                tpath = os.path.join(SystemManager.mountPath, '../trace')
                 with open(tpath, 'r') as fr:
                     fd.write(fr.read())
 
@@ -22114,94 +22115,6 @@ class ElfAnalyzer(object):
 
     DT_VERSIONTAGNUM = 16
 
-    TAG_TYPE = {
-        0:"NULL",
-        1:"NEEDED",
-        2:"PLTRELSZ",
-        3:"PLTGOT",
-        4:"HASH",
-        5:"STRTAB",
-        6:"SYMTAB",
-        7:"RELA",
-        8:"RELASZ",
-        9:"RELAENT",
-        10:"STRSZ",
-        11:"SYMENT",
-        12:"INIT",
-        13:"FINI",
-        14:"SONAME",
-        15:"RPATH",
-        16:"SYMBOLIC",
-        17:"REL",
-        18:"RELSZ",
-        19:"RELENT",
-        20:"PLTREL",
-        21:"DEBUG",
-        22:"TEXTREL",
-        23:"JMPREL",
-        24:"BIND_NOW",
-        25:"INIT_ARRAY",
-        26:"FINI_ARRAY",
-        27:"INIT_ARRAYSZ",
-        28:"FINI_ARRAYSZ",
-        29:"RUNPATH",
-        30:"FLAGS",
-        32:"ENCODING",
-        32:"PREINIT_ARRAY",
-        33:"PREINIT_ARRAYSZ",
-        34:"MAXPOSTAGS",
-        0x6000000d:"LOOS",
-        0x6000000d:"SUNW_AUXILIARY",
-        0x6000000e:"SUNW_RTLDINF",
-        0x6000000e:"SUNW_FILTER",
-        0x60000010:"SUNW_CAP",
-        0x60000011:"SUNW_SYMTAB",
-        0x60000012:"SUNW_SYMSZ",
-        0x60000013:"SUNW_ENCODING",
-        0x60000013:"SUNW_SORTENT",
-        0x60000014:"SUNW_SYMSORT",
-        0x60000015:"SUNW_SYMSORTSZ",
-        0x60000016:"SUNW_TLSSORT",
-        0x60000017:"SUNW_TLSSORTSZ",
-        0x60000018:"SUNW_CAPINFO",
-        0x60000019:"SUNW_STRPAD",
-        0x6000001a:"SUNW_CAPCHAIN",
-        0x6000001b:"SUNW_LDMACH",
-        0x6000001d:"SUNW_CAPCHAINENT",
-        0x6000001f:"SUNW_CAPCHAINSZ",
-        0x6ffff000:"HIOS",
-        0x6ffffd00:"VALRNGLO",
-        0x6ffffdf8:"CHECKSUM",
-        0x6ffffdf9:"PLTPADSZ",
-        0x6ffffdfa:"MOVEENT",
-        0x6ffffdfb:"MOVESZ",
-        0x6ffffdfd:"POSFLAG_1",
-        0x6ffffdfe:"SYMINSZ",
-        0x6ffffdff:"SYMINENT",
-        0x6ffffdff:"VALRNGHI",
-        0x6ffffe00:"ADDRRNGLO",
-        0x6ffffefa:"CONFIG",
-        0x6ffffefb:"DEPAUDIT",
-        0x6ffffefc:"AUDIT",
-        0x6ffffefd:"PLTPAD",
-        0x6ffffefe:"MOVETAB",
-        0x6ffffeff:"SYMINFO",
-        0x6ffffeff:"ADDRRNGHI",
-        0x6ffffff9:"RELACOUNT",
-        0x6ffffffa:"RELCOUNT",
-        0x6ffffffb:"FLAGS_1",
-        0x6ffffffc:"VERDEF",
-        0x6ffffffd:"VERDEFNUM",
-        0x6ffffffe:"VERNEED",
-        0x6fffffff:"VERNEEDNUM",
-        0x70000000:"LOPROC",
-        0x70000001:"SPARC_REGISTER",
-        0x7ffffffd:"AUXILIARY",
-        0x7ffffffe:"USED",
-        0x7fffffff:"FILTER",
-        0x7fffffff:"HIPROC",
-    }
-
     PT_FLAGS = {
         0: "None",
         1: "E",
@@ -22303,7 +22216,6 @@ class ElfAnalyzer(object):
         0x6ffffffd:"GNU_verdef",
         0x6ffffffe:"GNU_verneed",
         0x6fffffff:"GNU_versym",
-        0x6fffffff:"HISUNW",
     }
 
     DT_TYPE = {
@@ -22342,11 +22254,11 @@ class ElfAnalyzer(object):
         32:"PREINIT_ARRAY",
         33:"PREINIT_ARRAYSZ",
         34:"NUM	",
+        0x36:"PROCNUM",
         0x6000000d:"LOOS",
         0x6ffff000:"HIOS",
         0x70000000:"LOPROC",
         0x7fffffff:"HIPROC",
-        0x35:"PROCNUM",
         0x6ffffd00:"VALRNGLO",
         0x6ffffdf5:"GNU_PRELINKED",
         0x6ffffdf6:"GNU_CONFLICTSZ",
@@ -23045,6 +22957,77 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def demangleSymbol(symbol):
+        if not symbol.startswith('_Z'):
+            return symbol
+
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if ctypes is None:
+            return
+        from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
+
+        # try to demangle symbol #
+        try:
+            # load standard libc library #
+            if SystemManager.libcObj is None:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+
+            # load standard libstdc++ library #
+            if SystemManager.libcppObj is None:
+                SystemManager.libcppObj = \
+                    cdll.LoadLibrary(SystemManager.libcppPath)
+
+            # declare free() args #
+            SystemManager.libcObj.free.argtypes = [c_void_p]
+
+            # declare __cxa_demangle() return #
+            funcp = getattr(SystemManager.libcppObj, '__cxa_demangle')
+            funcp.restype = c_char_p
+
+            status = c_int()
+            mSymbol = c_char_p(symbol.encode())
+
+            # call to demangle symbol #
+            ret = funcp(mSymbol, None, None, pointer(status))
+
+            # check return status and convert type from bytes to string #
+            if status.value == 0:
+                dmSymbol = str(ret.decode())
+            elif status.value == -1:
+                SystemManager.printWarning(\
+                    "Fail to allocate memory to demangle symbol %s" % symbol)
+                dmSymbol = symbol
+            elif status.value == -2:
+                SystemManager.printWarning(\
+                    "Fail to demangle invaild symbol %s" % symbol)
+                dmSymbol = symbol
+            elif status.value == -3:
+                SystemManager.printWarning((\
+                    "Fail to demangle symbol %s "
+                    "because of invalid args") % symbol)
+                dmSymbol = symbol
+            else:
+                SystemManager.printWarning((\
+                    "Fail to demangle symbol %s "
+                    "because of unknown status %d") % (symbol, status.value))
+                dmSymbol = symbol
+
+            # free demangled string array #
+            #SystemManager.libcObj.free(ret)
+
+            return dmSymbol
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printWarning(\
+                "Fail to demangle symbol %s" % symbol, True)
+            return symbol
+
+
+
+    @staticmethod
     def isRelocatableFile(path):
         try:
             if path not in ElfAnalyzer.cachedFiles:
@@ -23109,7 +23092,7 @@ class ElfAnalyzer(object):
 
             while 1:
                 if addrTable[idx] > offset:
-                    return
+                    return '??'
 
                 maxAddr = addrTable[idx] + symTable[idx][1]
                 if offset >= addrTable[idx] and offset <= maxAddr:
@@ -23117,7 +23100,7 @@ class ElfAnalyzer(object):
 
                 idx += 1
         except:
-            return
+            return '??'
 
 
 
@@ -23133,6 +23116,24 @@ class ElfAnalyzer(object):
 
     def __del__(self):
         pass
+
+
+
+    def getString(self, strtable, start):
+        idx = start
+
+        while 1:
+            if strtable[idx:idx+1] == b'\x00':
+                break
+            idx += 1
+
+        # pick symbol string #
+        if start == idx:
+            symbol = ''
+        else:
+            symbol = strtable[start:idx].decode()
+
+        return symbol
 
 
 
@@ -23208,6 +23209,202 @@ class ElfAnalyzer(object):
           Elf64_Half	e_shnum;		/* Section header table entry count */
           Elf64_Half	e_shstrndx;		/* Section header string table index */
         } Elf64_Ehdr;
+
+        typedef struct
+        {
+          Elf32_Word	sh_name;		/* Section name (string tbl index) */
+          Elf32_Word	sh_type;		/* Section type */
+          Elf32_Word	sh_flags;		/* Section flags */
+          Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
+          Elf32_Off	sh_offset;		/* Section file offset */
+          Elf32_Word	sh_size;		/* Section size in bytes */
+          Elf32_Word	sh_link;		/* Link to another section */
+          Elf32_Word	sh_info;		/* Additional section information */
+          Elf32_Word	sh_addralign;		/* Section alignment */
+          Elf32_Word	sh_entsize;		/* Entry size if section holds table */
+        } Elf32_Shdr;
+
+        typedef struct
+        {
+          Elf64_Word	sh_name;		/* Section name (string tbl index) */
+          Elf64_Word	sh_type;		/* Section type */
+          Elf64_Xword	sh_flags;		/* Section flags */
+          Elf64_Addr	sh_addr;		/* Section virtual addr at execution */
+          Elf64_Off	sh_offset;		/* Section file offset */
+          Elf64_Xword	sh_size;		/* Section size in bytes */
+          Elf64_Word	sh_link;		/* Link to another section */
+          Elf64_Word	sh_info;		/* Additional section information */
+          Elf64_Xword	sh_addralign;		/* Section alignment */
+          Elf64_Xword	sh_entsize;		/* Entry size if section holds table */
+        } Elf64_Shdr;
+
+        typedef struct
+        {
+          Elf32_Word	p_type;			/* Segment type */
+          Elf32_Off	p_offset;		/* Segment file offset */
+          Elf32_Addr	p_vaddr;		/* Segment virtual address */
+          Elf32_Addr	p_paddr;		/* Segment physical address */
+          Elf32_Word	p_filesz;		/* Segment size in file */
+          Elf32_Word	p_memsz;		/* Segment size in memory */
+          Elf32_Word	p_flags;		/* Segment flags */
+          Elf32_Word	p_align;		/* Segment alignment */
+        } Elf32_Phdr;
+
+        typedef struct
+        {
+          Elf64_Word	p_type;			/* Segment type */
+          Elf64_Word	p_flags;		/* Segment flags */
+          Elf64_Off	p_offset;		/* Segment file offset */
+          Elf64_Addr	p_vaddr;		/* Segment virtual address */
+          Elf64_Addr	p_paddr;		/* Segment physical address */
+          Elf64_Xword	p_filesz;		/* Segment size in file */
+          Elf64_Xword	p_memsz;		/* Segment size in memory */
+          Elf64_Xword	p_align;		/* Segment alignment */
+        } Elf64_Phdr;
+
+        typedef struct
+        {
+          Elf32_Word	st_name;		/* Symbol name (string tbl index) */
+          Elf32_Addr	st_value;		/* Symbol value */
+          Elf32_Word	st_size;		/* Symbol size */
+          unsigned char	st_info;		/* Symbol type and binding */
+          unsigned char	st_other;		/* Symbol visibility */
+          Elf32_Section	st_shndx;		/* Section index */
+        } Elf32_Sym;
+
+        typedef struct
+        {
+          Elf64_Word	st_name;		/* Symbol name (string tbl index) */
+          unsigned char	st_info;		/* Symbol type and binding */
+          unsigned char st_other;		/* Symbol visibility */
+          Elf64_Section	st_shndx;		/* Section index */
+          Elf64_Addr	st_value;		/* Symbol value */
+          Elf64_Xword	st_size;		/* Symbol size */
+        } Elf64_Sym;
+
+        typedef struct
+        {
+          Elf32_Addr	r_offset;		/* Address */
+          Elf32_Word	r_info;			/* Relocation type and symbol index */
+        } Elf32_Rel;
+
+        /* I have seen two different definitions of the Elf64_Rel and
+           Elf64_Rela structures, so we'll leave them out until Novell (or
+           whoever) gets their act together.  */
+        /* The following, at least, is used on Sparc v9, MIPS, and Alpha.  */
+
+        typedef struct
+        {
+          Elf64_Addr	r_offset;		/* Address */
+          Elf64_Xword	r_info;			/* Relocation type and symbol index */
+        } Elf64_Rel;
+
+        /* Relocation table entry with addend (in section of type SHT_RELA).  */
+
+        typedef struct
+        {
+          Elf32_Addr	r_offset;		/* Address */
+          Elf32_Word	r_info;			/* Relocation type and symbol index */
+          Elf32_Sword	r_addend;		/* Addend */
+        } Elf32_Rela;
+
+        typedef struct
+        {
+          Elf64_Addr	r_offset;		/* Address */
+          Elf64_Xword	r_info;			/* Relocation type and symbol index */
+          Elf64_Sxword	r_addend;		/* Addend */
+        } Elf64_Rela;
+
+        /* Version definition sections.  */
+
+        typedef struct
+        {
+          Elf32_Half	vd_version;		/* Version revision */
+          Elf32_Half	vd_flags;		/* Version information */
+          Elf32_Half	vd_ndx;			/* Version Index */
+          Elf32_Half	vd_cnt;			/* Number of associated aux entries */
+          Elf32_Word	vd_hash;		/* Version name hash value */
+          Elf32_Word	vd_aux;			/* Offset in bytes to verdaux array */
+          Elf32_Word	vd_next;		/* Offset in bytes to next verdef
+                               entry */
+        } Elf32_Verdef;
+
+        typedef struct
+        {
+          Elf64_Half	vd_version;		/* Version revision */
+          Elf64_Half	vd_flags;		/* Version information */
+          Elf64_Half	vd_ndx;			/* Version Index */
+          Elf64_Half	vd_cnt;			/* Number of associated aux entries */
+          Elf64_Word	vd_hash;		/* Version name hash value */
+          Elf64_Word	vd_aux;			/* Offset in bytes to verdaux array */
+          Elf64_Word	vd_next;		/* Offset in bytes to next verdef
+                               entry */
+        } Elf64_Verdef;
+
+        /* Auxialiary version information.  */
+
+        typedef struct
+        {
+          Elf32_Word	vda_name;		/* Version or dependency names */
+          Elf32_Word	vda_next;		/* Offset in bytes to next verdaux
+                               entry */
+        } Elf32_Verdaux;
+
+        typedef struct
+        {
+          Elf64_Word	vda_name;		/* Version or dependency names */
+          Elf64_Word	vda_next;		/* Offset in bytes to next verdaux
+                               entry */
+        } Elf64_Verdaux;
+
+
+        /* Version dependency section.  */
+
+        typedef struct
+        {
+          Elf32_Half	vn_version;		/* Version of structure */
+          Elf32_Half	vn_cnt;			/* Number of associated aux entries */
+          Elf32_Word	vn_file;		/* Offset of filename for this
+                               dependency */
+          Elf32_Word	vn_aux;			/* Offset in bytes to vernaux array */
+          Elf32_Word	vn_next;		/* Offset in bytes to next verneed
+                               entry */
+        } Elf32_Verneed;
+
+        typedef struct
+        {
+          Elf64_Half	vn_version;		/* Version of structure */
+          Elf64_Half	vn_cnt;			/* Number of associated aux entries */
+          Elf64_Word	vn_file;		/* Offset of filename for this
+                               dependency */
+          Elf64_Word	vn_aux;			/* Offset in bytes to vernaux array */
+          Elf64_Word	vn_next;		/* Offset in bytes to next verneed
+                               entry */
+        } Elf64_Verneed;
+
+        /* Auxiliary needed version information.  */
+
+        typedef struct
+        {
+          Elf32_Word	vna_hash;		/* Hash value of dependency name */
+          Elf32_Half	vna_flags;		/* Dependency specific information */
+          Elf32_Half	vna_other;		/* Unused */
+          Elf32_Word	vna_name;		/* Dependency name string offset */
+          Elf32_Word	vna_next;		/* Offset in bytes to next vernaux
+                               entry */
+        } Elf32_Vernaux;
+
+        typedef struct
+        {
+          Elf64_Word	vna_hash;		/* Hash value of dependency name */
+          Elf64_Half	vna_flags;		/* Dependency specific information */
+          Elf64_Half	vna_other;		/* Unused */
+          Elf64_Word	vna_name;		/* Dependency name string offset */
+          Elf64_Word	vna_next;		/* Offset in bytes to next vernaux
+                               entry */
+        } Elf64_Vernaux;
+
+
         '''
 
         # define attributes #
@@ -23391,36 +23588,6 @@ Section header string table index: %d
                 e_phentsize, e_shnum, e_shentsize, e_shnum, \
                 e_shstrndx, twoLine))
 
-        '''
-        typedef struct
-        {
-          Elf32_Word	sh_name;		/* Section name (string tbl index) */
-          Elf32_Word	sh_type;		/* Section type */
-          Elf32_Word	sh_flags;		/* Section flags */
-          Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
-          Elf32_Off	sh_offset;		/* Section file offset */
-          Elf32_Word	sh_size;		/* Section size in bytes */
-          Elf32_Word	sh_link;		/* Link to another section */
-          Elf32_Word	sh_info;		/* Additional section information */
-          Elf32_Word	sh_addralign;		/* Section alignment */
-          Elf32_Word	sh_entsize;		/* Entry size if section holds table */
-        } Elf32_Shdr;
-
-        typedef struct
-        {
-          Elf64_Word	sh_name;		/* Section name (string tbl index) */
-          Elf64_Word	sh_type;		/* Section type */
-          Elf64_Xword	sh_flags;		/* Section flags */
-          Elf64_Addr	sh_addr;		/* Section virtual addr at execution */
-          Elf64_Off	sh_offset;		/* Section file offset */
-          Elf64_Xword	sh_size;		/* Section size in bytes */
-          Elf64_Word	sh_link;		/* Link to another section */
-          Elf64_Word	sh_info;		/* Additional section information */
-          Elf64_Xword	sh_addralign;		/* Section alignment */
-          Elf64_Xword	sh_entsize;		/* Entry size if section holds table */
-        } Elf64_Shdr;
-        '''
-
         # parse section header #
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, \
             sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -23428,42 +23595,7 @@ Section header string table index: %d
 
         # parse string section #
         fd.seek(sh_offset)
-        str_section = fd.read(sh_size).decode()
-
-        string_table = {}
-        lastnull = 0
-        for i, s in enumerate(str_section):
-            if s != '\0':
-                continue
-            string_table[lastnull] = str_section[lastnull:i]
-            lastnull = i + 1
-
-        '''
-        typedef struct
-        {
-          Elf32_Word	p_type;			/* Segment type */
-          Elf32_Off	p_offset;		/* Segment file offset */
-          Elf32_Addr	p_vaddr;		/* Segment virtual address */
-          Elf32_Addr	p_paddr;		/* Segment physical address */
-          Elf32_Word	p_filesz;		/* Segment size in file */
-          Elf32_Word	p_memsz;		/* Segment size in memory */
-          Elf32_Word	p_flags;		/* Segment flags */
-          Elf32_Word	p_align;		/* Segment alignment */
-        } Elf32_Phdr;
-
-        typedef struct
-        {
-          Elf64_Word	p_type;			/* Segment type */
-          Elf64_Word	p_flags;		/* Segment flags */
-          Elf64_Off	p_offset;		/* Segment file offset */
-          Elf64_Addr	p_vaddr;		/* Segment virtual address */
-          Elf64_Addr	p_paddr;		/* Segment physical address */
-          Elf64_Xword	p_filesz;		/* Segment size in file */
-          Elf64_Xword	p_memsz;		/* Segment size in memory */
-          Elf64_Xword	p_align;		/* Segment alignment */
-        } Elf64_Phdr;
-
-        '''
+        str_section = fd.read(sh_size)
 
         # define program info #
         self.attr['progHeader'] = list()
@@ -23537,6 +23669,7 @@ Section header string table index: %d
         e_shdynsym = -1
         e_shdynstr = -1
         e_shdynamic = -1
+        e_shversym = -1
         e_shrellist = []
         e_shrelalist = []
 
@@ -23569,79 +23702,69 @@ Section header string table index: %d
             if sh_flags & ElfAnalyzer.SHF_MASKPROC:
                 f += "M"
 
-            # get section name #
-            if sh_name in string_table:
-                shname = string_table[sh_name]
-            else:
-                shname = sh_name
+            # get symbol string #
+            symbol = self.getString(str_section, sh_name)
 
             stype = ElfAnalyzer.SH_TYPE[sh_type] \
                 if sh_type in ElfAnalyzer.SH_TYPE else sh_type
 
-            self.attr['sectionHeader'][shname] = {
+            self.attr['sectionHeader'][symbol] = {
                 'type': stype, 'addr': sh_addr, 'offset': sh_offset, \
                 'size': sh_size, 'entSize': sh_entsize, 'flag': f, \
                 'link': sh_link, 'info': sh_info, 'align': sh_addralign}
 
-            # count the number of each tables #
-            if sh_name in string_table:
-                # print section header #
-                if debug:
-                    SystemManager.pipePrint(\
-                        "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
-                        (i, string_table[sh_name], \
-                        ElfAnalyzer.SH_TYPE[sh_type] \
-                            if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type), \
-                        sh_addr, sh_offset, sh_size, sh_entsize, \
-                        f, sh_link, sh_info, sh_addralign))
-
-                if string_table[sh_name] == '.symtab':
-                    e_shsymndx = i
-                elif string_table[sh_name] == '.strtab':
-                    e_shstrndx = i
-                elif string_table[sh_name] == '.dynsym':
-                    e_shdynsym = i
-                elif string_table[sh_name] == '.dynstr':
-                    e_shdynstr = i
-                elif string_table[sh_name] == '.dynamic':
-                    e_shdynamic = i
-                elif stype == 'REL':
-                    e_shrellist.append(i)
-                elif stype == 'RELA':
-                    e_shrelalist.append(i)
-
-            elif debug:
+            # print section header #
+            if debug:
                 SystemManager.pipePrint(\
                     "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
-                    (i, sh_name, \
+                    (i, symbol, \
                     ElfAnalyzer.SH_TYPE[sh_type] \
-                        if sh_type in ElfAnalyzer.SH_TYPE else sh_type, \
+                        if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type), \
                     sh_addr, sh_offset, sh_size, sh_entsize, \
                     f, sh_link, sh_info, sh_addralign))
+
+            # get header index #
+            if symbol == '.symtab':
+                e_shsymndx = i
+            elif symbol == '.strtab':
+                e_shstrndx = i
+            elif symbol == '.dynsym':
+                e_shdynsym = i
+            elif symbol == '.dynstr':
+                e_shdynstr = i
+            elif symbol == '.dynamic':
+                e_shdynamic = i
+            elif stype == 'GNU_versym':
+                e_shversym = i
+            elif stype == 'GNU_verneed':
+                e_shverneed = i
+            elif stype == 'REL':
+                e_shrellist.append(i)
+            elif stype == 'RELA':
+                e_shrelalist.append(i)
+
         if debug:
             SystemManager.pipePrint(oneLine)
 
-        '''
-        typedef struct
-        {
-          Elf32_Word	st_name;		/* Symbol name (string tbl index) */
-          Elf32_Addr	st_value;		/* Symbol value */
-          Elf32_Word	st_size;		/* Symbol size */
-          unsigned char	st_info;		/* Symbol type and binding */
-          unsigned char	st_other;		/* Symbol visibility */
-          Elf32_Section	st_shndx;		/* Section index */
-        } Elf32_Sym;
+        # define versym info #
+        self.attr['versymList'] = list()
 
-        typedef struct
-        {
-          Elf64_Word	st_name;		/* Symbol name (string tbl index) */
-          unsigned char	st_info;		/* Symbol type and binding */
-          unsigned char st_other;		/* Symbol visibility */
-          Elf64_Section	st_shndx;		/* Section index */
-          Elf64_Addr	st_value;		/* Symbol value */
-          Elf64_Xword	st_size;		/* Symbol size */
-        } Elf64_Sym;
-        '''
+        # parse .gnu.version table #
+        if e_shversym >= 0:
+            # get .gnu.version section info #
+            sh_name, sh_type, sh_flags, sh_addr, \
+                sh_offset, sh_size, sh_link, sh_info, \
+                sh_addralign, sh_entsize  = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shversym)
+
+            # read .gnu.version data #
+            fd.seek(sh_offset)
+            versym_section = fd.read(sh_size)
+
+            for i in range(0, int(sh_size / sh_entsize)):
+                target = versym_section[i*sh_entsize:(i+1)*sh_entsize]
+                symidx = struct.unpack('H', target)[0]
+                self.attr['versymList'].append(symidx)
 
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
@@ -23663,10 +23786,10 @@ Section header string table index: %d
             dynstr_section = fd.read(sh_size)
 
             lastnull = 0
-            dynsymbol_table = {}
+            dynsymTable = {}
             for i, s in enumerate(dynstr_section.decode()):
                 if s == '\0':
-                    dynsymbol_table[lastnull] = \
+                    dynsymTable[lastnull] = \
                         dynstr_section[lastnull:i].decode()
                     lastnull = i + 1
 
@@ -23698,19 +23821,11 @@ Section header string table index: %d
                     st_name, st_info, st_other, st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', target)
 
-                # find the end index of the symbol string #
-                start = end = idx = st_name
-                while 1:
-                    if dynstr_section[idx:idx+1] == b'\x00':
-                        end = idx
-                        break
-                    idx += 1
+                # get symbol string #
+                symbol = self.getString(dynstr_section, st_name)
 
-                # pick symbol string #
-                if start == end:
-                    symbol = ''
-                else:
-                    symbol = dynstr_section[start:end].decode()
+                # convert manged string #
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 self.attr['dynsymTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
@@ -23786,19 +23901,11 @@ Section header string table index: %d
                         struct.unpack('IBBHQQ', \
                         sym_section[i*sh_entsize:(i+1)*sh_entsize])
 
-                # find the end index of the symbol string #
-                start = end = idx = st_name
-                while 1:
-                    if strtab_section[idx:idx+1] == b'\x00':
-                        end = idx
-                        break
-                    idx += 1
+                # get symbol string #
+                symbol = self.getString(strtab_section, st_name)
 
-                # pick symbol string #
-                if start == end:
-                    symbol = ''
-                else:
-                    symbol = strtab_section[start:end].decode()
+                # convert manged string #
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
@@ -23825,52 +23932,14 @@ Section header string table index: %d
             if debug:
                 SystemManager.pipePrint(oneLine)
 
-        '''
-        typedef struct
-        {
-          Elf32_Addr	r_offset;		/* Address */
-          Elf32_Word	r_info;			/* Relocation type and symbol index */
-        } Elf32_Rel;
-
-        /* I have seen two different definitions of the Elf64_Rel and
-           Elf64_Rela structures, so we'll leave them out until Novell (or
-           whoever) gets their act together.  */
-        /* The following, at least, is used on Sparc v9, MIPS, and Alpha.  */
-
-        typedef struct
-        {
-          Elf64_Addr	r_offset;		/* Address */
-          Elf64_Xword	r_info;			/* Relocation type and symbol index */
-        } Elf64_Rel;
-
-        /* Relocation table entry with addend (in section of type SHT_RELA).  */
-
-        typedef struct
-        {
-          Elf32_Addr	r_offset;		/* Address */
-          Elf32_Word	r_info;			/* Relocation type and symbol index */
-          Elf32_Sword	r_addend;		/* Addend */
-        } Elf32_Rela;
-
-        typedef struct
-        {
-          Elf64_Addr	r_offset;		/* Address */
-          Elf64_Xword	r_info;			/* Relocation type and symbol index */
-          Elf64_Sxword	r_addend;		/* Addend */
-        } Elf64_Rela;
-        '''
-
         # parse REL table #
         for idx in e_shrellist:
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
 
-            # get section name #
-            if sh_name in string_table:
-                shname = string_table[sh_name]
-            else:
-                shname = sh_name
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
 
             if debug:
                 SystemManager.pipePrint((\
@@ -23907,6 +23976,9 @@ Section header string table index: %d
                 except:
                     symbol = rsym
 
+                # convert manged string #
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
+
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
                     if self.attr['dynsymTable'][symbol]['value'] == 0:
@@ -23932,11 +24004,8 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
 
-            # get section name #
-            if sh_name in string_table:
-                shname = string_table[sh_name]
-            else:
-                shname = sh_name
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
 
             if debug:
                 SystemManager.pipePrint((\
@@ -23972,6 +24041,9 @@ Section header string table index: %d
                     symbol = self.attr['dynsymList'][rsym]
                 except:
                     symbol = rsym
+
+                # convert manged string #
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
@@ -24014,35 +24086,32 @@ Section header string table index: %d
                 d_tag, d_un = struct.unpack('QQ', fd.read(sh_entsize))
 
             if debug:
-                if d_tag in ElfAnalyzer.TAG_TYPE:
-                    if d_tag == 1 or d_tag == 15:
-                        SystemManager.pipePrint(\
-                            '%016x %20s %32s' % \
-                            (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], \
-                            dynsymbol_table[d_un]))
-                    else:
-                        SystemManager.pipePrint(\
-                            '%016x %20s %32s' % \
-                            (d_tag, ElfAnalyzer.TAG_TYPE[d_tag], d_un))
-                elif d_tag in ElfAnalyzer.DT_TYPE:
-                    if d_tag == 1 or d_tag == 15:
+                if d_tag in ElfAnalyzer.DT_TYPE:
+                    if ElfAnalyzer.DT_TYPE[d_tag] == 'NEEDED' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'SONAME' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'RPATH':
                         SystemManager.pipePrint(\
                             '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
-                            dynsymbol_table[d_un]))
-                    else:
+                            dynsymTable[d_un]))
+                    elif ElfAnalyzer.DT_TYPE[d_tag] == 'STRSZ' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'SYMENT' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELSZ' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELENT' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'PLTRELSZ' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'VERDEFNUM' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'VERNEEDNUM' or \
+                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELCOUNT':
                         SystemManager.pipePrint(\
                             '%016x %20s %32s' % \
                             (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
-                else:
-                    if d_tag == 1 or d_tag == 15:
-                        SystemManager.pipePrint(\
-                            '%016x %20s %32s' % \
-                            (d_tag, d_tag, dynsymbol_table[d_un]))
                     else:
                         SystemManager.pipePrint(\
                             '%016x %20s %32s' % \
-                            (d_tag, d_tag, d_un))
+                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], hex(d_un)))
+                else:
+                    SystemManager.pipePrint(\
+                        '%016x %20s %32s' % (d_tag, d_tag, hex(d_un)))
 
             # NULL termination #
             if d_tag == d_un == 0:
@@ -24304,6 +24373,10 @@ class ThreadAnalyzer(object):
                         SystemManager.printInfo(\
                             "only specific processes including [ %s ] are shown" % \
                             taskList)
+
+            # set network configuration #
+            if SystemManager.netEnable:
+                SystemManager.setServerNetwork(None, None)
 
             # set configuration from file #
             self.getConf()
@@ -24617,10 +24690,6 @@ class ThreadAnalyzer(object):
         # import select package in the foreground #
         if SystemManager.printFile is None:
             SystemManager.getPkg('select', False)
-
-        # set network configuration #
-        if SystemManager.netEnable:
-            SystemManager.setServerNetwork(None, None)
 
         # run user custom command #
         SystemManager.writeRecordCmd('BEFORE')
@@ -26091,7 +26160,7 @@ class ThreadAnalyzer(object):
 
                 # hide yticks #
                 if ytickLabel[-1] == '0':
-                    ax.set_ylim(ymax=0)
+                    ax.set_ylim(top=0)
                     ax.get_yaxis().set_visible(False)
             except:
                 pass
