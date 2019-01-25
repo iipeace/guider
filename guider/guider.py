@@ -37491,15 +37491,16 @@ class ThreadAnalyzer(object):
                     "Fail to rename %s to %s" % \
                     SystemManager.inputFile, filePath)
 
-        if SystemManager.encodeEnable:
-            # convert dict data to json data #
-            jsonObj = SystemManager.makeJsonString(self.reportData)
-            if jsonObj is None:
-                SystemManager.printWarning(\
-                    "Fail to convert report data to json type")
-                return
-        else:
-            jsonObj = str(self.reportData)
+        # convert dict data to json data #
+        jsonObj = SystemManager.makeJsonString(self.reportData)
+        if jsonObj is None:
+            SystemManager.printWarning(\
+                "Fail to convert report data to json type")
+            return
+
+        # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
+        if not SystemManager.encodeEnable:
+            jsonObj = re.sub("\s", "", jsonObj) + "\n"
 
         # report system status to file #
         if SystemManager.reportObject != None:
