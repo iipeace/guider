@@ -9232,7 +9232,7 @@ class SystemManager(object):
     ttyRowsMargin = 3
     ttyCols = 156
     encoding = None
-    supportExtAscii = True
+    encodeEnable = True
     remoteRun = False
     magicString = '@@@@@'
     procPath = '/proc'
@@ -10396,7 +10396,7 @@ class SystemManager(object):
                 cmd = cmd[:cmd.find('.pyc')]
 
             # disable extended ascii code support #
-            SystemManager.supportExtAscii = False
+            SystemManager.encodeEnable = False
 
             defStr = '''
 Usage:
@@ -13340,7 +13340,7 @@ Copyright:
         else:
             disableStat += 'PRINT '
 
-        if SystemManager.supportExtAscii != None:
+        if SystemManager.encodeEnable != None:
             enableStat += 'ENCODE '
         else:
             disableStat += 'ENCODE '
@@ -14795,7 +14795,7 @@ Copyright:
 
     @staticmethod
     def convertExtAscii(line):
-        if SystemManager.supportExtAscii is False:
+        if SystemManager.encodeEnable is False:
             return line
 
         try:
@@ -14813,7 +14813,7 @@ Copyright:
 
             return newline
         except:
-            SystemManager.supportExtAscii = False
+            SystemManager.encodeEnable = False
             return line
 
 
@@ -15141,7 +15141,7 @@ Copyright:
                     SystemManager.truncEnable = False
 
                 if options.rfind('e') > -1:
-                    SystemManager.supportExtAscii = False
+                    SystemManager.encodeEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -15253,7 +15253,7 @@ Copyright:
                     SystemManager.reportFileEnable = True
 
                 if options.rfind('e') > -1:
-                    SystemManager.supportExtAscii = True
+                    SystemManager.encodeEnable = True
 
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
@@ -21623,7 +21623,7 @@ class Debugger(object):
         __WCLONE = 0x80000000
 
         # disable extended ascii #
-        SystemManager.supportExtAscii = False
+        SystemManager.encodeEnable = False
 
         # check the process is running #
         try:
@@ -37470,12 +37470,15 @@ class ThreadAnalyzer(object):
                     "Fail to rename %s to %s" % \
                     SystemManager.inputFile, filePath)
 
-        # convert dict data to json data #
-        jsonObj = SystemManager.makeJsonString(self.reportData)
-        if jsonObj is None:
-            SystemManager.printWarning(\
-                "Fail to convert report data to json type")
-            return
+        if SystemManager.encodeEnable:
+            # convert dict data to json data #
+            jsonObj = SystemManager.makeJsonString(self.reportData)
+            if jsonObj is None:
+                SystemManager.printWarning(\
+                    "Fail to convert report data to json type")
+                return
+        else:
+            jsonObj = str(self.reportData)
 
         # report system status to file #
         if SystemManager.reportObject != None:
@@ -37588,12 +37591,12 @@ def main(args=None):
     try:
         # set run type #
         if "REMOTERUN" in os.environ:
-            SystemManager.supportExtAscii = False
+            SystemManager.encodeEnable = False
             SystemManager.remoteRun = True
 
         # set encode type #
         if 'tty' in os.ttyname(sys.stdout.fileno()):
-            SystemManager.supportExtAscii = False
+            SystemManager.encodeEnable = False
     except:
         pass
 
