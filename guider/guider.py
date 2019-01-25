@@ -12792,25 +12792,36 @@ Copyright:
             cmdFormat = cvtCmd.split(':')
             cmdFormat = [ cmd.replace("#", "::") for cmd in cmdFormat ]
 
-            if len(cmdFormat) == 3:
-                # check redundant event name #
-                if kernelCmd is not None and \
-                    cmd[0] in [kcmd.split(':')[0] for kcmd in kernelCmd]:
-                    SystemManager.printError((\
-                        "redundant event name '%s' "
-                        "as user event and kernel event") % cmd[0])
-                    sys.exit(0)
+            if len(cmdFormat) != 3:
+                SystemManager.printError(\
+                    "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+                sys.exit(0)
 
-                # check binary file #
-                if os.path.isfile(cmdFormat[2]) is False:
-                    SystemManager.printError(\
-                        "Fail to find '%s' binary" % cmdFormat[2])
-                    sys.exit(0)
+            # check redundant event name #
+            if kernelCmd is not None and \
+                cmd[0] in [kcmd.split(':')[0] for kcmd in kernelCmd]:
+                SystemManager.printError((\
+                    "redundant event name '%s' "
+                    "as user event and kernel event") % cmd[0])
+                sys.exit(0)
 
-                # symbol input #
-                if cmdFormat[1].startswith('0x') is False:
-                    # symbol input with no objdump path #
-                    if SystemManager.objdumpPath is None:
+            # check binary file #
+            if os.path.isfile(cmdFormat[2]) is False:
+                SystemManager.printError(\
+                    "Fail to find '%s' binary" % cmdFormat[2])
+                sys.exit(0)
+
+            # symbol input #
+            if cmdFormat[1].startswith('0x') is False:
+                # symbol input with no objdump path #
+                if SystemManager.objdumpPath is None:
+                    # get address of symbol in binary #
+                    addr = SystemManager.getSymOffset(\
+                        cmdFormat[1], cmdFormat[2], None)
+
+                    # use external objdump #
+                    if addr is None:
+                        # get system objdump path #
                         objdumpPath = SystemManager.which('objdump')
                         if objdumpPath != None:
                             SystemManager.printWarning((\
@@ -12826,41 +12837,37 @@ Copyright:
                                 "to get address of user function, "
                                 "use -l option"))
                             sys.exit(0)
-                    # symbol input with objdump #
-                    elif os.path.isfile(SystemManager.objdumpPath) is False:
-                        SystemManager.printError(\
-                            "Fail to find %s to use objdump" % \
-                            SystemManager.objdumpPath)
-                        sys.exit(0)
+                # symbol input with objdump #
+                elif os.path.isfile(SystemManager.objdumpPath) is False:
+                    SystemManager.printError(\
+                        "Fail to find %s to use objdump" % \
+                        SystemManager.objdumpPath)
+                    sys.exit(0)
 
-                    # get address of symbol in binary #
-                    addr = SystemManager.getSymOffset(\
-                        cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
-                    if addr is None:
-                        SystemManager.printError("Fail to find '%s' in %s" % \
-                            (cmdFormat[1], cmdFormat[2]))
-                        sys.exit(0)
-                # address input #
-                else:
-                    addr = cmdFormat[1]
-                    try:
-                        hex(long(addr, base=16)).rstrip('L')
-                    except:
-                        SystemManager.printError(\
-                            "Fail to recognize address %s" % addr)
-                        sys.exit(0)
-
-                for item in effectiveCmd:
-                    if cmdFormat[0] == item[0]:
-                        SystemManager.printError(\
-                            "redundant user event name '%s'" % item[0])
-                        sys.exit(0)
-
-                effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
+                # get address of symbol in binary #
+                addr = SystemManager.getSymOffset(\
+                    cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
+                if addr is None:
+                    SystemManager.printError("Fail to find '%s' in %s" % \
+                        (cmdFormat[1], cmdFormat[2]))
+                    sys.exit(0)
+            # address input #
             else:
-                SystemManager.printError(\
-                    "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
-                sys.exit(0)
+                addr = cmdFormat[1]
+                try:
+                    hex(long(addr, base=16)).rstrip('L')
+                except:
+                    SystemManager.printError(\
+                        "Fail to recognize address %s" % addr)
+                    sys.exit(0)
+
+            for item in effectiveCmd:
+                if cmdFormat[0] == item[0]:
+                    SystemManager.printError(\
+                        "redundant user event name '%s'" % item[0])
+                    sys.exit(0)
+
+            effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
 
         # print uprobe event list #
         SystemManager.printInfo("enabled user events [ %s ]" % \
@@ -12938,11 +12945,25 @@ Copyright:
 
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
+        if objdumpPath is None:
+            try:
+                offset = None
+
+                if binPath not in ElfAnalyzer.cachedFiles:
+                    ElfAnalyzer.cachedFiles[binPath] = ElfAnalyzer(binPath)
+
+                binObj = ElfAnalyzer.cachedFiles[binPath]
+
+                offset = binObj.getOffsetBySymbol(symbol)
+            except:
+                pass
+
+            return offset
+
         # get subprocess object #
         subprocess = SystemManager.getPkg('subprocess')
 
         syms = []
-        disline = []
         args = [objdumpPath, "-C", "-F", "-d", binPath]
 
         SystemManager.printStatus(\
