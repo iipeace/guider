@@ -13340,7 +13340,7 @@ Copyright:
         else:
             disableStat += 'PRINT '
 
-        if SystemManager.encodeEnable != None:
+        if SystemManager.encodeEnable:
             enableStat += 'ENCODE '
         else:
             disableStat += 'ENCODE '
