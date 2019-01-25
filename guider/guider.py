@@ -3671,12 +3671,9 @@ class FunctionAnalyzer(object):
             self.target = SystemManager.filterGroup
 
         # Check root path #
-        if SystemManager.rootPath is None and SystemManager.userEnable:
-            SystemManager.printWarning((\
-                "Fail to recognize sysroot path for user function analysis\n"
-                "\tso just use '/' as default sysroot path\n"
-                "\tif it is wrong then use -r option"), True)
-            SystemManager.rootPath = '/'
+        if SystemManager.userEnable:
+            SystemManager.printInfo(\
+                "use %s as sysroot path" % SystemManager.rootPath)
 
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
@@ -4626,8 +4623,6 @@ class FunctionAnalyzer(object):
 
         # No file exist #
         if os.path.isfile(binPath) == False:
-            SystemManager.printWarning("Fail to find %s" % binPath)
-
             for addr in offsetList:
                 try:
                     if relocated is False:
@@ -4645,7 +4640,8 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SystemManager.printWarning("Fail to find address %s" % addr)
+                    SystemManager.printWarning(\
+                        "Fail to find address %s" % addr)
             return -1
 
         # check user-mode enabled #
@@ -4670,17 +4666,15 @@ class FunctionAnalyzer(object):
             # get system addr2line path #
             addr2linePath = SystemManager.which('addr2line')
 
-            if addr2linePath != None:
-                SystemManager.printWarning((\
-                    "Fail to recognize addr2line path to analyze user functions\n"
-                    "\tso just use %s as default addr2line path\n"
-                    "\tif it is wrong then use -l option") % addr2linePath, True)
-                SystemManager.addr2linePath = addr2linePath
-            else:
+            if addr2linePath == None:
                 SystemManager.printError((\
-                    "Fail to recognize addr2line path to analyze user functions, "
-                    "use -l option"))
+                    "Fail to find addr2line to analyze user-level functions, "
+                    "use -l option to set custom path"))
                 sys.exit(0)
+
+            SystemManager.printInfo(\
+                "use %s as addr2line path" % ', '.join(addr2linePath))
+            SystemManager.addr2linePath = addr2linePath
         else:
             for path in SystemManager.addr2linePath:
                 if os.path.isfile(path) is False:
@@ -4709,8 +4703,9 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SystemManager.printError(\
-                        "Fail to execute %s to get symbols from binary" % path)
+                    SystemManager.printError((\
+                        "Fail to execute %s "
+                        "to pick symbols from binary") % path)
                     sys.exit(0)
 
                 # Increase offset count in address list #
@@ -5063,7 +5058,7 @@ class FunctionAnalyzer(object):
             if path is not None:
                 self.posData[pos]['origBin'] = path
                 self.posData[pos]['binary'] = \
-                    os.path.join(SystemManager.rootPath, path)
+                    SystemManager.rootPath + path
                 self.posData[pos]['binary'] = \
                     os.path.normpath(self.posData[pos]['binary'])
 
@@ -6150,7 +6145,7 @@ class FunctionAnalyzer(object):
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
                 if ElfAnalyzer.isRelocatableFile(data['binName']):
-                        # Return full path and offset of address in mapping table
+                    # Return full path and offset in mapping table #
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16) - int(data['startAddr'], 16))
                 else:
@@ -9270,7 +9265,7 @@ class SystemManager(object):
     saveCmd = None
     addr2linePath = None
     objdumpPath = None
-    rootPath = None
+    rootPath = '/'
     fontPath = None
     pipeForPrint = None
     fileForPrint = None
@@ -9292,6 +9287,7 @@ class SystemManager(object):
     perfTargetEvent = []
     perfEventData = {}
     impPkg = {}
+    skipImpPkg = {}
     guiderObj = None
     libcObj = None
     libcppObj = None
@@ -9880,7 +9876,8 @@ class SystemManager(object):
         try:
             # load standard libc library #
             if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
             SystemManager.libcObj.prctl(\
                 15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
         except:
@@ -9891,18 +9888,28 @@ class SystemManager(object):
 
     @staticmethod
     def getPkg(name, isExit=True, isTemp=False, isRoot=True):
+        # check cache #
         try:
             return SystemManager.impPkg[name]
         except:
             pass
 
+        # check blacklist #
+        if name in SystemManager.skipImpPkg:
+            return None
+
+        # import package #
         try:
-            # import package #
             obj =  __import__(name, fromlist = [name] if isRoot else [None])
         except:
             SystemManager.printWarning(\
                 "Fail to import python package: %s " % name, \
                 True if isExit else False)
+
+            # register to blacklist #
+            SystemManager.skipImpPkg[name] = True
+
+            # check return condition #
             if isExit:
                 sys.exit(0)
             return None
@@ -12823,20 +12830,18 @@ Copyright:
                     if addr is None:
                         # get system objdump path #
                         objdumpPath = SystemManager.which('objdump')
-                        if objdumpPath != None:
-                            SystemManager.printWarning((\
-                                "Fail to recognize objdump path "
-                                "to get address of user function\n"
-                                "\tso just use %s as default objdump path\n"
-                                "\tif it is wrong then use -M option") % \
-                                    objdumpPath[0], True)
-                            SystemManager.objdumpPath = objdumpPath[0]
-                        else:
+
+                        if objdumpPath == None:
                             SystemManager.printError((\
-                                "Fail to recognize objdump path "
-                                "to get address of user function, "
-                                "use -l option"))
+                                "Fail to find objdump "
+                                "to get address of user-level function, "
+                                "use -l option to set custom path"))
                             sys.exit(0)
+
+                        SystemManager.objdumpPath = objdumpPath[0]
+
+                        SystemManager.printInfo(\
+                            "use %s as objdump path" % SystemManager.objdumpPath)
                 # symbol input with objdump #
                 elif os.path.isfile(SystemManager.objdumpPath) is False:
                     SystemManager.printError(\
@@ -14363,7 +14368,6 @@ Copyright:
             if filterList.find('u') > -1:
                 SystemManager.userEnable = False
                 SystemManager.userRecordEnable = False
-                SystemManager.rootPath = '/'
             if filterList.find('a') > -1:
                 SystemManager.disableAll = True
             if filterList.find('c') > -1:
@@ -15150,7 +15154,6 @@ Copyright:
 
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
-                    SystemManager.rootPath = '/'
 
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
@@ -15312,6 +15315,10 @@ Copyright:
 
             elif option == 'l':
                 SystemManager.addr2linePath = value.split(',')
+
+                SystemManager.printInfo(\
+                    "use %s as addr2line path" % \
+                    ', '.join(SystemManager.addr2linePath))
 
             elif option == 'r':
                 SystemManager.rootPath = value
@@ -15794,6 +15801,9 @@ Copyright:
 
             elif option == 'M':
                 SystemManager.objdumpPath = value
+
+                SystemManager.printInfo(\
+                    "use %s as objdump path" % SystemManager.objdumpPath)
 
             elif option == 'F':
                 SystemManager.fileEnable = True
@@ -22100,7 +22110,8 @@ class EventAnalyzer(object):
             eventData.items(), key=lambda x: float(x[1]['summary'][0][5])):
             string = ''
             head = '%10s: [total: %s] [subEvent: %s] ' % \
-                (key, len(eventData[key]['list']), len(eventData[key]['summary']))
+                (key, len(eventData[key]['list']), \
+                    len(eventData[key]['summary']))
             for idx, n in enumerate(sorted(\
                 eventData[key]['summary'], key=lambda slist: slist[0])):
                 if idx == 0:
@@ -22982,10 +22993,17 @@ class ElfAnalyzer(object):
         if not symbol.startswith('_Z'):
             return symbol
 
+        if '@@' in symbol:
+            symbol, version = symbol.split('@@')
+            version = '@%s' % version
+        else:
+            version = ''
+
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
         if ctypes is None:
-            return
+            return symbol
+
         from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
 
         # try to demangle symbol #
@@ -23038,7 +23056,7 @@ class ElfAnalyzer(object):
             # free demangled string array #
             #SystemManager.libcObj.free(ret)
 
-            return dmSymbol
+            return dmSymbol + version
         except SystemExit:
             sys.exit(0)
         except:
@@ -23438,7 +23456,10 @@ class ElfAnalyzer(object):
         try:
             fd = self.fd = open(path, 'rb')
         except:
-            SystemManager.printError("Fail to open %s" % path)
+            if debug:
+                SystemManager.printError("Fail to open %s" % path)
+            else:
+                SystemManager.printWarning("Fail to open %s" % path)
             raise Exception()
 
         # define default file type #
