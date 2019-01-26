@@ -22997,7 +22997,7 @@ class ElfAnalyzer(object):
         if not symbol.startswith('_Z'):
             return symbol
 
-        if '@@' in symbol:
+        if symbol.rfind('@@') > -1:
             symbol, version = symbol.split('@@')
             version = '@%s' % version
         else:
