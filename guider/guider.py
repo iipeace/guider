@@ -5644,10 +5644,10 @@ class FunctionAnalyzer(object):
 
                             return False
 
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to recognize event %s at %d" % \
-                        (func[:-1], SystemManager.dbgEventLine))
+            else:
+                SystemManager.printWarning(\
+                    "Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -5713,10 +5713,10 @@ class FunctionAnalyzer(object):
                             return False
                     except:
                         self.threadData[pid]['lastBrk'] = addr
-
-            SystemManager.printWarning(\
-                "Fail to recognize event %s at %d" % \
-                (func[:-1], SystemManager.dbgEventLine))
+            else:
+                SystemManager.printWarning(\
+                    "Fail to recognize event %s at %d" % \
+                    (func[:-1], SystemManager.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -9265,6 +9265,7 @@ class SystemManager(object):
     saveCmd = None
     addr2linePath = None
     objdumpPath = None
+    demangleEnable = True
     rootPath = '/'
     fontPath = None
     pipeForPrint = None
@@ -9903,8 +9904,7 @@ class SystemManager(object):
             obj =  __import__(name, fromlist = [name] if isRoot else [None])
         except:
             SystemManager.printWarning(\
-                "Fail to import python package: %s " % name, \
-                True if isExit else False)
+                "Fail to import python package: %s " % name, isExit)
 
             # register to blacklist #
             SystemManager.skipImpPkg[name] = True
@@ -14058,7 +14058,8 @@ Copyright:
             "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if SystemManager.printFile != None and SystemManager.printStreamEnable:
+        if SystemManager.printFile != None and \
+            SystemManager.printStreamEnable:
             string = '\n'.join(\
                 [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
             print(string[:-1])
@@ -22990,6 +22991,9 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def demangleSymbol(symbol):
+        if not SystemManager.demangleEnable:
+            return symbol
+
         if not symbol.startswith('_Z'):
             return symbol
 
@@ -23002,6 +23006,11 @@ class ElfAnalyzer(object):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
         if ctypes is None:
+            SystemManager.printWarning((\
+                "Fail to import python package: ctypes "
+                "to demangle symbol, so that "
+                "disable demangle feature"), True)
+            SystemManager.demangleEnable = False
             return symbol
 
         from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
@@ -23060,8 +23069,12 @@ class ElfAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printWarning(\
-                "Fail to demangle symbol %s" % symbol, True)
+            err = sys.exc_info()[1]
+            SystemManager.printWarning((\
+                "Fail to demangle symbol %s because %s "
+                "so that disable demangle feature") \
+                % (symbol, ' '.join(list(map(str, err.args)))), True)
+            SystemManager.demangleEnable = False
             return symbol
 
 
