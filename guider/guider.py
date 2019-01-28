@@ -12896,6 +12896,7 @@ Copyright:
                 SystemManager.printError(\
                     "wrong command '%s' with -U option" % pCmd)
                 sys.exit(0)
+
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SystemManager.writeCmd('../uprobe_events', rCmd, append=True) < 0:
@@ -12970,6 +12971,14 @@ Copyright:
             except:
                 pass
 
+            # check similar list #
+            if type(offset) is list and len(offset) > 0:
+                SystemManager.printError((\
+                    "Fail to find %s in %s, "
+                    "\n\tbut similar symbols [ %s ] are exist") % \
+                    (symbol, binPath, ', '.join(offset)))
+                sys.exit(0)
+
             return offset
 
         # get subprocess object #
@@ -13024,6 +13033,7 @@ Copyright:
             elif d['symbol'].find(symbol) >= 0:
                 syms.append('%s {%s}' % (d['symbol'], d['offset']))
 
+        # check similar list #
         if len(syms) == 0:
             return None
         else:
@@ -13948,7 +13958,7 @@ Copyright:
             perm = 'w'
 
         # record command to file #
-        if SystemManager.cmdEnable is not False:
+        if SystemManager.cmdEnable:
             if not SystemManager.cmdFd:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
@@ -14025,8 +14035,10 @@ Copyright:
                     SystemManager.sysInstance.\
                         cmdList[path[:path.rfind('/enable')]] = False
         except:
-            SystemManager.printWarning(\
-                "Fail to apply command '%s' to %s" % (val, path))
+            err = sys.exc_info()[1]
+            SystemManager.printWarning((\
+                "Fail to apply command '%s' to %s because %s" % \
+                (val, path, ' '.join(list(map(str, err.args))))))
             return -2
 
         return 0
@@ -23186,13 +23198,12 @@ class ElfAnalyzer(object):
         clist = list()
 
         try:
-            return
-
             for idx, val in enumerate(self.sortedSymTable):
                 if symbol == val[0]:
-                    return self.sortedAddrTable[idx]
+                    return str(hex(self.sortedAddrTable[idx]))
                 elif symbol in val[0]:
-                    clist.append([val[0], self.sortedAddrTable[idx]])
+                    clist.append('%s {%s}' % \
+                        (val[0], hex(self.sortedAddrTable[idx])))
         except:
             return None
 
