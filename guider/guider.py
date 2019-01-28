@@ -2579,7 +2579,7 @@ class ConfigManager(object):
 
     @staticmethod
     def writeConfData(fd, line):
-        if fd == None:
+        if not fd:
             SystemManager.printError("Fail to get file descriptor")
             return None
 
@@ -2748,7 +2748,7 @@ class NetworkManager(object):
 
             # get connection #
             receiver = getConn(self.ip, targetIp, targetPort)
-            if receiver == None:
+            if not receiver:
                 return
 
             # get select object #
@@ -2805,7 +2805,7 @@ class NetworkManager(object):
 
             # get connection #
             sender = getConn(self.ip, targetIp, targetPort)
-            if sender == None:
+            if not sender:
                 return
 
             # transfer file #
@@ -2845,7 +2845,7 @@ class NetworkManager(object):
 
             # get connection #
             conn = getConn(self.ip, targetIp, targetPort)
-            if conn == None:
+            if not conn:
                 return
 
             # get select object #
@@ -2904,7 +2904,7 @@ class NetworkManager(object):
                 req = addr = None
 
             # handle request #
-            if req == None:
+            if not req:
                 SystemManager.printError(\
                     'Fail to recognize request')
 
@@ -2926,7 +2926,7 @@ class NetworkManager(object):
 
             return
 
-        elif req == None:
+        elif not req:
             SystemManager.printError(\
                 "No response from server")
             return
@@ -4463,7 +4463,7 @@ class FunctionAnalyzer(object):
 
 
     def getBinFromServer(self, localObj, remoteObj, src, des):
-        if remoteObj == None or remoteObj == 'NONE':
+        if not remoteObj or remoteObj == 'NONE':
             SystemManager.printError(\
                 "wrong remote address with -X, "
                 "input {ip:port} in format")
@@ -4534,7 +4534,7 @@ class FunctionAnalyzer(object):
 
                 # Get binary from server #
                 if os.path.isfile(binPath) is False and \
-                    SystemManager.remoteServObj != None:
+                    SystemManager.remoteServObj:
                     self.getBinFromServer(\
                         SystemManager.localServObj, \
                         SystemManager.remoteServObj, \
@@ -4580,7 +4580,7 @@ class FunctionAnalyzer(object):
                 Check whether saved symbol found by
                 previous addr2line is right #
                 '''
-                if savedSymbol == None or savedSymbol == '' or \
+                if not savedSymbol or savedSymbol == '' or \
                     savedSymbol == addr or savedSymbol[0] == '$':
                     self.posData[addr]['symbol'] = symbol
 
@@ -4601,7 +4601,7 @@ class FunctionAnalyzer(object):
                         if value['offset'] == addr:
                             savedSymbol = self.posData[idx]['symbol']
 
-                            if savedSymbol == None or \
+                            if not savedSymbol or \
                                 savedSymbol == '' or \
                                 savedSymbol == addr or \
                                 savedSymbol[0] == '$':
@@ -4670,7 +4670,7 @@ class FunctionAnalyzer(object):
             # get system addr2line path #
             addr2linePath = SystemManager.which('addr2line')
 
-            if addr2linePath == None:
+            if not addr2linePath:
                 SystemManager.printError((\
                     "Fail to find addr2line to analyze user-level functions, "
                     "use -l option to set custom path"))
@@ -5535,7 +5535,7 @@ class FunctionAnalyzer(object):
                         self.threadData[tid]['nrSyscall'] += 1
 
                         # set syscall table #
-                        if self.threadData[tid]['syscallTable'] == None:
+                        if not self.threadData[tid]['syscallTable']:
                             self.threadData[tid]['syscallTable'] = {}
 
                         try:
@@ -6421,7 +6421,7 @@ class FunctionAnalyzer(object):
             for pos in subStack:
                 if self.posData[pos]['symbol'] == '':
                     symbolSet = ' <- %s' % hex(int(pos, 16))
-                elif self.posData[pos]['symbol'] == None and \
+                elif not self.posData[pos]['symbol'] and \
                     SystemManager.showAll:
                     symbolSet = ' <- %s' % hex(int(pos, 16))
                 else:
@@ -9283,7 +9283,7 @@ class SystemManager(object):
     customCmd = None
     userCmd = None
     kernelCmd = None
-    UDP_ATTRCache = None
+    udpListCache = None
     tcpListCache = None
     customEventList = []
     userEventList = []
@@ -9518,7 +9518,7 @@ class SystemManager(object):
 
         # try to set maxFd with hard limit #
         resource = SystemManager.getPkg('resource', False, True)
-        if resource != None:
+        if resource:
             soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
             resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
             SystemManager.maxFd = hard
@@ -11694,7 +11694,7 @@ Copyright:
 
     @staticmethod
     def getKernelVersion():
-        if SystemManager.kernelVersion != None:
+        if SystemManager.kernelVersion:
             return SystemManager.kernelVersion
 
         try:
@@ -12837,7 +12837,7 @@ Copyright:
                         # get system objdump path #
                         objdumpPath = SystemManager.which('objdump')
 
-                        if objdumpPath == None:
+                        if not objdumpPath:
                             SystemManager.printError((\
                                 "Fail to find objdump "
                                 "to get address of user-level function, "
@@ -13106,7 +13106,7 @@ Copyright:
         enableStat = ''
         disableStat = ''
 
-        if SystemManager.outputFile != None:
+        if SystemManager.outputFile:
             return
 
         if SystemManager.isRecordMode() is False and \
@@ -13277,9 +13277,9 @@ Copyright:
 
 
     @staticmethod
-    def getUDP_ATTR():
-        if SystemManager.UDP_ATTRCache != None:
-            return SystemManager.UDP_ATTRCache
+    def getUdpList():
+        if SystemManager.udpListCache:
+            return SystemManager.udpListCache
 
         udpBuf = []
         udpPath = '%s/net/udp' % SystemManager.procPath
@@ -13294,22 +13294,22 @@ Copyright:
                 "Fail to open %s to get udp list " % udpPath)
             return udpBuf
 
-        UDP_ATTR = []
+        udpList = []
         for line in udpBuf:
-            UDP_ATTR.append(line.split())
+            udpList.append(line.split())
 
         # remove title #
-        UDP_ATTR.pop(0)
+        udpList.pop(0)
 
-        SystemManager.UDP_ATTRCache = UDP_ATTR
+        SystemManager.udpListCache = udpList
 
-        return UDP_ATTR
+        return udpList
 
 
 
     @staticmethod
     def getTcpList():
-        if SystemManager.tcpListCache != None:
+        if SystemManager.tcpListCache:
             return SystemManager.tcpListCache
 
         tcpBuf = []
@@ -13805,7 +13805,7 @@ Copyright:
                     SystemManager.stopRecording()
                     SystemManager.recordStatus = False
                 signal.alarm(repeatInterval)
-            elif SystemManager.outputFile != None:
+            elif SystemManager.outputFile:
                 if repeatCount == 1:
                     output = SystemManager.outputFile
                 else:
@@ -13857,7 +13857,7 @@ Copyright:
     @staticmethod
     def saveAndQuit(lines):
         # save trace data to file #
-        if SystemManager.outputFile != None:
+        if SystemManager.outputFile:
             try:
                 # backup data file alread exist #
                 if os.path.isfile(SystemManager.outputFile):
@@ -14066,7 +14066,7 @@ Copyright:
             "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if SystemManager.printFile != None and \
+        if SystemManager.printFile and \
             SystemManager.printStreamEnable:
             string = '\n'.join(\
                 [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
@@ -14164,7 +14164,7 @@ Copyright:
     def parseCustomRecordCmd(cmdList):
         tempList = {'BEFORE': [], 'AFTER': [], 'STOP': []}
 
-        if cmdList == None:
+        if not cmdList:
             return {}
 
         cmdList = cmdList.split(',')
@@ -14472,7 +14472,7 @@ Copyright:
 
     @staticmethod
     def writeEvent(message, show=True):
-        if SystemManager.eventLogFD == None:
+        if not SystemManager.eventLogFD:
             if not SystemManager.eventLogFile:
                 SystemManager.eventLogFile = \
                     '%s%s' % (SystemManager.mountPath, '../trace_marker')
@@ -14485,7 +14485,7 @@ Copyright:
                     SystemManager.eventLogFile)
                 return
 
-        if SystemManager.eventLogFD != None:
+        if SystemManager.eventLogFD:
             try:
                 SystemManager.eventLogFD.write(message)
                 event = message[message.find('_')+1:]
@@ -14721,7 +14721,7 @@ Copyright:
                 sys.exit(0)
 
         # pager output #
-        if SystemManager.pipeForPrint != None:
+        if SystemManager.pipeForPrint:
             try:
                 # convert to extended ascii #
                 line = SystemManager.convertExtAscii(line + retstr)
@@ -14732,8 +14732,8 @@ Copyright:
                 SystemManager.pipeForPrint = None
 
         # file output #
-        if SystemManager.printFile != None and \
-            SystemManager.fileForPrint == None:
+        if SystemManager.printFile and \
+            not SystemManager.fileForPrint:
 
             # runtime #
             if SystemManager.isRuntimeMode():
@@ -14781,7 +14781,7 @@ Copyright:
                     open(SystemManager.inputFile, 'w+')
 
                 # print output file name #
-                if SystemManager.printFile != None:
+                if SystemManager.printFile:
                     SystemManager.printInfo(\
                         "ready for writing statistics to %s" % \
                         SystemManager.inputFile)
@@ -14791,7 +14791,7 @@ Copyright:
                 sys.exit(0)
 
         # file output #
-        if SystemManager.fileForPrint != None:
+        if SystemManager.fileForPrint:
             try:
                 if SystemManager.isTopMode():
                     SystemManager.fileForPrint.writelines(line)
@@ -15506,7 +15506,7 @@ Copyright:
                     if not port:
                         port = 5555
 
-                    if SystemManager.localServObj != None and \
+                    if SystemManager.localServObj and \
                         SystemManager.localServObj.ip == ip and \
                         SystemManager.localServObj.port == port:
                         SystemManager.printError((\
@@ -16745,7 +16745,7 @@ Copyright:
 
     @staticmethod
     def checkBgTopCond():
-        if SystemManager.printFile != None:
+        if SystemManager.printFile:
             return True
 
         logPath = '/var/log'
@@ -16770,13 +16770,13 @@ Copyright:
         if SystemManager.reportEnable:
             return True
 
-        if val == None:
+        if not val:
             reportPath = SystemManager.getOption('j')
         else:
             reportPath = val
 
         # check report path #
-        if reportPath == None or len(reportPath) == 0:
+        if not reportPath or len(reportPath) == 0:
             tmpPath = '/tmp'
             reportPath = tmpPath
 
@@ -16939,7 +16939,7 @@ Copyright:
         addrIdx = ConfigManager.UDP_ATTR.index('local_address')
 
         # get udp list #
-        UDP_ATTR = SystemManager.getUDP_ATTR()
+        UDP_ATTR = SystemManager.getUdpList()
         for udp in UDP_ATTR:
             try:
                 if udp[inodeIdx] in addrList:
@@ -17614,7 +17614,7 @@ Copyright:
                         break
 
                     # check process status #
-                    if procObj.poll() == None:
+                    if not procObj.poll():
                         pass
                     else:
                         break
@@ -17665,7 +17665,7 @@ Copyright:
                 request = value = None
 
             # handle request #
-            if request == None:
+            if not request:
                 SystemManager.printWarning(\
                     'Fail to recognize request', True)
 
@@ -19063,7 +19063,7 @@ Copyright:
             pass
 
         # check webOS #
-        if osf == None and devf == None:
+        if not osf and not devf:
             return False
 
         try:
@@ -19150,7 +19150,7 @@ Copyright:
                         target = self.devInfo['char'] = {}
                     elif line.startswith('Block'):
                         target = self.devInfo['block'] = {}
-                    elif target == None:
+                    elif not target:
                         continue
                     else:
                         item = line.split()
@@ -19454,7 +19454,7 @@ Copyright:
 
     def startTracing(self):
         stat = SystemManager.readCmdVal('../tracing_on')
-        if stat == None:
+        if not stat:
             sys.exit(0)
         elif stat == '1':
             # no running guider process except for myself #
@@ -21400,7 +21400,7 @@ class Debugger(object):
 
                 # read string from address #
                 ret = self.readMem(value, length)
-                if ret != None:
+                if ret:
                     value = ret
 
             return value
@@ -22129,7 +22129,7 @@ class EventAnalyzer(object):
                 else:
                     msg = ' ' * len(head)
 
-                if n[0] == None:
+                if not n[0]:
                     n[0] = 'MAIN'
 
                 try:
@@ -24480,7 +24480,7 @@ class ThreadAnalyzer(object):
         SystemManager.cpuEnable = False
 
         # initialize preempt thread list #
-        if SystemManager.preemptGroup != None:
+        if SystemManager.preemptGroup:
             for index in SystemManager.preemptGroup:
                 '''
                 preempted state
@@ -24724,7 +24724,7 @@ class ThreadAnalyzer(object):
             self.printFileStat(nowFilter)
 
             # flush socket cache #
-            SystemManager.UDP_ATTRCache = \
+            SystemManager.udpListCache = \
                 SystemManager.tcpListCache = None
 
             # check repeat count #
@@ -26865,7 +26865,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(' ' * loc + life + threadName)
 
-        if childList != None:
+        if childList:
             for thread in childList:
                 self.printCreationTree(thread, newLoc)
 
@@ -26931,9 +26931,9 @@ class ThreadAnalyzer(object):
                 rtid = val[3]
 
                 # skip useless signal log #
-                if ((stid != None and stid[0] == '0') or \
+                if ((stid and stid[0] == '0') or \
                     stid not in self.threadData) and \
-                    ((rtid != None and rtid[0] == '0') or \
+                    ((rtid and rtid[0] == '0') or \
                     rtid not in self.threadData):
                     continue
 
@@ -28491,7 +28491,7 @@ class ThreadAnalyzer(object):
 
                     if nowData[0] == 'ENT':
                         # all #
-                        if nextData != None and \
+                        if nextData and \
                             nextData[0] == 'RET' and \
                             nowData[2] == nextData[2] and \
                             nowData[4] == nextData[4]:
@@ -31684,7 +31684,7 @@ class ThreadAnalyzer(object):
             SystemManager.startTime = time
 
             # initialize preempt thread list #
-            if SystemManager.preemptGroup != None:
+            if SystemManager.preemptGroup:
                 for index in SystemManager.preemptGroup:
                     self.preemptData.append([False, {}, float(0), 0, float(0)])
         # finish data processing #
@@ -32058,7 +32058,7 @@ class ThreadAnalyzer(object):
             self.lastTidPerCore[core] = next_id
 
             # calculate preempted time of threads blocked #
-            if SystemManager.preemptGroup != None:
+            if SystemManager.preemptGroup:
                 for value in SystemManager.preemptGroup:
                     index = SystemManager.preemptGroup.index(value)
                     if self.preemptData[index][0] and \
@@ -32090,7 +32090,7 @@ class ThreadAnalyzer(object):
 
                 self.threadData[prev_id]['lastStatus'] = 'P'
 
-                if SystemManager.preemptGroup != None:
+                if SystemManager.preemptGroup:
                     # enable preempted bit #
                     try:
                         index = SystemManager.preemptGroup.index(prev_id)
@@ -32390,7 +32390,7 @@ class ThreadAnalyzer(object):
             self.threadData[coreId]['migrate'] += 1
 
             # update core data for preempted info #
-            if SystemManager.preemptGroup != None:
+            if SystemManager.preemptGroup:
                 try:
                     index = SystemManager.preemptGroup.index(thread)
                 except:
@@ -32861,7 +32861,7 @@ class ThreadAnalyzer(object):
                     td['ftxStat'] = '?'
                     futexTime = ''
 
-                if td['ftxEnt'] != None:
+                if td['ftxEnt']:
                     op = td['ftxEnt']
                     td['ftxEnt'] = None
                 else:
@@ -37554,7 +37554,7 @@ class ThreadAnalyzer(object):
             jsonObj = re.sub("\s", "", jsonObj) + "\n"
 
         # report system status to file #
-        if SystemManager.reportObject != None:
+        if SystemManager.reportObject:
             SystemManager.writeJsonObject(\
                 jsonObj, fd=SystemManager.reportObject, \
                 trunc=SystemManager.truncEnable)
