@@ -3677,7 +3677,7 @@ class FunctionAnalyzer(object):
             else:
                 rootPath = SystemManager.rootPath
             SystemManager.printInfo(\
-                "use %s as sysroot path" % SystemManager.rootPath)
+                "use %s as sysroot path" % rootPath)
 
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
@@ -5209,7 +5209,7 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Save full stack to callData table #
-            if ret:
+            if ret is True:
                 self.saveCallStack()
             elif ret is False:
                 '''
@@ -5951,7 +5951,7 @@ class FunctionAnalyzer(object):
                 SystemManager.repeatCount * SystemManager.intervalEnable <= \
                 float(d['time']) - float(SystemManager.startTime):
                 self.lastCore = None
-                return
+                return False
 
             # Set time #
             self.finishTime = d['time']
@@ -23197,6 +23197,7 @@ class ElfAnalyzer(object):
 
         clist = list()
 
+        # get offset or symbol list #
         try:
             for idx, val in enumerate(self.sortedSymTable):
                 if symbol == val[0]:
