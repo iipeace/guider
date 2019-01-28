@@ -24001,7 +24001,7 @@ Section header string table index: %d
         else:
             ElfAnalyzer.stripedFiles[path] = True
             SystemManager.printWarning(\
-                "Fail to get static symbol of %s (stripped)" % path, True)
+                "Fail to get static symbol of %s (stripped)" % path)
 
         # parse REL table #
         for idx in e_shrellist:
