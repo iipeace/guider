@@ -3672,6 +3672,10 @@ class FunctionAnalyzer(object):
 
         # Check root path #
         if SystemManager.userEnable:
+            if SystemManager.rootPath == '':
+                rootPath = '/'
+            else:
+                rootPath = SystemManager.rootPath
             SystemManager.printInfo(\
                 "use %s as sysroot path" % SystemManager.rootPath)
 
@@ -9266,7 +9270,7 @@ class SystemManager(object):
     addr2linePath = None
     objdumpPath = None
     demangleEnable = True
-    rootPath = '/'
+    rootPath = ''
     fontPath = None
     pipeForPrint = None
     fileForPrint = None
@@ -22334,6 +22338,16 @@ class ElfAnalyzer(object):
     DT_VERDEF = 0x6ffffffc
     DT_VERNEEDNUM = 0x6fffffff
 
+    EI_TYPE= {
+        0:"None",
+        1:"Relocatable",
+        2:"Executable",
+        3:"Shared-object",
+        4:"Core",
+        0xff00:"Processor-specific",
+        0xffff:"Processor-specific",
+    }
+
     EI_OSABI = {
         0:"SYSV",
         1:"HPUX",
@@ -22925,6 +22939,7 @@ class ElfAnalyzer(object):
     }
 
     cachedFiles = {}
+    stripedFiles = {}
 
 
 
@@ -23528,20 +23543,10 @@ class ElfAnalyzer(object):
 
         # check file type #
         ei_type  = struct.unpack('H', fd.read(2))[0]
-        if ei_type == 0:
-            e_type = 'No-type'
-        elif ei_type == 1:
-            e_type = 'Relocatable'
-        elif ei_type == 2:
-            e_type = 'Executable'
-        elif ei_type == 3:
-            e_type = 'Shared-object'
-        elif ei_type == 4:
-            e_type = 'Core'
-        elif ei_type == 0xff00:
-            e_type = 'Processor-specific'
-        elif ei_type == 0xffff:
-            e_type = 'Processor-specific'
+        try:
+            e_type = ElfAnalyzer.EI_TYPE[ei_type]
+        except:
+            e_type = 'N/A'
 
         # check machine type #
         ei_machine  = struct.unpack('H', fd.read(2))[0]
@@ -23993,6 +23998,10 @@ Section header string table index: %d
                         st_shndx, symbol,))
             if debug:
                 SystemManager.pipePrint(oneLine)
+        else:
+            ElfAnalyzer.stripedFiles[path] = True
+            SystemManager.printWarning(\
+                "Fail to get static symbol of %s (stripped)" % path, True)
 
         # parse REL table #
         for idx in e_shrellist:
