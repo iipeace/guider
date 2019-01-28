@@ -2618,7 +2618,7 @@ class NetworkManager(object):
 
         if mode == 'server':
             try:
-                if ip is None:
+                if not ip:
                     self.ip = '0.0.0.0'
                 else:
                     self.ip = ip
@@ -2630,7 +2630,7 @@ class NetworkManager(object):
 
                 self.fileno = self.socket.fileno()
 
-                if port is None:
+                if not port:
                     try:
                         self.port = 5555
                         self.socket.bind((self.ip, self.port))
@@ -2939,11 +2939,11 @@ class NetworkManager(object):
 
 
     def send(self, message, write=False):
-        if self.ip is None or self.port is None:
+        if not self.ip or not self.port:
             SystemManager.printError(\
                 "Fail to use IP address for client because it is not set")
             return False
-        elif self.socket is None:
+        elif not self.socket:
             SystemManager.printError(\
                 "Fail to use socket for client because it is not set")
             return False
@@ -2953,7 +2953,7 @@ class NetworkManager(object):
             message = message.encode()
 
         try:
-            if write is False and SystemManager.localServObj is not None:
+            if write is False and SystemManager.localServObj:
                 SystemManager.localServObj.socket.sendto(\
                     message, (self.ip, self.port))
             else:
@@ -2972,11 +2972,11 @@ class NetworkManager(object):
 
 
     def sendto(self, message, ip, port):
-        if ip is None or port is None:
+        if not ip or not port:
             SystemManager.printError(\
                 "Fail to use IP address for client because it is not set")
             return False
-        elif self.socket is None:
+        elif not self.socket:
             SystemManager.printError(\
                 "Fail to use socket for client because it is not set")
             return False
@@ -2998,16 +2998,16 @@ class NetworkManager(object):
 
 
     def recv(self, size=None):
-        if self.ip is None or self.port is None:
+        if not self.ip or not self.port:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
             return False
-        elif self.socket is None:
+        elif not self.socket:
             SystemManager.printError(\
                 "Fail to use socket for client because it is not set")
             return False
 
-        if size is None:
+        if not size:
             try:
                 return self.socket.recv()
             except:
@@ -3021,11 +3021,11 @@ class NetworkManager(object):
 
 
     def recvfrom(self):
-        if self.ip is None or self.port is None:
+        if not self.ip or not self.port:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
             return False
-        elif self.socket is None:
+        elif not self.socket:
             SystemManager.printError(\
                 "Fail to use socket for client because it is not set")
             return False
@@ -3142,7 +3142,7 @@ class NetworkManager(object):
     def getPublicIp():
         # get socket object #
         socket = SystemManager.getPkg('socket', False)
-        if socket is None:
+        if not socket:
             return
         from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
 
@@ -3161,7 +3161,7 @@ class NetworkManager(object):
         except:
             SystemManager.printWarning("Fail to get public IP address")
 
-        if ret is None:
+        if not ret:
             ret = NetworkManager.getMainIp()
 
         return ret
@@ -3222,7 +3222,7 @@ class PageAnalyzer(object):
         elif len(pid) == 0:
             SystemManager.printError("Fail to recognize pid, use -g option")
             sys.exit(0)
-        elif vaddr is None:
+        elif not vaddr:
             PageAnalyzer.printMemoryArea(pid)
             SystemManager.printError(\
                 "Fail to recognize address, use -I option")
@@ -3882,7 +3882,7 @@ class FunctionAnalyzer(object):
                         if id(sval[subStackIndex]) != stackAddr:
                             continue
 
-                        if self.userSymData[allocSym]['pagePair'] is None:
+                        if not self.userSymData[allocSym]['pagePair']:
                             self.userSymData[allocSym]['pagePair'] = {}
 
                         allocCall = ''
@@ -3923,7 +3923,7 @@ class FunctionAnalyzer(object):
                         allocator = self.userSymData[allocSym]['pagePair'][pairId]
                         allocator['size'] += 1
 
-                        if allocator['valueList'] is None:
+                        if not allocator['valueList']:
                             allocator['valueList'] = {}
                         try:
                             allocator['valueList'][pageType] += 1
@@ -3954,7 +3954,7 @@ class FunctionAnalyzer(object):
 
                         kernelData = self.kernelSymData[allocKernelSym]
 
-                        if kernelData['pagePair'] is None:
+                        if not kernelData['pagePair']:
                             kernelData['pagePair'] = {}
 
                         allocCall = ''
@@ -3991,7 +3991,7 @@ class FunctionAnalyzer(object):
                         allocator = kernelData['pagePair'][pairId]
                         allocator['size'] += 1
 
-                        if allocator['valueList'] is None:
+                        if not allocator['valueList']:
                             allocator['valueList'] = {}
                         try:
                             allocator['valueList'][pageType] += 1
@@ -4649,7 +4649,7 @@ class FunctionAnalyzer(object):
             return
 
         # Check addr2line path #
-        if SystemManager.addr2linePath is None:
+        if not SystemManager.addr2linePath:
             try:
                 symbolList = list()
                 binObj = ElfAnalyzer.cachedFiles[binPath]
@@ -4737,7 +4737,7 @@ class FunctionAnalyzer(object):
                     if len(err) > 0:
                         SystemManager.printWarning(err[err.find(':') + 2:])
 
-                    if updateSymbol(addr, symbol, src, relocated) is not None:
+                    if updateSymbol(addr, symbol, src, relocated):
                         break
 
 
@@ -5041,7 +5041,7 @@ class FunctionAnalyzer(object):
         # Register pos #
         try:
             self.posData[pos]
-            if path is not None and path[0] == '/' and \
+            if path and path[0] == '/' and \
                 path != self.posData[pos]['origBin']:
                 self.duplicatedPos += 1
                 '''
@@ -5055,7 +5055,7 @@ class FunctionAnalyzer(object):
         # user mode #
         if self.nowCtx['curMode'] == 'user':
             # Set path #
-            if path is not None:
+            if path:
                 self.posData[pos]['origBin'] = path
                 self.posData[pos]['binary'] = \
                     SystemManager.rootPath + path
@@ -5063,7 +5063,7 @@ class FunctionAnalyzer(object):
                     os.path.normpath(self.posData[pos]['binary'])
 
                 # Set offset #
-                if offset is not None:
+                if offset:
                     if ElfAnalyzer.isRelocatableFile(path):
                         self.posData[pos]['offset'] = offset
 
@@ -5093,7 +5093,7 @@ class FunctionAnalyzer(object):
                     self.posData[pos]['unlockCnt'] += 1
 
             # Skip pos because it is usercall or no symbol #
-            elif SystemManager.showAll is False and path is None:
+            elif SystemManager.showAll is False and not path:
                 return
 
             self.posData[pos]['symbol'] = path
@@ -5160,7 +5160,7 @@ class FunctionAnalyzer(object):
         lastIdx = len(lines)
 
         # make custom event table #
-        if SystemManager.customCmd is not None:
+        if SystemManager.customCmd:
             for cmd in SystemManager.customCmd:
                 cmd = cmd.split(':')
 
@@ -5168,12 +5168,12 @@ class FunctionAnalyzer(object):
                     self.customEventTable[cmd[0]] = cmd[1]
                 else:
                     self.customEventTable[cmd[0]] = None
-        if SystemManager.kernelCmd is not None:
+        if SystemManager.kernelCmd:
             for cmd in SystemManager.kernelCmd:
                 cmd = cmd.split(':')
                 self.customEventTable[cmd[0]+'_enter'] = None
                 self.customEventTable[cmd[0]+'_exit'] = None
-        if SystemManager.userCmd is not None:
+        if SystemManager.userCmd:
             for cmd in SystemManager.userCmd:
                 cmd = cmd.split(':')
                 self.customEventTable[cmd[0]+'_enter'] = None
@@ -5198,7 +5198,7 @@ class FunctionAnalyzer(object):
             SystemManager.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
-            if self.lastCore is None:
+            if not self.lastCore:
                 continue
 
             # Set context of current core #
@@ -5244,7 +5244,7 @@ class FunctionAnalyzer(object):
 
 
     def getCustomEventValue(self, func, args, cond):
-        if cond is None:
+        if not cond:
             return 1
 
         # set condition #
@@ -5266,14 +5266,14 @@ class FunctionAnalyzer(object):
             condVal = None
 
         m = re.match(r'^.+%s=(?P<value>\S+)' % condStr, args)
-        if m is None:
+        if not m:
             return 0
 
         d = m.groupdict()
 
         value = d['value']
 
-        if condOp is None and value is not None:
+        if not condOp and value:
             try:
                 return int(value)
             except:
@@ -5385,7 +5385,7 @@ class FunctionAnalyzer(object):
                 r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
                 r'order=(?P<order>[0-9]+)\s+migratetype=(?P<mt>[0-9]+)\s+'
                 r'gfp_flags=(?P<flags>\S+)'), args)
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 # check whether it is huge page #
@@ -5460,7 +5460,7 @@ class FunctionAnalyzer(object):
             (func == "mm_page_free:" or func == "mm_page_free_direct:"):
             m = re.match((r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
                 r'order=(?P<order>[0-9]+)'), args)
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 page = d['page']
@@ -5511,7 +5511,7 @@ class FunctionAnalyzer(object):
         # syscall / heap / lock events #
         elif isFixedEvent and func == "sys_enter:":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
 
                 nr = b['nr']
@@ -5591,7 +5591,7 @@ class FunctionAnalyzer(object):
                     n = re.match((\
                         r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                         r'(?P<val>\S+), (?P<timer>\S+),'), b['args'])
-                    if n is not None:
+                    if n:
                         l = n.groupdict()
 
                         FUTEX_CMD_MASK = ~(128|256)
@@ -5656,7 +5656,7 @@ class FunctionAnalyzer(object):
         # syscall / heap events #
         elif isFixedEvent and func == "sys_exit:":
             m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
 
                 nr = int(b['nr'])
@@ -5727,7 +5727,7 @@ class FunctionAnalyzer(object):
             m = re.match((\
                 r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)\s*'
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
 
                 opt = b['operation']
@@ -5762,7 +5762,7 @@ class FunctionAnalyzer(object):
         elif isFixedEvent and func == "writeback_dirty_page:":
             m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
                 self.bwriteEnabled = True
 
@@ -5780,7 +5780,7 @@ class FunctionAnalyzer(object):
         elif isFixedEvent and func == "wbc_writepage:":
             m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), args)
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 if d['skip'] == '0':
@@ -5800,7 +5800,7 @@ class FunctionAnalyzer(object):
         elif isFixedEvent and func == "signal_generate:":
             m = re.match((r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
                 r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
 
                 if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
@@ -5821,7 +5821,7 @@ class FunctionAnalyzer(object):
             m = re.match((\
                 r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) code=(?P<code>.*) '
                 r'sa_handler=(?P<handler>.*) sa_flags=(?P<flags>.*)'), args)
-            if m is not None:
+            if m:
                 b = m.groupdict()
 
                 if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
@@ -5839,7 +5839,7 @@ class FunctionAnalyzer(object):
             m = re.match((\
                 r'^\s*dev=(?P<dev>.+)\s+ino=(?P<ino>.+)'\
                 r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), args)
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 if d['type'] == 'F_UNLCK':
                     self.saveEventParam('IGNORE', 0, func[:-1])
@@ -5913,7 +5913,7 @@ class FunctionAnalyzer(object):
 
         for liter in tlist:
             m = SystemManager.getTraceItem(liter)
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 # Make thread entity #
@@ -5940,7 +5940,7 @@ class FunctionAnalyzer(object):
 
     def parseEventLog(self, string, desc, plist=[]):
         m = SystemManager.getTraceItem(string)
-        if m is not None:
+        if m:
             d = m.groupdict()
 
             if SystemManager.countEnable and \
@@ -6002,7 +6002,7 @@ class FunctionAnalyzer(object):
                 self.threadData[thread]['cpuTick'] += 1
 
                 # Set global interval #
-                if self.nowCtx['prevTid'] is not None:
+                if self.nowCtx['prevTid']:
                     diff = float(d['time']) - float(self.nowCtx['prevTime'])
                     self.periodicEventInterval += diff
                     self.periodicContEventCnt += 1
@@ -6018,7 +6018,7 @@ class FunctionAnalyzer(object):
             elif d['func'] == "sched_process_exit:":
                 m = re.match(\
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', d['etc'])
-                if m is not None:
+                if m:
                     p = m.groupdict()
 
                     pid = p['pid']
@@ -6037,7 +6037,7 @@ class FunctionAnalyzer(object):
                     r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
                     r'child_comm=(?P<child_comm>.*)\s+'\
                     r'child_pid=(?P<child_pid>[0-9]+)'), d['etc'])
-                if m is not None:
+                if m:
                     p = m.groupdict()
 
                     cpid = p['child_pid']
@@ -6054,7 +6054,7 @@ class FunctionAnalyzer(object):
             elif d['func'] == "task_newtask:":
                 m = re.match(\
                     r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', d['etc'])
-                if m is not None:
+                if m:
                     p = m.groupdict()
 
                     pid = p['pid']
@@ -6069,7 +6069,7 @@ class FunctionAnalyzer(object):
             # Save user event #
             elif d['func'].startswith("tracing_mark_write") or d['func'] == '0:':
                 m = re.match(r'^\s*\S*: EVENT_(?P<event>\S+)', d['etc'])
-                if m is not None:
+                if m:
                     gd = m.groupdict()
 
                     EventAnalyzer.addEvent(d['time'], gd['event'])
@@ -6095,7 +6095,7 @@ class FunctionAnalyzer(object):
                 r'\<(?P<pos>.\S+)\>'), string)
 
             # exist path, offset, pos #
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 return (d['pos'], d['path'], hex(int(d['offset'], 16)))
 
@@ -6116,7 +6116,7 @@ class FunctionAnalyzer(object):
                 m = re.match(r' => (?P<symbol>.+) \<(?P<pos>.\S+)\>', string)
 
                 # exist symbol, pos #
-                if m is not None:
+                if m:
                     d = m.groupdict()
                     return (d['pos'], d['symbol'], None)
 
@@ -6131,7 +6131,7 @@ class FunctionAnalyzer(object):
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
             r'(?P<binName>.\S+)'), string)
-        if m is not None:
+        if m:
             d = m.groupdict()
             self.mapData.append(\
                 {'startAddr': d['startAddr'], \
@@ -6447,7 +6447,7 @@ class FunctionAnalyzer(object):
 
         if self.sort == 'sym':
             for sym in subStack:
-                if sym is None or sym == '0':
+                if not sym or sym == '0':
                     symbolSet = ''
                 elif self.userSymData[sym]['origBin'] == '??':
                     symbolSet = ' <- %s' % sym
@@ -6466,7 +6466,7 @@ class FunctionAnalyzer(object):
                 symbolStack = '%s%s' % (symbolStack, symbolSet)
         elif self.sort == 'pos':
             for pos in subStack:
-                if pos is None:
+                if not pos:
                     symbolStack += ' <- None'
                 # No symbol so that just print pos #
                 elif self.posData[pos]['symbol'] == '':
@@ -6754,7 +6754,7 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     continue
                 elif len(subStack) == 1 and SystemManager.showAll is False and \
-                    (self.posData[subStack[0]]['symbol'] is None or \
+                    (not self.posData[subStack[0]]['symbol'] or \
                     self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
                     continue
@@ -7021,7 +7021,7 @@ class FunctionAnalyzer(object):
                 if len(subStack) == 0:
                     symbolStack = ' <- USER'
                 elif len(subStack) == 1 and SystemManager.showAll is False and \
-                    (self.posData[subStack[0]]['symbol'] is None or \
+                    (not self.posData[subStack[0]]['symbol'] or \
                     self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
                     continue
@@ -7423,7 +7423,7 @@ class FunctionAnalyzer(object):
 
         # Calculate page lifetime #
         for pfn, item in self.pageTable.items():
-            if item is None:
+            if not item:
                 continue
 
             lifeTime = float(self.finishTime) - float(item['time'])
@@ -8315,14 +8315,14 @@ class FileAnalyzer(object):
         if len(SystemManager.filterGroup) == 0:
             SystemManager.filterGroup.insert(0, '')
 
-        if SystemManager.guiderObj is None:
+        if not SystemManager.guiderObj:
             # get ctypes object #
             ctypes = SystemManager.getPkg('ctypes')
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
 
             try:
                 # load standard libc library #
-                if SystemManager.libcObj is None:
+                if not SystemManager.libcObj:
                     SystemManager.libcObj = \
                         cdll.LoadLibrary(SystemManager.libcPath)
 
@@ -8549,11 +8549,11 @@ class FileAnalyzer(object):
 
                     fileData = self.intervalFileData
 
-                    if nowFileMap is None:
-                        if prevFileMap is not None:
+                    if not nowFileMap:
+                        if prevFileMap:
                             diffDel = fileData[idx - 1][fileName]['pageCnt']
                     else:
-                        if prevFileMap is None:
+                        if not prevFileMap:
                             diffNew = fileData[idx][fileName]['pageCnt']
                         else:
                             if len(nowFileMap) == len(prevFileMap):
@@ -8618,7 +8618,7 @@ class FileAnalyzer(object):
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
             r'(?P<binName>.+)'), string)
-        if m is None:
+        if not m:
             if SystemManager.showAll:
                 SystemManager.printWarning(\
                     "Fail to recognize '%s' line in maps" % string)
@@ -8899,14 +8899,14 @@ class FileAnalyzer(object):
         self.profPageCnt = 0
 
         for fileName, val in self.fileData.items():
-            if val['fileMap'] is not None and val['isRep']:
+            if val['fileMap'] and val['isRep']:
                 val['pageCnt'] = val['fileMap'].count(1)
                 self.profPageCnt += val['pageCnt']
 
         pageSize = SystemManager.pageSize
         for pid, val in self.procData.items():
             for fileName, mapInfo in val['procMap'].items():
-                if self.fileData[fileName]['fileMap'] is None or mapInfo is None:
+                if not self.fileData[fileName]['fileMap'] or not mapInfo:
                     continue
 
                 # convert address and size to index in mapping table #
@@ -8996,7 +8996,7 @@ class FileAnalyzer(object):
                 if val['isRep'] is False:
                     continue
 
-            if val['fd'] is None:
+            if not val['fd']:
                 '''
                 no fd related to this file
                 case 1) no opened
@@ -9049,7 +9049,7 @@ class FileAnalyzer(object):
                             self.fileData[repFile]['pids'] = procList
                             self.fileData[repFile]['hardLink'] = hardLinkCnt
 
-                            if self.fileData[repFile]['linkList'] is not None:
+                            if self.fileData[repFile]['linkList']:
                                 linkList = self.fileData[repFile]['linkList']
                                 self.fileData[repFile]['linkList'] = \
                                     dict(linkList.items() + fileList.items())
@@ -9092,7 +9092,7 @@ class FileAnalyzer(object):
             offset = val['offset']
             size = val['size']
 
-            if SystemManager.guiderObj is not None:
+            if SystemManager.guiderObj:
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SystemManager.guiderObj.mmap(0, size, 0, 2, fd, offset)
 
@@ -9126,9 +9126,9 @@ class FileAnalyzer(object):
                 SystemManager.libcObj.munmap(mm, size)
 
             # save the on-memory file page table #
-            if pagemap is not None:
+            if pagemap:
                 try:
-                    if SystemManager.guiderObj is not None:
+                    if SystemManager.guiderObj:
                         val['fileMap'] = \
                             [ord(pagemap[i]) for i in \
                             xrange(int(size / pageSize))]
@@ -9531,7 +9531,7 @@ class SystemManager(object):
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             return
         from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
 
@@ -9544,8 +9544,9 @@ class SystemManager(object):
         # try to get maxFd by standard library call #
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+            if not SystemManager.libcObj:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
 
             SystemManager.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
             SystemManager.libcObj.getrlimit.restype = c_int
@@ -9716,7 +9717,7 @@ class SystemManager(object):
 
             for tid in tids:
                 mask = SystemManager.getAffinity(tid)
-                if mask is None:
+                if not mask:
                     SystemManager.printError(\
                         "Fail to get cpu affinity of %s task" % tid)
                 else:
@@ -9784,13 +9785,13 @@ class SystemManager(object):
 
                 # get ctypes object #
                 ctypes = SystemManager.getPkg('ctypes', False)
-                if ctypes is None:
+                if not ctypes:
                     return
                 from ctypes import cdll, POINTER, c_int, c_ulong, byref
 
                 try:
                     # load standard libc library #
-                    if SystemManager.libcObj is None:
+                    if not SystemManager.libcObj:
                         SystemManager.libcObj = \
                             cdll.LoadLibrary(SystemManager.libcPath)
 
@@ -9805,7 +9806,8 @@ class SystemManager(object):
                 except:
                     ret = -1
                     SystemManager.printWarning(\
-                        "Fail to set cpu affinity of tasks because of sched_setaffinity fail")
+                        "Fail to set cpu affinity of tasks "
+                        "because of sched_setaffinity fail")
 
                 if ret >= 0:
                     SystemManager.printInfo(\
@@ -9825,13 +9827,13 @@ class SystemManager(object):
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             return
         from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
@@ -9870,13 +9872,13 @@ class SystemManager(object):
 
         # get cyptes object #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             return
         from ctypes import cdll, POINTER, c_char_p
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
             SystemManager.libcObj.prctl(\
@@ -10073,7 +10075,7 @@ class SystemManager(object):
 
     @staticmethod
     def getPidFilter():
-        if SystemManager.pidFilter is None:
+        if not SystemManager.pidFilter:
             cmd = ""
             for cond in SystemManager.filterGroup:
                 try:
@@ -10112,7 +10114,7 @@ class SystemManager(object):
             return False
 
         # get comm #
-        if comm is None:
+        if not comm:
             comm = tdata[tid]['comm']
 
         # check a thread #
@@ -10155,7 +10157,7 @@ class SystemManager(object):
                 r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
                 r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                 r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
-            if m is None:
+            if not m:
                 # print-tgid option #
                 m = re.match((\
                     r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
@@ -10245,7 +10247,7 @@ class SystemManager(object):
 
     @staticmethod
     def writeJsonObject(jsonObj, fd=None, trunc=False, path=None):
-        if fd is not None:
+        if fd:
             try:
                 if trunc:
                     fd.seek(0, 0)
@@ -11734,7 +11736,7 @@ Copyright:
 
     @staticmethod
     def setArch(arch):
-        if arch is None or len(arch) == 0:
+        if not arch or len(arch) == 0:
             return
 
         SystemManager.removeEmptyValue(arch)
@@ -11771,7 +11773,7 @@ Copyright:
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
 
             if type(syscall) is int:
@@ -11795,7 +11797,7 @@ Copyright:
 
     @staticmethod
     def isRoot():
-        if SystemManager.isRootMode is None:
+        if not SystemManager.isRootMode:
             if os.geteuid() == 0:
                 SystemManager.isRootMode = True
             else:
@@ -11821,7 +11823,7 @@ Copyright:
                 'Fail to recognize %s as perf event type' % econfig)
             return
 
-        if SystemManager.guiderObj is not None:
+        if SystemManager.guiderObj:
             # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
             fd = SystemManager.guiderObj.perf_event_open(\
                 nrType, nrConfig, pid, cpu, -1, 0)
@@ -11838,7 +11840,7 @@ Copyright:
 
         # import ctypes #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             SystemManager.perfEnable = False
             SystemManager.perfGroupEnable = False
             return
@@ -11847,7 +11849,7 @@ Copyright:
 
         # load standard libc library #
         try:
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
@@ -12196,7 +12198,7 @@ Copyright:
 
     @staticmethod
     def readPerfEvents(fdList):
-        if SystemManager.guiderObj is not None:
+        if SystemManager.guiderObj:
             retList = []
 
             for fd in fdList:
@@ -12213,14 +12215,14 @@ Copyright:
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             return
         from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
             c_uint64, c_uint, c_uint32, c_int, c_ulong
 
         # load standard libc library #
         try:
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
         except:
@@ -12441,7 +12443,7 @@ Copyright:
                 # handle unavailable hw events #
                 if SystemManager.perfEventChannel[coreId][evt] == -1:
                     del SystemManager.perfEventChannel[coreId][evt]
-                elif SystemManager.perfEventChannel[coreId][evt] is None:
+                elif not SystemManager.perfEventChannel[coreId][evt]:
                     return
                 else:
                     successCnt += 1
@@ -12455,7 +12457,7 @@ Copyright:
                 # handle unavailable sw events #
                 if SystemManager.perfEventChannel[coreId][evt] == -1:
                     del SystemManager.perfEventChannel[coreId][evt]
-                elif SystemManager.perfEventChannel[coreId][evt] is None:
+                elif not SystemManager.perfEventChannel[coreId][evt]:
                     return
                 else:
                     successCnt += 1
@@ -12508,7 +12510,7 @@ Copyright:
             values = SystemManager.readPerfEvents(\
                 SystemManager.perfEventChannel[coreId].values())
 
-            if values is None:
+            if not values:
                 continue
 
             # summarize perf data of each cores #
@@ -12655,7 +12657,7 @@ Copyright:
         # apply kprobe events #
         for cmd in effectiveCmd:
             # check redundant event name #
-            if SystemManager.userCmd is not None and \
+            if SystemManager.userCmd and \
                 cmd[0] in [ucmd.split(':')[0] for ucmd in SystemManager.userCmd]:
                 SystemManager.printError(\
                     "redundant event name '%s' as user event and kernel event" % \
@@ -12805,7 +12807,7 @@ Copyright:
                 sys.exit(0)
 
             # check redundant event name #
-            if kernelCmd is not None and \
+            if kernelCmd and \
                 cmd[0] in [kcmd.split(':')[0] for kcmd in kernelCmd]:
                 SystemManager.printError((\
                     "redundant event name '%s' "
@@ -12821,13 +12823,13 @@ Copyright:
             # symbol input #
             if cmdFormat[1].startswith('0x') is False:
                 # symbol input with no objdump path #
-                if SystemManager.objdumpPath is None:
+                if not SystemManager.objdumpPath:
                     # get address of symbol in binary #
                     addr = SystemManager.getSymOffset(\
                         cmdFormat[1], cmdFormat[2], None)
 
                     # use external objdump #
-                    if addr is None:
+                    if not addr:
                         # get system objdump path #
                         objdumpPath = SystemManager.which('objdump')
 
@@ -12841,7 +12843,8 @@ Copyright:
                         SystemManager.objdumpPath = objdumpPath[0]
 
                         SystemManager.printInfo(\
-                            "use %s as objdump path" % SystemManager.objdumpPath)
+                            "use %s as objdump path" % \
+                            SystemManager.objdumpPath)
                 # symbol input with objdump #
                 elif os.path.isfile(SystemManager.objdumpPath) is False:
                     SystemManager.printError(\
@@ -12852,7 +12855,7 @@ Copyright:
                 # get address of symbol in binary #
                 addr = SystemManager.getSymOffset(\
                     cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
-                if addr is None:
+                if not addr:
                     SystemManager.printError("Fail to find '%s' in %s" % \
                         (cmdFormat[1], cmdFormat[2]))
                     sys.exit(0)
@@ -12950,7 +12953,7 @@ Copyright:
 
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath):
-        if objdumpPath is None:
+        if not objdumpPath:
             try:
                 offset = None
 
@@ -12977,7 +12980,8 @@ Copyright:
         # start objdump process #
         try:
             proc = subprocess.Popen(\
-                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+                args, stdout=subprocess.PIPE, \
+                stderr=subprocess.PIPE, bufsize=-1)
         except:
             SystemManager.printError(\
                 "Fail to execute %s to get address from binary" % objdumpPath)
@@ -13006,7 +13010,7 @@ Copyright:
             m = re.match((\
                 r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
                 r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
-            if m is None:
+            if not m:
                 continue
 
             d = m.groupdict()
@@ -13037,7 +13041,7 @@ Copyright:
     def writeCustomCmd():
         effectiveCmd = []
 
-        if SystemManager.customCmd is None:
+        if not SystemManager.customCmd:
             return
 
         if SystemManager.filterGroup == []:
@@ -13120,7 +13124,7 @@ Copyright:
             else:
                 enableStat += 'USER '
 
-            if SystemManager.customCmd is not None:
+            if SystemManager.customCmd:
                 SystemManager.printInfo(\
                     "selected custom events [ %s ]" % \
                     ', '.join(SystemManager.customCmd))
@@ -13176,7 +13180,7 @@ Copyright:
             else:
                 disableStat += 'PERCORE '
 
-            if SystemManager.customCmd is not None:
+            if SystemManager.customCmd:
                 SystemManager.printInfo(\
                     "selected custom events [ %s ]" % \
                     ', '.join(SystemManager.customCmd))
@@ -13653,7 +13657,7 @@ Copyright:
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
 
-            if SystemManager.printFile is not None:
+            if SystemManager.printFile:
                 # reload data written to file #
                 if SystemManager.pipeEnable:
                     SystemManager.fileForPrint.seek(0, 0)
@@ -13716,7 +13720,7 @@ Copyright:
             pass
         elif SystemManager.isTopMode():
             # check silent mode #
-            if SystemManager.printFile is None:
+            if not SystemManager.printFile:
                 return
 
             # reload data written to file #
@@ -13941,7 +13945,7 @@ Copyright:
 
         # record command to file #
         if SystemManager.cmdEnable is not False:
-            if SystemManager.cmdFd is None:
+            if not SystemManager.cmdFd:
                 try:
                     SystemManager.cmdFd = open(SystemManager.cmdEnable, perm)
                     SystemManager.cmdFd.write(\
@@ -13956,7 +13960,7 @@ Copyright:
                         (SystemManager.cmdEnable, \
                         ' '.join(list(map(str, err.args)))))
                     return -1
-            if SystemManager.cmdFd is not None:
+            if SystemManager.cmdFd:
                 try:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
                         (str(val), SystemManager.mountPath, path)
@@ -14129,7 +14133,7 @@ Copyright:
         if SystemManager.printEnable is False:
             return
 
-        if SystemManager.printFile is None:
+        if not SystemManager.printFile:
             if SystemManager.printStreamEnable:
                 if absolute is False:
                     return
@@ -14227,7 +14231,7 @@ Copyright:
                 r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+'
                 r'((?P<freeSize>\S+)\s+?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+'
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
-            if m is None:
+            if not m:
                 continue
 
             d = m.groupdict()
@@ -14301,7 +14305,7 @@ Copyright:
             pass
 
         # apply arch type #
-        if SystemManager.archOption is None:
+        if not SystemManager.archOption:
             try:
                 archPosStart = infoBuf.find('Arch')
                 archPosEnd = infoBuf.find('\n', archPosStart)
@@ -14418,7 +14422,7 @@ Copyright:
             if len(filterList) > 0:
                 SystemManager.printInfo(\
                     "profiled custom events [ %s ]" % ', '.join(filterList))
-                if SystemManager.customCmd is None:
+                if not SystemManager.customCmd:
                     SystemManager.customCmd = filterList
 
         # apply user event option #
@@ -14465,7 +14469,7 @@ Copyright:
     @staticmethod
     def writeEvent(message, show=True):
         if SystemManager.eventLogFD == None:
-            if SystemManager.eventLogFile is None:
+            if not SystemManager.eventLogFile:
                 SystemManager.eventLogFile = \
                     '%s%s' % (SystemManager.mountPath, '../trace_marker')
 
@@ -14519,7 +14523,7 @@ Copyright:
 
         # get PIL object #
         pilObj = SystemManager.getPkg('PIL', False)
-        if pilObj is None:
+        if not pilObj:
             SystemManager.printWarning((\
                 "Fail to import python package: PIL\n"
                 "\tTry to enter %s command to install the package") % \
@@ -14529,7 +14533,7 @@ Copyright:
 
         # load jpeg plugin #
         try:
-            if imageType is None:
+            if not imageType:
                 from PIL import JpegImagePlugin
                 imageType = 'jpg'
         except ImportError:
@@ -14539,7 +14543,7 @@ Copyright:
 
         # load bmp plugin instead of jpeg #
         try:
-            if imageType is None:
+            if not imageType:
                 from PIL import BmpImagePlugin
                 imageType = 'bmp'
         except ImportError:
@@ -14548,14 +14552,14 @@ Copyright:
                 "Fail to import python package: %s" % err.args[0])
             return
 
-        if SystemManager.imagePath is None:
+        if not SystemManager.imagePath:
             SystemManager.printError("Fail to load image path")
             return
 
         # set image file extension #
         SystemManager.imagePath += '.%s' % imageType
 
-        if SystemManager.fontPath is not None:
+        if SystemManager.fontPath:
             try:
                 # load specific font #
                 imageFont = ImageFont.truetype(SystemManager.fontPath, 10)
@@ -14634,7 +14638,7 @@ Copyright:
     @staticmethod
     def topPrint():
         # realtime mode #
-        if SystemManager.printFile is None:
+        if not SystemManager.printFile:
             if SystemManager.printStreamEnable is False:
                 SystemManager.clearScreen()
             buf = SystemManager.bufferString
@@ -14670,10 +14674,10 @@ Copyright:
 
     @staticmethod
     def checkCutCond(newline=0):
-        if SystemManager.printFile is None and \
+        if not SystemManager.printFile and \
             SystemManager.bufferRows + newline >= \
             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
-            SystemManager.printFile is None and \
+            not SystemManager.printFile and \
             SystemManager.printStreamEnable is False:
             return True
         else:
@@ -14829,7 +14833,7 @@ Copyright:
             newline = newline.replace('=', '═')
             newline = newline.replace('|', '│')
 
-            if sys.version_info < (3, 0) and SystemManager.encoding is None:
+            if sys.version_info < (3, 0) and not SystemManager.encoding:
                 if sys.getdefaultencoding().lower().startswith('utf'):
                     pass
                 else:
@@ -14955,7 +14959,7 @@ Copyright:
 
     @staticmethod
     def parseOption():
-        if SystemManager.optionList is not None:
+        if SystemManager.optionList:
             return
 
         # parse options #
@@ -15106,7 +15110,7 @@ Copyright:
                 SystemManager.depEnable = True
 
             elif option == 'P':
-                if SystemManager.getOption('g') is None:
+                if not SystemManager.getOption('g'):
                     SystemManager.printError((\
                         "wrong option with -P, "
                         "use -g option to group threads in same process"))
@@ -15134,7 +15138,7 @@ Copyright:
                         sys.exit(0)
 
             elif option == 'Y':
-                if SystemManager.prio is None:
+                if not SystemManager.prio:
                     SystemManager.parsePriorityOption(value)
 
             elif option == 'z':
@@ -15431,7 +15435,7 @@ Copyright:
 
                 (service, ip, port) = ret
 
-                if service is None or ip is None or port is None or \
+                if not service or not ip or not port or \
                     SystemManager.isEffectiveRequest(service) is False:
                     SystemManager.printError((\
                         "wrong option value with -N option, "
@@ -15441,7 +15445,7 @@ Copyright:
                     sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
-                if networkObject.ip is None:
+                if not networkObject.ip:
                     sys.exit(0)
                 else:
                     networkObject.status = 'ALWAYS'
@@ -15489,13 +15493,13 @@ Copyright:
                     (service, ip, port) = ret
 
                     # set PRINT as default #
-                    if service is None:
+                    if not service:
                         service = 'PRINT'
 
-                    if ip is None:
+                    if not ip:
                         ip = NetworkManager.getPublicIp()
 
-                    if port is None:
+                    if not port:
                         port = 5555
 
                     if SystemManager.localServObj != None and \
@@ -15507,7 +15511,7 @@ Copyright:
                             "with %s:%s") % (ip, port))
                         sys.exit(0)
 
-                    if ip is None or port is None or \
+                    if not ip or not port or \
                         SystemManager.isEffectiveRequest(service) is False:
                         reqList = ''
                         for req in ThreadAnalyzer.requestType:
@@ -15520,7 +15524,7 @@ Copyright:
                         sys.exit(0)
 
                 networkObject = NetworkManager('client', ip, port)
-                if networkObject.ip is None:
+                if not networkObject.ip:
                     sys.exit(0)
                 else:
                     networkObject.request = service
@@ -16454,7 +16458,7 @@ Copyright:
             # parse options #
             SystemManager.parseAnalOption()
 
-            if SystemManager.sourceFile is None:
+            if not SystemManager.sourceFile:
                 SystemManager.printError(\
                     "No file path with -I")
                 sys.exit(0)
@@ -16471,7 +16475,7 @@ Copyright:
             # parse options #
             SystemManager.parseAnalOption()
 
-            if SystemManager.sourceFile is None:
+            if not SystemManager.sourceFile:
                 SystemManager.printError(\
                     "No file path with -I")
                 sys.exit(0)
@@ -16520,7 +16524,7 @@ Copyright:
             SystemManager.parseAnalOption()
 
             # change priority of process #
-            if SystemManager.prio is None:
+            if not SystemManager.prio:
                 SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
             # run in the background #
@@ -16827,7 +16831,7 @@ Copyright:
 
     @staticmethod
     def checkWssTopCond():
-        if SystemManager.getOption('g') is None:
+        if not SystemManager.getOption('g'):
             SystemManager.printError(\
                 "wrong option for wss monitoring, "
                 "use also -g option to track memory working set")
@@ -16847,7 +16851,7 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to sample stack")
             return False
-        elif SystemManager.getOption('g') is None:
+        elif not SystemManager.getOption('g'):
             SystemManager.printError(\
                 "wrong option stack monitoring, "
                 "use also -g option to show stacks")
@@ -17028,16 +17032,16 @@ Copyright:
 
     @staticmethod
     def setServerNetwork(ip, port, force=False, blocking=False):
-        if SystemManager.localServObj is not None and force is False:
+        if SystemManager.localServObj and force is False:
             SystemManager.printWarning(\
                 "Fail to set server network because it is already set")
             return
 
-        if ip is None:
+        if not ip:
             ip = NetworkManager.getPublicIp()
 
         networkObject = NetworkManager('server', ip, port, blocking)
-        if networkObject.ip is None:
+        if not networkObject.ip:
             sys.exit(0)
 
         SystemManager.localServObj = networkObject
@@ -17102,7 +17106,7 @@ Copyright:
                 ip = networkObject.ip
                 port = networkObject.port
 
-                if networkObject.ip is None or networkObject.port is None:
+                if not networkObject.ip or not networkObject.port:
                     SystemManager.printWarning(\
                         "Failed to use %s:%s as remote address" % (ip, port))
                     continue
@@ -17238,11 +17242,11 @@ Copyright:
     def doUserInput():
         # get select object #
         selectObj = SystemManager.getPkg('select', False)
-        if selectObj is None:
+        if not selectObj:
             return
 
         try:
-            if SystemManager.printFile is None and \
+            if not SystemManager.printFile and \
                 SystemManager.isReportTopMode() is False and \
                 selectObj.select(\
                 [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
@@ -17693,14 +17697,14 @@ Copyright:
         addr = SystemManager.getOption('x')
 
         # parse address value #
-        if addr is not None:
+        if addr:
             ret = SystemManager.parseAddr(addr)
             (service, ip, port) = ret
         else:
             ip = port = None
 
         # get public IP #
-        if ip is None:
+        if not ip:
             ip = NetworkManager.getPublicIp()
 
         # set address #
@@ -17718,7 +17722,7 @@ Copyright:
             # receive request from client #
             req = SystemManager.localServObj.recvfrom()
 
-            if req is None:
+            if not req:
                 sys.exit(0)
 
             # handle request from client #
@@ -17760,7 +17764,7 @@ Copyright:
         addr = SystemManager.getOption('X')
 
         # search address of local guider process #
-        if addr is None:
+        if not addr:
             # check permission #
             if SystemManager.isRoot() is False:
                 SystemManager.printError(\
@@ -17813,7 +17817,7 @@ Copyright:
 
         # create client object #
         networkObject = NetworkManager('client', ip, port)
-        if networkObject.ip is None:
+        if not networkObject.ip:
             SystemManager.printError(\
                 "Fail to set network address")
             sys.exit(0)
@@ -17833,7 +17837,7 @@ Copyright:
         caddr = SystemManager.getOption('x')
 
         try:
-            if caddr is None:
+            if not caddr:
                 # get public IP #
                 ip = NetworkManager.getPublicIp()
                 port = 0
@@ -17918,7 +17922,7 @@ Copyright:
                 SystemManager.printWarning('Fail to open %s' % cpuPath)
 
         nrCore = 0
-        if cpuBuf is not None:
+        if cpuBuf:
             for line in cpuBuf:
                 STAT_ATTR = line.split()
                 cpuId = STAT_ATTR[0]
@@ -18040,11 +18044,11 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to trace systemcall")
             sys.exit(0)
-        elif SystemManager.sourceFile is not None:
+        elif SystemManager.sourceFile:
             pid = None
             execCmd = SystemManager.sourceFile.split()
         elif len(SystemManager.filterGroup) == 0 and \
-            SystemManager.sourceFile is None:
+            not SystemManager.sourceFile:
             SystemManager.printError(\
                 "No tid with -g option or command with -I")
             sys.exit(0)
@@ -18087,7 +18091,7 @@ Copyright:
 
         value = sys.argv[2]
         size = SystemManager.convertUnit2Size(value)
-        if size is None:
+        if not size:
             SystemManager.printError(\
                 ("wrong option value to test memory allocation, "
                 "input size to allocate memory"))
@@ -18095,7 +18099,7 @@ Copyright:
 
         # get self memory usage #
         mlist = SystemManager.getMemStat('self')
-        if mlist is None:
+        if not mlist:
             SystemManager.printError(\
                 "Fail to get memory size of guider")
             sys.exit(0)
@@ -18175,7 +18179,8 @@ Copyright:
                 idx = COMM_IDX + 1
                 while 1:
                     tmpStr = str(STAT_ATTR[idx])
-                    STAT_ATTR[COMM_IDX] = "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
+                    STAT_ATTR[COMM_IDX] = \
+                        "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
                     STAT_ATTR.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
@@ -18192,20 +18197,20 @@ Copyright:
 
             if isProcess:
                 taskList[task]['group'] = getThreadList(task)
-                if taskList[task]['group'] is None:
+                if not taskList[task]['group']:
                     SystemManager.printError(\
                         "Fail to get thread list of '%s' process" % task)
                     return
 
                 taskList[task]['fd'] = openStatFd(task, isProcess)
-                if taskList[task]['fd'] is None:
+                if not taskList[task]['fd']:
                     SystemManager.printError(\
                         "Fail to get stats of %s thread" % task)
                     return
             else:
                 taskList[task]['group'] = [int(task)]
                 taskList[task]['fd'] = openStatFd(task, isProcess)
-                if taskList[task]['fd'] is None:
+                if not taskList[task]['fd']:
                     SystemManager.printError(\
                         "Fail to get stats of %s thread" % task)
                     return
@@ -18224,7 +18229,7 @@ Copyright:
 
                     # get current tick #
                     stat = getTaskStat(val['fd'])
-                    if stat is None:
+                    if not stat:
                         SystemManager.printError(\
                             "Fail to get cpu time of %s thread" % tid)
                         taskList.pop(tid, None)
@@ -18236,7 +18241,7 @@ Copyright:
                         "Fail to find task to limit cpu")
                     return
 
-                if prevTime is None:
+                if not prevTime:
                     continue
 
                 for tid, val in taskList.items():
@@ -18254,7 +18259,7 @@ Copyright:
                         # update thread list in a process #
                         if isProcess:
                             taskList[tid]['group'] = getThreadList(tid)
-                            if taskList[tid]['group'] is None:
+                            if not taskList[tid]['group']:
                                 continue
 
                             tasktype = 'process'
@@ -18320,7 +18325,7 @@ Copyright:
     def sendSignalArgs(argList):
         sig = signal.SIGQUIT
         cSigList = ConfigManager.SIG_LIST
-        if argList is not None:
+        if argList:
             SIG_LIST = [item for item in argList if item.startswith('-')]
             for val in SIG_LIST:
                 try:
@@ -18505,7 +18510,7 @@ Copyright:
                     if isProcess:
                         threadList = \
                             SystemManager.getThreadList(SystemManager.pid)
-                        if threadList is None:
+                        if not threadList:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
                                 SystemManager.pid)
@@ -18526,7 +18531,7 @@ Copyright:
 
                     if isProcess:
                         threadList = SystemManager.getThreadList(schedSet[2])
-                        if threadList is None:
+                        if not threadList:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
                                 schedSet[2])
@@ -18564,7 +18569,7 @@ Copyright:
 
                     if isProcess:
                         threadList = SystemManager.getThreadList(schedSet[2])
-                        if threadList is None:
+                        if not threadList:
                             SystemManager.printError(\
                                 "Fail to get thread list of %s task" % \
                                 schedSet[2])
@@ -18616,7 +18621,7 @@ Copyright:
 
         # load standard libc library #
         try:
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
         except:
@@ -18724,24 +18729,24 @@ Copyright:
 
     @staticmethod
     def setPriority(pid, policy, pri, runtime=0, deadline=0, period=0):
-        if SystemManager.guiderObj is None:
+        if not SystemManager.guiderObj:
             # get ctypes object #
             ctypes = SystemManager.getPkg('ctypes', False)
-            if ctypes is None:
+            if not ctypes:
                 return
             from ctypes import cdll, POINTER
 
         try:
             # load standard libc library #
-            if SystemManager.guiderObj is None and \
-                SystemManager.libcObj is None:
+            if not SystemManager.guiderObj and \
+                not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
             upolicy = policy.upper()
 
             argPolicy = ConfigManager.SCHED_POLICY.index(upolicy)
-            if SystemManager.guiderObj is None:
+            if not SystemManager.guiderObj:
                 argPolicy = ctypes.c_int(argPolicy)
 
             # set default priority #
@@ -18751,11 +18756,11 @@ Copyright:
                 argPriority = pri
 
             # prepare for libc call #
-            if SystemManager.guiderObj is None:
+            if not SystemManager.guiderObj:
                 argPriority = ctypes.c_int(argPriority)
 
             # set scheduler policy #
-            if SystemManager.guiderObj is None:
+            if not SystemManager.guiderObj:
                 ret = SystemManager.libcObj.sched_setscheduler(\
                     pid, argPolicy, ctypes.byref(argPriority))
             else:
@@ -18769,7 +18774,7 @@ Copyright:
 
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
-                if SystemManager.guiderObj is None:
+                if not SystemManager.guiderObj:
                     argPriority = ctypes.c_int(pri)
                     ret = SystemManager.libcObj.setpriority(\
                         0, pid, argPriority)
@@ -18825,7 +18830,7 @@ Copyright:
             return
 
         try:
-            if SystemManager.termSetId is None:
+            if not SystemManager.termSetId:
                 termios = SystemManager.getPkg('termios', False)
                 SystemManager.termSetId = \
                     getattr(termios, 'TIOCSWINSZ', -2146929561)
@@ -18866,7 +18871,7 @@ Copyright:
         # get fcntl object #
         fcntlObj = SystemManager.getPkg('fcntl', False)
 
-        if SystemManager.termGetId is None or fcntlObj is None:
+        if not SystemManager.termGetId or not fcntlObj:
             return
 
         try:
@@ -18884,7 +18889,7 @@ Copyright:
             return
 
         try:
-            if SystemManager.termGetId is None:
+            if not SystemManager.termGetId:
                 termios = SystemManager.getPkg('termios', False)
                 SystemManager.termGetId = termios.TIOCGWINSZ
 
@@ -19019,7 +19024,7 @@ Copyright:
     def saveProcTree(self):
         procTree = SystemManager.getProcTree()
 
-        if procTree is not None:
+        if procTree:
             self.procData = '!!!!!'
             for tid, pid in procTree.items():
                 self.procData += tid + ':' + pid + ','
@@ -19319,7 +19324,7 @@ Copyright:
 
     @staticmethod
     def getMountPath():
-        if SystemManager.mountPath is not None:
+        if SystemManager.mountPath:
             SystemManager.mountPath = \
                 "%s/tracing/events/" % SystemManager.mountPath
             return SystemManager.mountPath
@@ -19329,7 +19334,7 @@ Copyright:
 
         for l in lines:
             m = re.match(r'(?P<dev>\S+)\s+(?P<dir>\S+)\s+(?P<fs>\S+)', l)
-            if m is None:
+            if not m:
                 continue
 
             d = m.groupdict()
@@ -19345,7 +19350,7 @@ Copyright:
 
     @staticmethod
     def closeAllForPrint():
-        if SystemManager.pipeForPrint is not None:
+        if SystemManager.pipeForPrint:
             try:
                 SystemManager.pipeForPrint.close()
             except:
@@ -19353,7 +19358,7 @@ Copyright:
             finally:
                 SystemManager.pipeForPrint = None
 
-        if SystemManager.fileForPrint is not None:
+        if SystemManager.fileForPrint:
             try:
                 SystemManager.fileForPrint.flush()
 
@@ -19508,7 +19513,7 @@ Copyright:
         SystemManager.writeRecordCmd('BEFORE')
 
         SystemManager.mountPath = self.getMountPath()
-        if SystemManager.mountPath is None:
+        if not SystemManager.mountPath:
             SystemManager.mountPath = "%s" % SystemManager.debugfsPath
             SystemManager.mountCmd =\
                 "mount -t debugfs nodev %s" % SystemManager.mountPath
@@ -19600,7 +19605,7 @@ Copyright:
                 SystemManager.writeCmd(\
                     '../max_graph_depth', str(SystemManager.funcDepth))
 
-                if SystemManager.customCmd is None:
+                if not SystemManager.customCmd:
                     SystemManager.writeCmd('../set_ftrace_filter', '')
                 else:
                     params = ' '.join(SystemManager.customCmd)
@@ -19650,7 +19655,7 @@ Copyright:
 
             # enable segmentation fault events #
             customCmd = SystemManager.customCmd
-            if customCmd is None or \
+            if not customCmd or \
                 True not in [True for evt in customCmd \
                 if evt.startswith('signal')]:
                 sigCmd = "sig == %d" % ConfigManager.SIG_LIST.index('SIGSEGV')
@@ -19659,7 +19664,7 @@ Copyright:
             # enable cpu events #
             if SystemManager.cpuEnable:
                 addr = SystemManager.getKerAddr('tick_sched_timer')
-                if addr is not None:
+                if addr:
                     SystemManager.writeCmd(\
                         'timer/hrtimer_start/filter',\
                         '%s && function == 0x%s' % (cmd, addr))
@@ -20042,9 +20047,9 @@ Copyright:
 
         # write signal command #
         if SystemManager.cmdEnable is not False and \
-            SystemManager.cmdFd is not None:
+            SystemManager.cmdFd:
 
-            if SystemManager.signalCmd is not None:
+            if SystemManager.signalCmd:
                 try:
                     SystemManager.cmdFd.write(SystemManager.signalCmd)
                     SystemManager.signalCmd = None
@@ -20052,7 +20057,7 @@ Copyright:
                         SystemManager.cmdEnable)
                 except:
                     SystemManager.printError("Fail to write signal command")
-            elif SystemManager.outputFile is not None:
+            elif SystemManager.outputFile:
                 SystemManager.saveCmd =\
                     'cat ' + SystemManager.mountPath + '../trace > ' +\
                     SystemManager.outputFile + '\n'
@@ -20066,7 +20071,7 @@ Copyright:
                     SystemManager.writeCmd(str(idx) + '/filter', '0')
 
         if SystemManager.graphEnable is False and \
-            SystemManager.customCmd is not None:
+            SystemManager.customCmd:
 
             for cmd in SystemManager.customCmd:
                 event = cmd.split(':')[0]
@@ -20079,7 +20084,7 @@ Copyright:
             SystemManager.writeCmd('../tracing_on', '0')
 
         # write save command #
-        if SystemManager.saveCmd is not None:
+        if SystemManager.saveCmd:
             try:
                 SystemManager.cmdFd.write(SystemManager.saveCmd)
                 SystemManager.cmdFd.write(\
@@ -20113,13 +20118,13 @@ Copyright:
 
 
     def printProcTreeInfo(self):
-        if self.procData is not None:
+        if self.procData:
             SystemManager.infoBufferPrint(self.procData)
 
 
 
     def printOSInfo(self):
-        if self.osData is None and self.devData is None:
+        if not self.osData and not self.devData:
             return
 
         SystemManager.infoBufferPrint('\n[System OS Info]')
@@ -20302,10 +20307,10 @@ Copyright:
 
     def printCpuInfo(self):
         # parse data #
-        if self.cpuData is not None:
+        if self.cpuData:
             for l in self.cpuData:
                 m = re.match(r'(?P<type>.*):\s+(?P<val>.*)', l)
-                if m is None:
+                if not m:
                     continue
 
                 d = m.groupdict()
@@ -20391,7 +20396,7 @@ Copyright:
         class MountException(Exception):
             pass
 
-        if self.mountData is None:
+        if not self.mountData:
             return
 
         for l in self.mountData:
@@ -20521,7 +20526,7 @@ Copyright:
 
 
     def getCgroupPath(self):
-        if self.mountData is None:
+        if not self.mountData:
             return None
 
         cgroupDir = None
@@ -20546,7 +20551,7 @@ Copyright:
                     setSubDirs(root, os.walk(subdir))
 
         cgroupPath = self.getCgroupPath()
-        if cgroupPath is None:
+        if not cgroupPath:
             return None
 
         # get full path list #
@@ -20589,7 +20594,7 @@ Copyright:
 
         try:
             cgroupTree = self.getCgroupTree()
-            if cgroupTree is None:
+            if not cgroupTree:
                 return
         except:
             return
@@ -20778,7 +20783,7 @@ Copyright:
         self.memInfo[time] = dict()
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
@@ -20786,7 +20791,7 @@ Copyright:
         self.memInfo[time] = dict()
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
@@ -21042,7 +21047,7 @@ class Debugger(object):
             self.attach()
             self.isRunning = True
         # execute #
-        elif execCmd is not None:
+        elif execCmd:
             self.execute(execCmd)
             self.isRunning = False
         # ready #
@@ -21155,7 +21160,7 @@ class Debugger(object):
 
 
     def attach(self, pid=None):
-        if pid is None:
+        if not pid:
             pid = self.pid
 
         if self.checkPid(pid) < 0:
@@ -21197,7 +21202,7 @@ class Debugger(object):
 
 
     def checkPid(self, pid):
-        if pid is None:
+        if not pid:
             return -1
         elif type(pid) is not int or pid <= 0:
             return -1
@@ -21326,7 +21331,7 @@ class Debugger(object):
 
             # convert a word to a byte string #
             word = SystemManager.word2bstring(word)
-            if word is None:
+            if not word:
                 return
 
             if size < wordSize:
@@ -21427,11 +21432,11 @@ class Debugger(object):
 
 
     def getSymbol(self, vaddr):
-        if self.pid is None:
+        if not self.pid:
             SystemManager.printError("Fail to get pid to get symbol")
             return
 
-        if self.pmap is None:
+        if not self.pmap:
             # get process memory map #
             self.pmap = FileAnalyzer.getProcMapInfo(self.pid)
 
@@ -21444,7 +21449,7 @@ class Debugger(object):
 
         # get name by address #
         fname = self.getFileFromMap(vaddr)
-        if fname is None:
+        if not fname:
             SystemManager.printWarning(\
                 'Fail to get file name to get symbol from addr')
             return None
@@ -21472,7 +21477,7 @@ class Debugger(object):
         fileList = []
         addrList = []
 
-        if self.pmap is None:
+        if not self.pmap:
             return [], []
 
         for f, item in sorted(\
@@ -21489,7 +21494,7 @@ class Debugger(object):
             # copied from python standard library bisect.py #
             if lo < 0:
                 raise ValueError('lo must be non-negative')
-            if hi is None:
+            if not hi:
                 hi = len(a)
             while lo < hi:
                 mid = (lo+hi)//2
@@ -21529,7 +21534,7 @@ class Debugger(object):
             self.status = 'exit'
 
             # check wait condition #
-            if self.wait is not None:
+            if self.wait:
                 return
 
             # get argument values from register #
@@ -21605,7 +21610,7 @@ class Debugger(object):
                 retval = retval - 0x10000000000000000
 
             # check wait condition #
-            if self.wait is not None:
+            if self.wait:
                 if self.wait == name and \
                     retval == 0:
                     # unset wait condition #
@@ -21737,7 +21742,7 @@ class Debugger(object):
                         continue
 
                     # get register set #
-                    if self.getRegs() is None:
+                    if not self.getRegs():
                         SystemManager.printError(\
                             "Fail to get register values of thread %d" % pid)
                         return
@@ -21929,7 +21934,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
-        if ret is None or ret < 0:
+        if not ret or ret < 0:
             return None
         else:
             return self.regs
@@ -21973,7 +21978,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
@@ -22011,7 +22016,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
@@ -22994,9 +22999,11 @@ class ElfAnalyzer(object):
         if not SystemManager.demangleEnable:
             return symbol
 
+        # check mangling #
         if not symbol.startswith('_Z'):
             return symbol
 
+        # check including version #
         if symbol.rfind('@@') > -1:
             symbol, version = symbol.split('@@')
             version = '@%s' % version
@@ -23005,7 +23012,7 @@ class ElfAnalyzer(object):
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes', False)
-        if ctypes is None:
+        if not ctypes:
             SystemManager.printWarning((\
                 "Fail to import python package: ctypes "
                 "to demangle symbol, so that "
@@ -23018,12 +23025,12 @@ class ElfAnalyzer(object):
         # try to demangle symbol #
         try:
             # load standard libc library #
-            if SystemManager.libcObj is None:
+            if not SystemManager.libcObj:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
             # load standard libstdc++ library #
-            if SystemManager.libcppObj is None:
+            if not SystemManager.libcppObj:
                 SystemManager.libcppObj = \
                     cdll.LoadLibrary(SystemManager.libcppPath)
 
@@ -23122,7 +23129,7 @@ class ElfAnalyzer(object):
             # copied from python standard library bisect.py #
             if lo < 0:
                 raise ValueError('lo must be non-negative')
-            if hi is None:
+            if not hi:
                 hi = len(a)
             while lo < hi:
                 mid = (lo+hi)//2
@@ -24234,7 +24241,7 @@ class ThreadAnalyzer(object):
     def __init__(self, file):
 
         # thread mode #
-        if file is not None:
+        if file:
             self.initThreadData()
 
             self.init_threadData = \
@@ -24381,7 +24388,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.graphEnable:
                 # convert statistics in file to graph #
-                if SystemManager.sourceFile is not None:
+                if SystemManager.sourceFile:
                     self.convertGraph(SystemManager.sourceFile)
                     sys.exit(0)
                 # no path of statistics file #
@@ -24444,7 +24451,7 @@ class ThreadAnalyzer(object):
                 # change unit from KB to Byte #
                 SystemManager.bufferSize = int(SystemManager.bufferSize) << 10
 
-            if SystemManager.printFile is not None:
+            if SystemManager.printFile:
                 SystemManager.printStatus(\
                     r"start profiling... [ STOP(Ctrl + c), SAVE(Ctrl + \) ]")
 
@@ -24676,7 +24683,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package in the foreground #
-        if SystemManager.printFile is None:
+        if not SystemManager.printFile:
             SystemManager.getPkg('select', False)
 
         prevFilter = []
@@ -24743,7 +24750,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package in the foreground #
-        if SystemManager.printFile is None:
+        if not SystemManager.printFile:
             SystemManager.getPkg('select', False)
 
         # run user custom command #
@@ -24751,7 +24758,7 @@ class ThreadAnalyzer(object):
 
         # run loop #
         while 1:
-            if SystemManager.remoteServObj is not None:
+            if SystemManager.remoteServObj:
                 # receive response from server #
                 ret = SystemManager.localServObj.recvfrom()
 
@@ -25007,7 +25014,7 @@ class ThreadAnalyzer(object):
 
             if slen == 3:
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                if m is None:
+                if not m:
                     continue
 
                 d = m.groupdict()
@@ -25028,9 +25035,9 @@ class ThreadAnalyzer(object):
                 average = float(sline[1])
                 intervalList = sline[2]
             elif slen == 2:
-                if intervalList is not None:
+                if intervalList:
                     intervalList += sline[1]
-            elif intervalList is not None:
+            elif intervalList:
                 # save previous info #
                 cpuProcUsage[pname] = {}
                 cpuProcUsage[pname]['pid'] = pid
@@ -25058,9 +25065,9 @@ class ThreadAnalyzer(object):
                     gname = sline[0].strip()
                     intervalList = sline[2]
                 elif slen == 2:
-                    if intervalList is not None:
+                    if intervalList:
                         intervalList += sline[1]
-                elif intervalList is not None and gname != 'GPU':
+                elif intervalList and gname != 'GPU':
                     # save previous info #
                     gpuUsage[gname] = intervalList
 
@@ -25085,7 +25092,7 @@ class ThreadAnalyzer(object):
 
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m is None:
+                    if not m:
                         continue
 
                     d = m.groupdict()
@@ -25106,9 +25113,9 @@ class ThreadAnalyzer(object):
                     maxVss = int(sline[1])
                     intervalList = sline[2]
                 elif slen == 2:
-                    if intervalList is not None:
+                    if intervalList:
                         intervalList += sline[1]
-                elif intervalList is not None:
+                elif intervalList:
                     # save previous info #
                     try:
                         memProcUsage[pname]
@@ -25138,7 +25145,7 @@ class ThreadAnalyzer(object):
 
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m is None:
+                    if not m:
                         continue
 
                     d = m.groupdict()
@@ -25159,9 +25166,9 @@ class ThreadAnalyzer(object):
                     maxRss = int(sline[1])
                     intervalList = sline[2]
                 elif slen == 2:
-                    if intervalList is not None:
+                    if intervalList:
                         intervalList += sline[1]
-                elif intervalList is not None:
+                elif intervalList:
                     # save previous info #
                     try:
                         memProcUsage[pname]
@@ -25193,7 +25200,7 @@ class ThreadAnalyzer(object):
 
             if slen == 3:
                 m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                if m is None:
+                if not m:
                     continue
 
                 d = m.groupdict()
@@ -25218,9 +25225,9 @@ class ThreadAnalyzer(object):
                     total = sline[1]
                 intervalList = sline[2]
             elif slen == 2:
-                if intervalList is not None:
+                if intervalList:
                     intervalList += sline[1]
-            elif intervalList is not None:
+            elif intervalList:
                 # save previous info #
                 blkProcUsage[pname] = {}
                 blkProcUsage[pname]['pid'] = pid
@@ -25247,9 +25254,9 @@ class ThreadAnalyzer(object):
                     sname = sline[0].strip()
                     intervalList = sline[2]
                 elif slen == 2:
-                    if intervalList is not None:
+                    if intervalList:
                         intervalList += sline[1]
-                elif intervalList is not None and sname != 'Storage':
+                elif intervalList and sname != 'Storage':
                     # define arrays #
                     storageUsage.setdefault(sname, dict())
                     readList = list()
@@ -25291,7 +25298,7 @@ class ThreadAnalyzer(object):
                 continue
 
             m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 pid = d['pid']
                 comm = d['comm'].strip()
@@ -25392,7 +25399,7 @@ class ThreadAnalyzer(object):
 
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
-        if matplotlib is None:
+        if not matplotlib:
             SystemManager.printWarning((\
                 "Fail to import python package: matplotlib\n"
                 "Try to enter %s command to install the package") % \
@@ -26266,7 +26273,7 @@ class ThreadAnalyzer(object):
                         fontsize=5, color='blue', fontweight='bold')
                 plot(timeline, usage, '-', c='blue', \
                     linewidth=1, solid_capstyle='round')
-                if totalRam is not None:
+                if totalRam:
                     label = 'RAM Total [%s]\nRAM Available' % \
                         convertSize2Unit(long(totalRam) << 20)
                     labelList.append(label)
@@ -26340,7 +26347,7 @@ class ThreadAnalyzer(object):
                             fontsize=5, color='orange', fontweight='bold')
                     plot(timeline, swapUsage, '-', c='orange', \
                         linewidth=1, solid_capstyle='round')
-                    if totalSwap is not None:
+                    if totalSwap:
                         label = 'Swap Total [%s]\nSwap Usage' % \
                             convertSize2Unit(long(totalSwap) << 20)
                         labelList.append(label)
@@ -26583,7 +26590,7 @@ class ThreadAnalyzer(object):
 
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
-        if matplotlib is None:
+        if not matplotlib:
             SystemManager.printWarning((\
                 "Fail to import python package: matplotlib\n"
                 "Try to enter %s command to install the package") % \
@@ -26610,7 +26617,7 @@ class ThreadAnalyzer(object):
         '''
         effectProcList = [0] * len(timeline)
 
-        if SystemManager.layout is None:
+        if not SystemManager.layout:
             drawCpu(timeline, graphStats, 3, 0, 4)
 
             # draw events on graphs #
@@ -26725,7 +26732,7 @@ class ThreadAnalyzer(object):
                     outputFile = '%s%s_%s.png' % \
                         (dirPath, fileName[:expandPos], itype)
 
-            if SystemManager.printFile is not None:
+            if SystemManager.printFile:
                 dirPath = os.path.dirname(SystemManager.printFile)
                 if dirPath == '':
                     outputFile = '%s/%s' % \
@@ -26830,7 +26837,7 @@ class ThreadAnalyzer(object):
         if self.threadData[tid]['usage'] > 0:
             threadName += " <%2.3f>" % (self.threadData[tid]['usage'])
 
-        if self.threadData[tid]['childList'] is not None:
+        if self.threadData[tid]['childList']:
             threadName += " |%d|" % (len(self.threadData[tid]['childList']))
 
         if self.threadData[tid]['waitChild'] > 0:
@@ -26885,7 +26892,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['waitChild'], reverse=True):
 
                 # print tree from root threads #
-                if value['childList'] is not None and value['new'] == ' ':
+                if value['childList'] and value['new'] == ' ':
                     cnt += 1
                     self.printCreationTree(key, 0)
             if cnt == 0:
@@ -27000,11 +27007,11 @@ class ThreadAnalyzer(object):
     def printEventInfo(self):
         # pick up event info from thread info #
         for key, value in sorted(self.threadData.items()):
-            if value['customEvent'] is not None:
+            if value['customEvent']:
                 self.customInfo[key] = value['customEvent']
-            if value['userEvent'] is not None:
+            if value['userEvent']:
                 self.userInfo[key] = value['userEvent']
-            if value['kernelEvent'] is not None:
+            if value['kernelEvent']:
                 self.kernelInfo[key] = value['kernelEvent']
 
         # print custom event info #
@@ -27974,7 +27981,7 @@ class ThreadAnalyzer(object):
 
 
     def getConf(self):
-        if SystemManager.sourceFile is not None:
+        if SystemManager.sourceFile:
             confBuf = None
             confDict = None
 
@@ -27987,7 +27994,7 @@ class ThreadAnalyzer(object):
                     SystemManager.sourceFile)
                 sys.exit(0)
 
-            if confBuf is None:
+            if not confBuf:
                 SystemManager.printError(\
                     "Fail to read %s to set configuration" % \
                     SystemManager.sourceFile)
@@ -29211,7 +29218,7 @@ class ThreadAnalyzer(object):
         if SystemManager.graphEnable:
             # get matplotlib object #
             matplotlib = SystemManager.getPkg('matplotlib', False)
-            if matplotlib is None:
+            if not matplotlib:
                 SystemManager.printWarning((\
                     "Fail to import python package: matplotlib\n"
                     "Try to enter %s command to install the package") % \
@@ -29744,7 +29751,7 @@ class ThreadAnalyzer(object):
                 r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+'
                 r'\[Core:\s*(?P<nrCore>[0-9]+)\].+'
                 r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 TA.procIntData[index]['time'] = d['time']
                 TA.procIntData[index]['nrCtxt'] = d['nrCtxt']
@@ -29767,7 +29774,7 @@ class ThreadAnalyzer(object):
                 r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<block>\-*[0-9]+)'), tokenList[1])
-            if m is None:
+            if not m:
                 return
 
             d = m.groupdict()
@@ -29791,7 +29798,7 @@ class ThreadAnalyzer(object):
                 r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)\s*'
                 r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<cache>\-*[0-9]+)\s*'
                 r'/\s*(?P<kernel>\-*[0-9]+)'), tokenList[2])
-            if m is None:
+            if not m:
                 return
 
             d = m.groupdict()
@@ -29827,7 +29834,7 @@ class ThreadAnalyzer(object):
                 TA.procIntData[index]['total']['blk'] = '-'
 
             m = re.match(r'\s*(?P<swap>\-*[0-9]+)', tokenList[3])
-            if m is None:
+            if not m:
                 return
 
             d = m.groupdict()
@@ -29855,7 +29862,7 @@ class ThreadAnalyzer(object):
         if len(tokenList) == 5:
             m = re.match(\
                 r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 gpu = d['gpu'].strip()
@@ -29934,7 +29941,7 @@ class ThreadAnalyzer(object):
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
             r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
             r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
-        if m is None:
+        if not m:
             return
 
         d = m.groupdict()
@@ -30060,7 +30067,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printFileTable():
-        if SystemManager.fileInstance is None:
+        if not SystemManager.fileInstance:
             return
 
         nrEvent = nrSocket = nrDevice = nrPipe = nrProc = nrFile = 0
@@ -30846,12 +30853,13 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printProcTree():
-        if SystemManager.procInstance is None:
+        if not SystemManager.procInstance:
             SystemManager.pipePrint("\n\tNone")
             return
 
         # get process/thread tree #
-        procTree = ThreadAnalyzer.getProcTreeFromList(SystemManager.procInstance)
+        procTree = ThreadAnalyzer.getProcTreeFromList(\
+            SystemManager.procInstance)
 
         # print nodes in tree #
         def printTreeNodes(root, depth):
@@ -30884,7 +30892,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printMemAnalysis():
-        if SystemManager.procInstance is None:
+        if not SystemManager.procInstance:
             return
 
         STAT_ATTR = ConfigManager.STAT_ATTR
@@ -30936,10 +30944,10 @@ class ThreadAnalyzer(object):
                 break
 
             # get memory details #
-            if value['maps'] is None:
+            if not value['maps']:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
 
-            if value['maps'] is not None:
+            if value['maps']:
                 cnt += 1
 
                 totalCnt = 0
@@ -31098,7 +31106,7 @@ class ThreadAnalyzer(object):
                     r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
                     r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
-                if m is not None:
+                if m:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
                     return d['time']
@@ -31108,7 +31116,7 @@ class ThreadAnalyzer(object):
                     r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
                     r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
-                if m is not None:
+                if m:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
                     return d['time']
@@ -31118,7 +31126,7 @@ class ThreadAnalyzer(object):
                     r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
                     r'\[(?P<core>[0-9]+)\]\s+(?P<time>\S+):\s+'
                     r'(?P<func>\S+):(?P<etc>.+)'), line)
-                if m is not None:
+                if m:
                     d = m.groupdict()
                     SystemManager.tgidEnable = False
                     SystemManager.startTime = d['time']
@@ -31723,10 +31731,10 @@ class ThreadAnalyzer(object):
         SystemManager.curLine += 1
 
         m = SystemManager.getTraceItem(string)
-        if m is None:
+        if not m:
             # handle modified type of event #
             m = SystemManager.getTraceItem(string)
-            if m is not None:
+            if m:
                 d = m.groupdict()
                 comm = d['comm']
                 core = str(int(d['core']))
@@ -31736,7 +31744,7 @@ class ThreadAnalyzer(object):
 
                 if func.find("tracing_mark_write") >= 0:
                     m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
-                    if m is not None:
+                    if m:
                         d = m.groupdict()
 
                         self.handleUserEvent(d['event'], time)
@@ -31843,7 +31851,7 @@ class ThreadAnalyzer(object):
                 r'next_comm=(?P<next_comm>.*)\s+'
                 r'next_pid=(?P<next_pid>[0-9]+)\s+'
                 r'next_prio=(?P<next_prio>\S+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32145,7 +32153,7 @@ class ThreadAnalyzer(object):
 
         elif func == "irq_handler_entry":
             m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32195,7 +32203,7 @@ class ThreadAnalyzer(object):
 
         elif func == "irq_handler_exit":
             m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32247,7 +32255,7 @@ class ThreadAnalyzer(object):
         elif func == "softirq_entry":
             m = re.match(\
                 r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32304,7 +32312,7 @@ class ThreadAnalyzer(object):
         elif func == "softirq_exit":
             m = re.match(\
                 r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32358,7 +32366,7 @@ class ThreadAnalyzer(object):
                 r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'
                 r'prio=(?P<prio>[0-9]+)\s+orig_cpu=(?P<orig_cpu>[0-9]+)\s+'
                 r'dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32387,7 +32395,7 @@ class ThreadAnalyzer(object):
                 r'^\s*page=\s*(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
                 r'order=(?P<order>[0-9]+)\s+'
                 r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32448,7 +32456,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'
                 r'\s+order=(?P<order>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32492,7 +32500,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*dev (?P<major>[0-9]+):(?P<minor>[0-9]+) .+'
                 r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32527,7 +32535,7 @@ class ThreadAnalyzer(object):
                 r'bytes_req=(?P<req>[0-9]+)\s+'
                 r'bytes_alloc=(?P<alloc>[0-9]+)\s+'
                 r'gfp_flags=(?P<flags>\S+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32557,7 +32565,7 @@ class ThreadAnalyzer(object):
         elif func == "kfree":
             m = re.match(\
                 r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32591,7 +32599,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'
                 r'prio=(?P<prio>[0-9]+)\s+'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32638,7 +32646,7 @@ class ThreadAnalyzer(object):
 
         elif func == "sys_enter":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32657,7 +32665,7 @@ class ThreadAnalyzer(object):
                 n = re.match((\
                     r'^\s*(?P<uaddr>\S+), (?P<op>\S+), '
                     r'(?P<val>\S+), (?P<timer>\S+),'), d['args'])
-                if n is not None:
+                if n:
                     l = n.groupdict()
 
                     FUTEX_CMD_MASK = ~(128|256)
@@ -32764,7 +32772,7 @@ class ThreadAnalyzer(object):
 
         elif func == "sys_exit":
             m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32944,7 +32952,7 @@ class ThreadAnalyzer(object):
                 r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
                 r'code=(?P<code>.*) comm=(?P<comm>.*) '
                 r'pid=(?P<pid>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -32986,7 +32994,7 @@ class ThreadAnalyzer(object):
                 r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
                 r'code=(?P<code>.*) sa_handler=(?P<handler>.*) '
                 r'sa_flags=(?P<flags>.*)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33011,7 +33019,7 @@ class ThreadAnalyzer(object):
                 r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*'
                 r'(?P<operation>\S+)\s*(?P<address>\S+)\s+\+\s+'
                 r'(?P<size>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33060,7 +33068,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)'
                 r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33202,7 +33210,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33224,7 +33232,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33270,7 +33278,7 @@ class ThreadAnalyzer(object):
 
         elif func == "mm_vmscan_direct_reclaim_end":
             m = re.match(r'^\s*nr_reclaimed=(?P<nr>[0-9]+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33286,7 +33294,7 @@ class ThreadAnalyzer(object):
 
         elif func == "task_newtask":
             m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33305,7 +33313,7 @@ class ThreadAnalyzer(object):
                 self.threadData[pid]['new'] = 'N'
                 self.threadData[pid]['createdTime'] = float(time)
 
-                if self.threadData[thread]['childList'] is None:
+                if not self.threadData[thread]['childList']:
                     self.threadData[thread]['childList'] = list()
 
                 self.threadData[thread]['childList'].append(pid)
@@ -33316,7 +33324,7 @@ class ThreadAnalyzer(object):
                 r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)\s+'\
                 r'child_comm=(?P<child_comm>.*)\s+'\
                 r'child_pid=(?P<child_pid>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33336,7 +33344,7 @@ class ThreadAnalyzer(object):
                 self.threadData[cpid]['new'] = 'N'
                 self.threadData[cpid]['createdTime'] = float(time)
 
-                if self.threadData[thread]['childList'] is None:
+                if not self.threadData[thread]['childList']:
                     self.threadData[thread]['childList'] = list()
 
                 self.threadData[thread]['childList'].append(cpid)
@@ -33346,7 +33354,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*pid=(?P<pid>[0-9]+)\s+oldcomm=(?P<oldcomm>.*)\s+'
                 r'newcomm=(?P<newcomm>.*)\s+oom_score_adj'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33368,7 +33376,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*dev=(?P<dev>.+)\s+ino=(?P<ino>.+)'\
                 r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33402,7 +33410,7 @@ class ThreadAnalyzer(object):
 
                 try:
                     # get lock #
-                    if self.lockTable[fid]['owner'] is None:
+                    if not self.lockTable[fid]['owner']:
                         self.lockTable[fid]['owner'] = thread
                         self.lockTable[fid]['time'] = float(time)
                         self.lockTable[fid]['type'] = ltype
@@ -33434,7 +33442,7 @@ class ThreadAnalyzer(object):
 
         elif func == "sched_process_exit":
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33454,7 +33462,7 @@ class ThreadAnalyzer(object):
 
         elif func == "sched_process_wait":
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33479,7 +33487,7 @@ class ThreadAnalyzer(object):
                 if etc.rfind("end") > 0:
                     state = 'R'
 
-            if state is not None:
+            if state:
                 self.suspendData.append([time, state])
 
         elif func == "net_dev_xmit":
@@ -33490,7 +33498,7 @@ class ThreadAnalyzer(object):
 
         elif func == "module_load":
             m = re.match(r'^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33503,7 +33511,7 @@ class ThreadAnalyzer(object):
 
         elif func == "module_free":
             m = re.match(r'^\s*(?P<module>.*)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33517,7 +33525,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+'
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33532,7 +33540,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*(?P<module>.*)\s+call_site=(?P<site>.*)\s+'
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33546,7 +33554,7 @@ class ThreadAnalyzer(object):
         elif func == "cpu_idle":
             m = re.match(\
                 r'^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33584,7 +33592,7 @@ class ThreadAnalyzer(object):
         elif func == "console":
             m = re.match(\
                 r'^\s*\[\s*(?P<time>\S+)\s*\]\s+EVENT_(?P<event>\S+)', etc)
-            if m is not None:
+            if m:
                 d = m.groupdict()
 
                 self.handleUserEvent(d['event'], time)
@@ -33595,7 +33603,7 @@ class ThreadAnalyzer(object):
             m = re.match((\
                 r'^\s*\[\s*(?P<time>\S+)\s*\]\s+'
                 r'CPU(?P<core>[0-9]+)\: shutdown'), etc)
-            if m is not None:
+            if m:
                 ed = m.groupdict()
 
                 try:
@@ -33618,7 +33626,7 @@ class ThreadAnalyzer(object):
 
         elif func == "tracing_mark_write" or func == "0":
             m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
-            if m is None:
+            if not m:
                 printEventWarning(func)
                 return
 
@@ -33635,7 +33643,7 @@ class ThreadAnalyzer(object):
                 [func, comm, thread, ntime, etc.strip()])
 
             # make event list #
-            if self.threadData[thread]['customEvent'] is None:
+            if not self.threadData[thread]['customEvent']:
                 self.threadData[thread]['customEvent'] = {}
 
             self.threadData[thread]['customEvent'].setdefault(\
@@ -33677,7 +33685,7 @@ class ThreadAnalyzer(object):
                 if func.startswith(name) is False:
                     continue
 
-                if self.threadData[thread]['userEvent'] is None:
+                if not self.threadData[thread]['userEvent']:
                     self.threadData[thread]['userEvent'] = {}
 
                 self.threadData[thread]['userEvent'].setdefault(\
@@ -33753,7 +33761,7 @@ class ThreadAnalyzer(object):
                 if func.startswith(name) is False:
                     continue
 
-                if self.threadData[thread]['kernelEvent'] is None:
+                if not self.threadData[thread]['kernelEvent']:
                     self.threadData[thread]['kernelEvent'] = {}
 
                 self.threadData[thread]['kernelEvent'].setdefault(\
@@ -33771,14 +33779,14 @@ class ThreadAnalyzer(object):
                     isSaved = True
                     m = re.match(\
                         r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
-                    if m is not None:
+                    if m:
                         d = m.groupdict()
                         self.kernelEventData.append(\
                             ['ENTER', name, d['addr'], comm, thread, ntime, '', d['args']])
                     else:
                         m = re.match(\
                             r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
-                        if m is not None:
+                        if m:
                             d = m.groupdict()
                             self.kernelEventData.append(\
                                 ['ENTER', name, '', comm, thread, ntime, '', d['args']])
@@ -33824,7 +33832,7 @@ class ThreadAnalyzer(object):
                     m = re.match((\
                         r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
                         r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
-                    if m is not None:
+                    if m:
                         d = m.groupdict()
                         self.kernelEventData.append(\
                             ['EXIT', name, d['addr'], comm, thread, ntime, \
@@ -33833,7 +33841,7 @@ class ThreadAnalyzer(object):
                         m = re.match((\
                             r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- '
                             r'(?P<name>.+)\)(?P<args>.*)'), etc)
-                        if m is not None:
+                        if m:
                             d = m.groupdict()
                             self.kernelEventData.append(\
                                 ['EXIT', name, '', comm, thread, ntime, \
@@ -34202,7 +34210,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % sirqPath)
 
-        if irqBuf is not None:
+        if irqBuf:
             self.prevIrqData = self.irqData
             self.irqData = {}
             cpuCnt = len(irqBuf.pop(0).split())
@@ -34232,7 +34240,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % cpuPath)
 
-        if cpuBuf is not None:
+        if cpuBuf:
             self.prevCpuData = self.cpuData
             self.cpuData = {}
 
@@ -34288,7 +34296,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % memPath)
 
-        if memBuf is not None:
+        if memBuf:
             self.prevMemData = self.memData
 
             self.memData = {}
@@ -34315,7 +34323,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % vmstatPath)
 
-        if vmBuf is not None:
+        if vmBuf:
             self.prevVmData = self.vmData
             self.vmData = {}
 
@@ -34338,7 +34346,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % swapPath)
 
         # get swap usage if it changed #
-        if self.prevSwaps != swapBuf and swapBuf is not None:
+        if self.prevSwaps != swapBuf and swapBuf:
             swapTotal = 0
             swapUsed = 0
 
@@ -34784,7 +34792,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % statusPath)
                 return
 
-        if self.procData[tid]['status'] is None:
+        if not self.procData[tid]['status']:
             self.procData[tid]['status'] = {}
 
         for line in statusBuf:
@@ -34818,7 +34826,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % statmPath)
                 return
 
-        if statmBuf is not None:
+        if statmBuf:
             self.procData[tid]['statm'] = statmBuf[0].split()
 
 
@@ -35683,11 +35691,11 @@ class ThreadAnalyzer(object):
 
                     # set frequency info #
                     coreFreq = ''
-                    if curFreq is not None:
+                    if curFreq:
                         coreFreq = '%d Mhz' % (int(curFreq) >> 10)
                     else:
                         coreFreq = '? Mhz'
-                    if minFreq is not None and maxFreq is not None:
+                    if minFreq and maxFreq:
                         coreFreq = '%s [%d-%d]' % \
                             (coreFreq, int(minFreq) >> 10, int(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
@@ -35701,7 +35709,7 @@ class ThreadAnalyzer(object):
                             coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                                 format(cid, coreTempData['CPU'], coreFreq)
                         except:
-                            if cid is not None:
+                            if cid:
                                 coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                                     format(cid, '?', coreFreq)
                             else:
@@ -35748,7 +35756,7 @@ class ThreadAnalyzer(object):
 
                     # set frequency info #
                     coreFreq = ''
-                    if coreFreq is not None:
+                    if coreFreq:
                         coreFreq = '%d Mhz' % value['CUR_FREQ']
                     else:
                         coreFreq = '? Mhz'
@@ -35797,7 +35805,7 @@ class ThreadAnalyzer(object):
                     int(SystemManager.uptime - \
                     (float(nowData[self.starttimeIdx]) / 100))
 
-                if value['io'] is not None:
+                if value['io']:
                     value['read'] = value['io']['read_bytes'] - \
                             self.prevProcData[pid]['io']['read_bytes']
                     value['write'] = value['io']['write_bytes'] - \
@@ -35904,7 +35912,7 @@ class ThreadAnalyzer(object):
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
 
-                if value['io'] is not None:
+                if value['io']:
                     value['read'] = value['io']['read_bytes']
                     value['write'] = value['io']['write_bytes']
 
@@ -35920,7 +35928,7 @@ class ThreadAnalyzer(object):
         pss = 0
         memBuf = []
 
-        if maps is not None:
+        if maps:
             for key, item in sorted(maps.items(), reverse=True):
                 tmpstr = ''
 
@@ -36484,7 +36492,7 @@ class ThreadAnalyzer(object):
                 return
 
             # set sort value #
-            if SystemManager.sort == 'c' or SystemManager.sort is None:
+            if SystemManager.sort == 'c' or not SystemManager.sort:
                 targetValue = value['ttime']
             elif SystemManager.sort == 'm':
                 targetValue = long(stat[self.rssIdx]) >> 8
@@ -37018,7 +37026,7 @@ class ThreadAnalyzer(object):
 
 
     def printReportStat(self, reportStat):
-        if reportStat is None or type(reportStat) is not dict:
+        if not reportStat or type(reportStat) is not dict:
             SystemManager.printWarning("Fail to recognize report data")
             return
 
@@ -37057,7 +37065,7 @@ class ThreadAnalyzer(object):
 
 
     def replyService(self, ip, port):
-        if SystemManager.remoteServObj is None:
+        if not SystemManager.remoteServObj:
             SystemManager.printError(\
                 "Fail to use server because it is not initialized")
             return
@@ -37070,7 +37078,7 @@ class ThreadAnalyzer(object):
 
     def handleServerResponse(self, packet):
         # return by interrupt from recv #
-        if packet is False or packet is None:
+        if not packet:
             sys.exit(0)
 
         if type(packet) is tuple:
@@ -37133,7 +37141,7 @@ class ThreadAnalyzer(object):
         # PRINT service #
         else:
             # realtime mode #
-            if SystemManager.printFile is None:
+            if not SystemManager.printFile:
                 if SystemManager.printStreamEnable is False:
                     SystemManager.clearScreen()
                 SystemManager.pipePrint(data)
@@ -37165,8 +37173,8 @@ class ThreadAnalyzer(object):
 
 
     def requestService(self):
-        if SystemManager.remoteServObj is None or \
-            SystemManager.localServObj is None:
+        if not SystemManager.remoteServObj or \
+            not SystemManager.localServObj:
 
             SystemManager.remoteServObj = None
             return
@@ -37204,7 +37212,7 @@ class ThreadAnalyzer(object):
 
 
     def checkServer(self):
-        if SystemManager.localServObj is None:
+        if not SystemManager.localServObj:
             return
 
         while 1:
@@ -37215,7 +37223,7 @@ class ThreadAnalyzer(object):
             if ret is False:
                 SystemManager.localServObj = None
                 return
-            elif ret is None:
+            elif not ret:
                 return
 
             # handle request #
@@ -37239,7 +37247,7 @@ class ThreadAnalyzer(object):
                     continue
 
                 networkObject = NetworkManager('client', ip, port)
-                if networkObject.ip is None:
+                if not networkObject.ip:
                     continue
 
                 if message.startswith('EVENT_'):
@@ -37335,7 +37343,7 @@ class ThreadAnalyzer(object):
         self.reportData['event'] = {}
 
         # check image created #
-        if SystemManager.imagePath is not None:
+        if SystemManager.imagePath:
             self.reportData['event']['IMAGE_CREATED'] = SystemManager.imagePath
             SystemManager.imagePath = None
 
@@ -37483,14 +37491,14 @@ class ThreadAnalyzer(object):
 
         # print system status to file #
         if SystemManager.reportFileEnable and \
-            SystemManager.printFile is not None and \
+            SystemManager.printFile and \
             nrReason > 0:
 
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
 
             # sync and close output file #
-            if SystemManager.fileForPrint is not None:
+            if SystemManager.fileForPrint:
                 try:
                     SystemManager.fileForPrint.close()
                 except:
@@ -37527,7 +37535,7 @@ class ThreadAnalyzer(object):
 
         # convert dict data to json data #
         jsonObj = SystemManager.makeJsonString(self.reportData)
-        if jsonObj is None:
+        if not jsonObj:
             SystemManager.printWarning(\
                 "Fail to convert report data to json type")
             return
@@ -37693,7 +37701,7 @@ def main(args=None):
         SystemManager.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # change priority of process #
-        if SystemManager.prio is None:
+        if not SystemManager.prio:
             SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         SystemManager.parseRecordOption()
@@ -37718,7 +37726,7 @@ def main(args=None):
             # set alarm interval #
             signal.alarm(SystemManager.repeatInterval)
 
-            if SystemManager.outputFile is None:
+            if not SystemManager.outputFile:
                 SystemManager.printError(\
                     "wrong option with -s, input also path to save data")
                 sys.exit(0)
@@ -37797,7 +37805,7 @@ def main(args=None):
             signal.alarm(SystemManager.repeatInterval)
 
             if SystemManager.pipeEnable:
-                if SystemManager.outputFile is not None:
+                if SystemManager.outputFile:
                     SystemManager.copyPipeToFile(\
                         '%s%s' % (SystemManager.inputFile, '_pipe'), \
                         SystemManager.outputFile)
@@ -37827,7 +37835,7 @@ def main(args=None):
 
         # start writing logs to file through pipe #
         if SystemManager.pipeEnable:
-            if SystemManager.outputFile is not None:
+            if SystemManager.outputFile:
                 SystemManager.copyPipeToFile(\
                     '%s%s' % (SystemManager.inputFile, '_pipe'), \
                     SystemManager.outputFile)
