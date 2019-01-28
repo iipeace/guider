@@ -5209,7 +5209,7 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Save full stack to callData table #
-            if ret is True:
+            if ret:
                 self.saveCallStack()
             elif ret is False:
                 '''
@@ -12830,7 +12830,7 @@ Copyright:
                 if not SystemManager.objdumpPath:
                     # get address of symbol in binary #
                     addr = SystemManager.getSymOffset(\
-                        cmdFormat[1], cmdFormat[2], None)
+                        cmdFormat[1], cmdFormat[2])
 
                     # use external objdump #
                     if not addr:
@@ -12956,7 +12956,7 @@ Copyright:
 
 
     @staticmethod
-    def getSymOffset(symbol, binPath, objdumpPath):
+    def getSymOffset(symbol, binPath, objdumpPath=None):
         if not objdumpPath:
             try:
                 offset = None
@@ -20070,7 +20070,7 @@ Copyright:
 
         # disable all ftrace options registered #
         for idx, val in SystemManager.cmdList.items():
-            if val is True:
+            if val:
                 if SystemManager.writeCmd(str(idx) + '/enable', '0') >= 0:
                     SystemManager.writeCmd(str(idx) + '/filter', '0')
 
@@ -23175,6 +23175,31 @@ class ElfAnalyzer(object):
                 idx += 1
         except:
             return '??'
+
+
+
+    def getOffsetBySymbol(self, symbol):
+        # check symbol table #
+        if len(self.sortedSymTable) == 0:
+            self.mergeSymTable()
+
+        clist = list()
+
+        try:
+            return
+
+            for idx, val in enumerate(self.sortedSymTable):
+                if symbol == val[0]:
+                    return self.sortedAddrTable[idx]
+                elif symbol in val[0]:
+                    clist.append([val[0], self.sortedAddrTable[idx]])
+        except:
+            return None
+
+        if not clist:
+            return None
+        else:
+            return clist
 
 
 
