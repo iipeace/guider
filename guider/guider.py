@@ -3618,7 +3618,7 @@ class FunctionAnalyzer(object):
             'pagePairAvr': float(0), 'pageRemainMin': float(0), \
             'pageRemainMax': float(0), 'pageRemainAvr': float(0), \
             'pageRemainTotal': float(0), 'lockTryCnt': int(0), \
-            'unlockCnt': int(0), 'syscallCnt': int(0)}
+            'unlockCnt': int(0), 'syscallCnt': int(0), 'totalTickCnt': int(0)}
 
         self.init_ctxData = \
             {'nestedEvent': None, 'savedEvent': None, 'nowEvent': None, \
@@ -6887,9 +6887,10 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                '[Function CPU-Tick-Stack Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
+            # Print call stack #
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^96}".\
                 format("Usage", "Function", "Binary"))
@@ -6912,6 +6913,9 @@ class FunctionAnalyzer(object):
                     "{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
 
+                # Increase total cpu usage per symbol #
+                value['totalTickCnt'] += value['tickCnt']
+
                 # Set target stack #
                 targetStack = []
                 if self.sort == 'sym':
@@ -6933,6 +6937,10 @@ class FunctionAnalyzer(object):
                     if len(subStack) == 0:
                         continue
                     else:
+                        # Increase total tick count of symbols in stack #
+                        for sym in subStack:
+                            self.userSymData[sym]['totalTickCnt'] += 1
+
                         cpuPer = \
                             round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
                         if cpuPer < 1 and SystemManager.showAll is False:
@@ -6951,10 +6959,44 @@ class FunctionAnalyzer(object):
 
             SystemManager.pipePrint('')
 
+            # Print per-symbol #
+            SystemManager.pipePrint(\
+                '[Function CPU-Tick-Symbol Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                (self.periodicEventCnt, self.periodicEventInterval * 1000))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^96}".\
+                format("Usage", "Function", "Binary"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userSymData.items(), \
+                key=lambda e: e[1]['totalTickCnt'], reverse=True):
+
+                if value['totalTickCnt'] == 0:
+                    break
+
+                cpuPer = \
+                    round(float(value['totalTickCnt']) / \
+                    float(self.periodicEventCnt) * 100, 1)
+                if cpuPer < 1 and SystemManager.showAll is False:
+                    break
+
+                SystemManager.pipePrint(\
+                    "{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
+                    self.posData[value['pos']]['origBin']))
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.periodicEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+            SystemManager.pipePrint('')
+
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
+            '[Function CPU-Tick-Stack Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
             (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
         SystemManager.pipePrint(twoLine)
@@ -7063,6 +7105,7 @@ class FunctionAnalyzer(object):
         if self.memEnabled is False:
             return
 
+        title = 'Function Free-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
 
@@ -7070,8 +7113,8 @@ class FunctionAnalyzer(object):
             # Print memory reduce by page free in user space #
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Free-Only-Page Info] [Size: %dKB] (USER)' % \
-                (self.pageUnknownFreeCnt * 4))
+                '[%s] [Size: %dKB] (USER)' % \
+                (title, self.pageUnknownFreeCnt * 4))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -7128,8 +7171,8 @@ class FunctionAnalyzer(object):
         # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Free-Only-Page Info] [Size: %dKB] (KERNEL)' % \
-            (self.pageUnknownFreeCnt * 4))
+            '[%s] [Size: %dKB] (KERNEL)' % \
+            (title, self.pageUnknownFreeCnt * 4))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("FREE", "Function"))
@@ -7186,14 +7229,15 @@ class FunctionAnalyzer(object):
 
 
     def printKnownMemFreeInfo(self):
+        title = 'Function Alloc-Free-Page Info'
         lineLength = SystemManager.lineLength
 
         # Print page alloc-free pair in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc-Free-Page Info] [Total: %dKB] (USER)' % \
-                (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+                '[%s] [Total: %dKB] (USER)' % \
+                (title, self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -7300,8 +7344,8 @@ class FunctionAnalyzer(object):
         # Print page alloc-free pair in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Alloc-Free-Page Info] [Total: %dKB] (KERNEL)' % \
-            (self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+            '[%s] [Total: %dKB] (KERNEL)' % \
+            (title, self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
@@ -7421,6 +7465,7 @@ class FunctionAnalyzer(object):
         if self.memEnabled is False:
             return
 
+        title = 'Function Alloc-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
@@ -7452,8 +7497,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc-Only-Page Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-                (self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
+                '[%s] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+                (title, self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
                 self.pageAllocEventCnt, self.pageFreeCnt * 4, \
                 self.pageFreeEventCnt))
 
@@ -7527,10 +7572,9 @@ class FunctionAnalyzer(object):
 
         # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint((\
-            '[Function Alloc-Only-Page Info]'
-            '[Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)') % \
-            (self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
+        SystemManager.pipePrint(\
+            '[%s] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
+            (title, self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
             self.pageAllocEventCnt, self.pageFreeCnt * 4, \
             self.pageFreeEventCnt))
 
@@ -7618,15 +7662,15 @@ class FunctionAnalyzer(object):
         if self.heapEnabled is False or SystemManager.userEnable is False:
             return
 
+        title = 'Function Alloc-Only-Heap'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
 
         # Print heap usage in user space #
         SystemManager.clearPrint()
-        SystemManager.pipePrint((\
-            '[Function Alloc-Only-Heap Info]'
-            '[Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)') % \
-            ((self.heapExpSize - self.heapRedSize) >> 10, \
+        SystemManager.pipePrint(\
+            '[%s Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
+            (title, (self.heapExpSize - self.heapRedSize) >> 10, \
             self.heapExpSize >> 10, self.heapExpEventCnt, \
             self.heapRedSize >> 10, self.heapRedEventCnt))
 
@@ -7691,8 +7735,8 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.heapTable) > 0:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Alloc-Only-Heap History] [Cnt: %d]' % \
-                len(self.heapTable))
+                '[%s History] [Cnt: %d]' % \
+                (title, len(self.heapTable)))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -7876,7 +7920,8 @@ class FunctionAnalyzer(object):
         # Print unlock in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('[Function Unlock Info] [Cnt: %d] (USER)' % \
+            SystemManager.pipePrint(\
+                '[Function Unlock Info] [Cnt: %d] (USER)' % \
                 (self.unlockEventCnt))
 
             SystemManager.pipePrint(twoLine)
@@ -8030,6 +8075,7 @@ class FunctionAnalyzer(object):
         if self.bwriteEnabled is False:
             return
 
+        title = 'Function Write-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
 
@@ -8037,8 +8083,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Write-Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
+                '[%s] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (title, self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -8096,8 +8142,8 @@ class FunctionAnalyzer(object):
         # Print block write in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Write-Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
+            '[%s] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+            (title, self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -8161,6 +8207,7 @@ class FunctionAnalyzer(object):
         if self.breadEnabled is False:
             return
 
+        title = 'Function Read-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
 
@@ -8168,8 +8215,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Read-Block Info] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+                '[%s] [Size: %dKB] [Cnt: %d] (USER)' % \
+                (title, self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -8224,8 +8271,8 @@ class FunctionAnalyzer(object):
         # Print block read in kernel space #
         SystemManager.clearPrint()
         SystemManager.pipePrint(\
-            '[Function Read-Block Info] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+            '[%s] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
+            (title, self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint("{0:_^9}|{1:_^144}".format("Usage", "Function"))
