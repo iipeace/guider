@@ -23821,6 +23821,7 @@ Section header string table index: %d
         e_shdynstr = -1
         e_shdynamic = -1
         e_shversym = -1
+        e_shverdef = -1
         e_shrellist = []
         e_shrelalist = []
 
@@ -23887,6 +23888,8 @@ Section header string table index: %d
                 e_shdynamic = i
             elif stype == 'GNU_versym':
                 e_shversym = i
+            elif stype == 'GNU_verdef':
+                e_shverdef = i
             elif stype == 'GNU_verneed':
                 e_shverneed = i
             elif stype == 'REL':
@@ -23920,6 +23923,7 @@ Section header string table index: %d
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
         self.attr['dynsymList'] = list()
+        self.attr['versionTable'] = dict()
 
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0:
@@ -23944,6 +23948,80 @@ Section header string table index: %d
                         dynstr_section[lastnull:i].decode()
                     lastnull = i + 1
 
+            # parse .gnu.version_d table #
+            if e_shverdef >= 0:
+                 # get .gnu.version_d section info #
+                sh_name, sh_type, sh_flags, sh_addr, \
+                    sh_offset, sh_size, sh_link, sh_info, \
+                    sh_addralign, sh_entsize  = \
+                    self.getSectionInfo(fd, e_shoff + e_shentsize * e_shverdef)
+
+                # read .gnu.version_d data #
+                fd.seek(sh_offset)
+                verdef_section = fd.read(sh_size)
+
+                # get verdef values #
+                vdidx = 1
+                offset = 0
+                entsize = 20
+                sentsize = 8
+                for idx in range(sh_info):
+                    target = verdef_section[offset:offset+entsize]
+                    vd_version, vd_flags, vd_ndx, \
+                        vd_cnt, vd_hash, vd_aux, vd_next = \
+                        struct.unpack('HHHHIII', target)
+
+                    # get verdef strings #
+                    soffset = offset + vd_aux
+                    for vidx in range(vd_cnt):
+                        starget = verdef_section[soffset:soffset+sentsize]
+                        vda_name, vda_next = \
+                            struct.unpack('II', starget)
+
+                        if vidx == 0:
+                            self.attr['versionTable'][vdidx] = \
+                                self.getString(dynstr_section, vda_name)
+
+                            vdidx += 1
+
+                        soffset += vda_next
+
+                    offset += vd_next
+
+            # parse .gnu.version_r table #
+            if e_shverneed  >= 0:
+                # get .gnu.version_r section info #
+                sh_name, sh_type, sh_flags, sh_addr, \
+                    sh_offset, sh_size, sh_link, sh_info, \
+                    sh_addralign, sh_entsize  = \
+                    self.getSectionInfo(fd, e_shoff + e_shentsize * e_shverneed)
+
+                # read .gnu.version_r data #
+                fd.seek(sh_offset)
+                verneed_section = fd.read(sh_size)
+
+                # get verneed values #
+                offset = 0
+                entsize = 16
+                for idx in range(sh_info):
+                    target = verneed_section[offset:offset+entsize]
+                    vn_version, vn_cnt, vn_file, vn_aux, vn_next = \
+                        struct.unpack('HHIII', target)
+
+                    # get verneed strings #
+                    soffset = offset + entsize
+                    for vidx in range(vn_cnt):
+                        starget = verneed_section[soffset:soffset+entsize]
+                        vna_hash, vna_flags, vna_other, vna_name, vna_next = \
+                            struct.unpack('IHHII', starget)
+
+                        self.attr['versionTable'][vna_other] = \
+                            self.getString(dynstr_section, vna_name)
+
+                        soffset += entsize
+
+                    offset += vn_next
+
             # get .dynsym section info #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -23962,8 +24040,8 @@ Section header string table index: %d
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / sh_entsize)):
-                # 32-bit #
                 target = dynsym_section[i*sh_entsize:(i+1)*sh_entsize]
+                # 32-bit #
                 if self.is32Bit:
                     st_name, st_value, st_size, st_info, st_other, st_shndx = \
                         struct.unpack('IIIBBH', target)
@@ -23978,6 +24056,16 @@ Section header string table index: %d
                 # convert manged string #
                 symbol = ElfAnalyzer.demangleSymbol(symbol)
 
+                # concatenate symbol with it's required version #
+                try:
+                    symIdx = len(self.attr['dynsymList'])
+                    vsIdx = self.attr['versymList'][symIdx]
+                    symbol = '%s@%s' % \
+                        (symbol, self.attr['versionTable'][vsIdx])
+                except:
+                    pass
+
+                # add symbol to table #
                 self.attr['dynsymTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
                     'type': ElfAnalyzer.ST_TYPE[ \
@@ -24041,7 +24129,6 @@ Section header string table index: %d
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
             for i in range(0, int(sh_size / sh_entsize)):
-                # 32-bit #
                 if self.is32Bit:
                     st_name, st_value, st_size, st_info, st_other, st_shndx = \
                         struct.unpack('IIIBBH', \
