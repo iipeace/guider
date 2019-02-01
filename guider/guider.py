@@ -24408,13 +24408,16 @@ class ThreadAnalyzer(object):
 
     init_procTotData = \
         {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
-        'startIdx': int(0), 'cpu': int(0), 'initMem': int(0), 'lastMem': int(0), \
-        'memDiff': int(0), 'blk': int(0), 'minMem': int(0), 'maxMem': int(0), \
-        'minVss': int(0), 'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
+        'startIdx': int(0), 'cpu': int(0), 'cpuMax': int(0), \
+        'cpuMin': int(-1), 'initMem': int(0), 'lastMem': int(0), \
+        'memDiff': int(0), 'blk': int(0), 'minMem': int(0), \
+        'maxMem': int(0), 'minVss': int(0), 'maxVss': int(0), \
+        'blkrd': int(0), 'blkwr': int(0)}
 
     init_procIntData = \
-        {'cpu': int(0), 'mem': int(0), 'memDiff': int(0), \
-        'blk': int(0), 'blkrd': int(0), 'blkwr': int(0), 'die': False}
+        {'cpu': int(0), 'cpuMax': int(0), 'cpuMin': int(-1), \
+        'mem': int(0), 'memDiff': int(0), 'blk': int(0), \
+        'blkrd': int(0), 'blkwr': int(0), 'die': False}
 
 
 
@@ -25212,7 +25215,18 @@ class ThreadAnalyzer(object):
 
                 pid = d['pid']
                 pname = '%s(%s)' % (comm, pid)
-                average = float(sline[1])
+
+                try:
+                    stats = sline[1].split('/')
+                    minimum = float(stats[0])
+                    average = float(stats[1])
+                    maximum = float(stats[2])
+                except:
+                    # for legacy #
+                    average = float(sline[1])
+                    minimum = 0
+                    maximum = 0
+
                 intervalList = sline[2]
             elif slen == 2:
                 if intervalList:
@@ -25221,7 +25235,9 @@ class ThreadAnalyzer(object):
                 # save previous info #
                 cpuProcUsage[pname] = {}
                 cpuProcUsage[pname]['pid'] = pid
+                cpuProcUsage[pname]['minimum'] = minimum
                 cpuProcUsage[pname]['average'] = average
+                cpuProcUsage[pname]['maximum'] = maximum
                 cpuProcUsage[pname]['usage'] = intervalList
 
         # parse gpu stat #
@@ -29959,15 +29975,30 @@ class ThreadAnalyzer(object):
 
             d = m.groupdict()
 
-            TA.procTotData['total']['cpu'] += int(d['cpu'])
+            cpu = int(d['cpu'])
+
+            # sum total cpu usage #
+            TA.procTotData['total']['cpu'] += cpu
+
+            # get total max cpu usage #
+            if TA.procTotData['total']['cpuMax'] < cpu:
+                TA.procTotData['total']['cpuMax'] = cpu
+
+            # get total min cpu usage #
+            if TA.procTotData['total']['cpuMin'] < 0:
+                TA.procTotData['total']['cpuMin'] = cpu
+            elif TA.procTotData['total']['cpuMin'] > cpu:
+                TA.procTotData['total']['cpuMin'] = cpu
 
             TA.procIntData[index]['total'] = dict(TA.init_procIntData)
 
+            # save cpu usage on this interval #
             try:
-                TA.procIntData[index]['total']['cpu'] = int(d['cpu'])
+                TA.procIntData[index]['total']['cpu'] = cpu
             except:
                 TA.procIntData[index]['total']['cpu'] = 0
 
+            # save blkwait on this interval #
             try:
                 TA.procIntData[index]['total']['blkwait'] = int(d['block'])
             except:
@@ -30164,6 +30195,7 @@ class ThreadAnalyzer(object):
         except:
             pass
 
+        # check pid in list #
         if pid not in TA.procTotData:
             TA.procTotData[pid] = dict(TA.init_procTotData)
             TA.procTotData[pid]['startIdx'] = index
@@ -30173,16 +30205,31 @@ class ThreadAnalyzer(object):
         try:
             blkrd = int(d['blkrd'])
             blkwr = int(d['blkwr'])
+
             SystemManager.blockEnable = True
         except:
             blkrd = blkwr = 0
 
+        # save process info #
         TA.procTotData[pid]['comm'] = d['comm']
         TA.procTotData[pid]['ppid'] = d['ppid']
         TA.procTotData[pid]['nrThreads'] = d['nrThreads']
         TA.procTotData[pid]['pri'] = d['pri']
 
+        # save cpu usage of process #
         TA.procTotData[pid]['cpu'] += cpu
+
+        if TA.procTotData[pid]['cpuMax'] < cpu:
+            TA.procTotData[pid]['cpuMax'] = cpu
+
+        if index > 0 and TA.procTotData[pid]['cpuMin'] < 0:
+            TA.procTotData[pid]['cpuMin'] = 0
+        elif TA.procTotData[pid]['cpuMin'] < 0:
+            TA.procTotData[pid]['cpuMin'] = cpu
+        elif TA.procTotData[pid]['cpuMin'] > cpu:
+            TA.procTotData[pid]['cpuMin'] = cpu
+
+        # save block usage of process #
         TA.procTotData[pid]['blk'] += blk
         TA.procTotData[pid]['blkrd'] += blkrd
         TA.procTotData[pid]['blkwr'] += blkwr
@@ -30206,6 +30253,7 @@ class ThreadAnalyzer(object):
             TA.procTotData[pid]['initMem'] = rss
             TA.procTotData[pid]['lastMem'] = rss
 
+        # save process stats on this interval #
         if pid not in TA.procIntData[index]:
             TA.procIntData[index][pid] = dict(TA.init_procIntData)
             TA.procIntData[index][pid]['cpu'] = cpu
@@ -30238,10 +30286,12 @@ class ThreadAnalyzer(object):
 
             idx += 1
 
-        if idx > 0:
-            for pid, val in ThreadAnalyzer.procTotData.items():
-                val['cpu'] = round(val['cpu'] / float(idx), 1)
-                val['memDiff'] = val['lastMem'] - val['initMem']
+        if idx == 0:
+            return
+
+        for pid, val in ThreadAnalyzer.procTotData.items():
+            val['cpuAvg'] = round(val['cpu'] / float(idx), 1)
+            val['memDiff'] = val['lastMem'] - val['initMem']
 
 
 
@@ -30389,8 +30439,10 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Avg", cl=cl, pd=pd)
+        procInfo = \
+            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>12} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", "Min/Avg/Max", \
+            cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -30408,11 +30460,14 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
 
-        # Print total cpu usage #
         value = ThreadAnalyzer.procTotData['total']
-        cpuAvg = '%.1f' % value['cpu']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('[CPU]', '-', '-', '-', '-', cpuAvg, cl=cl, pd=pd)
+        cpuInfo = '%d/%.1f/%d' % \
+            (value['cpuMin'], value['cpuAvg'], value['cpuMax'])
+
+        # Print total cpu usage #
+        procInfo = \
+            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>12} |".\
+            format('[CPU]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -30442,11 +30497,13 @@ class ThreadAnalyzer(object):
             if pid == 'total':
                 continue
 
-            cpuAvg = '%.1f' % value['cpu']
+            cpuInfo = '%d/%.1f/%d' % \
+                (value['cpuMin'], value['cpuAvg'], value['cpuMax'])
+
             procInfo = \
-                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>5} |".\
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>12} |".\
                 format(value['comm'][:cl], pid, value['ppid'], \
-                value['nrThreads'], value['pri'], cpuAvg, cl=cl, pd=pd)
+                value['nrThreads'], value['pri'], cpuInfo, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
             maxLineLen = SystemManager.lineLength
 
