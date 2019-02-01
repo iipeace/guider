@@ -24409,15 +24409,15 @@ class ThreadAnalyzer(object):
     init_procTotData = \
         {'comm': '', 'ppid': int(0), 'nrThreads': int(0), 'pri': '', \
         'startIdx': int(0), 'cpu': int(0), 'cpuMax': int(0), \
-        'cpuMin': int(-1), 'initMem': int(0), 'lastMem': int(0), \
-        'memDiff': int(0), 'blk': int(0), 'minMem': int(0), \
-        'maxMem': int(0), 'minVss': int(0), 'maxVss': int(0), \
-        'blkrd': int(0), 'blkwr': int(0)}
-
+        'cpuMin': int(-1), 'cpuAvg': int(0), 'initMem': int(0), \
+        'lastMem': int(0), 'memDiff': int(0), 'blk': int(0), \
+        'minMem': int(0), 'maxMem': int(0), 'minVss': int(0), \
+        'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
+        
     init_procIntData = \
         {'cpu': int(0), 'cpuMax': int(0), 'cpuMin': int(-1), \
-        'mem': int(0), 'memDiff': int(0), 'blk': int(0), \
-        'blkrd': int(0), 'blkwr': int(0), 'die': False}
+        'cpuAvg': int(0), 'mem': int(0), 'memDiff': int(0), \
+        'blk': int(0), 'blkrd': int(0), 'blkwr': int(0), 'die': False}
 
 
 
@@ -25216,17 +25216,6 @@ class ThreadAnalyzer(object):
                 pid = d['pid']
                 pname = '%s(%s)' % (comm, pid)
 
-                try:
-                    stats = sline[1].split('/')
-                    minimum = float(stats[0])
-                    average = float(stats[1])
-                    maximum = float(stats[2])
-                except:
-                    # for legacy #
-                    average = float(sline[1])
-                    minimum = 0
-                    maximum = 0
-
                 intervalList = sline[2]
             elif slen == 2:
                 if intervalList:
@@ -25235,10 +25224,19 @@ class ThreadAnalyzer(object):
                 # save previous info #
                 cpuProcUsage[pname] = {}
                 cpuProcUsage[pname]['pid'] = pid
-                cpuProcUsage[pname]['minimum'] = minimum
-                cpuProcUsage[pname]['average'] = average
-                cpuProcUsage[pname]['maximum'] = maximum
+
                 cpuProcUsage[pname]['usage'] = intervalList
+                cpuList = list(map(int, intervalList.split()))
+
+                if len(cpuList) == 0:
+                    cpuProcUsage[pname]['minimum'] = 0
+                    cpuProcUsage[pname]['average'] = 0
+                    cpuProcUsage[pname]['maximum'] = 0
+                else:
+                    cpuProcUsage[pname]['minimum'] = min(cpuList)
+                    cpuProcUsage[pname]['average'] = \
+                        sum(cpuList) / len(cpuList)
+                    cpuProcUsage[pname]['maximum'] = max(cpuList)
 
         # parse gpu stat #
         if logBuf[finalLine-1].startswith('[Top GPU Info]'):
