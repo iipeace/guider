@@ -25893,7 +25893,7 @@ class ThreadAnalyzer(object):
                     plot(timeline, blkWait, '-', c='pink', linestyle='-',\
                         linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
-                    labelList.append('[ CPU + IOWAIT ]')
+                    labelList.append('[ CPU+IO Average ]')
                     try:
                         avgUsage = round(sum(blkWait) / len(blkWait), 1)
                     except:
