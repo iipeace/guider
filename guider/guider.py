@@ -14767,7 +14767,7 @@ Copyright:
                 SystemManager.printStreamEnable == False):
             try:
                 if sys.platform.startswith('linux'):
-                    SystemManager.pipeForPrint = os.popen('less -E', 'w')
+                    SystemManager.pipeForPrint = os.popen('less -FRSX', 'w')
                 elif sys.platform.startswith('win'):
                     SystemManager.pipeForPrint = os.popen('more', 'w')
                 else:
