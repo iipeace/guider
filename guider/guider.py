@@ -10466,7 +10466,8 @@ Usage:
 
             # command help #
             if len(sys.argv) > 1 and \
-                ('--help' in sys.argv or \
+                ('-help' in sys.argv or \
+                '--help' in sys.argv or \
                 '-h' in sys.argv):
 
                 mode = sys.argv[1]
@@ -14180,7 +14181,7 @@ Copyright:
 
     @staticmethod
     def clearScreen():
-        if SystemManager.printEnable is False:
+        if not SystemManager.printEnable:
             return
 
         if sys.platform.startswith('linux'):
@@ -14194,12 +14195,12 @@ Copyright:
 
     @staticmethod
     def printLogo(absolute=False, big=False):
-        if SystemManager.printEnable is False:
+        if not SystemManager.printEnable:
             return
 
         if not SystemManager.printFile:
             if SystemManager.printStreamEnable:
-                if absolute is False:
+                if not absolute:
                     return
 
         if big:
@@ -14751,7 +14752,7 @@ Copyright:
 
     @staticmethod
     def pipePrint(line, newline=True, flush=False):
-        if SystemManager.printEnable is False:
+        if not SystemManager.printEnable:
             return
 
         # check newline argument #
@@ -18075,10 +18076,12 @@ Copyright:
             SystemManager.printError(\
                 "wrong option with -g, input only one tid")
             sys.exit(0)
-        else:
-            pid = int(SystemManager.filterGroup[0])
+
+        pid = int(SystemManager.filterGroup[0])
 
         envs = SystemManager.getEnv(pid)
+        if not envs:
+            sys.exit(0)
 
         SystemManager.pipePrint('')
 
@@ -18785,8 +18788,8 @@ Copyright:
         except:
             err = sys.exc_info()[1]
             SystemManager.printError(\
-                "Fail to open %s because %s" % \
-                (path, ' '.join(list(map(str, err.args)))))
+                "Fail to get environment variables of process %s because %s" % \
+                (pid, ' '.join(list(map(str, err.args)))))
             return
 
 
