@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2018, guider"
+__copyright__ = "Copyright 2015-2019, guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
