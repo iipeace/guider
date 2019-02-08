@@ -35754,6 +35754,8 @@ class ThreadAnalyzer(object):
 
         # print CPU stat #
         if SystemManager.cpuEnable:
+            percoreStats = {}
+
             if len(self.cpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
@@ -35762,7 +35764,7 @@ class ThreadAnalyzer(object):
                 key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, \
                 reverse=False):
                 try:
-                    int(idx)
+                    percoreStats[int(idx)] = dict()
 
                     if SystemManager.checkCutCond():
                         SystemManager.addPrint('---more---')
@@ -35786,6 +35788,14 @@ class ThreadAnalyzer(object):
                         userUsage = 100
                     if kerUsage > 100:
                         kerUsage = 100
+
+                    # set percore stats #
+                    percoreStats[idx]['user'] = userUsage
+                    percoreStats[idx]['kernel'] = kerUsage
+                    percoreStats[idx]['iowait'] = ioUsage
+                    percoreStats[idx]['irq'] = irqUsage
+                    percoreStats[idx]['idle'] = idleUsage
+                    percoreStats[idx]['total'] = totalUsage
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalUsage,\
@@ -35899,6 +35909,8 @@ class ThreadAnalyzer(object):
 
         # print GPU STAT #
         if SystemManager.gpuEnable:
+            gpuStats = {}
+
             if len(self.gpuData) > 0:
                 SystemManager.addPrint('%s\n' % oneLine)
 
@@ -35911,6 +35923,8 @@ class ThreadAnalyzer(object):
                     totalUsage = value['CUR_LOAD']
                     coreStat = "{0:<23}({1:>5})|".format(\
                         idx[:23], '%s %%' % totalUsage)
+
+                    gpuStats[idx] = totalUsage
 
                     # set frequency info #
                     coreFreq = ''
@@ -35980,6 +35994,16 @@ class ThreadAnalyzer(object):
             self.reportData['cpu']['irq'] = irqUsage
             self.reportData['cpu']['iowait'] = ioUsage
             self.reportData['cpu']['nrCore'] = nrCore
+            try:
+                self.reportData['cpu']['percore'] = percoreStats
+            except:
+                pass
+
+            # gpu #
+            try:
+                self.reportData['gpu'] = gpuStats
+            except:
+                pass
 
             # memory #
             self.reportData['mem'] = {}
