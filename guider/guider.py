@@ -35685,119 +35685,8 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(totalCoreStat)
 
-        # save report data #
-        if SystemManager.reportEnable:
-            self.reportData = {}
-
-            # timestamp #
-            self.reportData['timestamp'] = SystemManager.uptime
-
-            # system #
-            self.reportData['system'] = {}
-            self.reportData['system']['pid'] = SystemManager.pid
-            self.reportData['system']['uptime'] = SystemManager.uptime
-            self.reportData['system']['interval'] = interval
-            self.reportData['system']['nrIrq'] = nrIrq
-            self.reportData['system']['nrSoftIrq'] = nrSoftIrq
-            try:
-                loads = list(map(float, SystemManager.loadavg.split()[:3]))
-                self.reportData['system']['load1m'] = loads[0]
-                self.reportData['system']['load5m'] = loads[1]
-                self.reportData['system']['load15m'] = loads[2]
-            except:
-                pass
-
-            # cpu #
-            self.reportData['cpu'] = {}
-            self.reportData['cpu']['total'] = totalUsage
-            self.reportData['cpu']['idle'] = idleUsage
-            self.reportData['cpu']['user'] = userUsage
-            self.reportData['cpu']['kernel'] = kerUsage
-            self.reportData['cpu']['irq'] = irqUsage
-            self.reportData['cpu']['iowait'] = ioUsage
-            self.reportData['cpu']['nrCore'] = nrCore
-
-            # memory #
-            self.reportData['mem'] = {}
-            self.reportData['mem']['total'] = totalMem
-            self.reportData['mem']['free'] = freeMem
-            self.reportData['mem']['available'] = availMem
-            self.reportData['mem']['anon'] = totalAnonMem
-            self.reportData['mem']['file'] = totalFileMem
-            self.reportData['mem']['slab'] = totalSlabMem
-            # cache = file + slab
-            self.reportData['mem']['cache'] = totalCacheMem
-            self.reportData['mem']['kernel'] = totalKernelMem
-            self.reportData['mem']['freeDiff'] = freeMemDiff
-            self.reportData['mem']['availableDiff'] = availMemDiff
-            self.reportData['mem']['anonDiff'] = anonMemDiff
-            self.reportData['mem']['fileDiff'] = fileMemDiff
-            self.reportData['mem']['slabDiff'] = slabMemDiff
-            if cmaTotalMem > 0:
-                self.reportData['mem']['cmaTotal'] = cmaTotalMem
-                self.reportData['mem']['cmaFree'] = cmaFreeMem
-                self.reportData['mem']['cmaDev'] = cmaDevMem
-            self.reportData['mem']['pgDirty'] = pgDirty
-            self.reportData['mem']['pgRclmBg'] = pgRclmBg
-            self.reportData['mem']['pgRclmFg'] = pgRclmFg
-
-            # swap #
-            self.reportData['swap'] = {}
-            self.reportData['swap']['total'] = swapTotal
-            self.reportData['swap']['usage'] = swapUsage
-            self.reportData['swap']['usageDiff'] = swapUsageDiff
-
-            # block #
-            self.reportData['block'] = {}
-            self.reportData['block']['read'] = pgInMemDiff
-            self.reportData['block']['write'] = pgOutMemDiff
-            self.reportData['block']['ioWait'] = ioUsage
-            self.reportData['block']['nrMajFlt'] = nrMajFault
-
-            # task #
-            self.reportData['task'] = {}
-            self.reportData['task']['nrBlocked'] = nrBlocked
-            self.reportData['task']['nrProc'] = self.nrProcess
-            self.reportData['task']['nrThread'] = self.nrThread
-            self.reportData['task']['nrCtx'] = nrCtxSwc
-
-            # network #
-            self.reportData['net'] = {}
-            self.reportData['net']['inbound'] = netIn
-            self.reportData['net']['outbound'] = netOut
-
-            # storage #
-            if SystemManager.diskEnable is False:
-                SystemManager.sysInstance.updateStorageInfo()
-
-                # save previous storage usage #
-                self.prevStorageData = self.storageData
-                self.storageData = SystemManager.sysInstance.getStorageInfo()
-            else:
-                '''
-                storageData should have been saved on diskTop mode
-                '''
-                pass
-
-            # copy storage data into report data structure #
-            self.reportData['storage'] = copy.deepcopy(self.storageData)
-
-            # calculate diff of read /write on each devices #
-            for dev, value in sorted(self.reportData['storage'].items()):
-                # get read size on this interval #
-                try:
-                    value['read'] -= self.prevStorageData[dev]['read']
-                except:
-                    value['read'] = 0
-
-                # get write size on this interval #
-                try:
-                    value['write'] -= self.prevStorageData[dev]['write']
-                except:
-                    value['write'] = 0
-
         # get temperature #
-        if SystemManager.gpuEnable:
+        if SystemManager.cpuEnable or SystemManager.gpuEnable:
             coreTempData = {}
             tempDirList = []
             tempPath = '/sys/class/hwmon'
@@ -36059,6 +35948,117 @@ class ThreadAnalyzer(object):
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
                 except:
                     continue
+
+        # save report data #
+        if SystemManager.reportEnable:
+            self.reportData = {}
+
+            # timestamp #
+            self.reportData['timestamp'] = SystemManager.uptime
+
+            # system #
+            self.reportData['system'] = {}
+            self.reportData['system']['pid'] = SystemManager.pid
+            self.reportData['system']['uptime'] = SystemManager.uptime
+            self.reportData['system']['interval'] = interval
+            self.reportData['system']['nrIrq'] = nrIrq
+            self.reportData['system']['nrSoftIrq'] = nrSoftIrq
+            try:
+                loads = list(map(float, SystemManager.loadavg.split()[:3]))
+                self.reportData['system']['load1m'] = loads[0]
+                self.reportData['system']['load5m'] = loads[1]
+                self.reportData['system']['load15m'] = loads[2]
+            except:
+                pass
+
+            # cpu #
+            self.reportData['cpu'] = {}
+            self.reportData['cpu']['total'] = totalUsage
+            self.reportData['cpu']['idle'] = idleUsage
+            self.reportData['cpu']['user'] = userUsage
+            self.reportData['cpu']['kernel'] = kerUsage
+            self.reportData['cpu']['irq'] = irqUsage
+            self.reportData['cpu']['iowait'] = ioUsage
+            self.reportData['cpu']['nrCore'] = nrCore
+
+            # memory #
+            self.reportData['mem'] = {}
+            self.reportData['mem']['total'] = totalMem
+            self.reportData['mem']['free'] = freeMem
+            self.reportData['mem']['available'] = availMem
+            self.reportData['mem']['anon'] = totalAnonMem
+            self.reportData['mem']['file'] = totalFileMem
+            self.reportData['mem']['slab'] = totalSlabMem
+            # cache = file + slab
+            self.reportData['mem']['cache'] = totalCacheMem
+            self.reportData['mem']['kernel'] = totalKernelMem
+            self.reportData['mem']['freeDiff'] = freeMemDiff
+            self.reportData['mem']['availableDiff'] = availMemDiff
+            self.reportData['mem']['anonDiff'] = anonMemDiff
+            self.reportData['mem']['fileDiff'] = fileMemDiff
+            self.reportData['mem']['slabDiff'] = slabMemDiff
+            if cmaTotalMem > 0:
+                self.reportData['mem']['cmaTotal'] = cmaTotalMem
+                self.reportData['mem']['cmaFree'] = cmaFreeMem
+                self.reportData['mem']['cmaDev'] = cmaDevMem
+            self.reportData['mem']['pgDirty'] = pgDirty
+            self.reportData['mem']['pgRclmBg'] = pgRclmBg
+            self.reportData['mem']['pgRclmFg'] = pgRclmFg
+
+            # swap #
+            self.reportData['swap'] = {}
+            self.reportData['swap']['total'] = swapTotal
+            self.reportData['swap']['usage'] = swapUsage
+            self.reportData['swap']['usageDiff'] = swapUsageDiff
+
+            # block #
+            self.reportData['block'] = {}
+            self.reportData['block']['read'] = pgInMemDiff
+            self.reportData['block']['write'] = pgOutMemDiff
+            self.reportData['block']['ioWait'] = ioUsage
+            self.reportData['block']['nrMajFlt'] = nrMajFault
+
+            # task #
+            self.reportData['task'] = {}
+            self.reportData['task']['nrBlocked'] = nrBlocked
+            self.reportData['task']['nrProc'] = self.nrProcess
+            self.reportData['task']['nrThread'] = self.nrThread
+            self.reportData['task']['nrCtx'] = nrCtxSwc
+
+            # network #
+            self.reportData['net'] = {}
+            self.reportData['net']['inbound'] = netIn
+            self.reportData['net']['outbound'] = netOut
+
+            # storage #
+            if SystemManager.diskEnable is False:
+                SystemManager.sysInstance.updateStorageInfo()
+
+                # save previous storage usage #
+                self.prevStorageData = self.storageData
+                self.storageData = SystemManager.sysInstance.getStorageInfo()
+            else:
+                '''
+                storageData should have been saved on diskTop mode
+                '''
+                pass
+
+            # copy storage data into report data structure #
+            self.reportData['storage'] = copy.deepcopy(self.storageData)
+
+            # calculate diff of read /write on each devices #
+            for dev, value in sorted(self.reportData['storage'].items()):
+                # get read size on this interval #
+                try:
+                    value['read'] -= self.prevStorageData[dev]['read']
+                except:
+                    value['read'] = 0
+
+                # get write size on this interval #
+                try:
+                    value['write'] -= self.prevStorageData[dev]['write']
+                except:
+                    value['write'] = 0
 
 
 
