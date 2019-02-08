@@ -10439,6 +10439,7 @@ class SystemManager(object):
 
         # help #
         if len(sys.argv) <= 1 or \
+            '-help' in sys.argv or \
             '--help' in sys.argv or \
             '-h' in sys.argv:
 
@@ -24413,7 +24414,7 @@ class ThreadAnalyzer(object):
         'lastMem': int(0), 'memDiff': int(0), 'blk': int(0), \
         'minMem': int(0), 'maxMem': int(0), 'minVss': int(0), \
         'maxVss': int(0), 'blkrd': int(0), 'blkwr': int(0)}
-        
+
     init_procIntData = \
         {'cpu': int(0), 'cpuMax': int(0), 'cpuMin': int(-1), \
         'cpuAvg': int(0), 'mem': int(0), 'memDiff': int(0), \
@@ -25265,6 +25266,23 @@ class ThreadAnalyzer(object):
                     # save previous info #
                     gpuUsage[gname] = intervalList
 
+                    '''
+                    gpuUsage[gname] = {}
+
+                    gpuUsage[gname]['usage'] = intervalList
+                    gpuList = list(map(int, intervalList.split()))
+
+                    if len(gpuList) == 0:
+                        gpuUsage[gname]['minimum'] = 0
+                        gpuUsage[gname]['average'] = 0
+                        gpuUsage[gname]['maximum'] = 0
+                    else:
+                        gpuUsage[pname]['minimum'] = min(gpuList)
+                        gpuUsage[pname]['average'] = \
+                            sum(gpuList) / len(gpuList)
+                        gpuUsage[pname]['maximum'] = max(gpuList)
+                    '''
+
         # parse memory of processes #
         if not logBuf[finalLine-1].startswith('[Top Memory Info]'):
             # parse vss of processes #
@@ -25874,7 +25892,7 @@ class ThreadAnalyzer(object):
                             'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='olive', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat', \
-                            alpha=0.3))
+                            alpha=0.3), horizontalalignment='center')
                         break
 
             #-------------------- Total CPU usage --------------------#
@@ -25909,7 +25927,7 @@ class ThreadAnalyzer(object):
                             'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                             fontsize=5, color='pink', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat',\
-                            alpha=0.3))
+                            alpha=0.3), horizontalalignment='center')
                         break
 
                 # draw total cpu graph #
@@ -25936,7 +25954,8 @@ class ThreadAnalyzer(object):
                     text(timeline[idx], cpuUsage[maxIdx], \
                         'max: %d%% / avg: %.1f%%' % (maxUsage, avgUsage),\
                         fontsize=5, color='red', fontweight='bold',\
-                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+                        bbox=dict(boxstyle='round', facecolor='wheat', \
+                        alpha=0.3), horizontalalignment='center')
                     break
 
             #-------------------- Process CPU usage --------------------#
@@ -25994,7 +26013,8 @@ class ThreadAnalyzer(object):
                 maxPer = '[max:%s+%s/avg:%s]' % (maxCpuPer, maxBlkPer, avgUsage)
                 ilabel = '%s %s' % (idx, maxPer)
                 text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
-                    fontsize=3, color=color, fontweight='bold')
+                    fontsize=3, color=color, fontweight='bold',\
+                    horizontalalignment='center')
                 labelList.append(idx)
 
             '''
@@ -30082,9 +30102,17 @@ class ThreadAnalyzer(object):
                 TA.procTotData['total'].setdefault('gpu', dict())
 
                 try:
-                    TA.procTotData['total']['gpu'][gpu] += usage
+                    TA.procTotData['total']['gpu'][gpu]['usage'] += usage
+
+                    if TA.procTotData['total']['gpu'][gpu]['min'] > usage:
+                        TA.procTotData['total']['gpu'][gpu]['min'] = usage
+                    elif TA.procTotData['total']['gpu'][gpu]['max'] < usage:
+                        TA.procTotData['total']['gpu'][gpu]['max'] = usage
                 except:
-                    TA.procTotData['total']['gpu'][gpu] = usage
+                    TA.procTotData['total']['gpu'][gpu] = dict()
+                    TA.procTotData['total']['gpu'][gpu]['usage'] = usage
+                    TA.procTotData['total']['gpu'][gpu]['min'] = usage
+                    TA.procTotData['total']['gpu'][gpu]['max'] = usage
 
                 try:
                     TA.procIntData[index]['total']['gpu'][gpu] = usage
@@ -30543,7 +30571,7 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        gpuInfo = "{0:^16} | {1:^3} |".format('GPU', 'Avg')
+        gpuInfo = "{0:^16} | {1:^12} |".format('GPU', 'Min/Avg/Max')
         gpuInfoLen = len(gpuInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -30562,13 +30590,16 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print gpu usage #
-        for gpu, total in ThreadAnalyzer.procTotData['total']['gpu'].items():
+        for gpu, stat in ThreadAnalyzer.procTotData['total']['gpu'].items():
             try:
-                avg = total / len(ThreadAnalyzer.procIntData)
+                avg = stat['usage'] / len(ThreadAnalyzer.procIntData)
             except:
                 avg = 0
 
-            gpuInfo = "{0:>16} | {1:>3} |".format(gpu, avg)
+            # get stats #
+            stats = '%d/%d/%d' % (stat['min'], avg, stat['max'])
+
+            gpuInfo = "{0:>16} | {1:^12} |".format(gpu, stats)
             gpuInfoLen = len(gpuInfo)
             maxLineLen = SystemManager.lineLength
 
