@@ -14796,17 +14796,34 @@ Copyright:
                 SystemManager.printStreamEnable == False):
             try:
                 if sys.platform.startswith('linux'):
-                    SystemManager.pipeForPrint = os.popen('less -FRSX', 'w')
+                    if SystemManager.which('less'):
+                        defopt = '-FRSXM'
+
+                        # verify pager option support #
+                        ret = os.popen(\
+                            'echo | less %s 2>&1' % defopt, 'r').read()
+                        if len(ret) == 1:
+                            poption = 'less %s' % defopt
+                        else:
+                            poption = 'less'
+
+                        # run less as pager #
+                        SystemManager.pipeForPrint = \
+                            os.popen(poption, 'w')
+                    elif SystemManager.which('more'):
+                        SystemManager.pipeForPrint = \
+                                os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
-                    SystemManager.pipeForPrint = os.popen('more', 'w')
+                    SystemManager.pipeForPrint = \
+                        os.popen('more', 'w')
                 else:
                     # no supported OS #
-                    pass
+                    SystemManager.pipeForPrint = False
             except:
-                SystemManager.printError(\
-                    "Fail to find pager, "
-                    "use -o option to save output into file\n")
-                sys.exit(0)
+                err = sys.exc_info()[1]
+                SystemManager.printWarning(\
+                    "Fail to use pager because %s" % \
+                        ' '.join(list(map(str, err.args))), True)
 
         # pager output #
         if SystemManager.pipeForPrint:
