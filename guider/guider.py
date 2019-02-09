@@ -21661,8 +21661,13 @@ class Debugger(object):
 
             argText = ', '.join(args)
 
+            # get diff time #
+            diff = time.time() - self.start
+
             SystemManager.pipePrint(\
-                '%s(%s) ' % (name, argText), newline=False, flush=True)
+                '%3.6f %s(%s) ' % \
+                (diff, name, argText), newline=False, flush=True)
+
         # exit #
         elif status == 'exit':
             # set next status #
@@ -21695,6 +21700,7 @@ class Debugger(object):
             SystemManager.pipePrint('= %s %s' % (retval, err), flush=True)
 
             self.clearArgs()
+
         else:
             SystemManager.printError(\
                 'Fail to recognize syscall status')
@@ -21715,6 +21721,7 @@ class Debugger(object):
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
         self.wait = wait
+        self.start = 0
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.pbufsize = SystemManager.ttyCols >> 1
@@ -21764,6 +21771,9 @@ class Debugger(object):
 
         SystemManager.pipePrint('')
 
+        # set start time #
+        self.start = time.time()
+
         # enter trace loop #
         while 1:
             # set status #
@@ -21802,6 +21812,7 @@ class Debugger(object):
                         # toDo: insert instruction tracing code #
 
                         self.status = previous
+
                 # syscall #
                 elif stat == sigTrapIdx | 0x80:
                     # filter syscall #
@@ -21820,6 +21831,7 @@ class Debugger(object):
 
                     # interprete syscall context #
                     self.handleSyscall()
+
                 # stop signal #
                 elif stat == sigStopIdx:
                     self.status = 'stop'
@@ -21831,23 +21843,27 @@ class Debugger(object):
                     self.ptrace(cmd, 0, 0)
 
                     continue
+
                 # kill signal #
                 elif stat == sigKillIdx or stat == sigSegvIdx:
                     SystemManager.printError(\
                         'Terminated thread %s because of %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
                     sys.exit(0)
+
                 # exit #
                 elif stat == -1:
                     SystemManager.printError(\
                         'Terminated thread %s' % pid)
                     sys.exit(0)
+
                 # other #
                 else:
                     SystemManager.printWarning(\
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
                     raise Exception()
+
             except SystemExit:
                 return
             except:
@@ -22001,10 +22017,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
-        if not ret or ret < 0:
-            return None
+        if ret >= 0:
+            return True
         else:
-            return self.regs
+            return False
 
 
 
