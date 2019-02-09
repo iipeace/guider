@@ -21196,7 +21196,7 @@ class Debugger(object):
 
 
 
-    def unsetBreakpoint(self, addr):
+    def delBreakpoint(self, addr):
         if addr not in self.breakList:
             SystemManager.printWarning(\
                 'No breakpoint registered with addr %s' % addr, True)
@@ -21282,8 +21282,9 @@ class Debugger(object):
         wordSize = ConfigManager.wordSize
 
         if addr % wordSize:
-            SystemManager.printError(\
-                "Fail to access %s memory because of unaligned address" % addr)
+            SystemManager.printError((\
+                "Fail to access %s memory "
+                "because of unaligned address") % addr)
             return
 
         return self.ptrace(cmd, addr, data)
@@ -23841,6 +23842,7 @@ Section header string table index: %d
         e_shdynstr = -1
         e_shdynamic = -1
         e_shversym = -1
+        e_shverneed = -1
         e_shverdef = -1
         e_shrellist = []
         e_shrelalist = []
@@ -24014,7 +24016,8 @@ Section header string table index: %d
                 sh_name, sh_type, sh_flags, sh_addr, \
                     sh_offset, sh_size, sh_link, sh_info, \
                     sh_addralign, sh_entsize  = \
-                    self.getSectionInfo(fd, e_shoff + e_shentsize * e_shverneed)
+                    self.getSectionInfo(\
+                        fd, e_shoff + e_shentsize * e_shverneed)
 
                 # read .gnu.version_r data #
                 fd.seek(sh_offset)
@@ -24063,11 +24066,13 @@ Section header string table index: %d
                 target = dynsym_section[i*sh_entsize:(i+1)*sh_entsize]
                 # 32-bit #
                 if self.is32Bit:
-                    st_name, st_value, st_size, st_info, st_other, st_shndx = \
+                    st_name, st_value, st_size, \
+                        st_info, st_other, st_shndx = \
                         struct.unpack('IIIBBH', target)
                 # 64-bit #
                 else:
-                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                    st_name, st_info, st_other, \
+                        st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', target)
 
                 # get symbol string #
@@ -24150,12 +24155,14 @@ Section header string table index: %d
 
             for i in range(0, int(sh_size / sh_entsize)):
                 if self.is32Bit:
-                    st_name, st_value, st_size, st_info, st_other, st_shndx = \
+                    st_name, st_value, st_size, \
+                        st_info, st_other, st_shndx = \
                         struct.unpack('IIIBBH', \
                         sym_section[i*sh_entsize:(i+1)*sh_entsize])
                 # 64-bit #
                 else:
-                    st_name, st_info, st_other, st_shndx, st_value, st_size = \
+                    st_name, st_info, st_other, \
+                        st_shndx, st_value, st_size = \
                         struct.unpack('IBBHQQ', \
                         sym_section[i*sh_entsize:(i+1)*sh_entsize])
 
