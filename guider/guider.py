@@ -9547,8 +9547,34 @@ class SystemManager(object):
 
 
     @staticmethod
+    def shrinkHeap():
+        if not sys.platform.startswith('linux'):
+            return
+
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', False)
+        if not ctypes:
+            return
+        from ctypes import cdll, POINTER, Structure
+
+        # try to shrink heap by malloc_trim() #
+        try:
+            # load standard libc library #
+            if not SystemManager.libcObj:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+
+            # int malloc_trim (size_t pad) #
+            ret = SystemManager.libcObj.malloc_trim(0)
+        except:
+            SystemManager.printWarning(\
+                "Fail to shrink heap area because of malloc_trim fail")
+
+
+
+    @staticmethod
     def setMaxFd():
-        if sys.platform.startswith('linux') is False:
+        if not sys.platform.startswith('linux'):
             return
 
         '''
@@ -9912,7 +9938,7 @@ class SystemManager(object):
 
     @staticmethod
     def setComm(comm):
-        if sys.platform.startswith('linux') is False:
+        if not sys.platform.startswith('linux'):
             return
 
         try:
@@ -11827,7 +11853,8 @@ Copyright:
         try:
             # load standard libc library #
             if not SystemManager.libcObj:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
 
             if type(syscall) is int:
                 nrSyscall = syscall
@@ -37989,6 +38016,9 @@ def main(args=None):
 
         # set default signal #
         SystemManager.setDefaultSignal()
+
+    # shrink heap #
+    SystemManager.shrinkHeap()
 
     # check commands #
     SystemManager.checkCmdMode()
