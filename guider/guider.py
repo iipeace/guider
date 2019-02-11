@@ -20499,9 +20499,22 @@ Copyright:
         for time in list(self.diskData.keys()):
             self.diskInfo[time] = {}
             for l in self.diskData[time]:
-                major, minor, name, readComplete, readMerge, sectorRead, \
-                readTime, writeComplete, writeMerge, sectorWrite, writeTime, \
-                 currentIO, ioTime, ioWTime = l.split()
+                values = l.split()
+
+                if len(values) == 14:
+                    major, minor, name, readComplete, readMerge, sectorRead, \
+                    readTime, writeComplete, writeMerge, sectorWrite, \
+                    writeTime, currentIO, ioTime, ioWTime = l.split()
+                # kernel 4.18+ #
+                elif len(values) == 18:
+                    major, minor, name, readComplete, readMerge, sectorRead, \
+                    readTime, writeComplete, writeMerge, sectorWrite, \
+                    writeTime, currentIO, ioTime, ioWTime, \
+                    discComplete, discMerged, sectorDisc, discTime = l.split()
+                else:
+                    SystemManager.printWarning(\
+                        "Fail to parse diskstat")
+                    continue
 
                 self.diskInfo[time][name] = dict()
                 diskInfoBuf = self.diskInfo[time][name]
