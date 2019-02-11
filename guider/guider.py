@@ -9304,8 +9304,7 @@ class SystemManager(object):
     wordSize = 4
     isLinux = True
     isAndroid = False
-    isRootMode = None
-    isHelpMode = False
+    helpEnable = False
     drawMode = False
     archOption = None
     mountPath = None
@@ -9437,6 +9436,7 @@ class SystemManager(object):
     tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
+    freeMemEnable = False
     blockEnable = False
     lockEnable = False
     userEnable = True
@@ -10421,6 +10421,22 @@ class SystemManager(object):
         if sys.platform.startswith('linux'):
             SystemManager.isLinux = True
 
+            # environment variables #
+            try:
+                # set default terminal to xterm #
+                os.environ['TERM'] = 'xterm'
+
+                # set run type #
+                if "REMOTERUN" in os.environ:
+                    SystemManager.encodeEnable = False
+                    SystemManager.remoteRun = True
+
+                # set encode type #
+                if 'tty' in os.ttyname(sys.stdout.fileno()):
+                    SystemManager.encodeEnable = False
+            except:
+                pass
+
             # android #
             if 'ANDROID_ROOT' in os.environ:
                 SystemManager.isAndroid = True
@@ -10470,7 +10486,7 @@ class SystemManager(object):
             '-h' in sys.argv:
 
             # enable help mode #
-            SystemManager.isHelpMode = True
+            SystemManager.helpEnable = True
 
             # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
@@ -10545,7 +10561,7 @@ OPTIONS:
                 f:float | R:freport
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print | P:perf
-                W:wchan | n:net | t:truncate
+                W:wchan | n:net | t:truncate | a:memAvailable
                     '''
 
                 drawSubStr = '''
@@ -11877,13 +11893,10 @@ Copyright:
 
     @staticmethod
     def isRoot():
-        if not SystemManager.isRootMode:
-            if os.geteuid() == 0:
-                SystemManager.isRootMode = True
-            else:
-                SystemManager.isRootMode = False
-
-        return SystemManager.isRootMode
+        if os.geteuid() == 0:
+            return True
+        else:
+            return False
 
 
 
@@ -14791,7 +14804,7 @@ Copyright:
         # pager initialization #
         if (SystemManager.pipeForPrint == \
                 SystemManager.printFile == None) and \
-            (SystemManager.isHelpMode or \
+            (SystemManager.helpEnable or \
                 SystemManager.isTopMode() == \
                 SystemManager.printStreamEnable == False):
             try:
@@ -15280,6 +15293,9 @@ Copyright:
 
                 if options.rfind('e') > -1:
                     SystemManager.encodeEnable = False
+
+                if options.rfind('a') > -1:
+                    SystemManager.freeMemEnable = True
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -18878,9 +18894,7 @@ Copyright:
                 ret = SystemManager.guiderObj.sched_setscheduler(\
                     pid, argPolicy, argPriority)
             if ret != 0:
-                SystemManager.printError(\
-                    "Fail to set priority of %d as %s[%s]" % \
-                    (pid, pri, upolicy))
+                policy = upolicy
                 raise Exception()
 
             # set nice value #
@@ -18894,21 +18908,20 @@ Copyright:
                     ret = SystemManager.guiderObj.setpriority(\
                         0, pid, argPriority)
                 if ret != 0:
-                    SystemManager.printError(\
-                        "Fail to set priority of %d as %s[%s]" % \
-                        (pid, pri, upolicy))
+                    policy = upolicy
                     raise Exception()
 
             SystemManager.printInfo(\
                 'priority of task %d is changed to %d[%s]' % \
                 (pid, pri, upolicy))
         except:
-            err = ''
-            if SystemManager.isRoot() is False:
-                err = ', it needs root permission to make priority higher'
-            SystemManager.printWarning(\
-                'Fail to set priority of %s as %s[%s]%s' % \
-                (pid, pri, policy, err))
+            err = "Fail to set priority of %d as %s[%s]" % \
+                (pid, pri, upolicy)
+
+            if not SystemManager.isRoot():
+                err += ', it requires root permission to make priority higher'
+
+            SystemManager.printWarning(err, True)
             return
 
 
@@ -30438,11 +30451,17 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint('\n[Top Summary Info]\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
+        # check available memory type #
+        if SystemManager.freeMemEnable:
+            memTitle = 'Free/User/Cache'
+        else:
+            memTitle = 'Avail/User/Cache'
+
         SystemManager.pipePrint((\
             "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | "
             "{6:^4} | {7:^9} | {8:^5} | {9:^6} | {10:^6} | {11:^8} | "
             "{12:^4} | {13:^8} |\n").\
-            format('IDX', 'Interval', 'CPU', 'Avail/User/Cache', \
+            format('IDX', 'Interval', 'CPU', memTitle, \
                 'BlkRW', 'Blk', 'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', \
                 'NrIRQ', 'NrTask', 'NrCr', 'Network'))
         SystemManager.pipePrint("%s\n" % twoLine)
@@ -35383,6 +35402,9 @@ class ThreadAnalyzer(object):
 
         # available memory #
         try:
+            if SystemManager.freeMemEnable:
+                raise Exception()
+
             availMem = memData['MemAvailable'] >> 10
             if 'MemAvailable' in prevMemData:
                 availMemDiff = \
@@ -35617,6 +35639,12 @@ class ThreadAnalyzer(object):
         except:
             SystemManager.printWarning("Fail to get etcMem")
 
+        # check available memory type #
+        if SystemManager.freeMemEnable:
+            memTitle = ' MemF'
+        else:
+            memTitle = ' MemA'
+
         # print system status menu #
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
@@ -35625,7 +35653,7 @@ class ThreadAnalyzer(object):
             "{11:^6}({12:^4}/{13:^7})|{14:^9}|{15:^7}|{16:^7}|"\
             "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            "Mem", "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
+            memTitle, "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
             "PgRclm", "BlkRW", "NrFlt", "PrBlk", "NrSIRQ", "PgMlk", \
             "PgDrt", "Network")), oneLine)), newline = 3)
 
@@ -37985,6 +38013,9 @@ def main(args=None):
     # print logo #
     SystemManager.printRawTitle(big=True)
 
+    # check environment #
+    SystemManager.checkEnv()
+
     # print help #
     SystemManager.printHelp()
 
@@ -37994,9 +38025,6 @@ def main(args=None):
 
     # check log level #
     SystemManager.warningEnable = SystemManager.findOption('v')
-
-    # check environment #
-    SystemManager.checkEnv()
 
     # set error logger #
     SystemManager.setErrorLogger()
@@ -38010,19 +38038,6 @@ def main(args=None):
     # set pid #
     SystemManager.getMaxPid()
     SystemManager.pid = os.getpid()
-
-    # environment variables #
-    try:
-        # set run type #
-        if "REMOTERUN" in os.environ:
-            SystemManager.encodeEnable = False
-            SystemManager.remoteRun = True
-
-        # set encode type #
-        if 'tty' in os.ttyname(sys.stdout.fileno()):
-            SystemManager.encodeEnable = False
-    except:
-        pass
 
     # set arch #
     SystemManager.setArch(SystemManager.getArch())
