@@ -3215,7 +3215,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission analyze pages")
             sys.exit(0)
@@ -9660,7 +9660,7 @@ class SystemManager(object):
             sys.exit(0)
 
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to kill tasks")
             sys.exit(0)
@@ -9703,7 +9703,7 @@ class SystemManager(object):
             sys.exit(0)
 
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to set cpu affinity of tasks")
             sys.exit(0)
@@ -9761,7 +9761,7 @@ class SystemManager(object):
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
 
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to set cpu affinity of tasks")
             sys.exit(0)
@@ -9784,7 +9784,7 @@ class SystemManager(object):
                 "input tids in format")
             sys.exit(0)
 
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to get cpu affinity of tasks")
             sys.exit(0)
@@ -9819,7 +9819,7 @@ class SystemManager(object):
             str(pids[0]).isdigit() and \
             SystemManager.pid == int(pids[0]):
             pass
-        elif SystemManager.isRoot() is False:
+        elif not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to set affinity of other thread")
             return
@@ -11490,6 +11490,33 @@ Examples:
         # {0:1} {1:1} -g 1234:10, 1235:20
                     '''.format(cmd, mode)
 
+                # setcpu #
+                elif SystemManager.isSetCpuMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <CORE:CLOCK:GOVERNOR> [OPTIONS] [--help]
+
+Description:
+    Set cpu clock and governor
+
+OPTIONS:
+        -g  <CORE:CLOCK:GOVERNOR>   set filter
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Set the clock of cpu1 to 10000000HZ and the governor of cpu1 to userspace
+        # {0:1} {1:1} -g 1:10000000:userspace
+
+    - Set the clock of cpu0 to 10000000HZ
+        # {0:1} {1:1} -g 0:10000000
+
+    - Set the governor of cpu2 to performance
+        # {0:1} {1:1} -g 2:0:performance
+                    '''.format(cmd, mode)
+
                 # convert #
                 elif SystemManager.isConvertMode():
                     helpStr = '''
@@ -11701,14 +11728,13 @@ COMMAND:
                 wsstop      <memory>
                 reptop      <json>
                 filetop     <file>
+                strace      <syscall>
 
     [profile]   record      <thread>
                 funcrecord  <function>
                 filerecord  <file>
                 syscrecord  <syscall>
                 sysrecord   <system>
-
-    [trace]     strace      <syscall>
                 mem         <page>
 
     [visual]    draw        <image>
@@ -11718,27 +11744,27 @@ COMMAND:
                 rssdraw     <rss>
                 leakdraw    <leak>
                 iodraw      <I/O>
+                convert     <text>
 
-    [control]   kill        <signal>
+    [util]      kill        <signal>
                 pause       <thread>
                 cpulimit    <cpu>
+                setcpu      <clock>
                 setsched    <priority>
                 getaffinity <affinity>
                 setaffinity <affinity>
-
-    [test]      alloctest   <mem>
-
-    [util]      convert     <text>
                 printenv    <env>
                 readelf     <file>
                 addr2line   <symbol>
 
-    [comm]      list        <list>
+    [run]       list        <list>
                 start       <signal>
                 send        <signal>
                 event       <event>
                 server      <server>
                 client      <client>
+
+    [test]      alloctest   <mem>
 
 FILE:
     Profile file (e.g. guider.dat)
@@ -11922,7 +11948,7 @@ Copyright:
                 nrType, nrConfig, pid, cpu, -1, 0)
             if fd < 0:
                 # check root permission #
-                if SystemManager.isRoot() is False:
+                if not SystemManager.isRoot():
                     SystemManager.printWarning(\
                         'Fail to get root permission to open perf event')
                     return
@@ -12271,7 +12297,7 @@ Copyright:
 
         if fd < 0:
             # check root permission #
-            if SystemManager.isRoot() is False:
+            if not SystemManager.isRoot():
                 SystemManager.printWarning(\
                     'Fail to get root permission to open perf event')
                 return
@@ -12463,7 +12489,7 @@ Copyright:
     @staticmethod
     def initSystemPerfEvents():
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.perfEnable = False
             return
         # check configuration #
@@ -15341,7 +15367,7 @@ Copyright:
 
                 if options.rfind('b') > -1:
                     procPath = SystemManager.procPath
-                    if SystemManager.isRoot() is False:
+                    if not SystemManager.isRoot():
                         SystemManager.printError(\
                             "Fail to get root permission to analyze block I/O")
                         sys.exit(0)
@@ -15360,7 +15386,7 @@ Copyright:
                         sys.exit(0)
 
                 if options.rfind('S') > -1:
-                    if SystemManager.isRoot() is False:
+                    if not SystemManager.isRoot():
                         SystemManager.printError(\
                             "Fail to get root permission to analyze PSS")
                         sys.exit(0)
@@ -15368,7 +15394,7 @@ Copyright:
                     SystemManager.sort = 'm'
 
                 if options.rfind('u') > -1:
-                    if SystemManager.isRoot() is False:
+                    if not SystemManager.isRoot():
                         SystemManager.printError(\
                             "Fail to get root permission to analyze USS")
                         sys.exit(0)
@@ -16380,6 +16406,18 @@ Copyright:
 
 
     @staticmethod
+    def isSetCpuMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'setcpu':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPerfTopMode():
         if len(sys.argv) == 1:
             return False
@@ -16668,6 +16706,10 @@ Copyright:
         if SystemManager.isAllocTestMode():
             SystemManager.doAllocTest()
 
+        # SETCPU MODE #
+        if SystemManager.isSetCpuMode():
+            SystemManager.doSetCpu()
+
         # SETSCHED MODE #
         if SystemManager.isSetSchedMode():
             SystemManager.doSetSched()
@@ -16834,7 +16876,7 @@ Copyright:
 
     @staticmethod
     def checkPerfTopCond():
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to use PMU")
             return False
@@ -16855,7 +16897,7 @@ Copyright:
 
     @staticmethod
     def checkMemTopCond():
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to analyze memory details")
             return False
@@ -16961,7 +17003,7 @@ Copyright:
                 "wrong option for wss monitoring, "
                 "use also -g option to track memory working set")
             return False
-        elif SystemManager.isRoot() is False:
+        elif not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to clear refcnts")
             return False
@@ -16972,7 +17014,7 @@ Copyright:
 
     @staticmethod
     def checkStackTopCond():
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to sample stack")
             return False
@@ -17469,7 +17511,7 @@ Copyright:
                 "input {tid:percentage} with -g option")
             sys.exit(0)
 
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to limit cpu of tasks")
             sys.exit(0)
@@ -17891,7 +17933,7 @@ Copyright:
         # search address of local guider process #
         if not addr:
             # check permission #
-            if SystemManager.isRoot() is False:
+            if not SystemManager.isRoot():
                 SystemManager.printError(\
                     "Fail to get root permission to get server info")
                 sys.exit(0)
@@ -18097,6 +18139,172 @@ Copyright:
 
 
     @staticmethod
+    def doSetCpu():
+        freqPath = '/sys/devices/system/cpu'
+
+        # parse options #
+        SystemManager.parseAnalOption()
+
+        # check tid #
+        if not SystemManager.isRoot():
+            SystemManager.printError(\
+                "Fail to get root permission to set cpu clock")
+            sys.exit(0)
+        elif not os.path.isdir(freqPath):
+            SystemManager.printError(\
+                "Fail to find cpu node for governor")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) == 0:
+            SystemManager.printError(\
+                "No core value with -g option")
+            sys.exit(0)
+
+        # parse values #
+        targetlist = []
+        for val in SystemManager.filterGroup:
+            vals = val.split(':')
+
+            # check error #
+            if (len(vals) < 2 or len(vals) > 3) or \
+                not vals[0].isdigit() or not vals[1].isdigit():
+                SystemManager.printError(\
+                ("wrong option value to set cpu clock, "
+                "input CORE:CLOCK(HZ){:GOVERNOR} in format"))
+                sys.exit(0)
+
+            targetlist.append(vals)
+
+        # get available cpu list #
+        cpulist = {}
+        for f in os.listdir(freqPath):
+            if not f.startswith('cpu'):
+                continue
+
+            cpu = f.split('cpu')[1]
+            if not cpu.isdigit():
+                continue
+
+            # set path #
+            commonpath = '%s/%s/cpufreq' % (freqPath, f)
+            affectpath = '%s/affected_cpus' % commonpath
+            govpath = '%s/scaling_available_governors' % commonpath
+            curgovpath = '%s/scaling_governor' % commonpath
+            availfreqpath = '%s/scaling_available_frequencies' % commonpath
+            curfreqpath = '%s/scaling_cur_freq' % commonpath
+            minfreqpath = '%s/scaling_min_freq' % commonpath
+            maxfreqpath = '%s/scaling_max_freq' % commonpath
+
+            cpulist[cpu] = dict()
+
+            # affected_cpus #
+            try:
+                with open(affectpath, 'r') as fd:
+                    cpulist[cpu]['affect'] = fd.readlines()[0].split()
+            except:
+                pass
+
+            # available_governors #
+            try:
+                with open(govpath, 'r') as fd:
+                    cpulist[cpu]['governors'] = fd.readlines()[0].split()
+            except:
+                pass
+
+            # available_freq #
+            try:
+                with open(availfreqpath, 'r') as fd:
+                    cpulist[cpu]['avail'] = \
+                        list(map(int, fd.readlines()[0].split()))
+                    cpulist[cpu]['avail'].sort()
+                    cpulist[cpu]['avail'] = \
+                        list(map(str, cpulist[cpu]['avail']))
+            except:
+                pass
+
+            # freq #
+            try:
+                with open(minfreqpath, 'r') as fd:
+                    cpulist[cpu]['min'] = fd.readlines()[0]
+                with open(maxfreqpath, 'r') as fd:
+                    cpulist[cpu]['max'] = fd.readlines()[0]
+            except:
+                cpulist.pop(cpu, None)
+
+        # set cpu clock #
+        for vals in targetlist:
+            if len(vals) == 2:
+                core, clock = vals
+                gov = None
+            elif len(vals) == 3:
+                core, clock, gov = vals
+
+            # check support #
+            if not core in cpulist:
+                SystemManager.printError((\
+                    "Fail to set cpu%s clock because "
+                    "it doesn't support governor") % core)
+                sys.exit(0)
+
+            # check available clock #
+            elif ('avail' in cpulist[core] and \
+                int(clock) < 0 and not clock in cpulist[core]['avail']) or \
+                (gov and not gov in cpulist[core]['governors']):
+
+                avail = ' '.join(cpulist[core]['avail'])
+                governors = ' '.join(cpulist[core]['governors'])
+                SystemManager.printError((\
+                    "Fail to set cpu%s clock because it only supports \n\t"
+                    "[%s] clock list \n\t[%s] governor list") % \
+                        (core, avail, governors))
+                sys.exit(0)
+
+            # set path #
+            commonpath = '%s/cpu%s/cpufreq' % (freqPath, core)
+            curgovpath = '%s/scaling_governor' % commonpath
+            minfreqpath = '%s/scaling_min_freq' % commonpath
+            maxfreqpath = '%s/scaling_max_freq' % commonpath
+
+
+            # set clock range #
+            try:
+                if int(clock) > 0:
+                    with open(minfreqpath, 'w') as fd:
+                        fd.write(clock)
+                    with open(maxfreqpath, 'w') as fd:
+                        fd.write(clock)
+                if gov:
+                    with open(curgovpath, 'w') as fd:
+                        fd.write(gov)
+            except:
+                err = sys.exc_info()[1]
+                SystemManager.printError(\
+                    "Fail to set cpu%s clock because %s" % \
+                    (core, ' '.join(list(map(str, err.args)))))
+                sys.exit(0)
+
+            # cur_governor #
+            try:
+                with open(curgovpath, 'r') as fd:
+                    curgovernor = fd.readlines()[0].split()[0]
+            except:
+                curgovernor = '?'
+
+            # get affected cpu list #
+            if 'affect' in cpulist[core] and len(cpulist[core]['affect']) > 1:
+                affectstring = 'and it also affects cpu [%s]' % \
+                    ', '.join(cpulist[core]['affect'])
+            else:
+                affectstring = ''
+
+            SystemManager.printInfo(\
+                "the clock speed of cpu%s(%s) is set to %s successfuly %s" %
+                    (core, curgovernor, clock, affectstring))
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def doSetSched():
         isProcess = False
         SystemManager.warningEnable = True
@@ -18124,7 +18332,7 @@ Copyright:
         SystemManager.parseAnalOption()
 
         # check tid #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to print environment variables")
             sys.exit(0)
@@ -18167,7 +18375,7 @@ Copyright:
         execCmd = None
 
         # check tid #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to trace systemcall")
             sys.exit(0)
@@ -18620,7 +18828,7 @@ Copyright:
             sys.exit(0)
 
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to set priority")
             sys.exit(0)
@@ -22003,7 +22211,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
     @staticmethod
     def pauseThreads(tlist):
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 'Fail to get root permission to pause threads')
             return
@@ -24954,7 +25162,7 @@ class ThreadAnalyzer(object):
 
             return [procFilter, fileFilter]
 
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to analyze opened files")
             sys.exit(0)
@@ -34901,7 +35109,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def saveProcSmapsData(path, tid):
         # check root permission #
-        if SystemManager.isRoot() is False:
+        if not SystemManager.isRoot():
             return
 
         buf = ''
@@ -36742,7 +36950,7 @@ class ThreadAnalyzer(object):
             "{14:^3}({15:^4}/{16:^4}/{17:^5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "VMem", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "MemV", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             sid, pgrp, "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), \
             newline = 3)
 
@@ -38155,7 +38363,7 @@ def main(args=None):
         #-------------------- FILE MODE --------------------#
         if SystemManager.isFileMode():
             # check permission #
-            if SystemManager.isRoot() is False:
+            if not SystemManager.isRoot():
                 SystemManager.printError(\
                     "Fail to get root permission to analyze linked files")
                 sys.exit(0)
