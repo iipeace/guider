@@ -9455,6 +9455,7 @@ class SystemManager(object):
     resetEnable = False
     warningEnable = False
     ttyEnable = False
+    selectEnable = True
     intervalEnable = 0
 
     functionEnable = False
@@ -17406,17 +17407,22 @@ Copyright:
 
 
     @staticmethod
-    def doUserInput():
+    def waitUserInput(wait=0):
+        # check condition #
+        if SystemManager.printFile or \
+            SystemManager.isReportTopMode() or \
+            not SystemManager.selectEnable:
+            return
+
         # get select object #
         selectObj = SystemManager.getPkg('select', False)
         if not selectObj:
+            SystemManager.selectEnable = False
             return
 
         try:
-            if not SystemManager.printFile and \
-                SystemManager.isReportTopMode() is False and \
-                selectObj.select(\
-                [sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+            if selectObj.select(\
+                [sys.stdin], [], [], wait) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
                 SystemManager.pipePrint((\
                     "[ Input command... "
@@ -17430,8 +17436,12 @@ Copyright:
 
                 # process user input #
                 SystemManager.procUserInput(sys.stdin.readline())
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
+
+        return True
 
 
 
@@ -18247,7 +18257,7 @@ Copyright:
 
             # check available clock #
             elif ('avail' in cpulist[core] and \
-                int(clock) < 0 and not clock in cpulist[core]['avail']) or \
+                int(clock) > 0 and not clock in cpulist[core]['avail']) or \
                 (gov and not gov in cpulist[core]['governors']):
 
                 avail = ' '.join(cpulist[core]['avail'])
@@ -25180,9 +25190,6 @@ class ThreadAnalyzer(object):
         time.sleep(1)
 
         while 1:
-            # pause and resume by enter key #
-            SystemManager.doUserInput()
-
             # collect file stats as soon as possible #
             self.saveFileStat()
 
@@ -25228,7 +25235,8 @@ class ThreadAnalyzer(object):
                 waitTime = SystemManager.intervalEnable - delayTime
 
             # wait for next interval #
-            time.sleep(waitTime)
+            if not SystemManager.waitUserInput(waitTime):
+                time.sleep(waitTime)
 
 
 
@@ -25254,9 +25262,6 @@ class ThreadAnalyzer(object):
                 self.handleServerResponse(ret)
 
                 continue
-
-            # pause and resume by enter key #
-            SystemManager.doUserInput()
 
             # collect system stats as soon as possible #
             self.saveSystemStat()
@@ -25308,7 +25313,8 @@ class ThreadAnalyzer(object):
                 self.sampleStack(waitTime)
             else:
                 # wait for next interval #
-                time.sleep(waitTime)
+                if not SystemManager.waitUserInput(waitTime):
+                    time.sleep(waitTime)
 
             # check request from client #
             self.checkServer()
@@ -34477,7 +34483,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printFileStat(self, nowFilter):
+    def printFileStat(self, filters):
         SystemManager.updateUptime()
 
         SystemManager.addPrint((\
@@ -34500,7 +34506,7 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: len(e[1]['fdList']), reverse=True)
 
-        procFilter, fileFilter = nowFilter
+        procFilter, fileFilter = filters
 
         # make parent list #
         if SystemManager.groupProcEnable:
@@ -34525,7 +34531,7 @@ class ThreadAnalyzer(object):
                     ppid = self.procData[idx]['stat'][self.ppidIdx]
 
                     # check current pid #
-                    if idx  == item:
+                    if idx == item:
                         exceptFlag = False
                         break
                     # check current thread comm #
