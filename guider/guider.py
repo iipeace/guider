@@ -8640,22 +8640,24 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def getProcMapInfo(pid):
+    def getProcMapInfo(pid, fd=None):
         path = '%s/%s/maps' % (SystemManager.procPath, pid)
 
-        # open maps #
-        try:
-            fd = open(path, 'r')
-        except:
-            SystemManager.printWarning('Fail to open %s' % (path))
-            return
+        if not fd:
+            # open maps #
+            try:
+                fd = open(path, 'r')
+            except:
+                SystemManager.printWarning(\
+                    'Fail to open %s to get process memory map' % path)
+                return
 
         # read maps #
+        fd.seek(0, 0)
         mapBuf = fd.readlines()
 
-        fileMap = dict()
-
         # parse and merge lines in maps #
+        fileMap = dict()
         for val in mapBuf:
             FileAnalyzer.mergeMapLine(val, fileMap)
 
@@ -11206,6 +11208,37 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -t write
                     '''.format(cmd, mode)
 
+                # utrace #
+                elif SystemManager.isUtraceMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Trace user functions
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+OPTIONS:
+        -e  <CHARACTER>             enable options
+              p:pipe | e:encode
+        -d  <CHARACTER>             disable options
+              e:encode
+        -u                          run in the background
+        -g  <COMM|TID{:FILE}>       set filter
+        -I  <COMMAND>               set command
+        -o  <DIR|FILE>              save output data
+        -m  <ROWS:COLS>             set terminal size
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                    '''
+
+                    helpStr +=  '''
+Examples:
+    - Trace user function calls for a specific thread
+        # {0:1} {1:1} -g 1234
+                    '''.format(cmd, mode)
+
                 # mem #
                 elif SystemManager.isMemMode():
                     helpStr = '''
@@ -11730,6 +11763,7 @@ COMMAND:
                 reptop      <json>
                 filetop     <file>
                 strace      <syscall>
+                utrace      <usercall>
 
     [profile]   record      <thread>
                 funcrecord  <function>
@@ -13780,10 +13814,13 @@ Copyright:
 
     @staticmethod
     def stopHandler(signum, frame):
-        if SystemManager.isFileMode() or SystemManager.isSystemMode():
+        if SystemManager.isFileMode() or \
+            SystemManager.isSystemMode():
             SystemManager.condExit = True
+
         elif SystemManager.isTopMode() or \
-            SystemManager.isStraceMode():
+            SystemManager.isStraceMode() or \
+            SystemManager.isUtraceMode():
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
 
@@ -13825,6 +13862,7 @@ Copyright:
 
             # do terminate #
             os._exit(0)
+
         else:
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
@@ -16359,6 +16397,18 @@ Copyright:
 
 
     @staticmethod
+    def isUtraceMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'utrace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintEnvMode():
         if len(sys.argv) == 1:
             return False
@@ -16565,7 +16615,8 @@ Copyright:
     def isRuntimeMode():
         if SystemManager.isRecordMode() or \
             SystemManager.isTopMode() or \
-            SystemManager.isStraceMode():
+            SystemManager.isStraceMode() or \
+            SystemManager.isUtraceMode():
             return True
         return False
 
@@ -16665,8 +16716,15 @@ Copyright:
                 symbol = binObj.getSymbolByOffset(offset)
                 if symbol == '??':
                     symbol = 'N/A'
+
+                soffset = str(offset)
+                if soffset.startswith('0x'):
+                    offset = soffset
+                else:
+                    offset = '0x%s' % soffset
+
                 SystemManager.pipePrint(\
-                    "{0:>18} {1:<1}".format('0x'+str(offset), symbol))
+                    "{0:>18} {1:<1}".format(offset, symbol))
 
             SystemManager.pipePrint(oneLine + '\n')
 
@@ -16722,6 +16780,10 @@ Copyright:
         # STRACE MODE #
         if SystemManager.isStraceMode():
             SystemManager.doStrace()
+
+        # UTRACE MODE #
+        if SystemManager.isUtraceMode():
+            SystemManager.doUtrace()
 
         # PRINTENV MODE #
         if SystemManager.isPrintEnvMode():
@@ -18418,6 +18480,59 @@ Copyright:
         # start tracing #
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+        except:
+            pass
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doUtrace():
+        # parse options #
+        SystemManager.parseAnalOption()
+
+        # no use pager #
+        SystemManager.printStreamEnable = True
+
+        # define wait usercall #
+        wait = None
+        execCmd = None
+
+        # check tid #
+        if not SystemManager.isRoot():
+            SystemManager.printError(\
+                "Fail to get root permission to trace usercall")
+            sys.exit(0)
+        elif SystemManager.sourceFile:
+            pid = None
+            execCmd = SystemManager.sourceFile.split()
+        elif len(SystemManager.filterGroup) == 0 and \
+            not SystemManager.sourceFile:
+            SystemManager.printError(\
+                "No tid with -g option or command with -I")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) == 0:
+            SystemManager.printError("No tid with -g option")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) > 1:
+            SystemManager.printError(\
+                "wrong option with -g, input only one tid")
+            sys.exit(0)
+        elif SystemManager.filterGroup[0].isdigit() is False:
+            SystemManager.printError(\
+                "wrong option with -g, input tid in integer format")
+            sys.exit(0)
+        else:
+            pid = int(SystemManager.filterGroup[0])
+
+        # run in the background #
+        if SystemManager.backgroundEnable:
+            SystemManager.runBackgroundMode()
+
+        # start tracing #
+        try:
+            Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
         except:
             pass
 
@@ -21262,10 +21377,20 @@ class Debugger(object):
         self.syscall = ''
         self.values = []
         self.args = []
+        self.mapFd = None
         self.pmap = None
+        self.needRescan = True
         self.fileList = []
         self.addrList = []
         self.breakList = {}
+
+        self.depth = 0
+        self.pc = None
+        self.lr = None
+        self.sp = None
+        self.fp = None
+        self.prevsp = None
+        self.prevCallInfo = None
 
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -21544,6 +21669,10 @@ class Debugger(object):
 
         plist = ConfigManager.PTRACE_TYPE
 
+        # continue the thread #
+        cmd = plist.index('PTRACE_CONT')
+        ret = self.ptrace(cmd, 0, 0)
+
         # detach the thread #
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
@@ -21787,43 +21916,96 @@ class Debugger(object):
 
 
 
-    def getSymbol(self, vaddr):
-        if not self.pid:
-            SystemManager.printError("Fail to get pid to get symbol")
+    def getVrangeBySymbol(self, symbol, fname=None):
+        if not fname in self.pmap:
             return
 
-        if not self.pmap:
+        vstart = self.pmap[fname]['vstart']
+        vend = self.pmap[fname]['vend']
+
+        # get elf object #
+        if fname not in ElfAnalyzer.cachedFiles:
+            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
+
+        fcache = ElfAnalyzer.cachedFiles[fname]
+
+        ret = fcache.getRangeBySymbol(symbol)
+        if not ret:
+            return None
+
+        # check executable type #
+        if not ElfAnalyzer.isRelocatableFile(fname):
+            start = ret[0]
+            end = ret[1]
+        else:
+            start = vstart + ret[0]
+            end = vstart + ret[1]
+
+        return [start, end]
+
+
+
+    def getSymbolInfo(self, vaddr):
+        if not self.pid:
+            SystemManager.printError("Fail to get pid to get symbol")
+            return None
+
+        # check of maps fd #
+        if not self.mapFd:
+            mpath = '%s/%s/maps' % (SystemManager.procPath, self.pid)
+            try:
+                self.mapFd = open(mpath, 'r')
+            except:
+                SystemManager.printWarning('Fail to open %s' % mpath)
+                return None
+
+        # scan process memory map #
+        if self.needRescan:
             # get process memory map #
-            self.pmap = FileAnalyzer.getProcMapInfo(self.pid)
+            self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
+            if not self.pmap:
+                return
 
             # get sorted lists from process memory map #
             self.fileList, self.addrList = self.getAddrLists()
             if len(self.fileList) == 0:
                 SystemManager.printWarning(\
-                    'Fail to get mapped file list to get symbol from addr')
+                    'Fail to get file-mapped list')
                 return None
 
-        # get name by address #
+            self.needRescan = True
+
+        # get file name by address #
         fname = self.getFileFromMap(vaddr)
         if not fname:
             SystemManager.printWarning(\
-                'Fail to get file name to get symbol from addr')
+                'Fail to get file name via addr %s' % hex(vaddr))
             return None
 
+        vstart = self.pmap[fname]['vstart']
+        vend = self.pmap[fname]['vend']
+
         # get offset in the file #
-        offset = vaddr - self.pmap[fname]['vstart']
+        offset = vaddr - vstart
         if offset < 0:
             SystemManager.printWarning(\
-                'Fail to get offset to get symbol from addr '
-                'because wrong process memory map')
+                'Fail to get offset in %s via vaddr '
+                'because wrong process memory map' % fname)
             return None
 
         # get elf object #
         if fname not in ElfAnalyzer.cachedFiles:
             ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
 
+        fcache = ElfAnalyzer.cachedFiles[fname]
+
+        # check executable type #
+        if not ElfAnalyzer.isRelocatableFile(fname):
+            offset = vaddr
+
         try:
-            return ElfAnalyzer.cachedFiles[fname].getSymbolByOffset(offset)
+            return [fcache.getSymbolByOffset(offset), \
+                fname, hex(offset).rstrip('L'), vstart, vend]
         except:
             return None
 
@@ -21871,6 +22053,76 @@ class Debugger(object):
             return self.regs.getdict()[self.sysreg]
         except:
             return None
+
+
+
+    def handleUsercall(self):
+        # get register set of target #
+        if not self.getRegs():
+            SystemManager.printError(\
+                "Fail to get register values of thread %d" % pid)
+            return
+
+        # check previous call boundary #
+        if self.prevCallInfo and \
+            self.pc >= self.prevCallInfo[2] and \
+            self.pc <= self.prevCallInfo[3]:
+            return
+
+        # get symbol info from program counter of target #
+        ret = self.getSymbolInfo(self.pc)
+        if type(ret) is list:
+            sym, fname, offset, fstart, fend = ret
+        else:
+            sym = ret
+            fname = '??'
+            offset = '??'
+            fstart = '??'
+            fend = '??'
+
+        # print current symbol #
+        if fname != '??':
+            # get filter addr #
+            if sym != '??':
+                vstart, vend = self.getVrangeBySymbol(sym, fname)
+            else:
+                vstart = vend = 0
+
+            # check contiguous unknown symbol #
+            if self.prevCallInfo:
+                if self.prevCallInfo[0] == sym:
+                    return
+                elif self.prevCallInfo[0].startswith('mmap'):
+                    self.needRescan = True
+
+            # save current call info as previous call #
+            self.prevCallInfo = [sym, fname, vstart, vend]
+
+            # toDo: add additional call stack info with lr #
+
+            # get diff time #
+            diff = time.time() - self.start
+
+            # check call relationship #
+            if not self.sp or not self.prevsp:
+                direction = '??'
+            elif self.sp > self.prevsp:
+                direction = '<-'
+
+                if self.depth > 0:
+                    self.depth -= 0
+            elif self.sp < self.prevsp:
+                direction = '->'
+
+                self.depth += 1
+            else:
+                direction = '--'
+
+            SystemManager.pipePrint(\
+                '%3.6f %32s (%s) [%s + %s]' % \
+                (diff, sym, direction, fname, offset))
+
+            self.prevsp = self.sp
 
 
 
@@ -22088,19 +22340,22 @@ class Debugger(object):
                 # trap #
                 if stat == sigTrapIdx:
                     # after execve() #
-                    if mode == 'syscall' and self.status == 'ready':
+                    if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
                         ret = self.ptrace(cmd, 0, 0)
                         self.status = 'enter'
                         continue
                     # inst #
-                    else:
+                    elif mode == 'inst':
                         previous = self.status
                         self.status = 'inst'
 
-                        # toDo: insert instruction tracing code #
+                        # interprete  user function call #
+                        self.handleUsercall()
 
                         self.status = previous
+                    else:
+                        continue
 
                 # syscall #
                 elif stat == sigTrapIdx | 0x80:
@@ -22306,6 +22561,28 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
+        # set registers #
+        if arch == 'arm':
+            self.fp = self.regs.r11
+            self.sp = self.regs.r13
+            self.lr = self.regs.r14
+            self.pc = self.regs.r15
+        elif arch == 'aarch64':
+            self.fp = self.regs.r29
+            self.lr = self.regs.r30
+            self.sp = self.regs.r31
+            self.pc = self.regs.r32
+        elif arch == 'x86':
+            self.fp = self.regs.ebp
+            self.sp = self.regs.esp
+            self.pc = self.regs.eip
+        elif arch == 'x64':
+            # no use rbp as frame pointer #
+            self.fp = self.regs.rbp
+            self.sp = self.regs.rsp
+            self.pc = self.regs.rip
+
+        # check ret value #
         if ret >= 0:
             return True
         else:
@@ -23507,6 +23784,18 @@ class ElfAnalyzer(object):
 
 
 
+    def getRangeBySymbol(self, symbol):
+        if symbol in self.attr['symTable']:
+            val = self.attr['symTable'][symbol]
+            return [val['value'], val['value'] + val['size']]
+        elif symbol in self.attr['dynsymTable']:
+            val = self.attr['dynsymTable'][symbol]
+            return [val['value'], val['value'] + val['size']]
+        else:
+            return None
+
+
+
     def getSymbolByOffset(self, offset):
         def bisect_left(a, x, lo=0, hi=None):
             # copied from python standard library bisect.py #
@@ -23525,7 +23814,12 @@ class ElfAnalyzer(object):
             self.mergeSymTable()
 
         try:
-            offset = int(offset, 16)
+            if type(offset) is str:
+                try:
+                    offset = int(offset, 16)
+                except:
+                    offset = int(offset)
+
             addrTable = self.sortedAddrTable
             symTable = self.sortedSymTable
 
