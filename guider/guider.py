@@ -22294,7 +22294,7 @@ class Debugger(object):
 
         # print message #
         SystemManager.printInfo(\
-            "Start tracing %s of thread %d" % (mode, pid))
+            "Start tracing %s of thread %d\n" % (mode, pid))
 
         # set trap event type #
         if self.isRunning:
@@ -22313,9 +22313,6 @@ class Debugger(object):
             cmd = plist.index('PTRACE_SINGLESTEP')
 
             try:
-                # stop target to print current call #
-                os.kill(pid, signal.SIGSTOP)
-
                 # interprete current user function call #
                 self.handleUsercall()
             except:
@@ -22324,8 +22321,6 @@ class Debugger(object):
             SystemManager.printError(\
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
-
-        SystemManager.pipePrint('')
 
         # enter trace loop #
         while 1:
