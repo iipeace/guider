@@ -4623,7 +4623,7 @@ class FunctionAnalyzer(object):
         subprocess = SystemManager.getPkg('subprocess')
 
         # Recognize binary type #
-        relocated = ElfAnalyzer.isRelocatableFile(binPath)
+        relocated = ElfAnalyzer.isRelocFile(binPath)
 
         # No file exist #
         if os.path.isfile(binPath) == False:
@@ -5068,7 +5068,7 @@ class FunctionAnalyzer(object):
 
                 # Set offset #
                 if offset:
-                    if ElfAnalyzer.isRelocatableFile(path):
+                    if ElfAnalyzer.isRelocFile(path):
                         self.posData[pos]['offset'] = offset
 
             # Save pos #
@@ -6148,7 +6148,7 @@ class FunctionAnalyzer(object):
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
                 int(data['endAddr'], 16) >= int(addr, 16):
-                if ElfAnalyzer.isRelocatableFile(data['binName']):
+                if ElfAnalyzer.isRelocFile(data['binName']):
                     # Return full path and offset in mapping table #
                     return SystemManager.rootPath + data['binName'], \
                         hex(int(addr, 16) - int(data['startAddr'], 16))
@@ -9417,7 +9417,7 @@ class SystemManager(object):
     irqEnable = False
     cpuEnable = True
     latEnable = cpuEnable
-    gpuEnable = False
+    gpuEnable = True
     memEnable = False
     rssEnable = False
     pssEnable = False
@@ -10559,12 +10559,13 @@ OPTIONS:
         -e  <CHARACTER>             enable options
                 m:memory | b:block | p:pipe | e:encode
                 t:thread | C:wfc | s:stack | w:wss | d:disk
-                P:Perf | G:gpu | i:irq | S:pss | u:uss
+                P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
                 f:float | R:freport
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print | P:perf
-                W:wchan | n:net | t:truncate | a:memAvailable
+                W:wchan | n:net | t:truncate | G:gpu
+                a:memAvailable
                     '''
 
                 drawSubStr = '''
@@ -15221,7 +15222,6 @@ Copyright:
                 SystemManager.gpuEnable = True
             else:
                 SystemManager.cpuEnable = False
-                SystemManager.gpuEnable = False
 
         if len(sys.argv) <= 2:
             return
@@ -15362,6 +15362,9 @@ Copyright:
                 if options.rfind('a') > -1:
                     SystemManager.freeMemEnable = True
 
+                if options.rfind('G') > -1:
+                    SystemManager.gpuEnable = False
+
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
                 SystemManager.removeEmptyValue(SystemManager.customCmd)
@@ -15391,9 +15394,6 @@ Copyright:
                 # no more options except for top mode #
                 if SystemManager.isTopMode() is False:
                     continue
-
-                if options.rfind('G') > -1:
-                    SystemManager.gpuEnable = True
 
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = True
@@ -21931,10 +21931,10 @@ class Debugger(object):
 
         ret = fcache.getRangeBySymbol(symbol)
         if not ret:
-            return None
+            return [0, 0]
 
         # check executable type #
-        if not ElfAnalyzer.isRelocatableFile(fname):
+        if not ElfAnalyzer.isRelocFile(fname):
             start = ret[0]
             end = ret[1]
         else:
@@ -21973,7 +21973,7 @@ class Debugger(object):
                     'Fail to get file-mapped list')
                 return None
 
-            self.needRescan = True
+            self.needRescan = False
 
         # get file name by address #
         fname = self.getFileFromMap(vaddr)
@@ -21988,6 +21988,9 @@ class Debugger(object):
         # get offset in the file #
         offset = vaddr - vstart
         if offset < 0:
+            # set variable to rescan process map #
+            self.needRescan = True
+
             SystemManager.printWarning(\
                 'Fail to get offset in %s via vaddr '
                 'because wrong process memory map' % fname)
@@ -22000,7 +22003,7 @@ class Debugger(object):
         fcache = ElfAnalyzer.cachedFiles[fname]
 
         # check executable type #
-        if not ElfAnalyzer.isRelocatableFile(fname):
+        if not ElfAnalyzer.isRelocFile(fname):
             offset = vaddr
 
         try:
@@ -22036,7 +22039,7 @@ class Debugger(object):
                 hi = len(a)
             while lo < hi:
                 mid = (lo+hi)//2
-                if a[mid] < x: lo = mid+1
+                if a[mid] <= x: lo = mid+1
                 else: hi = mid
             return lo
 
@@ -22119,7 +22122,7 @@ class Debugger(object):
                 direction = '--'
 
             SystemManager.pipePrint(\
-                '%3.6f %32s (%s) [%s + %s]' % \
+                '%3.6f %40s (%s) [%s + %s]' % \
                 (diff, sym, direction, fname, offset))
 
             self.prevsp = self.sp
@@ -23747,7 +23750,7 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def isRelocatableFile(path):
+    def isRelocFile(path):
         try:
             if path not in ElfAnalyzer.cachedFiles:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
@@ -23776,6 +23779,17 @@ class ElfAnalyzer(object):
         tempSymTable = copy.deepcopy(self.attr['symTable'])
         tempSymTable.update(self.attr['dynsymTable'])
 
+        # add PLT symbol #
+        if not ElfAnalyzer.isRelocFile(self.path):
+            pltinfo = self.getHeader('.plt')
+            if pltinfo:
+                tempSymTable['PLT'] = {
+                        'vis': 'DEFAULT', 'bind': 'GLOBAL', \
+                        'value': pltinfo['addr'], 'ndx': 17, 'type': 'OBJECT', \
+                        'size': pltinfo['size']}
+
+        self.mergedSymTable = tempSymTable
+
         # sort and convert table #
         for idx, item in sorted(tempSymTable.items(),\
             key=lambda e: e[1]['value'], reverse=False):
@@ -23785,6 +23799,14 @@ class ElfAnalyzer(object):
 
 
     def getRangeBySymbol(self, symbol):
+        # use unified symbol table #
+        if symbol in self.mergedSymTable:
+            val = self.mergedSymTable[symbol]
+            return [val['value'], val['value'] + val['size']]
+        else:
+            return None
+
+        # use each symbol tables #
         if symbol in self.attr['symTable']:
             val = self.attr['symTable'][symbol]
             return [val['value'], val['value'] + val['size']]
@@ -23805,7 +23827,7 @@ class ElfAnalyzer(object):
                 hi = len(a)
             while lo < hi:
                 mid = (lo+hi)//2
-                if a[mid] < x: lo = mid+1
+                if a[mid] <= x: lo = mid+1
                 else: hi = mid
             return lo
 
@@ -23895,6 +23917,14 @@ class ElfAnalyzer(object):
             symbol = strtable[start:idx].decode()
 
         return symbol
+
+
+
+    def getHeader(self, name):
+        try:
+            return self.attr['sectionHeader'][name]
+        except:
+            return None
 
 
 
@@ -24174,6 +24204,7 @@ class ElfAnalyzer(object):
         self.is32Bit = True
         self.sortedSymTable = []
         self.sortedAddrTable = []
+        self.mergedSymTable = {}
 
         try:
             fd = self.fd = open(path, 'rb')
@@ -24436,7 +24467,7 @@ Section header string table index: %d
         if debug:
             SystemManager.pipePrint(\
                 ("\n[Section Headers]\n%s\n"
-                "[NR] %32s%10s%15s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
+                "[NR] %32s%15s%10s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
                 (twoLine, "Name", "Type", "Address", "Offset", "Size", \
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
@@ -24472,11 +24503,11 @@ Section header string table index: %d
             # print section header #
             if debug:
                 SystemManager.pipePrint(\
-                    "[%02d]%32s%15s%10x%10d%8d%8d%5s%5s%5s%6s" % \
+                    "[%02d] %32s%15s%10s%10x%8d%8d%5s%5s%5s%6s" % \
                     (i, symbol, \
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type), \
-                    sh_addr, sh_offset, sh_size, sh_entsize, \
+                    '0x%x' % sh_addr, sh_offset, sh_size, sh_entsize, \
                     f, sh_link, sh_info, sh_addralign))
 
             # get header index #
@@ -25146,6 +25177,7 @@ class ThreadAnalyzer(object):
             self.prevStorageData = {}
             self.fileData = {}
             self.cpuData = {}
+            self.gpuData = {}
             self.prevCpuData = {}
             self.irqData = {}
             self.prevIrqData = {}
@@ -35555,8 +35587,6 @@ class ThreadAnalyzer(object):
             '/sys/devices', # nVIDIA tegra #
             ]
 
-        self.gpuData = {}
-
         try:
             self.heterogeneousList
         except:
@@ -35578,6 +35608,10 @@ class ThreadAnalyzer(object):
                         pass
             except:
                 pass
+
+        # no gpu supported #
+        if len(candList) == 0:
+            SystemManager.gpuEnable = False
 
         # read gpu stat from list #
         for idx, cand in enumerate(list(candList.keys())):
