@@ -22303,20 +22303,29 @@ class Debugger(object):
             self.ptraceEvent('PTRACE_O_TRACEEXEC')
             self.status = 'ready'
 
+        # set start time #
+        self.start = time.time()
+
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
         elif mode == 'inst':
             cmd = plist.index('PTRACE_SINGLESTEP')
+
+            try:
+                # stop target to print current call #
+                os.kill(pid, signal.SIGSTOP)
+
+                # interprete current user function call #
+                self.handleUsercall()
+            except:
+                pass
         else:
             SystemManager.printError(\
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
 
         SystemManager.pipePrint('')
-
-        # set start time #
-        self.start = time.time()
 
         # enter trace loop #
         while 1:
@@ -22353,7 +22362,7 @@ class Debugger(object):
                         previous = self.status
                         self.status = 'inst'
 
-                        # interprete  user function call #
+                        # interprete user function call #
                         self.handleUsercall()
 
                         self.status = previous
