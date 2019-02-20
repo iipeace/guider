@@ -21656,7 +21656,7 @@ class Debugger(object):
             pid = self.pid
 
         if self.checkPid(pid) < 0:
-            SystemManager.printError('Fail to attach wrong thread %s' % pid)
+            SystemManager.printWarning('Fail to attach wrong thread %s' % pid)
             return -1
 
         plist = ConfigManager.PTRACE_TYPE
@@ -21665,7 +21665,7 @@ class Debugger(object):
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
-            SystemManager.printError('Fail to attach thread %s' % pid)
+            SystemManager.printWarning('Fail to attach thread %s' % pid)
             return -1
         else:
             SystemManager.printInfo('Attached to thread %d' % pid)
