@@ -21673,6 +21673,27 @@ class Debugger(object):
 
 
 
+    def cont(self, pid=None):
+        if not pid:
+            pid = self.pid
+
+        if self.checkPid(pid) < 0:
+            SystemManager.printError('Fail to continue wrong thread %s' % pid)
+            return -1
+
+        plist = ConfigManager.PTRACE_TYPE
+
+        # attach the thread #
+        cmd = plist.index('PTRACE_CONT')
+        ret = self.ptrace(cmd, 0, 0)
+        if ret != 0:
+            SystemManager.printError('Fail to continue thread %s' % pid)
+            return -1
+        else:
+            return 0
+
+
+
     def detach(self):
         if hasattr(self, 'pid'):
             pid = self.pid
@@ -21683,7 +21704,7 @@ class Debugger(object):
         if hasattr(self, 'isRunning'):
             if not self.isRunning:
                 try:
-                    os.kill(self.pid, signal.SIGINT)
+                    os.kill(self.pid, signal.SIGKILL)
                 except:
                     pass
 
