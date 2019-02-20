@@ -21679,6 +21679,15 @@ class Debugger(object):
         else:
             return
 
+        # kill target process executed #
+        if hasattr(self, 'isRunning'):
+            if not self.isRunning:
+                try:
+                    os.kill(self.pid, signal.SIGINT)
+                except:
+                    pass
+
+        # get ptrace event list #
         plist = ConfigManager.PTRACE_TYPE
 
         # continue the thread #
