@@ -2614,7 +2614,11 @@ class NetworkManager(object):
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
-        from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+
+        try:
+            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+        except:
+            return None
 
         if mode == 'server':
             try:
@@ -4619,9 +4623,6 @@ class FunctionAnalyzer(object):
                     elif inBinArea:
                         break
 
-        # get subprocess object #
-        subprocess = SystemManager.getPkg('subprocess')
-
         # Recognize binary type #
         relocated = ElfAnalyzer.isRelocFile(binPath)
 
@@ -4685,6 +4686,9 @@ class FunctionAnalyzer(object):
                     SystemManager.printError(\
                         "Fail to find %s to use addr2line" % path)
                     sys.exit(0)
+
+        # get subprocess object #
+        subprocess = SystemManager.getPkg('subprocess')
 
         for path in SystemManager.addr2linePath:
             # Set addr2line command #
@@ -17272,7 +17276,9 @@ Copyright:
 
         networkObject = NetworkManager('server', ip, port, blocking)
         if not networkObject.ip:
-            sys.exit(0)
+            SystemManager.printWarning(\
+                "Fail to set server network", True)
+            return
 
         SystemManager.localServObj = networkObject
         SystemManager.printInfo("use %s:%d as local address" % \
@@ -18481,7 +18487,10 @@ Copyright:
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
         except:
-            pass
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Stopped to trace syscall because %s" % \
+                ' '.join(list(map(str, err.args))))
 
         sys.exit(0)
 
@@ -18534,7 +18543,10 @@ Copyright:
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
         except:
-            pass
+            err = sys.exc_info()[1]
+            SystemManager.printError(\
+                "Stopped to trace usercall because %s" % \
+                ' '.join(list(map(str, err.args))))
 
         sys.exit(0)
 
@@ -22314,7 +22326,8 @@ class Debugger(object):
 
             try:
                 # interprete current user function call #
-                self.handleUsercall()
+                if self.isRunning:
+                    self.handleUsercall()
             except:
                 pass
         else:
@@ -23766,7 +23779,10 @@ class ElfAnalyzer(object):
             else:
                 return False
         except:
-            pass
+            err = sys.exc_info()[1]
+            SystemManager.printWarning(\
+                "Fail to check relocatable format because %s" % \
+                ' '.join(list(map(str, err.args))))
 
         # check file name #
         if path.find('.so') < 0 and \
@@ -27795,13 +27811,18 @@ class ThreadAnalyzer(object):
                 if stype == 'SEND':
                     if stid.startswith('0['):
                         stid = 0
+
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
                         format(stype, stime, scomm, stid, signal, rcomm, rtid))
+
+                    cnt += 1
                 elif val[0] == 'RECV':
                     SystemManager.pipePrint(\
                         "{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
+
+                    cnt += 1
             if cnt == 0:
                 SystemManager.pipePrint('\tNone')
             SystemManager.pipePrint(oneLine)
