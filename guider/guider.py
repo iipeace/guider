@@ -2866,7 +2866,11 @@ class NetworkManager(object):
                     if not output:
                         break
 
-                    output = output.decode()
+                    try:
+                        output = output.decode()
+                    except:
+                        pass
+
                     if output[-1] != '\n':
                         buf = '%s%s' % (buf, output)
                     else:
@@ -23759,7 +23763,10 @@ class ElfAnalyzer(object):
 
             # check return status and convert type from bytes to string #
             if status.value == 0:
-                dmSymbol = str(ret.decode())
+                try:
+                    dmSymbol = str(ret.decode())
+                except:
+                    dmSymbol = str(ret)
             elif status.value == -1:
                 SystemManager.printWarning(\
                     "Fail to allocate memory to demangle symbol %s" % symbol)
@@ -23798,6 +23805,16 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def isRelocFile(path):
+        if path not in ElfAnalyzer.cachedFiles:
+            ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+
+        etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
+        if etype == 'Relocatable' or \
+            etype == 'Shared-object':
+            return True
+        else:
+            return False
+
         try:
             if path not in ElfAnalyzer.cachedFiles:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
@@ -23964,7 +23981,10 @@ class ElfAnalyzer(object):
         if start == idx:
             symbol = ''
         else:
-            symbol = strtable[start:idx].decode()
+            try:
+                symbol = strtable[start:idx].decode()
+            except:
+                symbol = strtable[start:idx]
 
         return symbol
 
@@ -24624,13 +24644,21 @@ Section header string table index: %d
             # read .dynstr data #
             fd.seek(sh_offset)
             dynstr_section = fd.read(sh_size)
+            try:
+                dynstr_section_decoded = dynstr_section.decode()
+            except:
+                dynstr_section_decoded = dynstr_section
 
             lastnull = 0
             dynsymTable = {}
-            for i, s in enumerate(dynstr_section.decode()):
+            for i, s in enumerate(dynstr_section_decoded):
                 if s == '\0':
-                    dynsymTable[lastnull] = \
-                        dynstr_section[lastnull:i].decode()
+                    try:
+                        dynsymTable[lastnull] = \
+                            dynstr_section[lastnull:i].decode()
+                    except:
+                        dynsymTable[lastnull] = \
+                            dynstr_section[lastnull:i]
                     lastnull = i + 1
 
             # parse .gnu.version_d table #
