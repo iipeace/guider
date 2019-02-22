@@ -6918,7 +6918,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
+                    "{0:7.1f}% |{1:^47}| {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
 
                 # Increase total cpu usage per symbol #
@@ -6958,7 +6958,7 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.pipePrint(\
-                        "\t +{0:7}% |{1:32}".format(cpuPer, symbolStack))
+                        "\t +{0:7.1f}% |{1:32}".format(cpuPer, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -6991,7 +6991,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}% |{1:^47}| {2:48}".format(cpuPer, idx, \
+                    "{0:7.1f}% |{1:^47}| {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
 
                 SystemManager.pipePrint(oneLine)
@@ -7097,7 +7097,7 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.pipePrint(\
-                    "{0:7}% |{1:32}".format(cpuPer, chain))
+                    "{0:7.1f}% |{1:32}".format(cpuPer, chain))
 
             SystemManager.pipePrint(oneLine)
 
