@@ -2781,11 +2781,10 @@ class NetworkManager(object):
                     SystemManager.convertSize2Unit(os.path.getsize(targetPath)),
                     targetIp, targetPort, origPath))
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     'Fail to download %s from %s:%s:%s because %s' % \
-                    (origPath, targetIp, targetPort, targetPath, \
-                    ' '.join(list(map(str, err.args)))))
+                    (origPath, targetIp, targetPort, targetPath, err))
             finally:
                 receiver.close()
 
@@ -2826,11 +2825,10 @@ class NetworkManager(object):
                     SystemManager.convertSize2Unit(os.path.getsize(origPath)), \
                     ':'.join(list(map(str, addr))), targetPath))
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     "Fail to upload %s to %s:%s because %s" % \
-                    (origPath, ':'.join(list(map(str, addr))), \
-                    ' '.join(list(map(str, err.args))), targetPath))
+                    (origPath, ':'.join(list(map(str, addr))), err))
             finally:
                 sender.close()
 
@@ -2971,10 +2969,10 @@ class NetworkManager(object):
                 self.status = 'SENT'
             return True
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to send data to %s:%d as server because %s" % \
-                (self.ip, self.port, ' '.join(list(map(str, err.args)))))
+                (self.ip, self.port, err))
             return False
 
 
@@ -2997,10 +2995,10 @@ class NetworkManager(object):
             self.socket.sendto(message, (ip, port))
             return True
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to send data to %s:%d as client because %s" % \
-                (self.ip, self.port, ' '.join(list(map(str, err.args)))))
+                (self.ip, self.port, err))
             return False
 
 
@@ -4922,10 +4920,9 @@ class FunctionAnalyzer(object):
                 self.nowCtx['userLastPos'], self.nowCtx['userCallStack'], \
                 targetEvent, targetCnt, targetArg)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to save full stacks because %s" % \
-                (' '.join(list(map(str, err.args)))))
+                "Fail to save full stacks because %s" % err)
             sys.exit(0)
 
 
@@ -10345,10 +10342,9 @@ class SystemManager(object):
 
                 fd.flush()
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printWarning(\
-                    "Fail to write json-format data because %s" % \
-                    (' '.join(list(map(str, err.args)))), True)
+                    "Fail to write json-format data because %s" % err)
             return
 
         # check write option #
@@ -10362,10 +10358,10 @@ class SystemManager(object):
             with open(path, perm) as fd:
                 fd.write(jsonObj)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to write json-format data to %s because %s" % \
-                (path, ' '.join(list(map(str, err.args)))))
+                    (path, err))
             sys.exit(0)
 
 
@@ -13116,6 +13112,13 @@ Copyright:
 
 
     @staticmethod
+    def getErrReason():
+        err = sys.exc_info()[1]
+        return ' '.join(list(map(str, err.args)))
+
+
+
+    @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath=None):
         if not objdumpPath:
             try:
@@ -14131,11 +14134,10 @@ Copyright:
                     SystemManager.cmdFd.write(\
                         'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
                 except:
-                    err = sys.exc_info()[1]
+                    err = SystemManager.getErrReason()
                     SystemManager.printError(\
                         "Fail to open %s to write command because %s" % \
-                        (SystemManager.cmdEnable, \
-                        ' '.join(list(map(str, err.args)))))
+                        (SystemManager.cmdEnable, err))
                     return -1
             if SystemManager.cmdFd:
                 try:
@@ -14198,10 +14200,10 @@ Copyright:
                     SystemManager.sysInstance.\
                         cmdList[path[:path.rfind('/enable')]] = False
         except:
-            err = sys.exc_info()[1]
-            SystemManager.printWarning((\
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
                 "Fail to apply command '%s' to %s because %s" % \
-                (val, path, ' '.join(list(map(str, err.args))))))
+                (val, path, err))
             return -2
 
         return 0
@@ -14280,6 +14282,7 @@ Copyright:
         # check extended ascii support #
         SystemManager.convertExtAscii(ConfigManager.logo)
 
+        # check type #
         if big:
             if pager:
                 SystemManager.pipePrint(ConfigManager.logo)
@@ -14889,7 +14892,7 @@ Copyright:
                         # verify pager option support #
                         ret = os.popen(\
                             'echo | less %s 2>&1' % defopt, 'r').read()
-                        if len(ret) == 1:
+                        if len(ret) == 1 and not ret.startswith('There is no'):
                             poption = 'less %s' % defopt
                         else:
                             poption = 'less'
@@ -14907,18 +14910,20 @@ Copyright:
                     # no supported OS #
                     SystemManager.pipeForPrint = False
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printWarning(\
-                    "Fail to use pager because %s" % \
-                        ' '.join(list(map(str, err.args))), True)
+                    "Fail to use pager because %s" % err, True)
 
         # pager output #
         if SystemManager.pipeForPrint:
             try:
                 # convert to extended ascii #
-                line = SystemManager.convertExtAscii(line + retstr)
-                SystemManager.pipeForPrint.write(line)
+                nline = SystemManager.convertExtAscii(line + retstr)
+                SystemManager.pipeForPrint.write(nline)
                 return
+            except UnicodeEncodeError:
+                SystemManager.encodeEnable = False
+                SystemManager.pipeForPrint.write(line + retstr)
             except:
                 SystemManager.printError("Fail to print to pipe\n")
                 SystemManager.pipeForPrint = None
@@ -15004,24 +15009,31 @@ Copyright:
                     [nline[:ttyCols-1] for nline in line.split('\n')])
 
             # convert to extended ascii #
-            line = SystemManager.convertExtAscii(line)
+            nline = SystemManager.convertExtAscii(line)
 
+            # print string to console #
             try:
                 if newline:
-                    sys.stdout.write(line + '\n')
+                    sys.stdout.write(nline + '\n')
                 else:
-                    sys.stdout.write(line)
+                    sys.stdout.write(nline)
 
                 if flush or SystemManager.remoteRun:
                     sys.stdout.flush()
             except:
-                pass
+                if SystemManager.encodeEnable:
+                    SystemManager.encodeEnable = False
+
+                    if newline:
+                        sys.stdout.write(line + '\n')
+                    else:
+                        sys.stdout.write(line)
 
 
 
     @staticmethod
     def convertExtAscii(line):
-        if SystemManager.encodeEnable is False:
+        if not SystemManager.encodeEnable:
             return line
 
         try:
@@ -15030,9 +15042,7 @@ Copyright:
             newline = newline.replace('|', '│')
 
             if sys.version_info < (3, 0) and not SystemManager.encoding:
-                if sys.getdefaultencoding().lower().startswith('utf'):
-                    pass
-                else:
+                if not sys.getdefaultencoding().lower().startswith('utf'):
                     reload(sys)
                     sys.setdefaultencoding('utf-8')
                     SystemManager.encoding = sys.getdefaultencoding()
@@ -17052,10 +17062,9 @@ Copyright:
 
             SystemManager.reportObject = open(reportPath, perm)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to open %s because %s" % \
-                (reportPath, ' '.join(list(map(str, err.args)))))
+                "Fail to open %s because %s" % (reportPath, err))
             sys.exit(0)
 
         SystemManager.reportEnable = True
@@ -17209,10 +17218,9 @@ Copyright:
         try:
             fdlist = os.listdir(fdlistPath)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printWarning(\
-                'Fail to open %s because %s' % \
-                (fdlistPath, ' '.join(list(map(str, err.args)))))
+                'Fail to open %s because %s' % (fdlistPath, err))
             return socketAddrList
 
         # save fd info of process #
@@ -17730,11 +17738,11 @@ Copyright:
                     SystemManager.convertSize2Unit(os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), remotePath))
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     "Fail to upload %s to %s:%s because %s" % \
                     (targetPath, ':'.join(list(map(str, addr))), \
-                    ' '.join(list(map(str, err.args))), remotePath))
+                    err, remotePath))
             finally:
                 sender.close()
 
@@ -17786,12 +17794,10 @@ Copyright:
                         os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), origPath))
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     'Fail to download %s from %s:%s because %s' % \
-                    (origPath, \
-                    ':'.join(list(map(str, addr))), targetPath, \
-                    ' '.join(list(map(str, err.args)))))
+                    (origPath, ':'.join(list(map(str, addr))), targetPath, err))
             finally:
                 receiver.close()
 
@@ -17868,11 +17874,10 @@ Copyright:
                     "'%s' command is terminated for %s" % \
                     (value, ':'.join(list(map(str, addr)))))
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     "Fail to execute '%s' from %s because %s" % \
-                    (value, ':'.join(list(map(str, addr))), \
-                    ' '.join(list(map(str, err.args)))))
+                    (value, ':'.join(list(map(str, addr))), err))
             finally:
                 try:
                     pipeObj.close()
@@ -18358,10 +18363,9 @@ Copyright:
                     with open(curgovpath, 'w') as fd:
                         fd.write(gov)
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
-                    "Fail to set cpu%s clock because %s" % \
-                    (core, ' '.join(list(map(str, err.args)))))
+                    "Fail to set cpu%s clock because %s" % (core, err))
                 sys.exit(0)
 
             # cur_governor #
@@ -18491,10 +18495,9 @@ Copyright:
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Stopped to trace syscall because %s" % \
-                ' '.join(list(map(str, err.args))))
+                "Stopped to trace syscall because %s" % err)
 
         sys.exit(0)
 
@@ -18547,10 +18550,9 @@ Copyright:
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Stopped to trace usercall because %s" % \
-                ' '.join(list(map(str, err.args))))
+                "Stopped to trace usercall because %s" % err)
 
         sys.exit(0)
 
@@ -19195,10 +19197,10 @@ Copyright:
             with open(path, 'r') as fd:
                 return fd.readlines()[0].split('\x00')[:-1]
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to get environment variables of process %s because %s" % \
-                (pid, ' '.join(list(map(str, err.args)))))
+                (pid, err))
             return
 
 
@@ -22330,12 +22332,10 @@ class Debugger(object):
         try:
             os.kill(pid, 0)
         except:
-            err = sys.exc_info()[1]
-            ereason = ' '.join(list(map(str, err.args)))
+            err = SystemManager.getErrReason()
             if ereason != '0':
                 SystemManager.printError(\
-                    'Fail to trace thread %s because %s' % \
-                    (pid, ereason))
+                    'Fail to trace thread %s because %s' % (pid, err))
             sys.exit(0)
 
         # print message #
@@ -22469,8 +22469,7 @@ class Debugger(object):
                 try:
                     ret = self.waitpid(int(pid), __WALL)
 
-                    err = sys.exc_info()[1]
-                    ereason = ' '.join(list(map(str, err.args)))
+                    ereason = SystemManager.getErrReason()
                 except:
                     ereason = 'the thread is terminated'
 
@@ -22558,10 +22557,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except SystemExit:
             return
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                'Fail to pause thread %s because %s' % \
-                (lastTid, ' '.join(list(map(str, err.args)))))
+                'Fail to pause thread %s because %s' % (lastTid, err))
         finally:
             for item in dlist:
                 del item
@@ -23793,11 +23791,11 @@ class ElfAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printWarning((\
                 "Fail to demangle symbol %s because %s "
-                "so that disable demangle feature") \
-                % (symbol, ' '.join(list(map(str, err.args)))), True)
+                "so that disable demangle feature") % \
+                    (symbol, err), True)
             SystemManager.demangleEnable = False
             return symbol
 
@@ -23826,10 +23824,9 @@ class ElfAnalyzer(object):
             else:
                 return False
         except:
-            err = sys.exc_info()[1]
+            err = SystemManager.getErrReason()
             SystemManager.printWarning(\
-                "Fail to check relocatable format because %s" % \
-                ' '.join(list(map(str, err.args))))
+                "Fail to check relocatable format because %s" % err)
 
         # check file name #
         if path.find('.so') < 0 and \
@@ -32073,10 +32070,9 @@ class ThreadAnalyzer(object):
                 with open(file, 'r') as fd:
                     buf = fd.readlines(nrLine)
             except:
-                err = sys.exc_info()[1]
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
-                    "Fail to open %s because %s" % \
-                    (file, ' '.join(list(map(str, err.args)))))
+                    "Fail to open %s because %s" % (file, err))
                 sys.exit(0)
 
             # verify log buffer #
