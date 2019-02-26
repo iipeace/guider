@@ -10521,9 +10521,6 @@ Usage:
 
                 mode = sys.argv[1]
 
-                # clear screen #
-                SystemManager.clearScreen()
-
                 # print small logo #
                 SystemManager.printLogo()
 
@@ -14298,7 +14295,9 @@ Copyright:
 
     @staticmethod
     def clearScreen():
-        if not SystemManager.printEnable:
+        # check stdout status #
+        if not SystemManager.printEnable or \
+            SystemManager.pipeForPrint:
             return
 
         if sys.platform.startswith('linux'):
@@ -14892,7 +14891,7 @@ Copyright:
                         # verify pager option support #
                         ret = os.popen(\
                             'echo | less %s 2>&1' % defopt, 'r').read()
-                        if len(ret) == 1 and not ret.startswith('There is no'):
+                        if len(ret) <= 1:
                             poption = 'less %s' % defopt
                         else:
                             poption = 'less'
@@ -15056,7 +15055,8 @@ Copyright:
 
     @staticmethod
     def printWarning(line, always=False):
-        if SystemManager.warningEnable is False and always is False:
+        if not SystemManager.warningEnable and \
+            not always:
             return
 
         msg = ('\n%s%s%s%s\n' % \
@@ -17388,9 +17388,9 @@ Copyright:
         procList = SystemManager.getBgProcList()
 
         if procList == '':
-            print("\nno running process in the background\n")
+            print("no running process in the background\n")
         else:
-            print('\n[Running Process]')
+            print('[Running Process]')
             print(twoLine)
             print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
             print(oneLine)
@@ -23803,8 +23803,14 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def isRelocFile(path):
-        if path not in ElfAnalyzer.cachedFiles:
-            ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+        try:
+            if path not in ElfAnalyzer.cachedFiles:
+                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                "Fail to check relocatable format because %s" % err)
+            return False
 
         etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
         if etype == 'Relocatable' or \
@@ -23814,9 +23820,6 @@ class ElfAnalyzer(object):
             return False
 
         try:
-            if path not in ElfAnalyzer.cachedFiles:
-                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
-
             etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
             if etype == 'Relocatable' or \
                 etype == 'Shared-object':
@@ -28013,7 +28016,7 @@ class ThreadAnalyzer(object):
         # print user event info #
         if len(self.userEventInfo) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n[Thread USER Event Info]')
+            SystemManager.pipePrint('\n[Thread User Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
@@ -28055,7 +28058,7 @@ class ThreadAnalyzer(object):
         # print user event history #
         if SystemManager.showAll and len(self.userEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n[Thread USER Event History]')
+            SystemManager.pipePrint('\n[Thread User Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
@@ -28099,7 +28102,7 @@ class ThreadAnalyzer(object):
         # print kernel event info #
         if len(self.kernelEventInfo) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n[Thread KERNEL Event Info]')
+            SystemManager.pipePrint('\n[Thread Kernel Event Info]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
@@ -28142,7 +28145,7 @@ class ThreadAnalyzer(object):
         # print kernel event history #
         if SystemManager.showAll and len(self.kernelEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.pipePrint('\n[Thread KERNEL Event History]')
+            SystemManager.pipePrint('\n[Thread Kenrel Event History]')
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
                 "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
