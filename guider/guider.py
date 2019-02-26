@@ -21340,7 +21340,7 @@ Copyright:
         swapAfterUsage = int(after['SwapTotal']) - int(after['SwapFree'])
 
         SystemManager.infoBufferPrint((\
-            "[ USE1 ] %10s %10s %10s %10s %10s %10s %10s "
+            "[ FIRST] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
                 (memBeforeUsage >> 10, swapBeforeUsage >> 10, \
                 int(before['Buffers']) >> 10, int(before['Cached']) >> 10, \
@@ -21351,7 +21351,7 @@ Copyright:
                 int(before['Mlocked']) >> 10))
 
         SystemManager.infoBufferPrint((\
-            "[ USE2 ] %10s %10s %10s %10s %10s %10s %10s "
+            "[ LAST ] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
                 (memAfterUsage >> 10, swapAfterUsage >> 10, \
                 int(after['Buffers']) >> 10, int(after['Cached']) >> 10, \
