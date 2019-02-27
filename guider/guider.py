@@ -31213,11 +31213,12 @@ class ThreadAnalyzer(object):
 
         value = ThreadAnalyzer.procTotData['total']
         cpuInfo = '%d/%.1f/%d' % \
-            (value['cpuMin'], value['cpuAvg'], value['cpuMax'])
+            (value['cpuMin'] if value['cpuMin'] > 0 else 0, \
+            value['cpuAvg'], value['cpuMax'])
 
         # Print total cpu usage #
         procInfo = \
-            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>12} |".\
+            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^12} |".\
             format('[CPU]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -31249,10 +31250,11 @@ class ThreadAnalyzer(object):
                 continue
 
             cpuInfo = '%d/%.1f/%d' % \
-                (value['cpuMin'], value['cpuAvg'], value['cpuMax'])
+                (value['cpuMin'] if value['cpuMin'] > 0 else 0, \
+                value['cpuAvg'], value['cpuMax'])
 
             procInfo = \
-                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:>12} |".\
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^12} |".\
                 format(value['comm'][:cl], pid, value['ppid'], \
                 value['nrThreads'], value['pri'], cpuInfo, cl=cl, pd=pd)
             procInfoLen = len(procInfo)
@@ -31322,7 +31324,8 @@ class ThreadAnalyzer(object):
                 avg = 0
 
             # get stats #
-            stats = '%d/%d/%d' % (stat['min'], avg, stat['max'])
+            stats = '%d/%d/%d' % \
+                (stat['min'] if stat['min'] > 0 else 0, avg, stat['max'])
 
             gpuInfo = "{0:>16} | {1:^12} |".format(gpu, stats)
             gpuInfoLen = len(gpuInfo)
