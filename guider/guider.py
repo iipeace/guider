@@ -9470,6 +9470,9 @@ class SystemManager(object):
     fileEnable = False
     threadEnable = False
 
+    # flag for using Elastic Stack
+    elasticEnable = False
+
     repeatInterval = 0
     repeatCount = 0
     progressCnt = 0
@@ -15517,6 +15520,9 @@ Copyright:
 
                 if options.rfind('d') > -1:
                     SystemManager.diskEnable = True
+
+                if options.rfind('v') > -1:
+                    SystemManager.elasticEnable = True
 
                 if SystemManager.isEffectiveEnableOption(options) is False:
                     SystemManager.printError(\
