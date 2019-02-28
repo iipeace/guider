@@ -38391,7 +38391,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['ttime'], reverse=True)
 
             for pid, data in sortedProcData:
-                if data['ttime'] > 0:
+                if SystemManager.showAll or data['ttime'] > 0:
                     evtdata = self.reportData['cpu']['procs']
 
                     pid = long(pid)
@@ -38425,7 +38425,7 @@ class ThreadAnalyzer(object):
             for pid, data in sortedProcData:
                 rss = long(data['stat'][self.rssIdx]) >> 8
 
-                if rss > 0 and rank <= 10:
+                if SystemManager.showAll or rank <= 10:
                     text = (long(data['stat'][self.ecodeIdx]) - \
                         long(data['stat'][self.scodeIdx])) >> 20
 
