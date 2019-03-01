@@ -10347,7 +10347,7 @@ class SystemManager(object):
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarning(\
-                    "Fail to write json-format data because %s" % err)
+                    "Fail to write JSON format data because %s" % err)
             return
 
         # check write option #
@@ -10363,7 +10363,7 @@ class SystemManager(object):
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to write json-format data to %s because %s" % \
+                "Fail to write JSON format data to %s because %s" % \
                     (path, err))
             sys.exit(0)
 
@@ -11108,12 +11108,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Report system status in json format
+    Report system status in JSON format
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Report system status in json format to ./guider.report in the background every second
+    - Report system status in JSON format to ./guider.report in the background every second
         # {0:1} {1:1} -j . -u
 
     - Stop reporting processes in the background
@@ -11507,8 +11507,8 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
-                # cpulimit #
-                elif SystemManager.isCpuLimitMode():
+                # limitcpu #
+                elif SystemManager.isLimitCpuMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TID|PID:PER> [OPTIONS] [--help]
@@ -11765,7 +11765,7 @@ COMMAND:
                 memtop      <memory>
                 disktop     <storage>
                 wsstop      <memory>
-                reptop      <json>
+                reptop      <JSON>
                 filetop     <file>
                 strace      <syscall>
                 utrace      <usercall>
@@ -11788,7 +11788,7 @@ COMMAND:
 
     [util]      kill        <signal>
                 pause       <thread>
-                cpulimit    <cpu>
+                limitcpu    <cpu>
                 setcpu      <clock>
                 setsched    <priority>
                 getaffinity <affinity>
@@ -16469,11 +16469,11 @@ Copyright:
 
 
     @staticmethod
-    def isCpuLimitMode():
+    def isLimitCpuMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'cpulimit':
+        if sys.argv[1] == 'limitcpu':
             return True
         else:
             return False
@@ -16777,10 +16777,10 @@ Copyright:
             if SystemManager.backgroundEnable:
                 SystemManager.runBackgroundMode()
 
-            if SystemManager.isCpuLimitMode():
-                limitInfo = SystemManager.getCpuLimitInfo(\
+            if SystemManager.isLimitCpuMode():
+                limitInfo = SystemManager.getLimitCpuInfo(\
                     SystemManager.filterGroup)
-                SystemManager.doCpuLimit(\
+                SystemManager.doLimitCpu(\
                     limitInfo, SystemManager.processEnable)
 
             sys.exit(0)
@@ -16830,7 +16830,7 @@ Copyright:
 
     @staticmethod
     def isLimitMode():
-        if SystemManager.isCpuLimitMode():
+        if SystemManager.isLimitCpuMode():
             return True
         else:
             return False
@@ -17076,7 +17076,7 @@ Copyright:
         SystemManager.reportEnable = True
 
         SystemManager.printInfo(\
-            "start writing json-format report to %s" % reportPath)
+            "start writing JSON format report to %s" % reportPath)
 
         return True
 
@@ -17600,7 +17600,7 @@ Copyright:
 
 
     @staticmethod
-    def getCpuLimitInfo(limitInfo):
+    def getLimitCpuInfo(limitInfo):
         if len(limitInfo) == 0:
             SystemManager.printError(\
                 "Fail to get task info to limit cpu, "
@@ -18611,7 +18611,7 @@ Copyright:
 
 
     @staticmethod
-    def doCpuLimit(limitInfo, isProcess=False):
+    def doLimitCpu(limitInfo, isProcess=False):
         CLK_PRECISION = 1000000
         MAX_BUCKET = CLK_PRECISION / 10000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
@@ -38567,11 +38567,11 @@ class ThreadAnalyzer(object):
                     "Fail to rename %s to %s" % \
                     SystemManager.inputFile, filePath)
 
-        # convert dict data to json data #
+        # convert dict data to JSON data #
         jsonObj = SystemManager.makeJsonString(self.reportData)
         if not jsonObj:
             SystemManager.printWarning(\
-                "Fail to convert report data to json type")
+                "Fail to convert report data to JSON type")
             return
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
