@@ -10565,7 +10565,7 @@ OPTIONS:
                 t:thread | C:wfc | s:stack | w:wss | d:disk
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport
+                f:float | R:freport | v:visualization(elastic stack)
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print | P:perf
                 W:wchan | n:net | t:truncate | G:gpu
@@ -25690,8 +25690,12 @@ class ThreadAnalyzer(object):
                     # print system status #
                     self.printSystemStat()
 
-                # report system status #
-                self.reportSystemStat()
+                if not SystemManager.elasticEnable:
+                    # report system status #
+                    self.reportSystemStat()
+                else:
+                    # report system status for elastic stack
+                    self.reportSystemStatElastic()
 
             # check repeat count #
             if SystemManager.countEnable:
@@ -38597,6 +38601,39 @@ class ThreadAnalyzer(object):
                         del SystemManager.addrListForReport[addr]
                     else:
                         cli.ignore += 1
+
+
+
+    def reportSystemStatElastic(self):
+        '''
+        make data fields as the below list
+        - metricset fields
+        - beat fields (metricbeat, filebeat, guider, etc...)
+        - system fields (cpu, process, memory, diskio, etc...)
+        '''
+
+        metricsetFields = {
+            'metricset':
+                {
+                    'module':'system',
+                    'name':''
+                }
+            }
+
+        beatFields = {
+            'beat':
+                {
+                    'name':'guider',
+                    'hostname':SystemManager.localServObj.ip,
+                    'version':__version__
+                }
+            }
+
+        # generate cpu status data #
+        metricsetFields['name'] = 'cpu'
+
+        reportElasticData = metricsetFields.copy()
+        reportElasticData.update(beatFields)
 
 
 
