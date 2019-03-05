@@ -10277,7 +10277,7 @@ class SystemManager(object):
             options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
             options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
-            options.rfind('d') >= 0:
+            options.rfind('d') >= 0 or options.rfind('E') >= 0:
             return True
         else:
             return False
@@ -10565,7 +10565,7 @@ OPTIONS:
                 t:thread | C:wfc | s:stack | w:wss | d:disk
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport
+                f:float | R:freport | E:Elasticsearch
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print | P:perf
                 W:wchan | n:net | t:truncate | G:gpu
@@ -15521,7 +15521,7 @@ Copyright:
                 if options.rfind('d') > -1:
                     SystemManager.diskEnable = True
 
-                if options.rfind('v') > -1:
+                if options.rfind('E') > -1:
                     SystemManager.elasticEnable = True
 
                 if SystemManager.isEffectiveEnableOption(options) is False:
@@ -25690,8 +25690,12 @@ class ThreadAnalyzer(object):
                     # print system status #
                     self.printSystemStat()
 
-                # report system status #
-                self.reportSystemStat()
+                if SystemManager.elasticEnable:
+                    # report system status for elastic stack
+                    self.reportSystemStatElastic()
+                else:
+                    # report system status #
+                    self.reportSystemStat()
 
             # check repeat count #
             if SystemManager.countEnable:
@@ -38597,6 +38601,39 @@ class ThreadAnalyzer(object):
                         del SystemManager.addrListForReport[addr]
                     else:
                         cli.ignore += 1
+
+
+
+    def reportSystemStatElastic(self):
+        '''
+        make data fields as the below list
+        - metricset fields
+        - beat fields (metricbeat, filebeat, guider, etc...)
+        - system fields (cpu, process, memory, diskio, etc...)
+        '''
+
+        metricsetFields = {
+            'metricset':
+                {
+                    'module':'system',
+                    'name':''
+                }
+            }
+
+        beatFields = {
+            'beat':
+                {
+                    'name':'guider',
+                    'hostname':SystemManager.localServObj.ip,
+                    'version':__version__
+                }
+            }
+
+        # generate cpu status data #
+        metricsetFields['name'] = 'cpu'
+
+        reportElasticData = metricsetFields.copy()
+        reportElasticData.update(beatFields)
 
 
 
