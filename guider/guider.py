@@ -38632,8 +38632,27 @@ class ThreadAnalyzer(object):
         # generate cpu status data #
         metricsetFields['name'] = 'cpu'
 
+        cpuData = self.reportData['cpu']
+
+        systemCpuFields = {
+            'system': {
+                'cpu':
+                    {
+                        'total' : { 'pct': cpuData['total'] },
+                        'idle'  : { 'pct': cpuData['idle'] },
+                        'user'  : { 'pct': cpuData['user'] },
+                        'kernel': { 'pct': cpuData['kernel'] },
+                        'irq'   : { 'pct': cpuData['irq'] },
+                        'iowait': { 'pct': cpuData['iowait'] },
+                        'cores' : cpuData['nrCore']
+                    }
+                }
+            }
+
+        # merge data dictionary #
         reportElasticData = metricsetFields.copy()
         reportElasticData.update(beatFields)
+        reportElasticData.update(systemCpuFields)
 
 
 
