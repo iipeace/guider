@@ -10014,7 +10014,13 @@ class SystemManager(object):
 
     @staticmethod
     def makeJsonString(dictObj):
-        return SystemManager.getPkg('json').dumps(dictObj, indent=2)
+        jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+
+        # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
+        if not SystemManager.encodeEnable:
+            jsonString = re.sub("\s", "", jsonString) + "\n"
+
+        return jsonString
 
 
 
