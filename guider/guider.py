@@ -38630,7 +38630,7 @@ class ThreadAnalyzer(object):
             }
 
         # generate cpu status data #
-        metricsetFields['name'] = 'cpu'
+        metricsetFields['metricset']['name'] = 'cpu'
 
         cpuData = self.reportData['cpu']
 
