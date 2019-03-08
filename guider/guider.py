@@ -38584,10 +38584,6 @@ class ThreadAnalyzer(object):
                 "Fail to convert report data to JSON type")
             return
 
-        # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
-        if not SystemManager.encodeEnable:
-            jsonObj = re.sub("\s", "", jsonObj) + "\n"
-
         # report system status to file #
         if SystemManager.reportObject:
             SystemManager.writeJsonObject(\
@@ -38618,22 +38614,25 @@ class ThreadAnalyzer(object):
         - system fields (cpu, process, memory, diskio, etc...)
         '''
 
+        reportElasticData = ""
+
         metricsetFields = {
             'metricset':
                 {
-                    'module':'system',
-                    'name':''
+                    'module': 'system',
+                    'name'  : ''
                 }
-            }
+        }
 
         beatFields = {
             'beat':
                 {
-                    'name':'guider',
-                    'hostname':SystemManager.localServObj.ip,
-                    'version':__version__
+                    'name'      : 'guider',
+                    'hostname'  : SystemManager.localServObj.ip,
+                    'version'   : __version__
                 }
-            }
+        }
+
 
         # generate cpu status data #
         metricsetFields['metricset']['name'] = 'cpu'
@@ -38653,12 +38652,220 @@ class ThreadAnalyzer(object):
                         'cores' : cpuData['nrCore']
                     }
                 }
+        }
+
+        # merge cpu data dictionary #
+        reportCpuData = metricsetFields.copy()
+        reportCpuData.update(beatFields)
+        reportCpuData.update(systemCpuFields)
+
+        reportElasticData += SystemManager.makeJsonString(reportCpuData)
+
+        # generate memory status data #
+        metricsetFields['metricset']['name'] = 'memory'
+
+        memData = self.reportData['mem']
+        swapData = self.reportData['swap']
+
+        systemMemoryFields = {
+            'system':
+                {
+                    'memory':{
+                        'total'     : memData['total'],
+                        'free'      : memData['free'],
+                        'available' : memData['available'],
+                        'anon'      : memData['anon'],
+                        'file'      : memData['file'],
+                        'slab'      : memData['slab'],
+                        'swap': {
+                            'total' : swapData['total'],
+                            'used'  : swapData['usage']
+                        }
+                    }
+                }
+        }
+
+        # merge momory data dictionary #
+        reportMemoryData = metricsetFields.copy()
+        reportMemoryData.update(beatFields)
+        reportMemoryData.update(systemMemoryFields)
+
+        reportElasticData += SystemManager.makeJsonString(reportMemoryData)
+
+        # generate network status data #
+        metricsetFields['metricset']['name'] = 'network'
+
+        networkData = self.reportData['net']
+
+        systemNetworkFields = {
+            'system':
+                {
+                    'network': {
+                        'in' : { 'byte': networkData['inbound'] },
+                        'out': { 'byte': networkData['outbound'] }
+                    }
+                }
+        }
+
+        # merge network data dictionary #
+        reportNetworkData = metricsetFields.copy()
+        reportNetworkData.update(beatFields)
+        reportNetworkData.update(systemNetworkFields)
+
+        reportElasticData += SystemManager.makeJsonString(reportNetworkData)
+
+        # generate network status data #
+        metricsetFields['metricset']['name'] = 'diskio'
+
+        systemDiskioFields = {
+            'system':
+                {
+                    'diskio': {
+                        'name'  : '',
+                        'read'  : { 'bytes' : 0 },
+                        'write' : { 'bytes' : 0 },
+                        'used'  : { 'pct'   : 0 },
+                    }
+                }
+        }
+
+        diskioData = systemDiskioFields['system']['diskio']
+
+        # get read/write bytes on each devices #
+        for dev, value in sorted(self.reportData['storage'].items()):
+            diskioData['name'] = dev
+            diskioData['read']['bytes'] = value['read']
+            diskioData['write']['bytes'] = value['read']
+            diskioData['used']['pct'] = value['usageper']
+
+            # merge diskio data dictionary #
+            reportDiskioData = metricsetFields.copy()
+            reportDiskioData.update(beatFields)
+            reportDiskioData.update(systemDiskioFields)
+
+            reportElasticData += SystemManager.makeJsonString(reportDiskioData)
+
+        # generate process status data #
+        metricsetFields['metricset']['name'] = 'process'
+
+        strProcessData = ""
+        systemProcessFields = {
+            'system':
+                {
+                    'process':{
+                        'name'  : '',
+                        'state' : '',
+                        'pid'   : 0,
+                        'cpu'   : {
+                            'user'      : { 'pct': 0 },
+                            'kernel'    : { 'pct': 0 },
+                            'total'     : { 'pct': 0 },
+                            'runtime'   : ''
+                        },
+                        'memory': {
+                            'rss'   : { 'bytes' : 0 },
+                            'text'  : 0
+                        }
+                    },
+
+                }
             }
 
-        # merge data dictionary #
-        reportElasticData = metricsetFields.copy()
-        reportElasticData.update(beatFields)
-        reportElasticData.update(systemCpuFields)
+        sortedProcData = sorted(self.procData.items(), \
+            key=lambda e: e[1]['ttime'], reverse=True)
+
+        processData = systemProcessFields['system']['process']
+
+        for pid, data in sortedProcData:
+            if data['ttime'] > 0:
+                processData['pid'] = long(pid)
+                processData['name'] = data['stat'][self.commIdx][1:-1]
+                processData['cpu']['user']['pct'] = data['utime']
+                processData['cpu']['kernel']['pct'] = data['stime']
+                processData['cpu']['total']['pct'] = data['ttime']
+                processData['cpu']['runtime'] = \
+                                        SystemManager.convertTime(\
+                                        data['runtime']).replace(' ', '')
+
+                rss = long(data['stat'][self.rssIdx]) >> 8
+
+                text = (long(data['stat'][self.ecodeIdx]) - \
+                        long(data['stat'][self.scodeIdx])) >> 20
+
+                processData['memory']['rss']['bytes'] = rss
+                processData['memory']['text'] = text
+
+                # merge process data dictionary #
+                reportProcessData = metricsetFields.copy()
+                reportProcessData.update(beatFields)
+                reportProcessData.update(systemProcessFields)
+
+                reportElasticData += SystemManager.makeJsonString(reportProcessData)
+
+
+        # print system status to file #
+        if SystemManager.reportFileEnable and \
+            SystemManager.printFile :
+
+            # submit summarized report and details #
+            ThreadAnalyzer.printIntervalUsage()
+
+            # sync and close output file #
+            if SystemManager.fileForPrint:
+                try:
+                    SystemManager.fileForPrint.close()
+                except:
+                    pass
+                finally:
+                    SystemManager.fileForPrint = None
+
+            # make output path #
+            filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
+            for event in list(self.reportData['event'].keys()):
+                filePath = '%s_%s' % (filePath, event)
+            filePath = '%s_%s.out' % (filePath, str(long(SystemManager.uptime)))
+
+            try:
+                # rename output file #
+                os.rename(SystemManager.inputFile, filePath)
+
+                try:
+                    fsize = SystemManager.convertSize2Unit(\
+                        int(os.path.getsize(filePath)))
+                except:
+                    fsize = '?'
+
+                SystemManager.printStatus((\
+                    "save results based monitoring into "
+                    "%s [%s] successfully") % \
+                    (filePath, fsize))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printWarning(\
+                    "Fail to rename %s to %s" % \
+                    SystemManager.inputFile, filePath)
+
+
+        # report system status to file #
+        if SystemManager.reportObject:
+            SystemManager.writeJsonObject(\
+                reportElasticData, fd=SystemManager.reportObject, \
+                trunc=SystemManager.truncEnable)
+
+        # report system status to socket #
+        for addr, cli in SystemManager.addrListForReport.items():
+            if cli.request == 'REPORT_ALWAYS':
+                if cli.status == 'SENT' and cli.ignore > 1:
+                    SystemManager.printInfo(\
+                        "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
+                    del SystemManager.addrListForReport[addr]
+                else:
+                    ret = cli.send(reportElasticData)
+                    if ret is False:
+                        del SystemManager.addrListForReport[addr]
+                    else:
+                        cli.ignore += 1
 
 
 
