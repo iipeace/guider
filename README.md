@@ -21,16 +21,10 @@ Table of contents
 <!--ts-->
    * [Intro](#Intro)
    * [Output](#Output)
-      * top
-         * process / thread / file / stack / perf / memory / report/ wss
-      * control
-         * cpulimit / setsched / kill
-      * record
-         * thread / syscall / block / lock / kernel event
-      * funcrecord
-         * cpu / memory
-      * filerecord
-      * draw
+      * monitor
+      * util
+      * profile
+      * visualize
    * [How to use](#How-to-use)
    * [Requirement](#Requirement)
    * [Build & Installation](#Build-&-Installation)
@@ -891,15 +885,16 @@ COMMAND:
                 memtop      <memory>
                 disktop     <storage>
                 wsstop      <memory>
-                reptop      <json>
+                reptop      <JSON>
                 filetop     <file>
+                strace      <syscall>
+                utrace      <usercall>
 
     [profile]   record      <thread>
                 funcrecord  <function>
                 filerecord  <file>
+                syscrecord  <syscall>
                 sysrecord   <system>
-
-    [trace]     strace      <syscall>
                 mem         <page>
 
     [visual]    draw        <image>
@@ -909,23 +904,27 @@ COMMAND:
                 rssdraw     <rss>
                 leakdraw    <leak>
                 iodraw      <I/O>
+                convert     <text>
 
-    [control]   kill        <signal>
-                cpulimit    <cpu>
+    [util]      kill        <signal>
+                pause       <thread>
+                limitcpu    <cpu>
+                setcpu      <clock>
                 setsched    <priority>
                 getaffinity <affinity>
                 setaffinity <affinity>
+                printenv    <env>
+                readelf     <file>
+                addr2line   <symbol>
 
-    [test]      alloctest   <mem>
-
-    [util]      convert     <text>
-
-    [comm]      list        <list>
+    [run]       list        <list>
                 start       <signal>
                 send        <signal>
                 event       <event>
                 server      <server>
                 client      <client>
+
+    [test]      alloctest   <mem>
 
 FILE:
     Profile file (e.g. guider.dat)
