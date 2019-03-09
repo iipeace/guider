@@ -13140,6 +13140,8 @@ Copyright:
     @staticmethod
     def getErrReason():
         err = sys.exc_info()[1]
+        if err.args[0] == 0:
+            return 'N/A'
         return ' '.join(list(map(str, err.args)))
 
 
@@ -16775,7 +16777,7 @@ Copyright:
                     offset = '0x%s' % soffset
 
                 SystemManager.pipePrint(\
-                    "{0:>18} {1:<1}".format(offset, symbol))
+                    "{0:<18} {1:<1}".format(offset, symbol))
 
             SystemManager.pipePrint(oneLine + '\n')
 
@@ -18527,6 +18529,8 @@ Copyright:
         # start tracing #
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
@@ -18582,6 +18586,8 @@ Copyright:
         # start tracing #
         try:
             Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
@@ -21603,6 +21609,7 @@ class Debugger(object):
 
 
     def __del__(self):
+        self.cont()
         self.detach()
 
 
@@ -21698,9 +21705,8 @@ class Debugger(object):
             SystemManager.printWarning('Fail to attach wrong thread %s' % pid)
             return -1
 
-        plist = ConfigManager.PTRACE_TYPE
-
         # attach the thread #
+        plist = ConfigManager.PTRACE_TYPE
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
@@ -21717,16 +21723,21 @@ class Debugger(object):
             pid = self.pid
 
         if self.checkPid(pid) < 0:
-            SystemManager.printError('Fail to continue wrong thread %s' % pid)
+            SystemManager.printWarning('Fail to continue wrong thread %s' % pid)
             return -1
 
-        plist = ConfigManager.PTRACE_TYPE
+        # check the process is running #
+        try:
+            os.kill(pid, 0)
+        except:
+            return -1
 
         # attach the thread #
+        plist = ConfigManager.PTRACE_TYPE
         cmd = plist.index('PTRACE_CONT')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
-            SystemManager.printError('Fail to continue thread %s' % pid)
+            SystemManager.printWarning('Fail to continue thread %s' % pid)
             return -1
         else:
             return 0
@@ -21746,15 +21757,16 @@ class Debugger(object):
                     os.kill(self.pid, signal.SIGKILL)
                 except:
                     pass
+                return 0
 
-        # get ptrace event list #
-        plist = ConfigManager.PTRACE_TYPE
-
-        # continue the thread #
-        cmd = plist.index('PTRACE_CONT')
-        ret = self.ptrace(cmd, 0, 0)
+        # check the process is running #
+        try:
+            os.kill(pid, 0)
+        except:
+            return -1
 
         # detach the thread #
+        plist = ConfigManager.PTRACE_TYPE
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
@@ -22365,10 +22377,10 @@ class Debugger(object):
         try:
             os.kill(pid, 0)
         except:
-            err = SystemManager.getErrReason()
+            ereason = SystemManager.getErrReason()
             if ereason != '0':
                 SystemManager.printError(\
-                    'Fail to trace thread %s because %s' % (pid, err))
+                    'Fail to trace thread %s because %s' % (pid, ereason))
             sys.exit(0)
 
         # print message #
