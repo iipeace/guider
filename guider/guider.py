@@ -2882,7 +2882,7 @@ class NetworkManager(object):
 
 
 
-        # get select object #
+        # get select object to check #
         SystemManager.getPkg('select')
 
         # unmarshalling #
@@ -3150,6 +3150,7 @@ class NetworkManager(object):
         socket = SystemManager.getPkg('socket', False)
         if not socket:
             return
+
         from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
 
         ret = None
@@ -4691,6 +4692,8 @@ class FunctionAnalyzer(object):
 
         # get subprocess object #
         subprocess = SystemManager.getPkg('subprocess')
+        if not subprocess:
+            sys.exit(0)
 
         for path in SystemManager.addr2linePath:
             # Set addr2line command #
@@ -8374,6 +8377,9 @@ class FileAnalyzer(object):
         if not SystemManager.guiderObj:
             # get ctypes object #
             ctypes = SystemManager.getPkg('ctypes')
+            if not ctypes:
+                sys.exit(0)
+
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
 
             try:
@@ -9162,6 +9168,9 @@ class FileAnalyzer(object):
             else:
                 # get ctypes object #
                 ctypes = SystemManager.getPkg('ctypes')
+                if not ctypes:
+                    sys.exit(0)
+
                 from  ctypes import POINTER, c_char, c_ubyte, cast
 
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
@@ -9566,6 +9575,7 @@ class SystemManager(object):
         ctypes = SystemManager.getPkg('ctypes', False)
         if not ctypes:
             return
+
         from ctypes import cdll, POINTER, Structure
 
         # try to shrink heap by malloc_trim() #
@@ -9621,6 +9631,7 @@ class SystemManager(object):
         ctypes = SystemManager.getPkg('ctypes', False)
         if not ctypes:
             return
+
         from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
 
         class rlimit(Structure):
@@ -9875,6 +9886,7 @@ class SystemManager(object):
                 ctypes = SystemManager.getPkg('ctypes', False)
                 if not ctypes:
                     return
+
                 from ctypes import cdll, POINTER, c_int, c_ulong, byref
 
                 try:
@@ -9917,6 +9929,7 @@ class SystemManager(object):
         ctypes = SystemManager.getPkg('ctypes', False)
         if not ctypes:
             return
+
         from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         try:
@@ -9962,6 +9975,7 @@ class SystemManager(object):
         ctypes = SystemManager.getPkg('ctypes', False)
         if not ctypes:
             return
+
         from ctypes import cdll, POINTER, c_char_p
 
         try:
@@ -10014,7 +10028,10 @@ class SystemManager(object):
 
     @staticmethod
     def makeJsonString(dictObj):
-        jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+        try:
+            jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+        except:
+            return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
         if not SystemManager.encodeEnable:
@@ -11936,6 +11953,7 @@ Copyright:
     def syscall(syscall, *args):
         # import ctypes #
         ctypes = SystemManager.getPkg('ctypes')
+
         from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
 
         try:
@@ -12009,6 +12027,7 @@ Copyright:
             SystemManager.perfEnable = False
             SystemManager.perfGroupEnable = False
             return
+
         from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
             c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
@@ -12382,6 +12401,7 @@ Copyright:
         ctypes = SystemManager.getPkg('ctypes', False)
         if not ctypes:
             return
+
         from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
             c_uint64, c_uint, c_uint32, c_int, c_ulong
 
@@ -14719,6 +14739,7 @@ Copyright:
                 "\tTry to enter %s command to install the package") % \
                     ("'pip install pillow'"))
             sys.exit(0)
+
         from PIL import Image, ImageFont, ImageDraw
 
         # load jpeg plugin #
@@ -38393,7 +38414,7 @@ class ThreadAnalyzer(object):
 
         rb = ThreadAnalyzer.reportBoundary
 
-        # analyze cpu status #
+        # add cpu status #
         if 'cpu' in self.reportData:
             rank = 1
             self.reportData['cpu']['procs'] = {}
@@ -38401,31 +38422,31 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['ttime'], reverse=True)
 
             for pid, data in sortedProcData:
-                if SystemManager.showAll or data['ttime'] > 0:
-                    evtdata = self.reportData['cpu']['procs']
-
-                    pid = long(pid)
-                    evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[rank]['total'] = data['ttime']
-                    evtdata[rank]['user'] = data['utime']
-                    evtdata[rank]['kernel'] = data['stime']
-                    evtdata[rank]['runtime'] = \
-                        SystemManager.convertTime(\
-                        data['runtime']).replace(' ', '')
-
-                    rank += 1
-                else:
+                if not (SystemManager.showAll or data['ttime'] > 0):
                     break
+
+                evtdata = self.reportData['cpu']['procs']
+
+                pid = long(pid)
+                evtdata[rank] = {}
+                evtdata[rank]['pid'] = pid
+                evtdata[rank]['rank'] = rank
+                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                evtdata[rank]['total'] = data['ttime']
+                evtdata[rank]['user'] = data['utime']
+                evtdata[rank]['kernel'] = data['stime']
+                evtdata[rank]['runtime'] = \
+                    SystemManager.convertTime(\
+                    data['runtime']).replace(' ', '')
+
+                rank += 1
 
             # check event boundary #
             if rb['cpu']['total'] <= self.reportData['cpu']['total']:
                 self.reportData['event']['CPU_INTENSIVE'] = \
                     self.reportData['cpu']['procs']
 
-        # analyze memory & swap status #
+        # add memory & swap status #
         if 'mem' in self.reportData:
             rank = 1
             self.reportData['mem']['procs'] = {}
@@ -38435,38 +38456,38 @@ class ThreadAnalyzer(object):
             for pid, data in sortedProcData:
                 rss = long(data['stat'][self.rssIdx]) >> 8
 
-                if SystemManager.showAll or rank <= 10:
-                    text = (long(data['stat'][self.ecodeIdx]) - \
-                        long(data['stat'][self.scodeIdx])) >> 20
-
-                    evtdata = self.reportData['mem']['procs']
-
-                    pid = long(pid)
-                    evtdata[rank] = {}
-                    evtdata[rank]['pid'] = pid
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[rank]['rss'] = rss
-                    evtdata[rank]['text'] = text
-                    evtdata[rank]['runtime'] = \
-                        SystemManager.convertTime(\
-                        data['runtime']).replace(' ', '')
-
-                    try:
-                        self.reportData['mem']['procs'][pid]['swap'] = \
-                            long(data['status']['VmSwap'].split()[0]) >> 10
-                    except:
-                        pass
-
-                    try:
-                        self.reportData['mem']['procs'][pid]['shared'] = \
-                            long(data['statm'][self.shrIdx]) >> 8
-                    except:
-                        pass
-
-                    rank += 1
-                else:
+                if not (SystemManager.showAll or rank <= 10):
                     break
+
+                text = (long(data['stat'][self.ecodeIdx]) - \
+                    long(data['stat'][self.scodeIdx])) >> 20
+
+                evtdata = self.reportData['mem']['procs']
+
+                pid = long(pid)
+                evtdata[rank] = {}
+                evtdata[rank]['pid'] = pid
+                evtdata[rank]['rank'] = rank
+                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                evtdata[rank]['rss'] = rss
+                evtdata[rank]['text'] = text
+                evtdata[rank]['runtime'] = \
+                    SystemManager.convertTime(\
+                    data['runtime']).replace(' ', '')
+
+                try:
+                    self.reportData['mem']['procs'][pid]['swap'] = \
+                        long(data['status']['VmSwap'].split()[0]) >> 10
+                except:
+                    pass
+
+                try:
+                    self.reportData['mem']['procs'][pid]['shared'] = \
+                        long(data['statm'][self.shrIdx]) >> 8
+                except:
+                    pass
+
+                rank += 1
 
             # check event boundary #
             if rb['mem']['free'] >= self.reportData['mem']['free']:
@@ -38486,7 +38507,7 @@ class ThreadAnalyzer(object):
                     self.reportData['event']['SWAP_PRESSURE'] = \
                         self.reportData['mem']['procs']
 
-        # analyze block status #
+        # add block status #
         if 'block' in self.reportData:
             rank = 1
             self.reportData['block']['procs'] = {}
@@ -38494,49 +38515,49 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['btime'], reverse=True)
 
             for pid, data in sortedProcData:
-                if data['btime'] > 0:
-                    evtdata = self.reportData['block']['procs']
-
-                    pid = long(pid)
-                    evtdata[rank] = {}
-                    evtdata[rank]['pid'] = long(pid)
-                    evtdata[rank]['rank'] = rank
-                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                    evtdata[rank]['iowait'] = data['btime']
-                    evtdata[rank]['runtime'] = \
-                        SystemManager.convertTime(\
-                        data['runtime']).replace(' ', '')
-
-                    rank += 1
-                else:
+                if data['btime'] == 0:
                     break
+
+                evtdata = self.reportData['block']['procs']
+
+                pid = long(pid)
+                evtdata[rank] = {}
+                evtdata[rank]['pid'] = long(pid)
+                evtdata[rank]['rank'] = rank
+                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                evtdata[rank]['iowait'] = data['btime']
+                evtdata[rank]['runtime'] = \
+                    SystemManager.convertTime(\
+                    data['runtime']).replace(' ', '')
+
+                rank += 1
 
             if rb['block']['ioWait'] <= self.reportData['block']['ioWait']:
                 self.reportData['event']['IO_INTENSIVE'] = \
                     self.reportData['block']['procs']
 
-        # analyze storage status #
+        # add storage status #
         if 'storage' in self.reportData:
             if rb['storage']['total'] <= \
                 self.reportData['storage']['total']['usageper']:
                 self.reportData['event']['STORAGE_FULL'] = \
                     self.reportData['storage']
 
-        # analyze system status #
+        # add system status #
         if 'system' in self.reportData:
             pass
 
-        # analyze task status #
+        # add task status #
         if 'task' in self.reportData:
             pass
 
         # get event number #
         nrReason = len(self.reportData['event'])
 
-        # print system status to file #
-        if SystemManager.reportFileEnable and \
-            SystemManager.printFile and \
-            nrReason > 0:
+        # print system status to file if condition is met #
+        if nrReason > 0 and \
+            SystemManager.reportFileEnable and \
+            SystemManager.printFile:
 
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
@@ -38584,25 +38605,8 @@ class ThreadAnalyzer(object):
                 "Fail to convert report data to JSON type")
             return
 
-        # report system status to file #
-        if SystemManager.reportObject:
-            SystemManager.writeJsonObject(\
-                jsonObj, fd=SystemManager.reportObject, \
-                trunc=SystemManager.truncEnable)
-
-        # report system status to socket #
-        for addr, cli in SystemManager.addrListForReport.items():
-            if cli.request == 'REPORT_ALWAYS' or nrReason > 0:
-                if cli.status == 'SENT' and cli.ignore > 1:
-                    SystemManager.printInfo(\
-                        "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
-                    del SystemManager.addrListForReport[addr]
-                else:
-                    ret = cli.send(jsonObj)
-                    if ret is False:
-                        del SystemManager.addrListForReport[addr]
-                    else:
-                        cli.ignore += 1
+        # transfer data to file or socket #
+        self.tranData(jsonObj)
 
 
 
@@ -38659,7 +38663,9 @@ class ThreadAnalyzer(object):
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
 
-        reportElasticData += SystemManager.makeJsonString(reportCpuData)
+        jstr = SystemManager.makeJsonString(reportCpuData)
+        if jstr:
+            reportElasticData += jstr
 
         # generate memory status data #
         metricsetFields['metricset']['name'] = 'memory'
@@ -38690,7 +38696,9 @@ class ThreadAnalyzer(object):
         reportMemoryData.update(beatFields)
         reportMemoryData.update(systemMemoryFields)
 
-        reportElasticData += SystemManager.makeJsonString(reportMemoryData)
+        jstr = SystemManager.makeJsonString(reportMemoryData)
+        if jstr:
+            reportElasticData += jstr
 
         # generate network status data #
         metricsetFields['metricset']['name'] = 'network'
@@ -38712,7 +38720,9 @@ class ThreadAnalyzer(object):
         reportNetworkData.update(beatFields)
         reportNetworkData.update(systemNetworkFields)
 
-        reportElasticData += SystemManager.makeJsonString(reportNetworkData)
+        jstr = SystemManager.makeJsonString(reportNetworkData)
+        if jstr:
+            reportElasticData += jstr
 
         # generate network status data #
         metricsetFields['metricset']['name'] = 'diskio'
@@ -38743,7 +38753,9 @@ class ThreadAnalyzer(object):
             reportDiskioData.update(beatFields)
             reportDiskioData.update(systemDiskioFields)
 
-            reportElasticData += SystemManager.makeJsonString(reportDiskioData)
+            jstr = SystemManager.makeJsonString(reportDiskioData)
+            if jstr:
+                reportElasticData += jstr
 
         # generate process status data #
         metricsetFields['metricset']['name'] = 'process'
@@ -38777,80 +38789,45 @@ class ThreadAnalyzer(object):
         processData = systemProcessFields['system']['process']
 
         for pid, data in sortedProcData:
-            if data['ttime'] > 0:
-                processData['pid'] = long(pid)
-                processData['name'] = data['stat'][self.commIdx][1:-1]
-                processData['cpu']['user']['pct'] = data['utime']
-                processData['cpu']['kernel']['pct'] = data['stime']
-                processData['cpu']['total']['pct'] = data['ttime']
-                processData['cpu']['runtime'] = \
-                                        SystemManager.convertTime(\
-                                        data['runtime']).replace(' ', '')
+            if not (SystemManager.showAll or data['ttime'] > 0):
+                break
 
-                rss = long(data['stat'][self.rssIdx]) >> 8
+            processData['pid'] = long(pid)
+            processData['name'] = data['stat'][self.commIdx][1:-1]
+            processData['cpu']['user']['pct'] = data['utime']
+            processData['cpu']['kernel']['pct'] = data['stime']
+            processData['cpu']['total']['pct'] = data['ttime']
+            processData['cpu']['runtime'] = \
+                SystemManager.convertTime(\
+                data['runtime']).replace(' ', '')
 
-                text = (long(data['stat'][self.ecodeIdx]) - \
-                        long(data['stat'][self.scodeIdx])) >> 20
+            rss = long(data['stat'][self.rssIdx]) >> 8
 
-                processData['memory']['rss']['bytes'] = rss
-                processData['memory']['text'] = text
+            text = (long(data['stat'][self.ecodeIdx]) - \
+                    long(data['stat'][self.scodeIdx])) >> 20
 
-                # merge process data dictionary #
-                reportProcessData = metricsetFields.copy()
-                reportProcessData.update(beatFields)
-                reportProcessData.update(systemProcessFields)
+            processData['memory']['rss']['bytes'] = rss
+            processData['memory']['text'] = text
 
-                reportElasticData += SystemManager.makeJsonString(reportProcessData)
+            # merge process data dictionary #
+            reportProcessData = metricsetFields.copy()
+            reportProcessData.update(beatFields)
+            reportProcessData.update(systemProcessFields)
 
+            jstr = SystemManager.makeJsonString(reportProcessData)
+            if jstr:
+                reportElasticData += jstr
 
-        # print system status to file #
-        if SystemManager.reportFileEnable and \
-            SystemManager.printFile :
-
-            # submit summarized report and details #
-            ThreadAnalyzer.printIntervalUsage()
-
-            # sync and close output file #
-            if SystemManager.fileForPrint:
-                try:
-                    SystemManager.fileForPrint.close()
-                except:
-                    pass
-                finally:
-                    SystemManager.fileForPrint = None
-
-            # make output path #
-            filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
-            for event in list(self.reportData['event'].keys()):
-                filePath = '%s_%s' % (filePath, event)
-            filePath = '%s_%s.out' % (filePath, str(long(SystemManager.uptime)))
-
-            try:
-                # rename output file #
-                os.rename(SystemManager.inputFile, filePath)
-
-                try:
-                    fsize = SystemManager.convertSize2Unit(\
-                        int(os.path.getsize(filePath)))
-                except:
-                    fsize = '?'
-
-                SystemManager.printStatus((\
-                    "save results based monitoring into "
-                    "%s [%s] successfully") % \
-                    (filePath, fsize))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SystemManager.printWarning(\
-                    "Fail to rename %s to %s" % \
-                    SystemManager.inputFile, filePath)
+        # transfer data to file or socket #
+        self.tranData(reportElasticData)
 
 
+
+    def tranData(self, data):
         # report system status to file #
         if SystemManager.reportObject:
             SystemManager.writeJsonObject(\
-                reportElasticData, fd=SystemManager.reportObject, \
+                data, fd=SystemManager.reportObject, \
                 trunc=SystemManager.truncEnable)
 
         # report system status to socket #
@@ -38861,7 +38838,7 @@ class ThreadAnalyzer(object):
                         "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
                     del SystemManager.addrListForReport[addr]
                 else:
-                    ret = cli.send(reportElasticData)
+                    ret = cli.send(data)
                     if ret is False:
                         del SystemManager.addrListForReport[addr]
                     else:
