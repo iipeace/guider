@@ -21610,7 +21610,10 @@ class Debugger(object):
 
     def __del__(self):
         # stop target #
-        os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
+        try:
+            os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
+        except:
+            return
 
         # resume target #
         self.cont()
