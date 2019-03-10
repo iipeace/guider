@@ -21609,7 +21609,13 @@ class Debugger(object):
 
 
     def __del__(self):
+        # stop target #
+        os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
+
+        # resume target #
         self.cont()
+
+        # detach target #
         self.detach()
 
 
