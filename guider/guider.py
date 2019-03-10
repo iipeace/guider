@@ -22212,13 +22212,13 @@ class Debugger(object):
                 direction = '<-'
 
                 if self.depth > 0:
-                    self.depth -= 0
-            elif self.sp < self.prevsp:
+                    self.depth -= 1
+            elif self.prevCallInfo[0] == 'PLT':
+                direction = '--'
+            else:
                 direction = '->'
 
                 self.depth += 1
-            else:
-                direction = '--'
 
             SystemManager.pipePrint(\
                 '%3.6f %40s (%s) [%s + %s]' % \
