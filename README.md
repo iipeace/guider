@@ -21,10 +21,6 @@ Table of contents
 <!--ts-->
    * [Intro](#Intro)
    * [Output](#Output)
-      * monitor
-      * util
-      * profile
-      * visualize
    * [How to use](#How-to-use)
    * [Requirement](#Requirement)
    * [Build & Installation](#Build-&-Installation)
