@@ -36432,7 +36432,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-        # divide usage by the number of cores #
+        # divide total cpu usage by the number of cores #
         userUsage = long(userUsage / nrCore)
         kerUsage = long(kerUsage / nrCore)
         ioUsage = long(ioUsage / nrCore)
@@ -36564,35 +36564,35 @@ class ThreadAnalyzer(object):
                         return
 
                     # get cpu stats #
-                    userUsage = coreStats[idx]['user']
-                    kerUsage = coreStats[idx]['kernel']
-                    ioUsage = coreStats[idx]['io']
-                    irqUsage = coreStats[idx]['irq']
-                    idleUsage = coreStats[idx]['idle']
+                    userCoreUsage = coreStats[idx]['user']
+                    kerCoreUsage = coreStats[idx]['kernel']
+                    ioCoreUsage = coreStats[idx]['io']
+                    irqCoreUsage = coreStats[idx]['irq']
+                    idleCoreUsage = coreStats[idx]['idle']
 
                     # get total usage #
-                    if idleUsage < 100:
-                        totalUsage = 100 - idleUsage
+                    if idleCoreUsage < 100:
+                        totalCoreUsage = 100 - idleCoreUsage
                     else:
-                        totalUsage = 0
+                        totalCoreUsage = 0
 
                     # limit total core usage in each modes #
-                    if userUsage > 100:
-                        userUsage = 100
-                    if kerUsage > 100:
-                        kerUsage = 100
+                    if userCoreUsage > 100:
+                        userCoreUsage = 100
+                    if kerCoreUsage > 100:
+                        kerCoreUsage = 100
 
                     # set percore stats #
-                    percoreStats[idx]['user'] = userUsage
-                    percoreStats[idx]['kernel'] = kerUsage
-                    percoreStats[idx]['iowait'] = ioUsage
-                    percoreStats[idx]['irq'] = irqUsage
-                    percoreStats[idx]['idle'] = idleUsage
-                    percoreStats[idx]['total'] = totalUsage
+                    percoreStats[idx]['user'] = userCoreUsage
+                    percoreStats[idx]['kernel'] = kerCoreUsage
+                    percoreStats[idx]['iowait'] = ioCoreUsage
+                    percoreStats[idx]['irq'] = irqCoreUsage
+                    percoreStats[idx]['idle'] = idleCoreUsage
+                    percoreStats[idx]['total'] = totalCoreUsage
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
-                        format("Core/%s" % idx, '%s %%' % totalUsage,\
-                        userUsage, kerUsage, ioUsage, irqUsage)
+                        format("Core/%s" % idx, '%s %%' % totalCoreUsage,\
+                        userCoreUsage, kerCoreUsage, ioCoreUsage, irqCoreUsage)
 
                     # get current cpu frequency #
                     curPath = '%s%s/cpufreq/cpuinfo_cur_freq' % (freqPath, idx)
@@ -36689,8 +36689,8 @@ class ThreadAnalyzer(object):
                     lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
-                    if totalUsage > 0:
-                        coreGraph = '#' * int(lenLine * totalUsage / 100)
+                    if totalCoreUsage > 0:
+                        coreGraph = '#' * int(lenLine * totalCoreUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
@@ -36713,11 +36713,11 @@ class ThreadAnalyzer(object):
                         SystemManager.addPrint('---more---')
                         return
 
-                    totalUsage = value['CUR_LOAD']
+                    totalGpuUsage = value['CUR_LOAD']
                     coreStat = "{0:<23}({1:>5})|".format(\
-                        idx[:23], '%s %%' % totalUsage)
+                        idx[:23], '%s %%' % totalGpuUsage)
 
-                    gpuStats[idx] = totalUsage
+                    gpuStats[idx] = totalGpuUsage
 
                     # set frequency info #
                     coreFreq = ''
@@ -36745,8 +36745,8 @@ class ThreadAnalyzer(object):
                     lenLine = SystemManager.lineLength - lenCore - lenFreq - 2
 
                     # print graph of per-core usage #
-                    if totalUsage > 0:
-                        coreGraph = '#' * int(lenLine * totalUsage / 100)
+                    if totalGpuUsage > 0:
+                        coreGraph = '#' * int(lenLine * totalGpuUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
