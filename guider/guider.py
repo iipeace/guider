@@ -19683,8 +19683,9 @@ Copyright:
 
 
     def saveStorageInfo(self):
+        #mountFile = '%s/mounts' % SystemManager.procPath
+        mountFile = '%s/self/mountinfo' % SystemManager.procPath
         partFile = '%s/partitions' % SystemManager.procPath
-        mountFile = '%s/mounts' % SystemManager.procPath
         diskFile = '%s/diskstats' % SystemManager.procPath
         blockDir = '/sys/class/block'
 
@@ -20926,9 +20927,25 @@ Copyright:
         if not self.mountData:
             return
 
+        # parse mount info #
         for l in self.mountData:
-            dev, path, fs, option, etc1, etc2 = l.split()
+            # leave for /proc/mounts #
+            #dev, path, fs, option, etc1, etc2 = l.split()
 
+            # split mount info #
+            left, right = l.split(' - ')
+
+            # split left-side part #
+            left = left.split()
+            mountid, parentid, devid, root, path = left[:5]
+            option = ' '.join(left[5:-1])
+
+            # split right-side part #
+            right = right.split()
+            fs, dev = right[0:2]
+            soption = ' '.join(right[2:])
+
+            # check skip condition #
             try:
                 rpath = os.path.realpath(dev)
                 dev = os.path.basename(rpath)
@@ -20946,10 +20963,14 @@ Copyright:
             except:
                 continue
 
+            # save mount info #
             self.mountInfo[rpath] = dict()
+            self.mountInfo[rpath]['devid'] = devid
+            self.mountInfo[rpath]['mountid'] = mountid
             self.mountInfo[rpath]['path'] = path
             self.mountInfo[rpath]['fs'] = fs
             self.mountInfo[rpath]['option'] = option
+            self.mountInfo[rpath]['soption'] = soption
 
 
 
