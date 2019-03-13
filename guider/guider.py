@@ -18504,13 +18504,13 @@ Copyright:
         execCmd = None
 
         # check tid #
-        if not SystemManager.isRoot():
+        if SystemManager.sourceFile:
+            pid = None
+            execCmd = SystemManager.sourceFile.split()
+        elif not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to trace systemcall")
             sys.exit(0)
-        elif SystemManager.sourceFile:
-            pid = None
-            execCmd = SystemManager.sourceFile.split()
         elif len(SystemManager.filterGroup) == 0 and \
             not SystemManager.sourceFile:
             SystemManager.printError(\
@@ -18561,13 +18561,13 @@ Copyright:
         execCmd = None
 
         # check tid #
-        if not SystemManager.isRoot():
+        if SystemManager.sourceFile:
+            pid = None
+            execCmd = SystemManager.sourceFile.split()
+        elif not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to trace usercall")
             sys.exit(0)
-        elif SystemManager.sourceFile:
-            pid = None
-            execCmd = SystemManager.sourceFile.split()
         elif len(SystemManager.filterGroup) == 0 and \
             not SystemManager.sourceFile:
             SystemManager.printError(\
