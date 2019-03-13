@@ -22062,6 +22062,35 @@ class Debugger(object):
 
 
 
+    def getAnonVrangeByOffset(self, offset, fname=None):
+        if not fname in self.pmap:
+            return
+
+        vstart = self.pmap[fname]['vstart']
+        vend = self.pmap[fname]['vend']
+
+        # get elf object #
+        if fname not in ElfAnalyzer.cachedFiles:
+            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
+
+        fcache = ElfAnalyzer.cachedFiles[fname]
+
+        ret = fcache.getAnonRangeByOffset(offset)
+        if not ret:
+            return [0, 0]
+
+        # check executable type #
+        if not ElfAnalyzer.isRelocFile(fname):
+            start = ret[0]
+            end = ret[1]
+        else:
+            start = vstart + ret[0]
+            end = vstart + ret[1]
+
+        return [start, end]
+
+
+
     def getVrangeBySymbol(self, symbol, fname=None):
         if not fname in self.pmap:
             return
@@ -22153,8 +22182,8 @@ class Debugger(object):
             offset = vaddr
 
         try:
-            return [fcache.getSymbolByOffset(offset), \
-                fname, hex(offset).rstrip('L'), vstart, vend]
+            sym = fcache.getSymbolByOffset(offset)
+            return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
         except:
             return None
 
@@ -22232,14 +22261,21 @@ class Debugger(object):
         # print current symbol #
         if fname != '??':
             # get filter addr #
-            if sym != '??':
-                vstart, vend = self.getVrangeBySymbol(sym, fname)
-            else:
+            try:
+                # symbol range #
+                if sym != '??':
+                    vstart, vend = self.getVrangeBySymbol(sym, fname)
+                # anon range #
+                else:
+                    vstart, vend = self.getAnonVrangeByOffset(offset, fname)
+            except:
                 vstart = vend = 0
 
             # check contiguous unknown symbol #
             if self.prevCallInfo:
                 if self.prevCallInfo[0] == sym:
+                    # save current call info as previous call #
+                    self.prevCallInfo = [sym, fname, vstart, vend]
                     return
                 elif self.prevCallInfo[0].startswith('mmap'):
                     self.needRescan = True
@@ -22255,13 +22291,13 @@ class Debugger(object):
             # check call relationship #
             if not self.sp or not self.prevsp:
                 direction = '??'
+            elif sym == 'PLT':
+                direction = '--'
             elif self.sp > self.prevsp:
                 direction = '<-'
 
                 if self.depth > 0:
                     self.depth -= 1
-            elif self.prevCallInfo[0] == 'PLT':
-                direction = '--'
             else:
                 direction = '->'
 
@@ -23951,6 +23987,10 @@ class ElfAnalyzer(object):
         # sort and convert table #
         for idx, item in sorted(tempSymTable.items(),\
             key=lambda e: e[1]['value'], reverse=False):
+
+            if item['size'] == 0:
+                continue
+
             self.sortedAddrTable.append(item['value'])
             self.sortedSymTable.append([idx, item['size']])
 
@@ -23973,6 +24013,55 @@ class ElfAnalyzer(object):
             return [val['value'], val['value'] + val['size']]
         else:
             return None
+
+
+
+    def getAnonRangeByOffset(self, offset):
+        def bisect_left(a, x, lo=0, hi=None):
+            # copied from python standard library bisect.py #
+            if lo < 0:
+                raise ValueError('lo must be non-negative')
+            if not hi:
+                hi = len(a)
+            while lo < hi:
+                mid = (lo+hi)//2
+                if a[mid] <= x: lo = mid+1
+                else: hi = mid
+            return lo
+
+        # check symbol table #
+        if len(self.sortedSymTable) == 0:
+            self.mergeSymTable()
+
+        try:
+            if type(offset) is str:
+                try:
+                    offset = int(offset, 16)
+                except:
+                    offset = int(offset)
+
+            addrTable = self.sortedAddrTable
+            symTable = self.sortedSymTable
+
+            # get target index from address table #
+            idx = bisect_left(self.sortedAddrTable, offset) - 1
+            if idx < 0:
+                idx = 0
+
+            if addrTable[idx] > offset:
+                if idx > 0:
+                    start = addrTable[idx-1] + symTable[idx-1][1] + 1
+                    end = addrTable[idx] - 1
+                else:
+                    start = 0
+                    end = addrTable[idx] - 1
+            else:
+                start = addrTable[idx] + symTable[idx][1] + 1
+                end = addrTable[idx + 1] - 1
+
+            return [start, end]
+        except:
+            return [0, 0]
 
 
 
@@ -24005,6 +24094,8 @@ class ElfAnalyzer(object):
 
             # get target index from address table #
             idx = bisect_left(self.sortedAddrTable, offset) - 1
+            if idx < 0:
+                idx = 0
 
             while 1:
                 if addrTable[idx] > offset:
