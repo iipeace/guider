@@ -15455,18 +15455,10 @@ Copyright:
                     SystemManager.irqEnable = True
 
                 if options.rfind('b') > -1:
-                    procPath = SystemManager.procPath
-                    if not SystemManager.isRoot():
-                        SystemManager.printError(\
-                            "Fail to get root permission to analyze block I/O")
-                        sys.exit(0)
-                    elif os.path.isfile('%s/self/io' % procPath) is False:
-                        SystemManager.printError((\
-                            "Fail to use bio event, "
-                            "please check kernel configuration"))
-                        sys.exit(0)
-                    else:
+                    if SystemManager.checkDiskTopCond():
                         SystemManager.blockEnable = True
+                    else:
+                        sys.exit(0)
 
                 if options.rfind('s') > -1:
                     if SystemManager.checkStackTopCond():
@@ -17121,6 +17113,22 @@ Copyright:
         elif not SystemManager.isRoot():
             SystemManager.printError(\
                 "Fail to get root permission to clear refcnts")
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
+    def checkDiskTopCond():
+        procPath = SystemManager.procPath
+        if not SystemManager.isRoot():
+            SystemManager.printError(\
+                "Fail to get root permission to analyze block I/O")
+            return False
+        elif os.path.isfile('%s/self/io' % procPath) is False:
+            SystemManager.printError(\
+                "Fail to use bio event, please check kernel configuration")
             return False
         else:
             return True
@@ -19692,10 +19700,10 @@ Copyright:
         # save disk and mount info #
         try:
             with open(diskFile, 'r') as df:
-                if not 'before' in self.diskData:
-                    self.diskData['before'] = df.readlines()
+                if not 'prev' in self.diskData:
+                    self.diskData['prev'] = df.readlines()
                 else:
-                    self.diskData['after'] = df.readlines()
+                    self.diskData['next'] = df.readlines()
 
                     try:
                         with open(mountFile, 'r') as mf:
@@ -19706,7 +19714,7 @@ Copyright:
         except:
             SystemManager.printWarning("Fail to open %s" % diskFile)
 
-        # save partition size #
+        # save partition range #
         try:
             for dirnames in os.walk(blockDir):
                 for subdirname in dirnames[1]:
@@ -19744,10 +19752,10 @@ Copyright:
             f = open(memFile, 'r')
             lines = f.readlines()
 
-            if not 'before' in self.memData:
-                self.memData['before'] = lines
+            if not 'prev' in self.memData:
+                self.memData['prev'] = lines
             else:
-                self.memData['after'] = lines
+                self.memData['next'] = lines
 
             f.close()
         except:
@@ -20889,14 +20897,16 @@ Copyright:
     def updateDiskInfo(self):
         for time in list(self.diskData.keys()):
             self.diskInfo[time] = {}
+
             for l in self.diskData[time]:
                 values = l.split()
 
+                # before kernel 4.18 #
                 if len(values) == 14:
                     major, minor, name, readComplete, readMerge, sectorRead, \
                     readTime, writeComplete, writeMerge, sectorWrite, \
                     writeTime, currentIO, ioTime, ioWTime = l.split()
-                # kernel 4.18+ #
+                # after kernel 4.18 #
                 elif len(values) == 18:
                     major, minor, name, readComplete, readMerge, sectorRead, \
                     readTime, writeComplete, writeMerge, sectorWrite, \
@@ -20938,6 +20948,7 @@ Copyright:
             # split left-side part #
             left = left.split()
             mountid, parentid, devid, root, path = left[:5]
+            major, minor = devid.split(':')
             option = ' '.join(left[5:-1])
 
             # split right-side part #
@@ -20952,11 +20963,11 @@ Copyright:
 
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
-                    for mp in self.diskInfo['before'].values():
+                    for mp in self.diskInfo['prev'].values():
                         if mp['major'] == major and mp['minor'] == minor:
                             raise MountException
 
-                if dev not in self.diskInfo['before']:
+                if dev not in self.diskInfo['prev']:
                     continue
             except MountException:
                 pass
@@ -20965,7 +20976,8 @@ Copyright:
 
             # save mount info #
             self.mountInfo[rpath] = dict()
-            self.mountInfo[rpath]['devid'] = devid
+            self.mountInfo[rpath]['major'] = major
+            self.mountInfo[rpath]['minor'] = minor
             self.mountInfo[rpath]['mountid'] = mountid
             self.mountInfo[rpath]['path'] = path
             self.mountInfo[rpath]['fs'] = fs
@@ -20995,7 +21007,6 @@ Copyright:
             'usageper': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
-        storageData['total']['mount'] = {}
 
         # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
@@ -21006,19 +21017,22 @@ Copyright:
             storageData[key] = dict(init_storageData)
             storageData[key]['mount'] = val
 
-            # calculate read & write size of devices #
+            # calculate read & write load of devices #
             try:
+                # get node name from full-path #
                 dev = key[key.rfind('/')+1:]
 
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
-                    for name, mp in self.diskInfo['before'].items():
+                    for name, mp in self.diskInfo['prev'].items():
                         if mp['major'] == major and mp['minor'] == minor:
                             dev = name
 
-                beforeInfo = self.diskInfo['before'][dev]
-                afterInfo = self.diskInfo['after'][dev]
+                # define shortcut variable of this device info #
+                beforeInfo = self.diskInfo['prev'][dev]
+                afterInfo = self.diskInfo['next'][dev]
 
+                # get interval load of this device #
                 read = \
                     (int(afterInfo['sectorRead']) - \
                     int(beforeInfo['sectorRead'])) << 9
@@ -21029,8 +21043,12 @@ Copyright:
                     int(beforeInfo['sectorWrite'])) << 9
                 write = write >> 20
 
+                load = \
+                    int(afterInfo['sectorRead']) + int(afterInfo['sectorWrite'])
+
                 storageData[key]['read'] = read
                 storageData[key]['write'] = write
+                storageData[key]['load'] = load
 
                 storageData['total']['read'] += read
                 storageData['total']['write'] += write
@@ -21192,12 +21210,12 @@ Copyright:
 
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
-                    for name, mp in self.diskInfo['before'].items():
+                    for name, mp in self.diskInfo['prev'].items():
                         if mp['major'] == major and mp['minor'] == minor:
                             dev = name
 
-                beforeInfo = self.diskInfo['before'][dev]
-                afterInfo = self.diskInfo['after'][dev]
+                beforeInfo = self.diskInfo['prev'][dev]
+                afterInfo = self.diskInfo['next'][dev]
 
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - \
@@ -21327,7 +21345,7 @@ Copyright:
             return
 
         # parse data #
-        time = 'before'
+        time = 'prev'
         self.memInfo[time] = dict()
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
@@ -21335,7 +21353,7 @@ Copyright:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
-        time = 'after'
+        time = 'next'
         self.memInfo[time] = dict()
         for l in self.memData[time]:
             m = re.match(r'(?P<type>\S+):\s+(?P<size>[0-9]+)', l)
@@ -21343,8 +21361,8 @@ Copyright:
                 d = m.groupdict()
                 self.memInfo[time][d['type']] = d['size']
 
-        before = self.memInfo['before']
-        after = self.memInfo['after']
+        before = self.memInfo['prev']
+        after = self.memInfo['next']
 
         # check items for compatibility #
         try:
@@ -31940,6 +31958,7 @@ class ThreadAnalyzer(object):
 
             for pid, childs in root.items():
                 indent = ''
+
                 comm = SystemManager.procInstance[pid]['stat'][commIdx][1:-1]
 
                 if depth == 0:
@@ -36869,7 +36888,7 @@ class ThreadAnalyzer(object):
             self.reportData['net']['outbound'] = netOut
 
             # storage #
-            if SystemManager.diskEnable is False:
+            if not SystemManager.diskEnable:
                 SystemManager.sysInstance.updateStorageInfo()
 
                 # save previous storage usage #
@@ -37246,7 +37265,7 @@ class ThreadAnalyzer(object):
 
 
     def printDiskUsage(self):
-        if SystemManager.diskEnable is False:
+        if not SystemManager.diskEnable:
             return
         elif SystemManager.uptimeDiff == 0:
             return
@@ -37272,7 +37291,10 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint('%s\n' % oneLine)
 
         printCnt = 0
-        for dev, value in sorted(self.storageData.items()):
+        for dev, value in sorted(\
+            self.storageData.items(),\
+            key=lambda e: e[1]['load'] if 'load' in e[1] else 0, reverse=True):
+
             # skip total usage #
             if dev == 'total':
                 continue
@@ -39293,9 +39315,12 @@ def main(args=None):
 
         # disk #
         elif SystemManager.isDiskTopMode():
-            SystemManager.diskEnable = True
-            SystemManager.blockEnable = True
-            SystemManager.sort = 'b'
+            if SystemManager.checkDiskTopCond():
+                SystemManager.diskEnable = True
+                SystemManager.blockEnable = True
+                SystemManager.sort = 'b'
+            else:
+                sys.exit(0)
 
         # background #
         elif SystemManager.isBgTopMode():
