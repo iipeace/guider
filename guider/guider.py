@@ -37340,7 +37340,11 @@ class ThreadAnalyzer(object):
             option = value['mount']['option']
 
             # make disk stat string #
-            mountInfo = '%s <%s>' % (path, option)
+            if len(option) > 0:
+                mountInfo = '%s <%s>' % (path, option)
+            else:
+                mountInfo = path
+
             diskInfo = \
                 ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
                 "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<58}|\n").\
