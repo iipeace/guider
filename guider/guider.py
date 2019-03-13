@@ -2177,8 +2177,8 @@ class ConfigManager(object):
         'sys_mlock2', 'sys_copy_file_range'
         ]
 
-    # Set default syscall table to arm #
-    sysList = SYSCALL_ARM
+    # Define default syscall list #
+    sysList = None
 
     # Define systemcall register #
     REG_LIST = {
@@ -4630,10 +4630,10 @@ class FunctionAnalyzer(object):
         relocated = ElfAnalyzer.isRelocFile(binPath)
 
         # No file exist #
-        if os.path.isfile(binPath) == False:
+        if not os.path.isfile(binPath):
             for addr in offsetList:
                 try:
-                    if relocated is False:
+                    if not relocated:
                         self.posData[addr]['symbol'] = 'NoFile'
                         self.posData[addr]['src'] = 'NoFile'
                     else:
@@ -4653,7 +4653,7 @@ class FunctionAnalyzer(object):
             return -1
 
         # check user-mode enabled #
-        if SystemManager.userEnable is False:
+        if not SystemManager.userEnable:
             return
 
         # Check addr2line path #
@@ -9315,7 +9315,7 @@ class SystemManager(object):
     else:
         TICK = int((1 / float(HZ)) * 1000)
 
-    arch = 'arm'
+    arch = None
     kernelVersion = None
     wordSize = 4
     isLinux = True
@@ -11900,21 +11900,26 @@ Copyright:
 
     @staticmethod
     def getArch():
+        if SystemManager.arch:
+            return SystemManager.arch
+
         try:
             arch = os.uname()[4]
 
             if arch.startswith('arm'):
-                return 'arm'
+                SystemManager.arch = 'arm'
             elif arch.startswith('aarch64'):
-                return 'aarch64'
+                SystemManager.arch = 'aarch64'
             elif arch.startswith('x86_64') or arch.startswith('ia64'):
-                return 'x64'
+                SystemManager.arch = 'x64'
             elif arch.startswith('i386') or arch.startswith('i686'):
-                return 'x86'
+                SystemManager.arch = 'x86'
             else:
-                return arch
+                SystemManager.arch = arch
         except:
-            return None
+            SystemManager.arch = 'arm'
+
+        return SystemManager.arch
 
 
 
@@ -22213,7 +22218,7 @@ class Debugger(object):
             self.pc <= self.prevCallInfo[3]:
             return
 
-        # get symbol info from program counter of target #
+        # get new symbol info from program counter of target #
         ret = self.getSymbolInfo(self.pc)
         if type(ret) is list:
             sym, fname, offset, fstart, fend = ret
@@ -23903,13 +23908,6 @@ class ElfAnalyzer(object):
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
                 "Fail to check relocatable format because %s" % err)
-            return False
-
-        etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
-        if etype == 'Relocatable' or \
-            etype == 'Shared-object':
-            return True
-        else:
             return False
 
         try:
