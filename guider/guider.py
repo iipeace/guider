@@ -20973,6 +20973,10 @@ Copyright:
                             raise MountException
 
                 if dev not in self.diskInfo['prev']:
+                    # check nodes by device id #
+                    for node, attr in self.diskInfo['prev'].items():
+                        if attr['major'] == major and attr['minor'] == minor:
+                            raise MountException
                     continue
             except MountException:
                 pass
@@ -21100,26 +21104,26 @@ Copyright:
         if not self.mountData:
             return None
 
-        cgroupDir = None
+        # search cgroup mount point #
         for mount in self.mountData:
-            mountList = mount.split()
-            if len(mountList) > 2 and \
-                mountList[2] == 'tmpfs' and \
-                mountList[1].endswith('cgroup'):
-                cgroupDir = mountList[1]
-                break
+            mountList = mount.split(' - ')
 
-        return cgroupDir
+            if not mountList[1].startswith('cgroup'):
+                continue
+
+            mountpath = mountList[0].split()[4]
+            return mountpath[:mountpath.rfind('/')]
+
+        return None
 
 
 
     def getCgroupTree(self):
-        def setSubDirs(root, dirList):
-            for dirpath, dirnames, filenames in dirList:
-                for directory in dirnames:
-                    subdir = os.path.join(dirpath, directory)
+        def getSubDirs(root, path):
+            for dirpath, subdirs, subfiles in path:
+                for item in subdirs:
+                    subdir = os.path.join(dirpath, item)
                     root[subdir] = None
-                    setSubDirs(root, os.walk(subdir))
 
         cgroupPath = self.getCgroupPath()
         if not cgroupPath:
@@ -21127,7 +21131,7 @@ Copyright:
 
         # get full path list #
         dirList = dict()
-        setSubDirs(dirList, os.walk(cgroupPath))
+        getSubDirs(dirList, os.walk(cgroupPath))
 
         # split a path to multiple tokens #
         dirDict = {}
@@ -21298,7 +21302,12 @@ Copyright:
             try:
                 title = diskInfo
                 splitLen = SystemManager.lineLength - len(diskInfo) - 1
-                mountList = '%s <%s>' % (val['path'], val['option'])
+
+                if len(val['option']) > 0:
+                    mountList = '%s <%s>' % (val['path'], val['option'])
+                else:
+                    mountList = val['path']
+
                 mountList = \
                     [mountList[i:i+splitLen] for i in \
                     xrange(0, len(mountList), splitLen)]
@@ -37380,8 +37389,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint('%s\n' % oneLine)
 
         printCnt = 0
-        for dev, value in sorted(\
-            self.storageData.items(),\
+        for dev, value in sorted(self.storageData.items(),\
             key=lambda e: e[1]['load'] if 'load' in e[1] else 0, reverse=True):
 
             # skip total usage #
