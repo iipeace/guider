@@ -39001,8 +39001,10 @@ class ThreadAnalyzer(object):
                 data, fd=SystemManager.reportObject, \
                 trunc=SystemManager.truncEnable)
 
+        addrlist = dict(SystemManager.addrListForReport)
+
         # report system status to socket #
-        for addr, cli in SystemManager.addrListForReport.items():
+        for addr, cli in addrlist.items():
             if cli.request == 'REPORT_ALWAYS':
                 if cli.status == 'SENT' and cli.ignore > 1:
                     SystemManager.printInfo(\
