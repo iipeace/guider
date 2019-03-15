@@ -3656,16 +3656,12 @@ class FunctionAnalyzer(object):
 
         # Open log file #
         try:
-            logFd = open(logFile, 'r')
+            with open(logFile, 'r') as fd:
+                lines = fd.readlines()
         except:
             SystemManager.printError(\
-                "Fail to open %s to create callstack information" % logFile)
+                "Fail to open %s" % logFile)
             sys.exit(0)
-
-        SystemManager.printStatus('start analyzing data... [ STOP(ctrl + c) ]')
-
-        # Get binary and offset info #
-        lines = logFd.readlines()
 
         # Save data and quit #
         SystemManager.saveAndQuit(lines)
@@ -3689,11 +3685,13 @@ class FunctionAnalyzer(object):
         # Register None pos #
         self.posData['0'] = dict(self.init_posData)
 
-        # get and remove process tree from data file #
+        # get process tree #
         SystemManager.getProcTreeInfo()
 
-        # Parse logs #
+        # start parsing logs #
         SystemManager.totalLine = len(lines)
+        SystemManager.printStatus('start analyzing data... [ STOP(ctrl + c) ]')
+
         self.parseLogs(lines, SystemManager.filterGroup)
 
         # Check whether data of target thread is collected or nothing #
@@ -14069,47 +14067,49 @@ Copyright:
     @staticmethod
     def saveAndQuit(lines):
         # save trace data to file #
-        if SystemManager.outputFile:
-            try:
-                # backup data file alread exist #
-                if os.path.isfile(SystemManager.outputFile):
-                    backupFile = SystemManager.outputFile + '.old'
+        if not SystemManager.outputFile:
+            return
 
-                    try:
-                        SystemManager.getPkg('shutil', False).move(\
-                            SystemManager.outputFile, backupFile)
-                        SystemManager.printInfo('%s is renamed to %s' % \
-                            (SystemManager.outputFile, backupFile))
-                    except:
-                        pass
-
-                f = open(SystemManager.outputFile, 'w')
-
-                SystemManager.printInfo(\
-                    "wait for writing data to %s" % (f.name))
-
-                if SystemManager.systemInfoBuffer is not '':
-                    f.writelines(SystemManager.magicString + '\n')
-                    f.writelines(SystemManager.systemInfoBuffer)
-                    f.writelines(SystemManager.magicString + '\n')
-
-                f.writelines(lines)
+        try:
+            # backup data file alread exist #
+            if os.path.isfile(SystemManager.outputFile):
+                backupFile = SystemManager.outputFile + '.old'
 
                 try:
-                    fsize = SystemManager.convertSize2Unit(\
-                        int(os.path.getsize(SystemManager.outputFile)))
+                    SystemManager.getPkg('shutil', False).move(\
+                        SystemManager.outputFile, backupFile)
+                    SystemManager.printInfo('%s is renamed to %s' % \
+                        (SystemManager.outputFile, backupFile))
                 except:
-                    fsize = '?'
+                    pass
 
-                SystemManager.printInfo(\
-                    'finish saving trace data into %s [%s] successfully' % \
-                    (SystemManager.outputFile, fsize))
+            f = open(SystemManager.outputFile, 'w')
+
+            SystemManager.printInfo(\
+                "wait for writing data to %s" % (f.name))
+
+            if SystemManager.systemInfoBuffer is not '':
+                f.writelines(SystemManager.magicString + '\n')
+                f.writelines(SystemManager.systemInfoBuffer)
+                f.writelines(SystemManager.magicString + '\n')
+
+            f.writelines(lines)
+
+            try:
+                fsize = SystemManager.convertSize2Unit(\
+                    int(os.path.getsize(SystemManager.outputFile)))
             except:
-                SystemManager.printError(\
-                    "Fail to write trace data to %s because %s" % \
-                    (SystemManager.outputFile, sys.exc_info()[1]))
+                fsize = '?'
 
-            sys.exit(0)
+            SystemManager.printInfo(\
+                'finish saving trace data into %s [%s] successfully' % \
+                (SystemManager.outputFile, fsize))
+        except:
+            SystemManager.printError(\
+                "Fail to write trace data to %s because %s" % \
+                (SystemManager.outputFile, sys.exc_info()[1]))
+
+        sys.exit(0)
 
 
 
@@ -25561,8 +25561,12 @@ class ThreadAnalyzer(object):
             # process top mode #
             self.runProcTop()
 
+            # terminate top mode #
             sys.exit(0)
 
+
+
+        #-------------------- THREAD MODE --------------------#
         # change default cpu property #
         SystemManager.cpuEnable = False
 
@@ -25576,9 +25580,8 @@ class ThreadAnalyzer(object):
                 self.preemptData.append([False, {}, float(0), 0, float(0)])
 
         try:
-            f = open(file, 'r')
-            lines = f.readlines()
-            f.close()
+            with open(file, 'r') as fd:
+                lines = fd.readlines()
         except IOError:
             SystemManager.printError("Fail to open %s" % file)
             sys.exit(0)
@@ -25586,7 +25589,7 @@ class ThreadAnalyzer(object):
         # save data and quit #
         SystemManager.saveAndQuit(lines)
 
-        # get and remove process tree from data file #
+        # get process tree #
         SystemManager.getProcTreeInfo()
 
         # start parsing logs #
