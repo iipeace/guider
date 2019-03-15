@@ -13145,7 +13145,10 @@ Copyright:
     @staticmethod
     def getErrReason():
         err = sys.exc_info()[1]
-        if err.args[0] == 0:
+        try:
+            if err.args[0] == 0:
+                return 'N/A'
+        except:
             return 'N/A'
         return ' '.join(list(map(str, err.args)))
 
