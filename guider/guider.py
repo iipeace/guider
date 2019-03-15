@@ -2945,7 +2945,7 @@ class NetworkManager(object):
 
 
     def send(self, message, write=False):
-        if not self.ip or not self.port:
+        if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for client because it is not set")
             return False
@@ -3004,7 +3004,7 @@ class NetworkManager(object):
 
 
     def recv(self, size=None):
-        if not self.ip or not self.port:
+        if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
             return False
@@ -3027,7 +3027,7 @@ class NetworkManager(object):
 
 
     def recvfrom(self):
-        if not self.ip or not self.port:
+        if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
             return False
@@ -17722,7 +17722,7 @@ Copyright:
     def setDefaultSignal():
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
 
@@ -17731,7 +17731,7 @@ Copyright:
         signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
 
@@ -17916,7 +17916,7 @@ Copyright:
                         break
 
                     # check process status #
-                    if not procObj.poll():
+                    if procObj.poll() is None:
                         pass
                     else:
                         break
