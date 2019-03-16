@@ -28478,8 +28478,7 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]['usage'] = 0
 
         # sort by size of io usage and convert read blocks to MB size #
-        for key, value in sorted(\
-            self.threadData.items(), \
+        for key, value in sorted(self.threadData.items(), \
             key=lambda e: e[1]['readBlock'], reverse=True):
 
             if value['readBlock'] > 0:
@@ -28498,101 +28497,7 @@ class ThreadAnalyzer(object):
         for key, value in sorted(self.threadData.items(), \
             key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
 
-            if key[0:2] == '0[':
-                # change the name of swapper thread to CORE #
-                value['comm'] = value['comm'].replace("swapper", "CORE")
-
-                # modify idle time if this core is not woke up #
-                if value['usage'] == 0 and value['coreSchedCnt'] == 0:
-                    value['usage'] = self.totalTime
-
-                # calculate total core usage percentage #
-                try:
-                    idle = float(value['usage']) / float(self.totalTime)
-                    usagePercent = 100 - (round(idle, 7) * 100)
-                except:
-                    usagePercent = 0
-
-                if value['lastOff'] > 0:
-                    value['offTime'] += float(self.finishTime) - value['lastOff']
-
-                if SystemManager.powerEnable:
-                    prtTime = offTime = '%5.2f' % value['offTime']
-                    pri = offCnt = str(value['offCnt'])
-                else:
-                    prtTime = offTime = '-'
-                    pri = offCnt = '-'
-
-                if SystemManager.cpuEnable:
-                    cpuTime = '%5.2f' % (self.totalTime - value['usage'])
-                    cpuPer = '%5.1f' % usagePercent
-                    schedLatency = '%5.2f' % value['schedLatency']
-                    yieldCnt = '%5d' % value['yield']
-                    preemptedCnt = '%5d' % value['preempted']
-                    preemptionCnt = '%5d' % value['preemption']
-                    migrateCnt = '%4d' % value['migrate']
-                else:
-                    cpuTime = '-'
-                    cpuPer = '-'
-                    schedLatency = '-'
-                    yieldCnt = '-'
-                    preemptedCnt = '-'
-                    preemptionCnt = '-'
-                    migrateCnt = '-'
-
-                if SystemManager.irqEnable:
-                    irqTime = '%5.2f' % value['irq']
-                else:
-                    irqTime = '-'
-
-                if SystemManager.blockEnable:
-                    ioRdWait = '%5.2f' % value['ioRdWait']
-                    readBlock = '%3d' % value['readBlock']
-                    readBlockCnt = '%4d' % value['readBlockCnt']
-                    ioWrWait = '%5.2f' % value['ioWrWait']
-                    writeBlock = '%3d' % \
-                        (value['writeBlock'] + value['awriteBlock'])
-                else:
-                    ioRdWait = '-'
-                    readBlock = '-'
-                    readBlockCnt = '-'
-                    ioWrWait = '-'
-                    writeBlock = '-'
-
-                if SystemManager.memEnable:
-                    usedMem = '%4d' % \
-                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                    userMem = '%3d' % (value['userPages'] >> 8)
-                    cacheMem = '%3d' % (value['cachePages'] >> 8)
-                    kernelMem = '%3d' % \
-                        ((value['kernelPages'] >> 8) + \
-                        (value['remainKmem'] >> 20))
-                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
-                else:
-                    usedMem = '-'
-                    userMem = '-'
-                    cacheMem = '-'
-                    kernelMem = '-'
-                    reclaimedMem = '-'
-                    wastedMem = '-'
-                    dreclaimedTime = '-'
-                    dreclaimedCnt = '-'
-
-                SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                    "%3s|%3s|%4s(%2s)|\n") % \
-                        (value['comm'], '-'*5, '-'*5, '-', '-', \
-                        cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                        yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                        ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                        usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                        wastedMem, dreclaimedTime, dreclaimedCnt))
-                count += 1
-            else:
+            if key[0:2] != '0[':
                 # convert priority #
                 try:
                     prio = int(value['pri']) - 120
@@ -28602,6 +28507,102 @@ class ThreadAnalyzer(object):
                         value['pri'] = 'R%2s' % abs(prio + 21)
                 except:
                     pass
+
+                continue
+
+            # change the name of swapper thread to CORE #
+            value['comm'] = value['comm'].replace("swapper", "CORE")
+
+            # modify idle time if this core is not woke up #
+            if value['usage'] == 0 and value['coreSchedCnt'] == 0:
+                value['usage'] = self.totalTime
+
+            # calculate total core usage percentage #
+            try:
+                idle = float(value['usage']) / float(self.totalTime)
+                usagePercent = 100 - (round(idle, 7) * 100)
+            except:
+                usagePercent = 0
+
+            if value['lastOff'] > 0:
+                value['offTime'] += float(self.finishTime) - value['lastOff']
+
+            if SystemManager.powerEnable:
+                prtTime = offTime = '%5.2f' % value['offTime']
+                pri = offCnt = str(value['offCnt'])
+            else:
+                prtTime = offTime = '-'
+                pri = offCnt = '-'
+
+            if SystemManager.cpuEnable:
+                cpuTime = '%5.2f' % (self.totalTime - value['usage'])
+                cpuPer = '%5.1f' % usagePercent
+                schedLatency = '%5.2f' % value['schedLatency']
+                yieldCnt = '%5d' % value['yield']
+                preemptedCnt = '%5d' % value['preempted']
+                preemptionCnt = '%5d' % value['preemption']
+                migrateCnt = '%4d' % value['migrate']
+            else:
+                cpuTime = '-'
+                cpuPer = '-'
+                schedLatency = '-'
+                yieldCnt = '-'
+                preemptedCnt = '-'
+                preemptionCnt = '-'
+                migrateCnt = '-'
+
+            if SystemManager.irqEnable:
+                irqTime = '%5.2f' % value['irq']
+            else:
+                irqTime = '-'
+
+            if SystemManager.blockEnable:
+                ioRdWait = '%5.2f' % value['ioRdWait']
+                readBlock = '%3d' % value['readBlock']
+                readBlockCnt = '%4d' % value['readBlockCnt']
+                ioWrWait = '%5.2f' % value['ioWrWait']
+                writeBlock = '%3d' % \
+                    (value['writeBlock'] + value['awriteBlock'])
+            else:
+                ioRdWait = '-'
+                readBlock = '-'
+                readBlockCnt = '-'
+                ioWrWait = '-'
+                writeBlock = '-'
+
+            if SystemManager.memEnable:
+                usedMem = '%4d' % \
+                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                userMem = '%3d' % (value['userPages'] >> 8)
+                cacheMem = '%3d' % (value['cachePages'] >> 8)
+                kernelMem = '%3d' % \
+                    ((value['kernelPages'] >> 8) + \
+                    (value['remainKmem'] >> 20))
+                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                dreclaimedCnt = '%2d' % value['dReclaimCnt']
+            else:
+                usedMem = '-'
+                userMem = '-'
+                cacheMem = '-'
+                kernelMem = '-'
+                reclaimedMem = '-'
+                wastedMem = '-'
+                dreclaimedTime = '-'
+                dreclaimedCnt = '-'
+
+            SystemManager.addPrint(\
+                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
+                "%3s|%3s|%4s(%2s)|\n") % \
+                    (value['comm'], '-'*5, '-'*5, '-', '-', \
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                    wastedMem, dreclaimedTime, dreclaimedCnt))
+            count += 1
 
         SystemManager.pipePrint("%s# %s: %d\n" % ('', 'CPU', count))
         SystemManager.pipePrint(SystemManager.bufferString)
@@ -28922,79 +28923,80 @@ class ThreadAnalyzer(object):
             usagePercent = \
                 round(float(value['usage']) / float(self.totalTime), 7) * 100
 
-            if SystemManager.showAll:
+            if not SystemManager.showAll:
+                continue
 
-                if SystemManager.cpuEnable:
-                    cpuTime = '%5.2f' % value['usage']
-                    cpuPer = '%5.1f' % usagePercent
-                    prtTime = '%5.2f' % value['cpuWait']
-                    schedLatency = '%5.2f' % value['schedLatency']
-                    pri = value['pri']
-                    yieldCnt = '%5d' % value['yield']
-                    preemptedCnt = '%5d' % value['preempted']
-                    preemptionCnt = '%5d' % value['preemption']
-                    migrateCnt = '%4d' % value['migrate']
-                else:
-                    cpuTime = '-'
-                    cpuPer = '-'
-                    prtTime = '-'
-                    schedLatency = '-'
-                    pri = '-'
-                    yieldCnt = '-'
-                    preemptedCnt = '-'
-                    preemptionCnt = '-'
-                    migrateCnt = '-'
+            if SystemManager.cpuEnable:
+                cpuTime = '%5.2f' % value['usage']
+                cpuPer = '%5.1f' % usagePercent
+                prtTime = '%5.2f' % value['cpuWait']
+                schedLatency = '%5.2f' % value['schedLatency']
+                pri = value['pri']
+                yieldCnt = '%5d' % value['yield']
+                preemptedCnt = '%5d' % value['preempted']
+                preemptionCnt = '%5d' % value['preemption']
+                migrateCnt = '%4d' % value['migrate']
+            else:
+                cpuTime = '-'
+                cpuPer = '-'
+                prtTime = '-'
+                schedLatency = '-'
+                pri = '-'
+                yieldCnt = '-'
+                preemptedCnt = '-'
+                preemptionCnt = '-'
+                migrateCnt = '-'
 
-                if SystemManager.irqEnable:
-                    irqTime = '%5.2f' % value['irq']
-                else:
-                    irqTime = '-'
+            if SystemManager.irqEnable:
+                irqTime = '%5.2f' % value['irq']
+            else:
+                irqTime = '-'
 
-                if SystemManager.blockEnable:
-                    ioRdWait = '%5.2f' % value['ioRdWait']
-                    readBlock = '%3d' % value['readBlock']
-                    readBlockCnt = '%4d' % value['readBlockCnt']
-                    ioWrWait = '%5.2f' % value['ioWrWait']
-                    writeBlock = '%3d' % \
-                        (value['writeBlock'] + value['awriteBlock'])
-                else:
-                    ioRdWait = '-'
-                    readBlock = '-'
-                    readBlockCnt = '-'
-                    ioWrWait = '-'
-                    writeBlock = '-'
+            if SystemManager.blockEnable:
+                ioRdWait = '%5.2f' % value['ioRdWait']
+                readBlock = '%3d' % value['readBlock']
+                readBlockCnt = '%4d' % value['readBlockCnt']
+                ioWrWait = '%5.2f' % value['ioWrWait']
+                writeBlock = '%3d' % \
+                    (value['writeBlock'] + value['awriteBlock'])
+            else:
+                ioRdWait = '-'
+                readBlock = '-'
+                readBlockCnt = '-'
+                ioWrWait = '-'
+                writeBlock = '-'
 
-                if SystemManager.memEnable:
-                    usedMem = '%4d' % \
-                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                    userMem = '%3d' % (value['userPages'] >> 8)
-                    cacheMem = '%3d' % (value['cachePages'] >> 8)
-                    kernelMem = '%3d' % \
-                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
-                else:
-                    usedMem = '-'
-                    userMem = '-'
-                    cacheMem = '-'
-                    kernelMem = '-'
-                    reclaimedMem = '-'
-                    wastedMem = '-'
-                    dreclaimedTime = '-'
-                    dreclaimedCnt = '-'
+            if SystemManager.memEnable:
+                usedMem = '%4d' % \
+                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                userMem = '%3d' % (value['userPages'] >> 8)
+                cacheMem = '%3d' % (value['cachePages'] >> 8)
+                kernelMem = '%3d' % \
+                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                dreclaimedCnt = '%2d' % value['dReclaimCnt']
+            else:
+                usedMem = '-'
+                userMem = '-'
+                cacheMem = '-'
+                kernelMem = '-'
+                reclaimedMem = '-'
+                wastedMem = '-'
+                dreclaimedTime = '-'
+                dreclaimedCnt = '-'
 
-                SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                    "%3s|%3s|%4s(%2s)|\n") % \
-                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                    wastedMem, dreclaimedTime, dreclaimedCnt))
+            SystemManager.addPrint(\
+                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
+                "%3s|%3s|%4s(%2s)|\n") % \
+                (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                wastedMem, dreclaimedTime, dreclaimedCnt))
 
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'New', count))
@@ -29016,79 +29018,80 @@ class ThreadAnalyzer(object):
             usagePercent = \
                 round(float(value['usage']) / float(self.totalTime), 7) * 100
 
-            if SystemManager.showAll:
+            if not SystemManager.showAll:
+                continue
 
-                if SystemManager.cpuEnable:
-                    cpuTime = '%5.2f' % value['usage']
-                    cpuPer = '%5.1f' % usagePercent
-                    prtTime = '%5.2f' % value['cpuWait']
-                    schedLatency = '%5.2f' % value['schedLatency']
-                    pri = value['pri']
-                    yieldCnt = '%5d' % value['yield']
-                    preemptedCnt = '%5d' % value['preempted']
-                    preemptionCnt = '%5d' % value['preemption']
-                    migrateCnt = '%4d' % value['migrate']
-                else:
-                    cpuTime = '-'
-                    cpuPer = '-'
-                    prtTime = '-'
-                    schedLatency = '-'
-                    pri = '-'
-                    yieldCnt = '-'
-                    preemptedCnt = '-'
-                    preemptionCnt = '-'
-                    migrateCnt = '-'
+            if SystemManager.cpuEnable:
+                cpuTime = '%5.2f' % value['usage']
+                cpuPer = '%5.1f' % usagePercent
+                prtTime = '%5.2f' % value['cpuWait']
+                schedLatency = '%5.2f' % value['schedLatency']
+                pri = value['pri']
+                yieldCnt = '%5d' % value['yield']
+                preemptedCnt = '%5d' % value['preempted']
+                preemptionCnt = '%5d' % value['preemption']
+                migrateCnt = '%4d' % value['migrate']
+            else:
+                cpuTime = '-'
+                cpuPer = '-'
+                prtTime = '-'
+                schedLatency = '-'
+                pri = '-'
+                yieldCnt = '-'
+                preemptedCnt = '-'
+                preemptionCnt = '-'
+                migrateCnt = '-'
 
-                if SystemManager.irqEnable:
-                    irqTime = '%5.2f' % value['irq']
-                else:
-                    irqTime = '-'
+            if SystemManager.irqEnable:
+                irqTime = '%5.2f' % value['irq']
+            else:
+                irqTime = '-'
 
-                if SystemManager.blockEnable:
-                    ioRdWait = '%5.2f' % value['ioRdWait']
-                    readBlock = '%3d' % value['readBlock']
-                    readBlockCnt = '%4d' % value['readBlockCnt']
-                    ioWrWait = '%5.2f' % value['ioWrWait']
-                    writeBlock = '%3d' % \
-                        (value['writeBlock'] + value['awriteBlock'])
-                else:
-                    ioRdWait = '-'
-                    readBlock = '-'
-                    readBlockCnt = '-'
-                    ioWrWait = '-'
-                    writeBlock = '-'
+            if SystemManager.blockEnable:
+                ioRdWait = '%5.2f' % value['ioRdWait']
+                readBlock = '%3d' % value['readBlock']
+                readBlockCnt = '%4d' % value['readBlockCnt']
+                ioWrWait = '%5.2f' % value['ioWrWait']
+                writeBlock = '%3d' % \
+                    (value['writeBlock'] + value['awriteBlock'])
+            else:
+                ioRdWait = '-'
+                readBlock = '-'
+                readBlockCnt = '-'
+                ioWrWait = '-'
+                writeBlock = '-'
 
-                if SystemManager.memEnable:
-                    usedMem = '%4d' % \
-                        ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                    userMem = '%3d' % (value['userPages'] >> 8)
-                    cacheMem = '%3d' % (value['cachePages'] >> 8)
-                    kernelMem = '%3d' % \
-                        ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                    reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                    wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                    dreclaimedCnt = '%2d' % value['dReclaimCnt']
-                else:
-                    usedMem = '-'
-                    userMem = '-'
-                    cacheMem = '-'
-                    kernelMem = '-'
-                    reclaimedMem = '-'
-                    wastedMem = '-'
-                    dreclaimedTime = '-'
-                    dreclaimedCnt = '-'
+            if SystemManager.memEnable:
+                usedMem = '%4d' % \
+                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
+                userMem = '%3d' % (value['userPages'] >> 8)
+                cacheMem = '%3d' % (value['cachePages'] >> 8)
+                kernelMem = '%3d' % \
+                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
+                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
+                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
+                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                dreclaimedCnt = '%2d' % value['dReclaimCnt']
+            else:
+                usedMem = '-'
+                userMem = '-'
+                cacheMem = '-'
+                kernelMem = '-'
+                reclaimedMem = '-'
+                wastedMem = '-'
+                dreclaimedTime = '-'
+                dreclaimedCnt = '-'
 
-                SystemManager.addPrint(\
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                    "%3s|%3s|%4s(%2s)|\n") % \
-                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                    wastedMem, dreclaimedTime, dreclaimedCnt))
+            SystemManager.addPrint(\
+                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
+                "%3s|%3s|%4s(%2s)|\n") % \
+                (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
+                wastedMem, dreclaimedTime, dreclaimedCnt))
 
         if count > 0:
             SystemManager.pipePrint("%s# %s: %d\n" % ('', 'Die', count))
@@ -33315,7 +33318,7 @@ class ThreadAnalyzer(object):
                 # no stop time of next thread because of some reasons #
                 self.threadData[next_id]['stop'] = 0
 
-                # calculate sched latency  of next thread #
+                # calculate sched latency of next thread #
                 if self.threadData[next_id]['schedReady'] > 0:
                     self.threadData[next_id]['schedLatency'] += \
                         (float(time) - self.threadData[next_id]['schedReady'])
@@ -33802,6 +33805,10 @@ class ThreadAnalyzer(object):
 
             target_comm = d['comm']
             pid = d['pid']
+
+            # skip self-wakeup #
+            if thread == pid:
+                return
 
             self.threadData.setdefault(pid, dict(self.init_threadData))
             self.threadData[pid]['comm'] = target_comm
