@@ -2853,6 +2853,8 @@ class NetworkManager(object):
             # get select object #
             selectObj = SystemManager.getPkg('select')
 
+            print(oneLine)
+
             # run mainloop #
             buf = ''
             while 1:
@@ -2877,6 +2879,8 @@ class NetworkManager(object):
                         buf = ''
                 except:
                     break
+
+            print(oneLine)
 
             conn.close()
 
@@ -18041,7 +18045,7 @@ Copyright:
     def runClientMode():
         def printMenu():
             sys.stdout.write(\
-                '\n[Client Mode Commands]\n'
+                '\n[Command List]\n'
                 '- DOWNLOAD:RemotePath,LocalPath\n'
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
@@ -18050,7 +18054,7 @@ Copyright:
 
         def getUserInput():
             printMenu()
-            sys.stdout.write('Input request to server\n=> ')
+            sys.stdout.write('Input command to request service...\n=> ')
             sys.stdout.flush()
 
             return(sys.stdin.readline()[:-1])
