@@ -9483,6 +9483,7 @@ class SystemManager(object):
 
     # flag for using Elastic Stack
     elasticEnable = False
+    beatCount = 0
 
     repeatInterval = 0
     repeatCount = 0
@@ -38815,7 +38816,8 @@ class ThreadAnalyzer(object):
                 {
                     'name'      : 'guider',
                     'hostname'  : SystemManager.localServObj.ip,
-                    'version'   : __version__
+                    'version'   : __version__,
+                    'beatcount' : SystemManager.beatCount
                 }
         }
 
@@ -39002,6 +39004,9 @@ class ThreadAnalyzer(object):
 
         # transfer data to file or socket #
         self.tranData(reportElasticData)
+
+        # increase beatCount for syncing timestamp
+        SystemManager.beatCount += 1
 
 
 
