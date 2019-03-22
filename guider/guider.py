@@ -2620,20 +2620,25 @@ class NetworkManager(object):
         except:
             return None
 
-        if mode == 'server':
-            try:
+        try:
+            if mode == 'server':
                 if not ip:
                     self.ip = '0.0.0.0'
                 else:
                     self.ip = ip
+            elif mode == 'client':
+                self.ip = ip
+                self.port = port
 
-                if tcp:
-                    self.socket = socket(AF_INET, SOCK_STREAM)
-                else:
-                    self.socket = socket(AF_INET, SOCK_DGRAM)
+            # set socket type #
+            if tcp:
+                self.socket = socket(AF_INET, SOCK_STREAM)
+            else:
+                self.socket = socket(AF_INET, SOCK_DGRAM)
 
-                self.fileno = self.socket.fileno()
+            self.fileno = self.socket.fileno()
 
+            if mode == 'server':
                 if not port:
                     try:
                         self.port = 5555
@@ -2647,37 +2652,15 @@ class NetworkManager(object):
 
                 self.port = self.socket.getsockname()[1]
 
-                if blocking is False:
-                    self.socket.setblocking(0)
-            except:
-                SystemManager.printError(\
-                    "Fail to create socket with %s:%s as server" % \
-                    (self.ip, self.port))
-                self.ip = None
-                self.port = None
-                return None
-
-        elif mode == 'client':
-            try:
-                self.ip = ip
-                self.port = port
-
-                if tcp:
-                    self.socket = socket(AF_INET, SOCK_STREAM)
-                else:
-                    self.socket = socket(AF_INET, SOCK_DGRAM)
-
-                self.fileno = self.socket.fileno()
-
-                if blocking is False:
-                    self.socket.setblocking(0)
-            except:
-                SystemManager.printError(\
-                    "Fail to create socket with %s:%s as client" % \
-                    (self.ip, self.port))
-                self.ip = None
-                self.port = None
-                return None
+            if not blocking:
+                self.socket.setblocking(0)
+        except:
+            SystemManager.printError(\
+                "Fail to create socket with %s:%s as server" % \
+                (self.ip, self.port))
+            self.ip = None
+            self.port = None
+            return None
 
 
 
@@ -3041,7 +3024,7 @@ class NetworkManager(object):
             return False
 
         try:
-            message, address = self.socket.recvfrom(4096)
+            message, address = self.socket.recvfrom(65535)
             return (message, address)
         except:
             return None
@@ -9288,6 +9271,7 @@ class SystemManager(object):
         pageSize = 4096
 
     startTime = time.time()
+    timestamp = 0
     blockSize = 512
     bufferSize = -1
     termGetId = None
@@ -9427,6 +9411,7 @@ class SystemManager(object):
     swapFd = None
     uptimeFd = None
     netstatFd = None
+    netdevFd = None
     loadavgFd = None
     cmdFd = None
 
@@ -9449,8 +9434,9 @@ class SystemManager(object):
     keventEnable = False
     netEnable = False
     stackEnable = False
-    wchanEnable = True
+    wchanEnable = False
     sigHandlerEnable = False
+    pgnameEnable = True
     tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
@@ -9467,7 +9453,7 @@ class SystemManager(object):
     sysEnable = False
     waitEnable = False
     cmdEnable = False
-    perfEnable = True
+    perfEnable = False
     perfGroupEnable = False
     backgroundEnable = False
     resetEnable = False
@@ -9512,6 +9498,9 @@ class SystemManager(object):
 
 
     def __init__(self):
+        if not sys.platform.startswith('linux'):
+            return
+
         SystemManager.sysInstance = self
 
         self.cpuInfo = {}
@@ -9520,6 +9509,7 @@ class SystemManager(object):
         self.devInfo = {}
         self.diskInfo = {}
         self.mountInfo = {}
+        self.networkInfo = {}
         self.systemInfo = {}
         self.partitionInfo = {}
 
@@ -9537,9 +9527,6 @@ class SystemManager(object):
 
         # save system info first #
         self.saveResourceSnapshot(False)
-
-        # initialize perf events #
-        SystemManager.initSystemPerfEvents()
 
 
 
@@ -10498,6 +10485,17 @@ class SystemManager(object):
 
 
     @staticmethod
+    def printDiffTime(msg=None):
+        prev = SystemManager.timestamp
+        SystemManager.timestamp = time.time()
+        if prev == 0 or not msg:
+            return
+        else:
+            print('%s: %f' % (msg, SystemManager.timestamp - prev))
+
+
+
+    @staticmethod
     def which(file):
         pathList = []
         for path in os.environ["PATH"].split(os.pathsep):
@@ -10590,11 +10588,10 @@ OPTIONS:
                 t:thread | C:wfc | s:stack | w:wss | d:disk
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport | E:Elasticsearch
+                f:float | R:freport | n:net | E:Elasticsearch
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | p:print | P:perf
-                W:wchan | n:net | t:truncate | G:gpu
-                a:memAvailable
+                c:cpu | e:encode | p:print
+                t:truncate | G:gpu | a:memAvailable
                     '''
 
                 drawSubStr = '''
@@ -11185,7 +11182,27 @@ Description:
                     examStr = '''
 Examples:
     - Monitor status of all storages
-        # {0:1} {1:1} -g chrome
+        # {0:1} {1:1}
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
+                # network top #
+                elif SystemManager.isNetTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor network status
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor status of all network devices
+        # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -11789,6 +11806,7 @@ COMMAND:
                 perftop     <PMU>
                 memtop      <memory>
                 disktop     <storage>
+                nettop      <network>
                 wsstop      <memory>
                 reptop      <JSON>
                 filetop     <file>
@@ -12328,12 +12346,12 @@ Copyright:
         def _IOWR(type, nr, size): return _IOC(_IOC_READ | _IOC_WRITE, type, nr, size)
 
         # define CMD #
-        PERF_EVENT_IOC_ENABLE = _IO ('$', 0)
-        PERF_EVENT_IOC_DISABLE = _IO ('$', 1)
-        PERF_EVENT_IOC_REFRESH = _IO ('$', 2)
-        PERF_EVENT_IOC_RESET = _IO ('$', 3)
+        PERF_EVENT_IOC_ENABLE = _IO('$', 0)
+        PERF_EVENT_IOC_DISABLE = _IO('$', 1)
+        PERF_EVENT_IOC_REFRESH = _IO('$', 2)
+        PERF_EVENT_IOC_RESET = _IO('$', 3)
         PERF_EVENT_IOC_PERIOD = _IOW('$', 4, sizeof(c_uint64))
-        PERF_EVENT_IOC_SET_OUTPUT = _IO ('$', 5)
+        PERF_EVENT_IOC_SET_OUTPUT = _IO('$', 5)
         PERF_EVENT_IOC_SET_FILTER = _IOW('$', 6, sizeof(c_uint))
         PERF_EVENT_IOC_ID = _IOR('$', 7, sizeof(c_uint64))
         PERF_EVENT_IOC_SET_BPF = _IOW('$', 8, sizeof(c_uint32))
@@ -12561,6 +12579,10 @@ Copyright:
 
     @staticmethod
     def initSystemPerfEvents():
+        # check perf option #
+        if not SystemManager.perfEnable:
+            return
+
         # check root permission #
         if not SystemManager.isRoot():
             SystemManager.perfEnable = False
@@ -12615,10 +12637,6 @@ Copyright:
             if coreId.startswith('cpu') ]
 
         for item in cpuList:
-            # check perf event option #
-            if SystemManager.perfEnable is False:
-                break
-
             try:
                 coreId = int(item)
             except:
@@ -12661,7 +12679,8 @@ Copyright:
 
         if successCnt == 0:
             SystemManager.printWarning('Fail to find available perf event')
-            SystemManager.perfEnable = SystemManager.perfGroupEnable = False
+            SystemManager.perfEnable = False
+            SystemManager.perfGroupEnable = False
 
 
 
@@ -13631,7 +13650,8 @@ Copyright:
                 else:
                     disableStat += 'DISK '
 
-                if SystemManager.perfGroupEnable:
+                if SystemManager.perfEnable or \
+                    SystemManager.perfGroupEnable:
                     enableStat += 'PERF '
                 else:
                     disableStat += 'PERF '
@@ -13909,6 +13929,9 @@ Copyright:
                     (SystemManager.inputFile, fsize))
 
             SystemManager.closeAllForPrint()
+
+            # for cProfile #
+            #sys.exit(0)
 
             # do terminate #
             os._exit(0)
@@ -14864,7 +14887,7 @@ Copyright:
     def topPrint():
         # realtime mode #
         if not SystemManager.printFile:
-            if SystemManager.printStreamEnable is False:
+            if not SystemManager.printStreamEnable:
                 SystemManager.clearScreen()
             buf = SystemManager.bufferString
             SystemManager.pipePrint(buf)
@@ -14881,7 +14904,7 @@ Copyright:
             SystemManager.clearPrint()
 
             while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
-                if SystemManager.bufferOverflowed is False:
+                if not SystemManager.bufferOverflowed:
                     SystemManager.printWarning((\
                         "New data is going to be overwritten to the buffer"
                         " because of buffer overflow\n"
@@ -14892,6 +14915,7 @@ Copyright:
 
                 if len(SystemManager.procBuffer) == 1:
                     break
+
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
                 SystemManager.procBuffer.pop(-1)
 
@@ -14903,7 +14927,7 @@ Copyright:
             SystemManager.bufferRows + newline >= \
             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
             not SystemManager.printFile and \
-            SystemManager.printStreamEnable is False:
+            not SystemManager.printStreamEnable:
             return True
         else:
             return False
@@ -15228,9 +15252,12 @@ Copyright:
         # check double option #
         usedOpt = {}
         for opt in SystemManager.optionList:
-            if opt[0] not in usedOpt:
-                usedOpt[opt[0]] = True
-                continue
+            try:
+                if not opt[0] in usedOpt:
+                    usedOpt[opt[0]] = True
+                    raise Exception()
+            except:
+                    continue
 
             SystemManager.printError(\
                 "wrong -%s option because it is used more than once" % opt[0])
@@ -15275,8 +15302,6 @@ Copyright:
     @staticmethod
     def parseAnalOption():
         if SystemManager.isTopMode():
-            SystemManager.netEnable = True
-
             # set default processor option #
             if SystemManager.findOption('a') or \
                 SystemManager.isDrawMode():
@@ -15289,11 +15314,6 @@ Copyright:
             return
 
         SystemManager.parseOption()
-
-        if SystemManager.findOption('v'):
-            SystemManager.warningEnable = True
-        else:
-            SystemManager.warningEnable = False
 
         for item in SystemManager.optionList:
             if item == '':
@@ -15402,18 +15422,11 @@ Copyright:
                 if options.rfind('p') > -1:
                     SystemManager.printEnable = False
 
-                if options.rfind('P') > -1:
-                    SystemManager.perfEnable = False
-                    SystemManager.perfGroupEnable = False
-
                 if options.rfind('u') > -1:
                     SystemManager.userEnable = False
 
                 if options.rfind('c') > -1:
                     SystemManager.cpuEnable = False
-
-                if options.rfind('n') > -1:
-                    SystemManager.netEnable = False
 
                 if options.rfind('t') > -1:
                     SystemManager.truncEnable = False
@@ -15454,7 +15467,7 @@ Copyright:
                     SystemManager.processEnable = False
 
                 # no more options except for top mode #
-                if SystemManager.isTopMode() is False:
+                if not SystemManager.isTopMode():
                     continue
 
                 if options.rfind('c') > -1:
@@ -15462,6 +15475,11 @@ Copyright:
 
                 if options.rfind('p') > -1:
                     SystemManager.pipeEnable = True
+
+                if options.rfind('P') > -1:
+                    SystemManager.perfEnable = True
+                    if SystemManager.findOption('g'):
+                        SystemManager.perfGroupEnable = True
 
                 if options.rfind('i') > -1:
                     SystemManager.irqEnable = True
@@ -15502,18 +15520,21 @@ Copyright:
                     SystemManager.wchanEnable = False
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
+                    SystemManager.pgnameEnable = False
 
                 if options.rfind('W') > -1:
                     SystemManager.wchanEnable = True
                     SystemManager.affinityEnable = False
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
+                    SystemManager.pgnameEnable = False
 
                 if options.rfind('h') > -1:
                     SystemManager.sigHandlerEnable = True
                     SystemManager.wchanEnable = False
                     SystemManager.affinityEnable = False
                     SystemManager.tgnameEnable = False
+                    SystemManager.pgnameEnable = False
 
                 if options.rfind('f') > -1:
                     SystemManager.floatEnable = True
@@ -15542,9 +15563,14 @@ Copyright:
                     else:
                         sys.exit(0)
 
+                if options.rfind('n') > -1:
+                    SystemManager.netEnable = True
+
                 if options.rfind('P') > -1:
                     if SystemManager.checkPerfTopCond():
-                        SystemManager.perfGroupEnable = True
+                        SystemManager.perfEnable = True
+                        if SystemManager.findOption('g'):
+                            SystemManager.perfGroupEnable = True
                     else:
                         sys.exit(0)
 
@@ -15725,7 +15751,7 @@ Copyright:
                 SystemManager.setServerNetwork(ip, port)
 
             elif option == 'X':
-                if SystemManager.findOption('x') is False:
+                if not SystemManager.findOption('x'):
                     SystemManager.setServerNetwork(None, None)
 
                 # receive mode #
@@ -15878,11 +15904,6 @@ Copyright:
             return
 
         SystemManager.parseOption()
-
-        if SystemManager.findOption('v'):
-            SystemManager.warningEnable = True
-        else:
-            SystemManager.warningEnable = False
 
         for item in SystemManager.optionList:
             try:
@@ -16598,6 +16619,18 @@ Copyright:
 
 
     @staticmethod
+    def isNetTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'nettop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isStackTopMode():
         if len(sys.argv) == 1:
             return False
@@ -16661,6 +16694,7 @@ Copyright:
             SystemManager.isReportTopMode() or \
             SystemManager.isBgTopMode() or \
             SystemManager.isSimpleTopMode() or \
+            SystemManager.isNetTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -17000,11 +17034,6 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to use PMU")
             return False
-        elif SystemManager.findOption('g') is False:
-            SystemManager.printError(\
-                "wrong option for PMU monitoring, "
-                "use also -g option to show performance stat")
-            return False
         elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
             SystemManager.procPath) is False:
             SystemManager.printError(\
@@ -17338,8 +17367,17 @@ Copyright:
                 "Fail to set server network because it is already set")
             return
 
+        # get internet available IP first #
         if not ip:
             ip = NetworkManager.getPublicIp()
+
+        # print available IP list #
+        try:
+            SystemManager.printWarning(\
+                'available IP list [%s]' % \
+                ', '.join(sorted(NetworkManager.getUsingIps())))
+        except:
+            pass
 
         networkObject = NetworkManager('server', ip, port, blocking)
         if not networkObject.ip:
@@ -17724,6 +17762,9 @@ Copyright:
 
     @staticmethod
     def setDefaultSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
@@ -17732,6 +17773,9 @@ Copyright:
 
     @staticmethod
     def setNormalSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
         signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
@@ -18383,7 +18427,7 @@ Copyright:
             # check support #
             if not core in cpulist:
                 SystemManager.printError((\
-                    "Fail to set cpu%s clock because "
+                    "Fail to set cpu[%s] clock because "
                     "it doesn't support governor") % core)
                 sys.exit(0)
 
@@ -18395,7 +18439,7 @@ Copyright:
                 avail = ' '.join(cpulist[core]['avail'])
                 governors = ' '.join(cpulist[core]['governors'])
                 SystemManager.printError((\
-                    "Fail to set cpu%s clock because it only supports \n\t"
+                    "Fail to set cpu[%s] clock because it only supports \n\t"
                     "[%s] clock list \n\t[%s] governor list") % \
                         (core, avail, governors))
                 sys.exit(0)
@@ -18409,6 +18453,8 @@ Copyright:
 
             # set clock range #
             try:
+                minres = maxres = govres = False
+
                 if int(clock) > 0:
                     with open(minfreqpath, 'w') as fd:
                         fd.write(clock)
@@ -18419,8 +18465,16 @@ Copyright:
                         fd.write(gov)
             except:
                 err = SystemManager.getErrReason()
+
+                if not minres:
+                    res = 'min clock'
+                elif not maxres:
+                    res = 'max clock'
+                elif not govres:
+                    res = 'governor'
+
                 SystemManager.printError(\
-                    "Fail to set cpu%s clock because %s" % (core, err))
+                    "Fail to set %s of cpu[%s] because %s" % (res, core, err))
                 sys.exit(0)
 
             # cur_governor #
@@ -18438,7 +18492,7 @@ Copyright:
                 affectstring = ''
 
             SystemManager.printInfo(\
-                "the clock speed of cpu%s(%s) is set to %s successfuly %s" %
+                "the clock speed of cpu[%s](%s) is set to %s successfuly %s" %
                     (core, curgovernor, clock, affectstring))
 
         sys.exit(0)
@@ -19533,6 +19587,7 @@ Copyright:
         # resource info for difference #
         self.updateMemInfo()
         self.updateStorageInfo()
+        self.updateNetworkInfo()
 
         if initialized:
             # process info #
@@ -19550,7 +19605,7 @@ Copyright:
             self.saveWebOSInfo()
             self.saveLinuxInfo()
 
-            # print resource info to temporary buffer #
+            # write resource info to temporary buffer #
             self.printResourceInfo()
 
 
@@ -20644,9 +20699,11 @@ Copyright:
 
         self.printMemInfo()
 
-        self.printCgroupInfo()
-
         self.printStorageInfo()
+
+        self.printNetworkInfo()
+
+        self.printCgroupInfo()
 
         self.printProcTreeInfo()
 
@@ -21002,6 +21059,68 @@ Copyright:
 
 
 
+    def updateNetworkInfo(self):
+        try:
+            try:
+                SystemManager.netdevFd.seek(0)
+                data = SystemManager.netdevFd.readlines()[2:]
+            except:
+                try:
+                    devPath = '%s/net/dev' % SystemManager.procPath
+                    SystemManager.netdevFd = open(devPath, 'r')
+                    data = SystemManager.netdevFd.readlines()[2:]
+                except:
+                    SystemManager.printWarning('Fail to open %s' % devPath)
+                    return
+
+            for line in data:
+                dev, stats = line.split(':')
+
+                try:
+                    self.networkInfo[dev]
+                except:
+                    self.networkInfo[dev] = dict()
+
+                stats = stats.split()
+                '''
+                bytes, packets, errs, drop, fifo, \
+                    frame, compressed, multicast
+                '''
+
+                nrdvd = int(len(stats) / 2)
+
+                # Receive #
+                rlist = list(map(int, stats[:nrdvd]))
+
+                if 'recv' in self.networkInfo[dev]:
+                    self.networkInfo[dev]['rdiff'] = list()
+
+                    for idx, val in enumerate(rlist):
+                        self.networkInfo[dev]['rdiff'].append(\
+                            val - self.networkInfo[dev]['recv'][idx])
+                else:
+                    self.networkInfo[dev]['initrecv'] = rlist
+
+                self.networkInfo[dev]['recv'] = rlist
+
+                # Transmit #
+                tlist = list(map(int, stats[nrdvd:]))
+
+                if 'tran' in self.networkInfo[dev]:
+                    self.networkInfo[dev]['tdiff'] = list()
+
+                    for idx, val in enumerate(tlist):
+                        self.networkInfo[dev]['tdiff'].append(\
+                            val - self.networkInfo[dev]['tran'][idx])
+                else:
+                    self.networkInfo[dev]['inittran'] = tlist
+
+                self.networkInfo[dev]['tran'] = tlist
+        except:
+            return
+
+
+
     def updateStorageInfo(self):
         # load system stat #
         self.saveDevInfo()
@@ -21172,7 +21291,7 @@ Copyright:
                 printDirTree(subdir, depth + 1)
 
             if depth == 0:
-                SystemManager.infoBufferPrint('\n')
+                SystemManager.infoBufferPrint(' ')
 
         try:
             cgroupTree = self.getCgroupTree()
@@ -21186,6 +21305,89 @@ Copyright:
         SystemManager.infoBufferPrint(twoLine)
         printDirTree(cgroupTree, 0)
         SystemManager.infoBufferPrint(twoLine)
+
+
+
+    def printNetworkInfo(self):
+        # print network info #
+        SystemManager.infoBufferPrint('\n[System Network Info]')
+        SystemManager.infoBufferPrint(twoLine)
+        SystemManager.infoBufferPrint(\
+            "{0:^38} | {1:^45} | {2:^45}\n{3:1}".format(\
+            "Network", "Receive", "Transfer", oneLine))
+        SystemManager.infoBufferPrint((\
+            "{0:^16} {1:^21}   "
+            "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9}   "
+            "{7:^8} {8:^8} {9:^8} {10:^8} {11:^9}").format(\
+                "Dev", "TYPE",
+                "Size", "Packet", "Error", "Drop", "Multicast", \
+                "Size", "Packet", "Error", "Drop", "Multicast"))
+        SystemManager.infoBufferPrint(twoLine)
+
+        cnt = 1
+        for dev, val in sorted(self.networkInfo.items(), key=lambda e:e[0]):
+            try:
+                '''
+                [ network stat sequence ]
+                bytes, packets, errs, drop, fifo, \
+                    frame, compressed, multicast
+                '''
+
+                # recv diff #
+                rdiff = list()
+                for idx, stat in enumerate(val['recv']):
+                    rdiff.append(stat - val['initrecv'][idx])
+
+                # tran diff #
+                tdiff = list()
+                for idx, stat in enumerate(val['tran']):
+                    tdiff.append(stat - val['inittran'][idx])
+
+                SystemManager.infoBufferPrint((\
+                    "{0:>16} {1:^21}   "
+                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
+                        dev, 'DIFF',\
+                        SystemManager.convertSize2Unit(rdiff[0]), \
+                        SystemManager.convertSize2Unit(rdiff[1]),\
+                        SystemManager.convertSize2Unit(rdiff[2]), \
+                        SystemManager.convertSize2Unit(rdiff[3]), \
+                        SystemManager.convertSize2Unit(rdiff[-1]), \
+                        SystemManager.convertSize2Unit(tdiff[0]), \
+                        SystemManager.convertSize2Unit(tdiff[1]),\
+                        SystemManager.convertSize2Unit(tdiff[2]), \
+                        SystemManager.convertSize2Unit(tdiff[3]), \
+                        SystemManager.convertSize2Unit(tdiff[-1])))
+
+                # total stats #
+                rlist = val['recv']
+                tlist = val['tran']
+
+                SystemManager.infoBufferPrint((\
+                    "{0:>16} {1:^21}   "
+                    "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                    "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
+                        ' ', 'TOTAL',\
+                        SystemManager.convertSize2Unit(rlist[0]), \
+                        SystemManager.convertSize2Unit(rlist[1]),\
+                        SystemManager.convertSize2Unit(rlist[2]), \
+                        SystemManager.convertSize2Unit(rlist[3]), \
+                        SystemManager.convertSize2Unit(rlist[-1]), \
+                        SystemManager.convertSize2Unit(tlist[0]), \
+                        SystemManager.convertSize2Unit(tlist[1]),\
+                        SystemManager.convertSize2Unit(tlist[2]), \
+                        SystemManager.convertSize2Unit(tlist[3]), \
+                        SystemManager.convertSize2Unit(tlist[-1])))
+
+                if cnt < len(self.networkInfo):
+                    SystemManager.infoBufferPrint(\
+                        "{0:1}".format(oneLine))
+
+                cnt += 1
+            except:
+                pass
+
+        SystemManager.infoBufferPrint("%s" % twoLine)
 
 
 
@@ -21357,7 +21559,7 @@ Copyright:
                 totalInfo['write'], totalInfo['total'], totalInfo['free'], \
                 totalInfo['use'], totalInfo['favail'], ' ', ' '))
 
-        SystemManager.infoBufferPrint("%s\n\n" % twoLine)
+        SystemManager.infoBufferPrint("%s" % twoLine)
 
 
 
@@ -22601,6 +22803,9 @@ class Debugger(object):
 
                 # exit #
                 elif stat == -1:
+                    if self.status == 'exit':
+                        SystemManager.pipePrint(' ')
+
                     SystemManager.printError(\
                         'Terminated thread %s' % pid)
                     sys.exit(0)
@@ -25537,7 +25742,7 @@ class ThreadAnalyzer(object):
                             taskList)
 
             # set network configuration #
-            if SystemManager.netEnable:
+            if not SystemManager.findOption('x'):
                 SystemManager.setServerNetwork(None, None)
 
             # set configuration from file #
@@ -25850,6 +26055,9 @@ class ThreadAnalyzer(object):
             SystemManager.printError("Fail to access proc filesystem")
             sys.exit(0)
 
+        # initialize perf events #
+        SystemManager.initSystemPerfEvents()
+
         # import select package in the foreground #
         if not SystemManager.printFile:
             SystemManager.getPkg('select', False)
@@ -25950,231 +26158,227 @@ class ThreadAnalyzer(object):
         netWrite = []
         gpuUsage = {}
         eventList = []
+        prop = {}
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
         storageUsage = {}
+        networkUsage = {}
 
         try:
             with open(logFile, 'r') as fd:
                 logBuf = fd.readlines()
         except:
-            SystemManager.printError("Fail to read data from %s\n" % logFile)
+            SystemManager.printError("Fail to read %s\n" % logFile)
             return
 
-        # parse summary #
-        interval = 0
+        # context varaible #
         finalLine = 0
-        compareString = ['[Top CPU Info]', '[Top Event Info]']
-        compareLen = len(compareString)
-        nrStatistics = 12
+        context = None
 
-        for line in logBuf:
-            finalLine += 1
-            summaryList = line.split('|')
-            if len(summaryList) > nrStatistics:
-                try:
-                    idx = int(summaryList[0])
-                except:
-                    continue
+        while 1:
+            line = logBuf[finalLine]
 
-                try:
-                    timeline.append(int(float(summaryList[1].split('-')[1])))
-                except:
-                    timeline.append(0)
-
-                try:
-                    cpuUsage.append(int(summaryList[2]))
-                except:
-                    cpuUsage.append(0)
-
-                try:
-                    memStat = summaryList[3].split('/')
-                    if len(memStat) != 3:
-                        raise Exception()
-                    memFree.append(int(memStat[0]))
-                    memAnon.append(int(memStat[1]))
-                    memCache.append(int(memStat[2]))
-                except:
-                    # for backward compatibility #
-                    try:
-                        memFree.append(int(summaryList[3]))
-                        memAnon.append(0)
-                        memCache.append(0)
-                    except:
-                        memFree.append(0)
-                        memAnon.append(0)
-                        memCache.append(0)
-                try:
-                    blkWait.append(int(summaryList[5]))
-                except:
-                    blkWait.append(0)
-
-                try:
-                    swapUsage.append(int(summaryList[6]))
-                except:
-                    swapUsage.append(0)
-
-                try:
-                    reclaim = summaryList[7].strip().split('/')
-                    reclaimBg.append(int(reclaim[0]) << 2)
-                    reclaimDr.append(int(reclaim[1]) << 2)
-                except:
-                    netRead.append(0)
-                    netWrite.append(0)
-
-                try:
-                    blkUsage = summaryList[4].split('/')
-                    blkRead.append(int(blkUsage[0]) << 10)
-                    blkWrite.append(int(blkUsage[1]) << 10)
-                except:
-                    blkRead.append(0)
-                    blkWrite.append(0)
-
-                try:
-                    nrCore.append(int(summaryList[12]))
-                except:
-                    nrCore.append(0)
-
-                try:
-                    netstat = summaryList[13].strip().split('/')
-                    if netstat[0] == '-':
-                        raise Exception()
-
-                    if netstat[0][-1] == 'T':
-                        netRead.append(int(netstat[0][:-1]) << 30)
-                    elif netstat[0][-1] == 'G':
-                        netRead.append(int(netstat[0][:-1]) << 20)
-                    elif netstat[0][-1] == 'M':
-                        netRead.append(int(netstat[0][:-1]) << 10)
-                    elif netstat[0][-1] == 'K':
-                        netRead.append(int(netstat[0][:-1]))
-                    else:
-                        netRead.append(0)
-
-                    if netstat[0][-1] == 'T':
-                        netWrite.append(int(netstat[1][:-1]) << 30)
-                    elif netstat[0][-1] == 'G':
-                        netWrite.append(int(netstat[1][:-1]) << 20)
-                    elif netstat[1][-1] == 'M':
-                        netWrite.append(int(netstat[1][:-1]) << 10)
-                    elif netstat[1][-1] == 'K':
-                        netWrite.append(int(netstat[1][:-1]))
-                    else:
-                        netWrite.append(0)
-                except:
-                    netRead.append(0)
-                    netWrite.append(0)
-
-            if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
-                break
-
-        # initialize event timeline #
-        if logBuf[finalLine-1].startswith('[Top Event Info]'):
-            eventList = [[] for x in xrange(len(timeline))]
-
-            for line in logBuf[finalLine:]:
-                if line.startswith('[Top CPU Info]'):
-                    break
-
-                finalLine += 1
-
-                sline = line.split('|')
-                slen = len(sline)
-
-                if slen != 4:
-                    continue
-
-                try:
-                    time = int(float(sline[0]))
-                    rtime = float(sline[1])
-                    dtime = float(sline[2])
-                    event = sline[3].strip()
-                except:
-                    continue
-
-                try:
-                    idx = timeline.index(time)
-                    eventList[idx].append('%s [%.2fs]' % (event, dtime))
-                except:
-                    pass
-
-        # parse cpu usage of processes #
-        compareString = ['[Top GPU Info]', '[Top Memory Info]', '[Top VSS Info]']
-        pname = None
-        pid = 0
-        average = 0
-        intervalList = None
-
-        for line in logBuf[finalLine:]:
-            finalLine += 1
-
-            if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
-                break
-
+            # split line #
             sline = line.split('|')
             slen = len(sline)
 
-            if slen == 3:
-                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                if not m:
-                    continue
+            # get context #
+            if line.startswith('[Top '):
+                pid = 0
+                prop = {}
+                average = 0
+                maxVss = 0
+                maxRss = 0
+                maxUsage = 0
+                pname = None
+                gname = None
+                intervalList = None
 
-                d = m.groupdict()
-                comm = d['comm'].strip()
+                contextlist = line.split()
 
-                if SystemManager.filterGroup != []:
-                    found = False
-                    for idx in SystemManager.filterGroup:
-                        if comm.find(idx) > -1 or d['pid'] == idx:
-                            found = True
-                            break
-                    if found is False:
-                        intervalList = None
-                        continue
+                # termination #
+                if len(contextlist) > 5:
+                    strPos = line.find('[RAM')
+                    sline = line[strPos:].split()
+                    try:
+                        totalRam = sline[1][:-1]
+                    except:
+                        totalRam = None
+                    try:
+                        totalSwap = sline[3][:-1]
+                    except:
+                        totalSwap = None
 
-                pid = d['pid']
-                pname = '%s(%s)' % (comm, pid)
-
-                intervalList = sline[2]
-            elif slen == 2:
-                if intervalList:
-                    intervalList += sline[1]
-            elif intervalList:
-                # save previous info #
-                cpuProcUsage[pname] = {}
-                cpuProcUsage[pname]['pid'] = pid
-
-                cpuProcUsage[pname]['usage'] = intervalList
-                cpuList = list(map(int, intervalList.split()))
-
-                if len(cpuList) == 0:
-                    cpuProcUsage[pname]['minimum'] = 0
-                    cpuProcUsage[pname]['average'] = 0
-                    cpuProcUsage[pname]['maximum'] = 0
-                else:
-                    cpuProcUsage[pname]['minimum'] = min(cpuList)
-                    cpuProcUsage[pname]['average'] = \
-                        sum(cpuList) / len(cpuList)
-                    cpuProcUsage[pname]['maximum'] = max(cpuList)
-
-        # parse gpu stat #
-        if logBuf[finalLine-1].startswith('[Top GPU Info]'):
-            compareString = ['[Top Memory Info]', '[Top VSS Info]']
-            gname = None
-            maxUsage = 0
-            intervalList = None
-
-            for line in logBuf[finalLine:]:
-                finalLine += 1
-
-                if line.find(']') > 0 and \
-                    line[:line.find(']')+1] in compareString:
                     break
 
-                sline = line.split('|')
-                slen = len(sline)
+                # change context #
+                context = contextlist[1]
 
+            # Summary #
+            if context == 'Summary':
+                nrStatistics = 12
+
+                sline = line.split('|')
+                if len(sline) > nrStatistics:
+                    try:
+                        idx = int(sline[0])
+                    except:
+                        pass
+
+                    try:
+                        timeline.append(int(float(sline[1].split('-')[1])))
+                    except:
+                        timeline.append(0)
+
+                    eventList.append(list())
+
+                    try:
+                        cpuUsage.append(int(sline[2]))
+                    except:
+                        cpuUsage.append(0)
+
+                    try:
+                        memStat = sline[3].split('/')
+                        if len(memStat) != 3:
+                            raise Exception()
+                        memFree.append(int(memStat[0]))
+                        memAnon.append(int(memStat[1]))
+                        memCache.append(int(memStat[2]))
+                    except:
+                        # for backward compatibility #
+                        try:
+                            memFree.append(int(sline[3]))
+                            memAnon.append(0)
+                            memCache.append(0)
+                        except:
+                            memFree.append(0)
+                            memAnon.append(0)
+                            memCache.append(0)
+                    try:
+                        blkWait.append(int(sline[5]))
+                    except:
+                        blkWait.append(0)
+
+                    try:
+                        swapUsage.append(int(sline[6]))
+                    except:
+                        swapUsage.append(0)
+
+                    try:
+                        reclaim = sline[7].strip().split('/')
+                        reclaimBg.append(int(reclaim[0]) << 2)
+                        reclaimDr.append(int(reclaim[1]) << 2)
+                    except:
+                        netRead.append(0)
+                        netWrite.append(0)
+
+                    try:
+                        blkUsage = sline[4].split('/')
+                        blkRead.append(int(blkUsage[0]) << 10)
+                        blkWrite.append(int(blkUsage[1]) << 10)
+                    except:
+                        blkRead.append(0)
+                        blkWrite.append(0)
+
+                    try:
+                        nrCore.append(int(sline[12]))
+                    except:
+                        nrCore.append(0)
+
+                    try:
+                        netstat = sline[13].strip().split('/')
+                        if netstat[0] == '-':
+                            raise Exception()
+
+                        if netstat[0][-1] == 'T':
+                            netRead.append(int(netstat[0][:-1]) << 30)
+                        elif netstat[0][-1] == 'G':
+                            netRead.append(int(netstat[0][:-1]) << 20)
+                        elif netstat[0][-1] == 'M':
+                            netRead.append(int(netstat[0][:-1]) << 10)
+                        elif netstat[0][-1] == 'K':
+                            netRead.append(int(netstat[0][:-1]))
+                        else:
+                            netRead.append(0)
+
+                        if netstat[0][-1] == 'T':
+                            netWrite.append(int(netstat[1][:-1]) << 30)
+                        elif netstat[0][-1] == 'G':
+                            netWrite.append(int(netstat[1][:-1]) << 20)
+                        elif netstat[1][-1] == 'M':
+                            netWrite.append(int(netstat[1][:-1]) << 10)
+                        elif netstat[1][-1] == 'K':
+                            netWrite.append(int(netstat[1][:-1]))
+                        else:
+                            netWrite.append(0)
+                    except:
+                        netRead.append(0)
+                        netWrite.append(0)
+
+            # Event #
+            elif context == 'Event':
+                if slen == 4:
+                    try:
+                        time = int(float(sline[0]))
+                        rtime = float(sline[1])
+                        dtime = float(sline[2])
+                        event = sline[3].strip()
+
+                        idx = timeline.index(time)
+                        eventList[idx].append('%s [%.2fs]' % (event, dtime))
+                    except:
+                        pass
+
+            # CPU #
+            elif context == 'CPU':
+                if slen == 3:
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
+                    if m:
+                        d = m.groupdict()
+                        comm = d['comm'].strip()
+
+                        if SystemManager.filterGroup != []:
+                            found = False
+                            for idx in SystemManager.filterGroup:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
+                                    found = True
+                                    break
+                            if not found:
+                                intervalList = None
+                            else:
+                                pid = d['pid']
+                                pname = '%s(%s)' % (comm, pid)
+
+                                intervalList = sline[2]
+                        else:
+                            pid = d['pid']
+                            pname = '%s(%s)' % (comm, pid)
+
+                            intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList:
+                        intervalList += sline[1]
+                elif intervalList:
+                    # save previous info #
+                    cpuProcUsage[pname] = {}
+                    cpuProcUsage[pname]['pid'] = pid
+
+                    cpuProcUsage[pname]['usage'] = intervalList
+                    cpuList = list(map(int, intervalList.split()))
+
+                    if len(cpuList) == 0:
+                        cpuProcUsage[pname]['minimum'] = 0
+                        cpuProcUsage[pname]['average'] = 0
+                        cpuProcUsage[pname]['maximum'] = 0
+                    else:
+                        cpuProcUsage[pname]['minimum'] = min(cpuList)
+                        cpuProcUsage[pname]['average'] = \
+                            sum(cpuList) / len(cpuList)
+                        cpuProcUsage[pname]['maximum'] = max(cpuList)
+
+            # GPU #
+            elif context == 'GPU':
                 if slen == 3:
                     gname = sline[0].strip()
                     intervalList = sline[2]
@@ -26202,47 +26406,32 @@ class ThreadAnalyzer(object):
                         gpuUsage[pname]['maximum'] = max(gpuList)
                     '''
 
-        # parse memory of processes #
-        if not logBuf[finalLine-1].startswith('[Top Memory Info]'):
-            # parse vss of processes #
-            compareString = ['[Top RSS Info]']
-            pname = None
-            pid = 0
-            maxVss = 0
-            intervalList = None
-
-            for line in logBuf[finalLine:]:
-                finalLine += 1
-
-                if line.find(']') > 0 and \
-                    line[:line.find(']')+1] in compareString:
-                    break
-
-                sline = line.split('|')
-                slen = len(sline)
-
+            # VSS #
+            elif context == 'VSS':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if not m:
-                        continue
+                    if m:
+                        d = m.groupdict()
+                        comm = d['comm'].strip().replace('^', '')
 
-                    d = m.groupdict()
-                    comm = d['comm'].strip().replace('^', '')
-
-                    if SystemManager.filterGroup != []:
-                        found = False
-                        for idx in SystemManager.filterGroup:
-                            if comm.find(idx) > -1 or d['pid'] == idx:
-                                found = True
-                                break
-                        if found is False:
-                            intervalList = None
-                            continue
-
-                    pid = d['pid']
-                    pname = '%s(%s)' % (comm, pid)
-                    maxVss = int(sline[1])
-                    intervalList = sline[2]
+                        if SystemManager.filterGroup != []:
+                            found = False
+                            for idx in SystemManager.filterGroup:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
+                                    found = True
+                                    break
+                            if not found:
+                                intervalList = None
+                            else:
+                                pid = d['pid']
+                                pname = '%s(%s)' % (comm, pid)
+                                maxVss = int(sline[1])
+                                intervalList = sline[2]
+                        else:
+                            pid = d['pid']
+                            pname = '%s(%s)' % (comm, pid)
+                            maxVss = int(sline[1])
+                            intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -26257,45 +26446,32 @@ class ThreadAnalyzer(object):
                     memProcUsage[pname]['maxVss'] = maxVss
                     memProcUsage[pname]['vssUsage'] = intervalList
 
-            # parse rss of processes #
-            compareString = ['[Top Block Info]']
-            pname = None
-            pid = 0
-            maxRss = 0
-            intervalList = None
-
-            for line in logBuf[finalLine:]:
-                finalLine += 1
-
-                if line.find(']') > 0 and \
-                    line[:line.find(']')+1] in compareString:
-                    break
-
-                sline = line.split('|')
-                slen = len(sline)
-
+            # RSS #
+            elif context == 'RSS':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if not m:
-                        continue
+                    if m:
+                        d = m.groupdict()
+                        comm = d['comm'].strip().replace('^', '')
 
-                    d = m.groupdict()
-                    comm = d['comm'].strip().replace('^', '')
-
-                    if SystemManager.filterGroup != []:
-                        found = False
-                        for idx in SystemManager.filterGroup:
-                            if comm.find(idx) > -1 or d['pid'] == idx:
-                                found = True
-                                break
-                        if found is False:
-                            intervalList = None
-                            continue
-
-                    pid = d['pid']
-                    pname = '%s(%s)' % (comm, pid)
-                    maxRss = int(sline[1])
-                    intervalList = sline[2]
+                        if SystemManager.filterGroup != []:
+                            found = False
+                            for idx in SystemManager.filterGroup:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
+                                    found = True
+                                    break
+                            if not found:
+                                intervalList = None
+                            else:
+                                pid = d['pid']
+                                pname = '%s(%s)' % (comm, pid)
+                                maxRss = int(sline[1])
+                                intervalList = sline[2]
+                        else:
+                            pid = d['pid']
+                            pname = '%s(%s)' % (comm, pid)
+                            maxRss = int(sline[1])
+                            intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -26310,77 +26486,54 @@ class ThreadAnalyzer(object):
                     memProcUsage[pname]['maxRss'] = maxRss
                     memProcUsage[pname]['rssUsage'] = intervalList
 
-        # parse block wait of processes #
-        compareString = ['[Top Storage Info]', '[Top Memory Details]']
-        compareLen = len(compareString)
-        pname = None
-        pid = 0
-        total = 0
-        totalrd = 0
-        totalwr = 0
-        intervalList = None
+            # Block #
+            elif context == 'Block':
+                if slen == 3:
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
+                    if m:
+                        d = m.groupdict()
+                        comm = d['comm'].strip()
 
-        for line in logBuf[finalLine:]:
-            finalLine += 1
+                        if SystemManager.filterGroup != []:
+                            found = False
+                            for idx in SystemManager.filterGroup:
+                                if comm.find(idx) > -1 or d['pid'] == idx:
+                                    found = True
+                                    break
+                            if not found:
+                                intervalList = None
+                            else:
+                                pid = d['pid']
+                                pname = '%s(%s)' % (comm, pid)
 
-            if line.find(']') > 0 and line[:line.find(']')+1] in compareString:
-                break
+                                try:
+                                    total = int(sline[1])
+                                except:
+                                    total = sline[1]
 
-            sline = line.split('|')
-            slen = len(sline)
+                                intervalList = sline[2]
+                        else:
+                            pid = d['pid']
+                            pname = '%s(%s)' % (comm, pid)
 
-            if slen == 3:
-                m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                if not m:
-                    continue
+                            try:
+                                total = int(sline[1])
+                            except:
+                                total = sline[1]
 
-                d = m.groupdict()
-                comm = d['comm'].strip()
+                            intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList:
+                        intervalList += sline[1]
+                elif intervalList:
+                    # save previous info #
+                    blkProcUsage[pname] = {}
+                    blkProcUsage[pname]['pid'] = pid
+                    blkProcUsage[pname]['total'] = total
+                    blkProcUsage[pname]['usage'] = intervalList
 
-                if SystemManager.filterGroup != []:
-                    found = False
-                    for idx in SystemManager.filterGroup:
-                        if comm.find(idx) > -1 or d['pid'] == idx:
-                            found = True
-                            break
-                    if found is False:
-                        intervalList = None
-                        continue
-
-                pid = d['pid']
-                pname = '%s(%s)' % (comm, pid)
-
-                try:
-                    total = int(sline[1])
-                except:
-                    total = sline[1]
-                intervalList = sline[2]
-            elif slen == 2:
-                if intervalList:
-                    intervalList += sline[1]
-            elif intervalList:
-                # save previous info #
-                blkProcUsage[pname] = {}
-                blkProcUsage[pname]['pid'] = pid
-                blkProcUsage[pname]['total'] = total
-                blkProcUsage[pname]['usage'] = intervalList
-
-        # parse storage stat #
-        if logBuf[finalLine-1].startswith('[Top Storage Info]'):
-            compareString = ['[Top Memory Details]', '[Top Info]']
-            sname = None
-            intervalList = None
-
-            for line in logBuf[finalLine:]:
-                finalLine += 1
-
-                if line.find(']') > 0 and \
-                    line[:line.find(']')+1] in compareString:
-                    break
-
-                sline = line.split('|')
-                slen = len(sline)
-
+            # Storage #
+            elif context == 'Storage':
                 if slen == 3:
                     sname = sline[0].strip()
                     intervalList = sline[2]
@@ -26409,61 +26562,69 @@ class ThreadAnalyzer(object):
                     storageUsage[sname]['write'] = writeList
                     storageUsage[sname]['free'] = freeList
 
-        # parse memory details of processes #
-        compareString = '[Top Info]'
-        compareLen = len(compareString)
-        pname = None
-        prop = {}
-        pid = 0
+            # Network #
+            elif context == 'Network':
+                if slen == 3:
+                    sname = sline[0].strip()
+                    intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList:
+                        intervalList += sline[1]
+                elif intervalList and sname != 'Network':
+                    # define arrays #
+                    networkUsage.setdefault(sname, dict())
+                    recvList = list()
+                    tranList = list()
 
-        for line in logBuf[finalLine:]:
-            if line[:compareLen] == compareString:
-                break
+                    # convert previous stats #
+                    for item in intervalList.split():
+                        recv, tran = item.split('/')
+                        recvList.append(\
+                            SystemManager.convertUnit2Size(recv) >> 10)
+                        tranList.append(\
+                            SystemManager.convertUnit2Size(tran) >> 10)
+
+                    # save previous info #
+                    networkUsage[sname]['recv'] = recvList
+                    networkUsage[sname]['tran'] = tranList
+
+            # Meory Details #
+            elif context == 'Memory':
+                if slen == 13:
+                    m = re.match(\
+                        r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
+                    if m:
+                        d = m.groupdict()
+                        pid = d['pid']
+                        comm = d['comm'].strip()
+                        pname = '%s(%s)' % (comm, pid)
+                        prop[pname] = {}
+
+                        try:
+                            prop[pname][sline[1].strip()] = \
+                                list(map(int, sline[2:-1]))
+                        except:
+                            pass
+                    elif int(pid) > 0:
+                        try:
+                            prop[pname][sline[1].strip()] = \
+                                list(map(int, sline[2:-1]))
+                        except:
+                            pass
 
             finalLine += 1
 
-            sline = line.split('|')
-            slen = len(sline)
+            # EOF #
+            if finalLine >= len(logBuf):
+                break
 
-            if slen != 13:
-                continue
-
-            m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
-            if m:
-                d = m.groupdict()
-                pid = d['pid']
-                comm = d['comm'].strip()
-                pname = '%s(%s)' % (comm, pid)
-                prop[pname] = {}
-
-                try:
-                    prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
-                except:
-                    pass
-            elif int(pid) > 0:
-                try:
-                    prop[pname][sline[1].strip()] = list(map(int, sline[2:-1]))
-                except:
-                    pass
-
-        # get total size of RAM and swap #
+        # check output data #
         try:
-            line = logBuf[finalLine]
+            totalRam
         except:
             SystemManager.printError(\
                 "Fail to find Detailed Statistics in %s" % logFile)
             sys.exit(0)
-
-        strPos = line.find('[RAM')
-        sline = line[strPos:].split()
-        try:
-            totalRam = sline[1][:-1]
-        except:
-            totalRam = None
-        try:
-            totalSwap = sline[3][:-1]
-        except:
-            totalSwap = None
 
         # set graph argument list #
         graphStats = {
@@ -26486,6 +26647,7 @@ class ThreadAnalyzer(object):
             'reclaimBg': reclaimBg,
             'reclaimDr': reclaimDr,
             'storageUsage': storageUsage,
+            'networkUsage': networkUsage,
             'nrCore': nrCore,
         }
 
@@ -26993,6 +27155,7 @@ class ThreadAnalyzer(object):
             reclaimBg = graphStats['reclaimBg']
             reclaimDr = graphStats['reclaimDr']
             storageUsage = graphStats['storageUsage']
+            networkUsage = graphStats['networkUsage']
 
             # set convert size #
             convertSize2Unit = SystemManager.convertSize2Unit
@@ -31049,7 +31212,7 @@ class ThreadAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        if len(tokenList) == 11 and tokenList[0][0] == '/':
+        if len(tokenList) == 10 and tokenList[0][0] == '/':
             convertUnit2Size = SystemManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
@@ -31067,10 +31230,10 @@ class ThreadAnalyzer(object):
                 # get storage stats in MB #
                 read = convertUnit2Size(tokenList[1].strip())
                 write = convertUnit2Size(tokenList[2].strip())
-                free = convertUnit2Size(tokenList[3].strip())
-                freeDiff = convertUnit2Size(tokenList[4].strip())
-                total = convertUnit2Size(tokenList[6].strip())
-                favail = convertUnit2Size(tokenList[7].strip())
+
+                freestat = tokenList[3].strip().split('(')
+                free = convertUnit2Size(freestat[0].strip())
+                freeDiff = convertUnit2Size(freestat[1][:-1].strip())
 
                 # read #
                 try:
@@ -31094,6 +31257,47 @@ class ThreadAnalyzer(object):
                     TA.procTotData['total']['storage'][dev]['free'] += freeDiff
                 except:
                     TA.procTotData['total']['storage'][dev]['free'] = freeDiff
+            except:
+                pass
+
+            return
+
+        # Get Network resource usage #
+        if len(tokenList) == 13:
+            if tokenList[0].strip() == 'ID' or \
+                tokenList[0].strip() == 'Dev':
+                return
+
+            convertUnit2Size = SystemManager.convertUnit2Size
+
+            TA.procIntData[index]['total'].setdefault('netdev', dict())
+
+            TA.procTotData['total'].setdefault('netdev', dict())
+
+            try:
+                # get device name #
+                dev = tokenList[0].strip()
+
+                TA.procIntData[index]['total']['netdev'].setdefault(dev, dict())
+                TA.procTotData['total']['netdev'].setdefault(dev, dict())
+
+                # get storage stats in MB #
+                recv = convertUnit2Size(tokenList[2].strip())
+                tran = convertUnit2Size(tokenList[7].strip())
+
+                # recv #
+                try:
+                    TA.procIntData[index]['total']['netdev'][dev]['recv'] = recv
+                    TA.procTotData['total']['netdev'][dev]['recv'] += recv
+                except:
+                    TA.procTotData['total']['netdev'][dev]['recv'] = recv
+
+                # tran #
+                try:
+                    TA.procIntData[index]['total']['netdev'][dev]['tran'] = tran 
+                    TA.procTotData['total']['netdev'][dev]['tran'] += tran
+                except:
+                    TA.procTotData['total']['netdev'][dev]['tran'] = tran
             except:
                 pass
 
@@ -31911,16 +32115,13 @@ class ThreadAnalyzer(object):
     def printStorageInterval():
         TA = ThreadAnalyzer
 
-        # Check storage data #
-        if 'storage' not in TA.procTotData['total']:
-            return
-
         # Print title #
         SystemManager.pipePrint('\n[Top Storage Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        storageInfo = "{0:^16} | {1:^21} |".format('Storage', 'Sum')
+        storageInfo = "{0:^16} | {1:^21} |".\
+            format('Storage', 'Sum(Rd/Wr/Free)')
         storageInfoLen = len(storageInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -31937,6 +32138,11 @@ class ThreadAnalyzer(object):
 
         SystemManager.pipePrint(("{0:1} {1:1}\n").format(storageInfo, timeLine))
         SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Check storage data #
+        if 'storage' not in TA.procTotData['total']:
+            SystemManager.pipePrint("\tNone\n%s\n" % oneLine)
+            return
 
         # Print storage usage #
         for dev, val in TA.procTotData['total']['storage'].items():
@@ -31978,6 +32184,75 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def printNetworkInterval():
+        TA = ThreadAnalyzer
+
+        # Print title #
+        SystemManager.pipePrint('\n[Top Network Info] (Unit: %)\n')
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Print menu #
+        networkInfo = "{0:^16} | {1:^21} |".format('Network', 'Sum(Rd/Wr)')
+        networkInfoLen = len(networkInfo)
+        maxLineLen = SystemManager.lineLength
+
+        # Print timeline #
+        timeLine = ''
+        lineLen = len(networkInfo)
+        for i in xrange(1,len(TA.procIntData) + 1):
+            if lineLen + 21 > maxLineLen:
+                timeLine += ('\n' + (' ' * (networkInfoLen - 1)) + '| ')
+                lineLen = len(networkInfo)
+
+            timeLine = '%s%s' % (timeLine, '{0:>21} '.format(i))
+            lineLen += 21
+
+        SystemManager.pipePrint(("{0:1} {1:1}\n").format(networkInfo, timeLine))
+        SystemManager.pipePrint("%s\n" % twoLine)
+
+        # Check network data #
+        if 'netdev' not in TA.procTotData['total']:
+            SystemManager.pipePrint("\tNone\n%s\n" % oneLine)
+            return
+
+        # Print network usage #
+        for dev, val in TA.procTotData['total']['netdev'].items():
+            try:
+                total = '%s/%s' % \
+                   (SystemManager.convertSize2Unit(val['recv'], True),\
+                   SystemManager.convertSize2Unit(val['tran'], True))
+            except:
+                continue
+
+            networkInfo = "{0:^16} | {1:^21} |".format(dev, total)
+            networkInfoLen = len(networkInfo)
+            maxLineLen = SystemManager.lineLength
+
+            timeLine = ''
+            lineLen = len(networkInfo)
+            for idx in xrange(0,len(TA.procIntData)):
+                if lineLen + 21 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (networkInfoLen - 1)) + '| ')
+                    lineLen = len(networkInfo)
+
+                try:
+                    stats = TA.procIntData[idx]['total']['netdev'][dev]
+                    usage = '%s/%s' % \
+                        (SystemManager.convertSize2Unit(stats['recv'], True),\
+                        SystemManager.convertSize2Unit(stats['tran'], True))
+                except:
+                    continue
+
+                timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
+                lineLen += 21
+
+            SystemManager.pipePrint(\
+                ("{0:1} {1:1}\n").format(networkInfo, timeLine))
+            SystemManager.pipePrint("%s\n" % oneLine)
+
+
+
+    @staticmethod
     def printIntervalUsage():
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
@@ -31994,6 +32269,7 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.printRssInterval()
             ThreadAnalyzer.printBlkInterval()
             ThreadAnalyzer.printStorageInterval()
+            ThreadAnalyzer.printNetworkInterval()
 
         # print interval info #
         ThreadAnalyzer.printMemAnalysis()
@@ -36168,12 +36444,6 @@ class ThreadAnalyzer(object):
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
-            if len(SystemManager.filterGroup) == 0:
-                SystemManager.printError(\
-                    "wrong option with -e + P, "
-                    "use also -g option with values to show performance stat")
-                sys.exit(0)
-
             try:
                 self.procData[tid]['perfFds'] = \
                     self.prevProcData[tid]['perfFds']
@@ -36640,41 +36910,77 @@ class ThreadAnalyzer(object):
             tempPath = '/sys/class/hwmon'
 
             try:
+                self.tempFdList
+            except:
+                self.tempFdList = dict()
+
+            try:
                 for item in os.listdir(tempPath):
-                    tempDirList.append('%s/%s/name' % (tempPath, item))
-                    tempDirList.append('%s/%s/device/name' % (tempPath, item))
+                    devPath = '%s/%s/name' % (tempPath, item)
+                    if os.path.isfile(devPath):
+                        tempDirList.append(devPath)
+
+                    devPath = '%s/%s/device/name' % (tempPath, item)
+                    if os.path.isfile(devPath):
+                        tempDirList.append(devPath)
             except:
                 pass
 
             tempPath = []
             for tempDir in tempDirList:
                 try:
-                    with open(tempDir, 'r') as fd:
-                        if fd.readline()[:-1] == 'coretemp':
-                            tempPath.append(tempDir[:tempDir.rfind('/')])
+                    if tempDir in self.tempFdList:
+                        fd = self.tempFdList[tempDir]
+                        fd.seek(0)
+                    else:
+                        fd = open(tempDir, 'r')
+                        self.tempFdList[tempDir] = fd
+
+                    if fd.readline()[:-1] == 'coretemp':
+                        tempPath.append(os.path.dirname(tempDir))
                 except:
                     pass
 
             # /sys/class/hwmon #
             for hwPath in tempPath:
                 tempDirList = \
-                    [ '%s/%s' % (hwPath, item) \
+                    [ '%s/%s' % (hwPath, item.replace('input', 'label')) \
                     for item in os.listdir(hwPath) if item.endswith('_input') ]
-                for tempDir in sorted(tempDirList):
+                phyId = 0
+                tempData = {}
+
+                for tempDir in tempDirList:
                     try:
-                        with open(tempDir.replace('input', 'label'), 'r') as lfd:
-                            name = lfd.readline()[:-1]
-                            if name.startswith('Physical id '):
-                                phyId = name[name.rfind(' ')+1:]
-                            elif name.startswith('Package id '):
-                                phyId = name[name.rfind(' ')+1:]
-                            elif name.startswith('Core '):
-                                coreId = name[name.rfind(' ')+1:]
-                                with open(tempDir, 'r') as ifd:
-                                    coreTempData['%s-%s' % (phyId, coreId)] = \
-                                        int(ifd.readline()[:-4])
+                        if tempDir in self.tempFdList:
+                            lfd = self.tempFdList[tempDir]
+                            lfd.seek(0)
+                        else:
+                            lfd = open(tempDir, 'r')
+                            self.tempFdList[tempDir] = lfd
+
+                        name = lfd.readline()[:-1]
+                        if name.startswith('Physical id ') or \
+                            name.startswith('Package id '):
+                            phyId = name[name.rfind(' ')+1:]
+                        elif name.startswith('Core '):
+                            coreId = name[name.rfind(' ')+1:]
+
+                            tempDir = tempDir.replace('label', 'input')
+                            if tempDir in self.tempFdList:
+                                tfd = self.tempFdList[tempDir]
+                                tfd.seek(0)
+                            else:
+                                tfd = open(tempDir, 'r')
+                                self.tempFdList[tempDir] = tfd
+
+                            tempData[coreId] = \
+                                int(tfd.readline()[:-4])
                     except:
                         pass
+
+                for idx, val in sorted(\
+                    tempData.items(), key=lambda x:int(x[0])):
+                    coreTempData['%s-%s' % (phyId, idx)] = val
 
             # /sys/class/thermal #
             tempPath = '/sys/class/thermal'
@@ -36685,6 +36991,7 @@ class ThreadAnalyzer(object):
                     if item.startswith('thermal_zone') ]
             except:
                 tempDirList = []
+
             for tempDir in sorted(tempDirList):
                 try:
                     ctype = None
@@ -36749,57 +37056,129 @@ class ThreadAnalyzer(object):
                         format("Core/%s" % idx, '%s %%' % totalCoreUsage,\
                         userCoreUsage, kerCoreUsage, ioCoreUsage, irqCoreUsage)
 
+                    # set default path #
+                    defPath = '%s%s/cpufreq' % (freqPath, idx)
+
                     # get current cpu frequency #
-                    curPath = '%s%s/cpufreq/cpuinfo_cur_freq' % (freqPath, idx)
                     try:
-                        with open(curPath, 'r') as fd:
-                            curFreq = fd.readline()[:-1]
+                        self.prevCpuData[idx]['curFd'].seek(0)
+                        curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
+                        self.cpuData[idx]['curFd'] = \
+                            self.prevCpuData[idx]['curFd']
                     except:
-                        curPath = '%s%s/cpufreq/scaling_cur_freq' % \
-                            (freqPath, idx)
+                        infoPath = '%s/cpuinfo_cur_freq' % defPath
+                        scalingPath = '%s/scaling_cur_freq' % defPath
+
+                        if os.path.isfile(infoPath):
+                            curPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            curPath = scalingPath
+                        else:
+                            curPath = None
+
                         try:
-                            with open(curPath, 'r') as fd:
-                                curFreq = fd.readline()[:-1]
+                            self.cpuData[idx]['curFd'] = open(curPath, 'r')
+                            curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
                         except:
                             curFreq = None
 
                     # get min cpu frequency #
-                    minPath = '%s%s/cpufreq/cpuinfo_min_freq' % (freqPath, idx)
                     try:
-                        with open(minPath, 'r') as fd:
-                            minFreq = fd.readline()[:-1]
+                        self.prevCpuData[idx]['minFd'].seek(0)
+                        minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
+                        self.cpuData[idx]['minFd'] = \
+                            self.prevCpuData[idx]['minFd']
                     except:
-                        minFreq = None
+                        infoPath = '%s/cpuinfo_min_freq' % defPath
+                        scalingPath = '%s/scaling_min_freq' % defPath
+
+                        if os.path.isfile(infoPath):
+                            minPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            minPath = scalingPath
+                        else:
+                            minPath = None
+
+                        try:
+                            self.cpuData[idx]['minFd'] = open(minPath, 'r')
+                            minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                        except:
+                            minFreq = None
 
                     # get max cpu frequency #
-                    maxPath = '%s%s/cpufreq/cpuinfo_max_freq' % (freqPath, idx)
                     try:
-                        with open(maxPath, 'r') as fd:
-                            maxFreq = fd.readline()[:-1]
+                        self.prevCpuData[idx]['maxFd'].seek(0)
+                        maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
+                        self.cpuData[idx]['maxFd'] = \
+                            self.prevCpuData[idx]['maxFd']
                     except:
-                        maxFreq = None
+                        infoPath = '%s/cpuinfo_max_freq' % defPath
+                        scalingPath = '%s/scaling_max_freq' % defPath
+
+                        if os.path.isfile(infoPath):
+                            maxPath = infoPath
+                        elif os.path.isfile(scalingPath):
+                            maxPath = scalingPath
+                        else:
+                            maxPath = None
+
+                        try:
+                            self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
+                            maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                        except:
+                            maxFreq = None
 
                     # get current governor #
-                    govPath = '%s%s/cpufreq/scaling_governor' % (freqPath, idx)
                     try:
-                        with open(govPath, 'r') as fd:
-                            gov = fd.readline()[:-1]
+                        self.prevCpuData[idx]['govFd'].seek(0)
+                        gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
+                        self.cpuData[idx]['govFd'] = \
+                            self.prevCpuData[idx]['govFd']
                     except:
-                        gov = None
+                        govPath = '%s/scaling_governor' % defPath
 
-                    idPath = '%s%s/topology/core_id' % (freqPath, idx)
-                    pidPath = '%s%s/topology/physical_package_id' % \
-                        (freqPath, idx)
+                        try:
+                            self.cpuData[idx]['govFd'] = open(govPath, 'r')
+                            gov = self.cpuData[idx]['govFd'].readline()[:-1]
+                        except:
+                            gov = None
+
+                    # get core package id #
                     try:
-                        with open(pidPath, 'r') as fd:
-                            phyId = int(fd.readline()[:-1])
-                            if phyId < 0:
-                                phyId = '?'
-
-                        with open(idPath, 'r') as fd:
+                        # get core id #
+                        if idx in self.prevCpuData and \
+                            'cidFd' in self.prevCpuData[idx]:
+                            fd = self.prevCpuData[idx]['cidFd']
+                            fd.seek(0)
                             coreId = int(fd.readline()[:-1])
-                            if coreId < 0:
-                                coerId = '?'
+                            self.cpuData[idx]['cidFd'] = fd
+                        else:
+                            cidPath = '%s%s/topology/core_id' % (freqPath, idx)
+
+                            self.cpuData[idx]['cidFd'] = open(cidPath, 'r')
+                            coreId = \
+                                int(self.cpuData[idx]['cidFd'].readline()[:-1])
+
+                        if coreId < 0:
+                            coreId = '?'
+
+                        # get package id #
+                        if idx in self.prevCpuData and \
+                            'pidFd' in self.prevCpuData[idx]:
+                            fd = self.prevCpuData[idx]['pidFd']
+                            fd.seek(0)
+                            phyId = int(fd.readline()[:-1])
+                            self.cpuData[idx]['pidFd'] = fd
+                        else:
+                            pidPath = \
+                                '%s%s/topology/physical_package_id' % (freqPath, idx)
+
+                            self.cpuData[idx]['pidFd'] = open(pidPath, 'r')
+                            phyId = \
+                                int(self.cpuData[idx]['pidFd'].readline()[:-1])
+
+                        if phyId < 0:
+                            phyId = '?'
 
                         cid = '%s-%s' % (phyId, coreId)
                     except:
@@ -37052,8 +37431,8 @@ class ThreadAnalyzer(object):
                     value['write'] = value['io']['write_bytes'] - \
                             self.prevProcData[pid]['io']['write_bytes']
 
-                # no changed value #
-                if value['changed'] is False:
+                # check stat change #
+                if not value['changed']:
                     value['utime'] = value['stime'] = 0
                     value['ttime'] = value['btime'] = value['cttime'] = 0
                     continue
@@ -37379,6 +37758,65 @@ class ThreadAnalyzer(object):
 
 
 
+    def printNetworkUsage(self):
+        if not SystemManager.netEnable:
+            return
+        elif SystemManager.uptimeDiff == 0:
+            return
+        elif SystemManager.checkCutCond():
+            return
+
+        # update network usage #
+        SystemManager.sysInstance.updateNetworkInfo()
+
+        SystemManager.addPrint('%s\n' % twoLine)
+
+        SystemManager.addPrint(\
+            "{0:^40} | {1:^53} | {2:^53} |\n{3:1}\n".format(\
+            "Network", "Receive", "Transfer", oneLine))
+
+        SystemManager.addPrint((\
+            "{0:^16} | {1:^21} | "
+            "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} | "
+            "{7:^8} | {8:^8} | {9:^8} | {10:^8} | {11:^9} |\n").format(\
+                "Dev", "IP", \
+                "Size", "Packet", "Error", "Drop", "Multicast",\
+                "Size", "Packet", "Error", "Drop", "Multicast"))
+
+        SystemManager.addPrint('%s\n' % twoLine)
+
+        for dev, val in sorted(\
+            SystemManager.sysInstance.networkInfo.items(), key=lambda e:e[0]):
+            '''
+            [ network stat sequence ]
+            bytes, packets, errs, drop, fifo, \
+                frame, compressed, multicast
+            '''
+
+            try:
+                rdiff = val['rdiff']
+                tdiff = val['tdiff']
+
+                SystemManager.addPrint((\
+                    "{0:>16} | {1:>21} | "
+                    "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
+                    "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
+                        dev, ' ',\
+                        SystemManager.convertSize2Unit(rdiff[0]),\
+                        SystemManager.convertSize2Unit(rdiff[1]),\
+                        SystemManager.convertSize2Unit(rdiff[2]),\
+                        SystemManager.convertSize2Unit(rdiff[3]),\
+                        SystemManager.convertSize2Unit(rdiff[-1]),
+                        SystemManager.convertSize2Unit(tdiff[0]),\
+                        SystemManager.convertSize2Unit(tdiff[1]),\
+                        SystemManager.convertSize2Unit(tdiff[2]),\
+                        SystemManager.convertSize2Unit(tdiff[3]),\
+                        SystemManager.convertSize2Unit(tdiff[-1])))
+            except:
+                pass
+
+
+
     def printDiskUsage(self):
         if not SystemManager.diskEnable:
             return
@@ -37399,8 +37837,8 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
-            "{0:^24}|{1:^8}|{2:^8}|{3:^8}|{4:^8}|"
-            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:^59}|\n").\
+            "{0:^24}|{1:^8}|{2:^8}|{3:>8}({4:>8})|"
+            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:^58}|\n").\
             format("DEV", "READ", "WRITE", "FREE", 'DIFF',\
             "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
@@ -37460,10 +37898,10 @@ class ThreadAnalyzer(object):
                 mountInfo = path
 
             diskInfo = \
-                ("{0:<24}|{1:>8}|{2:>8}|{3:>8}|{4:>8}|"
-                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<58}|\n").\
+                ("{0:<24}|{1:>8}|{2:>8}|{3:>8}({4:>8})|"
+                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<57}|\n").\
                 format(dev, readSize, writeSize, free, freeDiff,\
-                '%s%%' % use, total, avail, fs, mountInfo[:58])
+                '%s%%' % use, total, avail, fs, mountInfo[:57])
 
             if SystemManager.checkCutCond():
                 return
@@ -37565,7 +38003,9 @@ class ThreadAnalyzer(object):
         else:
             dprop = 'WFC'
 
-        if SystemManager.wchanEnable:
+        if SystemManager.pgnameEnable:
+            etc = 'Parent'
+        elif SystemManager.wchanEnable:
             etc = 'WaitChannel'
         elif SystemManager.affinityEnable:
             etc = 'Affinity'
@@ -37872,8 +38312,14 @@ class ThreadAnalyzer(object):
             if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
 
-            # get waiting channel #
-            if SystemManager.wchanEnable:
+            # set additional info #
+            if SystemManager.pgnameEnable:
+                try:
+                    pgid = procData[idx]['stat'][self.ppidIdx]
+                    etc = procData[pgid]['stat'][self.commIdx][1:-1]
+                except:
+                    etc = ''
+            elif SystemManager.wchanEnable:
                 try:
                     etc = value['wchan'][:21]
                 except:
@@ -38189,7 +38635,7 @@ class ThreadAnalyzer(object):
 
             stat = value['stat']
 
-            if value['alive'] is False:
+            if not value['alive']:
                 comm = ('%s%s' % ('[-]', stat[self.commIdx][1:-1]))[:16]
 
                 if SystemManager.processEnable:
@@ -38389,7 +38835,7 @@ class ThreadAnalyzer(object):
         else:
             # realtime mode #
             if not SystemManager.printFile:
-                if SystemManager.printStreamEnable is False:
+                if not SystemManager.printStreamEnable:
                     SystemManager.clearScreen()
                 SystemManager.pipePrint(data)
                 SystemManager.clearPrint()
@@ -38402,7 +38848,7 @@ class ThreadAnalyzer(object):
                 bufferSize = SystemManager.bufferSize
 
                 while SystemManager.procBufferSize > bufferSize > 0:
-                    if SystemManager.bufferOverflowed is False:
+                    if not SystemManager.bufferOverflowed:
                         SystemManager.printWarning((\
                             "New data is going to be overwritten to the buffer"
                             " because of buffer overflow\n"
@@ -38413,6 +38859,7 @@ class ThreadAnalyzer(object):
 
                     if len(SystemManager.procBuffer) == 1:
                         break
+
                     SystemManager.procBufferSize -= \
                         len(SystemManager.procBuffer[-1])
                     SystemManager.procBuffer.pop(-1)
@@ -39054,6 +39501,9 @@ class ThreadAnalyzer(object):
         # print disk stat #
         self.printDiskUsage()
 
+        # print network stat #
+        self.printNetworkUsage()
+
         # print process stat #
         self.printProcUsage()
 
@@ -39118,18 +39568,17 @@ def main(args=None):
     # set arch #
     SystemManager.setArch(SystemManager.getArch())
 
-    if SystemManager.isLinux:
-        # save system info first #
-        SystemManager()
-
-        # set default signal #
-        SystemManager.setDefaultSignal()
+    # set default signal #
+    SystemManager.setDefaultSignal()
 
     # shrink heap #
     SystemManager.shrinkHeap()
 
     # check commands #
     SystemManager.checkCmdMode()
+
+    # save system info first #
+    SystemManager()
 
     #==================== record part ====================#
     if SystemManager.isRecordMode():
@@ -39299,9 +39748,7 @@ def main(args=None):
 
             sys.exit(0)
 
-        if SystemManager.graphEnable:
-            pass
-        else:
+        if not SystemManager.graphEnable:
             # get init time from buffer for verification #
             initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
@@ -39373,7 +39820,7 @@ def main(args=None):
     # set default expand option in threadtop mode #
     if SystemManager.isThreadTopMode():
         SystemManager.tgnameEnable = True
-        SystemManager.wchanEnable = False
+        SystemManager.pgnameEnable = False
 
     # parse analysis option #
     SystemManager.parseAnalOption()
@@ -39411,8 +39858,10 @@ def main(args=None):
         # perf #
         elif SystemManager.isPerfTopMode():
             if SystemManager.checkPerfTopCond():
-                SystemManager.processEnable = False
-                SystemManager.perfGroupEnable = True
+                SystemManager.perfEnable = True
+                if SystemManager.findOption('g'):
+                    SystemManager.processEnable = False
+                    SystemManager.perfGroupEnable = True
             else:
                 sys.exit(0)
 
@@ -39442,6 +39891,10 @@ def main(args=None):
             else:
                 sys.exit(0)
 
+        # network #
+        elif SystemManager.isNetTopMode():
+            SystemManager.netEnable = True
+
         # background #
         elif SystemManager.isBgTopMode():
             if SystemManager.checkBgTopCond():
@@ -39461,8 +39914,7 @@ def main(args=None):
         SystemManager.printProfileCmd()
 
         # set handler for exit #
-        if sys.platform.startswith('linux'):
-            SystemManager.setNormalSignal()
+        SystemManager.setNormalSignal()
 
         # run in the background #
         if SystemManager.backgroundEnable:
