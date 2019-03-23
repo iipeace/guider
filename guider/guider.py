@@ -9469,7 +9469,6 @@ class SystemManager(object):
 
     # flag for using Elastic Stack
     elasticEnable = False
-    beatStart = True
 
     repeatInterval = 0
     repeatCount = 0
@@ -25669,6 +25668,7 @@ class ThreadAnalyzer(object):
             self.prevVmData = {}
             self.stackTable = {}
             self.prevSwaps = None
+            self.beatStart = True
 
             # set index of attributes #
             self.majfltIdx = ConfigManager.STAT_ATTR.index("MAJFLT")
@@ -39265,7 +39265,7 @@ class ThreadAnalyzer(object):
                     'name'      : 'guider',
                     'hostname'  : SystemManager.localServObj.ip,
                     'version'   : __version__,
-                    'beatstart' : SystemManager.beatStart
+                    'beatstart' : self.beatStart
                 }
         }
 
@@ -39454,8 +39454,8 @@ class ThreadAnalyzer(object):
         self.tranData(reportElasticData)
 
         # set beatstart flag for syncing timestamp
-        if SystemManager.beatStart:
-            SystemManager.beatStart = False
+        if self.beatStart:
+            self.beatStart = False
 
 
 
