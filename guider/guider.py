@@ -2611,6 +2611,7 @@ class NetworkManager(object):
         self.status = None
         self.ignore = 0
         self.fileno = -1
+        self.time = None
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
@@ -15604,7 +15605,7 @@ Copyright:
                 if options.rfind('E') > -1:
                     SystemManager.elasticEnable = True
 
-                if SystemManager.isEffectiveEnableOption(options) is False:
+                if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
                         "unrecognized option -%s for enable" % options)
                     sys.exit(0)
@@ -16010,7 +16011,7 @@ Copyright:
                 if options.rfind('L') > -1:
                     SystemManager.lockEnable = True
 
-                if SystemManager.isEffectiveEnableOption(options) is False:
+                if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
                         "unrecognized option -%s for enable" % options)
                     sys.exit(0)
@@ -25717,7 +25718,6 @@ class ThreadAnalyzer(object):
             self.prevVmData = {}
             self.stackTable = {}
             self.prevSwaps = None
-            self.beatStart = True
 
             # set index of attributes #
             self.majfltIdx = ConfigManager.STAT_ATTR.index("MAJFLT")
@@ -38776,7 +38776,7 @@ class ThreadAnalyzer(object):
 
     def printReportStat(self, reportStat):
         if not reportStat or type(reportStat) is not dict:
-            SystemManager.printWarning("Fail to recognize report data")
+            SystemManager.pipePrint(reportStat)
             return
 
         printBuf = "%s\n" % twoLine
@@ -38802,8 +38802,11 @@ class ThreadAnalyzer(object):
         for idx, stat in reportStat.items():
             printBuf += '[%s] ' % idx
 
-            for item, val in sorted(stat.items(), reverse=False):
-                printBuf += '(%s: %s) ' % (item, val)
+            if type(stat) is dict:
+                for item, val in sorted(stat.items(), reverse=False):
+                    printBuf += '(%s: %s) ' % (item, val)
+            else:
+                printBuf += '(%s) ' % stat
 
             printBuf += '\n'
 
@@ -38870,6 +38873,10 @@ class ThreadAnalyzer(object):
         if data[0] == '{':
             # convert report data to dictionary type #
             reportStat = SystemManager.makeJsonDict(data)
+
+            # check converting result #
+            if not reportStat:
+                reportStat = data
 
             # print report data #
             self.printReportStat(reportStat)
@@ -38999,6 +39006,9 @@ class ThreadAnalyzer(object):
                 networkObject = NetworkManager('client', ip, port)
                 if not networkObject.ip:
                     continue
+
+                # save current time in new object #
+                networkObject.time = time.time()
 
                 if message.startswith('EVENT_'):
                     event = message[message.find('_')+1:]
@@ -39313,6 +39323,11 @@ class ThreadAnalyzer(object):
                 }
         }
 
+        # set beatstart flag for syncing timestamp
+        if hasattr(self, 'beatStart'):
+            self.beatStart = False
+        else:
+            self.beatStart = True
 
         beatFields = {
             'beat':
@@ -39507,10 +39522,6 @@ class ThreadAnalyzer(object):
 
         # transfer data to file or socket #
         self.tranData(reportElasticData)
-
-        # set beatstart flag for syncing timestamp
-        if self.beatStart:
-            self.beatStart = False
 
 
 
