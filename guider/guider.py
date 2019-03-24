@@ -32397,6 +32397,7 @@ class ThreadAnalyzer(object):
 
         # print nodes in tree #
         def printTreeNodes(root, depth):
+            treestr = ''
             commIdx = ConfigManager.STAT_ATTR.index("COMM")
 
             for pid, childs in root.items():
@@ -32412,16 +32413,19 @@ class ThreadAnalyzer(object):
 
                 nrChild = len(childs)
                 if nrChild > 0:
-                    SystemManager.pipePrint(\
-                        '%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild))
+                    treestr += '%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild)
                 else:
-                    SystemManager.pipePrint(\
-                        '%s- %s(%s)\n' % (indent, comm, pid))
+                    treestr += '%s- %s(%s)\n' % (indent, comm, pid)
 
-                printTreeNodes(childs, depth + 1)
+                treestr += printTreeNodes(childs, depth + 1)
 
-        # print process/thread tree #
-        printTreeNodes(procTree, 0)
+            return treestr
+
+        # get string for tree #
+        finalstr = printTreeNodes(procTree, 0)
+
+        # print tree #
+        SystemManager.pipePrint(finalstr)
 
 
 
