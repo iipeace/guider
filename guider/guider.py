@@ -25542,7 +25542,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def __init__(self, file):
+    def __init__(self, file=None):
 
         # thread mode #
         if file:
@@ -25700,7 +25700,7 @@ class ThreadAnalyzer(object):
                 # no path of statistics file #
                 else:
                     SystemManager.printError((\
-                        "wrong option with -e + g, "
+                        "wrong option used, "
                         "use also -I option to load statistics data"))
                     sys.exit(0)
 
@@ -39721,7 +39721,7 @@ def main(args=None):
                         SystemManager.outputFile)
                 else:
                     SystemManager.printError(\
-                        "wrong option with -e + p, "
+                        "wrong option used, "
                         "use also -s option to save data")
 
                 sys.exit(0)
@@ -39751,7 +39751,7 @@ def main(args=None):
                     SystemManager.outputFile)
             else:
                 SystemManager.printError(\
-                    "wrong option with -e + p, use also -s option to save data")
+                    "wrong option used, use also -s option to save data")
 
             sys.exit(0)
 
@@ -39928,7 +39928,7 @@ def main(args=None):
             SystemManager.runBackgroundMode()
 
         # run top mode #
-        ThreadAnalyzer(None)
+        ThreadAnalyzer()
 
         sys.exit(0)
 
