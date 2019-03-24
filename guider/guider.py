@@ -11549,6 +11549,26 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
+                # printproc #
+                elif SystemManager.isPrintProcMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Print tree of processes
+
+OPTIONS:
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print tree of processes
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
                 # limitcpu #
                 elif SystemManager.isLimitCpuMode():
                     helpStr = '''
@@ -11836,6 +11856,7 @@ COMMAND:
                 setsched    <priority>
                 getaffinity <affinity>
                 setaffinity <affinity>
+                printproc   <tree>
                 printenv    <env>
                 readelf     <file>
                 addr2line   <symbol>
@@ -16523,6 +16544,18 @@ Copyright:
 
 
     @staticmethod
+    def isPrintProcMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'printproc':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isLimitCpuMode():
         if len(sys.argv) == 1:
             return False
@@ -16851,6 +16884,10 @@ Copyright:
                     limitInfo, SystemManager.processEnable)
 
             sys.exit(0)
+
+        # PRINTPROC MODE #
+        if SystemManager.isPrintProcMode():
+            SystemManager.doPrintProc()
 
         # ALLOCTEST MODE #
         if SystemManager.isAllocTestMode():
@@ -18712,6 +18749,18 @@ Copyright:
             SystemManager.convertSize2Unit(rssSize)))
 
         signal.pause()
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doPrintProc(isProcess=True):
+        obj = ThreadAnalyzer(onlyInstance=True)
+
+        obj.saveSystemStat()
+
+        ThreadAnalyzer.printProcTree(obj.procData)
 
         sys.exit(0)
 
@@ -25542,7 +25591,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def __init__(self, file=None):
+    def __init__(self, file=None, onlyInstance=None):
 
         # thread mode #
         if file:
@@ -25691,6 +25740,10 @@ class ThreadAnalyzer(object):
             self.sidIdx = ConfigManager.STAT_ATTR.index("SESSIONID")
             self.pgrpIdx = ConfigManager.STAT_ATTR.index("PGRP")
             self.shrIdx = ConfigManager.STATM_TYPE.index("SHR")
+
+            # check to return just instance #
+            if onlyInstance:
+                return
 
             if SystemManager.graphEnable:
                 # convert statistics in file to graph #
@@ -26052,7 +26105,7 @@ class ThreadAnalyzer(object):
 
 
     def runProcTop(self):
-        if os.path.isdir(SystemManager.procPath) is False:
+        if not os.path.isdir(SystemManager.procPath):
             SystemManager.printError("Fail to access proc filesystem")
             sys.exit(0)
 
@@ -32331,14 +32384,16 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def printProcTree():
-        if not SystemManager.procInstance:
+    def printProcTree(instance=None):
+        if not instance and SystemManager.procInstance:
+            instance = SystemManager.procInstance
+
+        if not instance:
             SystemManager.pipePrint("\n\tNone")
             return
 
         # get process/thread tree #
-        procTree = ThreadAnalyzer.getProcTreeFromList(\
-            SystemManager.procInstance)
+        procTree = ThreadAnalyzer.getProcTreeFromList(instance)
 
         # print nodes in tree #
         def printTreeNodes(root, depth):
@@ -32347,7 +32402,7 @@ class ThreadAnalyzer(object):
             for pid, childs in root.items():
                 indent = ''
 
-                comm = SystemManager.procInstance[pid]['stat'][commIdx][1:-1]
+                comm = instance[pid]['stat'][commIdx][1:-1]
 
                 if depth == 0:
                     indent = '\n'
