@@ -26194,9 +26194,12 @@ class ThreadAnalyzer(object):
 
     def convertGraph(self, logFile):
         logBuf = None
-        labelList = []
+
+        chartStats = {}
 
         timeline = []
+        eventList = []
+
         cpuUsage = []
         nrCore = []
         memFree = []
@@ -26211,8 +26214,6 @@ class ThreadAnalyzer(object):
         netRead = []
         netWrite = []
         gpuUsage = {}
-        eventList = []
-        prop = {}
         cpuProcUsage = {}
         memProcUsage = {}
         blkProcUsage = {}
@@ -26662,16 +26663,16 @@ class ThreadAnalyzer(object):
                     pid = d['pid']
                     comm = d['comm'].strip()
                     pname = '%s(%s)' % (comm, pid)
-                    prop[pname] = {}
+                    chartStats[pname] = {}
 
                     try:
-                        prop[pname][sline[1].strip()] = \
+                        chartStats[pname][sline[1].strip()] = \
                             list(map(int, sline[2:-1]))
                     except:
                         pass
                 elif int(pid) > 0:
                     try:
-                        prop[pname][sline[1].strip()] = \
+                        chartStats[pname][sline[1].strip()] = \
                             list(map(int, sline[2:-1]))
                     except:
                         pass
@@ -26686,6 +26687,8 @@ class ThreadAnalyzer(object):
 
         # set graph argument list #
         graphStats = {
+            'timeline': timeline,
+            'eventList': eventList,
             'cpuUsage': cpuUsage,
             'cpuProcUsage': cpuProcUsage,
             'blkWait': blkWait,
@@ -26711,7 +26714,7 @@ class ThreadAnalyzer(object):
 
         # draw and save graph #
         try:
-            self.drawGraph(timeline, graphStats, eventList, logFile)
+            self.drawGraph(graphStats, logFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -26721,7 +26724,7 @@ class ThreadAnalyzer(object):
 
         # draw chart and save it #
         try:
-            self.drawChart(prop, logFile)
+            self.drawChart(chartStats, logFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -26915,7 +26918,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawGraph(self, timeline, graphStats, eventList, logFile):
+    def drawGraph(self, graphStats, logFile):
 
         #==================== define part ====================#
 
@@ -27969,6 +27972,8 @@ class ThreadAnalyzer(object):
         initialize list that count the number of process
         using resource more than 1% #
         '''
+        timeline = graphStats['timeline']
+        eventList = graphStats['eventList']
         effectProcList = [0] * len(timeline)
 
         if not SystemManager.layout:
