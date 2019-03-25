@@ -21572,7 +21572,7 @@ Copyright:
                     xrange(0, len(mountList), splitLen)]
                 for string in mountList:
                     SystemManager.infoBufferPrint(\
-                        '{0:85} {1:<100}'.format(title, string))
+                        '{0:85} {1:<1}'.format(title, string))
                     title = ' '
             except:
                 pass
@@ -25746,11 +25746,11 @@ class ThreadAnalyzer(object):
                 return
 
             if SystemManager.graphEnable:
-                # convert statistics in file to graph #
+                # convert text-based statistics to images #
                 if SystemManager.sourceFile:
-                    self.convertGraph(SystemManager.sourceFile)
+                    self.drawStats(SystemManager.sourceFile)
                     sys.exit(0)
-                # no path of statistics file #
+                # no path for statistics file #
                 else:
                     SystemManager.printError((\
                         "wrong option used, "
@@ -25775,24 +25775,24 @@ class ThreadAnalyzer(object):
                 if SystemManager.fileTopEnable:
                     pass
                 elif SystemManager.groupProcEnable:
-                    if SystemManager.processEnable is False:
-                        SystemManager.printInfo((\
-                            "only specific threads that are involved "
-                            "in process group including [ %s ] are shown") % \
-                                taskList)
-                    else:
+                    if SystemManager.processEnable:
                         SystemManager.printInfo((\
                             "only specific processes that are involved "
                             "in process group including [ %s ] are shown") % \
                                 taskList)
+                    else:
+                        SystemManager.printInfo((\
+                            "only specific threads that are involved "
+                            "in process group including [ %s ] are shown") % \
+                                taskList)
                 else:
-                    if SystemManager.processEnable is False:
+                    if SystemManager.processEnable:
                         SystemManager.printInfo(\
-                            "only specific threads including [ %s ] are shown" % \
+                            "only specific processes including [ %s ] are shown" % \
                             taskList)
                     else:
                         SystemManager.printInfo(\
-                            "only specific processes including [ %s ] are shown" % \
+                            "only specific threads including [ %s ] are shown" % \
                             taskList)
 
             # set network configuration #
@@ -26192,7 +26192,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def convertGraph(self, logFile):
+    def getDrawStats(self, logFile):
         logBuf = None
 
         chartStats = {}
@@ -26712,7 +26712,23 @@ class ThreadAnalyzer(object):
             'nrCore': nrCore,
         }
 
-        # draw and save graph #
+        return graphStats, chartStats
+
+
+
+    def drawStats(self, flist):
+        # get stats from single file #
+        if len(flist) == 1:
+            logFile = flist[0]
+        # get stats from multiple files for comparison #
+        else:
+            logFile = 'guider.out'
+
+        # parse stats #
+        for lfile in flist:
+            graphStats, chartStats = self.getDrawStats(lfile)
+
+        # draw graphs #
         try:
             self.drawGraph(graphStats, logFile)
         except SystemExit:
@@ -26722,7 +26738,7 @@ class ThreadAnalyzer(object):
                 "Fail to draw graph while setting property")
             return
 
-        # draw chart and save it #
+        # draw charts #
         try:
             self.drawChart(chartStats, logFile)
         except SystemExit:
@@ -26922,7 +26938,10 @@ class ThreadAnalyzer(object):
 
         #==================== define part ====================#
 
-        def drawEvent(timeline, eventList):
+        def drawEvent(graphStats):
+            timeline = graphStats['timeline']
+            eventList = graphStats['eventList']
+
             for tm, evts in enumerate(eventList):
                 if len(evts) == 0:
                     continue
@@ -26981,9 +27000,10 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        def drawCpu(timeline, graphStats, xtype, pos, size):
+        def drawCpu(graphStats, xtype, pos, size):
             # pick stats #
             labelList = []
+            timeline = graphStats['timeline']
             cpuUsage = graphStats['cpuUsage']
             cpuProcUsage = graphStats['cpuProcUsage']
             blkWait = graphStats['blkWait']
@@ -27205,9 +27225,10 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawIo(timeline, graphStats, xtype, pos, size):
+        def drawIo(graphStats, xtype, pos, size):
             # pick stats #
             labelList = []
+            timeline = graphStats['timeline']
             blkRead = graphStats['blkRead']
             blkWrite = graphStats['blkWrite']
             blkProcUsage = graphStats['blkProcUsage']
@@ -27222,7 +27243,6 @@ class ThreadAnalyzer(object):
             convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
-            labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
@@ -27586,9 +27606,10 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        def drawMem(timeline, graphStats, xtype, pos, size):
+        def drawMem(graphStats, xtype, pos, size):
             # pick stats #
             labelList = []
+            timeline = graphStats['timeline']
             memFree = graphStats['memFree']
             memAnon = graphStats['memAnon']
             memCache = graphStats['memCache']
@@ -27601,16 +27622,195 @@ class ThreadAnalyzer(object):
             convertSize2Unit = SystemManager.convertSize2Unit
 
             # draw title #
-            labelList = []
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             suptitle('guider perf graph', fontsize=8)
 
-            # SYSTEM STAT #
-            if SystemManager.vssEnable is False and \
-                SystemManager.rssEnable is False and \
-                SystemManager.leakEnable is False:
+            # Process VSS #
+            if SystemManager.vssEnable:
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
 
+                for key, item in sorted(memProcUsage.items(), \
+                    key=lambda e: 0 \
+                    if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                    reverse=True):
+                    usage = list(map(int, item['vssUsage'].split()))
+
+                    try:
+                        minIdx = usage.index(min(usage))
+                    except:
+                        minIdx = 0
+                    try:
+                        maxIdx = usage.index(item['maxVss'])
+                    except:
+                        maxIdx = 0
+
+                    if usage[minIdx] == usage[maxIdx] == 0:
+                        pass
+                    else:
+                        color = plot(timeline, usage, '-', \
+                            linewidth=1)[0].get_color()
+                        if usage[minIdx] > 0:
+                            text(timeline[minIdx], usage[minIdx] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[minIdx] << 20), key), \
+                                color=color, fontsize=3)
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] > 0:
+                            text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[maxIdx] << 20), key), \
+                                color=color, fontsize=3)
+                        if usage[-1] > 0:
+                            text(timeline[-1], usage[-1] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[-1] << 20), key), \
+                                color=color, fontsize=3)
+                        labelList.append('%s [VSS]' % key)
+
+            # Process Leak #
+            elif SystemManager.leakEnable:
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
+                # get VSS diffs #
+                for key, item in sorted(memProcUsage.items(), \
+                    key=lambda e: 0 \
+                    if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                    reverse=True):
+                    usage = list(map(int, item['vssUsage'].split()))
+                    # get maximum value #
+                    try:
+                        maxVss = max(usage)
+                    except:
+                        maxVss = 0
+
+                    if maxVss == 0:
+                        item['vssDiff'] = 0
+                        continue
+
+                    # get index of maximum and minimum values greater than 0 #
+                    try:
+                        first = next(val for val in usage if val > 0)
+                        last = next(val for val in reversed(usage) if val > 0)
+                        if long(first) > long(last):
+                            item['vssDiff'] = 0
+                            continue
+                    except:
+                        pass
+
+                    # get minimum value #
+                    try:
+                        minVss = min(x for x in usage if x != 0)
+                    except:
+                        minVss = 0
+
+                    diff = maxVss - minVss
+                    item['vssDiff'] = diff
+
+                # draw leakage plots #
+                for key, item in sorted(\
+                    memProcUsage.items(), \
+                    key=lambda e: e[1]['vssDiff'], reverse=True):
+
+                    if item['vssDiff'] == 0:
+                        break
+
+                    usage = list(map(int, item['vssUsage'].split()))
+
+                    # get minimum value #
+                    try:
+                        minIdx = usage.index(min(usage))
+                    except:
+                        minIdx = 0
+
+                    # get maximum value #
+                    try:
+                        maxIdx = usage.index(item['maxVss'])
+                    except:
+                        maxIdx = 0
+
+                    if usage[minIdx] == usage[maxIdx] == 0:
+                        pass
+                    else:
+                        color = plot(timeline, usage, '-', \
+                            linewidth=1)[0].get_color()
+                        if usage[minIdx] > 0:
+                            text(timeline[minIdx], usage[minIdx] - margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[minIdx] << 20), key), \
+                                color=color, fontsize=3)
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] > 0:
+                            text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                '[%s/+%s] %s' % (\
+                                convertSize2Unit(usage[maxIdx] << 20), \
+                                convertSize2Unit(item['vssDiff'] << 20), key), \
+                                color=color, fontsize=3)
+                        labelList.append('%s [LEAK]' % key)
+
+            # Process RSS #
+            elif SystemManager.rssEnable:
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
+                for key, item in sorted(memProcUsage.items(), \
+                    key=lambda e: 0 \
+                    if not 'maxRss' in e[1] else e[1]['maxRss'], \
+                    reverse=True):
+                    try:
+                        usage = list(map(int, item['rssUsage'].split()))
+                    except:
+                        continue
+
+                    try:
+                        minIdx = usage.index(min(usage))
+                    except:
+                        minIdx = 0
+
+                    try:
+                        maxIdx = usage.index(item['maxRss'])
+                    except:
+                        maxIdx = 0
+
+                    if usage[minIdx] == usage[maxIdx] == 0:
+                        pass
+                    else:
+                        color = plot(timeline, usage, '-', \
+                            linewidth=1)[0].get_color()
+                        if usage[minIdx] > 0:
+                            text(timeline[minIdx], usage[minIdx] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[minIdx] << 20), key), \
+                                color=color, fontsize=3)
+                        if usage[minIdx] != usage[maxIdx] and \
+                            usage[maxIdx] > 0:
+                            text(timeline[maxIdx], usage[maxIdx] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[maxIdx] << 20), key), \
+                                color=color, fontsize=3)
+                        if usage[-1] > 0:
+                            text(timeline[-1], usage[-1] + margin, \
+                                '[%s] %s' % (\
+                                convertSize2Unit(usage[-1] << 20), key), \
+                                color=color, fontsize=3)
+                        labelList.append('%s [RSS]' % key)
+
+            # System #
+            else:
                 # System Free Memory #
                 usage = list(map(int, memFree))
                 minIdx = usage.index(min(usage))
@@ -27711,177 +27911,6 @@ class ThreadAnalyzer(object):
                     else:
                         labelList.append('Swap Usage')
 
-            # PROCESS STAT #
-            else:
-                # get margin #
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / 10
-                else:
-                    margin = 0
-
-                # Process VSS #
-                if SystemManager.vssEnable:
-                    for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
-                        reverse=True):
-                        usage = list(map(int, item['vssUsage'].split()))
-
-                        try:
-                            minIdx = usage.index(min(usage))
-                        except:
-                            minIdx = 0
-                        try:
-                            maxIdx = usage.index(item['maxVss'])
-                        except:
-                            maxIdx = 0
-
-                        if usage[minIdx] == usage[maxIdx] == 0:
-                            pass
-                        else:
-                            color = plot(timeline, usage, '-', \
-                                linewidth=1)[0].get_color()
-                            if usage[minIdx] > 0:
-                                text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[minIdx] << 20), key), \
-                                    color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and \
-                                usage[maxIdx] > 0:
-                                text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[maxIdx] << 20), key), \
-                                    color=color, fontsize=3)
-                            if usage[-1] > 0:
-                                text(timeline[-1], usage[-1] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[-1] << 20), key), \
-                                    color=color, fontsize=3)
-                            labelList.append('%s [VSS]' % key)
-
-                # Process Leak #
-                elif SystemManager.leakEnable:
-                    # get VSS diffs #
-                    for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
-                        reverse=True):
-                        usage = list(map(int, item['vssUsage'].split()))
-                        # get maximum value #
-                        try:
-                            maxVss = max(usage)
-                        except:
-                            maxVss = 0
-
-                        if maxVss == 0:
-                            item['vssDiff'] = 0
-                            continue
-
-                        # get index of maximum and minimum values greater than 0 #
-                        try:
-                            first = next(val for val in usage if val > 0)
-                            last = next(val for val in reversed(usage) if val > 0)
-                            if long(first) > long(last):
-                                item['vssDiff'] = 0
-                                continue
-                        except:
-                            pass
-
-                        # get minimum value #
-                        try:
-                            minVss = min(x for x in usage if x != 0)
-                        except:
-                            minVss = 0
-
-                        diff = maxVss - minVss
-                        item['vssDiff'] = diff
-
-                    # draw leakage plots #
-                    for key, item in sorted(\
-                        memProcUsage.items(), \
-                        key=lambda e: e[1]['vssDiff'], reverse=True):
-
-                        if item['vssDiff'] == 0:
-                            break
-
-                        usage = list(map(int, item['vssUsage'].split()))
-
-                        # get minimum value #
-                        try:
-                            minIdx = usage.index(min(usage))
-                        except:
-                            minIdx = 0
-
-                        # get maximum value #
-                        try:
-                            maxIdx = usage.index(item['maxVss'])
-                        except:
-                            maxIdx = 0
-
-                        if usage[minIdx] == usage[maxIdx] == 0:
-                            pass
-                        else:
-                            color = plot(timeline, usage, '-', \
-                                linewidth=1)[0].get_color()
-                            if usage[minIdx] > 0:
-                                text(timeline[minIdx], usage[minIdx] - margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[minIdx] << 20), key), \
-                                    color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and \
-                                usage[maxIdx] > 0:
-                                text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s/+%s] %s' % (\
-                                    convertSize2Unit(usage[maxIdx] << 20), \
-                                    convertSize2Unit(item['vssDiff'] << 20), key), \
-                                    color=color, fontsize=3)
-                            labelList.append('%s [LEAK]' % key)
-
-                # Process RSS #
-                if SystemManager.rssEnable:
-                    for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxRss' in e[1] else e[1]['maxRss'], \
-                        reverse=True):
-                        try:
-                            usage = list(map(int, item['rssUsage'].split()))
-                        except:
-                            continue
-
-                        try:
-                            minIdx = usage.index(min(usage))
-                        except:
-                            minIdx = 0
-
-                        try:
-                            maxIdx = usage.index(item['maxRss'])
-                        except:
-                            maxIdx = 0
-
-                        if usage[minIdx] == usage[maxIdx] == 0:
-                            pass
-                        else:
-                            color = plot(timeline, usage, '-', \
-                                linewidth=1)[0].get_color()
-                            if usage[minIdx] > 0:
-                                text(timeline[minIdx], usage[minIdx] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[minIdx] << 20), key), \
-                                    color=color, fontsize=3)
-                            if usage[minIdx] != usage[maxIdx] and \
-                                usage[maxIdx] > 0:
-                                text(timeline[maxIdx], usage[maxIdx] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[maxIdx] << 20), key), \
-                                    color=color, fontsize=3)
-                            if usage[-1] > 0:
-                                text(timeline[-1], usage[-1] + margin, \
-                                    '[%s] %s' % (\
-                                    convertSize2Unit(usage[-1] << 20), key), \
-                                    color=color, fontsize=3)
-                            labelList.append('%s [RSS]' % key)
-
             '''
             ylabel('MEMORY', fontsize=5)
             ax.yaxis.set_label_coords(-0.05,0.5)
@@ -27973,18 +28002,17 @@ class ThreadAnalyzer(object):
         using resource more than 1% #
         '''
         timeline = graphStats['timeline']
-        eventList = graphStats['eventList']
         effectProcList = [0] * len(timeline)
 
         if not SystemManager.layout:
-            drawCpu(timeline, graphStats, 3, 0, 4)
+            drawCpu(graphStats, 3, 0, 4)
 
             # draw events on graphs #
-            drawEvent(timeline, eventList)
+            drawEvent(graphStats)
 
-            drawIo(timeline, graphStats, 2, 4, 1)
+            drawIo(graphStats, 2, 4, 1)
 
-            drawMem(timeline, graphStats, 1, 5, 1)
+            drawMem(graphStats, 1, 5, 1)
         else:
             pos = 0
             total = 0
@@ -28040,11 +28068,11 @@ class ThreadAnalyzer(object):
                     targetc = target.upper()
 
                     if targetc == 'CPU' or targetc.startswith('C'):
-                        drawCpu(timeline, graphStats, xtype, pos, size)
+                        drawCpu(graphStats, xtype, pos, size)
                     elif targetc == 'MEM' or targetc.startswith('M'):
-                        drawMem(timeline, graphStats, xtype, pos, size)
+                        drawMem(graphStats, xtype, pos, size)
                     elif targetc == 'IO' or targetc.startswith('I'):
-                        drawIo(timeline, graphStats, xtype, pos, size)
+                        drawIo(graphStats, xtype, pos, size)
                     else:
                         SystemManager.printError(\
                             "Fail to draw graph "
@@ -28053,7 +28081,7 @@ class ThreadAnalyzer(object):
 
                     if idx == 0:
                         # draw events on graphs #
-                        drawEvent(timeline, eventList)
+                        drawEvent(graphStats)
 
                     pos += size
                 except SystemExit:
@@ -39897,7 +39925,11 @@ def main(args=None):
 
             # modify args #
             sys.argv[1] = 'top'
-            SystemManager.sourceFile = sys.argv[2]
+            args = sys.argv[2:]
+            SystemManager.sourceFile = list()
+            for item in args:
+                if not item.startswith('-'):
+                    SystemManager.sourceFile.append(item)
 
     # set default expand option in threadtop mode #
     if SystemManager.isThreadTopMode():
