@@ -26240,7 +26240,6 @@ class ThreadAnalyzer(object):
             # get context #
             if line.startswith('[Top '):
                 pid = 0
-                prop = {}
                 average = 0
                 maxVss = 0
                 maxRss = 0
@@ -26269,120 +26268,129 @@ class ThreadAnalyzer(object):
                 # change context #
                 context = contextlist[1]
 
+            finalLine += 1
+
+            # EOF #
+            if finalLine >= len(logBuf):
+                break
+
             # Summary #
             if context == 'Summary':
-                nrStatistics = 12
+                nrStatistics = 15
 
-                sline = line.split('|')
-                if len(sline) > nrStatistics:
-                    try:
-                        idx = int(sline[0])
-                    except:
-                        pass
+                if slen < nrStatistics:
+                    continue
 
-                    try:
-                        timeline.append(int(float(sline[1].split('-')[1])))
-                    except:
-                        timeline.append(0)
+                try:
+                    idx = int(sline[0])
+                except:
+                    continue
 
-                    eventList.append(list())
+                try:
+                    timeline.append(int(float(sline[1].split('-')[1])))
+                except:
+                    timeline.append(0)
 
-                    try:
-                        cpuUsage.append(int(sline[2]))
-                    except:
-                        cpuUsage.append(0)
+                eventList.append(list())
 
-                    try:
-                        memStat = sline[3].split('/')
-                        if len(memStat) != 3:
-                            raise Exception()
-                        memFree.append(int(memStat[0]))
-                        memAnon.append(int(memStat[1]))
-                        memCache.append(int(memStat[2]))
-                    except:
-                        # for backward compatibility #
-                        try:
-                            memFree.append(int(sline[3]))
-                            memAnon.append(0)
-                            memCache.append(0)
-                        except:
-                            memFree.append(0)
-                            memAnon.append(0)
-                            memCache.append(0)
-                    try:
-                        blkWait.append(int(sline[5]))
-                    except:
-                        blkWait.append(0)
+                try:
+                    cpuUsage.append(int(sline[2]))
+                except:
+                    cpuUsage.append(0)
 
+                try:
+                    memStat = sline[3].split('/')
+                    if len(memStat) != 3:
+                        raise Exception()
+                    memFree.append(int(memStat[0]))
+                    memAnon.append(int(memStat[1]))
+                    memCache.append(int(memStat[2]))
+                except:
+                    # for backward compatibility #
                     try:
-                        swapUsage.append(int(sline[6]))
+                        memFree.append(int(sline[3]))
+                        memAnon.append(0)
+                        memCache.append(0)
                     except:
-                        swapUsage.append(0)
+                        memFree.append(0)
+                        memAnon.append(0)
+                        memCache.append(0)
+                try:
+                    blkWait.append(int(sline[5]))
+                except:
+                    blkWait.append(0)
 
-                    try:
-                        reclaim = sline[7].strip().split('/')
-                        reclaimBg.append(int(reclaim[0]) << 2)
-                        reclaimDr.append(int(reclaim[1]) << 2)
-                    except:
+                try:
+                    swapUsage.append(int(sline[6]))
+                except:
+                    swapUsage.append(0)
+
+                try:
+                    reclaim = sline[7].strip().split('/')
+                    reclaimBg.append(int(reclaim[0]) << 2)
+                    reclaimDr.append(int(reclaim[1]) << 2)
+                except:
+                    netRead.append(0)
+                    netWrite.append(0)
+
+                try:
+                    blkUsage = sline[4].split('/')
+                    blkRead.append(int(blkUsage[0]) << 10)
+                    blkWrite.append(int(blkUsage[1]) << 10)
+                except:
+                    blkRead.append(0)
+                    blkWrite.append(0)
+
+                try:
+                    nrCore.append(int(sline[12]))
+                except:
+                    nrCore.append(0)
+
+                try:
+                    netstat = sline[13].strip().split('/')
+                    if netstat[0] == '-':
+                        raise Exception()
+
+                    if netstat[0][-1] == 'T':
+                        netRead.append(int(netstat[0][:-1]) << 30)
+                    elif netstat[0][-1] == 'G':
+                        netRead.append(int(netstat[0][:-1]) << 20)
+                    elif netstat[0][-1] == 'M':
+                        netRead.append(int(netstat[0][:-1]) << 10)
+                    elif netstat[0][-1] == 'K':
+                        netRead.append(int(netstat[0][:-1]))
+                    else:
                         netRead.append(0)
+
+                    if netstat[0][-1] == 'T':
+                        netWrite.append(int(netstat[1][:-1]) << 30)
+                    elif netstat[0][-1] == 'G':
+                        netWrite.append(int(netstat[1][:-1]) << 20)
+                    elif netstat[1][-1] == 'M':
+                        netWrite.append(int(netstat[1][:-1]) << 10)
+                    elif netstat[1][-1] == 'K':
+                        netWrite.append(int(netstat[1][:-1]))
+                    else:
                         netWrite.append(0)
-
-                    try:
-                        blkUsage = sline[4].split('/')
-                        blkRead.append(int(blkUsage[0]) << 10)
-                        blkWrite.append(int(blkUsage[1]) << 10)
-                    except:
-                        blkRead.append(0)
-                        blkWrite.append(0)
-
-                    try:
-                        nrCore.append(int(sline[12]))
-                    except:
-                        nrCore.append(0)
-
-                    try:
-                        netstat = sline[13].strip().split('/')
-                        if netstat[0] == '-':
-                            raise Exception()
-
-                        if netstat[0][-1] == 'T':
-                            netRead.append(int(netstat[0][:-1]) << 30)
-                        elif netstat[0][-1] == 'G':
-                            netRead.append(int(netstat[0][:-1]) << 20)
-                        elif netstat[0][-1] == 'M':
-                            netRead.append(int(netstat[0][:-1]) << 10)
-                        elif netstat[0][-1] == 'K':
-                            netRead.append(int(netstat[0][:-1]))
-                        else:
-                            netRead.append(0)
-
-                        if netstat[0][-1] == 'T':
-                            netWrite.append(int(netstat[1][:-1]) << 30)
-                        elif netstat[0][-1] == 'G':
-                            netWrite.append(int(netstat[1][:-1]) << 20)
-                        elif netstat[1][-1] == 'M':
-                            netWrite.append(int(netstat[1][:-1]) << 10)
-                        elif netstat[1][-1] == 'K':
-                            netWrite.append(int(netstat[1][:-1]))
-                        else:
-                            netWrite.append(0)
-                    except:
-                        netRead.append(0)
-                        netWrite.append(0)
+                except:
+                    netRead.append(0)
+                    netWrite.append(0)
 
             # Event #
             elif context == 'Event':
-                if slen == 4:
-                    try:
-                        time = int(float(sline[0]))
-                        rtime = float(sline[1])
-                        dtime = float(sline[2])
-                        event = sline[3].strip()
+                if slen != 4:
+                    continue
 
-                        idx = timeline.index(time)
-                        eventList[idx].append('%s [%.2fs]' % (event, dtime))
-                    except:
-                        pass
+                try:
+                    time = int(float(sline[0]))
+                    rtime = float(sline[1])
+                    dtime = float(sline[2])
+                    event = sline[3].strip()
+
+                    idx = timeline.index(time)
+                    eventList[idx].append('%s [%.2fs]' % (event, dtime))
+                except:
+                    pass
 
             # CPU #
             elif context == 'CPU':
@@ -26644,33 +26652,29 @@ class ThreadAnalyzer(object):
 
             # Meory Details #
             elif context == 'Memory':
-                if slen == 13:
-                    m = re.match(\
-                        r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
-                    if m:
-                        d = m.groupdict()
-                        pid = d['pid']
-                        comm = d['comm'].strip()
-                        pname = '%s(%s)' % (comm, pid)
-                        prop[pname] = {}
+                if slen != 13:
+                    continue
 
-                        try:
-                            prop[pname][sline[1].strip()] = \
-                                list(map(int, sline[2:-1]))
-                        except:
-                            pass
-                    elif int(pid) > 0:
-                        try:
-                            prop[pname][sline[1].strip()] = \
-                                list(map(int, sline[2:-1]))
-                        except:
-                            pass
+                m = re.match(\
+                    r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
+                if m:
+                    d = m.groupdict()
+                    pid = d['pid']
+                    comm = d['comm'].strip()
+                    pname = '%s(%s)' % (comm, pid)
+                    prop[pname] = {}
 
-            finalLine += 1
-
-            # EOF #
-            if finalLine >= len(logBuf):
-                break
+                    try:
+                        prop[pname][sline[1].strip()] = \
+                            list(map(int, sline[2:-1]))
+                    except:
+                        pass
+                elif int(pid) > 0:
+                    try:
+                        prop[pname][sline[1].strip()] = \
+                            list(map(int, sline[2:-1]))
+                    except:
+                        pass
 
         # check output data #
         try:
