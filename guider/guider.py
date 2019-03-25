@@ -20874,7 +20874,7 @@ Copyright:
             h, m = divmod(m, 60)
             runtimeInfo = '%sh %sm %ss' % (h, m, s)
             SystemManager.infoBufferPrint(\
-                "{0:20} {1:<100}".format('ProcessRuntime', runtimeInfo))
+                "{0:20} {1:<100}".format('GuiderRuntime', runtimeInfo))
         except:
             pass
 
@@ -20888,9 +20888,10 @@ Copyright:
             pass
 
         try:
+            running, total = self.loadData[3].split('/')
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<10}".format('Threads', \
-                self.loadData[3] + ' (running/total)'))
+                '%s(running) / %s(total)' % (running, total)))
         except:
             pass
 
@@ -25749,13 +25750,12 @@ class ThreadAnalyzer(object):
                 # convert text-based statistics to images #
                 if SystemManager.sourceFile:
                     self.drawStats(SystemManager.sourceFile)
-                    sys.exit(0)
                 # no path for statistics file #
                 else:
                     SystemManager.printError((\
                         "wrong option used, "
                         "use also -I option to load statistics data"))
-                    sys.exit(0)
+                sys.exit(0)
 
             # set system maximum fd number #
             SystemManager.setMaxFd()
