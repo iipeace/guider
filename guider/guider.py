@@ -26111,6 +26111,7 @@ class ThreadAnalyzer(object):
             self.prevProcData = self.procData
             self.procData = {}
             self.fileData = {}
+            self.nrThread = 0
             self.nrProcess = 0
             self.nrFd = 0
 
@@ -38095,16 +38096,23 @@ class ThreadAnalyzer(object):
         except:
             loadavg = '?'
 
+        try:
+            oom_kill = int(self.vmData['oom_kill'])
+            oomstr = '[OOM: %d]'% oom_kill
+        except:
+            oomstr = ''
+
         SystemManager.addPrint(\
-            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
+            ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
-            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
+            "[Load: %s] [RAM: %d] [Swap: %d] %s\n") % \
             (title, SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
             self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
             SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
-            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
+            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10, \
+            oomstr))
 
 
 
