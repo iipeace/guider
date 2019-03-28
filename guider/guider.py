@@ -36894,13 +36894,22 @@ class ThreadAnalyzer(object):
             if SystemManager.freeMemEnable:
                 raise Exception()
 
+            # assume MemAvailable #
+            if not 'MemAvailable' in memData:
+                memData['MemAvailable'] = \
+                    memData['MemFree'] + \
+                    memData['Inactive(file)'] + \
+                    memData['SReclaimable'] + \
+                    memData['SwapCached']
+
             availMem = memData['MemAvailable'] >> 10
             if 'MemAvailable' in prevMemData:
                 availMemDiff = \
                     availMem - (prevMemData['MemAvailable'] >> 10)
             else:
-                availMem = 0
+                availMemDiff = 0
         except:
+            SystemManager.freeMemEnable = True
             availMem = availMemDiff = 0
 
         # anonymous memory #
@@ -37139,12 +37148,13 @@ class ThreadAnalyzer(object):
             ("%s\n%s%s\n" % (twoLine,\
             (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
             "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|"\
-            "{11:^6}({12:^4}/{13:^7})|{14:^9}|{15:^7}|{16:^7}|"\
-            "{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            "{11:^6}({12:^4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
+            "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            memTitle, "Diff", "User", "Cache", "Kern", "Swap", "Diff", "I/O",\
-            "PgRclm", "BlkRW", "NrFlt", "PrBlk", "NrSIRQ", "PgMlk", \
-            "PgDrt", "Network")), oneLine)), newline = 3)
+            memTitle, "Diff", "User", "Cache", "Kern", \
+            "Swap", "Diff", "In", "Out", "PgRclm", "BlkRW", "NrFlt", \
+            "PrBlk", "NrSIRQ", "PgMlk", "PgDrt", "Network")), oneLine)), \
+            newline = 3)
 
         interval = SystemManager.uptimeDiff
         if interval == 0:
@@ -37257,13 +37267,13 @@ class ThreadAnalyzer(object):
         # make total stat string #
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
-            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|{11:^6}({12:^4}/{13:^7})|"
-            "{14:^9}|{15:^7}|{16:^7}|{17:^7}|{18:^8}|{19:^7}|{20:^8}|{21:^12}|\n").\
+            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"
+            "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|"
+            "{17:^7}|{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, \
             ioUsage, irqUsage, availMem, availMemDiff, totalAnonMem, \
             totalCacheMem, totalKernelMem, swapUsage, swapUsageDiff, \
-            '%s/%s' % (swapInMem, swapOutMem), \
-            '%s/%s' % (pgRclmBg, pgRclmFg), \
+            swapInMem, swapOutMem, '%s/%s' % (pgRclmBg, pgRclmFg), \
             '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, pgMlock, pgDirty, netIO)
 
@@ -37537,7 +37547,8 @@ class ThreadAnalyzer(object):
                             self.cpuData[idx]['pidFd'] = fd
                         else:
                             pidPath = \
-                                '%s%s/topology/physical_package_id' % (freqPath, idx)
+                                '%s%s/topology/physical_package_id' % \
+                                    (freqPath, idx)
 
                             self.cpuData[idx]['pidFd'] = open(pidPath, 'r')
                             phyId = \
