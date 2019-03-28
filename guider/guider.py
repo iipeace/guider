@@ -9433,7 +9433,7 @@ class SystemManager(object):
     fileTopEnable = False
     ueventEnable = False
     keventEnable = False
-    netEnable = False
+    networkEnable = False
     stackEnable = False
     wchanEnable = False
     sigHandlerEnable = False
@@ -13436,7 +13436,7 @@ Copyright:
             else:
                 disableStat += 'IRQ '
 
-            if SystemManager.netEnable:
+            if SystemManager.networkEnable:
                 enableStat += 'NET '
             else:
                 disableStat += 'NET '
@@ -13722,7 +13722,7 @@ Copyright:
                 if SystemManager.stackEnable:
                     enableStat += 'STACK '
 
-                if SystemManager.netEnable:
+                if SystemManager.networkEnable:
                     enableStat += 'NET '
 
                 if SystemManager.affinityEnable:
@@ -13848,7 +13848,7 @@ Copyright:
             else:
                 disableStat += 'KEVT '
 
-            if SystemManager.netEnable:
+            if SystemManager.networkEnable:
                 enableStat += 'NET '
             else:
                 disableStat += 'NET '
@@ -14689,7 +14689,7 @@ Copyright:
             if filterList.find('i') > -1:
                 SystemManager.irqEnable = True
             if filterList.find('n') > -1:
-                SystemManager.netEnable = True
+                SystemManager.networkEnable = True
 
         # apply custom option #
         launchPosStart = SystemManager.launchBuffer.find(' -c')
@@ -15607,7 +15607,7 @@ Copyright:
                         sys.exit(0)
 
                 if options.rfind('n') > -1:
-                    SystemManager.netEnable = True
+                    SystemManager.networkEnable = True
 
                 if options.rfind('P') > -1:
                     if SystemManager.checkPerfTopCond():
@@ -16009,7 +16009,7 @@ Copyright:
                     SystemManager.memEnable = True
 
                 if options.rfind('n') > -1:
-                    SystemManager.netEnable = True
+                    SystemManager.networkEnable = True
 
                 if options.rfind('h') > -1:
                     SystemManager.heapEnable = True
@@ -20070,8 +20070,8 @@ Copyright:
         self.cmdList["writeback/writeback_dirty_page"] = \
             SystemManager.blockEnable
         self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
-        self.cmdList["net/net_dev_xmit"] = SystemManager.netEnable
-        self.cmdList["net/netif_receive_skb"] = SystemManager.netEnable
+        self.cmdList["net/net_dev_xmit"] = SystemManager.networkEnable
+        self.cmdList["net/netif_receive_skb"] = SystemManager.networkEnable
         self.cmdList["uprobes"] = SystemManager.ueventEnable
         self.cmdList["kprobes"] = SystemManager.keventEnable
         self.cmdList["filelock/locks_get_lock_context"] = \
@@ -21147,6 +21147,8 @@ Copyright:
 
             for line in data:
                 dev, stats = line.split(':')
+
+                dev = dev.strip()
 
                 try:
                     self.networkInfo[dev]
@@ -31201,7 +31203,8 @@ class ThreadAnalyzer(object):
 
                         memUsage = self.intData[icount][key]['memUsage'] >> 8
                         kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
-                        timeLine += '%4s' % (newFlag + str(memUsage + kmemUsage) + dieFlag)
+                        timeLine += '%4s' % \
+                            (newFlag + str(memUsage + kmemUsage) + dieFlag)
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
                         (value['comm'], key, value['tgid']) + timeLine + '\n')
 
@@ -31276,7 +31279,8 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(self.threadData.items(),\
-                key=lambda e: e[1]['reqWrBlock'] + (e[1]['awriteBlock'] << 3), reverse=True):
+                key=lambda e: e[1]['reqWrBlock'] + (e[1]['awriteBlock'] << 3), \
+                reverse=True):
 
                 if value['reqWrBlock'] + (value['awriteBlock'] << 3) < 1 and \
                     SystemManager.showAll == False:
@@ -37758,6 +37762,21 @@ class ThreadAnalyzer(object):
             self.reportData['net']['inbound'] = netIn
             self.reportData['net']['outbound'] = netOut
 
+            if not SystemManager.networkEnable:
+                SystemManager.sysInstance.updateNetworkInfo()
+
+            for dev, value in sorted(\
+                SystemManager.sysInstance.networkInfo.items()):
+                self.reportData['net'][dev] = {}
+                self.reportData['net'][dev]['recv'] = value['rdiff'][0]
+                self.reportData['net'][dev]['rpacket'] = value['rdiff'][1]
+                self.reportData['net'][dev]['rerror'] = value['rdiff'][2]
+                self.reportData['net'][dev]['rdrop'] = value['rdiff'][3]
+                self.reportData['net'][dev]['tran'] = value['tdiff'][0]
+                self.reportData['net'][dev]['tpacket'] = value['tdiff'][1]
+                self.reportData['net'][dev]['terror'] = value['tdiff'][2]
+                self.reportData['net'][dev]['tdrop'] = value['tdiff'][3]
+
             # storage #
             if not SystemManager.diskEnable:
                 SystemManager.sysInstance.updateStorageInfo()
@@ -38136,7 +38155,7 @@ class ThreadAnalyzer(object):
 
 
     def printNetworkUsage(self):
-        if not SystemManager.netEnable:
+        if not SystemManager.networkEnable:
             return
         elif SystemManager.uptimeDiff == 0:
             return
@@ -40293,7 +40312,7 @@ def main(args=None):
 
         # network #
         elif SystemManager.isNetTopMode():
-            SystemManager.netEnable = True
+            SystemManager.networkEnable = True
 
         # background #
         elif SystemManager.isBgTopMode():
