@@ -38712,7 +38712,8 @@ class ThreadAnalyzer(object):
             if SystemManager.pgnameEnable:
                 try:
                     pgid = procData[idx]['stat'][self.ppidIdx]
-                    etc = procData[pgid]['stat'][self.commIdx][1:-1]
+                    etc = '%s(%s)' % \
+                        (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
                     etc = ''
             elif SystemManager.wchanEnable:
@@ -38728,7 +38729,8 @@ class ThreadAnalyzer(object):
             elif SystemManager.tgnameEnable:
                 try:
                     pgid = procData[idx]['mainID']
-                    etc = procData[pgid]['stat'][self.commIdx][1:-1]
+                    etc = '%s(%s)' % \
+                        (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
                     etc = ''
             elif SystemManager.sigHandlerEnable or True:
@@ -38758,7 +38760,7 @@ class ThreadAnalyzer(object):
                 long(stat[self.vsizeIdx]) >> 20, mems >> 8, codeSize, \
                 shr, vmswp, value['btime'], readSize, writeSize, \
                 value['majflt'], yld, prtd, value['fdsize'], \
-                lifeTime, etc, cl=cl, pd=pd))
+                lifeTime, etc[:21], cl=cl, pd=pd))
 
             # print PMU stats #
             if SystemManager.perfGroupEnable:
