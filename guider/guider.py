@@ -29058,7 +29058,7 @@ class ThreadAnalyzer(object):
                 value['awriteBlock'] = \
                     (value['awriteBlock'] * SystemManager.pageSize) >> 20
 
-        # print total information after sorting by time of cpu usage #
+        # print total information after sorting by cpu usage #
         count = 0
         SystemManager.clearPrint()
         for key, value in sorted(self.threadData.items(), \
@@ -29080,7 +29080,7 @@ class ThreadAnalyzer(object):
             # change the name of swapper thread to CORE #
             value['comm'] = value['comm'].replace("swapper", "CORE")
 
-            # modify idle time if this core is not woke up #
+            # modify idle time if this core is not woke up ever #
             if value['usage'] == 0 and value['coreSchedCnt'] == 0:
                 value['usage'] = self.totalTime
 
@@ -33229,8 +33229,10 @@ class ThreadAnalyzer(object):
                 intervalThread['customEvent'] = {}
                 intervalThread['totalCustomEvent'] = {}
                 for evt in SystemManager.customEventList:
-                    intervalThread['customEvent'][evt] = dict(self.init_eventData)
-                    intervalThread['totalCustomEvent'][evt] = dict(self.init_eventData)
+                    intervalThread['customEvent'][evt] = \
+                        dict(self.init_eventData)
+                    intervalThread['totalCustomEvent'][evt] = \
+                        dict(self.init_eventData)
                     try:
                         intervalThread['totalCustomEvent'][evt]['count'] = \
                             self.threadData[key]['customEvent'][evt]['count']
@@ -33242,8 +33244,10 @@ class ThreadAnalyzer(object):
                 intervalThread['userEvent'] = {}
                 intervalThread['totalUserEvent'] = {}
                 for evt in SystemManager.userEventList:
-                    intervalThread['userEvent'][evt] = dict(self.init_eventData)
-                    intervalThread['totalUserEvent'][evt] = dict(self.init_eventData)
+                    intervalThread['userEvent'][evt] = \
+                        dict(self.init_eventData)
+                    intervalThread['totalUserEvent'][evt] = \
+                        dict(self.init_eventData)
                     try:
                         intervalThread['totalUserEvent'][evt]['count'] = \
                             self.threadData[key]['userEvent'][evt]['count']
@@ -33301,19 +33305,26 @@ class ThreadAnalyzer(object):
 
                 # calculate resource usage in this interval #
                 intervalThread['cpuUsage'] += \
-                    intervalThread['totalUsage'] - prevIntervalThread['totalUsage']
+                    intervalThread['totalUsage'] - \
+                        prevIntervalThread['totalUsage']
                 intervalThread['preempted'] += \
-                    intervalThread['totalPreempted'] - prevIntervalThread['totalPreempted']
+                    intervalThread['totalPreempted'] - \
+                        prevIntervalThread['totalPreempted']
                 intervalThread['coreSchedCnt'] = \
-                    intervalThread['totalCoreSchedCnt'] - prevIntervalThread['totalCoreSchedCnt']
+                    intervalThread['totalCoreSchedCnt'] - \
+                        prevIntervalThread['totalCoreSchedCnt']
                 intervalThread['brUsage'] = \
-                    intervalThread['totalBrUsage'] - prevIntervalThread['totalBrUsage']
+                    intervalThread['totalBrUsage'] - \
+                        prevIntervalThread['totalBrUsage']
                 intervalThread['bwUsage'] = \
-                    intervalThread['totalBwUsage'] - prevIntervalThread['totalBwUsage']
+                    intervalThread['totalBwUsage'] - \
+                        prevIntervalThread['totalBwUsage']
                 intervalThread['memUsage'] = \
-                    intervalThread['totalMemUsage'] - prevIntervalThread['totalMemUsage']
+                    intervalThread['totalMemUsage'] - \
+                        prevIntervalThread['totalMemUsage']
                 intervalThread['kmemUsage'] = \
-                    intervalThread['totalKmemUsage'] - prevIntervalThread['totalKmemUsage']
+                    intervalThread['totalKmemUsage'] - \
+                        prevIntervalThread['totalKmemUsage']
 
             # calculate custom event usage in this interval #
             if 'totalCustomEvent' in intervalThread:
@@ -33711,6 +33722,10 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['usage'] += \
                             float(time) - self.threadData[coreId]['start']
                         self.threadData[coreId]['start'] = float(time)
+                        continue
+
+                    # check status of thread running on this core #
+                    if self.threadData[tid]['lastStatus'] != 'R':
                         continue
 
                     usage = float(time) - float(self.threadData[tid]['start'])
