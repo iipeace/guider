@@ -21777,6 +21777,8 @@ class Debugger(object):
         self.addrList = []
         self.breakList = {}
 
+        self.icnt = 0
+        self.ilimit = 5
         self.depth = 0
         self.pc = None
         self.lr = None
@@ -22527,6 +22529,15 @@ class Debugger(object):
 
 
     def handleUsercall(self):
+        # skip instructions for performance #
+        if self.ilimit == 0:
+            pass
+        elif self.icnt > self.ilimit:
+            self.icnt = 0
+        else:
+            self.icnt += 1
+            return
+
         # get register set of target #
         if not self.getRegs():
             SystemManager.printError(\
