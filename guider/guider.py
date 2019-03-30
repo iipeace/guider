@@ -21767,6 +21767,8 @@ class Debugger(object):
     def __init__(self, pid=None, execCmd=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
+        self.depth = 0
+        self.ilimit = 5
         self.syscall = ''
         self.values = []
         self.args = []
@@ -21777,9 +21779,6 @@ class Debugger(object):
         self.addrList = []
         self.breakList = {}
 
-        self.icnt = 0
-        self.ilimit = 5
-        self.depth = 0
         self.pc = None
         self.lr = None
         self.sp = None
@@ -22529,15 +22528,6 @@ class Debugger(object):
 
 
     def handleUsercall(self):
-        # skip instructions for performance #
-        if self.ilimit == 0:
-            pass
-        elif self.icnt > self.ilimit:
-            self.icnt = 0
-        else:
-            self.icnt += 1
-            return
-
         # get register set of target #
         if not self.getRegs():
             SystemManager.printError(\
@@ -22814,8 +22804,13 @@ class Debugger(object):
             elif self.status == 'ready':
                 pass
             else:
-                # setup trap #
-                ret = self.ptrace(cmd, 0, 0)
+                # skip instructions for performance #
+                if mode == 'inst' and self.ilimit > 0:
+                    for i in xrange(0, self.ilimit):
+                        ret = self.ptrace(cmd, 0, 0)
+                else:
+                    # setup trap #
+                    ret = self.ptrace(cmd, 0, 0)
 
             try:
                 # wait process #
