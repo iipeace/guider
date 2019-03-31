@@ -21767,16 +21767,17 @@ class Debugger(object):
     def __init__(self, pid=None, execCmd=None):
         self.status = 'enter'
         self.arch = arch = SystemManager.getArch()
-        self.depth = 0
         self.ilimit = 5
         self.syscall = ''
-        self.values = []
-        self.args = []
         self.mapFd = None
         self.pmap = None
         self.needRescan = True
+
+        self.args = []
+        self.values = []
         self.fileList = []
         self.addrList = []
+        self.callstack = []
         self.breakList = {}
 
         self.pc = None
@@ -22527,6 +22528,23 @@ class Debugger(object):
 
 
 
+    def addCall(self, sym):
+        self.callstack.append([self.sp, sym])
+
+
+
+    def updateCallstack(self, sym):
+        while 1:
+            if len(self.callstack) == 0:
+                return
+            elif self.callstack[-1][0] >= self.sp or \
+                self.callstack[-1][1] == sym:
+                self.callstack.pop()
+            else:
+                return
+
+
+
     def handleUsercall(self):
         # get register set of target #
         if not self.getRegs():
@@ -22534,7 +22552,7 @@ class Debugger(object):
                 "Fail to get register values of thread %d" % pid)
             return
 
-        # check previous call boundary #
+        # check previous function boundary #
         if self.prevCallInfo and \
             self.pc >= self.prevCallInfo[2] and \
             self.pc <= self.prevCallInfo[3]:
@@ -22571,6 +22589,7 @@ class Debugger(object):
                     self.prevCallInfo = [sym, fname, vstart, vend]
                     return
                 elif self.prevCallInfo[0].startswith('mmap'):
+                    # enable memory update flag #
                     self.needRescan = True
 
             # save current call info as previous call #
@@ -22581,25 +22600,32 @@ class Debugger(object):
             # get diff time #
             diff = time.time() - self.start
 
+            self.updateCallstack(sym)
+
             # check call relationship #
             if not self.sp or not self.prevsp:
                 direction = '??'
+
+                self.addCall(sym)
             elif sym == 'PLT':
                 direction = '--'
+
+                self.addCall(sym)
             elif self.sp > self.prevsp:
                 direction = '<-'
-
-                if self.depth > 0:
-                    self.depth -= 1
             else:
                 direction = '->'
 
-                self.depth += 1
+                self.addCall(sym)
+
+            # build call string #
+            sym = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             SystemManager.pipePrint(\
-                '%3.6f %40s (%s) [%s + %s]' % \
+                '%3.6f %s (%s) [%s + %s]' % \
                 (diff, sym, direction, fname, offset))
 
+            # backup register #
             self.prevsp = self.sp
 
 
