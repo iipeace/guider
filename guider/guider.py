@@ -10623,7 +10623,7 @@ Examples:
         # {0:1} {1:1} -o . -e p
 
     - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
-        # {0:1} {1:1} -R 3:5 -o .
+        # {0:1} {1:1} -R 3s:5 -o .
 
     - Monitor status of processes including memory(USS)
         # {0:1} {1:1} -e u
@@ -10724,8 +10724,8 @@ Examples:
     - report all function analysis result of specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
 
-    - record default function events of all threads to ./guider.dat for only 3 seconds
-        # {0:1} guider.dat -o . -R 3
+    - record default function events of all threads to ./guider.dat for only 3 minutes
+        # {0:1} guider.dat -o . -R 3m
 
     - record default function events of specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
@@ -15059,6 +15059,8 @@ Copyright:
                         os.path.basename(SystemManager.inputFile))
                     if ext == '' or ext == '.dat':
                         name = '%s.out' % name
+                    if name.endswith('.dat'):
+                        name = name.replace('.dat', '.out')
                     SystemManager.inputFile = \
                         os.path.join(SystemManager.printFile, name)
                 # file #
@@ -15339,6 +15341,71 @@ Copyright:
                 return item[1:]
 
         return None
+
+
+
+    @staticmethod
+    def parseRuntimeOption(value):
+        def parseInterval(data):
+            if data.isdigit():
+                ret = int(data[:-1])
+            elif data.upper().endswith('S'):
+                ret = int(data[:-1])
+            elif data.upper().endswith('M'):
+                ret = int(data[:-1]) * 60
+            elif data.upper().endswith('H'):
+                ret = int(data[:-1]) * 60 * 60
+            elif data.upper().endswith('D'):
+                ret = int(data[:-1]) * 60 * 60 * 24
+            else:
+                ret = data
+
+            return ret
+
+        SystemManager.countEnable = True
+
+        repeatParams = value.split(':')
+        if len(repeatParams) == 2:
+            try:
+                interval = parseInterval(repeatParams[0])
+
+                SystemManager.intervalEnable = interval
+                SystemManager.repeatInterval = interval
+                SystemManager.repeatCount = int(repeatParams[1])
+                SystemManager.printInfo(\
+                    "run only %s sec %s time" % \
+                    (SystemManager.intervalEnable, \
+                    SystemManager.repeatCount))
+            except:
+                SystemManager.printError(\
+                    "wrong option value with -R, input integer values")
+                sys.exit(0)
+        elif len(repeatParams) == 1:
+            try:
+                interval = parseInterval(repeatParams[0])
+
+                SystemManager.repeatCount = interval
+                SystemManager.repeatInterval = interval
+                SystemManager.intervalEnable = 1
+                SystemManager.printInfo(\
+                    "run only %s sec %s time" % \
+                    (SystemManager.intervalEnable, \
+                    SystemManager.repeatCount))
+            except:
+                SystemManager.printError(\
+                    "wrong option value with -R, input a integer value")
+                sys.exit(0)
+        else:
+            SystemManager.printError((\
+                "wrong option value with -R, "
+                "input INTERVAL,REPEAT in format"))
+            sys.exit(0)
+
+        if SystemManager.intervalEnable < 1 or \
+            SystemManager.repeatCount < 1:
+            SystemManager.printError(\
+                "wrong option value with -R, input values bigger than 0")
+            sys.exit(0)
 
 
 
@@ -15893,44 +15960,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'R':
-                SystemManager.countEnable = True
-
-                repeatParams = value.split(':')
-                if len(repeatParams) == 2:
-                    try:
-                        SystemManager.intervalEnable = int(repeatParams[0])
-                        SystemManager.repeatCount = int(repeatParams[1])
-                        SystemManager.printInfo(\
-                            "run only %s sec %s time" % \
-                            (SystemManager.intervalEnable, \
-                            SystemManager.repeatCount))
-                    except:
-                        SystemManager.printError(\
-                            "wrong option value with -R, input integer values")
-                        sys.exit(0)
-                elif len(repeatParams) == 1:
-                    try:
-                        SystemManager.repeatCount = int(repeatParams[0])
-                        SystemManager.intervalEnable = 1
-                        SystemManager.printInfo(\
-                            "run only %s sec %s time" % \
-                            (SystemManager.intervalEnable, \
-                            SystemManager.repeatCount))
-                    except:
-                        SystemManager.printError(\
-                            "wrong option value with -R, input a integer value")
-                        sys.exit(0)
-                else:
-                    SystemManager.printError((\
-                        "wrong option value with -R, "
-                        "input INTERVAL,REPEAT in format"))
-                    sys.exit(0)
-
-                if SystemManager.intervalEnable < 1 or \
-                    SystemManager.repeatCount < 1:
-                    SystemManager.printError(\
-                        "wrong option value with -R, input values bigger than 0")
-                    sys.exit(0)
+                SystemManager.parseRuntimeOption(value)
 
             # Ignore options #
             elif SystemManager.isEffectiveOption(option):
@@ -16050,7 +16080,7 @@ Copyright:
                     ', '.join(SystemManager.filterGroup))
 
             elif option == 's':
-                if SystemManager.isRecordMode() is False:
+                if not SystemManager.isRecordMode():
                     SystemManager.printError(\
                         "Fail to save data because it is not in record mode")
                     sys.exit(0)
@@ -16185,44 +16215,7 @@ Copyright:
                         ', '.join(enabledSyscall))
 
             elif option == 'R':
-                repeatParams = value.split(':')
-                if len(repeatParams) == 2:
-                    try:
-                        SystemManager.repeatInterval = int(repeatParams[0])
-                        SystemManager.repeatCount = int(repeatParams[1])
-                        SystemManager.printInfo(\
-                            "run only %s sec %s time" % \
-                            (SystemManager.repeatInterval, \
-                            SystemManager.repeatCount))
-                    except:
-                        SystemManager.printError(\
-                            "wrong option value with -R, "
-                            "input integer values")
-                        sys.exit(0)
-                elif len(repeatParams) == 1:
-                    try:
-                        SystemManager.repeatInterval = int(repeatParams[0])
-                        SystemManager.repeatCount = 1
-                        SystemManager.printInfo(\
-                            "run only for %s sec" % \
-                            SystemManager.repeatInterval)
-                    except:
-                        SystemManager.printError(\
-                            "wrong option value with -R, "
-                            "input a integer value")
-                        sys.exit(0)
-                else:
-                    SystemManager.printError((\
-                        "wrong option value with -R, "
-                        "input INTERVAL:REPEAT in format"))
-                    sys.exit(0)
-
-                if SystemManager.repeatInterval < 1 or \
-                    SystemManager.repeatCount < 1:
-                    SystemManager.printError((\
-                        "wrong option value with -R, "
-                        "input values bigger than 0"))
-                    sys.exit(0)
+                SystemManager.parseRuntimeOption(value)
 
             elif option == 'o':
                 SystemManager.printFile = str(value)
@@ -22538,6 +22531,7 @@ class Debugger(object):
             if len(self.callstack) == 0:
                 return
             elif self.callstack[-1][0] >= self.sp or \
+                self.callstack[-1][0] >= self.prevsp or \
                 self.callstack[-1][1] == sym:
                 self.callstack.pop()
             else:
@@ -22622,8 +22616,8 @@ class Debugger(object):
             sym = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             SystemManager.pipePrint(\
-                '%3.6f %s (%s) [%s + %s]' % \
-                (diff, sym, direction, fname, offset))
+                '%3.6f %s (%s) [%s + %s] [%s]' % \
+                (diff, sym, direction, fname, offset, hex(self.sp)))
 
             # backup register #
             self.prevsp = self.sp
@@ -27004,6 +26998,17 @@ class ThreadAnalyzer(object):
         #==================== define part ====================#
 
         def drawEvent(graphStats):
+            # get minimum timeline #
+            timeline = None
+            for key, val in graphStats.items():
+                if not key.endswith('timeline'):
+                    continue
+                elif not timeline:
+                    timeline = val
+                elif len(timeline) > len(val):
+                    timeline = val
+            lent = len(timeline)
+
             # start loop #
             for key, val in graphStats.items():
                 if not key.endswith('timeline'):
@@ -27012,17 +27017,19 @@ class ThreadAnalyzer(object):
                 res = key.split(':')
                 if len(res) > 1:
                     fname = '%s:' % res[0]
+                    prefix = '[%s] ' % res[0]
                 else:
                     fname = ''
+                    prefix = ''
 
-                timeline = graphStats['%stimeline' % fname]
+                # get event table #
                 eventList = graphStats['%seventList' % fname]
 
                 for tm, evts in enumerate(eventList):
                     if len(evts) == 0:
                         continue
 
-                    evtbox = '\n'.join(evts)
+                    evtbox = '%s%s' % (prefix, '\n'.join(evts))
 
                     try:
                         text(timeline[tm], yticks()[0][-1], evtbox, fontsize=3,\
@@ -36716,12 +36723,14 @@ class ThreadAnalyzer(object):
         # save status info #
         try:
             self.prevProcData[tid]['statusFd'].seek(0)
-            self.procData[tid]['statusFd'] = self.prevProcData[tid]['statusFd']
+            self.procData[tid]['statusFd'] = \
+                self.prevProcData[tid]['statusFd']
             statusBuf = self.procData[tid]['statusFd'].readlines()
         except:
             try:
                 statusPath = "%s/status" % path
-                statusFd = self.procData[tid]['statusFd'] = open(statusPath, 'r')
+                statusFd = self.procData[tid]['statusFd'] = \
+                    open(statusPath, 'r')
                 statusBuf = statusFd.readlines()
 
                 # fd resource is about to run out #
@@ -36759,7 +36768,8 @@ class ThreadAnalyzer(object):
                 statmBuf = self.procData[tid]['statmFd'].readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd-16 < self.procData[tid]['statmFd'].fileno():
+                if SystemManager.maxFd-16 < \
+                    self.procData[tid]['statmFd'].fileno():
                     self.procData[tid]['statmFd'].close()
                     self.procData[tid]['statmFd'] = None
                     self.reclaimFds()
@@ -36789,7 +36799,8 @@ class ThreadAnalyzer(object):
                     self.prevProcData[tid]['alive'] = True
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd-16 < self.procData[tid]['statFd'].fileno():
+                if SystemManager.maxFd-16 < \
+                    self.procData[tid]['statFd'].fileno():
                     self.procData[tid]['statFd'].close()
                     self.procData[tid]['statFd'] = None
                     self.reclaimFds()
@@ -36815,7 +36826,8 @@ class ThreadAnalyzer(object):
                 idx = commIndex + 1
                 while 1:
                     tmpStr = str(STAT_ATTR[idx])
-                    STAT_ATTR[commIndex] = "%s %s" % (STAT_ATTR[commIndex], tmpStr)
+                    STAT_ATTR[commIndex] = \
+                        "%s %s" % (STAT_ATTR[commIndex], tmpStr)
                     STAT_ATTR.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
