@@ -9369,6 +9369,8 @@ class SystemManager(object):
     uptime = 0
     prevUptime = 0
     uptimeDiff = 0
+    diskStats = None
+    prevDiskStats = None
     netstat = ''
     prevNetstat = ''
     loadavg = ''
@@ -9415,6 +9417,8 @@ class SystemManager(object):
     netdevFd = None
     loadavgFd = None
     cmdFd = None
+    diskStatsFd = None
+    mountFd = None
 
     irqEnable = False
     cpuEnable = True
@@ -10013,6 +10017,103 @@ class SystemManager(object):
             SystemManager.impPkg[name] = obj
 
         return obj
+
+
+
+    @staticmethod
+    def getIowaitTime(dev=None):
+        if not SystemManager.diskStats or \
+            not SystemManager.prevDiskStats:
+            return '0/0'
+
+        flist = {}
+        curReadTotal = prevReadTotal = 0
+        curWriteTotal = prevWriteTotal = 0
+        curNrReadTotal = prevNrReadTotal = 0
+        curNrWriteTotal = prevNrWriteTotal = 0
+
+        # get total iowait time for read #
+        for line in SystemManager.diskStats:
+            items = line.split()
+            dev = items[2]
+
+            if not dev[-1].isdigit():
+                flist[dev] = None
+            else:
+                skip = False
+                for item in flist:
+                    if item != dev and \
+                        dev.startswith(item):
+                        skip = True
+
+                if skip:
+                    continue
+
+            curNrReadTotal += long(items[3])
+            curReadTotal += long(items[6])
+            curNrWriteTotal += long(items[7])
+            curWriteTotal += long(items[10])
+
+        # get total iowait time for write #
+        for line in SystemManager.prevDiskStats:
+            items = line.split()
+            dev = items[2]
+
+            skip = False
+            for item in flist:
+                if item != dev and \
+                    dev.startswith(item):
+                    skip = True
+
+            if skip:
+                continue
+
+            prevNrReadTotal += long(items[3])
+            prevReadTotal += long(items[6])
+            prevNrWriteTotal += long(items[7])
+            prevWriteTotal += long(items[10])
+
+        readTotal = curReadTotal - prevReadTotal
+        writeTotal = curWriteTotal - prevWriteTotal
+        nrReadTotal = curNrReadTotal - prevNrReadTotal
+        nrWriteTotal = curNrWriteTotal - prevNrWriteTotal
+
+        retstr = '%s/%s' % (\
+            SystemManager.convertSize2Unit(readTotal),\
+            SystemManager.convertSize2Unit(writeTotal))
+
+        return retstr
+
+
+
+    @staticmethod
+    def updateDiskStats():
+        try:
+            SystemManager.diskStatsFd.seek(0)
+            SystemManager.prevDiskStats = SystemManager.diskStats
+            SystemManager.diskStats = SystemManager.diskStatsFd.readlines()
+        except:
+            try:
+                diskstatPath = '%s/diskstats' % SystemManager.procPath
+                SystemManager.diskStatsFd = open(diskstatPath, 'r')
+                SystemManager.diskStats = SystemManager.diskStatsFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % diskstatPath)
+
+
+
+    @staticmethod
+    def getMountData():
+        try:
+            SystemManager.mountFd.seek(0)
+            return SystemManager.mountFd.readlines()
+        except:
+            try:
+                mountPath = '%s/self/mountinfo' % SystemManager.procPath
+                SystemManager.mountFd = open(mountPath, 'r')
+                return SystemManager.mountFd.readlines()
+            except:
+                SystemManager.printWarning('Fail to open %s' % mountPath)
 
 
 
@@ -15019,6 +15120,8 @@ Copyright:
                 else:
                     # no supported OS #
                     SystemManager.pipeForPrint = False
+
+                SystemManager.encodeEnable = False
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarning(\
@@ -19822,28 +19925,19 @@ Copyright:
 
 
     def saveStorageInfo(self):
-        #mountFile = '%s/mounts' % SystemManager.procPath
-        mountFile = '%s/self/mountinfo' % SystemManager.procPath
-        partFile = '%s/partitions' % SystemManager.procPath
-        diskFile = '%s/diskstats' % SystemManager.procPath
         blockDir = '/sys/class/block'
+        partFile = '%s/partitions' % SystemManager.procPath
 
-        # save disk and mount info #
-        try:
-            with open(diskFile, 'r') as df:
-                if not 'prev' in self.diskData:
-                    self.diskData['prev'] = df.readlines()
-                else:
-                    self.diskData['next'] = df.readlines()
+        # update disk data #
+        SystemManager.updateDiskStats()
 
-                    try:
-                        with open(mountFile, 'r') as mf:
-                            self.mountData = mf.readlines()
-                    except:
-                        SystemManager.printWarning("Fail to open %s" % mountFile)
+        if not 'prev' in self.diskData:
+            self.diskData['prev'] = SystemManager.diskStats
+        else:
+            self.diskData['next'] = SystemManager.diskStats
 
-        except:
-            SystemManager.printWarning("Fail to open %s" % diskFile)
+        # update mount data #
+        self.mountData = SystemManager.getMountData()
 
         # save partition range #
         try:
@@ -36317,6 +36411,9 @@ class ThreadAnalyzer(object):
                 self.vmData['swapTotal'] = 0
                 self.vmData['swapUsed'] = 0
 
+        # save diskstats #
+        SystemManager.updateDiskStats()
+
         # save netstat #
         try:
             SystemManager.netstatFd.seek(0)
@@ -37245,6 +37342,9 @@ class ThreadAnalyzer(object):
             memTitle = ' MemF'
         else:
             memTitle = ' MemA'
+
+        # get iowait time #
+        #iowait = SystemManager.getIowaitTime()
 
         # print system status menu #
         SystemManager.addPrint(
