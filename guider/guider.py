@@ -10027,10 +10027,13 @@ class SystemManager(object):
             return '0/0'
 
         flist = {}
-        curReadTotal = prevReadTotal = 0
-        curWriteTotal = prevWriteTotal = 0
+        dlist = {}
+        curReadMsTotal = prevReadMsTotal = 0
+        curWriteMsTotal = prevWriteMsTotal = 0
         curNrReadTotal = prevNrReadTotal = 0
         curNrWriteTotal = prevNrWriteTotal = 0
+        curIoMsTotal = prevIoMsTotal = 0
+        curWIoMsTotal = prevWIoMsTotal = 0
 
         # get total iowait time for read #
         for line in SystemManager.diskStats:
@@ -10049,10 +10052,20 @@ class SystemManager(object):
                 if skip:
                     continue
 
+            dlist[dev] = dict()
+            dlist[dev]['curNrRead'] = long(items[3])
+            dlist[dev]['curNrWrite'] = long(items[7])
+            dlist[dev]['curReadMs'] = long(items[6])
+            dlist[dev]['curWriteMs'] = long(items[10])
+            dlist[dev]['curIoMs'] = long(items[12])
+            dlist[dev]['curWIoMs'] = long(items[13])
+
             curNrReadTotal += long(items[3])
-            curReadTotal += long(items[6])
             curNrWriteTotal += long(items[7])
-            curWriteTotal += long(items[10])
+            curReadMsTotal += long(items[6])
+            curWriteMsTotal += long(items[10])
+            curIoMsTotal += long(items[12])
+            curWIoMsTotal += long(items[13])
 
         # get total iowait time for write #
         for line in SystemManager.prevDiskStats:
@@ -10068,19 +10081,38 @@ class SystemManager(object):
             if skip:
                 continue
 
-            prevNrReadTotal += long(items[3])
-            prevReadTotal += long(items[6])
-            prevNrWriteTotal += long(items[7])
-            prevWriteTotal += long(items[10])
+            dlist[dev]['prevNrRead'] = long(items[3])
+            dlist[dev]['prevNrWrite'] = long(items[7])
+            dlist[dev]['prevReadMs'] = long(items[6])
+            dlist[dev]['prevWriteMs'] = long(items[10])
+            dlist[dev]['prevIoMs'] = long(items[12])
+            dlist[dev]['prevWIoMs'] = long(items[13])
 
-        readTotal = curReadTotal - prevReadTotal
-        writeTotal = curWriteTotal - prevWriteTotal
+            prevNrReadTotal += long(items[3])
+            prevNrWriteTotal += long(items[7])
+            prevReadMsTotal += long(items[6])
+            prevWriteMsTotal += long(items[10])
+            prevIoMsTotal += long(items[12])
+            prevWIoMsTotal += long(items[13])
+
+        for dev, stat in dlist.items():
+            read = stat['curNrRead'] - stat['prevNrRead']
+            write = stat['curNrWrite'] - stat['prevNrWrite']
+            io = read + write
+
+            if io > 0:
+                wio = stat['curWIoMs'] - stat['prevWIoMs']
+
+        readMsTotal = curReadMsTotal - prevReadMsTotal
+        writeMsTotal = curWriteMsTotal - prevWriteMsTotal
         nrReadTotal = curNrReadTotal - prevNrReadTotal
         nrWriteTotal = curNrWriteTotal - prevNrWriteTotal
+        ioMsTotal = curIoMsTotal - prevIoMsTotal
+        wIoMsTotal = curWIoMsTotal - prevWIoMsTotal
 
         retstr = '%s/%s' % (\
-            SystemManager.convertSize2Unit(readTotal),\
-            SystemManager.convertSize2Unit(writeTotal))
+            SystemManager.convertSize2Unit(readMsTotal),\
+            SystemManager.convertSize2Unit(writeMsTotal))
 
         return retstr
 
