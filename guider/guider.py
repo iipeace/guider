@@ -6386,7 +6386,7 @@ class FunctionAnalyzer(object):
         # Exit because of no target #
         if len(self.target) == 0:
             SystemManager.printWarning(\
-                "No specific thread targeted, input tid with -g option")
+                "No specific thread targeted, input TID with -g option")
 
         # Print syscall usage of threads #
         self.printSyscallSummary()
@@ -8319,6 +8319,241 @@ class FunctionAnalyzer(object):
             SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
+
+
+
+
+
+class LeakAnalyzer(object):
+    """ Analyzer for leaktracer """
+
+    def __init__(self, file=None, pid=None):
+
+        self.posData = {}
+        self.symData = {}
+        self.fileData = {}
+        self.callData = []
+        self.totalLeakSize = 0
+
+        self.init_posData = \
+            {'offset': 0, 'path': None, 'lastPosCnt': 0, \
+            'count': 0, 'size': 0, 'lastPosSize': 0, 'sym': None}
+
+        self.init_symData = \
+            {'offset': 0, 'path': None, 'lastPosCnt': 0, \
+            'count': 0, 'size': 0, 'lastPosSize': 0}
+
+        self.init_fileData = \
+            {'lastPosCnt': 0, 'count': 0, 'size': 0, 'lastPosSize': 0}
+
+        # Open log file #
+        try:
+            with open(file, 'r') as fd:
+                lines = fd.readlines()[1:]
+        except:
+            SystemManager.printError(\
+                "Fail to open %s" % file)
+            sys.exit(0)
+
+        self.callData = self.parseLines(lines)
+        del lines
+
+        # Get process object #
+        try:
+            proc = Debugger(pid=int(pid), attach=False)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Failed to analyze leakage because %s" % err)
+
+        # Resolve symbols #
+        self.resolveSymbols(proc)
+
+        # Merge symbols #
+        self.mergeSymbols()
+
+
+
+    def printUsage(self):
+        convertFunc = SystemManager.convertSize2Unit
+
+        # function leakage info #
+        title = 'Function Leakage Info'
+        SystemManager.pipePrint(\
+            '\n[%s] [Total: %s] [CallCount: %s] [FuncCount: %s]' % \
+                (title, \
+                SystemManager.convertSize2Unit(self.totalLeakSize, True), \
+                len(self.callData), len(self.symData)))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            "{0:^7} | {1:^46} | {2:^93} |".\
+                format("Size", "Function", "Path"))
+        SystemManager.pipePrint(oneLine)
+
+        count = 0
+        for sym, val in sorted(self.symData.items(), \
+            key=lambda e: int(e[1]['lastPosSize']), reverse=True):
+            if val['lastPosSize'] == 0:
+                break
+
+            SystemManager.pipePrint(\
+                "{0:>7} | {1:^46} | {2:^93} |".\
+                    format(convertFunc(val['lastPosSize'], True), \
+                    sym, val['path']))
+            count += 1
+
+        if count == 0:
+            SystemManager.pipePrint('\tNone')
+        SystemManager.pipePrint(oneLine)
+
+        # file leakage info #
+        title = 'File Leakage Info'
+        SystemManager.pipePrint(\
+            '\n[%s] [Total: %s] [CallCount: %s] [FileCount: %s]' % \
+                (title, \
+                SystemManager.convertSize2Unit(self.totalLeakSize, True), \
+                len(self.callData), len(self.fileData)))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(\
+            "{0:^7} | {1:^142} |".format("Size", "Path"))
+        SystemManager.pipePrint(oneLine)
+
+        count = 0
+        for file, val in sorted(self.fileData.items(), \
+            key=lambda e: int(e[1]['lastPosSize']), reverse=True):
+            if val['lastPosSize'] == 0:
+                break
+
+            SystemManager.pipePrint(\
+                "{0:>7} | {1:^142} |".\
+                    format(convertFunc(val['lastPosSize'], True), file))
+            count += 1
+
+        if count == 0:
+            SystemManager.pipePrint('\tNone')
+        SystemManager.pipePrint(oneLine)
+
+        if SystemManager.showAll and len(self.callData) > 0:
+            # leakage history #
+            title = 'Leakage History'
+            SystemManager.pipePrint(\
+                '\n[%s] [Total: %s] [CallCount: %s]' % \
+                    (title, \
+                    SystemManager.convertSize2Unit(self.totalLeakSize, True), \
+                    len(self.callData)))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(\
+                "{0:^16} | {1:^6} |{2:^50}| {3:^73} |".\
+                format("Time", "Size", "Data", "Stack"))
+            SystemManager.pipePrint(oneLine)
+
+            for time, items in sorted(self.callData.items(), \
+                key=lambda e: e[0], reverse=False):
+                stack = list(items['stack'])
+                for idx, pos in enumerate(stack):
+                    stack[idx] = self.posData[pos]['sym']
+
+                SystemManager.pipePrint(\
+                    "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
+                        format(time, \
+                        convertFunc(int(items['size']), True), \
+                        items['data'][:-1], ' <- '.join(stack)))
+                count += 1
+            SystemManager.pipePrint(oneLine)
+
+
+
+    def mergeSymbols(self):
+        for pos, val in self.posData.items():
+            sym = val['sym']
+            try:
+                self.symData[sym]['count'] += val['count']
+                self.symData[sym]['size'] += val['size']
+                self.symData[sym]['lastPosCnt'] += val['lastPosCnt']
+                self.symData[sym]['lastPosSize'] += val['lastPosSize']
+            except:
+                self.symData[sym] = dict(self.init_symData)
+                self.symData[sym]['offset'] = val['offset']
+                self.symData[sym]['path'] = val['path']
+                self.symData[sym]['count'] = val['count']
+                self.symData[sym]['size'] = val['size']
+                self.symData[sym]['lastPosCnt'] = val['lastPosCnt']
+                self.symData[sym]['lastPosSize'] = val['lastPosSize']
+
+            path = val['path']
+            try:
+                self.fileData[path]['count'] += val['count']
+                self.fileData[path]['size'] += val['size']
+                self.fileData[path]['lastPosCnt'] += val['lastPosCnt']
+                self.fileData[path]['lastPosSize'] += val['lastPosSize']
+            except:
+                self.fileData[path] = dict(self.init_fileData)
+                self.fileData[path]['count'] = val['count']
+                self.fileData[path]['size'] = val['size']
+                self.fileData[path]['lastPosCnt'] = val['lastPosCnt']
+                self.fileData[path]['lastPosSize'] = val['lastPosSize']
+
+            self.totalLeakSize += val['lastPosSize']
+
+
+
+    def resolveSymbols(self, proc):
+        for pos, val in self.posData.items():
+            ret = proc.getSymbolInfo(int(pos, 16))
+            if ret and len(ret) > 3:
+                val['sym'] = ret[0]
+                val['path'] = ret[1]
+                val['offset'] = ret[2]
+
+
+
+    def parseLines(self, lines):
+        callinfo = {}
+
+        for line in lines:
+            items = line.split(', ')
+
+            if items[0] != 'leak':
+                continue
+
+            time = None
+            item = dict()
+
+            for content in items[1:]:
+                try:
+                    name, body = content.split('=', 1)
+                except:
+                    continue
+
+                if name == 'time':
+                    time = body
+                elif name == 'stack':
+                    # split callstack #
+                    item[name] = body.split()
+                else:
+                    item[name] = body
+
+            # save pos in common area #
+            for pos in item['stack']:
+                try:
+                    self.posData[pos]['count'] += 1
+                    self.posData[pos]['size'] += int(item['size'])
+                except:
+                    self.posData[pos] = dict(self.init_posData)
+                    self.posData[pos]['count'] = 1
+                    self.posData[pos]['size'] = int(item['size'])
+
+            lastPos = item['stack'][0]
+            self.posData[lastPos]['lastPosSize'] += int(item['size'])
+
+            callinfo[time] = item
+
+        return callinfo
 
 
 
@@ -11685,11 +11920,42 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
                     '''.format(cmd, mode)
 
+                # leaktracer #
+                elif SystemManager.isLeaktraceMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <FILE> -g <PID> [OPTIONS] [--help]
+
+Description:
+    Show functions caused memory leakage with leaktracer output
+
+    Run a below command to get leaktracer output
+    $ LD_PRELOAD=libleaktracer.so \\
+        LEAKTRACER_ONEXIT_REPORT=1 \\
+        LEAKTRACER_ONEXIT_REPORTFILE=leaks.out \\
+        LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
+        LEAKTRACER_ONSIG_REPORT=36 targetExec
+
+    Get libleaktracer.so from https://github.com/iipeace/portable/tree/master/leaktracer
+
+OPTIONS:
+        -I  <FILE>                  set input path
+        -o  <DIR|FILE>              save output data
+        -g  <PID>                   set id of target process
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print funtions caused memory leakage of a specific process
+        # {0:1} {1:1} -I leaks.out -g 1234
+                    '''.format(cmd, mode)
+
                 # printenv #
                 elif SystemManager.isPrintEnvMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <PID> [OPTIONS] [--help]
 
 Description:
     Show environment variables for a specific process
@@ -11700,7 +11966,7 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Print environemtn variables for a specific process
+    - Print environment variables for a specific process
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
@@ -12015,6 +12281,7 @@ COMMAND:
                 printenv    <env>
                 readelf     <file>
                 addr2line   <symbol>
+                leaktrace   <leak>
 
     [run]       list        <list>
                 start       <signal>
@@ -14552,7 +14819,7 @@ Copyright:
 
 
     @staticmethod
-    def printLogo(absolute=False, big=False):
+    def printLogo(absolute=False, big=False, onlyFile=False):
         if not SystemManager.printEnable:
             return
 
@@ -14560,6 +14827,8 @@ Copyright:
             if SystemManager.printStreamEnable:
                 if not absolute:
                     return
+            elif onlyFile:
+                return
 
         if big:
             SystemManager.pipePrint(ConfigManager.logo)
@@ -15648,7 +15917,7 @@ Copyright:
                     if len(SystemManager.preemptGroup) == 0:
                         SystemManager.printError((\
                             "No specific thread targeted, "
-                            "input tid with -p option"))
+                            "input TID with -p option"))
                         sys.exit(0)
 
             elif option == 'Y':
@@ -16912,7 +17181,8 @@ Copyright:
             SystemManager.runClientMode()
 
         # START / STOP MODE #
-        if SystemManager.isStartMode() or SystemManager.isStopMode():
+        if SystemManager.isStartMode() or \
+            SystemManager.isStopMode():
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
@@ -16947,6 +17217,9 @@ Copyright:
             # parse options #
             SystemManager.parseAnalOption()
 
+            # print title #
+            SystemManager.printLogo(big=True, onlyFile=True)
+
             if not SystemManager.sourceFile:
                 SystemManager.printError(\
                     "No file path with -I")
@@ -16959,10 +17232,45 @@ Copyright:
 
             sys.exit(0)
 
+        # LEAKTRACE MODE #
+        if SystemManager.isLeaktraceMode():
+            # parse options #
+            SystemManager.parseAnalOption()
+
+            if not SystemManager.sourceFile:
+                SystemManager.printError(\
+                    "No file path with -I")
+                sys.exit(0)
+
+            if len(SystemManager.filterGroup) == 0:
+                SystemManager.printError(\
+                    "No PID with -g")
+                sys.exit(0)
+            elif len(SystemManager.filterGroup) > 1:
+                SystemManager.printError(\
+                    "Input only one PID")
+                sys.exit(0)
+
+            # create leaktracer parser #
+            try:
+                lt = LeakAnalyzer(\
+                    SystemManager.sourceFile, SystemManager.filterGroup[0])
+
+                lt.printUsage()
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to analyze leak because %s" % err)
+
+            sys.exit(0)
+
         # ADDR2LINE MODE #
         if SystemManager.isAddr2lineMode():
             # parse options #
             SystemManager.parseAnalOption()
+
+            # print title #
+            SystemManager.printLogo(big=True, onlyFile=True)
 
             if not SystemManager.sourceFile:
                 SystemManager.printError(\
@@ -16976,7 +17284,7 @@ Copyright:
 
             # create elf object #
             try:
-                binObj = ElfAnalyzer(SystemManager.sourceFile)
+                binObj = ElfAnalyzer(SystemManager.sourceFile, verbose=True)
             except:
                 sys.exit(0)
 
@@ -17008,6 +17316,9 @@ Copyright:
         if SystemManager.isMemMode():
             # parse options #
             SystemManager.parseAnalOption()
+
+            # print title #
+            SystemManager.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(\
                 ''.join(SystemManager.filterGroup), SystemManager.sourceFile)
@@ -17200,6 +17511,15 @@ Copyright:
     @staticmethod
     def isAddr2lineMode():
         if sys.argv[1] == 'addr2line':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLeaktraceMode():
+        if sys.argv[1] == 'leaktrace':
             return True
         else:
             return False
@@ -18713,6 +19033,9 @@ Copyright:
         # parse options #
         SystemManager.parseAnalOption()
 
+        # print title #
+        SystemManager.printLogo(big=True, onlyFile=True)
+
         # check tid #
         if not SystemManager.isRoot():
             SystemManager.printError(\
@@ -18720,7 +19043,7 @@ Copyright:
             sys.exit(0)
         elif len(SystemManager.filterGroup) == 0:
             SystemManager.printError(\
-                "No tid with -g option")
+                "No PID with -g option")
             sys.exit(0)
         elif len(SystemManager.filterGroup) > 1:
             SystemManager.printError(\
@@ -18749,6 +19072,9 @@ Copyright:
         # parse options #
         SystemManager.parseAnalOption()
 
+        # print title #
+        SystemManager.printLogo(big=True, onlyFile=True)
+
         # no use pager #
         SystemManager.printStreamEnable = True
 
@@ -18767,10 +19093,10 @@ Copyright:
         elif len(SystemManager.filterGroup) == 0 and \
             not SystemManager.sourceFile:
             SystemManager.printError(\
-                "No tid with -g option or command with -I")
+                "No TID with -g option or command with -I")
             sys.exit(0)
         elif len(SystemManager.filterGroup) == 0:
-            SystemManager.printError("No tid with -g option")
+            SystemManager.printError("No TID with -g option")
             sys.exit(0)
         elif len(SystemManager.filterGroup) > 1:
             SystemManager.printError(\
@@ -18778,7 +19104,7 @@ Copyright:
             sys.exit(0)
         elif SystemManager.filterGroup[0].isdigit() is False:
             SystemManager.printError(\
-                "wrong option with -g, input tid in integer format")
+                "wrong option with -g, input TID in integer format")
             sys.exit(0)
         else:
             pid = int(SystemManager.filterGroup[0])
@@ -18806,6 +19132,9 @@ Copyright:
         # parse options #
         SystemManager.parseAnalOption()
 
+        # print title #
+        SystemManager.printLogo(big=True, onlyFile=True)
+
         # no use pager #
         SystemManager.printStreamEnable = True
 
@@ -18824,10 +19153,10 @@ Copyright:
         elif len(SystemManager.filterGroup) == 0 and \
             not SystemManager.sourceFile:
             SystemManager.printError(\
-                "No tid with -g option or command with -I")
+                "No TID with -g option or command with -I")
             sys.exit(0)
         elif len(SystemManager.filterGroup) == 0:
-            SystemManager.printError("No tid with -g option")
+            SystemManager.printError("No TID with -g option")
             sys.exit(0)
         elif len(SystemManager.filterGroup) > 1:
             SystemManager.printError(\
@@ -18835,7 +19164,7 @@ Copyright:
             sys.exit(0)
         elif SystemManager.filterGroup[0].isdigit() is False:
             SystemManager.printError(\
-                "wrong option with -g, input tid in integer format")
+                "wrong option with -g, input TID in integer format")
             sys.exit(0)
         else:
             pid = int(SystemManager.filterGroup[0])
@@ -19156,7 +19485,7 @@ Copyright:
                     pid = int(pid)
                 except:
                     SystemManager.printError(\
-                        "Fail to recognize pid %s to send signal" % pid)
+                        "Fail to recognize PID %s to send signal" % pid)
                     return
 
                 # send signal to a process #
@@ -20374,7 +20703,7 @@ Copyright:
                         SystemManager.writeCmd('../set_ftrace_pid', pid, True)
                     except:
                         SystemManager.printError((\
-                            "Fail to add %s to pid filter "
+                            "Fail to add %s to PID filter "
                             "for function graph tracing") % pid)
                         sys.exit(0)
 
@@ -20413,7 +20742,7 @@ Copyright:
                         raise Exception()
                 except:
                     SystemManager.printError(\
-                        "wrong tid %s" % SystemManager.filterGroup)
+                        "wrong TID %s" % SystemManager.filterGroup)
                     sys.exit(0)
 
             # trace except for swapper threads #
@@ -21883,8 +22212,9 @@ Copyright:
 class Debugger(object):
     """ Debugger for ptrace """
 
-    def __init__(self, pid=None, execCmd=None):
+    def __init__(self, pid=None, execCmd=None, attach=True):
         self.status = 'enter'
+        self.attached = attach
         self.arch = arch = SystemManager.getArch()
         self.ilimit = 5
         self.syscall = ''
@@ -22038,7 +22368,8 @@ class Debugger(object):
         # running #
         if self.checkPid(pid) >= 0:
             self.pid = pid
-            self.attach()
+            if attach:
+                self.attach()
             self.isRunning = True
         # execute #
         elif execCmd:
@@ -22101,7 +22432,7 @@ class Debugger(object):
 
     def setPid(self, pid):
         if self.checkPid(pid) < 0:
-            SystemManager.printError('Fail to set pid %s' % pid)
+            SystemManager.printError('Fail to set PID %s' % pid)
             return -1
 
         self.pid = pid
@@ -22185,6 +22516,9 @@ class Debugger(object):
 
 
     def cont(self, pid=None):
+        if not self.attached:
+            return
+
         if not pid:
             pid = self.pid
 
@@ -22211,6 +22545,9 @@ class Debugger(object):
 
 
     def detach(self):
+        if not self.attached:
+            return
+
         if hasattr(self, 'pid'):
             pid = self.pid
         else:
@@ -22535,7 +22872,7 @@ class Debugger(object):
 
     def getSymbolInfo(self, vaddr):
         if not self.pid:
-            SystemManager.printError("Fail to get pid to get symbol")
+            SystemManager.printError("Fail to get PID to get symbol")
             return None
 
         # check of maps fd #
@@ -24548,7 +24885,12 @@ class ElfAnalyzer(object):
                 if addrTable[idx] > offset:
                     return '??'
 
-                maxAddr = addrTable[idx] + symTable[idx][1]
+                # set symbol scope to size #
+                #maxAddr = addrTable[idx] + symTable[idx][1]
+
+                # set symbol scope to next one's start offset #
+                maxAddr = addrTable[idx+1]
+
                 if offset >= addrTable[idx] and offset <= maxAddr:
                     return symTable[idx][0]
 
@@ -24627,7 +24969,7 @@ class ElfAnalyzer(object):
 
 
 
-    def __init__(self, path, debug=False):
+    def __init__(self, path, debug=False, verbose=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -24908,7 +25250,7 @@ class ElfAnalyzer(object):
         try:
             fd = self.fd = open(path, 'rb')
         except:
-            if debug:
+            if debug or verbose:
                 SystemManager.printError("Fail to open %s" % path)
             else:
                 SystemManager.printWarning("Fail to open %s" % path)
