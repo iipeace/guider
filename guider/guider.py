@@ -8337,7 +8337,7 @@ class LeakAnalyzer(object):
 
         self.init_posData = \
             {'offset': 0, 'path': None, 'lastPosCnt': 0, \
-            'count': 0, 'size': 0, 'lastPosSize': 0, 'sym': None}
+            'count': 0, 'size': 0, 'lastPosSize': 0, 'sym': '??'}
 
         self.init_symData = \
             {'offset': 0, 'path': None, 'lastPosCnt': 0, \
@@ -8454,6 +8454,7 @@ class LeakAnalyzer(object):
 
             for time, items in sorted(self.callData.items(), \
                 key=lambda e: e[0], reverse=False):
+
                 stack = list(items['stack'])
                 for idx, pos in enumerate(stack):
                     stack[idx] = self.posData[pos]['sym']
@@ -11839,7 +11840,7 @@ Examples:
                 elif SystemManager.isSendMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [-<SIGNUM|SIGNAME> <PID> [OPTIONS] [--help]
+    # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
 
 Description:
     Send specific signal to specific processes or all running guider processes
@@ -11862,13 +11863,13 @@ Examples:
                 elif SystemManager.isPauseMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Pause specific running threads
 
 OPTIONS:
-        -g  <TID>                   set filter
+        -g  <TID|COMM>              set filter
         -u                          run in the background
         -v                          verbose
                         '''.format(cmd, mode)
@@ -11924,7 +11925,7 @@ Examples:
                 elif SystemManager.isLeaktraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <FILE> -g <PID> [OPTIONS] [--help]
+    # {0:1} {1:1} -I <FILE> -g <PID|COMM> [OPTIONS] [--help]
 
 Description:
     Show functions caused memory leakage with leaktracer output
@@ -11941,7 +11942,7 @@ Description:
 OPTIONS:
         -I  <FILE>                  set input path
         -o  <DIR|FILE>              save output data
-        -g  <PID>                   set id of target process
+        -g  <PID|COMM>              set target process
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -17170,6 +17171,7 @@ Copyright:
         # LIST MODE #
         if SystemManager.isListMode():
             SystemManager.printBgProcs()
+
             sys.exit(0)
 
         # SERVER MODE #
@@ -17190,6 +17192,7 @@ Copyright:
                 argList = None
 
             SystemManager.sendSignalProcs(signal.SIGINT, argList)
+
             sys.exit(0)
 
         # SEND MODE #
@@ -17201,6 +17204,7 @@ Copyright:
                 argList = None
 
             SystemManager.sendSignalArgs(argList)
+
             sys.exit(0)
 
         # PAUSE MODE #
@@ -17208,7 +17212,11 @@ Copyright:
             # parse options #
             SystemManager.parseAnalOption()
 
-            Debugger.pauseThreads(SystemManager.filterGroup)
+            # convert comm to pid #
+            targetList = SystemManager.convertPidList(\
+                SystemManager.filterGroup)
+
+            Debugger.pauseThreads(targetList)
 
             sys.exit(0)
 
@@ -17244,18 +17252,33 @@ Copyright:
 
             if len(SystemManager.filterGroup) == 0:
                 SystemManager.printError(\
-                    "No PID with -g")
+                    "No PID or COMM with -g")
                 sys.exit(0)
             elif len(SystemManager.filterGroup) > 1:
                 SystemManager.printError(\
-                    "Input only one PID")
+                    "Input only one PID or COMM")
                 sys.exit(0)
+
+            # convert comm to pid #
+            pids = SystemManager.convertPidList(\
+                SystemManager.filterGroup)
+
+            if len(pids) == 0:
+                SystemManager.printError("No %s process" % pids)
+                sys.exit(0)
+            elif len(pids) > 1:
+                SystemManager.printError((\
+                    "Fail to select a target process because "
+                    "multiple %s processes are exist with PID [%s]") \
+                        % (', '.join(SystemManager.filterGroup), \
+                        ', '.join(pids)))
+                sys.exit(0)
+            else:
+                pid = pids[0]
 
             # create leaktracer parser #
             try:
-                lt = LeakAnalyzer(\
-                    SystemManager.sourceFile, SystemManager.filterGroup[0])
-
+                lt = LeakAnalyzer(SystemManager.sourceFile, pid)
                 lt.printUsage()
             except:
                 err = SystemManager.getErrReason()
@@ -17341,6 +17364,7 @@ Copyright:
             if SystemManager.isLimitCpuMode():
                 limitInfo = SystemManager.getLimitCpuInfo(\
                     SystemManager.filterGroup)
+
                 SystemManager.doLimitCpu(\
                     limitInfo, SystemManager.processEnable)
 
@@ -17368,11 +17392,11 @@ Copyright:
 
         # STRACE MODE #
         if SystemManager.isStraceMode():
-            SystemManager.doStrace()
+            SystemManager.doTrace('syscall')
 
         # UTRACE MODE #
         if SystemManager.isUtraceMode():
-            SystemManager.doUtrace()
+            SystemManager.doTrace('usercall')
 
         # PRINTENV MODE #
         if SystemManager.isPrintEnvMode():
@@ -17999,6 +18023,60 @@ Copyright:
 
 
     @staticmethod
+    def getPids(name, isThread=False):
+        pidList = []
+
+        pids = os.listdir(SystemManager.procPath)
+        for pid in pids:
+            try:
+                int(pid)
+            except:
+                continue
+
+            # make comm path of pid #
+            procPath = "%s/%s" % (SystemManager.procPath, pid)
+
+            if isThread:
+                threadPath = '%s/task' % procPath
+
+                tids = os.listdir(threadPath)
+                for tid in tids:
+                    try:
+                        int(tid)
+                    except:
+                        continue
+
+                    targetPath = '%s/%s/comm' % (threadPath, tid)
+
+                    try:
+                        with open(targetPath, 'r') as fd:
+                            comm = fd.readline()[0:-1]
+                    except:
+                        continue
+
+                    if comm != name:
+                        continue
+
+                    pidList.append(pid)
+
+                continue
+
+            try:
+                with open('%s/comm' % procPath, 'r') as fd:
+                    comm = fd.readline()[0:-1]
+            except:
+                continue
+
+            if comm != name:
+                continue
+
+            pidList.append(pid)
+
+        return pidList
+
+
+
+    @staticmethod
     def getBgProcList():
         nrProc = 0
         printBuf = ''
@@ -18026,61 +18104,63 @@ Copyright:
             except:
                 continue
 
-            if comm.startswith(__module__):
-                runtime = '?'
+            if not comm.startswith(__module__):
+                continue
 
+            runtime = '?'
+
+            try:
+                statPath = "%s/%s" % (procPath, 'stat')
+                with open(statPath, 'r') as fd:
+                    STAT_ATTR = fd.readlines()[0].split()
+
+                commIndex = gSTAT_ATTR.index("COMM")
+                if STAT_ATTR[commIndex][-1] != ')':
+                    idx = gSTAT_ATTR.index("COMM") + 1
+                    while 1:
+                        tmpStr = str(STAT_ATTR[idx])
+                        STAT_ATTR[commIndex] = \
+                            "%s %s" % (STAT_ATTR[commIndex], tmpStr)
+                        STAT_ATTR.pop(idx)
+                        if tmpStr.rfind(')') > -1:
+                            break
+
+                procStart = \
+                    float(STAT_ATTR[gSTAT_ATTR.index("STARTTIME")]) / 100
+                runtime = int(SystemManager.uptime - procStart)
+            except:
+                pass
+
+            if runtime != '?':
                 try:
-                    statPath = "%s/%s" % (procPath, 'stat')
-                    with open(statPath, 'r') as fd:
-                        STAT_ATTR = fd.readlines()[0].split()
-
-                    commIndex = gSTAT_ATTR.index("COMM")
-                    if STAT_ATTR[commIndex][-1] != ')':
-                        idx = gSTAT_ATTR.index("COMM") + 1
-                        while 1:
-                            tmpStr = str(STAT_ATTR[idx])
-                            STAT_ATTR[commIndex] = \
-                                "%s %s" % (STAT_ATTR[commIndex], tmpStr)
-                            STAT_ATTR.pop(idx)
-                            if tmpStr.rfind(')') > -1:
-                                break
-
-                    procStart = \
-                        float(STAT_ATTR[gSTAT_ATTR.index("STARTTIME")]) / 100
-                    runtime = int(SystemManager.uptime - procStart)
+                    m, s = divmod(runtime, 60)
+                    h, m = divmod(m, 60)
+                    runtime = '%s:%2s:%2s' % (h, m, s)
                 except:
                     pass
 
-                if runtime != '?':
-                    try:
-                        m, s = divmod(runtime, 60)
-                        h, m = divmod(m, 60)
-                        runtime = '%s:%2s:%2s' % (h, m, s)
-                    except:
-                        pass
-
-                try:
-                    objs = SystemManager.getProcSocketObjs(pid)
-                    addrs = SystemManager.getSocketAddrList(objs)
-                    netList = ','.join(addrs)
-                    if len(netList) > 0:
-                        network = '(%s)' % netList
-                    else:
-                        network = ''
-                except:
+            try:
+                objs = SystemManager.getProcSocketObjs(pid)
+                addrs = SystemManager.getSocketAddrList(objs)
+                netList = ','.join(addrs)
+                if len(netList) > 0:
+                    network = '(%s)' % netList
+                else:
                     network = ''
+            except:
+                network = ''
 
-                try:
-                    with open('%s/cmdline' % procPath, 'r') as fd:
-                        cmdline = fd.readline().replace("\x00", " ")
-                except:
-                    cmdline = '?'
+            try:
+                with open('%s/cmdline' % procPath, 'r') as fd:
+                    cmdline = fd.readline().replace("\x00", " ")
+            except:
+                cmdline = '?'
 
-                try:
-                    printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
-                        (printBuf, pid, comm, runtime, cmdline, network)
-                except:
-                    continue
+            try:
+                printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
+                    (printBuf, pid, comm, runtime, cmdline, network)
+            except:
+                continue
 
         return printBuf
 
@@ -19068,7 +19148,7 @@ Copyright:
 
 
     @staticmethod
-    def doStrace():
+    def doTrace(mode):
         # parse options #
         SystemManager.parseAnalOption()
 
@@ -19082,32 +19162,32 @@ Copyright:
         wait = None
         execCmd = None
 
+        # convert comm to pid #
+        pids = SystemManager.convertPidList(\
+            SystemManager.filterGroup, True)
+
         # check tid #
         if SystemManager.sourceFile:
             pid = None
             execCmd = SystemManager.sourceFile.split()
         elif not SystemManager.isRoot():
             SystemManager.printError(\
-                "Fail to get root permission to trace systemcall")
+                "Fail to get root permission to trace %s" % mode)
             sys.exit(0)
-        elif len(SystemManager.filterGroup) == 0 and \
-            not SystemManager.sourceFile:
+        elif len(pids) == 0:
+            if not SystemManager.sourceFile:
+                SystemManager.printError(\
+                    "No TID with -g option or command with -I")
+            else:
+                SystemManager.printError("No TID with -g option")
+            sys.exit(0)
+        elif len(pids) > 1:
             SystemManager.printError(\
-                "No TID with -g option or command with -I")
-            sys.exit(0)
-        elif len(SystemManager.filterGroup) == 0:
-            SystemManager.printError("No TID with -g option")
-            sys.exit(0)
-        elif len(SystemManager.filterGroup) > 1:
-            SystemManager.printError(\
-                "wrong option with -g, input only one tid")
-            sys.exit(0)
-        elif SystemManager.filterGroup[0].isdigit() is False:
-            SystemManager.printError(\
-                "wrong option with -g, input TID in integer format")
+                "wrong target %s with -g, input only one tid" % \
+                    ', '.join(pids))
             sys.exit(0)
         else:
-            pid = int(SystemManager.filterGroup[0])
+            pid = int(pids[0])
 
         # run in the background #
         if SystemManager.backgroundEnable:
@@ -19115,73 +19195,18 @@ Copyright:
 
         # start tracing #
         try:
-            Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+            if mode == 'syscall':
+                Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+            elif mode == 'usercall':
+                Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
+            else:
+                pass
         except SystemExit:
             sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Stopped to trace syscall because %s" % err)
-
-        sys.exit(0)
-
-
-
-    @staticmethod
-    def doUtrace():
-        # parse options #
-        SystemManager.parseAnalOption()
-
-        # print title #
-        SystemManager.printLogo(big=True, onlyFile=True)
-
-        # no use pager #
-        SystemManager.printStreamEnable = True
-
-        # define wait usercall #
-        wait = None
-        execCmd = None
-
-        # check tid #
-        if SystemManager.sourceFile:
-            pid = None
-            execCmd = SystemManager.sourceFile.split()
-        elif not SystemManager.isRoot():
-            SystemManager.printError(\
-                "Fail to get root permission to trace usercall")
-            sys.exit(0)
-        elif len(SystemManager.filterGroup) == 0 and \
-            not SystemManager.sourceFile:
-            SystemManager.printError(\
-                "No TID with -g option or command with -I")
-            sys.exit(0)
-        elif len(SystemManager.filterGroup) == 0:
-            SystemManager.printError("No TID with -g option")
-            sys.exit(0)
-        elif len(SystemManager.filterGroup) > 1:
-            SystemManager.printError(\
-                "wrong option with -g, input only one tid")
-            sys.exit(0)
-        elif SystemManager.filterGroup[0].isdigit() is False:
-            SystemManager.printError(\
-                "wrong option with -g, input TID in integer format")
-            sys.exit(0)
-        else:
-            pid = int(SystemManager.filterGroup[0])
-
-        # run in the background #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
-
-        # start tracing #
-        try:
-            Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printError(\
-                "Stopped to trace usercall because %s" % err)
 
         sys.exit(0)
 
@@ -19235,6 +19260,8 @@ Copyright:
 
     @staticmethod
     def doPrintProc(isProcess=True):
+        SystemManager.printLogo(big=True)
+
         obj = ThreadAnalyzer(onlyInstance=True)
 
         obj.saveSystemStat()
@@ -19441,6 +19468,23 @@ Copyright:
 
 
     @staticmethod
+    def convertPidList(procList, isThread=False):
+        targetList = []
+
+        # get pids from comm #
+        for pid in procList:
+            if not pid.isdigit():
+                idlist = SystemManager.getPids(pid, isThread)
+                if len(idlist) > 0:
+                    targetList += idlist
+            else:
+                targetList.append(pid)
+
+        return targetList
+
+
+
+    @staticmethod
     def sendSignalArgs(argList):
         sig = signal.SIGQUIT
         cSigList = ConfigManager.SIG_LIST
@@ -19467,7 +19511,11 @@ Copyright:
             argList = (''.join(argList)).split(',')
         except:
             pass
-        SystemManager.sendSignalProcs(sig, argList)
+
+        # convert comm to pid #
+        targetList = SystemManager.convertPidList(argList)
+
+        SystemManager.sendSignalProcs(sig, targetList)
 
 
 
