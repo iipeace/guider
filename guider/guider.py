@@ -8383,9 +8383,9 @@ class LeakAnalyzer(object):
         title = 'Function Leakage Info'
         SystemManager.pipePrint(\
             '\n[%s] [TotalSize: %s] [CallCount: %s] [FuncCount: %s]' % \
-                (title, \
-                SystemManager.convertSize2Unit(self.totalLeakSize, True), \
-                len(self.callData), len(self.symData)))
+                (title, convertFunc(self.totalLeakSize, True), \
+                convertFunc(len(self.callData), True), \
+                convertFunc(len(self.symData), True)))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
@@ -8400,8 +8400,8 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.pipePrint(\
-                "{0:>7} | {1:^46} | {2:^93} |".\
-                    format(convertFunc(val['lastPosSize'], True), \
+                "{0:>7} | {1:^46} | {2:<93} |".\
+                    format(convertFunc(val['lastPosSize']), \
                     sym, val['path']))
             count += 1
 
@@ -8420,9 +8420,9 @@ class LeakAnalyzer(object):
         title = 'File Leakage Info'
         SystemManager.pipePrint(\
             '\n[%s] [TotalSize: %s] [CallCount: %s] [FileCount: %s]' % \
-                (title, \
-                SystemManager.convertSize2Unit(self.totalLeakSize, True), \
-                len(self.callData), len(self.fileData)))
+                (title, convertFunc(self.totalLeakSize, True), \
+                convertFunc(len(self.callData), True), \
+                convertFunc(len(self.fileData), True)))
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
@@ -8436,8 +8436,8 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.pipePrint(\
-                "{0:>7} | {1:^142} |".\
-                    format(convertFunc(val['lastPosSize'], True), file))
+                "{0:>7} | {1:<142} |".\
+                    format(convertFunc(val['lastPosSize']), file))
             count += 1
 
         if count == 0:
@@ -8449,9 +8449,8 @@ class LeakAnalyzer(object):
             title = 'Leakage History'
             SystemManager.pipePrint(\
                 '\n[%s] [Total: %s] [CallCount: %s]' % \
-                    (title, \
-                    SystemManager.convertSize2Unit(self.totalLeakSize, True), \
-                    len(self.callData)))
+                    (title, convertFunc(self.totalLeakSize, True), \
+                    convertFunc(len(self.callData), True)))
 
             SystemManager.pipePrint(twoLine)
             SystemManager.pipePrint(\
@@ -8467,7 +8466,7 @@ class LeakAnalyzer(object):
                 SystemManager.pipePrint(\
                     "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
                         format(time, \
-                        convertFunc(int(items['size']), True), \
+                        convertFunc(int(items['size'])), \
                         items['data'][:-1], ' <- '.join(stack)))
                 count += 1
             SystemManager.pipePrint(oneLine)
@@ -8495,12 +8494,15 @@ class LeakAnalyzer(object):
 
             if val['callList']:
                 for time in val['callList'].keys():
-                    substack = ' <- '.join(self.callData[time]['symstack'][1:])
+                    callinfo = self.callData[time]
+                    substack = ' <- '.join(callinfo['symstack'][1:])
 
                     try:
-                        self.symData[sym]['substack'][substack] += val['size']
+                        self.symData[sym]['substack'][substack] += \
+                            int(callinfo['size'])
                     except:
-                        self.symData[sym]['substack'][substack] = val['size']
+                        self.symData[sym]['substack'][substack] = \
+                            int(callinfo['size'])
 
             # merge by file #
             path = val['path']
@@ -17304,7 +17306,8 @@ Copyright:
                 SystemManager.filterGroup)
 
             if len(pids) == 0:
-                SystemManager.printError("No %s process" % pids)
+                SystemManager.printError("No %s process" % \
+                    ', '.join(SystemManager.filterGroup))
                 sys.exit(0)
             elif len(pids) > 1:
                 SystemManager.printError((\
@@ -22485,6 +22488,9 @@ class Debugger(object):
 
 
     def __del__(self):
+        if not self.attached:
+            return
+
         # stop target #
         try:
             os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
