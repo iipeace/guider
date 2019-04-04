@@ -8336,11 +8336,11 @@ class LeakAnalyzer(object):
         self.totalLeakSize = 0
 
         self.init_posData = \
-            {'offset': 0, 'path': None, 'lastPosCnt': 0, \
+            {'offset': 0, 'path': None, 'lastPosCnt': 0, 'callList': None, \
             'count': 0, 'size': 0, 'lastPosSize': 0, 'sym': '??'}
 
         self.init_symData = \
-            {'offset': 0, 'path': None, 'lastPosCnt': 0, \
+            {'offset': 0, 'path': None, 'lastPosCnt': 0, 'substack': None, \
             'count': 0, 'size': 0, 'lastPosSize': 0}
 
         self.init_fileData = \
@@ -8382,7 +8382,7 @@ class LeakAnalyzer(object):
         # function leakage info #
         title = 'Function Leakage Info'
         SystemManager.pipePrint(\
-            '\n[%s] [Total: %s] [CallCount: %s] [FuncCount: %s]' % \
+            '\n[%s] [TotalSize: %s] [CallCount: %s] [FuncCount: %s]' % \
                 (title, \
                 SystemManager.convertSize2Unit(self.totalLeakSize, True), \
                 len(self.callData), len(self.symData)))
@@ -8405,14 +8405,21 @@ class LeakAnalyzer(object):
                     sym, val['path']))
             count += 1
 
+            for substack, size in sorted(val['substack'].items(), \
+                key=lambda e: e[1], reverse=True):
+                SystemManager.pipePrint(\
+                    "{0:>7} | {1:>7} | {2:<132} |".\
+                        format('', convertFunc(size), substack))
+
+            SystemManager.pipePrint(oneLine)
+
         if count == 0:
-            SystemManager.pipePrint('\tNone')
-        SystemManager.pipePrint(oneLine)
+            SystemManager.pipePrint('\tNone\n%s' % oneline)
 
         # file leakage info #
         title = 'File Leakage Info'
         SystemManager.pipePrint(\
-            '\n[%s] [Total: %s] [CallCount: %s] [FileCount: %s]' % \
+            '\n[%s] [TotalSize: %s] [CallCount: %s] [FileCount: %s]' % \
                 (title, \
                 SystemManager.convertSize2Unit(self.totalLeakSize, True), \
                 len(self.callData), len(self.fileData)))
@@ -8455,9 +8462,7 @@ class LeakAnalyzer(object):
             for time, items in sorted(self.callData.items(), \
                 key=lambda e: e[0], reverse=False):
 
-                stack = list(items['stack'])
-                for idx, pos in enumerate(stack):
-                    stack[idx] = self.posData[pos]['sym']
+                stack = list(items['symstack'])
 
                 SystemManager.pipePrint(\
                     "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
@@ -8471,6 +8476,7 @@ class LeakAnalyzer(object):
 
     def mergeSymbols(self):
         for pos, val in self.posData.items():
+            # merge by symbol #
             sym = val['sym']
             try:
                 self.symData[sym]['count'] += val['count']
@@ -8485,7 +8491,18 @@ class LeakAnalyzer(object):
                 self.symData[sym]['size'] = val['size']
                 self.symData[sym]['lastPosCnt'] = val['lastPosCnt']
                 self.symData[sym]['lastPosSize'] = val['lastPosSize']
+                self.symData[sym]['substack'] = dict()
 
+            if val['callList']:
+                for time in val['callList'].keys():
+                    substack = ' <- '.join(self.callData[time]['symstack'][1:])
+
+                    try:
+                        self.symData[sym]['substack'][substack] += val['size']
+                    except:
+                        self.symData[sym]['substack'][substack] = val['size']
+
+            # merge by file #
             path = val['path']
             try:
                 self.fileData[path]['count'] += val['count']
@@ -8504,12 +8521,32 @@ class LeakAnalyzer(object):
 
 
     def resolveSymbols(self, proc):
+        # resolve all symbols #
         for pos, val in self.posData.items():
             ret = proc.getSymbolInfo(int(pos, 16))
             if ret and len(ret) > 3:
                 val['sym'] = ret[0]
                 val['path'] = ret[1]
                 val['offset'] = ret[2]
+
+        # resolve symbols in stacks #
+        for pos, val in self.callData.items():
+            if not 'stack' in val:
+                continue
+
+            symstack = list(val['stack'])
+
+            for idx, offset in enumerate(val['stack']):
+                symstack[idx] = self.posData[offset]['sym']
+
+            val['symstack'] = symstack
+
+            try:
+                posid = val['stack'][0]
+                self.posData[posid]['callList'][pos] = None
+            except:
+                self.posData[posid]['callList'] = dict()
+                self.posData[posid]['callList'][pos] = None
 
 
 
@@ -8548,6 +8585,7 @@ class LeakAnalyzer(object):
                     self.posData[pos] = dict(self.init_posData)
                     self.posData[pos]['count'] = 1
                     self.posData[pos]['size'] = int(item['size'])
+                    self.posData[pos]['callList'] = dict()
 
             lastPos = item['stack'][0]
             self.posData[lastPos]['lastPosSize'] += int(item['size'])
@@ -11930,14 +11968,16 @@ Usage:
 Description:
     Show functions caused memory leakage with leaktracer output
 
-    Run a below command to get leaktracer output
-    $ LD_PRELOAD=libleaktracer.so \\
-        LEAKTRACER_ONEXIT_REPORT=1 \\
-        LEAKTRACER_ONEXIT_REPORTFILE=leaks.out \\
-        LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
-        LEAKTRACER_ONSIG_REPORT=36 targetExec
-
     Get libleaktracer.so from https://github.com/iipeace/portable/tree/master/leaktracer
+
+    Run below commands to get leaktracer output
+    $ LD_PRELOAD=libleaktracer.so \\
+        LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
+        LEAKTRACER_ONSIG_REPORT=36 EXEC
+    $ LD_PRELOAD=libleaktracer.so \\
+        LEAKTRACER_ONSIG_REPORTFILENAME=leaks.out \\
+        LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
+        LEAKTRACER_ONSIG_REPORT=36 EXEC
 
 OPTIONS:
         -I  <FILE>                  set input path
