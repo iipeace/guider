@@ -8346,10 +8346,17 @@ class LeakAnalyzer(object):
         self.init_fileData = \
             {'lastPosCnt': 0, 'count': 0, 'size': 0, 'lastPosSize': 0}
 
+        # Get file sie #
+        try:
+            stat = os.stat(file)
+            size = SystemManager.convertSize2Unit(stat.st_size)
+        except:
+            size = '??'
+
         # Open log file #
         try:
             SystemManager.printInfo(\
-                "start loading data from %s" % file)
+                "start loading data from %s [%s]" % (file, size))
 
             with open(file, 'r') as fd:
                 lines = fd.readlines()[1:]
@@ -8358,7 +8365,7 @@ class LeakAnalyzer(object):
                 "Fail to open %s" % file)
             sys.exit(0)
 
-        SystemManager.printInfo("start processing data")
+        SystemManager.printInfo("start processing data...")
 
         self.callData = self.parseLines(lines)
         del lines
@@ -8373,19 +8380,19 @@ class LeakAnalyzer(object):
             SystemManager.printError(\
                 "Failed to analyze leakage because %s" % err)
 
-        SystemManager.printInfo("start resolving symbols")
+        SystemManager.printInfo("start resolving symbols...")
 
         # Resolve symbols #
         self.resolveSymbols(proc)
 
-        SystemManager.printInfo("start merging symbols")
+        SystemManager.printInfo("start merging symbols...")
 
         # Merge symbols #
         self.mergeSymbols()
 
 
 
-    def printUsage(self):
+    def printLeakage(self):
         convertFunc = SystemManager.convertSize2Unit
 
         # function leakage info #
@@ -8412,13 +8419,14 @@ class LeakAnalyzer(object):
                 "{0:>7} | {1:^46} | {2:<93} |".\
                     format(convertFunc(val['lastPosSize']), \
                     sym, val['path']))
-            count += 1
 
             for substack, size in sorted(val['substack'].items(), \
                 key=lambda e: e[1], reverse=True):
                 SystemManager.pipePrint(\
                     "{0:>7} | {1:>7} | {2:<132} |".\
                         format('', convertFunc(size), substack))
+
+            count += 1
 
             SystemManager.pipePrint(oneLine)
 
@@ -8447,6 +8455,7 @@ class LeakAnalyzer(object):
             SystemManager.pipePrint(\
                 "{0:>7} | {1:<142} |".\
                     format(convertFunc(val['lastPosSize']), file))
+
             count += 1
 
         if count == 0:
@@ -17359,7 +17368,7 @@ Copyright:
             # create leaktracer parser #
             try:
                 lt = LeakAnalyzer(SystemManager.sourceFile, pid)
-                lt.printUsage()
+                lt.printLeakage()
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
