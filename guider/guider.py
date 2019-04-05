@@ -12013,14 +12013,14 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
-                # printproc #
-                elif SystemManager.isPrintProcMode():
+                # pstree #
+                elif SystemManager.isPstreeMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Print tree of processes
+    Print the tree of processes
 
 OPTIONS:
         -E  <FILE>                  set error log path
@@ -12320,7 +12320,7 @@ COMMAND:
                 setsched    <priority>
                 getaffinity <affinity>
                 setaffinity <affinity>
-                printproc   <tree>
+                pstree      <tree>
                 printenv    <env>
                 readelf     <file>
                 addr2line   <symbol>
@@ -17006,11 +17006,11 @@ Copyright:
 
 
     @staticmethod
-    def isPrintProcMode():
+    def isPstreeMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'printproc':
+        if sys.argv[1] == 'pstree':
             return True
         else:
             return False
@@ -17414,8 +17414,8 @@ Copyright:
             sys.exit(0)
 
         # PRINTPROC MODE #
-        if SystemManager.isPrintProcMode():
-            SystemManager.doPrintProc()
+        if SystemManager.isPstreeMode():
+            SystemManager.doPstree()
 
         # ALLOCTEST MODE #
         if SystemManager.isAllocTestMode():
@@ -19302,7 +19302,7 @@ Copyright:
 
 
     @staticmethod
-    def doPrintProc(isProcess=True):
+    def doPstree(isProcess=True):
         SystemManager.printLogo(big=True)
 
         obj = ThreadAnalyzer(onlyInstance=True)
