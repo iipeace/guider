@@ -4563,7 +4563,7 @@ class FunctionAnalyzer(object):
                 symbol = addr
 
             # Check whether the file is relocatable or not #
-            if relocated is False:
+            if not relocated:
                 try:
                     savedSymbol = self.posData[addr]['symbol']
                 except:
@@ -4729,6 +4729,11 @@ class FunctionAnalyzer(object):
                 while 1:
                     # Get return of addr2line #
                     addr = proc.stdout.readline().decode().replace('\n', '')[2:]
+                    try:
+                        addr = hex(int(addr, 16))
+                    except:
+                        pass
+
                     symbol = proc.stdout.readline().decode().replace('\n', '')
                     src = proc.stdout.readline().decode().replace('\n', '')
 
