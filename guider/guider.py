@@ -14953,18 +14953,20 @@ Copyright:
             mountTable = []
             tempTable = infoBuf[mountPosStart:mountPosEnd].split('\n')
             for idx, line in enumerate(tempTable):
-                if len(line.split()) == 2 or len(line.split()) == 3:
+                nrItem = len(line.split())
+                if 1 < nrItem < 4:
                     mountTable.append('%s %s' % (line, tempTable[idx+1]))
         except:
             pass
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
+
         for item in mountTable:
             m = re.match((\
                 r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+'
                 r'(?P<maj>[0-9]+):(?P<min>[0-9]+)\s+(?P<readSize>\S+)\s+'
                 r'(?P<writeSize>\S+)\s+(?P<totalSize>\S+)\s+'
-                r'((?P<freeSize>\S+)\s+?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+'
+                r'(?P<freeSize>\S+)\s+(?P<Usage>\S+)\s+(?P<nrFile>\S+)\s+'
                 r'(?P<filesystem>\S+)\s+(?P<mount>.+)'), item)
             if not m:
                 continue
@@ -20354,23 +20356,21 @@ Copyright:
                         target = self.devInfo['char'] = {}
                     elif line.startswith('Block'):
                         target = self.devInfo['block'] = {}
-                    elif not target:
+
+                    item = line.split()
+
+                    if len(item) != 2:
                         continue
-                    else:
-                        item = line.split()
 
-                        if len(item) != 2:
-                            continue
+                    try:
+                        num = int(item[0])
+                    except:
+                        continue
 
-                        try:
-                            num = int(item[0])
-                        except:
-                            continue
-
-                        try:
-                            target[num].append(item[1])
-                        except:
-                            target[num] = [item[1]]
+                    try:
+                        target[num].append(item[1])
+                    except:
+                        target[num] = [item[1]]
         except:
             SystemManager.printWarning("Fail to open %s" % devFile)
 
@@ -30901,9 +30901,10 @@ class ThreadAnalyzer(object):
                     cid = ' '
 
                 try:
-                    dev = SystemManager.savedMountTree[num]['dev']
-                    filesystem = SystemManager.savedMountTree[num]['filesystem']
-                    mount = SystemManager.savedMountTree[num]['mount']
+                    mountInfo = SystemManager.savedMountTree
+                    dev = mountInfo[num]['dev']
+                    filesystem = mountInfo[num]['filesystem']
+                    mount = mountInfo[num]['mount']
                 except:
                     dev = '?'
                     filesystem = '?'
