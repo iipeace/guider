@@ -8348,12 +8348,17 @@ class LeakAnalyzer(object):
 
         # Open log file #
         try:
+            SystemManager.printInfo(\
+                "start loading data from %s" % file)
+
             with open(file, 'r') as fd:
                 lines = fd.readlines()[1:]
         except:
             SystemManager.printError(\
                 "Fail to open %s" % file)
             sys.exit(0)
+
+        SystemManager.printInfo("start processing data")
 
         self.callData = self.parseLines(lines)
         del lines
@@ -8368,8 +8373,12 @@ class LeakAnalyzer(object):
             SystemManager.printError(\
                 "Failed to analyze leakage because %s" % err)
 
+        SystemManager.printInfo("start resolving symbols")
+
         # Resolve symbols #
         self.resolveSymbols(proc)
+
+        SystemManager.printInfo("start merging symbols")
 
         # Merge symbols #
         self.mergeSymbols()
@@ -8474,7 +8483,12 @@ class LeakAnalyzer(object):
 
 
     def mergeSymbols(self):
+        cnt = 0
+        total = len(self.posData)
         for pos, val in self.posData.items():
+            SystemManager.printProgress(cnt, total)
+            cnt += 1
+
             # merge by symbol #
             sym = val['sym']
             try:
@@ -8520,11 +8534,19 @@ class LeakAnalyzer(object):
 
             self.totalLeakSize += val['lastPosSize']
 
+        SystemManager.deleteProgress()
+
 
 
     def resolveSymbols(self, proc):
+        cnt = 0
+        total = len(self.posData) + len(self.callData)
+
         # resolve all symbols #
         for pos, val in self.posData.items():
+            SystemManager.printProgress(cnt, total)
+            cnt += 1
+
             ret = proc.getSymbolInfo(int(pos, 16))
             if ret and len(ret) > 3:
                 val['sym'] = ret[0]
@@ -8533,6 +8555,9 @@ class LeakAnalyzer(object):
 
         # resolve symbols in stacks #
         for pos, val in self.callData.items():
+            SystemManager.printProgress(cnt, total)
+            cnt += 1
+
             if not 'stack' in val:
                 continue
 
@@ -8550,12 +8575,16 @@ class LeakAnalyzer(object):
                 self.posData[posid]['callList'] = dict()
                 self.posData[posid]['callList'][pos] = None
 
+        SystemManager.deleteProgress()
+
 
 
     def parseLines(self, lines):
         callinfo = {}
 
-        for line in lines:
+        for idx, line in enumerate(lines):
+            SystemManager.printProgress(idx, len(lines))
+
             items = line.split(', ')
 
             if items[0] != 'leak':
@@ -8589,10 +8618,16 @@ class LeakAnalyzer(object):
                     self.posData[pos]['size'] = int(item['size'])
                     self.posData[pos]['callList'] = dict()
 
-            lastPos = item['stack'][0]
+            try:
+                lastPos = item['stack'][0]
+            except:
+                continue
+
             self.posData[lastPos]['lastPosSize'] += int(item['size'])
 
             callinfo[time] = item
+
+        SystemManager.deleteProgress()
 
         return callinfo
 
@@ -23012,7 +23047,7 @@ class Debugger(object):
 
             SystemManager.printWarning(\
                 'Fail to get offset in %s via vaddr '
-                'because wrong process memory map' % fname)
+                'because wrong memory map' % fname)
             return None
 
         # get elf object #
@@ -26467,7 +26502,8 @@ class ThreadAnalyzer(object):
         SystemManager.getProcTreeInfo()
 
         # start parsing logs #
-        SystemManager.printStatus('start analyzing... [ STOP(ctrl + c) ]')
+        SystemManager.printStatus(\
+            'start analyzing... [ STOP(ctrl + c) ]')
         SystemManager.totalLine = len(lines)
 
         for idx, log in enumerate(lines):
