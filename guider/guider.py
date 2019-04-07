@@ -9847,6 +9847,8 @@ class SystemManager(object):
         self.gpuData = {}
         self.memData = {}
         self.diskData = {}
+        self.storageData = {}
+        self.prevStorageData = {}
         self.mountData = None
         self.uptimeData = None
         self.loadData = None
@@ -20256,7 +20258,7 @@ Copyright:
     def saveResourceSnapshot(self, initialized=True):
         # resource info for difference #
         self.updateMemInfo()
-        self.updateStorageInfo()
+        self.updateStorageInfo(isGeneral=True)
         self.updateNetworkInfo()
 
         if initialized:
@@ -20425,49 +20427,53 @@ Copyright:
 
 
 
-    def saveStorageInfo(self):
+    def saveStorageInfo(self, isGeneral):
         blockDir = '/sys/class/block'
         partFile = '%s/partitions' % SystemManager.procPath
 
         # update disk data #
         SystemManager.updateDiskStats()
 
+        # update only a last diskstats if there is a first diskstats exist #
         if not 'prev' in self.diskData:
             self.diskData['prev'] = SystemManager.diskStats
+            self.updateDiskInfo('prev', SystemManager.diskStats)
         else:
             self.diskData['next'] = SystemManager.diskStats
+            self.updateDiskInfo('next', SystemManager.diskStats)
 
         # update mount data #
         self.mountData = SystemManager.getMountData()
 
+        # check data type #
+        if not isGeneral:
+            return
+
         # save partition range #
-        try:
-            for dirnames in os.walk(blockDir):
-                for subdirname in dirnames[1]:
-                    try:
-                        devPath = '/sys/class/block/%s/dev' % subdirname
-                        startPath = '/sys/class/block/%s/start' % subdirname
-                        sizePath = '/sys/class/block/%s/size' % subdirname
+        for dirnames in os.walk(blockDir):
+            for subdirname in dirnames[1]:
+                try:
+                    devPath = '/sys/class/block/%s/dev' % subdirname
+                    startPath = '/sys/class/block/%s/start' % subdirname
+                    sizePath = '/sys/class/block/%s/size' % subdirname
 
-                        with open(sizePath, 'r') as sizeFd:
-                            size = sizeFd.readline()[:-1]
+                    with open(sizePath, 'r') as sizeFd:
+                        size = sizeFd.readline()[:-1]
 
-                        if any(char.isdigit() for char in subdirname):
-                            with open(startPath, 'r') as startFd:
-                                start = startFd.readline()[:-1]
-                        else:
-                            start = 0
+                    if any(char.isdigit() for char in subdirname):
+                        with open(startPath, 'r') as startFd:
+                            start = startFd.readline()[:-1]
+                    else:
+                        start = 0
 
-                        with open(devPath, 'r') as devFd:
-                            partName = devFd.readline()[:-1]
-                            self.partitionInfo[partName] = {}
-                            self.partitionInfo[partName]['start'] = long(start)
-                            self.partitionInfo[partName]['end'] = \
-                                long(start) + long(size)
-                    except:
-                        pass
-        except:
-            SystemManager.printWarning("Fail to access %s" % blockDir)
+                    with open(devPath, 'r') as devFd:
+                        partName = devFd.readline()[:-1]
+                        self.partitionInfo[partName] = {}
+                        self.partitionInfo[partName]['start'] = long(start)
+                        self.partitionInfo[partName]['end'] = \
+                            long(start) + long(size)
+                except:
+                    pass
 
 
 
@@ -21623,39 +21629,39 @@ Copyright:
 
 
 
-    def updateDiskInfo(self):
-        for time in list(self.diskData.keys()):
-            self.diskInfo[time] = {}
+    def updateDiskInfo(self, time, data):
+        self.diskInfo[time] = dict()
 
-            for l in self.diskData[time]:
-                values = l.split()
+        for l in data:
+            values = l.split()
 
-                # before kernel 4.18 #
-                if len(values) == 14:
-                    major, minor, name, readComplete, readMerge, sectorRead, \
-                    readTime, writeComplete, writeMerge, sectorWrite, \
-                    writeTime, currentIO, ioTime, ioWTime = l.split()
-                # after kernel 4.18 #
-                elif len(values) == 18:
-                    major, minor, name, readComplete, readMerge, sectorRead, \
-                    readTime, writeComplete, writeMerge, sectorWrite, \
-                    writeTime, currentIO, ioTime, ioWTime, \
-                    discComplete, discMerged, sectorDisc, discTime = l.split()
-                else:
-                    SystemManager.printWarning(\
-                        "Fail to parse diskstat")
-                    continue
+            # before kernel 4.18 #
+            if len(values) == 14:
+                major, minor, name, readComplete, readMerge, sectorRead, \
+                readTime, writeComplete, writeMerge, sectorWrite, \
+                writeTime, currentIO, ioTime, ioWTime = l.split()
+            # after kernel 4.18 #
+            elif len(values) == 18:
+                major, minor, name, readComplete, readMerge, sectorRead, \
+                readTime, writeComplete, writeMerge, sectorWrite, \
+                writeTime, currentIO, ioTime, ioWTime, \
+                discComplete, discMerged, sectorDisc, discTime = l.split()
+            else:
+                SystemManager.printWarning(\
+                    "Fail to parse diskstat")
+                continue
 
-                self.diskInfo[time][name] = dict()
-                diskInfoBuf = self.diskInfo[time][name]
-                diskInfoBuf['major'] = major
-                diskInfoBuf['minor'] = minor
-                diskInfoBuf['sectorRead'] = sectorRead
-                diskInfoBuf['readTime'] = readTime
-                diskInfoBuf['sectorWrite'] = sectorWrite
-                diskInfoBuf['writeTime'] = writeTime
-                diskInfoBuf['currentIO'] = currentIO
-                diskInfoBuf['ioTime'] = ioTime
+            self.diskInfo[time][name] = dict()
+            diskInfoBuf = self.diskInfo[time][name]
+
+            diskInfoBuf['major'] = major
+            diskInfoBuf['minor'] = minor
+            diskInfoBuf['sectorRead'] = sectorRead
+            diskInfoBuf['readTime'] = readTime
+            diskInfoBuf['sectorWrite'] = sectorWrite
+            diskInfoBuf['writeTime'] = writeTime
+            diskInfoBuf['currentIO'] = currentIO
+            diskInfoBuf['ioTime'] = ioTime
 
 
 
@@ -21783,21 +21789,24 @@ Copyright:
 
 
 
-    def updateStorageInfo(self):
-        # load system stat #
+    def updateStorageInfo(self, isGeneral=False):
+        # get device type #
         self.saveDevInfo()
-        self.saveStorageInfo()
 
-        # get disk stat #
-        self.updateDiskInfo()
+        # get storage info and update stat #
+        self.saveStorageInfo(isGeneral)
 
         # get mount info #
         self.updateMountInfo()
 
+        # get storage stat #
+        self.prevStorageData = self.storageData
+        self.storageData = self.getStorageInfo()
+
 
 
     def getStorageInfo(self):
-        storageData = {}
+        storageData = dict()
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0), \
             'read': long(0), 'write': long(0), 'usage': long(0), \
@@ -21841,11 +21850,19 @@ Copyright:
                 write = write >> 20
 
                 load = \
-                    int(afterInfo['sectorRead']) + int(afterInfo['sectorWrite'])
+                    int(afterInfo['sectorRead']) + \
+                    int(afterInfo['sectorWrite'])
+
+                readtime = int(afterInfo['readTime'])
+                writetime = int(afterInfo['writeTime'])
+                iotime = int(afterInfo['ioTime'])
 
                 storageData[key]['read'] = read
                 storageData[key]['write'] = write
                 storageData[key]['load'] = load
+                storageData[key]['readtime'] = readtime
+                storageData[key]['writetime'] = writetime
+                storageData[key]['iotime'] = iotime
 
                 storageData['total']['read'] += read
                 storageData['total']['write'] += write
@@ -22061,7 +22078,7 @@ Copyright:
             "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} "
             "{5:>8} {6:>6} {7:>7} {8:>8} {9:>40}").\
             format("DEV", "NUM", "READ", "WRITE", \
-            "TOTAL", "FREE", "USAGE", "FAVL", "FS", "MountPoint <Option>"))
+            "TOTAL", "FREE", "USAGE", "AVF", "FS", "MountPoint <Option>"))
         SystemManager.infoBufferPrint(twoLine)
 
         devInfo = {}
@@ -26365,8 +26382,6 @@ class ThreadAnalyzer(object):
             self.nrFd = 0
             self.procData = {}
             self.prevProcData = {}
-            self.storageData = {}
-            self.prevStorageData = {}
             self.fileData = {}
             self.cpuData = {}
             self.gpuData = {}
@@ -27268,13 +27283,15 @@ class ThreadAnalyzer(object):
                 elif intervalList and sname != 'Storage':
                     # define arrays #
                     storageUsage.setdefault(sname, dict())
+                    busyList = list()
                     readList = list()
                     writeList = list()
                     freeList = list()
 
                     # convert previous stats #
                     for item in intervalList.split():
-                        read, write, free = item.split('/')
+                        busy, read, write, free = item.split('/')
+                        busyList.append(busy)
                         readList.append(\
                             SystemManager.convertUnit2Size(read) >> 10)
                         writeList.append(\
@@ -27283,6 +27300,7 @@ class ThreadAnalyzer(object):
                             SystemManager.convertUnit2Size(free) >> 10)
 
                     # save previous info #
+                    storageUsage[sname]['busy'] = busyList
                     storageUsage[sname]['read'] = readList
                     storageUsage[sname]['write'] = writeList
                     storageUsage[sname]['free'] = freeList
@@ -32266,7 +32284,7 @@ class ThreadAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        if len(tokenList) == 10 and tokenList[0][0] == '/':
+        if len(tokenList) == 11 and tokenList[0][0] == '/':
             convertUnit2Size = SystemManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
@@ -32281,13 +32299,23 @@ class ThreadAnalyzer(object):
                 TA.procIntData[index]['total']['storage'].setdefault(dev, dict())
                 TA.procTotData['total']['storage'].setdefault(dev, dict())
 
-                # get storage stats in MB #
-                read = convertUnit2Size(tokenList[1].strip())
-                write = convertUnit2Size(tokenList[2].strip())
+                # get busy percentage #
+                busy = convertUnit2Size(tokenList[1].strip()[:-1])
 
-                freestat = tokenList[3].strip().split('(')
+                # get storage stats in MB #
+                read = convertUnit2Size(tokenList[2].strip())
+                write = convertUnit2Size(tokenList[3].strip())
+
+                freestat = tokenList[4].strip().split('(')
                 free = convertUnit2Size(freestat[0].strip())
                 freeDiff = convertUnit2Size(freestat[1][:-1].strip())
+
+                # busy #
+                try:
+                    TA.procIntData[index]['total']['storage'][dev]['busy'] = busy
+                    TA.procTotData['total']['storage'][dev]['busy'] += busy
+                except:
+                    TA.procTotData['total']['storage'][dev]['busy'] = busy
 
                 # read #
                 try:
@@ -33169,13 +33197,15 @@ class ThreadAnalyzer(object):
     def printStorageInterval():
         TA = ThreadAnalyzer
 
+        convertSize2Unit = SystemManager.convertSize2Unit
+
         # Print title #
         SystemManager.pipePrint('\n[Top Storage Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
         storageInfo = "{0:^16} | {1:^21} |".\
-            format('Storage', 'Sum(Rd/Wr/Free)')
+            format('Storage', 'Busy/Read/Write/Free')
         storageInfoLen = len(storageInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -33201,10 +33231,11 @@ class ThreadAnalyzer(object):
         # Print storage usage #
         for dev, val in TA.procTotData['total']['storage'].items():
             try:
-                total = '%s/%s/%s' % \
-                   (SystemManager.convertSize2Unit(val['read'], True),\
-                   SystemManager.convertSize2Unit(val['write'], True),\
-                   SystemManager.convertSize2Unit(val['free'], True))
+                total = '%s/%s/%s/%s' % \
+                   ('%.1f' % (val['busy'] / len(TA.procIntData)),\
+                   convertSize2Unit(val['read'], True),\
+                   convertSize2Unit(val['write'], True),\
+                   convertSize2Unit(val['free'], True))
             except:
                 continue
 
@@ -33221,10 +33252,11 @@ class ThreadAnalyzer(object):
 
                 try:
                     stats = TA.procIntData[idx]['total']['storage'][dev]
-                    usage = '%s/%s/%s' % \
-                        (SystemManager.convertSize2Unit(stats['read'], True),\
-                        SystemManager.convertSize2Unit(stats['write'], True),\
-                        SystemManager.convertSize2Unit(stats['free'], True))
+                    usage = '%s/%s/%s/%s' % \
+                        (stats['busy'],\
+                        convertSize2Unit(stats['read'], True),\
+                        convertSize2Unit(stats['write'], True),\
+                        convertSize2Unit(stats['free'], True))
                 except:
                     continue
 
@@ -33241,12 +33273,14 @@ class ThreadAnalyzer(object):
     def printNetworkInterval():
         TA = ThreadAnalyzer
 
+        convertSize2Unit = SystemManager.convertSize2Unit
+
         # Print title #
         SystemManager.pipePrint('\n[Top Network Info] (Unit: %)\n')
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        networkInfo = "{0:^16} | {1:^21} |".format('Network', 'Sum(Rd/Wr)')
+        networkInfo = "{0:^16} | {1:^21} |".format('Network', 'Read/Write')
         networkInfoLen = len(networkInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -33273,8 +33307,8 @@ class ThreadAnalyzer(object):
         for dev, val in TA.procTotData['total']['netdev'].items():
             try:
                 total = '%s/%s' % \
-                   (SystemManager.convertSize2Unit(val['recv'], True),\
-                   SystemManager.convertSize2Unit(val['tran'], True))
+                   (convertSize2Unit(val['recv'], True),\
+                   convertSize2Unit(val['tran'], True))
             except:
                 continue
 
@@ -33292,8 +33326,8 @@ class ThreadAnalyzer(object):
                 try:
                     stats = TA.procIntData[idx]['total']['netdev'][dev]
                     usage = '%s/%s' % \
-                        (SystemManager.convertSize2Unit(stats['recv'], True),\
-                        SystemManager.convertSize2Unit(stats['tran'], True))
+                        (convertSize2Unit(stats['recv'], True),\
+                        convertSize2Unit(stats['tran'], True))
                 except:
                     continue
 
@@ -33393,7 +33427,11 @@ class ThreadAnalyzer(object):
             return
 
         # get process/thread tree #
-        procTree = ThreadAnalyzer.getProcTreeFromList(instance)
+        try:
+            procTree = ThreadAnalyzer.getProcTreeFromList(instance)
+        except:
+            SystemManager.pipePrint("\n\tNone")
+            return
 
         # print nodes in tree #
         def printTreeNodes(root, depth):
@@ -38505,32 +38543,52 @@ class ThreadAnalyzer(object):
             # storage #
             if not SystemManager.diskEnable:
                 SystemManager.sysInstance.updateStorageInfo()
-
-                # save previous storage usage #
-                self.prevStorageData = self.storageData
-                self.storageData = SystemManager.sysInstance.getStorageInfo()
             else:
                 '''
-                storageData should have been saved on diskTop mode
+                storageData should have been saved on disktop mode
                 '''
                 pass
 
             # copy storage data into report data structure #
-            self.reportData['storage'] = copy.deepcopy(self.storageData)
+            self.reportData['storage'] = \
+                copy.deepcopy(SystemManager.sysInstance.storageData)
 
             # calculate diff of read /write on each devices #
             for dev, value in sorted(self.reportData['storage'].items()):
                 # get read size on this interval #
                 try:
-                    value['read'] -= self.prevStorageData[dev]['read']
+                    value['read'] -= \
+                        SystemManager.sysInstance.prevStorageData[dev]['read']
                 except:
                     value['read'] = 0
 
                 # get write size on this interval #
                 try:
-                    value['write'] -= self.prevStorageData[dev]['write']
+                    value['write'] -= \
+                        SystemManager.sysInstance.prevStorageData[dev]['write']
                 except:
                     value['write'] = 0
+
+                # get readtime on this interval #
+                try:
+                    value['readtime'] -= \
+                        SystemManager.sysInstance.prevStorageData[dev]['readtime']
+                except:
+                    value['readtime'] = 0
+
+                # get writetime on this interval #
+                try:
+                    value['writetime'] -= \
+                        SystemManager.sysInstance.prevStorageData[dev]['writetime']
+                except:
+                    value['writetime'] = 0
+
+                # get iotime on this interval #
+                try:
+                    value['iotime'] -= \
+                        SystemManager.sysInstance.prevStorageData[dev]['iotime']
+                except:
+                    value['iotime'] = 0
 
 
 
@@ -38956,50 +39014,71 @@ class ThreadAnalyzer(object):
         # update storage usage #
         SystemManager.sysInstance.updateStorageInfo()
 
-        # save previous storage data #
-        self.prevStorageData = self.storageData
-
-        # get storage stat #
-        self.storageData = \
-            SystemManager.sysInstance.getStorageInfo()
+        convertSize2Unit = SystemManager.convertSize2Unit
 
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
-            "{0:^24}|{1:^8}|{2:^8}|{3:>8}({4:>8})|"
-            "{5:^6}|{6:^8}|{7:^7}|{8:^8}|{9:^58}|\n").\
-            format("DEV", "READ", "WRITE", "FREE", 'DIFF',\
-            "USAGE", "TOTAL", "FAVL", "FS", "MountPoint <Option>"))
+            "{0:^24}|{1:4}|{2:^7}|{3:^7}|{4:>7}({5:>7})|"
+            "{6:^5}|{7:^7}|{8:^7}|{9:^8}|{10:^59}|\n").\
+            format("DEV", "BUSY", "READ", "WRITE", "FREE", 'DIFF',\
+            "USAGE", "TOTAL", "AVF", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
 
         printCnt = 0
-        for dev, value in sorted(self.storageData.items(),\
+        for dev, value in sorted(SystemManager.sysInstance.storageData.items(),\
             key=lambda e: e[1]['load'] if 'load' in e[1] else 0, reverse=True):
 
             # skip total usage #
             if dev == 'total':
                 continue
 
+            # get readtime #
+            try:
+                readtime = value['readtime'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['readtime']
+            except:
+                readtime = 0
+
+            # get writetime #
+            try:
+                writetime = value['writetime'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['writetime']
+            except:
+                writetime = 0
+
+            # get busytime #
+            try:
+                iotime = value['iotime'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['iotime']
+                busytime = '%s%%' % \
+                    int(iotime / 10 / SystemManager.uptimeDiff)
+            except:
+                busytime = '0%'
+
             # get read size on this interval #
             try:
-                readSize = value['read'] - self.prevStorageData[dev]['read']
-                readSize = SystemManager.convertSize2Unit(readSize << 20)
+                readSize = value['read'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['read']
+                readSize = convertSize2Unit(readSize << 20)
             except:
                 readSize = 0
 
             # get write size on this interval #
             try:
-                writeSize = value['write'] - self.prevStorageData[dev]['write']
-                writeSize = SystemManager.convertSize2Unit(writeSize << 20)
+                writeSize = value['write'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['write']
+                writeSize = convertSize2Unit(writeSize << 20)
             except:
                 writeSize = 0
 
-            total = SystemManager.convertSize2Unit(value['total'] << 20)
+            total = convertSize2Unit(value['total'] << 20)
 
-            free = SystemManager.convertSize2Unit(value['free'] << 20)
+            free = convertSize2Unit(value['free'] << 20)
 
             # get free space change on this interval #
             try:
-                freeDiff = value['free'] - self.prevStorageData[dev]['free']
+                freeDiff = value['free'] - \
+                    SystemManager.sysInstance.prevStorageData[dev]['free']
 
                 if freeDiff < 0:
                     op = '-'
@@ -39009,12 +39088,12 @@ class ThreadAnalyzer(object):
                     op = '+'
 
                 freeDiff = '%s%s' % \
-                    (op, SystemManager.convertSize2Unit(abs(freeDiff) << 20))
+                    (op, convertSize2Unit(abs(freeDiff) << 20))
             except:
                 freeDiff = 0
 
-            use = SystemManager.convertSize2Unit(value['usageper'])
-            avail = SystemManager.convertSize2Unit(value['favail'])
+            use = convertSize2Unit(value['usageper'])
+            avail = convertSize2Unit(value['favail'])
             fs = value['mount']['fs']
             path = value['mount']['path']
             option = value['mount']['option']
@@ -39026,9 +39105,9 @@ class ThreadAnalyzer(object):
                 mountInfo = path
 
             diskInfo = \
-                ("{0:<24}|{1:>8}|{2:>8}|{3:>8}({4:>8})|"
-                "{5:>6}|{6:>8}|{7:>7}|{8:^8}| {9:<57}|\n").\
-                format(dev, readSize, writeSize, free, freeDiff,\
+                ("{0:<24}|{1:>4}|{2:>7}|{3:>7}|{4:>7}({5:>7})|"
+                "{6:>5}|{7:>7}|{8:>7}|{9:^8}| {10:<58}|\n").\
+                format(dev, busytime, readSize, writeSize, free, freeDiff,\
                 '%s%%' % use, total, avail, fs, mountInfo[:57])
 
             if SystemManager.checkCutCond():
@@ -39126,7 +39205,7 @@ class ThreadAnalyzer(object):
             sid = 'Yld'
             pgrp = 'Prmt'
 
-        if SystemManager.wfcEnable is False:
+        if not SystemManager.wfcEnable:
             dprop = 'Dly'
         else:
             dprop = 'WFC'
@@ -39353,7 +39432,7 @@ class ThreadAnalyzer(object):
             self.saveProcStatusData(value['taskPath'], idx)
 
             # save sched info to get delayed time  #
-            if SystemManager.wfcEnable is False:
+            if not SystemManager.wfcEnable:
                 self.saveProcSchedData(value['taskPath'], idx)
 
             # save wait channel info  #
@@ -39417,6 +39496,7 @@ class ThreadAnalyzer(object):
                 except:
                     prtd = '-'
 
+            # calculate delayed time in runqueue #
             try:
                 execTime = \
                     value['execTime'] - self.prevProcData[idx]['execTime']
