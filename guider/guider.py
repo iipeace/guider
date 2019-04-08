@@ -13703,11 +13703,13 @@ Copyright:
     @staticmethod
     def getErrReason():
         err = sys.exc_info()[1]
+
         try:
-            if err.args[0] == 0:
-                return 'N/A'
+            if len(err.args) == 0 or err.args[0] == 0:
+                return sys.exc_info()[0].__name__
         except:
             return 'N/A'
+
         return ' '.join(list(map(str, err.args)))
 
 
@@ -19317,7 +19319,15 @@ Copyright:
                 "input size to allocate memory"))
             sys.exit(0)
 
+        # get memory size #
         value = sys.argv[2]
+        if value.find('.') > -1:
+            SystemManager.printError(\
+                ("wrong option value, "
+                "input number in integer format"))
+            sys.exit(0)
+
+        # convert meory size #
         size = SystemManager.convertUnit2Size(value)
         if not size:
             SystemManager.printError(\
@@ -19340,13 +19350,19 @@ Copyright:
             SystemManager.runBackgroundMode()
 
         # allocate memory #
-        buffer = bytearray(size)
+        try:
+            buffer = bytearray(size)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Failed to allocate memory because %s" % err)
+            sys.exit(0)
 
         SystemManager.printInfo((\
             'allocated %s of physical memory, '
             'additionally used %s of physical memory for running') % \
-            (SystemManager.convertSize2Unit(len(buffer)), \
-            SystemManager.convertSize2Unit(rssSize)))
+            (SystemManager.convertSize2Unit(len(buffer), True), \
+            SystemManager.convertSize2Unit(rssSize, True)))
 
         signal.pause()
 
@@ -21654,6 +21670,7 @@ Copyright:
             self.diskInfo[time][name] = dict()
             diskInfoBuf = self.diskInfo[time][name]
 
+            # save recent stat #
             diskInfoBuf['major'] = major
             diskInfoBuf['minor'] = minor
             diskInfoBuf['sectorRead'] = sectorRead
@@ -21662,6 +21679,7 @@ Copyright:
             diskInfoBuf['writeTime'] = writeTime
             diskInfoBuf['currentIO'] = currentIO
             diskInfoBuf['ioTime'] = ioTime
+            diskInfoBuf['ioWTime'] = ioWTime
 
 
 
@@ -21856,13 +21874,16 @@ Copyright:
                 readtime = int(afterInfo['readTime'])
                 writetime = int(afterInfo['writeTime'])
                 iotime = int(afterInfo['ioTime'])
+                iowtime = int(afterInfo['ioWTime'])
 
+                # save recent stat #
                 storageData[key]['read'] = read
                 storageData[key]['write'] = write
                 storageData[key]['load'] = load
                 storageData[key]['readtime'] = readtime
                 storageData[key]['writetime'] = writetime
                 storageData[key]['iotime'] = iotime
+                storageData[key]['iowtime'] = iowtime
 
                 storageData['total']['read'] += read
                 storageData['total']['write'] += write
@@ -32299,14 +32320,15 @@ class ThreadAnalyzer(object):
                 TA.procIntData[index]['total']['storage'].setdefault(dev, dict())
                 TA.procTotData['total']['storage'].setdefault(dev, dict())
 
-                # get busy percentage #
+                # get busy time and average queue-length #
                 busy = convertUnit2Size(tokenList[1].strip()[:-1])
+                avq = tokenList[2].strip()
 
                 # get storage stats in MB #
-                read = convertUnit2Size(tokenList[2].strip())
-                write = convertUnit2Size(tokenList[3].strip())
+                read = convertUnit2Size(tokenList[3].strip())
+                write = convertUnit2Size(tokenList[4].strip())
 
-                freestat = tokenList[4].strip().split('(')
+                freestat = tokenList[5].strip().split('(')
                 free = convertUnit2Size(freestat[0].strip())
                 freeDiff = convertUnit2Size(freestat[1][:-1].strip())
 
@@ -32316,6 +32338,13 @@ class ThreadAnalyzer(object):
                     TA.procTotData['total']['storage'][dev]['busy'] += busy
                 except:
                     TA.procTotData['total']['storage'][dev]['busy'] = busy
+
+                # avq #
+                try:
+                    TA.procIntData[index]['total']['storage'][dev]['avq'] = avq
+                    TA.procTotData['total']['storage'][dev]['avq'] += avq
+                except:
+                    TA.procTotData['total']['storage'][dev]['avq'] = avq
 
                 # read #
                 try:
@@ -38553,42 +38582,51 @@ class ThreadAnalyzer(object):
             self.reportData['storage'] = \
                 copy.deepcopy(SystemManager.sysInstance.storageData)
 
+            prevStorageData = SystemManager.sysInstance.prevStorageData
+
             # calculate diff of read /write on each devices #
             for dev, value in sorted(self.reportData['storage'].items()):
                 # get read size on this interval #
                 try:
-                    value['read'] -= \
-                        SystemManager.sysInstance.prevStorageData[dev]['read']
+                    value['read'] -= prevStorageData[dev]['read']
                 except:
                     value['read'] = 0
 
                 # get write size on this interval #
                 try:
-                    value['write'] -= \
-                        SystemManager.sysInstance.prevStorageData[dev]['write']
+                    value['write'] -= prevStorageData[dev]['write']
                 except:
                     value['write'] = 0
 
                 # get readtime on this interval #
                 try:
-                    value['readtime'] -= \
-                        SystemManager.sysInstance.prevStorageData[dev]['readtime']
+                    value['readtime'] -= prevStorageData[dev]['readtime']
                 except:
                     value['readtime'] = 0
 
                 # get writetime on this interval #
                 try:
-                    value['writetime'] -= \
-                        SystemManager.sysInstance.prevStorageData[dev]['writetime']
+                    value['writetime'] -= prevStorageData[dev]['writetime']
                 except:
                     value['writetime'] = 0
 
                 # get iotime on this interval #
                 try:
-                    value['iotime'] -= \
-                        SystemManager.sysInstance.prevStorageData[dev]['iotime']
+                    value['iotime'] -= prevStorageData[dev]['iotime']
                 except:
                     value['iotime'] = 0
+
+                # get iowtime on this interval #
+                try:
+                    value['iowtime'] -= prevStorageData[dev]['iowtime']
+                except:
+                    value['iowtime'] = 0
+
+                # get avq on this interval #
+                try:
+                    value['avq'] = value['iowtime'] / value['iotime']
+                except:
+                    value['avq'] = 0
 
 
 
@@ -38886,15 +38924,14 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(\
             ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
-            "[Life: +%d/-%d] [IRQ: %d] [Core: %d] [Task: %d/%d] "
-            "[Load: %s] [RAM: %d] [Swap: %d] %s\n") % \
+            "[Life: +%d/-%d] %s [IRQ: %d] [Core: %d] [Task: %d/%d] "
+            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
             (title, SystemManager.uptime, SystemManager.uptimeDiff, \
             self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
             nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
-            self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
+            oomstr, self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
             SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
-            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10, \
-            oomstr))
+            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
 
 
 
@@ -39018,14 +39055,17 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
-            "{0:^24}|{1:4}|{2:^7}|{3:^7}|{4:>7}({5:>7})|"
-            "{6:^5}|{7:^7}|{8:^7}|{9:^8}|{10:^59}|\n").\
-            format("DEV", "BUSY", "READ", "WRITE", "FREE", 'DIFF',\
+            "{0:^24}|{1:4}|{2:^5}|{3:^7}|{4:^7}|{5:>7}({6:>7})|"
+            "{7:^5}|{8:^7}|{9:^7}|{10:^8}|{11:^53}|\n").\
+            format("DEV", "BUSY", "AVQ", "READ", "WRITE", "FREE", 'DIFF',\
             "USAGE", "TOTAL", "AVF", "FS", "MountPoint <Option>"))
         SystemManager.addPrint('%s\n' % oneLine)
 
+        storageData = SystemManager.sysInstance.storageData
+        prevStorageData = SystemManager.sysInstance.prevStorageData
+
         printCnt = 0
-        for dev, value in sorted(SystemManager.sysInstance.storageData.items(),\
+        for dev, value in sorted(storageData.items(),\
             key=lambda e: e[1]['load'] if 'load' in e[1] else 0, reverse=True):
 
             # skip total usage #
@@ -39035,30 +39075,44 @@ class ThreadAnalyzer(object):
             # get readtime #
             try:
                 readtime = value['readtime'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['readtime']
+                    prevStorageData[dev]['readtime']
             except:
                 readtime = 0
 
             # get writetime #
             try:
                 writetime = value['writetime'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['writetime']
+                    prevStorageData[dev]['writetime']
             except:
                 writetime = 0
 
             # get busytime #
             try:
                 iotime = value['iotime'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['iotime']
+                    prevStorageData[dev]['iotime']
+
                 busytime = '%s%%' % \
                     int(iotime / 10 / SystemManager.uptimeDiff)
+
+                iowtime = value['iowtime'] - \
+                    prevStorageData[dev]['iowtime']
             except:
                 busytime = '0%'
+
+            # get avq #
+            try:
+                iowtime = value['iowtime'] - \
+                    prevStorageData[dev]['iowtime']
+
+                avq = '%.1f' % (iowtime / iotime)
+            except:
+                avq = '0'
 
             # get read size on this interval #
             try:
                 readSize = value['read'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['read']
+                    prevStorageData[dev]['read']
+
                 readSize = convertSize2Unit(readSize << 20)
             except:
                 readSize = 0
@@ -39066,7 +39120,8 @@ class ThreadAnalyzer(object):
             # get write size on this interval #
             try:
                 writeSize = value['write'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['write']
+                    prevStorageData[dev]['write']
+
                 writeSize = convertSize2Unit(writeSize << 20)
             except:
                 writeSize = 0
@@ -39078,7 +39133,7 @@ class ThreadAnalyzer(object):
             # get free space change on this interval #
             try:
                 freeDiff = value['free'] - \
-                    SystemManager.sysInstance.prevStorageData[dev]['free']
+                    prevStorageData[dev]['free']
 
                 if freeDiff < 0:
                     op = '-'
@@ -39105,10 +39160,10 @@ class ThreadAnalyzer(object):
                 mountInfo = path
 
             diskInfo = \
-                ("{0:<24}|{1:>4}|{2:>7}|{3:>7}|{4:>7}({5:>7})|"
-                "{6:>5}|{7:>7}|{8:>7}|{9:^8}| {10:<58}|\n").\
-                format(dev, busytime, readSize, writeSize, free, freeDiff,\
-                '%s%%' % use, total, avail, fs, mountInfo[:57])
+                ("{0:<24}|{1:>4}|{2:>5}|{3:>7}|{4:>7}|{5:>7}({6:>7})|"
+                "{7:>5}|{8:>7}|{9:>7}|{10:^8}| {11:<52}|\n").\
+                format(dev, busytime, avq, readSize, writeSize, free,\
+                freeDiff, '%s%%' % use, total, avail, fs, mountInfo[:51])
 
             if SystemManager.checkCutCond():
                 return
