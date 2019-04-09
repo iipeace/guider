@@ -12229,6 +12229,26 @@ Examples:
         # {0:1} {1:1} 3:1234
                     '''.format(cmd, mode)
 
+                # cputest #
+                elif SystemManager.isCpuTestMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <NRTASK:LOAD> [OPTIONS] [--help]
+
+Description:
+    Create tasks using cpu
+
+OPTIONS:
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Create 5 threads using 50% of a core each other
+        # {0:1} {1:1} 5:50
+                    '''.format(cmd, mode)
+
                 # alloctest #
                 elif SystemManager.isAllocTestMode():
                     helpStr = '''
@@ -12384,7 +12404,8 @@ COMMAND:
                 server      <server>
                 client      <client>
 
-    [test]      alloctest   <mem>
+    [test]      cputest     <cpu>
+                alloctest   <mem>
 
 FILE:
     Profile file (e.g. guider.dat)
@@ -15850,7 +15871,7 @@ Copyright:
     def parseRuntimeOption(value):
         def parseInterval(data):
             if data.isdigit():
-                ret = int(data[:-1])
+                ret = int(data)
             elif data.upper().endswith('S'):
                 ret = int(data[:-1])
             elif data.upper().endswith('M'):
@@ -16965,6 +16986,18 @@ Copyright:
 
 
     @staticmethod
+    def isCpuTestMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'cputest':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isAllocTestMode():
         if len(sys.argv) == 1:
             return False
@@ -17471,6 +17504,10 @@ Copyright:
         # PRINTPROC MODE #
         if SystemManager.isPstreeMode():
             SystemManager.doPstree()
+
+        # CPUTEST MODE #
+        if SystemManager.isCpuTestMode():
+            SystemManager.doCpuTest()
 
         # ALLOCTEST MODE #
         if SystemManager.isAllocTestMode():
@@ -18225,6 +18262,7 @@ Copyright:
 
                 procStart = \
                     float(STAT_ATTR[gSTAT_ATTR.index("STARTTIME")]) / 100
+
                 runtime = int(SystemManager.uptime - procStart)
             except:
                 pass
@@ -19311,6 +19349,91 @@ Copyright:
 
 
     @staticmethod
+    def doCpuTest():
+        def cputask(num, load):
+            SystemManager.setDefaultSignal()
+
+            while 1:
+                pass
+
+        def terminateTasks(limitInfo):
+            SIGKILL = ConfigManager.SIG_LIST.index('SIGKILL')
+            for pid in limitInfo.keys():
+                try:
+                    os.kill(pid, SIGKILL)
+                except:
+                    pass
+
+        # parse options #
+        if len(sys.argv) != 3:
+            SystemManager.printError(\
+                ("wrong option value to test cpu load, "
+                "input THREAD:LOAD in format"))
+            sys.exit(0)
+
+        # get the number of task and load #
+        value = sys.argv[2].split(':')
+        if len(value) != 2:
+            SystemManager.printError(\
+                ("wrong option value to test cpu load, "
+                "input THREAD:LOAD in format"))
+            sys.exit(0)
+
+        try:
+            nrTask, load = list(map(int, value))
+            if nrTask == 0:
+                nrTask = 1
+        except:
+            SystemManager.printError(\
+                ("wrong option value, "
+                "input number in integer format"))
+            sys.exit(0)
+
+        if nrTask > 1:
+            taskstr = '%d processes' % nrTask
+        else:
+            taskstr = 'a process'
+
+        SystemManager.printInfo(\
+            "started to create %s" % taskstr)
+
+        # run tasks #
+        limitInfo = dict()
+        for idx in xrange(0, nrTask):
+            try:
+                pid = SystemManager.createProcess()
+                if pid == 0:
+                    cputask(idx, load)
+                else:
+                    limitInfo[pid] = load
+            except SystemExit:
+                pass
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Failed to start process because %s" % err)
+                sys.exit(0)
+
+        if len(limitInfo) > 1:
+            taskstr = '%d processes' % len(limitInfo)
+        else:
+            taskstr = 'a process'
+
+        SystemManager.printInfo(\
+            "created %s and limited cpu usage to %d%%" % \
+                (taskstr, load))
+
+        # limit CPU usage of tasks #
+        SystemManager.doLimitCpu(limitInfo, verbose=False)
+
+        # terminate tasks #
+        terminateTasks(limitInfo)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def doAllocTest():
         # parse options #
         if len(sys.argv) != 3:
@@ -19385,7 +19508,7 @@ Copyright:
 
 
     @staticmethod
-    def doLimitCpu(limitInfo, isProcess=False):
+    def doLimitCpu(limitInfo, isProcess=False, verbose=True):
         CLK_PRECISION = 1000000
         MAX_BUCKET = CLK_PRECISION / 10000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
@@ -19524,11 +19647,12 @@ Copyright:
                         else:
                             tasktype = 'thread'
 
-                        SystemManager.printInfo((\
-                            "limited cpu usage of %s(%s) %s to %s%%, "
-                            "it used %s%%") % \
-                            (val['comm'], tid, tasktype, \
-                            val['per'], val['ticks']))
+                        if verbose:
+                            SystemManager.printInfo((\
+                                "limited cpu usage of %s(%s) %s to %s%%, "
+                                "it used %s%%") % \
+                                (val['comm'], tid, tasktype, \
+                                val['per'], val['ticks']))
 
                         val['ticks'] = 0
                     continue
@@ -23261,7 +23385,7 @@ class Debugger(object):
 
             SystemManager.pipePrint(\
                 '%3.6f %s (%s) [%s + %s] [%s]' % \
-                (diff, sym, direction, fname, offset, hex(self.sp)))
+                (diff, sym, direction, fname, offset, hex(self.sp).rstrip('L')))
 
             # backup register #
             self.prevsp = self.sp
