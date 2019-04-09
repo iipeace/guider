@@ -8410,8 +8410,8 @@ class LeakAnalyzer(object):
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:^7} | {1:^46} | {2:^93} |".\
-                format("Size", "Function", "Path"))
+                "{0:^7} | {1:^7} | {2:^7} |{3:^46} | {4:^74} |".\
+                format("Size", "Count", "Avg", "Function", "Path"))
         SystemManager.pipePrint(oneLine)
 
         count = 0
@@ -8421,8 +8421,9 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.pipePrint(\
-                "{0:>7} | {1:^46} | {2:<93} |".\
-                    format(convertFunc(val['lastPosSize']), \
+                "{0:^7} | {1:^7} | {2:^7} |{3:^46} | {4:^74} |".\
+                    format(convertFunc(val['lastPosSize']), val['count'], \
+                    convertFunc(int(val['lastPosSize'] / val['count'])), \
                     sym, val['path']))
 
             for substack, size in sorted(val['substack'].items(), \
@@ -8448,7 +8449,8 @@ class LeakAnalyzer(object):
 
         SystemManager.pipePrint(twoLine)
         SystemManager.pipePrint(\
-            "{0:^7} | {1:^142} |".format("Size", "Path"))
+            "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".format(\
+            "Size", "Count", "Avg", "Path"))
         SystemManager.pipePrint(oneLine)
 
         count = 0
@@ -8458,8 +8460,9 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.pipePrint(\
-                "{0:>7} | {1:<142} |".\
-                    format(convertFunc(val['lastPosSize']), file))
+                "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".format(\
+                    convertFunc(val['lastPosSize']), val['count'], \
+                    convertFunc(int(val['lastPosSize'] / val['count'])), file))
 
             count += 1
 
