@@ -35492,6 +35492,7 @@ class ThreadAnalyzer(object):
                     else:
                         self.wakeupData['corrupt'] = '0'
 
+            # register syscall #
             try:
                 self.threadData[thread]['syscallInfo']
             except:
@@ -35502,20 +35503,21 @@ class ThreadAnalyzer(object):
                 self.threadData[thread]['syscallInfo'][str(nr)] = \
                     dict(self.init_syscallInfo)
 
+            # save syscall info #
             self.threadData[thread]['lastNrSyscall'] = nr
+            self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
             self.threadData[thread]['syscallInfo'][str(nr)]['last'] = \
                 float(time)
 
-            # apply syscall filter #
+            # save syscall history #
             if len(SystemManager.syscallList) > 0:
                 try:
                     idx = SystemManager.syscallList.index(nr)
-                except:
-                    idx = -1
 
-                if idx >= 0:
                     self.syscallData.append(\
                         ['ENT', time, thread, core, str(nr), args])
+                except:
+                    pass
             else:
                 self.syscallData.append(\
                     ['ENT', time, thread, core, str(nr), args])
@@ -35658,6 +35660,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
+            # register syscall #
             try:
                 self.threadData[thread]['syscallInfo']
             except:
@@ -35668,13 +35671,13 @@ class ThreadAnalyzer(object):
                 self.threadData[thread]['syscallInfo'][str(nr)] = \
                     dict(self.init_syscallInfo)
 
+            # save syscall usage #
             diff = ''
             sysItem = self.threadData[thread]['syscallInfo'][str(nr)]
             if sysItem['last'] > 0:
                 diff = float(time) - sysItem['last']
                 self.threadData[thread]['syscallInfo'][str(nr)]['usage'] += diff
                 self.threadData[thread]['syscallInfo'][str(nr)]['last'] = 0
-                self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
 
                 if sysItem['max'] == 0 or sysItem['max'] < diff:
                     self.threadData[thread]['syscallInfo'][str(nr)]['max'] = diff
@@ -35684,15 +35687,15 @@ class ThreadAnalyzer(object):
                 if ret[0] == '-':
                     self.threadData[thread]['syscallInfo'][str(nr)]['err'] += 1
 
+            # save syscall history #
             if len(SystemManager.syscallList) > 0:
                 try:
                     idx = SystemManager.syscallList.index(nr)
-                except:
-                    idx = -1
 
-                if idx >= 0:
                     self.syscallData.append(\
                         ['RET', time, thread, core, str(nr), ret, diff])
+                except:
+                    pass
             else:
                 self.syscallData.append(\
                     ['RET', time, thread, core, str(nr), ret, diff])
