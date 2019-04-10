@@ -9656,6 +9656,7 @@ class SystemManager(object):
     errorFile = '/tmp/guider.err'
     sourceFile = None
     printFile = None
+    parsedAnalOption = False
     optionList = None
     customCmd = None
     userCmd = None
@@ -10523,6 +10524,8 @@ class SystemManager(object):
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
+        if type(value) is int or type(value) is long:
+            return value
         if value.isdigit():
             return long(value)
 
@@ -15876,29 +15879,34 @@ Copyright:
 
 
     @staticmethod
+    def convertUnit2Time(data):
+        if type(data) is int or type(data) is long:
+            return data
+        elif data.isdigit():
+            ret = int(data)
+        elif data.upper().endswith('S'):
+            ret = int(data[:-1])
+        elif data.upper().endswith('M'):
+            ret = int(data[:-1]) * 60
+        elif data.upper().endswith('H'):
+            ret = int(data[:-1]) * 60 * 60
+        elif data.upper().endswith('D'):
+            ret = int(data[:-1]) * 60 * 60 * 24
+        else:
+            ret = data
+
+        return ret
+
+
+
+    @staticmethod
     def parseRuntimeOption(value):
-        def parseInterval(data):
-            if data.isdigit():
-                ret = int(data)
-            elif data.upper().endswith('S'):
-                ret = int(data[:-1])
-            elif data.upper().endswith('M'):
-                ret = int(data[:-1]) * 60
-            elif data.upper().endswith('H'):
-                ret = int(data[:-1]) * 60 * 60
-            elif data.upper().endswith('D'):
-                ret = int(data[:-1]) * 60 * 60 * 24
-            else:
-                ret = data
-
-            return ret
-
         SystemManager.countEnable = True
 
         repeatParams = value.split(':')
         if len(repeatParams) == 2:
             try:
-                interval = parseInterval(repeatParams[0])
+                interval = SystemManager.convertUnit2Time(repeatParams[0])
 
                 SystemManager.intervalEnable = interval
                 SystemManager.repeatInterval = interval
@@ -15913,7 +15921,7 @@ Copyright:
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
-                interval = parseInterval(repeatParams[0])
+                interval = SystemManager.convertUnit2Time(repeatParams[0])
 
                 SystemManager.repeatCount = interval
                 SystemManager.repeatInterval = interval
@@ -15942,6 +15950,11 @@ Copyright:
 
     @staticmethod
     def parseAnalOption():
+        if SystemManager.parsedAnalOption:
+            return
+        else:
+            SystemManager.parsedAnalOption = True
+
         if SystemManager.isTopMode():
             # set default processor option #
             if SystemManager.findOption('a') or \
@@ -18051,7 +18064,7 @@ Copyright:
         if procList == '':
             print("no running process in the background\n")
         else:
-            print('[Running Process]')
+            print('[Running Process] [TOTAL: %s]' % procList.count('\n'))
             print(twoLine)
             print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
             print(oneLine)
@@ -18387,6 +18400,17 @@ Copyright:
 
     @staticmethod
     def setDefaultSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+
+
+    @staticmethod
+    def setSimpleSignal():
         if not sys.platform.startswith('linux'):
             return
 
@@ -19339,16 +19363,9 @@ Copyright:
         def cputask(num, load):
             SystemManager.setDefaultSignal()
 
+            # run loop #
             while 1:
                 pass
-
-        def terminateTasks(limitInfo):
-            SIGKILL = ConfigManager.SIG_LIST.index('SIGKILL')
-            for pid in limitInfo.keys():
-                try:
-                    os.kill(pid, SIGKILL)
-                except:
-                    pass
 
         # parse options #
         if len(sys.argv) != 3:
@@ -19426,31 +19443,76 @@ Copyright:
         SystemManager.doLimitCpu(limitInfo, verbose=False)
 
         # terminate tasks #
-        terminateTasks(limitInfo)
-
-        sys.exit(0)
+        SystemManager.terminateTasks(limitInfo.keys())
 
 
 
     @staticmethod
     def doAllocTest():
+        def allocMemory(rssSize, size):
+            SystemManager.setDefaultSignal()
+
+            # allocate memory #
+            try:
+                buffer = bytearray(size)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Failed to allocate memory because %s" % err)
+                sys.exit(0)
+
+            SystemManager.printInfo((\
+                'allocated %s of physical memory, '
+                'additionally used %s of physical memory for running') % \
+                (SystemManager.convertSize2Unit(len(buffer), True), \
+                SystemManager.convertSize2Unit(rssSize, True)))
+
+            signal.pause()
+
+            sys.exit(0)
+
         # parse options #
         if len(sys.argv) != 3:
             SystemManager.printError(\
                 ("wrong option value to test memory allocation, "
-                "input size to allocate memory"))
+                "input SIZE{:INTERVAL:COUNT} in format"))
             sys.exit(0)
 
-        # get memory size #
-        value = sys.argv[2]
-        if value.find('.') > -1:
+        # parse option #
+        value = sys.argv[2].split(':')
+        if len(value) == 3:
+            size, interval, count = value
+        elif len(value) == 2:
+            size, interval = value
+            count = 0
+        elif len(value) == 1:
+            size = value[0]
+            interval = count = 0
+        else:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input SIZE{:INTERVAL:COUNT} in format"))
+            sys.exit(0)
+
+        # convert time #
+        try:
+            interval = SystemManager.convertUnit2Time(interval)
+            count = int(count)
+        except:
+            SystemManager.printError(\
+                ("wrong option value to test memory allocation, "
+                "input SIZE{:INTERVAL:COUNT} in format"))
+            sys.exit(0)
+
+        # check size type #
+        if size.find('.') > -1:
             SystemManager.printError(\
                 ("wrong option value, "
                 "input number in integer format"))
             sys.exit(0)
 
         # convert meory size #
-        size = SystemManager.convertUnit2Size(value)
+        size = SystemManager.convertUnit2Size(size)
         if not size:
             SystemManager.printError(\
                 ("wrong option value to test memory allocation, "
@@ -19464,27 +19526,62 @@ Copyright:
                 "Fail to get memory size of guider")
             sys.exit(0)
 
+        # get memory size #
         rssIdx = ConfigManager.STATM_TYPE.index("RSS")
         rssSize = long(mlist[rssIdx]) << 12
 
-        # allocate memory #
-        try:
-            buffer = bytearray(size)
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printError(\
-                "Failed to allocate memory because %s" % err)
-            sys.exit(0)
+        pidList = list()
+        if count > 0:
+            for idx in xrange(0, count):
+                try:
+                    pid = SystemManager.createProcess()
+                except SystemExit:
+                    pass
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printError(\
+                        "Failed to start process because %s" % err)
+                    sys.exit(0)
 
-        SystemManager.printInfo((\
-            'allocated %s of physical memory, '
-            'additionally used %s of physical memory for running') % \
-            (SystemManager.convertSize2Unit(len(buffer), True), \
-            SystemManager.convertSize2Unit(rssSize, True)))
+                if pid == 0:
+                    try:
+                        allocMemory(rssSize, size)
+                    except:
+                        sys.exit(0)
+                else:
+                    pidList.append(pid)
 
-        signal.pause()
+                time.sleep(interval)
+        elif interval > 0:
+            while 1:
+                try:
+                    pid = SystemManager.createProcess()
+                except SystemExit:
+                    pass
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printError(\
+                        "Failed to start process because %s" % err)
+                    sys.exit(0)
 
-        sys.exit(0)
+                if pid == 0:
+                    try:
+                        allocMemory(rssSize, size)
+                    except:
+                        sys.exit(0)
+                else:
+                    pidList.append(pid)
+
+                time.sleep(interval)
+        else:
+            allocMemory(rssSize, size)
+
+        # wait for childs #
+        if len(pidList) > 0:
+            signal.pause()
+
+        # terminate tasks #
+        SystemManager.terminateTasks(pidList)
 
 
 
@@ -19695,6 +19792,17 @@ Copyright:
                         SystemManager.printError(
                             "Fail to send signal SIGCONT to %s because %s" % \
                             (tid, ' '.join(list(err))))
+
+
+
+    @staticmethod
+    def terminateTasks(targetList):
+        SIGKILL = ConfigManager.SIG_LIST.index('SIGKILL')
+        for pid in targetList:
+            try:
+                os.kill(pid, SIGKILL)
+            except:
+                pass
 
 
 
@@ -20859,7 +20967,7 @@ Copyright:
             else:
                 SystemManager.printError(\
                     "Fail to start tracing because "
-                    "another guider is already running on system")
+                    "another guider is already running")
                 os._exit(0)
 
         # clean up ring buffer for tracing #
@@ -40974,7 +41082,7 @@ def main(args=None):
     SystemManager.setArch(SystemManager.getArch())
 
     # set default signal #
-    SystemManager.setDefaultSignal()
+    SystemManager.setSimpleSignal()
 
     # shrink heap #
     SystemManager.shrinkHeap()
