@@ -11871,17 +11871,17 @@ Usage:
     # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
-    Draw memory(VSS) graphs of suspected processes of memory leak and memory chart
+    Draw memory(VSS) graphs of processes suspected memory leak and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr
 
                     helpStr +=  '''
 Examples:
-    - Draw graphs of memory(VSS) usage of suspected processes of memory leak and memory chart
+    - Draw graphs of memory(VSS) usage of processes suspected memory leak and memory chart
         # {0:1} {1:1} guider.out
 
-    - Draw graphs of memory(VSS) usage of suspected processes of memory leak with multiple files for comparison
+    - Draw graphs of memory(VSS) usage of processes suspected memory leak with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
                     '''.format(cmd, mode)
 
@@ -12248,8 +12248,11 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Create 5 threads using 50% of a core each other
-        # {0:1} {1:1} 5:50
+    - Create 10 threads using 50% of a core each other
+        # {0:1} {1:1} 10:50
+
+    - Create threads using 250% totally
+        # {0:1} {1:1} 250
                     '''.format(cmd, mode)
 
                 # alloctest #
@@ -19371,26 +19374,39 @@ Copyright:
         if len(sys.argv) != 3:
             SystemManager.printError(\
                 ("wrong option value to test cpu load, "
-                "input THREAD:LOAD in format"))
+                "input {THREAD:}LOAD in format"))
             sys.exit(0)
 
         # get the number of task and load #
         value = sys.argv[2].split(':')
-        if len(value) != 2:
+        if len(value) > 2:
             SystemManager.printError(\
                 ("wrong option value to test cpu load, "
-                "input THREAD:LOAD in format"))
+                "input {THREAD:}LOAD in format"))
             sys.exit(0)
-
-        try:
-            nrTask, load = list(map(int, value))
-            if nrTask == 0:
-                nrTask = 1
-        except:
-            SystemManager.printError(\
-                ("wrong option value, "
-                "input number in integer format"))
-            sys.exit(0)
+        elif len(value) == 2:
+            try:
+                nrTask, load = list(map(int, value))
+                if nrTask == 0:
+                    nrTask = 1
+            except:
+                SystemManager.printError(\
+                    ("wrong option value, "
+                    "input number in integer format"))
+                sys.exit(0)
+        else:
+            try:
+                load = int(value[0])
+                if load > 100:
+                    nrTask = int(load / 100) + 1
+                    load = int(load / nrTask)
+                else:
+                    nrTask = 1
+            except:
+                SystemManager.printError(\
+                    ("wrong option value, "
+                    "input number in integer format"))
+                sys.exit(0)
 
         if nrTask > 1:
             taskstr = '%d processes' % nrTask
@@ -19423,7 +19439,7 @@ Copyright:
             taskstr = 'a process'
 
         SystemManager.printInfo(\
-            "created %s and limited cpu usage to %d%%" % \
+            "created %s and limited cpu usage to %d%% each other" % \
                 (taskstr, load))
 
         # limit CPU usage of tasks #
@@ -28686,6 +28702,7 @@ class ThreadAnalyzer(object):
                 if not key.endswith('timeline'):
                     continue
 
+                # get prefix #
                 res = key.split(':')
                 if len(res) > 1:
                     fname = '%s:' % res[0]
