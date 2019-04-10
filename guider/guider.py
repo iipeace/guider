@@ -12265,7 +12265,7 @@ Examples:
                 elif SystemManager.isAllocTestMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <SIZE> [OPTIONS] [--help]
+    # {0:1} {1:1} <SIZE:INTERVAL:COUNT> [OPTIONS] [--help]
 
 Description:
     Allocate physical memory
@@ -12279,6 +12279,12 @@ OPTIONS:
 Examples:
     - Allocate physical memory 1G
         # {0:1} {1:1} 1G
+
+    - Allocate physical memory 200MB using a new process every 3 seconds
+        # {0:1} {1:1} 200M:3
+
+    - Allocate physical memory 100MB twoice using 2 processes
+        # {0:1} {1:1} 100M:0:2
                     '''.format(cmd, mode)
 
                 # list #
