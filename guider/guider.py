@@ -15814,10 +15814,12 @@ Copyright:
         parsedOpt = []
         previousIdx = 0
         optList = sys.argv[1:]
+
         for idx, opt in enumerate(optList):
             if opt.startswith('-'):
                 parsedOpt.append(''.join(optList[previousIdx:idx])[1:])
                 previousIdx = idx
+
         parsedOpt.append(''.join(optList[previousIdx:])[1:])
 
         # save parsed option #
@@ -15949,6 +15951,7 @@ Copyright:
             else:
                 SystemManager.cpuEnable = False
 
+        # check argument count #
         if len(sys.argv) <= 2:
             return
 
@@ -17304,22 +17307,23 @@ Copyright:
 
     @staticmethod
     def checkCmdMode():
+        # parse options #
+        SystemManager.parseAnalOption()
+
         # LIST MODE #
         if SystemManager.isListMode():
             SystemManager.printBgProcs()
 
-            sys.exit(0)
-
         # SERVER MODE #
-        if SystemManager.isServerMode():
+        elif SystemManager.isServerMode():
             SystemManager.runServerMode()
 
         # CLIENT MODE #
-        if SystemManager.isClientMode():
+        elif SystemManager.isClientMode():
             SystemManager.runClientMode()
 
         # START / STOP MODE #
-        if SystemManager.isStartMode() or \
+        elif SystemManager.isStartMode() or \
             SystemManager.isStopMode():
             # make list of arguments #
             if len(sys.argv) > 2:
@@ -17329,10 +17333,8 @@ Copyright:
 
             SystemManager.sendSignalProcs(signal.SIGINT, argList)
 
-            sys.exit(0)
-
         # SEND MODE #
-        if SystemManager.isSendMode():
+        elif SystemManager.isSendMode():
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
@@ -17341,26 +17343,16 @@ Copyright:
 
             SystemManager.sendSignalArgs(argList)
 
-            sys.exit(0)
-
         # PAUSE MODE #
-        if SystemManager.isPauseMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
+        elif SystemManager.isPauseMode():
             # convert comm to pid #
             targetList = SystemManager.convertPidList(\
                 SystemManager.filterGroup)
 
             Debugger.pauseThreads(targetList)
 
-            sys.exit(0)
-
         # READELF MODE #
-        if SystemManager.isReadelfMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
+        elif SystemManager.isReadelfMode():
             # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
@@ -17369,127 +17361,30 @@ Copyright:
                     "No file path with -I")
                 sys.exit(0)
 
+            # run elf analyzer #
             try:
                 ElfAnalyzer(SystemManager.sourceFile, debug=True)
             except:
                 pass
 
-            sys.exit(0)
-
         # LEAKTRACE MODE #
-        if SystemManager.isLeaktraceMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
-            if not SystemManager.sourceFile:
-                SystemManager.printError(\
-                    "No file path with -I")
-                sys.exit(0)
-
-            if len(SystemManager.filterGroup) == 0:
-                SystemManager.printError(\
-                    "No PID or COMM with -g")
-                sys.exit(0)
-            elif len(SystemManager.filterGroup) > 1:
-                SystemManager.printError(\
-                    "Input only one PID or COMM")
-                sys.exit(0)
-
-            # convert comm to pid #
-            pids = SystemManager.convertPidList(\
-                SystemManager.filterGroup)
-
-            if len(pids) == 0:
-                SystemManager.printError("No %s process" % \
-                    ', '.join(SystemManager.filterGroup))
-                sys.exit(0)
-            elif len(pids) > 1:
-                SystemManager.printError((\
-                    "Fail to select a target process because "
-                    "multiple %s processes are exist with PID [%s]") \
-                        % (', '.join(SystemManager.filterGroup), \
-                        ', '.join(pids)))
-                sys.exit(0)
-            else:
-                pid = pids[0]
-
-            # create leaktracer parser #
-            try:
-                lt = LeakAnalyzer(SystemManager.sourceFile, pid)
-                lt.printLeakage()
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printError(\
-                    "Fail to analyze leak because %s" % err)
-
-            sys.exit(0)
+        elif SystemManager.isLeaktraceMode():
+            SystemManager.doLeaktrace()
 
         # ADDR2LINE MODE #
-        if SystemManager.isAddr2lineMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
-            # print title #
-            SystemManager.printLogo(big=True, onlyFile=True)
-
-            if not SystemManager.sourceFile:
-                SystemManager.printError(\
-                    "No file path with -I")
-                sys.exit(0)
-
-            if len(SystemManager.filterGroup) == 0:
-                SystemManager.printError(\
-                    "No offset with -g")
-                sys.exit(0)
-
-            # create elf object #
-            try:
-                binObj = ElfAnalyzer(SystemManager.sourceFile, verbose=True)
-            except:
-                sys.exit(0)
-
-            SystemManager.pipePrint("\n[Symbol Info]\n%s" % twoLine)
-
-            SystemManager.pipePrint(\
-                "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
-
-            # print symbols from offset list #
-            for offset in SystemManager.filterGroup:
-                symbol = binObj.getSymbolByOffset(offset)
-                if symbol == '??':
-                    symbol = 'N/A'
-
-                soffset = str(offset)
-                if soffset.startswith('0x'):
-                    offset = soffset
-                else:
-                    offset = '0x%s' % soffset
-
-                SystemManager.pipePrint(\
-                    "{0:<18} {1:<1}".format(offset, symbol))
-
-            SystemManager.pipePrint(oneLine + '\n')
-
-            sys.exit(0)
+        elif SystemManager.isAddr2lineMode():
+            SystemManager.doAddr2line()
 
         # PAGE MODE #
-        if SystemManager.isMemMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
+        elif SystemManager.isMemMode():
             # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(\
                 ''.join(SystemManager.filterGroup), SystemManager.sourceFile)
 
-            sys.exit(0)
-
         # LIMIT MODE #
-        if SystemManager.isLimitMode():
-            # parse options #
-            SystemManager.parseAnalOption()
-
+        elif SystemManager.isLimitMode():
             # change priority of process #
             if not SystemManager.prio:
                 SystemManager.setPriority(SystemManager.pid, 'C', -20)
@@ -17505,56 +17400,57 @@ Copyright:
                 SystemManager.doLimitCpu(\
                     limitInfo, SystemManager.processEnable)
 
-            sys.exit(0)
-
         # PRINTPROC MODE #
-        if SystemManager.isPstreeMode():
+        elif SystemManager.isPstreeMode():
             SystemManager.doPstree()
 
         # CPUTEST MODE #
-        if SystemManager.isCpuTestMode():
+        elif SystemManager.isCpuTestMode():
             SystemManager.doCpuTest()
 
         # ALLOCTEST MODE #
-        if SystemManager.isAllocTestMode():
+        elif SystemManager.isAllocTestMode():
             SystemManager.doAllocTest()
 
         # SETCPU MODE #
-        if SystemManager.isSetCpuMode():
+        elif SystemManager.isSetCpuMode():
             SystemManager.doSetCpu()
 
         # SETSCHED MODE #
-        if SystemManager.isSetSchedMode():
+        elif SystemManager.isSetSchedMode():
             SystemManager.doSetSched()
 
         # CONVERT MODE #
-        if SystemManager.isConvertMode():
+        elif SystemManager.isConvertMode():
             SystemManager.doConvert()
 
         # STRACE MODE #
-        if SystemManager.isStraceMode():
+        elif SystemManager.isStraceMode():
             SystemManager.doTrace('syscall')
 
         # UTRACE MODE #
-        if SystemManager.isUtraceMode():
+        elif SystemManager.isUtraceMode():
             SystemManager.doTrace('usercall')
 
         # PRINTENV MODE #
-        if SystemManager.isPrintEnvMode():
+        elif SystemManager.isPrintEnvMode():
             SystemManager.doPrintEnv()
 
         # AFFINITY MODE #
-        if SystemManager.isSetAffinityMode():
+        elif SystemManager.isSetAffinityMode():
             SystemManager.doSetAffinity()
+
         elif SystemManager.isGetAffinityMode():
             SystemManager.doGetAffinity()
 
         # EVENT MODE #
-        if SystemManager.isEventMode():
+        elif SystemManager.isEventMode():
             # handle events #
             SystemManager.handleEventInput()
+        else:
+            return
 
-            sys.exit(0)
+        sys.exit(0)
 
 
 
@@ -19252,9 +19148,6 @@ Copyright:
 
     @staticmethod
     def doPrintEnv():
-        # parse options #
-        SystemManager.parseAnalOption()
-
         # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
@@ -19291,9 +19184,6 @@ Copyright:
 
     @staticmethod
     def doTrace(mode):
-        # parse options #
-        SystemManager.parseAnalOption()
-
         # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
@@ -19351,6 +19241,96 @@ Copyright:
                 "Stopped to trace syscall because %s" % err)
 
         sys.exit(0)
+
+
+
+    @staticmethod
+    def doAddr2line():
+        # print title #
+        SystemManager.printLogo(big=True, onlyFile=True)
+
+        if not SystemManager.sourceFile:
+            SystemManager.printError(\
+                "No file path with -I")
+            sys.exit(0)
+
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printError(\
+                "No offset with -g")
+            sys.exit(0)
+
+        # create elf object #
+        try:
+            binObj = ElfAnalyzer(SystemManager.sourceFile, verbose=True)
+        except:
+            sys.exit(0)
+
+        SystemManager.pipePrint("\n[Symbol Info]\n%s" % twoLine)
+
+        SystemManager.pipePrint(\
+            "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
+
+        # print symbols from offset list #
+        for offset in SystemManager.filterGroup:
+            symbol = binObj.getSymbolByOffset(offset)
+            if symbol == '??':
+                symbol = 'N/A'
+
+            soffset = str(offset)
+            if soffset.startswith('0x'):
+                offset = soffset
+            else:
+                offset = '0x%s' % soffset
+
+            SystemManager.pipePrint(\
+                "{0:<18} {1:<1}".format(offset, symbol))
+
+        SystemManager.pipePrint(oneLine + '\n')
+
+
+
+    @staticmethod
+    def doLeaktrace():
+        if not SystemManager.sourceFile:
+            SystemManager.printError(\
+                "No file path with -I")
+            sys.exit(0)
+
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printError(\
+                "No PID or COMM with -g")
+            sys.exit(0)
+        elif len(SystemManager.filterGroup) > 1:
+            SystemManager.printError(\
+                "Input only one PID or COMM")
+            sys.exit(0)
+
+        # convert comm to pid #
+        pids = SystemManager.convertPidList(\
+            SystemManager.filterGroup)
+
+        if len(pids) == 0:
+            SystemManager.printError("No %s process" % \
+                ', '.join(SystemManager.filterGroup))
+            sys.exit(0)
+        elif len(pids) > 1:
+            SystemManager.printError((\
+                "Fail to select a target process because "
+                "multiple %s processes are exist with PID [%s]") \
+                    % (', '.join(SystemManager.filterGroup), \
+                    ', '.join(pids)))
+            sys.exit(0)
+        else:
+            pid = pids[0]
+
+        # create leaktracer parser #
+        try:
+            lt = LeakAnalyzer(SystemManager.sourceFile, pid)
+            lt.printLeakage()
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to analyze leak because %s" % err)
 
 
 
@@ -19486,10 +19466,6 @@ Copyright:
 
         rssIdx = ConfigManager.STATM_TYPE.index("RSS")
         rssSize = long(mlist[rssIdx]) << 12
-
-        # run in the background #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
 
         # allocate memory #
         try:
