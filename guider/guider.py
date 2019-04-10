@@ -9744,6 +9744,9 @@ class SystemManager(object):
     uptimeFd = None
     netstatFd = None
     netdevFd = None
+    shmFd = None
+    msgqFd = None
+    semFd = None
     loadavgFd = None
     cmdFd = None
     diskStatsFd = None
@@ -20499,11 +20502,13 @@ Copyright:
 
 
     def saveResourceSnapshot(self, initialized=True):
-        # resource info for difference #
+        # update resource usage #
         self.updateMemInfo()
         self.updateStorageInfo(isGeneral=True)
         self.updateNetworkInfo()
+        self.updateIPCInfo()
 
+        # save system info #
         if initialized:
             # process info #
             if SystemManager.tgidEnable:
@@ -21967,6 +21972,58 @@ Copyright:
             self.mountInfo[rpath]['fs'] = fs
             self.mountInfo[rpath]['option'] = option
             self.mountInfo[rpath]['soption'] = soption
+
+
+
+    def updateIPCInfo(self):
+        # shared memory #
+        '''
+        key shmid perms size cpid lpid nattch uid gid cuid cgid
+        atime dtime ctime rss swap
+        '''
+        try:
+            SystemManager.shmFd.seek(0)
+            data = SystemManager.shmFd.readlines()[1:]
+        except:
+            try:
+                path = '%s/sysvipc/shm' % SystemManager.procPath
+                SystemManager.shmFd = open(path, 'r')
+                data = SystemManager.shmFd.readlines()[1:]
+            except:
+                SystemManager.printWarning('Fail to open %s' % path)
+                return
+
+        # message queue #
+        '''
+        key msqid perms cbytes qnum lspid lrpid uid gid cuid cgid stime rtime ctime
+        '''
+        try:
+            SystemManager.msgqFd.seek(0)
+            data = SystemManager.msgqFd.readlines()[1:]
+        except:
+            try:
+                path = '%s/sysvipc/msg' % SystemManager.procPath
+                SystemManager.msgqFd = open(path, 'r')
+                data = SystemManager.msgqFd.readlines()[1:]
+            except:
+                SystemManager.printWarning('Fail to open %s' % path)
+                return
+
+        # semaphore #
+        '''
+        key semid perms nsems uid gid cuid cgid otime ctime
+        '''
+        try:
+            SystemManager.semFd.seek(0)
+            data = SystemManager.semFd.readlines()[1:]
+        except:
+            try:
+                path = '%s/sysvipc/sem' % SystemManager.procPath
+                SystemManager.semFd = open(path, 'r')
+                data = SystemManager.semFd.readlines()[1:]
+            except:
+                SystemManager.printWarning('Fail to open %s' % path)
+                return
 
 
 
