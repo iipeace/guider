@@ -9807,6 +9807,7 @@ class SystemManager(object):
     # flag for using Elastic Stack
     elasticEnable = False
 
+    isTerm = True
     repeatInterval = 0
     repeatCount = 0
     progressCnt = 0
@@ -9856,6 +9857,9 @@ class SystemManager(object):
         self.diskData = {}
         self.storageData = {}
         self.prevStorageData = {}
+        self.ipcData = {}
+        self.prevIpcData = {}
+        self.userData = {}
         self.mountData = None
         self.uptimeData = None
         self.loadData = None
@@ -10635,9 +10639,9 @@ class SystemManager(object):
         try:
             m, s = divmod(time, 60)
             h, m = divmod(m, 60)
-            ctime = "%3s:%2d:%2d" % (convertHour(h), m, s)
+            ctime = "%3s:%02d:%02d" % (convertHour(h), m, s)
         except:
-            ctime = "%3s:%2s:%2s" % ('?', '?', '?')
+            ctime = "%3s:%02s:%02s" % ('?', '?', '?')
 
         return ctime
 
@@ -11040,7 +11044,7 @@ Usage:
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -i  <SEC>                   set interval
-        -R  <INTERVAL:COUNT>        set repeat count
+        -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
         -E  <FILE>                  set error log path
         -H  <LEVEL>                 set function depth level
@@ -11093,6 +11097,9 @@ Examples:
 
     - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
         # {0:1} {1:1} -R 3s:5 -o .
+
+    - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out continuously
+        # {0:1} {1:1} -R 3s:5: -o .
 
     - Monitor status of processes including memory(USS)
         # {0:1} {1:1} -e u
@@ -11166,7 +11173,7 @@ OPTIONS:
     [common]
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -R  <INTERVAL:COUNT>        set repeat count
+        -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
@@ -11195,6 +11202,9 @@ Examples:
 
     - record default function events of all threads to ./guider.dat for only 3 minutes
         # {0:1} guider.dat -o . -R 3m
+
+    - record default function events of all threads to ./guider.dat every 3 minutes continuously
+        # {0:1} guider.dat -o . -R 3m:1:
 
     - record default function events of specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
@@ -11358,7 +11368,7 @@ OPTIONS:
         -w  <TIME:FILE{:VALUE}>     set additional command
         -U  <NAME:FUNC|ADDR:FILE>   set user event
         -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
-        -R  <INTERVAL:COUNT>        set repeat count
+        -R  <INTERVAL:COUNT:TERM>   set repeat count
 
     [report]
         -a                          show all stats and events
@@ -11402,6 +11412,9 @@ Examples:
 
     - record default events of all threads to ./guider.dat for only 3 seconds
         # {0:1} guider.dat -o . -R 3
+
+    - record default events of all threads to ./guider.dat every 3 seconds continuously
+        # {0:1} guider.dat -o . -R 3:1:
 
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
@@ -11459,7 +11472,7 @@ OPTIONS:
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -i  <SEC>                   set interval
-        -R  <INTERVAL:COUNT>        set repeat count
+        -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
         -E  <FILE>                  set error log path
         -k  <COMM|TID{:CONT}>       set kill list
@@ -14508,6 +14521,10 @@ Copyright:
 
             SystemManager.closeAllForPrint()
 
+            if not SystemManager.isTerm:
+                SystemManager.progressCnt = 0
+                return
+
             # for cProfile #
             #sys.exit(0)
 
@@ -14606,7 +14623,10 @@ Copyright:
 
     @staticmethod
     def alarmHandler(signum, frame):
-        if SystemManager.repeatCount > SystemManager.progressCnt:
+        if SystemManager.repeatCount > SystemManager.progressCnt or \
+            not SystemManager.isTerm:
+
+            # update count #
             SystemManager.progressCnt += 1
             progressCnt = SystemManager.progressCnt
             repeatInterval = SystemManager.repeatInterval
@@ -14621,7 +14641,7 @@ Copyright:
                     SystemManager.recordStatus = False
                 signal.alarm(repeatInterval)
             elif SystemManager.outputFile:
-                if repeatCount == 1:
+                if repeatCount == 1 and SystemManager.isTerm:
                     output = SystemManager.outputFile
                 else:
                     output = '%s.%ds_%ds' % (SystemManager.outputFile, \
@@ -15592,6 +15612,11 @@ Copyright:
                 # file #
                 else:
                     SystemManager.inputFile = SystemManager.printFile
+
+                # append uptime to the output file #
+                if not SystemManager.isTerm:
+                    SystemManager.inputFile = '%s.%s' % \
+                        (SystemManager.inputFile, int(SystemManager.uptime))
             # analysis #
             else:
                 # dir #
@@ -15913,17 +15938,28 @@ Copyright:
         SystemManager.countEnable = True
 
         repeatParams = value.split(':')
-        if len(repeatParams) == 2:
+        if len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
+                # get interval #
                 interval = SystemManager.convertUnit2Time(repeatParams[0])
-
                 SystemManager.intervalEnable = interval
                 SystemManager.repeatInterval = interval
+
+                # get count #
                 SystemManager.repeatCount = int(repeatParams[1])
-                SystemManager.printInfo(\
-                    "run only %s sec %s time" % \
-                    (SystemManager.intervalEnable, \
-                    SystemManager.repeatCount))
+
+                # get termination flag #
+                if len(repeatParams) == 3:
+                    SystemManager.isTerm = False
+                    SystemManager.printInfo(\
+                        "run every %s sec %s time" % \
+                        (SystemManager.intervalEnable, \
+                        SystemManager.repeatCount))
+                else:
+                    SystemManager.printInfo(\
+                        "run only %s sec %s time" % \
+                        (SystemManager.intervalEnable, \
+                        SystemManager.repeatCount))
             except:
                 SystemManager.printError(\
                     "wrong option value with -R, input integer values")
@@ -15931,6 +15967,9 @@ Copyright:
         elif len(repeatParams) == 1:
             try:
                 interval = SystemManager.convertUnit2Time(repeatParams[0])
+
+                # check interval type #
+                int(interval)
 
                 SystemManager.repeatCount = interval
                 SystemManager.repeatInterval = interval
@@ -15946,7 +15985,7 @@ Copyright:
         else:
             SystemManager.printError((\
                 "wrong option value with -R, "
-                "input INTERVAL,REPEAT in format"))
+                "input INTERVAL:REPEAT in format"))
             sys.exit(0)
 
         if SystemManager.intervalEnable < 1 or \
@@ -16078,7 +16117,8 @@ Copyright:
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'k':
-                SystemManager.parseKillOption(value)
+                if not SystemManager.isSendMode():
+                    SystemManager.parseKillOption(value)
 
             elif option == 'd':
                 options = value
@@ -19819,6 +19859,9 @@ Copyright:
     def convertPidList(procList, isThread=False):
         targetList = []
 
+        if not procList:
+            procList = [__module__]
+
         # get pids from comm #
         for pid in procList:
             if not pid.isdigit():
@@ -19842,7 +19885,7 @@ Copyright:
                 try:
                     if val[1:].upper() in cSigList:
                         sig = cSigList.index(val[1:].upper())
-                    elif 'SIG%s' % val[1:].upper() in cSigList:
+                    elif ('SIG%s' % val[1:]).upper() in cSigList:
                         sig = cSigList.index('SIG%s' % val[1:].upper())
                     elif val[1:].isdigit():
                         sig = int(val[1:])
@@ -19863,6 +19906,14 @@ Copyright:
         # convert comm to pid #
         targetList = SystemManager.convertPidList(argList)
 
+        # remove my pid #
+        if str(SystemManager.pid) in targetList:
+            try:
+                del targetList[targetList.index(str(SystemManager.pid))]
+            except:
+                pass
+
+        # send signal #
         SystemManager.sendSignalProcs(sig, targetList)
 
 
@@ -20530,6 +20581,9 @@ Copyright:
             # os specific info #
             self.saveWebOSInfo()
             self.saveLinuxInfo()
+
+            # save user info #
+            self.saveUser()
 
             # write resource info to temporary buffer #
             self.printResourceInfo()
@@ -21622,6 +21676,8 @@ Copyright:
 
         self.printNetworkInfo()
 
+        self.printIPCInfo()
+
         self.printCgroupInfo()
 
         self.printProcTreeInfo()
@@ -21981,12 +22037,7 @@ Copyright:
 
 
 
-    def updateIPCInfo(self):
-        # shared memory #
-        '''
-        key shmid perms size cpid lpid nattch uid gid cuid cgid
-        atime dtime ctime rss swap
-        '''
+    def updateShmInfo(self):
         try:
             SystemManager.shmFd.seek(0)
             data = SystemManager.shmFd.readlines()[1:]
@@ -21999,10 +22050,43 @@ Copyright:
                 SystemManager.printWarning('Fail to open %s' % path)
                 return
 
-        # message queue #
-        '''
-        key msqid perms cbytes qnum lspid lrpid uid gid cuid cgid stime rtime ctime
-        '''
+        # backup shm data #
+        try:
+            self.prevIpcData['shm'] = self.ipcData['shm']
+        except:
+            pass
+
+        # initialize shm variable #
+        self.ipcData['shm'] = dict()
+
+        # parse new shm data #
+        for line in data:
+            try:
+                key, shmid, perms, size, cpid, lpid, \
+                    nattch, uid, gid, cuid, cgid, \
+                    atime, dtime, ctime, rss, swap = \
+                        line.split()
+            except:
+                pass
+
+            shmData = self.ipcData['shm'][shmid] = dict()
+            shmData['key'] = key
+            shmData['perms'] = perms
+            shmData['size'] = long(size)
+            shmData['rss'] = long(rss)
+            shmData['swap'] = long(swap)
+            shmData['uid'] = uid
+            shmData['gid'] = gid
+            shmData['cpid'] = cpid
+            shmData['lpid'] = lpid
+            shmData['nattch'] = nattch
+            shmData['atime'] = dtime
+            shmData['dtime'] = dtime
+            shmData['ctime'] = ctime
+
+
+
+    def updateMsgqInfo(self):
         try:
             SystemManager.msgqFd.seek(0)
             data = SystemManager.msgqFd.readlines()[1:]
@@ -22015,10 +22099,43 @@ Copyright:
                 SystemManager.printWarning('Fail to open %s' % path)
                 return
 
-        # semaphore #
-        '''
-        key semid perms nsems uid gid cuid cgid otime ctime
-        '''
+        # backup msgq data #
+        try:
+            self.prevIpcData['msgq'] = self.ipcData['msgq']
+        except:
+            pass
+
+        # initialize msgq variable #
+        self.ipcData['msgq'] = dict()
+
+        # parse new msgq data #
+        for line in data:
+            try:
+                key, msgqid, perms, cbytes, qnum, \
+                    lspid, lrpid, uid, gid, cuid, cgid, \
+                    stime, rtime, ctime = \
+                        line.split()
+            except:
+                pass
+
+            msgqData = self.ipcData['msgq'][msgqid] = dict()
+            msgqData['key'] = key
+            msgqData['perms'] = perms
+            msgqData['cbytes'] = cbytes
+            msgqData['qnum'] = qnum
+            msgqData['lspid'] = lspid
+            msgqData['lrpid'] = lrpid
+            msgqData['uid'] = uid
+            msgqData['gid'] = gid
+            msgqData['cuid'] = cuid
+            msgqData['cgid'] = cgid
+            msgqData['stime'] = stime
+            msgqData['rtime'] = rtime
+            msgqData['ctime'] = ctime
+
+
+
+    def updateSemInfo(self):
         try:
             SystemManager.semFd.seek(0)
             data = SystemManager.semFd.readlines()[1:]
@@ -22030,6 +22147,47 @@ Copyright:
             except:
                 SystemManager.printWarning('Fail to open %s' % path)
                 return
+
+        # backup sem data #
+        try:
+            self.prevIpcData['sem'] = self.ipcData['sem']
+        except:
+            pass
+
+        # initialize sem variable #
+        self.ipcData['sem'] = dict()
+
+        # parse new sem data #
+        for line in data:
+            try:
+                key, semid, perms, nsems, \
+                    uid, gid, cuid, cgid, otime, ctime = \
+                        line.split()
+            except:
+                pass
+
+            semData = self.ipcData['sem'][semid] = dict()
+            semData['key'] = key
+            semData['perms'] = perms
+            semData['nsems'] = nsems
+            semData['uid'] = uid
+            semData['gid'] = gid
+            semData['cuid'] = cuid
+            semData['cgid'] = cgid
+            semData['otime'] = otime
+            semData['ctime'] = ctime
+
+
+
+    def updateIPCInfo(self):
+        # shared memory #
+        self.updateShmInfo()
+
+        # message queue #
+        self.updateMsgqInfo()
+
+        # semaphore #
+        self.updateSemInfo()
 
 
 
@@ -22094,6 +22252,32 @@ Copyright:
                 self.networkInfo[dev]['tran'] = tlist
         except:
             return
+
+
+
+    def saveUser(self):
+        try:
+            path = '/etc/passwd'
+            with open(path, 'r') as fd:
+                data = fd.readlines()
+        except:
+            SystemManager.printWarning('Fail to open %s' % path)
+            return
+
+        # parse data #
+        for line in data:
+            try:
+                user, passwd, uid, gid, info, home, shell = \
+                    line.split(':')
+
+                userData = self.userData[uid] = dict()
+                userData['name'] = user
+                userData['gid'] = gid
+                userData['info'] = info
+                userData['home'] = home
+                userData['shell'] = shell
+            except:
+                pass
 
 
 
@@ -22295,6 +22479,194 @@ Copyright:
         SystemManager.infoBufferPrint(twoLine)
         printDirTree(cgroupTree, 0)
         SystemManager.infoBufferPrint(twoLine)
+
+
+
+    def printIPCInfo(self):
+        self.printShmInfo()
+        self.printMsgqInfo()
+        self.printSemInfo()
+
+
+
+    def printShmInfo(self):
+        def getComm(pid):
+            COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
+
+            try:
+                statPath = "%s/%s/stat" % \
+                    (SystemManager.procPath, pid)
+
+                fd = open(statPath, 'r')
+
+                statBuf = fd.readlines()[0]
+            except:
+                return None
+
+            # convert string to list #
+            STAT_ATTR = statBuf.split()
+
+            # merge comm parts that splited by space #
+            if STAT_ATTR[COMM_IDX][-1] != ')':
+                idx = COMM_IDX + 1
+                while 1:
+                    tmpStr = str(STAT_ATTR[idx])
+                    STAT_ATTR[COMM_IDX] = \
+                        "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
+                    STAT_ATTR.pop(idx)
+                    if tmpStr.rfind(')') > -1:
+                        break
+
+            comm = STAT_ATTR[COMM_IDX][1:-1]
+            return comm
+
+        # check shm data #
+        if not 'shm' in self.ipcData:
+            return
+
+        # print IPC info #
+        SystemManager.infoBufferPrint('\n[System SHM Info]')
+        SystemManager.infoBufferPrint(twoLine)
+        SystemManager.infoBufferPrint(\
+            "{0:^70} | {1:^24} | {2:^15} | {3:^36} ".format(\
+            "ID", "Segment", "Attr", "Time"))
+        SystemManager.infoBufferPrint(oneLine)
+        SystemManager.infoBufferPrint((\
+            "{0:^26}   {1:^14}   {2:^24}   {3:^6}   {4:^6}   "
+            "{5:^6}   {6:^6}   {7:^6}   {8:^10}   {9:^10}   "
+            "{10:^10}").format(\
+                "OWNER", "SHM", "USER", "SIZE", "RSS", \
+                "SWAP", "REF", "PERM", "ATIME", "DTIME", "CTIME"))
+        SystemManager.infoBufferPrint(twoLine)
+
+        # get attr #
+        cnt = 0
+        prevOwner = None
+        now = time.mktime(time.gmtime())
+        convertSizeFunc = SystemManager.convertSize2Unit
+        convertTimeFunc = SystemManager.convertTime
+
+        # merge stats per-owner #
+        ownerData = dict()
+        for shmid, stats in self.ipcData['shm'].items():
+            try:
+                owner = stats['cpid']
+
+                ownerData[owner]['count'] += 1
+                ownerData[owner]['size'] += stats['size']
+                ownerData[owner]['rss'] += stats['rss']
+                ownerData[owner]['swap'] += stats['swap']
+            except:
+                ownerData[owner] = dict()
+                ownerData[owner]['uid'] = stats['uid']
+                ownerData[owner]['count'] = 1
+                ownerData[owner]['size'] = stats['size']
+                ownerData[owner]['rss'] = stats['rss']
+                ownerData[owner]['swap'] = stats['swap']
+
+        # print stats #
+        for shmid, stats in sorted(\
+            self.ipcData['shm'].items(), key=lambda e:e[1]['cpid']):
+
+            try:
+                pid = stats['cpid']
+
+                if pid != prevOwner:
+                    prevOwner = pid
+
+                    comm = getComm(pid)
+                    if comm is None:
+                        raise Exception()
+
+                    owner = '%s (%s)[%s]' % (comm, pid, user)
+                else:
+                    owner = ''
+            except:
+                owner = '? (%s)' % pid
+
+            # print total stat #
+            try:
+                if len(owner) == 0:
+                    raise Exception()
+
+                try:
+                    user = self.userData[stats['uid']]['name']
+                    owner = '%s [%s]' % (owner, user)
+                except:
+                    pass
+
+                if cnt > 0:
+                    SystemManager.infoBufferPrint(oneLine)
+
+                SystemManager.infoBufferPrint((\
+                    "{0:>26}   {1:^41}   {2:>6}   {3:>6}   "
+                    "{4:>6}   {5:>15}").format(\
+                        owner, '[ TOTAL: %s ]' % ownerData[pid]['count'], \
+                        convertSizeFunc(ownerData[pid]['size'], True), \
+                        convertSizeFunc(ownerData[pid]['rss'], True), \
+                        convertSizeFunc(ownerData[pid]['swap'], True), \
+                        ' '))
+            except:
+                pass
+
+            owner = ''
+
+            try:
+                pid = stats['lpid']
+                comm = getComm(pid)
+
+                if comm is None:
+                    raise Exception()
+
+                access = '%s (%s)' % (comm, pid)
+            except:
+                access = '? (%s)' % stats['lpid']
+
+            # get time #
+            atime = now - time.mktime(time.gmtime(long(stats['atime'])))
+            if atime < 0:
+                atime = '?'
+            dtime = now - time.mktime(time.gmtime(long(stats['dtime'])))
+            if dtime < 0:
+                dtime = '?'
+            ctime = now - time.mktime(time.gmtime(long(stats['ctime'])))
+            if ctime < 0:
+                ctime = '?'
+
+            # print stats #
+            try:
+                SystemManager.infoBufferPrint((\
+                    "{0:>26}   {1:>14}   {2:>24}   {3:>6}   {4:>6}   "
+                    "{5:>6}   {6:>6}   {7:>6}   {8:>10}   {9:>10}   "
+                    "{10:>10}").format(\
+                        owner, shmid, access, \
+                        convertSizeFunc(stats['size'], True), \
+                        convertSizeFunc(stats['rss'], True), \
+                        convertSizeFunc(stats['swap'], True), \
+                        stats['nattch'], stats['perms'], \
+                        convertTimeFunc(atime), \
+                        convertTimeFunc(dtime), \
+                        convertTimeFunc(ctime)))
+
+                cnt += 1
+            except:
+                pass
+
+        # check output count #
+        if cnt == 0:
+            SystemManager.infoBufferPrint('\tNone')
+
+        SystemManager.infoBufferPrint(twoLine)
+
+
+
+    def printSemInfo(self):
+        pass
+
+
+
+    def printMsgqInfo(self):
+        pass
 
 
 
@@ -41151,7 +41523,8 @@ def main(args=None):
     SystemManager.shrinkHeap()
 
     # check commands #
-    SystemManager.checkCmdMode()
+    if not SystemManager.isRecordMode():
+        SystemManager.checkCmdMode()
 
     # save system info first #
     SystemManager()
@@ -41301,7 +41674,8 @@ def main(args=None):
             # wait for timer #
             time.sleep(SystemManager.repeatInterval)
 
-            if SystemManager.repeatCount <= SystemManager.progressCnt:
+            if SystemManager.repeatCount <= SystemManager.progressCnt and \
+                SystemManager.isTerm:
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
