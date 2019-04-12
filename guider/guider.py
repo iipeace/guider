@@ -20565,6 +20565,9 @@ Copyright:
         self.updateNetworkInfo()
         self.updateIPCInfo()
 
+        # save user info #
+        self.saveUserInfo()
+
         # save system info #
         if initialized:
             # process info #
@@ -20581,9 +20584,6 @@ Copyright:
             # os specific info #
             self.saveWebOSInfo()
             self.saveLinuxInfo()
-
-            # save user info #
-            self.saveUser()
 
             # write resource info to temporary buffer #
             self.printResourceInfo()
@@ -22255,7 +22255,11 @@ Copyright:
 
 
 
-    def saveUser(self):
+    def saveUserInfo(self):
+        # check user data #
+        if len(self.userData) > 0:
+            return
+
         try:
             path = '/etc/passwd'
             with open(path, 'r') as fd:
@@ -38098,8 +38102,10 @@ class ThreadAnalyzer(object):
             if line.startswith('VmSwap') or \
                 line.startswith('FDSize') or \
                 line.startswith('SigCgt') or \
+                line.startswith('Uid') or \
                 line.startswith('voluntary_ctxt_switches') or \
                 line.startswith('nonvoluntary_ctxt_switches'):
+
                 statusList = line.split(':')
                 self.procData[tid]['status'][statusList[0]] = \
                     statusList[1].strip()
@@ -39179,7 +39185,7 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['anon'] = totalAnonMem
             self.reportData['mem']['file'] = totalFileMem
             self.reportData['mem']['slab'] = totalSlabMem
-            # cache = file + slab
+            # cache = file + slab #
             self.reportData['mem']['cache'] = totalCacheMem
             self.reportData['mem']['kernel'] = totalKernelMem
             self.reportData['mem']['freeDiff'] = freeMemDiff
@@ -39918,7 +39924,7 @@ class ThreadAnalyzer(object):
             pid = 'PID'
             ppid = 'PPID'
             sid = 'SID'
-            pgrp = 'PGID'
+            pgrp = 'USER'
         else:
             mode = 'Thread'
             pid = 'TID'
@@ -40166,27 +40172,39 @@ class ThreadAnalyzer(object):
                 SystemManager.ussEnable:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
+            # swap #
             try:
                 vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
             except:
                 vmswp = '-'
 
+            # shared #
             try:
                 shr = long(value['statm'][self.shrIdx]) >> 8
             except:
                 shr = '-'
 
+            # yield #
             try:
                 value['yield'] = \
                     value['status']['voluntary_ctxt_switches']
             except:
                 value['yield'] = '-'
 
+            # preempted #
             try:
                 value['preempted'] = \
                     value['status']['nonvoluntary_ctxt_switches']
             except:
                 value['preempted'] = '-'
+
+            # user #
+            try:
+                userData = SystemManager.sysInstance.userData
+                uid  = value['status']['Uid'].split()[0]
+                value['user'] = userData[uid]['name']
+            except:
+                value['user'] = '-'
 
             # save size of file descriptor table #
             try:
@@ -40194,13 +40212,17 @@ class ThreadAnalyzer(object):
             except:
                 value['fdsize'] = '-'
 
+            # scheduling info #
             if SystemManager.processEnable:
+                # sid #
                 yld = stat[self.sidIdx]
                 if yld == '0':
                     yld = '-'
 
-                prtd = stat[self.pgrpIdx]
-                if prtd == '0':
+                # user #
+                try:
+                    prtd = value['user'][:6]
+                except:
                     prtd = '-'
             else:
                 try:
@@ -41045,12 +41067,14 @@ class ThreadAnalyzer(object):
                     SystemManager.convertTime(\
                     data['runtime']).replace(' ', '')
 
+                # swap #
                 try:
                     self.reportData['mem']['procs'][pid]['swap'] = \
                         long(data['status']['VmSwap'].split()[0]) >> 10
                 except:
                     pass
 
+                # shared #
                 try:
                     self.reportData['mem']['procs'][pid]['shared'] = \
                         long(data['statm'][self.shrIdx]) >> 8
