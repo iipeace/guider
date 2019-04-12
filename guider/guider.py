@@ -22536,11 +22536,11 @@ Copyright:
             "ID", "Segment", "Attr", "Time"))
         SystemManager.infoBufferPrint(oneLine)
         SystemManager.infoBufferPrint((\
-            "{0:^26}   {1:^14}   {2:^24}   {3:^6}   {4:^6}   "
-            "{5:^6}   {6:^6}   {7:^6}   {8:^10}   {9:^10}   "
-            "{10:^10}").format(\
+            "{0:^26}   {1:^14}   {2:^24} | "
+            "{3:^6}   {4:^6}   {5:^6} | "
+            "{6:^6}   {7:^6} | {8:^10}   {9:^10}   {10:^10}".format(\
                 "OWNER", "SHM", "USER", "SIZE", "RSS", \
-                "SWAP", "REF", "PERM", "ATIME", "DTIME", "CTIME"))
+                "SWAP", "REF", "PERM", "ATIME", "DTIME", "CTIME")))
         SystemManager.infoBufferPrint(twoLine)
 
         # get attr #
@@ -22682,8 +22682,8 @@ Copyright:
             "{0:^38} | {1:^45} | {2:^45}\n{3:1}".format(\
             "Network", "Receive", "Transfer", oneLine))
         SystemManager.infoBufferPrint((\
-            "{0:^16} {1:^21}   "
-            "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9}   "
+            "{0:^16} {1:^21} | "
+            "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9} | "
             "{7:^8} {8:^8} {9:^8} {10:^8} {11:^9}").format(\
                 "Dev", "TYPE",
                 "Size", "Packet", "Error", "Drop", "Multicast", \
@@ -33381,7 +33381,7 @@ class ThreadAnalyzer(object):
 
         # Print menu #
         procInfo = \
-            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>12} |".\
+            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^12} |".\
             format('COMM', "ID", "Pid", "Nr", "Pri", "Min/Avg/Max", \
             cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -33554,8 +33554,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:^6} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -33685,8 +33685,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Max", cl=cl, pd=pd)
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:^6} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -33816,8 +33816,8 @@ class ThreadAnalyzer(object):
         SystemManager.pipePrint("%s\n" % twoLine)
 
         # Print menu #
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:>5} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Sum", cl=cl, pd=pd)
+        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^5} |".\
+            format('COMM', "ID", "Pid", "Nr", "Pri", " Sum", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
