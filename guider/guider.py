@@ -17420,7 +17420,7 @@ Copyright:
 
             if not SystemManager.sourceFile:
                 SystemManager.printError(\
-                    "No file path with -I")
+                    "No PATH with -I")
                 sys.exit(0)
 
             # run elf analyzer #
@@ -19324,7 +19324,7 @@ Copyright:
 
         if not SystemManager.sourceFile:
             SystemManager.printError(\
-                "No file path with -I")
+                "No PATH with -I")
             sys.exit(0)
 
         if len(SystemManager.filterGroup) == 0:
@@ -19366,7 +19366,7 @@ Copyright:
     def doLeaktrace():
         if not SystemManager.sourceFile:
             SystemManager.printError(\
-                "No file path with -I")
+                "No PATH with -I")
             sys.exit(0)
 
         if len(SystemManager.filterGroup) == 0:
@@ -22975,8 +22975,11 @@ Copyright:
             before['Mlocked'] = '0'
             after['Mlocked'] = '0'
 
+        # define convert function #
+        convertFunc = SystemManager.convertSize2Unit
+
         # print memory info #
-        SystemManager.infoBufferPrint('\n[System Memory Info] (Unit: MB)')
+        SystemManager.infoBufferPrint('\n[System Memory Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint((\
             "[%6s] %10s %10s %10s %10s %10s %10s %10s %10s "
@@ -22985,67 +22988,102 @@ Copyright:
             "Mapped", "Active", "Inactive", "PageTables", "Slab", \
 	    "SlabRclm", "SlabUnRclm", "Mlocked"))
         SystemManager.infoBufferPrint(twoLine)
+
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
-            (int(before['MemTotal']) >> 10, int(before['SwapTotal']) >> 10))
+            (convertFunc(int(before['MemTotal']) << 10), \
+            convertFunc(int(before['SwapTotal']) << 10)))
+
         SystemManager.infoBufferPrint("[ FREE ] %10s %10s" % \
-            (int(before['MemFree']) >> 10, int(before['SwapFree']) >> 10))
+            (convertFunc(int(before['MemFree']) << 10), \
+            convertFunc(int(before['SwapFree']) << 10)))
         if 'MemAvailable' in before:
             SystemManager.infoBufferPrint("[ AVAIL] %10s %10s" % \
-                (int(before['MemAvailable']) >> 10, \
-                int(before['SwapFree']) >> 10))
+                (convertFunc(int(before['MemAvailable']) << 10), \
+                convertFunc(int(before['SwapFree']) << 10)))
         SystemManager.infoBufferPrint(oneLine)
 
         if 'MemAvailable' in before:
-            memBeforeUsage = int(before['MemTotal']) - int(before['MemAvailable'])
+            memBeforeUsage = \
+                int(before['MemTotal']) - int(before['MemAvailable'])
         else:
-            memBeforeUsage = int(before['MemTotal']) - int(before['MemFree'])
-        swapBeforeUsage = int(before['SwapTotal']) - int(before['SwapFree'])
+            memBeforeUsage = \
+                int(before['MemTotal']) - int(before['MemFree'])
+
+        swapBeforeUsage = \
+            int(before['SwapTotal']) - int(before['SwapFree'])
         if 'MemAvailable' in before:
-            memAfterUsage = int(after['MemTotal']) - int(after['MemAvailable'])
+            memAfterUsage = \
+                int(after['MemTotal']) - int(after['MemAvailable'])
         else:
-            memAfterUsage = int(after['MemTotal']) - int(after['MemFree'])
-        swapAfterUsage = int(after['SwapTotal']) - int(after['SwapFree'])
+            memAfterUsage = \
+                int(after['MemTotal']) - int(after['MemFree'])
+
+        swapAfterUsage = \
+            int(after['SwapTotal']) - int(after['SwapFree'])
 
         SystemManager.infoBufferPrint((\
             "[ FIRST] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                (memBeforeUsage >> 10, swapBeforeUsage >> 10, \
-                int(before['Buffers']) >> 10, int(before['Cached']) >> 10, \
-                int(before['Shmem']) >> 10, int(before['Mapped']) >> 10, \
-                int(before['Active']) >> 10, int(before['Inactive']) >> 10, \
-                int(before['PageTables']) >> 10, int(before['Slab']) >> 10, \
-                int(before['SReclaimable']) >> 10, int(before['SUnreclaim']) >> 10, \
-                int(before['Mlocked']) >> 10))
+                (convertFunc(memBeforeUsage << 10), \
+                convertFunc(swapBeforeUsage << 10), \
+                convertFunc(int(before['Buffers']) << 10),\
+                convertFunc(int(before['Cached']) << 10), \
+                convertFunc(int(before['Shmem']) << 10), \
+                convertFunc(int(before['Mapped']) << 10), \
+                convertFunc(int(before['Active']) << 10), \
+                convertFunc(int(before['Inactive']) << 10), \
+                convertFunc(int(before['PageTables']) << 10), \
+                convertFunc(int(before['Slab']) << 10), \
+                convertFunc(int(before['SReclaimable']) << 10), \
+                convertFunc(int(before['SUnreclaim']) << 10), \
+                convertFunc(int(before['Mlocked']) << 10)))
 
         SystemManager.infoBufferPrint((\
             "[ LAST ] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                (memAfterUsage >> 10, swapAfterUsage >> 10, \
-                int(after['Buffers']) >> 10, int(after['Cached']) >> 10, \
-                int(after['Shmem']) >> 10, int(after['Mapped']) >> 10, \
-                int(after['Active']) >> 10, int(after['Inactive']) >> 10, \
-                int(after['PageTables']) >> 10, int(after['Slab']) >> 10, \
-                int(after['SReclaimable']) >> 10, int(after['SUnreclaim']) >> 10, \
-                int(after['Mlocked']) >> 10))
+                (convertFunc(memAfterUsage << 10), \
+                convertFunc(swapAfterUsage << 10), \
+                convertFunc(int(after['Buffers']) << 10), \
+                convertFunc(int(after['Cached']) << 10), \
+                convertFunc(int(after['Shmem']) << 10), \
+                convertFunc(int(after['Mapped']) << 10), \
+                convertFunc(int(after['Active']) << 10), \
+                convertFunc(int(after['Inactive']) << 10), \
+                convertFunc(int(after['PageTables']) << 10), \
+                convertFunc(int(after['Slab']) << 10), \
+                convertFunc(int(after['SReclaimable']) << 10), \
+                convertFunc(int(after['SUnreclaim']) << 10), \
+                convertFunc(int(after['Mlocked']) << 10)))
 
         SystemManager.infoBufferPrint(oneLine)
 
         SystemManager.infoBufferPrint((\
             "[ DIFF ] %10s %10s %10s %10s %10s %10s %10s "
             "%10s %10s %10s %10s %10s %10s") % \
-                ((memAfterUsage - memBeforeUsage ) >> 10, \
-                (swapAfterUsage - swapBeforeUsage) >> 10, \
-                (int(after['Buffers']) - int(before['Buffers'])) >> 10, \
-                (int(after['Cached']) - int(before['Cached'])) >> 10, \
-                (int(after['Shmem']) - int(before['Shmem'])) >> 10, \
-                (int(after['Mapped']) - int(before['Mapped'])) >> 10, \
-                (int(after['Active']) - int(before['Active'])) >> 10, \
-                (int(after['Inactive']) - int(before['Inactive'])) >> 10, \
-                (int(after['PageTables']) - int(before['PageTables'])) >> 10, \
-                (int(after['Slab']) - int(before['Slab'])) >> 10, \
-                (int(after['SReclaimable']) - int(before['SReclaimable'])) >> 10, \
-                (int(after['SUnreclaim']) - int(before['SUnreclaim'])) >> 10, \
-                (int(after['Mlocked']) - int(before['Mlocked'])) >> 10))
+                (convertFunc((memAfterUsage - memBeforeUsage ) << 10), \
+                convertFunc((swapAfterUsage - swapBeforeUsage) << 10), \
+                convertFunc((int(after['Buffers']) - \
+                    int(before['Buffers'])) << 10), \
+                convertFunc((int(after['Cached']) - \
+                    int(before['Cached'])) << 10), \
+                convertFunc((int(after['Shmem']) - \
+                    int(before['Shmem'])) << 10), \
+                convertFunc((int(after['Mapped']) - \
+                    int(before['Mapped'])) << 10), \
+                convertFunc((int(after['Active']) - \
+                    int(before['Active'])) << 10), \
+                convertFunc((int(after['Inactive']) - \
+                    int(before['Inactive'])) << 10), \
+                convertFunc((int(after['PageTables']) - \
+                    int(before['PageTables'])) << 10), \
+                convertFunc((int(after['Slab']) - \
+                    int(before['Slab'])) << 10), \
+                convertFunc((int(after['SReclaimable']) - \
+                    int(before['SReclaimable'])) << 10), \
+                convertFunc((int(after['SUnreclaim']) - \
+                    int(before['SUnreclaim'])) << 10), \
+                convertFunc((int(after['Mlocked']) - \
+                    int(before['Mlocked'])) << 10)))
 
         SystemManager.infoBufferPrint(twoLine)
 
