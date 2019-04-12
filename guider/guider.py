@@ -3571,6 +3571,7 @@ class FunctionAnalyzer(object):
         self.oldHeapTable = {}
         self.posData = {}
         self.userSymData = {}
+        self.userFileData = {}
         self.kernelSymData = {}
         self.threadData = {}
         self.syscallTable = {}
@@ -4226,6 +4227,13 @@ class FunctionAnalyzer(object):
             except:
                 continue
 
+            # Make user file table of last pos in stack #
+            try:
+                path = self.posData[pos]['binary']
+                self.userFileData[path]
+            except:
+                self.userFileData[path] = dict(self.init_symData)
+
             # Make user symbol table of last pos in stack #
             try:
                 self.userSymData[sym]
@@ -4406,30 +4414,36 @@ class FunctionAnalyzer(object):
             elif event == 'LOCK_TRY':
                 self.userSymData[sym]['lockTryCnt'] += eventCnt
                 self.kernelSymData[ksym]['lockTryCnt'] += eventCnt
+                self.userFileData[path]['lockTryCnt'] += eventCnt
 
             # unlock event #
             elif event == 'UNLOCK':
                 self.userSymData[sym]['unlockCnt'] += eventCnt
                 self.kernelSymData[ksym]['unlockCnt'] += eventCnt
+                self.userFileData[path]['unlockCnt'] += eventCnt
 
             # periodic event such as cpu tick #
             elif event == 'CPU_TICK':
                 self.userSymData[sym]['tickCnt'] += 1
                 self.kernelSymData[ksym]['tickCnt'] += 1
+                self.userFileData[path]['tickCnt'] += 1
 
             # syscall event #
             elif event == 'SYSCALL':
                 self.userSymData[sym]['syscallCnt'] += 1
                 self.kernelSymData[ksym]['syscallCnt'] += 1
+                self.userFileData[path]['syscallCnt'] += 1
 
             # periodic event such as cpu tick #
             elif event == 'CUSTOM':
                 if eventCnt > 0:
                     self.userSymData[sym]['customTotal'] += 1
                     self.kernelSymData[ksym]['customTotal'] += 1
+                    self.userFileData[path]['customTotal'] += 1
 
                 self.userSymData[sym]['customCnt'] += eventCnt
                 self.kernelSymData[ksym]['customCnt'] += eventCnt
+                self.userFileData[path]['customCnt'] += eventCnt
 
             # etc event #
             elif event == 'IGNORE':
@@ -6491,7 +6505,8 @@ class FunctionAnalyzer(object):
 
     def printSyscallUsage(self):
         # no effective syscall event #
-        if self.syscallCnt == 0:
+        if self.syscallCnt == 0 or \
+            not SystemManager.userEnable:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -6500,62 +6515,87 @@ class FunctionAnalyzer(object):
         # Make syscall event list #
         sysList = ConfigManager.sysList
 
-        # Print custom event in user space #
-        if SystemManager.userEnable:
-            SystemManager.clearPrint()
+        # Print syscall event #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Syscall Info] [Cnt: %d] (USER)' % self.syscallCnt)
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(\
+            self.userSymData.items(), \
+            key=lambda e: e[1]['syscallCnt'], reverse=True):
+
+            if value['syscallCnt'] == 0:
+                break
+
             SystemManager.pipePrint(\
-                '[Function Syscall Info] [Cnt: %d] (USER)' % self.syscallCnt)
+                "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
+                value['syscallCnt'], idx, \
+                self.posData[value['pos']]['origBin'], \
+                self.posData[value['pos']]['src']))
 
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
-                format("Usage", "Function", "Binary", "Source"))
-            SystemManager.pipePrint(twoLine)
+            # Set target stack #
+            targetStack = []
+            if self.sort == 'sym':
+                targetStack = value['symStack']
+            elif self.sort == 'pos':
+                targetStack = value['stack']
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
-                key=lambda e: e[1]['syscallCnt'], reverse=True):
+            # Sort by usage #
+            targetStack = \
+                sorted(targetStack, \
+                key=lambda x: x[eventIndex], reverse=True)
 
-                if value['syscallCnt'] == 0:
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                eventCnt = stack[eventIndex]
+                subStack = list(stack[subStackIndex])
+
+                if eventCnt == 0:
                     break
 
+                if len(subStack) == 0:
+                    continue
+                else:
+                    indentLen = len("\t" * 4 * 4) + 3
+                    symbolStack = self.makeUserSymList(subStack, indentLen)
+
                 SystemManager.pipePrint(\
-                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
-                    value['syscallCnt'], idx, \
-                    self.posData[value['pos']]['origBin'], \
-                    self.posData[value['pos']]['src']))
+                    "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
-                # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
+            SystemManager.pipePrint(oneLine)
 
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[eventIndex], reverse=True)
+        SystemManager.pipePrint('')
 
-                # Merge and Print symbols in stack #
-                for stack in targetStack:
-                    eventCnt = stack[eventIndex]
-                    subStack = list(stack[subStackIndex])
+        # Print syscall file #
+        SystemManager.pipePrint(\
+            '[Function Syscall File Info] [Cnt: %d] (USER)' % self.syscallCnt)
 
-                    if eventCnt == 0:
-                        break
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".\
+            format("Usage", "Binary"))
+        SystemManager.pipePrint(twoLine)
 
-                    if len(subStack) == 0:
-                        continue
-                    else:
-                        indentLen = len("\t" * 4 * 4) + 3
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+        for idx, value in sorted(\
+            self.userFileData.items(), \
+            key=lambda e: e[1]['syscallCnt'], reverse=True):
 
-                    SystemManager.pipePrint(\
-                        "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+            if value['syscallCnt'] == 0:
+                break
 
-                SystemManager.pipePrint(oneLine)
+            SystemManager.pipePrint(\
+                "{0:8} | {1:<142}".format(value['syscallCnt'], idx))
 
-            SystemManager.pipePrint('')
+            SystemManager.pipePrint(oneLine)
+
+        if self.periodicEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('')
 
         # Print syscall history #
         if SystemManager.showAll and len(self.sysCallData) > 0:
@@ -6607,33 +6647,6 @@ class FunctionAnalyzer(object):
                             else:
                                 userCall = '%s\n%s %s' % \
                                     (userCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-                # Make kernel call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = call[3][0]
-                    stack = call[3][1]
-                    kernelCall = ' %s' % (self.posData[last]['symbol'])
-                    nowLen += len(kernelCall)
-                    for subcall in stack:
-                        try:
-                            nextCall = \
-                                ' <- %s' % (self.posData[subcall]['symbol'])
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                kernelCall = '%s%s' % (kernelCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                kernelCall = \
-                                    '%s\n%s %s' % \
-                                    (kernelCall, ' ' * indentLen, nextCall)
                                 nowLen = indentLen + len(nextCall)
                         except:
                             pass
@@ -6718,6 +6731,33 @@ class FunctionAnalyzer(object):
                         "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
 
                 SystemManager.pipePrint(oneLine)
+
+            SystemManager.pipePrint('')
+
+            # Print custom event file in user space #
+            SystemManager.pipePrint(\
+                '[Function %s File Info] [Cnt: %d] [Total: %d] (USER)' % \
+                (customList, self.customTotal, self.customCnt))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^144}".\
+                format("Usage", "Binary"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userFileData.items(), \
+                key=lambda e: e[1]['customCnt'], reverse=True):
+
+                if value['customCnt'] == 0:
+                    break
+
+                SystemManager.pipePrint(\
+                    "{0:8} | {1:<142}".format(value['customCnt'], idx))
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.periodicEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
             SystemManager.pipePrint('')
 
@@ -6886,7 +6926,7 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function CPU-Tick-Stack Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             # Print call stack #
@@ -6960,7 +7000,7 @@ class FunctionAnalyzer(object):
 
             # Print per-symbol #
             SystemManager.pipePrint(\
-                '[Function CPU-Tick-Symbol Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                '[Function CPU-Tick Symbol Info] [Cnt: %d] [Interval: %dms] (USER)' % \
                 (self.periodicEventCnt, self.periodicEventInterval * 1000))
 
             SystemManager.pipePrint(twoLine)
@@ -6984,6 +7024,39 @@ class FunctionAnalyzer(object):
                 SystemManager.pipePrint(\
                     "{0:7.1f}% |{1:^47}| {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
+
+                SystemManager.pipePrint(oneLine)
+
+            if self.periodicEventCnt == 0:
+                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+            SystemManager.pipePrint('')
+
+            # Print tick per-file #
+            SystemManager.pipePrint(\
+                '[Function CPU-Tick File Info] [Cnt: %d] [Interval: %dms] (USER)' % \
+                (self.periodicEventCnt, self.periodicEventInterval * 1000))
+
+            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint("{0:_^9}|{1:_^144}".\
+                format("Usage", "Binary"))
+            SystemManager.pipePrint(twoLine)
+
+            for idx, value in sorted(\
+                self.userFileData.items(), \
+                key=lambda e: e[1]['tickCnt'], reverse=True):
+
+                if value['tickCnt'] == 0:
+                    break
+
+                cpuPer = \
+                    round(float(value['tickCnt']) / \
+                    float(self.periodicEventCnt) * 100, 1)
+                if cpuPer < 1 and SystemManager.showAll is False:
+                    break
+
+                SystemManager.pipePrint(\
+                    "{0:7.1f}% | {1:<142}".format(cpuPer, idx))
 
                 SystemManager.pipePrint(oneLine)
 
@@ -7658,10 +7731,11 @@ class FunctionAnalyzer(object):
 
     def printHeapUsage(self):
         # check heap memory event #
-        if self.heapEnabled is False or SystemManager.userEnable is False:
+        if not self.heapEnabled or \
+            not SystemManager.userEnable:
             return
 
-        title = 'Function Alloc-Only-Heap'
+        title = 'Function Expand-Heap'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
 
@@ -7721,7 +7795,7 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeUserSymList(subStack, indentLen)
 
                 SystemManager.pipePrint("\t+ {0:7}K |{1:32}".\
-                    format(int(heapSize/ 1024), symbolStack))
+                    format(int(heapSize >> 10), symbolStack))
 
             SystemManager.pipePrint(oneLine)
 
@@ -7850,131 +7924,184 @@ class FunctionAnalyzer(object):
 
     def printLockUsage(self):
         # no lock event #
-        if self.lockEnabled is False or SystemManager.userEnable is False:
+        if not self.lockEnabled or \
+            not SystemManager.userEnable:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         lockIndex = FunctionAnalyzer.symStackIdxTable.index('LOCK_TRY')
         unlockIndex = FunctionAnalyzer.symStackIdxTable.index('UNLOCK')
 
-        # Print lock try in user space #
-        if SystemManager.userEnable:
-            SystemManager.clearPrint()
-            SystemManager.pipePrint(\
-                '[Function Lock-Try Info] [Cnt: %d] (USER)' % \
+        # Print lock try #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Lock-Try Info] [Cnt: %d] (USER)' % \
                 (self.lockTryEventCnt))
 
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
-                format("Usage", "Function", "Binary", "Source"))
-            SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
-                key=lambda e: e[1]['lockTryCnt'], reverse=True):
+        for idx, value in sorted(\
+            self.userSymData.items(), \
+            key=lambda e: e[1]['lockTryCnt'], reverse=True):
 
-                if value['lockTryCnt'] == 0:
+            if value['lockTryCnt'] == 0:
+                break
+
+            binary = self.posData[value['pos']]['origBin']
+            source = self.posData[value['pos']]['src']
+            SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                format(value['lockTryCnt'], idx, binary, source))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort == 'sym':
+                targetStack = value['symStack']
+            elif self.sort == 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = \
+                sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                lockTryCnt = stack[lockIndex]
+                subStack = list(stack[subStackIndex])
+
+                if lockTryCnt == 0:
                     break
 
-                binary = self.posData[value['pos']]['origBin']
-                source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
-                    format(value['lockTryCnt'], idx, binary, source))
+                if len(subStack) == 0:
+                    continue
+                else:
+                    indentLen = len("\t" * 4 * 4)
+                    symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
+                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    format(lockTryCnt, symbolStack))
 
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
+            SystemManager.pipePrint(oneLine)
 
-                # Merge and Print symbols in stack #
-                for stack in targetStack:
-                    lockTryCnt = stack[lockIndex]
-                    subStack = list(stack[subStackIndex])
+        if self.lockTryEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-                    if lockTryCnt == 0:
-                        break
+        SystemManager.pipePrint('')
 
-                    if len(subStack) == 0:
-                        continue
-                    else:
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+        # Print lock per-file #
+        SystemManager.pipePrint(\
+            '[Function Lock-Try File Info] [Cnt: %d] (USER)' % \
+                (self.lockTryEventCnt))
 
-                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
-                        format(lockTryCnt, symbolStack))
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".\
+            format("Usage", "Binary"))
+        SystemManager.pipePrint(twoLine)
 
-                SystemManager.pipePrint(oneLine)
+        for idx, value in sorted(\
+            self.userFileData.items(), \
+            key=lambda e: e[1]['lockTryCnt'], reverse=True):
 
-            if self.lockTryEventCnt == 0:
-                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+            if value['lockTryCnt'] == 0:
+                break
 
-            SystemManager.pipePrint('')
-
-        # Print unlock in user space #
-        if SystemManager.userEnable:
-            SystemManager.clearPrint()
             SystemManager.pipePrint(\
-                '[Function Unlock Info] [Cnt: %d] (USER)' % \
-                (self.unlockEventCnt))
+                "{0:8} | {1:<142}".format(value['lockTryCnt'], idx))
 
-            SystemManager.pipePrint(twoLine)
-            SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
-                format("Usage", "Function", "Binary", "Source"))
-            SystemManager.pipePrint(twoLine)
+            SystemManager.pipePrint(oneLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
-                key=lambda e: e[1]['unlockCnt'], reverse=True):
+        if self.periodicEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-                if value['unlockCnt'] == 0:
+        SystemManager.pipePrint('')
+
+        # Print unlock #
+        SystemManager.clearPrint()
+        SystemManager.pipePrint(\
+            '[Function Unlock Info] [Cnt: %d] (USER)' % \
+            (self.unlockEventCnt))
+
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
+            format("Usage", "Function", "Binary", "Source"))
+        SystemManager.pipePrint(twoLine)
+
+        for idx, value in sorted(\
+            self.userSymData.items(), \
+            key=lambda e: e[1]['unlockCnt'], reverse=True):
+
+            if value['unlockCnt'] == 0:
+                break
+
+            binary = self.posData[value['pos']]['origBin']
+            source = self.posData[value['pos']]['src']
+            SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
+                format(value['unlockCnt'], idx, binary, source))
+
+            # Set target stack #
+            targetStack = []
+            if self.sort == 'sym':
+                targetStack = value['symStack']
+            elif self.sort == 'pos':
+                targetStack = value['stack']
+
+            # Sort by usage #
+            targetStack = \
+                sorted(targetStack, \
+                key=lambda x: x[unlockIndex], reverse=True)
+
+            # Merge and Print symbols in stack #
+            for stack in targetStack:
+                unlockCnt = stack[unlockIndex]
+                subStack = list(stack[subStackIndex])
+
+                if unlockCnt == 0:
                     break
 
-                binary = self.posData[value['pos']]['origBin']
-                source = self.posData[value['pos']]['src']
-                SystemManager.pipePrint("{0:8} |{1:^47}| {2:48}| {3:37}".\
-                    format(value['unlockCnt'], idx, binary, source))
+                if len(subStack) == 0:
+                    continue
+                else:
+                    indentLen = len("\t" * 4 * 4)
+                    symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
+                SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
+                    format(unlockCnt, symbolStack))
 
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[unlockIndex], reverse=True)
+            SystemManager.pipePrint(oneLine)
 
-                # Merge and Print symbols in stack #
-                for stack in targetStack:
-                    unlockCnt = stack[unlockIndex]
-                    subStack = list(stack[subStackIndex])
+        if self.unlockEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
 
-                    if unlockCnt == 0:
-                        break
+        SystemManager.pipePrint('')
 
-                    if len(subStack) == 0:
-                        continue
-                    else:
-                        indentLen = len("\t" * 4 * 4)
-                        symbolStack = self.makeUserSymList(subStack, indentLen)
+        # Print unlock per-file #
+        SystemManager.pipePrint(\
+            '[Function Unlock File Info] [Cnt: %d] (USER)' % \
+                (self.lockTryEventCnt))
 
-                    SystemManager.pipePrint("\t+ {0:8} |{1:32}".\
-                        format(unlockCnt, symbolStack))
+        SystemManager.pipePrint(twoLine)
+        SystemManager.pipePrint("{0:_^9}|{1:_^144}".\
+            format("Usage", "Binary"))
+        SystemManager.pipePrint(twoLine)
 
-                SystemManager.pipePrint(oneLine)
+        for idx, value in sorted(\
+            self.userFileData.items(), \
+            key=lambda e: e[1]['unlockCnt'], reverse=True):
 
-            if self.unlockEventCnt == 0:
-                SystemManager.pipePrint('\tNone\n%s' % oneLine)
+            if value['unlockCnt'] == 0:
+                break
 
-            SystemManager.pipePrint('')
+            SystemManager.pipePrint(\
+                "{0:8} | {1:<142}".format(value['unlockCnt'], idx))
+
+            SystemManager.pipePrint(oneLine)
+
+        if self.periodicEventCnt == 0:
+            SystemManager.pipePrint('\tNone\n%s' % oneLine)
+
+        SystemManager.pipePrint('')
 
         # Print lock history #
         if SystemManager.showAll and len(self.lockCallData) > 0:
@@ -8033,36 +8160,8 @@ class FunctionAnalyzer(object):
                 except:
                     pass
 
-                # Make kernel call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = kernelstack[0]
-                    stack = kernelstack[1]
-                    kernelCall = ' %s' % (self.posData[last]['symbol'])
-                    nowLen += len(kernelCall)
-                    for subcall in stack:
-                        try:
-                            symbol = self.posData[subcall]['symbol']
-                            nextCall = ' <- %s' % (symbol)
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                kernelCall = '%s%s' % (kernelCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                kernelCall = '%s\n%s %s' % \
-                                    (kernelCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
                 SystemManager.pipePrint(\
                     "{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.pipePrint(\
-                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
                 SystemManager.pipePrint(oneLine)
 
         SystemManager.pipePrint('\n\n')
