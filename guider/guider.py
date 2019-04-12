@@ -9599,7 +9599,8 @@ class SystemManager(object):
     except:
         pageSize = 4096
 
-    startTime = time.time()
+    startTime = 0
+    startRunTime = 0
     timestamp = 0
     blockSize = 512
     bufferSize = -1
@@ -9861,12 +9862,17 @@ class SystemManager(object):
         self.prevIpcData = {}
         self.userData = {}
         self.mountData = None
-        self.uptimeData = None
         self.loadData = None
         self.cmdlineData = None
         self.osData = None
         self.devData = None
         self.procData = None
+
+        # update starttime #
+        SystemManager.updateUptime()
+        SystemManager.startTime = \
+            SystemManager.startRunTime = \
+                SystemManager.uptime
 
         # save system info first #
         self.saveResourceSnapshot(False)
@@ -15971,9 +15977,17 @@ Copyright:
                 # check interval type #
                 int(interval)
 
-                SystemManager.repeatCount = interval
-                SystemManager.repeatInterval = interval
-                SystemManager.intervalEnable = 1
+                # top mode #
+                if SystemManager.isTopMode():
+                    SystemManager.repeatCount = interval
+                    SystemManager.repeatInterval = interval
+                    SystemManager.intervalEnable = 1
+                # record mode #
+                else:
+                    SystemManager.repeatCount = 1
+                    SystemManager.repeatInterval = 1
+                    SystemManager.intervalEnable = interval
+
                 SystemManager.printInfo(\
                     "run only %s sec %s time" % \
                     (SystemManager.intervalEnable, \
@@ -17862,8 +17876,6 @@ Copyright:
         SystemManager.getMountPath()
 
         while 1:
-            SystemManager.updateUptime()
-
             SystemManager.printStatus(\
                 "input event name... [ STOP(Ctrl + c) ]")
 
@@ -18058,6 +18070,9 @@ Copyright:
                         "Failed to find running %s process to send event" % \
                         __module__)
                 return []
+
+        # update uptime #
+        SystemManager.updateUptime()
 
         # get socket inode address list of guider processes #
         for pid in pids:
@@ -20478,16 +20493,8 @@ Copyright:
 
 
     def saveSystemInfo(self):
-        try:
-            uptimeFile = '%s/uptime' % SystemManager.procPath
-            f = open(uptimeFile, 'r')
-            self.uptimeData = f.readline()
-            f.close()
-        except:
-            SystemManager.printWarning("Fail to open %s" % uptimeFile)
-
-        self.uptimeData = self.uptimeData.split()
-        # uptimeData[0] = running time in sec, [1]= idle time in sec * cores #
+        # update uptime #
+        SystemManager.updateUptime()
 
         try:
             cmdlineFile = '%s/cmdline' % SystemManager.procPath
@@ -21743,38 +21750,44 @@ Copyright:
             "{0:^20} {1:100}".format("TYPE", "Information"))
         SystemManager.infoBufferPrint(twoLine)
 
+        # launch option #
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Launch', '# ' + '%s%s' % (' '.join(sys.argv), ' -')))
         except:
             pass
 
+        # version #
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Version', '%s' % __version__))
         except:
             pass
 
+        # cpu architecture #
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SystemManager.arch))
         except:
             pass
 
+        # time #
         try:
             timeInfo = '%s %s' % \
                 (self.systemInfo['date'], self.systemInfo['time'])
             SystemManager.infoBufferPrint(\
-                "{0:20} {1:<100}".format('Time', timeInfo))
+                "{0:20} {1:<100}".format('Date', timeInfo))
         except:
             pass
 
+        # os #
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('OS', self.systemInfo['osVer']))
         except:
             pass
 
+        # kernel #
         try:
             kernelInfo = '%s %s' % \
                 (self.systemInfo['osType'], self.systemInfo['kernelVer'])
@@ -21783,26 +21796,28 @@ Copyright:
         except:
             pass
 
+        # system uptime #
         try:
-            uptimeMin = int(float(self.uptimeData[0]) / 60)
-            h, m = divmod(uptimeMin, 60)
-            d, h = divmod(h, 24)
-            RunningInfo = '%sd %sh %sm' % (d, h, m)
+            # update uptime #
+            SystemManager.updateUptime()
+
+            uptime = SystemManager.convertTime(long(SystemManager.uptime))
             SystemManager.infoBufferPrint(\
-                "{0:20} {1:<100}".format('SystemRuntime', RunningInfo))
+                "{0:20} {1:<100}".format('Uptime', uptime))
         except:
             pass
 
+        # Guider runtime #
         try:
-            runtime = long(time.time() - SystemManager.startTime)
-            m, s = divmod(runtime, 60)
-            h, m = divmod(m, 60)
-            runtimeInfo = '%sh %sm %ss' % (h, m, s)
+            runtime = \
+                long(SystemManager.uptime) - long(SystemManager.startRunTime)
+            runtime = SystemManager.convertTime(runtime).strip()
             SystemManager.infoBufferPrint(\
-                "{0:20} {1:<100}".format('GuiderRuntime', runtimeInfo))
+                "{0:20} {1:<100}".format('Runtime', runtime))
         except:
             pass
 
+        # system load #
         try:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
@@ -21812,6 +21827,7 @@ Copyright:
         except:
             pass
 
+        # task #
         try:
             running, total = self.loadData[3].split('/')
             SystemManager.infoBufferPrint(\
@@ -21820,12 +21836,14 @@ Copyright:
         except:
             pass
 
+        # last pid #
         try:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
         except:
             pass
 
+        # kernel args #
         try:
             title = 'Cmdline'
             splitLen = SystemManager.lineLength - 21
@@ -35000,7 +35018,8 @@ class ThreadAnalyzer(object):
             # initialize preempt thread list #
             if SystemManager.preemptGroup:
                 for index in SystemManager.preemptGroup:
-                    self.preemptData.append([False, {}, float(0), 0, float(0)])
+                    self.preemptData.append(\
+                        [False, {}, float(0), 0, float(0)])
         # finish data processing #
         elif event == 'STOP':
             SystemManager.totalLine = SystemManager.curLine
@@ -35089,7 +35108,7 @@ class ThreadAnalyzer(object):
             return
         elif SystemManager.countEnable and \
             SystemManager.repeatCount * SystemManager.intervalEnable <= \
-            float(time) - float(SystemManager.startTime):
+                float(time) - float(SystemManager.startTime):
             self.stopFlag = True
             self.finishTime = time
             return
@@ -37734,6 +37753,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % loadavgPath)
 
 
+        # update uptime #
         SystemManager.updateUptime()
 
         # collect perf data #
