@@ -28629,8 +28629,14 @@ class ThreadAnalyzer(object):
                         except:
                             pass
 
+                        # set color #
+                        if len(prefix) > 0:
+                            gcolor = None
+                        else:
+                            gcolor = 'olive'
+
                         # draw total gpu graph #
-                        plot(timeline, stat, '-', c='olive', linestyle='-',\
+                        plot(timeline, stat, '-', c=gcolor, linestyle='-',\
                             linewidth=1, marker='d', markersize=1, \
                             solid_capstyle='round')
 
@@ -28663,8 +28669,14 @@ class ThreadAnalyzer(object):
                             if ymax < blkWait[idx]:
                                 ymax = blkWait[idx]
 
+                        # set color #
+                        if len(prefix) > 0:
+                            icolor = None
+                        else:
+                            icolor = 'pink'
+
                         # draw total cpu + iowait graph #
-                        plot(timeline, blkWait, '-', c='pink', linestyle='-',\
+                        plot(timeline, blkWait, '-', c=icolor, linestyle='-',\
                             linewidth=1, marker='d', markersize=1, \
                             solid_capstyle='round')
 
@@ -28690,8 +28702,14 @@ class ThreadAnalyzer(object):
                                 alpha=0.3), horizontalalignment='center')
                             break
 
+                    # set color #
+                    if len(prefix) > 0:
+                        ccolor = None
+                    else:
+                        ccolor = 'red'
+
                     # draw total cpu graph #
-                    plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
+                    plot(timeline, cpuUsage, '-', c=ccolor, linestyle='-',\
                         linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
 
@@ -28896,11 +28914,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='skyblue', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    rcolor = None
+                else:
+                    rcolor = 'skyblue'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, blkRead, '-', c='skyblue', \
+                    plot(timeline, blkRead, '-', c=rcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, blkRead, '-', c='skyblue', linewidth=1)
+                    plot(timeline, blkRead, '-', c=rcolor, linewidth=1)
+
                 labelList.append('%sBlock Read' % prefix)
 
                 # System Block Write #
@@ -28928,11 +28954,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='green', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    wcolor = None
+                else:
+                    wcolor = 'green'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, blkWrite, '-', c='green', \
+                    plot(timeline, blkWrite, '-', c=wcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, blkWrite, '-', c='green', linewidth=1)
+                    plot(timeline, blkWrite, '-', c=wcolor, linewidth=1)
+
                 labelList.append('%sBlock Write' % prefix)
 
                 # System Background Reclaim #
@@ -28960,11 +28994,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='pink', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    bcolor = None
+                else:
+                    bcolor = 'pink'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, reclaimBg, '-', c='pink', \
+                    plot(timeline, reclaimBg, '-', c=bcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, reclaimBg, '-', c='pink', linewidth=1)
+                    plot(timeline, reclaimBg, '-', c=bcolor, linewidth=1)
+
                 labelList.append('%sReclaim Background' % prefix)
 
                 # System Direct Reclaim #
@@ -28992,11 +29034,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='red', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    dcolor = None
+                else:
+                    dcolor = 'red'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, reclaimDr, '-', c='red', \
+                    plot(timeline, reclaimDr, '-', c=dcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, reclaimDr, '-', c='red', linewidth=1)
+                    plot(timeline, reclaimDr, '-', c=dcolor, linewidth=1)
+
                 labelList.append('%sReclaim Foreground' % prefix)
 
                 # System Network Inbound #
@@ -29024,11 +29074,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='purple', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    rcolor = None
+                else:
+                    rcolor = 'purple'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, netRead, '-', c='purple', \
+                    plot(timeline, netRead, '-', c=rcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, netRead, '-', c='purple', linewidth=1)
+                    plot(timeline, netRead, '-', c=rcolor, linewidth=1)
+
                 labelList.append('%sNetwork Inbound' % prefix)
 
                 # System Network Outbound #
@@ -29056,11 +29114,19 @@ class ThreadAnalyzer(object):
                         unit = 0
                     text(timeline[-1]+unit, usage[-1], lastval,\
                         fontsize=5, color='cyan', fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    wcolor = None
+                else:
+                    wcolor = 'cyan'
+
                 if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, netWrite, '-', c='cyan', \
+                    plot(timeline, netWrite, '-', c=wcolor, \
                         linewidth=1, alpha=0.1)
                 else:
-                    plot(timeline, netWrite, '-', c='cyan', linewidth=1)
+                    plot(timeline, netWrite, '-', c=wcolor, linewidth=1)
+
                 labelList.append('%sNetwork Outbound' % prefix)
 
                 # System Network Usage #
@@ -29363,6 +29429,11 @@ class ThreadAnalyzer(object):
                 if ytickLabel[-1] == '0':
                     ax.set_ylim(top=0)
                     ax.get_yaxis().set_visible(False)
+                else:
+                    try:
+                        ax.set_ylim(ymin=0)
+                    except:
+                        pass
             except:
                 pass
 
@@ -29448,6 +29519,7 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
 
+                        # get color #
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
@@ -29541,6 +29613,7 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
 
+                        # get color #
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
@@ -29594,6 +29667,7 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
 
+                        # get color #
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
@@ -29634,7 +29708,13 @@ class ThreadAnalyzer(object):
                         text(timeline[-1], usage[-1], lastval,\
                             fontsize=5, color='blue', fontweight='bold')
 
-                    plot(timeline, usage, '-', c='blue', \
+                    # set color #
+                    if len(prefix) > 0:
+                        fcolor = None
+                    else:
+                        fcolor = 'blue'
+
+                    plot(timeline, usage, '-', c=fcolor, \
                         linewidth=1, solid_capstyle='round')
 
                     if totalRam:
@@ -29656,6 +29736,12 @@ class ThreadAnalyzer(object):
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(usage[-1] << 20))
 
+                    # set color #
+                    if len(prefix) > 0:
+                        ucolor = None
+                    else:
+                        ucolor = 'skyblue'
+
                     if usage[minIdx] == usage[maxIdx] == 0:
                         pass
                     else:
@@ -29669,7 +29755,7 @@ class ThreadAnalyzer(object):
                             text(timeline[-1], usage[-1], lastval,\
                                 fontsize=5, color='skyblue', fontweight='bold')
 
-                        plot(timeline, usage, '-', c='skyblue', \
+                        plot(timeline, usage, '-', c=ucolor, \
                             linewidth=1, solid_capstyle='round')
 
                         labelList.append('%sRAM User' % prefix)
@@ -29686,6 +29772,12 @@ class ThreadAnalyzer(object):
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(usage[-1] << 20))
 
+                    # set color #
+                    if len(prefix) > 0:
+                        ccolor = None
+                    else:
+                        ccolor = 'darkgray'
+
                     if usage[minIdx] == usage[maxIdx] == 0:
                         pass
                     else:
@@ -29699,7 +29791,7 @@ class ThreadAnalyzer(object):
                             text(timeline[-1], usage[-1], lastval,\
                                 fontsize=5, color='darkgray', fontweight='bold')
 
-                        plot(timeline, usage, '-', c='darkgray', \
+                        plot(timeline, usage, '-', c=ccolor, \
                             linewidth=1, solid_capstyle='round')
 
                         labelList.append('%sRAM Cache' % prefix)
@@ -29716,6 +29808,12 @@ class ThreadAnalyzer(object):
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(usage[-1] << 20))
 
+                    # set color #
+                    if len(prefix) > 0:
+                        scolor = None
+                    else:
+                        scolor = 'orange'
+
                     if usage[minIdx] == usage[maxIdx] == 0:
                         pass
                     else:
@@ -29729,12 +29827,12 @@ class ThreadAnalyzer(object):
                             text(timeline[-1], usage[-1], lastval,\
                                 fontsize=5, color='orange', fontweight='bold')
 
-                        plot(timeline, swapUsage, '-', c='orange', \
+                        plot(timeline, swapUsage, '-', c=scolor, \
                             linewidth=1, solid_capstyle='round')
 
                         if totalSwap:
                             label = '%sSwap Total [%s]\nSwap Usage' % \
-                                (convertSize2Unit(long(totalSwap) << 20), prefix)
+                                (prefix, convertSize2Unit(long(totalSwap) << 20))
                             labelList.append(label)
                         else:
                             labelList.append('%sSwap Usage' % prefix)
@@ -29756,13 +29854,24 @@ class ThreadAnalyzer(object):
 
             # adjust yticks #
             ylist = ax.get_yticks().tolist()
+
+            # set ymin #
             ymin = int(min(ylist))
             if ymin < 0:
                 ymin = 0
+            if ymin == 0:
+                try:
+                    ax.set_ylim(ymin=0)
+                except:
+                    pass
+
+            # set ymax #
             ymax = int(max(ylist))
             inc = int(ymax / 10)
             if inc == 0:
                 inc = 1
+
+            # set yticks #
             yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
 
             try:
