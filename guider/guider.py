@@ -21895,6 +21895,22 @@ Copyright:
         except:
             pass
 
+        # user name #
+        try:
+            path = '%s/self/status' % SystemManager.procPath
+            with open(path, 'r') as fd:
+                data = fd.readlines()
+
+            for line in data:
+                if line.startswith('Uid'):
+                    uid = line.split(':')[1].split()[0]
+                    break
+
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<100}".format('User', self.userData[uid]['name']))
+        except:
+            pass
+
         # system uptime #
         try:
             # update uptime #
