@@ -11631,6 +11631,26 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
+                # simple top #
+                elif SystemManager.isSimpleTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor system status
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor status of system
+        # {0:1} {1:1}
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
                 # stack top #
                 elif SystemManager.isStackTopMode():
                     helpStr = '''
@@ -12492,6 +12512,7 @@ OPTIONS:
 COMMAND:
     [monitor]   top         <process>
                 threadtop   <thread>
+                simpletop   <system>
                 bgtop       <background>
                 stacktop    <stack>
                 perftop     <PMU>
@@ -16084,7 +16105,7 @@ Copyright:
                 # record mode #
                 else:
                     SystemManager.repeatCount = 1
-                    SystemManager.repeatInterval = 1
+                    SystemManager.repeatInterval = interval
                     SystemManager.intervalEnable = interval
 
                 SystemManager.printInfo(\
@@ -18296,6 +18317,7 @@ Copyright:
         myPid = str(SystemManager.pid)
         gSTAT_ATTR = ConfigManager.STAT_ATTR
 
+        # update uptime #
         SystemManager.updateUptime()
 
         pids = os.listdir(SystemManager.procPath)
@@ -21913,10 +21935,7 @@ Copyright:
 
         # system uptime #
         try:
-            # update uptime #
-            SystemManager.updateUptime()
-
-            uptime = SystemManager.convertTime(long(SystemManager.uptime))
+            uptime = SystemManager.convertTime(SystemManager.uptime)
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
         except:
@@ -27674,13 +27693,9 @@ class ThreadAnalyzer(object):
             # update terminal size #
             SystemManager.updateTty()
 
-            if self.prevProcData != {}:
-                if SystemManager.isSimpleTopMode():
-                    # print simple system status #
-                    self.printSimpleStat()
-                else:
-                    # print system status #
-                    self.printSystemStat()
+            if self.prevCpuData != {}:
+                # print system status #
+                self.printSystemStat()
 
                 if SystemManager.elasticEnable:
                     # report system status for elastic stack
@@ -27696,9 +27711,9 @@ class ThreadAnalyzer(object):
                 SystemManager.progressCnt += 1
 
             # reset system status #
-            del self.prevProcData
-            self.prevProcData = self.procData
-            self.procData = {}
+            del self.prevCpuData
+            self.prevCpuData = self.cpuData
+            self.cpuData = {}
             self.nrPrevThread = self.nrThread
             self.nrPrevProcess = self.nrProcess
             self.nrThread = 0
@@ -37479,6 +37494,7 @@ class ThreadAnalyzer(object):
 
 
     def printFileStat(self, filters):
+        # update uptime #
         SystemManager.updateUptime()
 
         SystemManager.addPrint((\
@@ -37804,6 +37820,9 @@ class ThreadAnalyzer(object):
 
 
     def saveSystemStat(self):
+        # update uptime #
+        SystemManager.updateUptime()
+
         # save cpu info #
         try:
             cpuBuf = None
@@ -37818,9 +37837,6 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % cpuPath)
 
         if cpuBuf:
-            self.prevCpuData = self.cpuData
-            self.cpuData = {}
-
             for line in cpuBuf:
                 STAT_ATTR = line.split()
                 cpuId = STAT_ATTR[0]
@@ -37976,10 +37992,6 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % loadavgPath)
 
-
-        # update uptime #
-        SystemManager.updateUptime()
-
         # collect perf data #
         if SystemManager.perfEnable:
             SystemManager.collectSystemPerfData()
@@ -37987,6 +37999,10 @@ class ThreadAnalyzer(object):
         # save gpu stat #
         if SystemManager.gpuEnable:
             self.saveGpuData()
+
+        # check simpletop mode #
+        if SystemManager.isSimpleTopMode():
+            return
 
         # get process list #
         try:
@@ -37996,7 +38012,10 @@ class ThreadAnalyzer(object):
                 'Fail to open %s directory' % SystemManager.procPath)
             sys.exit(0)
 
-        # save proc instance #
+        # reset and save proc instance #
+        del self.prevProcData
+        self.prevProcData = self.procData
+        self.procData = {}
         SystemManager.procInstance = self.procData
 
         # get thread list #
@@ -40186,11 +40205,12 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-        # calculate diff between previous and now #
-        if SystemManager.uptimeDiff == 0:
+        # check return condition #
+        if SystemManager.uptimeDiff == 0 or \
+            SystemManager.checkCutCond():
             return
-
-        if SystemManager.checkCutCond():
+        elif len(self.procData) == 0:
+            SystemManager.addPrint(twoLine)
             return
 
         # set comm and pid size #
@@ -40237,15 +40257,15 @@ class ThreadAnalyzer(object):
         else:
             mem = 'RSS'
 
-        SystemManager.addPrint("%s\n" % twoLine + \
-            ("{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+        SystemManager.addPrint((\
+            "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
             "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
             "{14:^3}({15:^4}/{16:^4}/{17:^5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "MemV", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            sid, pgrp, "FD", "LifeTime", etc, oneLine, cl=cl, pd=pd), \
+            sid, pgrp, "FD", "LifeTime", etc, oneLine, twoLine, cl=cl, pd=pd), \
             newline = 3)
 
         # set sort value #
