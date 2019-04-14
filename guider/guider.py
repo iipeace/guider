@@ -11631,8 +11631,8 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
-                # simple top #
-                elif SystemManager.isSimpleTopMode():
+                # sys top #
+                elif SystemManager.isSysTopMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -12512,7 +12512,7 @@ OPTIONS:
 COMMAND:
     [monitor]   top         <process>
                 threadtop   <thread>
-                simpletop   <system>
+                systop      <system>
                 bgtop       <background>
                 stacktop    <stack>
                 perftop     <PMU>
@@ -17383,11 +17383,11 @@ Copyright:
 
 
     @staticmethod
-    def isSimpleTopMode():
+    def isSysTopMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'simpletop':
+        if sys.argv[1] == 'systop':
             return True
         else:
             return False
@@ -17481,7 +17481,7 @@ Copyright:
             SystemManager.isWssTopMode() or \
             SystemManager.isReportTopMode() or \
             SystemManager.isBgTopMode() or \
-            SystemManager.isSimpleTopMode() or \
+            SystemManager.isSysTopMode() or \
             SystemManager.isNetTopMode() or \
             SystemManager.isDiskTopMode():
             return True
@@ -38000,8 +38000,8 @@ class ThreadAnalyzer(object):
         if SystemManager.gpuEnable:
             self.saveGpuData()
 
-        # check simpletop mode #
-        if SystemManager.isSimpleTopMode():
+        # check systop mode #
+        if SystemManager.isSysTopMode():
             return
 
         # get process list #
