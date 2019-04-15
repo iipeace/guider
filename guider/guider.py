@@ -11882,6 +11882,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
+        -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
         -E  <FILE>                  set error log path
@@ -11892,6 +11893,9 @@ OPTIONS:
 Examples:
     - Trace user function calls for a specific thread
         # {0:1} {1:1} -g 1234
+
+    - Trace user function calls with 1/10 instructions for a specific thread
+        # {0:1} {1:1} -g 1234 -H 10
                     '''.format(cmd, mode)
 
                 # mem #
@@ -23250,7 +23254,7 @@ class Debugger(object):
         self.status = 'enter'
         self.attached = attach
         self.arch = arch = SystemManager.getArch()
-        self.ilimit = 5
+        self.iskip = 5
         self.syscall = ''
         self.mapFd = None
         self.pmap = None
@@ -24030,7 +24034,7 @@ class Debugger(object):
         while 1:
             if len(self.callstack) == 0:
                 return
-            elif self.callstack[-1][0] >= self.sp or \
+            elif self.callstack[-1][0] > self.sp or \
                 self.callstack[-1][0] >= self.prevsp or \
                 self.callstack[-1][1] == sym:
                 self.callstack.pop()
@@ -24275,6 +24279,10 @@ class Debugger(object):
         # disable extended ascii #
         SystemManager.encodeEnable = False
 
+        # set sampling rate #
+        if SystemManager.funcDepth > 0:
+            self.iskip = SystemManager.funcDepth
+
         # check the process is running #
         try:
             os.kill(pid, 0)
@@ -24325,8 +24333,8 @@ class Debugger(object):
                 pass
             else:
                 # skip instructions for performance #
-                if mode == 'inst' and self.ilimit > 0:
-                    for i in xrange(0, self.ilimit):
+                if mode == 'inst' and self.iskip > 0:
+                    for i in xrange(0, self.iskip ):
                         ret = self.ptrace(cmd, 0, 0)
                 else:
                     # setup trap #
