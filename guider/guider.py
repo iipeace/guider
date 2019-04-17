@@ -2651,14 +2651,22 @@ class NetworkManager(object):
                     self.port = port
                     self.socket.bind((self.ip, self.port))
 
+                # get binded port #
                 self.port = self.socket.getsockname()[1]
 
             if not blocking:
                 self.socket.setblocking(0)
         except:
+            err = SystemManager.getErrReason()
+            if err.startswith('13') and \
+                not SystemManager.isRoot() and \
+                port < 1024:
+                feedback = ', use port bigger than 1024'
+            else:
+                feedback = ''
             SystemManager.printError(\
-                "Fail to create socket with %s:%s as server" % \
-                (self.ip, self.port))
+                "Fail to create socket with %s:%s as server because %s%s" % \
+                (self.ip, self.port, err, feedback))
             self.ip = None
             self.port = None
             return None
@@ -16136,6 +16144,7 @@ Copyright:
 
     @staticmethod
     def parseAnalOption():
+        # check call history #
         if SystemManager.parsedAnalOption:
             return
         else:
@@ -16546,9 +16555,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
-                ret = SystemManager.parseAddr(value)
-
-                (service, ip, port) = ret
+                service, ip, port = SystemManager.parseAddr(value)
 
                 if not service or not ip or not port or \
                     SystemManager.isEffectiveRequest(service) is False:
@@ -16586,9 +16593,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'x':
-                ret = SystemManager.parseAddr(value)
-
-                (service, ip, port) = ret
+                service, ip, port = SystemManager.parseAddr(value)
 
                 SystemManager.setServerNetwork(ip, port)
 
@@ -16603,9 +16608,7 @@ Copyright:
 
                 # request mode #
                 else:
-                    ret = SystemManager.parseAddr(value)
-
-                    (service, ip, port) = ret
+                    service, ip, port = SystemManager.parseAddr(value)
 
                     # set PRINT as default #
                     if not service:
@@ -18128,7 +18131,7 @@ Copyright:
 
     @staticmethod
     def setServerNetwork(ip, port, force=False, blocking=False):
-        if SystemManager.localServObj and force is False:
+        if SystemManager.localServObj and not force:
             SystemManager.printWarning(\
                 "Fail to set server network because it is already set")
             return
@@ -18145,6 +18148,17 @@ Copyright:
         except:
             pass
 
+        # check server setting #
+        if SystemManager.localServObj and \
+            SystemManager.localServObj.ip == ip and \
+            SystemManager.localServObj.port == port:
+            if blocking:
+                SystemManager.localServObj.socket.setblocking(1)
+            else:
+                SystemManager.localServObj.socket.setblocking(0)
+            return
+
+        # create new server setting #
         networkObject = NetworkManager('server', ip, port, blocking)
         if not networkObject.ip:
             SystemManager.printWarning(\
@@ -18627,13 +18641,13 @@ Copyright:
             message = 'ERROR|%s:%s:%s' % (message, ip, port)
             netObj.sendto(message, ip, port)
 
-        def onDownload(netObj, connMan, ip, port, value):
+        def onDownload(netObj, conn, value, errAddr):
             try:
                 src, des = value.split(',')
             except:
                 SystemManager.printWarning(\
                     'Failed to recognize paths', True)
-                sendErrMsg(netObj, ip, port, \
+                sendErrMsg(netObj, errAddr[0], errAddr[1], \
                     "wrong format of paths, use {src, des} in format")
                 return
 
@@ -18647,19 +18661,8 @@ Copyright:
 
             remotePath = des.strip()
 
-            # send tcp server info #
-            message = 'DOWNLOAD|%s:%s:%s' % \
-                (value, connMan.ip, connMan.port)
-            netObj.sendto(message, ip, port)
-
-            # get connection #
-            try:
-                connMan.listen()
-                sender, addr = connMan.accept()
-            except:
-                SystemManager.printWarning(\
-                    'Failed to connect to client because of no response', True)
-                return
+            # get connection info #
+            sender, addr = conn
 
             # transfer file #
             try:
@@ -18683,32 +18686,21 @@ Copyright:
             finally:
                 sender.close()
 
-        def onUpload(netObj, connMan, ip, port, value):
+        def onUpload(netObj, conn, value, errAddr):
             try:
                 src, des = value.split(',')
             except:
                 SystemManager.printWarning(\
-                    'Failed to recognize paths', True)
-                sendErrMsg(netObj, ip, port, \
-                    "wrong format of paths, use {src, des} in format")
-                return
-
-            # send tcp server info #
-            message = 'UPLOAD|%s:%s:%s' % \
-                (value, connMan.ip, connMan.port)
-            netObj.sendto(message, ip, port)
-
-            # get connection #
-            try:
-                connMan.listen()
-                receiver, addr = connMan.accept()
-            except:
-                SystemManager.printWarning(\
-                    'Failed to connect to client because of no response', True)
+                    'Failed to recognize path', True)
+                sendErrMsg(netObj, errAddr[0], errAddr[1], \
+                    "wrong format of path, use {src, des} in format")
                 return
 
             # get select object #
             selectObj = SystemManager.getPkg('select')
+
+            # get connection info #
+            receiver, addr = conn
 
             # save file #
             try:
@@ -18738,23 +18730,12 @@ Copyright:
             finally:
                 receiver.close()
 
-        def onRun(netObj, connMan, ip, port, value):
-            # send tcp server info #
-            message = 'RUN|%s:%s:%s' % \
-                (value, connMan.ip, connMan.port)
-            netObj.sendto(message, ip, port)
-
-            # get connection #
-            try:
-                connMan.listen()
-                sock, addr = connMan.accept()
-            except:
-                SystemManager.printWarning(\
-                    'Failed to connect to client because of no response', True)
-                return
-
+        def onRun(netObj, conn, value, errAddr):
             # get subprocess object #
             subprocess = SystemManager.getPkg('subprocess')
+
+            # get connection info #
+            sock, addr = conn
 
             # run command #
             try:
@@ -18823,6 +18804,23 @@ Copyright:
                     pass
 
         def handleRequest(netObj, connMan, req):
+            def doConnect(req, data, connMan):
+                # send tcp server info #
+                message = '%s|%s:%s:%s' % \
+                    (req, value, connMan.ip, connMan.port)
+                netObj.sendto(message, ip, port)
+
+                # get connection #
+                try:
+                    connMan.listen()
+                    sock, addr = connMan.accept()
+                    return [sock, addr]
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printWarning(\
+                        'Failed to connect to client because %s' % err, True)
+                    return False
+
             # unmarshalling #
             if type(req) is tuple:
                 try:
@@ -18833,6 +18831,7 @@ Copyright:
                 try:
                     ip = req[1][0]
                     port = req[1][1]
+                    errAddr = req[1]
                 except:
                     SystemManager.printWarning(\
                         "Fail to get address of client from message")
@@ -18856,14 +18855,30 @@ Copyright:
                 SystemManager.printWarning(\
                     'Fail to recognize request', True)
 
-            elif request.upper() == 'DOWNLOAD':
-                onDownload(netObj, connMan, ip, port, value)
+            # convert request to capital #
+            request = request.upper()
 
-            elif request.upper() == 'UPLOAD':
-                onUpload(netObj, connMan, ip, port, value)
+            # connect to client #
+            conn = doConnect(request, value, connMan)
+            if not conn:
+                return
 
-            elif request.upper() == 'RUN':
-                onRun(netObj, connMan, ip, port, value)
+            # create worker process #
+            pid = SystemManager.createProcess()
+            if pid > 0:
+                return
+            else:
+                netObj.close()
+                netObj = NetworkManager('server', netObj.ip, None, True)
+
+            if request == 'DOWNLOAD':
+                onDownload(netObj, conn, value, errAddr)
+
+            elif request == 'UPLOAD':
+                onUpload(netObj, conn, value, errAddr)
+
+            elif request == 'RUN':
+                onRun(netObj, conn, value, errAddr)
 
             else:
                 SystemManager.printWarning(\
@@ -18881,22 +18896,15 @@ Copyright:
         SystemManager.getPkg('select')
 
         # get address value #
-        if SystemManager.findOption('u'):
+        if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
-        # get address value #
-        addr = SystemManager.getOption('x')
-
-        # parse address value #
-        if addr:
-            ret = SystemManager.parseAddr(addr)
-            (service, ip, port) = ret
+        # get ip and port #
+        if SystemManager.localServObj:
+            ip = SystemManager.localServObj.ip
+            port = SystemManager.localServObj.port
         else:
             ip = port = None
-
-        # get public IP #
-        if not ip:
-            ip = NetworkManager.getPublicIp()
 
         # set address #
         SystemManager.setServerNetwork(ip, port, force=True, blocking=True)
@@ -18913,6 +18921,7 @@ Copyright:
             # receive request from client #
             req = SystemManager.localServObj.recvfrom()
 
+            # return #
             if not req:
                 sys.exit(0)
 
@@ -18954,7 +18963,7 @@ Copyright:
         # get server address value #
         addr = SystemManager.getOption('X')
 
-        # search address of local guider process #
+        # search address of local Guider processes #
         if not addr:
             # check permission #
             if not SystemManager.isRoot():
@@ -18998,10 +19007,7 @@ Copyright:
             sys.exit(0)
 
         # classify ip and port #
-        ret = SystemManager.parseAddr(saddr)
-
-        (service, ip, port) = ret
-
+        service, ip, port = SystemManager.parseAddr(saddr)
         if service == ip == port == None:
             printError()
             sys.exit(0)
@@ -19013,14 +19019,13 @@ Copyright:
                 "Fail to set network address")
             sys.exit(0)
 
+        # set timeout #
+        networkObject.timeout()
+
         SystemManager.printInfo(\
             "use %s:%s as remote address" % \
             (networkObject.ip, networkObject.port))
 
-        # set timeout #
-        networkObject.timeout()
-
-        # set address #
         SystemManager.printStatus(\
             "client running as process %s" % SystemManager.pid)
 
@@ -19060,9 +19065,9 @@ Copyright:
                 else:
                     raise Exception()
         except:
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "wrong option value with -x, "
-                "Input {ip:port} in format")
+                "Fail to set client network because %s" % err)
             sys.exit(0)
 
         SystemManager.printInfo(\
@@ -19165,9 +19170,6 @@ Copyright:
     @staticmethod
     def doSetCpu():
         freqPath = '/sys/devices/system/cpu'
-
-        # parse options #
-        SystemManager.parseAnalOption()
 
         # check tid #
         if not SystemManager.isRoot():
