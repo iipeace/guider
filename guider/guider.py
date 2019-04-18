@@ -2724,6 +2724,8 @@ class NetworkManager(object):
                 netObj.timeout()
                 netObj.connect((targetIp, targetPort))
                 return netObj
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning((\
                     'Failed to connect to client '
@@ -2834,7 +2836,7 @@ class NetworkManager(object):
             targetPort = int(addr[1])
 
             SystemManager.printInfo(\
-                "%s is executed from %s\n" % \
+                "'%s' is executed from %s\n" % \
                 (command, ':'.join(list(map(str, addr)))))
 
             # get connection #
@@ -2955,7 +2957,7 @@ class NetworkManager(object):
             message = message.encode()
 
         try:
-            if write is False and SystemManager.localServObj:
+            if not write and SystemManager.localServObj:
                 SystemManager.localServObj.socket.sendto(\
                     message, (self.ip, self.port))
             else:
@@ -3035,6 +3037,8 @@ class NetworkManager(object):
         try:
             message, address = self.socket.recvfrom(65535)
             return (message, address)
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -10406,6 +10410,23 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setOOMAdj(pri='-17'):
+        if not sys.platform.startswith('linux'):
+            return
+
+        oomPath = '%s/self/oom_adj' % SystemManager.procPath
+
+        try:
+            with open(oomPath, 'w') as fd:
+                fd.write(pri)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                "Fail to write oom_adj because %s" % err)
+
+
+
+    @staticmethod
     def setComm(comm):
         if not sys.platform.startswith('linux'):
             return
@@ -14612,6 +14633,15 @@ Copyright:
 
 
     @staticmethod
+    def chldHandler(signum, frame):
+        try:
+            os.waitpid(-1, os.WNOHANG)
+        except:
+            pass
+
+
+
+    @staticmethod
     def stopHandler(signum, frame):
         if SystemManager.isFileMode() or \
             SystemManager.isSystemMode():
@@ -16601,55 +16631,7 @@ Copyright:
                 if not SystemManager.findOption('x'):
                     SystemManager.setServerNetwork(None, None)
 
-                # receive mode #
-                if len(value) == 0:
-                    SystemManager.remoteServObj = 'NONE'
-                    continue
-
-                # request mode #
-                else:
-                    service, ip, port = SystemManager.parseAddr(value)
-
-                    # set PRINT as default #
-                    if not service:
-                        service = 'PRINT'
-
-                    if not ip:
-                        ip = NetworkManager.getPublicIp()
-
-                    if not port:
-                        port = 5555
-
-                    if SystemManager.localServObj and \
-                        SystemManager.localServObj.ip == ip and \
-                        SystemManager.localServObj.port == port:
-                        SystemManager.printError((\
-                            "wrong option value with -X, "
-                            "local address and remote address are same "
-                            "with %s:%s") % (ip, port))
-                        sys.exit(0)
-
-                    if not ip or not port or \
-                        SystemManager.isEffectiveRequest(service) is False:
-                        reqList = ''
-                        for req in ThreadAnalyzer.requestType:
-                            reqList += req + '|'
-
-                        SystemManager.printError(\
-                            ("wrong option value with -X, "
-                            "input [%s]@IP:PORT as remote address") % \
-                                reqList[:-1])
-                        sys.exit(0)
-
-                networkObject = NetworkManager('client', ip, port)
-                if not networkObject.ip:
-                    sys.exit(0)
-                else:
-                    networkObject.request = service
-                    SystemManager.remoteServObj = networkObject
-
-                SystemManager.printInfo(\
-                    "use %s:%d as remote address" % (ip, port))
+                SystemManager.setRemoteServer(value)
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -18098,6 +18080,39 @@ Copyright:
 
 
     @staticmethod
+    def getProcAddrs(name):
+        if not name:
+            return None
+
+        # get pids #
+        pids = SystemManager.getProcPids(name)
+        if len(pids) == 1:
+            # get socket objects #
+            objs = SystemManager.getProcSocketObjs(pids[0])
+
+            # get bind address #
+            addrs = SystemManager.getSocketAddrList(objs)
+            if len(addrs) == 0:
+                SystemManager.printError(\
+                    "Fail to get socket attribute of server process")
+                return None
+
+            # get server address #
+            addr = addrs[0]
+
+            return addr[addr.find(':')+1:]
+        elif len(pids) > 1:
+            SystemManager.printError(\
+                "Found multiple running %s processes" % name)
+            return None
+        else:
+            SystemManager.printError(\
+                "Fail to find %s process" % name)
+            return None
+
+
+
+    @staticmethod
     def getProcPids(name):
         pidList = []
         myPid = str(SystemManager.pid)
@@ -18126,6 +18141,60 @@ Copyright:
                 pidList.append(int(pid))
 
         return pidList
+
+
+
+    @staticmethod
+    def setRemoteServer(value):
+        # receive mode #
+        if value and len(value) == 0:
+            SystemManager.remoteServObj = 'NONE'
+            return
+
+        # request mode #
+        else:
+            service, ip, port = SystemManager.parseAddr(value)
+
+            # set PRINT as default #
+            if not service:
+                service = 'PRINT'
+
+            if not ip:
+                ip = NetworkManager.getPublicIp()
+
+            if not port:
+                port = 5555
+
+            if SystemManager.localServObj and \
+                SystemManager.localServObj.ip == ip and \
+                SystemManager.localServObj.port == port:
+                SystemManager.printError((\
+                    "wrong option value with -X, "
+                    "local address and remote address are same "
+                    "with %s:%s") % (ip, port))
+                sys.exit(0)
+
+            if not ip or not port or \
+                SystemManager.isEffectiveRequest(service) is False:
+                reqList = ''
+                for req in ThreadAnalyzer.requestType:
+                    reqList += req + '|'
+
+                SystemManager.printError(\
+                    ("wrong option value with -X, "
+                    "input [%s]@IP:PORT as remote address") % \
+                        reqList[:-1])
+                sys.exit(0)
+
+        networkObject = NetworkManager('client', ip, port)
+        if not networkObject.ip:
+            sys.exit(0)
+        else:
+            networkObject.request = service
+            SystemManager.remoteServObj = networkObject
+
+        SystemManager.printInfo(\
+            "use %s:%d as remote address" % (ip, port))
 
 
 
@@ -18608,6 +18677,7 @@ Copyright:
 
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
@@ -18619,6 +18689,7 @@ Copyright:
 
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
+        signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -18631,6 +18702,7 @@ Copyright:
         signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
+        signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -18775,7 +18847,7 @@ Copyright:
                             output = procObj.stdout.readline()
                             if output:
                                 ret = pipeObj.write(output)
-                                if ret is False:
+                                if not ret:
                                     break
                                 else:
                                     continue
@@ -18815,6 +18887,8 @@ Copyright:
                     connMan.listen()
                     sock, addr = connMan.accept()
                     return [sock, addr]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     err = SystemManager.getErrReason()
                     SystemManager.printWarning(\
@@ -18842,7 +18916,7 @@ Copyright:
                     (message, ip, port))
             else:
                 SystemManager.printError(\
-                    "received wrong request '%s'" % ret)
+                    "received wrong request '%s'" % req)
 
             # get request and value #
             try:
@@ -18854,6 +18928,7 @@ Copyright:
             if not request:
                 SystemManager.printWarning(\
                     'Fail to recognize request', True)
+                return
 
             # convert request to capital #
             request = request.upper()
@@ -18867,9 +18942,12 @@ Copyright:
             pid = SystemManager.createProcess()
             if pid > 0:
                 return
-            else:
-                netObj.close()
-                netObj = NetworkManager('server', netObj.ip, None, True)
+
+            # create new network object #
+            netObj = NetworkManager('server', netObj.ip, None, True)
+
+            # set default signals #
+            SystemManager.setDefaultSignal()
 
             if request == 'DOWNLOAD':
                 onDownload(netObj, conn, value, errAddr)
@@ -18886,6 +18964,8 @@ Copyright:
                 sendErrMsg(netObj, ip, port, \
                     "No support request %s" % message)
                 return
+
+            sys.exit(0)
 
 
 
@@ -18910,7 +18990,7 @@ Copyright:
         SystemManager.setServerNetwork(ip, port, force=True, blocking=True)
 
         SystemManager.printStatus(\
-            "server running as process %s" % SystemManager.pid)
+            "run process %s as server" % SystemManager.pid)
 
         # create tcp socket object #
         connMan = NetworkManager('server', ip, 0, tcp=True)
@@ -18920,10 +19000,8 @@ Copyright:
         while 1:
             # receive request from client #
             req = SystemManager.localServObj.recvfrom()
-
-            # return #
             if not req:
-                sys.exit(0)
+                continue
 
             # handle request from client #
             handleRequest(SystemManager.localServObj, connMan, req)
@@ -18957,121 +19035,47 @@ Copyright:
 
 
 
-        # start clinent mode #
+        # start client mode #
         SystemManager.printInfo("CLIENT MODE")
 
-        # get server address value #
-        addr = SystemManager.getOption('X')
-
-        # search address of local Guider processes #
-        if not addr:
-            # check permission #
-            if not SystemManager.isRoot():
-                SystemManager.printError(\
-                    "Fail to get root permission to get server info")
-                sys.exit(0)
-
-            pids = SystemManager.getProcPids(__module__)
-            if len(pids) == 1:
-                # get socket objects #
-                objs = SystemManager.getProcSocketObjs(pids[0])
-
-                # get bind address #
-                addrs = SystemManager.getSocketAddrList(objs)
-                if len(addrs) == 0:
-                    SystemManager.printError(\
-                        "Fail to get socket attribute of server process")
-                    sys.exit(0)
-
-                addr = addrs[0]
-                addr = addr[addr.find(':')+1:]
-            elif len(pids) > 1:
-                SystemManager.printError(\
-                    "Found multiple running guider processes, "
-                    "Input {ip:port} of only one process with -X")
-                sys.exit(0)
-            else:
+        # set server address #
+        if not SystemManager.remoteServObj:
+            addr = SystemManager.getProcAddrs(__module__)
+            if not addr:
                 printError()
-                sys.exit(0)
+                return
 
-        # parse server address value #
-        saddr = addr.split(':')
+            # classify ip and port #
+            service, ip, port = SystemManager.parseAddr(addr)
+            if service == ip == port == None:
+                printError()
+                return
+            else:
+                SystemManager.setRemoteServer(addr)
 
-        if len(saddr) == 1:
-            defaultPort = 5555
-            saddr = '%s:%s' % (addr, defaultPort)
-        elif len(saddr) == 2:
-            saddr = addr
-        else:
-            printError()
-            sys.exit(0)
-
-        # classify ip and port #
-        service, ip, port = SystemManager.parseAddr(saddr)
-        if service == ip == port == None:
-            printError()
-            sys.exit(0)
-
-        # create client object #
-        networkObject = NetworkManager('client', ip, port)
-        if not networkObject.ip:
-            SystemManager.printError(\
-                "Fail to set network address")
-            sys.exit(0)
-
-        # set timeout #
-        networkObject.timeout()
-
-        SystemManager.printInfo(\
-            "use %s:%s as remote address" % \
-            (networkObject.ip, networkObject.port))
-
-        SystemManager.printStatus(\
-            "client running as process %s" % SystemManager.pid)
-
-        # get local address value #
-        caddr = SystemManager.getOption('x')
+        # set local address #
+        if not SystemManager.localServObj:
+            SystemManager.setServerNetwork(None, None)
 
         try:
-            if not caddr:
-                # get public IP #
-                ip = NetworkManager.getPublicIp()
-                port = 0
+            # close binded local socket #
+            SystemManager.localServObj.close()
 
-                # bind ip and port #
-                networkObject.bind(ip, port)
+            # get server address info #
+            ip = SystemManager.localServObj.ip
+            port = SystemManager.localServObj.port
+            SystemManager.localServObj = None
 
-                ip, port = networkObject.socket.getsockname()
-            else:
-                # parse server address value #
-                caddr = caddr.split(':')
+            # bind socket for remote server #
+            SystemManager.remoteServObj.bind(ip, port)
+            SystemManager.remoteServObj.timeout()
 
-                if len(caddr) == 1:
-                    ip = caddr[0]
-                    port = 0
-
-                    # bind ip and port #
-                    networkObject.bind(ip, port)
-
-                    ip, port = networkObject.socket.getsockname()
-                elif len(caddr) == 2:
-                    ip, port = caddr
-                    port = int(port)
-
-                    # bind ip and port #
-                    networkObject.bind(ip, port)
-
-                    ip, port = networkObject.socket.getsockname()
-                else:
-                    raise Exception()
+            connObj = SystemManager.remoteServObj
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to set client network because %s" % err)
-            sys.exit(0)
-
-        SystemManager.printInfo(\
-            "use %s:%s as local address" % (ip, port))
+                "Fail to set socket for connection because %s" % err)
+            return
 
         # run mainloop #
         while 1:
@@ -19081,22 +19085,22 @@ Copyright:
                     continue
 
                 # send request to server #
-                networkObject.send(uinput)
+                connObj.send(uinput)
 
                 # receive reply from server #
-                reply = networkObject.recvfrom()
+                reply = connObj.recvfrom()
 
                 try:
                     # handle reply from server #
-                    networkObject.handleServerRequest(reply)
+                    connObj.handleServerRequest(reply)
                 except:
                     pass
             except SystemExit:
-                sys.exit(0)
+                return
             except:
                 pass
 
-        sys.exit(0)
+        return
 
 
 
@@ -41844,6 +41848,9 @@ def main(args=None):
 
     # set comm #
     SystemManager.setComm(__module__)
+
+    # set oom_adj #
+    SystemManager.setOOMAdj()
 
     # set pid #
     SystemManager.getMaxPid()
