@@ -15382,7 +15382,7 @@ Copyright:
 
         # check filter list #
         if len(SystemManager.filterGroup) > 0:
-            if SystemManager.groupProcEnable is False:
+            if not SystemManager.groupProcEnable:
                 SystemManager.printInfo(\
                     "only specific threads including [%s] are shown" % \
                     ', '.join(SystemManager.filterGroup))
@@ -16277,11 +16277,17 @@ Copyright:
                 SystemManager.depEnable = True
 
             elif option == 'P':
-                if not SystemManager.getOption('g'):
+                pfilter = SystemManager.getOption('g')
+                if not pfilter:
                     SystemManager.printError((\
                         "wrong option with -P, "
                         "use -g option to group threads in same process"))
                     sys.exit(0)
+                elif not pfilter.isdigit() and \
+                    not SystemManager.isTopMode():
+                    SystemManager.printWarning((\
+                        "Using comm as process group filter "
+                        "can result in data loss"), True)
 
                 SystemManager.groupProcEnable = True
 
@@ -18101,7 +18107,7 @@ Copyright:
 
     @staticmethod
     def getProcAddrs(name):
-        if not name:
+        if not SystemManager.isLinux or not name:
             return None
 
         # get pids #
@@ -32042,7 +32048,7 @@ class ThreadAnalyzer(object):
                     end = SystemManager.convertSize2Unit(optSize << 1)
                     SystemManager.pipePrint(\
                         "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
-                        format('', '', '', '[%5s - %5s]' % (start, end),\
+                        format('', '', '', '[%7s - %7s]' % (start, end),\
                         format(cnt, ','), '', '', ''))
 
                 tcnt += 1
@@ -32050,7 +32056,8 @@ class ThreadAnalyzer(object):
             return tcnt
 
 
-        if SystemManager.blockEnable is False:
+        # check block option #
+        if not SystemManager.blockEnable:
             return
 
         SystemManager.pipePrint('\n[Thread Block Info] (Unit: KB/NR)')
@@ -35380,6 +35387,7 @@ class ThreadAnalyzer(object):
                         self.handleUserEvent(d['event'], time)
             return
 
+        # get thread info #
         d = m.groupdict()
         comm = d['comm']
         core = str(int(d['core']))
