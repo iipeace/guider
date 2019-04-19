@@ -2855,6 +2855,7 @@ class NetworkManager(object):
 
             # run mainloop #
             buf = ''
+            isPrint = False
             while 1:
                 try:
                     [readSock, writeSock, errorSock] = \
@@ -2874,9 +2875,13 @@ class NetworkManager(object):
                     else:
                         # concatenate split lines #
                         print('%s%s' % (buf, output[:-1]))
+                        isPrint = True
                         buf = ''
                 except:
                     break
+
+            if not isPrint:
+                print('No response')
 
             print(oneLine)
 
@@ -18851,7 +18856,6 @@ Copyright:
                 myEnv["REMOTERUN"] = "True"
 
                 # create process to communicate #
-                procObj = None
                 procObj = subprocess.Popen(\
                     value, shell=True, stdout=subprocess.PIPE, \
                     stderr=subprocess.PIPE, env=myEnv, bufsize=0, \
@@ -18870,17 +18874,17 @@ Copyright:
                         # wait for event #
                         [read, write, error] = \
                             selectObj.select(\
-                                [procObj.stdout, procObj.stderr], [], [], 1)
+                                [procObj.stdout], [], [], 1)
 
                         # read output from pipe #
                         for robj in read:
                             output = robj.readline()
-                            if output:
+                            if output and len(output) > 0:
                                 ret = pipeObj.write(output)
                                 if not ret:
                                     raise Exception()
-                                else:
-                                    continue
+                            else:
+                                raise Exception()
                     except:
                         break
 
@@ -19051,7 +19055,7 @@ Copyright:
                 '- DOWNLOAD:RemotePath,LocalPath\n'
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
-                '- QUIT:Exit\n'
+                '- EXIT\n'
                 '\n'
             )
 
@@ -19122,7 +19126,7 @@ Copyright:
                 uinput = getUserInput()
                 if len(uinput) == 0:
                     continue
-                elif uinput.upper() == 'QUIT':
+                elif uinput.upper() == 'EXIT':
                     break
 
                 # send request to server #
@@ -19131,6 +19135,7 @@ Copyright:
                 # receive reply from server #
                 reply = connObj.recvfrom()
 
+                print(reply)
                 try:
                     # handle reply from server #
                     connObj.handleServerRequest(reply)
