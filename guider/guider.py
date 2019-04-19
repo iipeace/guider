@@ -2617,7 +2617,8 @@ class NetworkManager(object):
         socket = SystemManager.getPkg('socket')
 
         try:
-            from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+            from socket import socket, AF_INET, SOCK_DGRAM, \
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
         except:
             return None
 
@@ -2638,6 +2639,8 @@ class NetworkManager(object):
                 self.socket = socket(AF_INET, SOCK_DGRAM)
 
             self.fileno = self.socket.fileno()
+
+            #self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
             if mode == 'server':
                 if not port:
@@ -2727,9 +2730,9 @@ class NetworkManager(object):
             except SystemExit:
                 sys.exit(0)
             except:
+                err = SystemManager.getErrReason()
                 SystemManager.printWarning((\
-                    'Failed to connect to client '
-                    'because of no response'), True)
+                    'Failed to connect to client because %s' % err), True)
                 return
 
         def onDownload(req, addr):
@@ -2828,6 +2831,7 @@ class NetworkManager(object):
 
         def onRun(req, addr):
             # parse command #
+            origReq = req
             command = req.split('|', 1)[1]
 
             # parse addr #
@@ -2903,7 +2907,9 @@ class NetworkManager(object):
                 (message, ip, port))
 
             try:
-                req, addr = message.split(':', 1)
+                mlist = message.split(':')
+                req = ':'.join(mlist[:-2])
+                addr = ':'.join(mlist[-2:])
             except:
                 req = addr = None
 
@@ -2911,6 +2917,7 @@ class NetworkManager(object):
             if not req:
                 SystemManager.printError(\
                     'Fail to recognize request')
+                return
 
             elif req.upper().startswith('DOWNLOAD'):
                 onDownload(req, addr)
@@ -2926,19 +2933,15 @@ class NetworkManager(object):
 
             else:
                 SystemManager.printError(\
-                    'Fail to recognize %s request' % req)
-
-            return
+                    "Fail to recognize '%s' request" % origReq)
 
         elif not req:
             SystemManager.printError(\
                 "No response from server")
-            return
 
         else:
             SystemManager.printError(\
-                "received wrong reply %s" % req)
-            return
+                "received wrong reply '%s'" % origReq)
 
 
 
@@ -2958,10 +2961,13 @@ class NetworkManager(object):
 
         try:
             if not write and SystemManager.localServObj:
-                SystemManager.localServObj.socket.sendto(\
+                ret = SystemManager.localServObj.socket.sendto(\
                     message, (self.ip, self.port))
             else:
-                self.socket.sendto(message, (self.ip, self.port))
+                ret = self.socket.sendto(message, (self.ip, self.port))
+
+            if ret < 0:
+                raise Exception()
 
             if self.status is not 'ALWAYS':
                 self.status = 'SENT'
@@ -11073,11 +11079,17 @@ class SystemManager(object):
                 SystemManager.libcPath = 'libc.so'
         elif sys.platform.startswith('win'):
             SystemManager.isLinux = False
-            if SystemManager.isDrawMode() is False and \
-                SystemManager.isConvertMode() is False:
+            if len(sys.argv) > 1 and \
+                not SystemManager.isClientMode() and \
+                not SystemManager.isDrawMode() and \
+                not SystemManager.isConvertMode():
+                if len(sys.argv) == 1:
+                    arg = sys.argv[0]
+                else:
+                    arg = sys.argv[1]
                 SystemManager.printError(\
-                    '%s platform is supported for %s command now'
-                    % (sys.platform, sys.argv[1]))
+                    '%s platform is supported for %s command now' % \
+                        (sys.platform, arg))
                 sys.exit(0)
         else:
             SystemManager.printError(\
@@ -15108,6 +15120,10 @@ Copyright:
 
     @staticmethod
     def printRawTitle(absolute=False, big=False, pager=False):
+        # check remote runner #
+        if "REMOTERUN" in os.environ:
+            return
+
         # check extended ascii support #
         SystemManager.convertExtAscii(ConfigManager.logo)
 
@@ -15143,7 +15159,9 @@ Copyright:
 
     @staticmethod
     def printLogo(absolute=False, big=False, onlyFile=False):
-        if not SystemManager.printEnable:
+        # check print option and remote runner #
+        if not SystemManager.printEnable or \
+            "REMOTERUN" in os.environ:
             return
 
         if not SystemManager.printFile:
@@ -17716,7 +17734,9 @@ Copyright:
         orig = SystemManager.drawMode
         SystemManager.drawMode = True
 
-        if sys.argv[1] == 'draw' or orig:
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'draw' or orig:
             return True
         elif SystemManager.isCpuDrawMode():
             return True
@@ -18165,6 +18185,7 @@ Copyright:
             if not port:
                 port = 5555
 
+            # check server addresses #
             if SystemManager.localServObj and \
                 SystemManager.localServObj.ip == ip and \
                 SystemManager.localServObj.port == port:
@@ -18175,7 +18196,7 @@ Copyright:
                 sys.exit(0)
 
             if not ip or not port or \
-                SystemManager.isEffectiveRequest(service) is False:
+                not SystemManager.isEffectiveRequest(service):
                 reqList = ''
                 for req in ThreadAnalyzer.requestType:
                     reqList += req + '|'
@@ -18211,9 +18232,11 @@ Copyright:
 
         # print available IP list #
         try:
-            SystemManager.printWarning(\
-                'available IP list [%s]' % \
-                ', '.join(sorted(NetworkManager.getUsingIps())))
+            iplist = sorted(NetworkManager.getUsingIps())
+            if len(iplist) > 0:
+                SystemManager.printWarning(\
+                    'available IP list [%s]' % \
+                    ', '.join(iplist))
         except:
             pass
 
@@ -18333,13 +18356,13 @@ Copyright:
         procList = SystemManager.getBgProcList()
 
         if procList == '':
-            print("no running process in the background\n")
+            print("\nno running process in the background\n")
         else:
-            print('[Running Process] [TOTAL: %s]' % procList.count('\n'))
+            print('\n[Running Process] [TOTAL: %s]' % procList.count('\n'))
             print(twoLine)
             print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
             print(oneLine)
-            print(procList + "%s\n" % oneLine)
+            print(procList + "%s" % oneLine)
 
 
 
@@ -18840,15 +18863,16 @@ Copyright:
                     try:
                         # wait for event #
                         [read, write, error] = \
-                            selectObj.select([procObj.stdout], [], [], 1)
+                            selectObj.select(\
+                                [procObj.stdout, procObj.stderr], [], [], 1)
 
-                        # read from process #
-                        if len(read) > 0:
-                            output = procObj.stdout.readline()
+                        # read output from pipe #
+                        for robj in read:
+                            output = robj.readline()
                             if output:
                                 ret = pipeObj.write(output)
                                 if not ret:
-                                    break
+                                    raise Exception()
                                 else:
                                     continue
                     except:
@@ -18909,7 +18933,7 @@ Copyright:
                 except:
                     SystemManager.printWarning(\
                         "Fail to get address of client from message")
-                    return
+                    return False
 
                 SystemManager.printInfo(\
                     "received request '%s' from %s:%s" % \
@@ -18917,6 +18941,7 @@ Copyright:
             else:
                 SystemManager.printError(\
                     "received wrong request '%s'" % req)
+                return False
 
             # get request and value #
             try:
@@ -18928,26 +18953,33 @@ Copyright:
             if not request:
                 SystemManager.printWarning(\
                     'Fail to recognize request', True)
-                return
+                return False
 
             # convert request to capital #
             request = request.upper()
 
-            # connect to client #
-            conn = doConnect(request, value, connMan)
-            if not conn:
-                return
+            # check request type #
+            if request != 'DOWNLOAD' and \
+                request != 'UPLOAD' and \
+                request != 'RUN':
+                SystemManager.printWarning(\
+                    "Fail to recognize request '%s'" % message, True)
+                sendErrMsg(netObj, ip, port, \
+                    "No support request '%s'" % message)
+                return False
 
             # create worker process #
             pid = SystemManager.createProcess()
             if pid > 0:
-                return
+                return True
+
+            # connect to client #
+            conn = doConnect(request, value, connMan)
+            if not conn:
+                sys.exit(0)
 
             # create new network object #
             netObj = NetworkManager('server', netObj.ip, None, True)
-
-            # set default signals #
-            SystemManager.setDefaultSignal()
 
             if request == 'DOWNLOAD':
                 onDownload(netObj, conn, value, errAddr)
@@ -18957,13 +18989,6 @@ Copyright:
 
             elif request == 'RUN':
                 onRun(netObj, conn, value, errAddr)
-
-            else:
-                SystemManager.printWarning(\
-                    "Fail to recognize request '%s'" % message, True)
-                sendErrMsg(netObj, ip, port, \
-                    "No support request %s" % message)
-                return
 
             sys.exit(0)
 
@@ -18993,7 +19018,8 @@ Copyright:
             "run process %s as server" % SystemManager.pid)
 
         # create tcp socket object #
-        connMan = NetworkManager('server', ip, 0, tcp=True)
+        connMan = NetworkManager(\
+            'server', SystemManager.localServObj.ip, 0, tcp=True)
         connMan.timeout()
 
         # run mainloop #
@@ -19004,7 +19030,8 @@ Copyright:
                 continue
 
             # handle request from client #
-            handleRequest(SystemManager.localServObj, connMan, req)
+            if handleRequest(SystemManager.localServObj, connMan, req):
+                SystemManager.printBgProcs()
 
         sys.exit(0)
 
@@ -19018,6 +19045,7 @@ Copyright:
                 '- DOWNLOAD:RemotePath,LocalPath\n'
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
+                '- QUIT:Exit\n'
                 '\n'
             )
 
@@ -19039,7 +19067,7 @@ Copyright:
         SystemManager.printInfo("CLIENT MODE")
 
         # set server address #
-        if not SystemManager.remoteServObj:
+        if SystemManager.isLinux and not SystemManager.remoteServObj:
             addr = SystemManager.getProcAddrs(__module__)
             if not addr:
                 printError()
@@ -19053,6 +19081,11 @@ Copyright:
             else:
                 SystemManager.setRemoteServer(addr)
 
+        # check server address #
+        if not SystemManager.remoteServObj:
+            printError()
+            return
+
         # set local address #
         if not SystemManager.localServObj:
             SystemManager.setServerNetwork(None, None)
@@ -19061,13 +19094,13 @@ Copyright:
             # close binded local socket #
             SystemManager.localServObj.close()
 
-            # get server address info #
+            # get local address info #
             ip = SystemManager.localServObj.ip
             port = SystemManager.localServObj.port
             SystemManager.localServObj = None
 
             # bind socket for remote server #
-            SystemManager.remoteServObj.bind(ip, port)
+            #SystemManager.remoteServObj.bind(ip, port)
             SystemManager.remoteServObj.timeout()
 
             connObj = SystemManager.remoteServObj
@@ -19083,6 +19116,8 @@ Copyright:
                 uinput = getUserInput()
                 if len(uinput) == 0:
                     continue
+                elif uinput.upper() == 'QUIT':
+                    break
 
                 # send request to server #
                 connObj.send(uinput)
@@ -32004,7 +32039,7 @@ class ThreadAnalyzer(object):
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
                     start = SystemManager.convertSize2Unit(optSize)
-                    end = SystemManager.convertSize2Unit((optSize << 1) - 1024)
+                    end = SystemManager.convertSize2Unit(optSize << 1)
                     SystemManager.pipePrint(\
                         "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
                         format('', '', '', '[%5s - %5s]' % (start, end),\
