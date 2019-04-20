@@ -2645,7 +2645,7 @@ class NetworkManager(object):
             if mode == 'server':
                 if not port:
                     try:
-                        self.port = 5555
+                        self.port = SystemManager.defaultPort
                         self.socket.bind((self.ip, self.port))
                     except:
                         self.port = 0
@@ -2755,7 +2755,7 @@ class NetworkManager(object):
             # get select object #
             selectObj = SystemManager.getPkg('select')
 
-            # save file #
+            # receive file #
             try:
                 curSize = 0
                 totalSize = None
@@ -2774,6 +2774,7 @@ class NetworkManager(object):
                         receiver.send('ACK'.encode())
                         break
 
+                # receive file #
                 with open(targetPath, 'wb') as fd:
                     while 1:
                         selectObj.select([receiver.socket], [], [], 3)
@@ -3091,6 +3092,253 @@ class NetworkManager(object):
             sys.exit(0)
         except:
             return None
+
+
+
+    @staticmethod
+    def requestCmd(connObj, cmd):
+        # send request to server #
+        connObj.send(cmd)
+
+        # receive reply from server #
+        reply = connObj.recvfrom()
+
+        # handle reply from server #
+        try:
+            connObj.handleServerRequest(reply)
+        except:
+            pass
+
+
+
+    @staticmethod
+    def getServerConn():
+        def printError():
+            SystemManager.printError(\
+                "No running server or wrong server address")
+
+        # set server address #
+        if SystemManager.isLinux and not SystemManager.remoteServObj:
+            addr = SystemManager.getProcAddrs(__module__)
+            if not addr:
+                printError()
+                return None
+
+            # classify ip and port #
+            service, ip, port = NetworkManager.parseAddr(addr)
+            if service == ip == port == None:
+                printError()
+                return None
+            else:
+                NetworkManager.setRemoteServer(addr)
+
+        # check server address #
+        if not SystemManager.remoteServObj:
+            printError()
+            return None
+
+        # set local address #
+        if not SystemManager.localServObj:
+            NetworkManager.setServerNetwork(None, None)
+
+        try:
+            # close local bind socket #
+            SystemManager.localServObj.close()
+
+            # get local address info #
+            ip = SystemManager.localServObj.ip
+            port = SystemManager.localServObj.port
+            SystemManager.localServObj = None
+
+            # bind socket for remote server #
+            #SystemManager.remoteServObj.bind(ip, port)
+            SystemManager.remoteServObj.timeout()
+
+            connObj = SystemManager.remoteServObj
+
+            return connObj
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to set socket for connection because %s" % err)
+            return None
+
+
+
+    @staticmethod
+    def parseAddr(value):
+        service = None
+        ip = None
+        port = None
+
+        if type(value) is not str:
+            return (service, ip, port)
+
+        # get request and address #
+        cmdList = value.split('@')
+        if len(cmdList) >= 2:
+            service = cmdList[0]
+            addr = cmdList[1]
+        else:
+            addr = value
+
+        # get ip and port #
+        addrList = addr.split(':')
+        if len(addrList) >= 2:
+            try:
+                if len(addrList[0]) > 0:
+                    ip = addrList[0]
+                if len(addrList[1]) > 0:
+                    port = int(addrList[1])
+            except:
+                pass
+        else:
+            try:
+                if addrList[0].find('.') > 0:
+                    ip = addrList[0]
+                else:
+                    port = int(addrList[0])
+            except:
+                pass
+
+        return (service, ip, port)
+
+
+
+    @staticmethod
+    def setRemoteServer(value):
+        # receive mode #
+        if value and len(value) == 0:
+            SystemManager.remoteServObj = 'NONE'
+            return
+
+        # request mode #
+        else:
+            service, ip, port = NetworkManager.parseAddr(value)
+
+            # set PRINT as default #
+            if not service:
+                service = 'PRINT'
+
+            if not ip:
+                ip = NetworkManager.getPublicIp()
+
+            if not port:
+                port = SystemManager.defaultPort
+
+            # check server addresses #
+            if SystemManager.localServObj and \
+                SystemManager.localServObj.ip == ip and \
+                SystemManager.localServObj.port == port:
+                SystemManager.printError((\
+                    "wrong option value with -X, "
+                    "local address and remote address are same "
+                    "with %s:%s") % (ip, port))
+                sys.exit(0)
+
+            if not ip or not port or \
+                not SystemManager.isEffectiveRequest(service):
+                reqList = ''
+                for req in ThreadAnalyzer.requestType:
+                    reqList += req + '|'
+
+                SystemManager.printError(\
+                    ("wrong option value with -X, "
+                    "input [%s]@IP:PORT as remote address") % \
+                        reqList[:-1])
+                sys.exit(0)
+
+        networkObject = NetworkManager('client', ip, port)
+        if not networkObject.ip:
+            sys.exit(0)
+        else:
+            networkObject.request = service
+            SystemManager.remoteServObj = networkObject
+
+        SystemManager.printInfo(\
+            "use %s:%d as remote address" % (ip, port))
+
+
+
+    @staticmethod
+    def setServerNetwork(ip, port, force=False, blocking=False):
+        if SystemManager.localServObj and not force:
+            SystemManager.printWarning(\
+                "Fail to set server network because it is already set")
+            return
+
+        # get internet available IP first #
+        if not ip:
+            ip = NetworkManager.getPublicIp()
+
+        # print available IP list #
+        try:
+            iplist = sorted(NetworkManager.getUsingIps())
+            if len(iplist) > 0:
+                SystemManager.printWarning(\
+                    'available IP list [%s]' % \
+                    ', '.join(iplist))
+        except:
+            pass
+
+        # check server setting #
+        if SystemManager.localServObj and \
+            SystemManager.localServObj.ip == ip and \
+            SystemManager.localServObj.port == port:
+            if blocking:
+                SystemManager.localServObj.socket.setblocking(1)
+            else:
+                SystemManager.localServObj.socket.setblocking(0)
+            return
+
+        # create new server setting #
+        networkObject = NetworkManager('server', ip, port, blocking)
+        if not networkObject.ip:
+            SystemManager.printWarning(\
+                "Fail to set server network", True)
+            return
+
+        SystemManager.localServObj = networkObject
+        SystemManager.printInfo("use %s:%d as local address" % \
+            (SystemManager.localServObj.ip, SystemManager.localServObj.port))
+
+
+
+    @staticmethod
+    def prepareServerConn(cliAddr, servAddr):
+        # set local address #
+        if not cliAddr:
+            NetworkManager.setServerNetwork(None, None)
+        else:
+            service, ip, port = NetworkManager.parseAddr(cliAddr)
+
+            NetworkManager.setServerNetwork(ip, port)
+
+        # set remote address #
+        if servAddr:
+            NetworkManager.setRemoteServer(servAddr)
+
+        try:
+            cliIp = SystemManager.localServObj.ip
+        except:
+            cliIp = None
+
+        try:
+            cliPort = SystemManager.localServObj.port
+        except:
+            cliPort = None
+
+        try:
+            servIp = SystemManager.remoteServObj.ip
+        except:
+            servIp = None
+
+        try:
+            servPort = SystemManager.remoteServObj.port
+        except:
+            servPort = None
+
+        return (cliIp, cliPort), (servIp, servPort)
 
 
 
@@ -4602,7 +4850,7 @@ class FunctionAnalyzer(object):
                 binPath = value['binary']
 
                 # Get binary from server #
-                if os.path.isfile(binPath) is False and \
+                if not os.path.isfile(binPath) and \
                     SystemManager.remoteServObj:
                     self.getBinFromServer(\
                         SystemManager.localServObj, \
@@ -9786,6 +10034,7 @@ class SystemManager(object):
     pidDigit = 5
     stderr = sys.stderr
     packetSize = 65535
+    defaultPort = 5555
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -16034,46 +16283,6 @@ Copyright:
 
 
     @staticmethod
-    def parseAddr(value):
-        service = None
-        ip = None
-        port = None
-
-        if type(value) is not str:
-            return (service, ip, port)
-
-        # get request and address #
-        cmdList = value.split('@')
-        if len(cmdList) >= 2:
-            service = cmdList[0]
-            addr = cmdList[1]
-        else:
-            addr = value
-
-        # get ip and port #
-        addrList = addr.split(':')
-        if len(addrList) >= 2:
-            try:
-                if len(addrList[0]) > 0:
-                    ip = addrList[0]
-                if len(addrList[1]) > 0:
-                    port = int(addrList[1])
-            except:
-                pass
-        else:
-            try:
-                if addrList[0].find('.') > 0:
-                    ip = addrList[0]
-                else:
-                    port = int(addrList[0])
-            except:
-                pass
-
-        return (service, ip, port)
-
-
-
-    @staticmethod
     def parseOption():
         if SystemManager.optionList:
             return
@@ -16654,7 +16863,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
-                service, ip, port = SystemManager.parseAddr(value)
+                service, ip, port = NetworkManager.parseAddr(value)
 
                 if not service or not ip or not port or \
                     SystemManager.isEffectiveRequest(service) is False:
@@ -16692,15 +16901,15 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'x':
-                service, ip, port = SystemManager.parseAddr(value)
+                service, ip, port = NetworkManager.parseAddr(value)
 
-                SystemManager.setServerNetwork(ip, port)
+                NetworkManager.setServerNetwork(ip, port)
 
             elif option == 'X':
                 if not SystemManager.findOption('x'):
-                    SystemManager.setServerNetwork(None, None)
+                    NetworkManager.setServerNetwork(None, None)
 
-                SystemManager.setRemoteServer(value)
+                NetworkManager.setRemoteServer(value)
 
             elif option == 'S':
                 SystemManager.sort = value
@@ -18216,105 +18425,6 @@ Copyright:
 
 
     @staticmethod
-    def setRemoteServer(value):
-        # receive mode #
-        if value and len(value) == 0:
-            SystemManager.remoteServObj = 'NONE'
-            return
-
-        # request mode #
-        else:
-            service, ip, port = SystemManager.parseAddr(value)
-
-            # set PRINT as default #
-            if not service:
-                service = 'PRINT'
-
-            if not ip:
-                ip = NetworkManager.getPublicIp()
-
-            if not port:
-                port = 5555
-
-            # check server addresses #
-            if SystemManager.localServObj and \
-                SystemManager.localServObj.ip == ip and \
-                SystemManager.localServObj.port == port:
-                SystemManager.printError((\
-                    "wrong option value with -X, "
-                    "local address and remote address are same "
-                    "with %s:%s") % (ip, port))
-                sys.exit(0)
-
-            if not ip or not port or \
-                not SystemManager.isEffectiveRequest(service):
-                reqList = ''
-                for req in ThreadAnalyzer.requestType:
-                    reqList += req + '|'
-
-                SystemManager.printError(\
-                    ("wrong option value with -X, "
-                    "input [%s]@IP:PORT as remote address") % \
-                        reqList[:-1])
-                sys.exit(0)
-
-        networkObject = NetworkManager('client', ip, port)
-        if not networkObject.ip:
-            sys.exit(0)
-        else:
-            networkObject.request = service
-            SystemManager.remoteServObj = networkObject
-
-        SystemManager.printInfo(\
-            "use %s:%d as remote address" % (ip, port))
-
-
-
-    @staticmethod
-    def setServerNetwork(ip, port, force=False, blocking=False):
-        if SystemManager.localServObj and not force:
-            SystemManager.printWarning(\
-                "Fail to set server network because it is already set")
-            return
-
-        # get internet available IP first #
-        if not ip:
-            ip = NetworkManager.getPublicIp()
-
-        # print available IP list #
-        try:
-            iplist = sorted(NetworkManager.getUsingIps())
-            if len(iplist) > 0:
-                SystemManager.printWarning(\
-                    'available IP list [%s]' % \
-                    ', '.join(iplist))
-        except:
-            pass
-
-        # check server setting #
-        if SystemManager.localServObj and \
-            SystemManager.localServObj.ip == ip and \
-            SystemManager.localServObj.port == port:
-            if blocking:
-                SystemManager.localServObj.socket.setblocking(1)
-            else:
-                SystemManager.localServObj.socket.setblocking(0)
-            return
-
-        # create new server setting #
-        networkObject = NetworkManager('server', ip, port, blocking)
-        if not networkObject.ip:
-            SystemManager.printWarning(\
-                "Fail to set server network", True)
-            return
-
-        SystemManager.localServObj = networkObject
-        SystemManager.printInfo("use %s:%d as local address" % \
-            (SystemManager.localServObj.ip, SystemManager.localServObj.port))
-
-
-
-    @staticmethod
     def updateUptime():
         try:
             SystemManager.uptimeFd.seek(0)
@@ -18825,6 +18935,7 @@ Copyright:
                     else:
                         break
 
+                # send file #
                 with open(targetPath,'rb') as fd:
                     buf = fd.read(SystemManager.packetSize)
                     while (buf):
@@ -18833,9 +18944,10 @@ Copyright:
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
-                    (targetPath, \
-                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)), \
-                    ':'.join(list(map(str, addr))), remotePath))
+                        (targetPath, \
+                        SystemManager.convertSize2Unit(\
+                            os.path.getsize(targetPath)), \
+                        ':'.join(list(map(str, addr))), remotePath))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
@@ -18861,6 +18973,7 @@ Copyright:
             # get connection info #
             receiver, addr = conn
 
+            # receive file #
             try:
                 curSize = 0
                 totalSize = None
@@ -19099,7 +19212,7 @@ Copyright:
             ip = port = None
 
         # set address #
-        SystemManager.setServerNetwork(ip, port, force=True, blocking=True)
+        NetworkManager.setServerNetwork(ip, port, force=True, blocking=True)
 
         SystemManager.printStatus(\
             "run process %s as server" % SystemManager.pid)
@@ -19143,58 +19256,14 @@ Copyright:
 
             return(sys.stdin.readline()[:-1])
 
-        def printError():
-            SystemManager.printError(\
-                "No running server or wrong option value with -X, "
-                "Input {ip:port} in format")
-
 
 
         # start client mode #
         SystemManager.printInfo("CLIENT MODE")
 
-        # set server address #
-        if SystemManager.isLinux and not SystemManager.remoteServObj:
-            addr = SystemManager.getProcAddrs(__module__)
-            if not addr:
-                printError()
-                return
-
-            # classify ip and port #
-            service, ip, port = SystemManager.parseAddr(addr)
-            if service == ip == port == None:
-                printError()
-                return
-            else:
-                SystemManager.setRemoteServer(addr)
-
-        # check server address #
-        if not SystemManager.remoteServObj:
-            printError()
-            return
-
-        # set local address #
-        if not SystemManager.localServObj:
-            SystemManager.setServerNetwork(None, None)
-
-        try:
-            # close binded local socket #
-            SystemManager.localServObj.close()
-
-            # get local address info #
-            ip = SystemManager.localServObj.ip
-            port = SystemManager.localServObj.port
-            SystemManager.localServObj = None
-
-            # bind socket for remote server #
-            #SystemManager.remoteServObj.bind(ip, port)
-            SystemManager.remoteServObj.timeout()
-
-            connObj = SystemManager.remoteServObj
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printError(\
-                "Fail to set socket for connection because %s" % err)
+        # get connection #
+        connObj = NetworkManager.getServerConn()
+        if not connObj:
             return
 
         # run mainloop #
@@ -19206,23 +19275,11 @@ Copyright:
                 elif uinput.upper() == 'EXIT':
                     break
 
-                # send request to server #
-                connObj.send(uinput)
-
-                # receive reply from server #
-                reply = connObj.recvfrom()
-
-                # handle reply from server #
-                try:
-                    connObj.handleServerRequest(reply)
-                except:
-                    pass
+                NetworkManager.requestCmd(connObj, uinput)
             except SystemExit:
                 return
             except:
                 pass
-
-        return
 
 
 
@@ -27485,7 +27542,7 @@ class ThreadAnalyzer(object):
 
             # set network configuration #
             if not SystemManager.findOption('x'):
-                SystemManager.setServerNetwork(None, None)
+                NetworkManager.setServerNetwork(None, None)
 
             # set configuration from file #
             self.getConf()
