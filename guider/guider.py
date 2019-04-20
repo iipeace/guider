@@ -2880,11 +2880,13 @@ class NetworkManager(object):
                 except:
                     break
 
+            # print output from server #
             if not isPrint:
                 print('No response')
+            else:
+                print(oneLine)
 
-            print(oneLine)
-
+            # close connection #
             conn.close()
 
 
@@ -18837,6 +18839,9 @@ Copyright:
                 receiver.close()
 
         def onRun(netObj, conn, value, errAddr):
+            def enableSigPipe():
+                signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
             # get subprocess object #
             subprocess = SystemManager.getPkg('subprocess')
 
@@ -18874,10 +18879,15 @@ Copyright:
                         # wait for event #
                         [read, write, error] = \
                             selectObj.select(\
-                                [procObj.stdout], [], [], 1)
+                                [procObj.stdout, pipeObj.socket], [], [], 1)
 
                         # read output from pipe #
                         for robj in read:
+                            # connection closed #
+                            if robj == pipeObj.socket:
+                                raise Exception()
+
+                            # data arrived #
                             output = robj.readline()
                             if output and len(output) > 0:
                                 ret = pipeObj.write(output)
@@ -19135,9 +19145,8 @@ Copyright:
                 # receive reply from server #
                 reply = connObj.recvfrom()
 
-                print(reply)
+                # handle reply from server #
                 try:
-                    # handle reply from server #
                     connObj.handleServerRequest(reply)
                 except:
                     pass
