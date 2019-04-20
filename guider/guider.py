@@ -2757,20 +2757,35 @@ class NetworkManager(object):
 
             # save file #
             try:
+                curSize = 0
+                totalSize = None
                 dirPos = targetPath.rfind('/')
                 if dirPos >= 0 and \
-                    os.path.isdir(targetPath[:dirPos]) is False:
+                    not os.path.isdir(targetPath[:dirPos]):
                     os.makedirs(targetPath[:dirPos])
+
+                # receive file size #
+                while 1:
+                    size = receiver.recv(SystemManager.packetSize)
+                    if not size:
+                        continue
+                    else:
+                        totalSize = long(size.decode())
+                        receiver.send('ACK'.encode())
+                        break
 
                 with open(targetPath, 'wb') as fd:
                     while 1:
                         selectObj.select([receiver.socket], [], [], 3)
 
-                        buf = receiver.recv(1024)
+                        buf = receiver.recv(SystemManager.packetSize)
                         if buf:
+                            curSize += len(buf)
                             fd.write(buf)
                         else:
                             break
+
+                        SystemManager.printProgress(curSize, totalSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
@@ -2798,7 +2813,7 @@ class NetworkManager(object):
             targetPort = int(addr[1])
 
             # check file #
-            if os.path.isfile(origPath) is False:
+            if not os.path.isfile(origPath):
                 SystemManager.printError(\
                     'Failed to find %s to transfer' % origPath)
                 return
@@ -2808,13 +2823,35 @@ class NetworkManager(object):
             if not sender:
                 return
 
-            # transfer file #
             try:
+                # receive file size #
+                stat = os.stat(origPath)
+                st_size = '%s' % stat.st_size
+                sender.send(st_size.encode())
+
+                # read for ACK #
+                while 1:
+                    ret = sender.recv(3)
+                    if ret is None:
+                        continue
+                    else:
+                        break
+
+                # transfer file #
+                curSize = 0
+                totalSize = long(st_size)
                 with open(origPath,'rb') as fd:
-                    buf = fd.read(1024)
-                    while (buf):
-                        sender.send(buf)
-                        buf = fd.read(1024)
+                    buf = fd.read(SystemManager.packetSize)
+                    while buf:
+                        SystemManager.printProgress(curSize, totalSize)
+
+                        ret = sender.send(buf)
+                        if not ret:
+                            raise Exception()
+                        else:
+                            curSize = len(buf)
+
+                        buf = fd.read(SystemManager.packetSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
@@ -3048,7 +3085,7 @@ class NetworkManager(object):
             return False
 
         try:
-            message, address = self.socket.recvfrom(65535)
+            message, address = self.socket.recvfrom(SystemManager.packetSize)
             return (message, address)
         except SystemExit:
             sys.exit(0)
@@ -8475,7 +8512,7 @@ class LeakAnalyzer(object):
         self.init_fileData = \
             {'lastPosCnt': 0, 'count': 0, 'size': 0, 'lastPosSize': 0}
 
-        # Get file sie #
+        # Get file size #
         try:
             stat = os.stat(file)
             size = SystemManager.convertSize2Unit(stat.st_size)
@@ -9748,6 +9785,7 @@ class SystemManager(object):
     maxPid = 32768
     pidDigit = 5
     stderr = sys.stderr
+    packetSize = 65535
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -18774,11 +18812,24 @@ Copyright:
 
             # transfer file #
             try:
+                # send file size #
+                stat = os.stat(targetPath)
+                st_size = '%s' % stat.st_size
+                sender.send(st_size.encode())
+
+                # read for ACK #
+                while 1:
+                    ret = sender.recv(3)
+                    if ret is None:
+                        continue
+                    else:
+                        break
+
                 with open(targetPath,'rb') as fd:
-                    buf = fd.read(1024)
+                    buf = fd.read(SystemManager.packetSize)
                     while (buf):
                         sender.send(buf)
-                        buf = fd.read(1024)
+                        buf = fd.read(SystemManager.packetSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
@@ -18810,19 +18861,35 @@ Copyright:
             # get connection info #
             receiver, addr = conn
 
-            # save file #
             try:
+                curSize = 0
+                totalSize = None
                 origPath = src.strip()
                 targetPath = des.strip()
+
+                # receive file size #
+                while 1:
+                    size = receiver.recv(SystemManager.packetSize)
+                    if not size:
+                        continue
+                    else:
+                        totalSize = long(size.decode())
+                        receiver.send('ACK'.encode())
+                        break
+
+                # receive file #
                 with open(targetPath, 'wb') as fd:
                     while 1:
                         selectObj.select([receiver], [], [], 3)
 
-                        buf = receiver.recv(1024)
+                        buf = receiver.recv(SystemManager.packetSize)
                         if buf:
                             fd.write(buf)
+                            curSize += len(buf)
                         else:
                             break
+
+                        #SystemManager.printProgress(curSize, totalSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
