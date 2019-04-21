@@ -2786,7 +2786,10 @@ class NetworkManager(object):
                         else:
                             break
 
+                        # print progress #
                         SystemManager.printProgress(curSize, totalSize)
+
+                SystemManager.deleteProgress()
 
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
@@ -2844,6 +2847,7 @@ class NetworkManager(object):
                 with open(origPath,'rb') as fd:
                     buf = fd.read(SystemManager.packetSize)
                     while buf:
+                        # print progress #
                         SystemManager.printProgress(curSize, totalSize)
 
                         ret = sender.send(buf)
@@ -2853,6 +2857,8 @@ class NetworkManager(object):
                             curSize = len(buf)
 
                         buf = fd.read(SystemManager.packetSize)
+
+                SystemManager.deleteProgress()
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
@@ -3828,6 +3834,7 @@ class FunctionAnalyzer(object):
         self.sysEnabled = False
 
         self.sort = 'sym'
+        self.connObj = None
 
         self.finishTime = '0'
         self.totalTime = 0
@@ -4786,16 +4793,15 @@ class FunctionAnalyzer(object):
                 "input {ip:port} in format")
             sys.exit(0)
 
+        # set download command #
         req = 'DOWNLOAD:%s,%s' % (src, des)
 
-        # set timeout #
-        localObj.timeout()
+        # get connection with server #
+        if not self.connObj:
+            self.connObj = NetworkManager.getServerConn()
 
-        localObj.sendto(req, remoteObj.ip, remoteObj.port)
-
-        reply = localObj.recvfrom()
-
-        localObj.handleServerRequest(reply)
+        # request download command #
+        NetworkManager.requestCmd(self.connObj, req)
 
 
 
