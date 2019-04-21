@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name = 'guider',
-    version = '3.9.4',
+    version = '3.9.5',
     license = 'GPL2',
     description = 'A system-wide analyzer of performance',
     author = 'Peace Lee',
