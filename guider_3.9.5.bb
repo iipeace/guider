@@ -11,7 +11,7 @@ PR = "r0"
 
 SRC_URI = "git://github.com/iipeace/${BPN}"
 #SRCREV = "${AUTOREV}"
-SRCREV = "8a2e01482e5ddd77b0bd450065cffa1173a78ee8"
+SRCREV = "534f385a86b6be105a6519f4c87f230e1a10d408"
 
 S = "${WORKDIR}/git"
 R = "${RECIPE_SYSROOT}"
