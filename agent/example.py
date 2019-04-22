@@ -6,7 +6,7 @@ import sys
 import json
 
 # add guider path #
-curDir = os.getcwd()
+curDir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, '%s/../guider' % curDir)
 
 from guider import NetworkManager
