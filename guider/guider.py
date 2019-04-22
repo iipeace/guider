@@ -2716,7 +2716,7 @@ class NetworkManager(object):
 
 
 
-    def handleServerRequest(self, req):
+    def handleServerRequest(self, req, onlySocket=False):
         def getConn(ip, targetIp, targetPort):
             # create tcp socket object #
             netObj = NetworkManager(\
@@ -2873,7 +2873,7 @@ class NetworkManager(object):
             finally:
                 sender.close()
 
-        def onRun(req, addr):
+        def onRun(req, addr, onlySocket):
             # parse command #
             origReq = req
             command = req.split('|', 1)[1]
@@ -2883,14 +2883,17 @@ class NetworkManager(object):
             targetIp = addr[0]
             targetPort = int(addr[1])
 
-            SystemManager.printInfo(\
-                "'%s' is executed from %s\n" % \
-                (command, ':'.join(list(map(str, addr)))))
+            if not onlySocket:
+                SystemManager.printInfo(\
+                    "'%s' is executed from %s\n" % \
+                    (command, ':'.join(list(map(str, addr)))))
 
             # get connection #
             conn = getConn(self.ip, targetIp, targetPort)
             if not conn:
                 return
+            elif onlySocket:
+                return conn
 
             # get select object #
             selectObj = SystemManager.getPkg('select')
@@ -2905,15 +2908,12 @@ class NetworkManager(object):
                     [readSock, writeSock, errorSock] = \
                         selectObj.select([conn.socket], [], [])
 
-                    output = conn.recvfrom()[0]
+                    # receive packet #
+                    output = conn.getData()
                     if not output:
                         break
 
-                    try:
-                        output = output.decode()
-                    except:
-                        pass
-
+                    # check split packet #
                     if output[-1] != '\n':
                         buf = '%s%s' % (buf, output)
                     else:
@@ -2971,13 +2971,13 @@ class NetworkManager(object):
                 return
 
             elif req.upper().startswith('DOWNLOAD'):
-                onDownload(req, addr)
+                return onDownload(req, addr)
 
             elif req.upper().startswith('UPLOAD'):
-                onUpload(req, addr)
+                return onUpload(req, addr)
 
             elif req.upper().startswith('RUN'):
-                onRun(req, addr)
+                return onRun(req, addr, onlySocket)
 
             elif req.startswith('ERROR'):
                 SystemManager.printError(req.split('|', 1)[1])
@@ -3081,6 +3081,18 @@ class NetworkManager(object):
 
 
 
+    def getData(self):
+        output = self.recvfrom()[0]
+        if not output:
+            return output
+
+        try:
+            return output.decode()
+        except:
+            return
+
+
+
     def recvfrom(self):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
@@ -3114,6 +3126,28 @@ class NetworkManager(object):
             connObj.handleServerRequest(reply)
         except:
             pass
+
+
+
+    @staticmethod
+    def getCmdPipe(connObj, cmd):
+        if not cmd:
+            return None
+
+        # add command prefix #
+        cmd = 'run:%s' % cmd
+
+        # send request to server #
+        connObj.send(cmd)
+
+        # receive reply from server #
+        reply = connObj.recvfrom()
+
+        # handle reply from server #
+        try:
+            return connObj.handleServerRequest(reply, True)
+        except:
+            return None
 
 
 
@@ -19046,6 +19080,9 @@ Copyright:
                 myEnv = copy.deepcopy(os.environ)
                 myEnv["REMOTERUN"] = "True"
 
+                # set SIGCHLD #
+                signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
                 # create process to communicate #
                 procObj = subprocess.Popen(\
                     value, shell=True, stdout=subprocess.PIPE, \
@@ -19074,13 +19111,14 @@ Copyright:
                                 raise Exception()
 
                             # data arrived #
-                            output = robj.readline()
-                            if output and len(output) > 0:
-                                ret = pipeObj.write(output)
-                                if not ret:
-                                    raise Exception()
-                            else:
-                                raise Exception()
+                            while 1:
+                                output = robj.readline()
+                                if output and len(output) > 0:
+                                    ret = pipeObj.write(output)
+                                    if not ret:
+                                        raise Exception()
+                                else:
+                                    break
                     except:
                         break
 
@@ -27969,6 +28007,9 @@ class ThreadAnalyzer(object):
         storageUsage = {}
         networkUsage = {}
 
+        SystemManager.printStatus(\
+            r"start loading %s..." % logFile)
+
         try:
             with open(logFile, 'r') as fd:
                 logBuf = fd.readlines()
@@ -27981,6 +28022,8 @@ class ThreadAnalyzer(object):
         context = None
 
         while 1:
+            SystemManager.printProgress(finalLine, len(logBuf))
+
             line = logBuf[finalLine]
 
             # split line #
@@ -28428,6 +28471,8 @@ class ThreadAnalyzer(object):
                             list(map(int, sline[2:-1]))
                     except:
                         pass
+
+        SystemManager.deleteProgress()
 
         # check output data #
         try:
@@ -33715,6 +33760,9 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.parseProcLine(idx, line)
 
             idx += 1
+            SystemManager.printProgress(idx, len(SystemManager.procBuffer))
+
+        SystemManager.deleteProgress()
 
         if idx == 0:
             return
