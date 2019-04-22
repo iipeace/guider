@@ -12,6 +12,12 @@ sys.path.insert(0, '%s/../guider' % curDir)
 from guider import NetworkManager
 
 if __name__ == '__main__':
+
+    # run server before launch below client code #
+    '''
+    $ guider/guider.py server
+    '''
+
     # set network info #
     '''
     Choose one of below calls. (None: default address)
@@ -19,18 +25,18 @@ if __name__ == '__main__':
     2. NetworkManager.prepareServerConn(None, SERVER_IP:PORT)
     3. NetworkManager.prepareServerConn(None, None)
     '''
-    NetworkManager.prepareServerConn(None, '10.97.20.53:5555')
+    NetworkManager.prepareServerConn(None, None)
 
     # get connection with server #
     conn = NetworkManager.getServerConn()
     if not conn:
-        print('Fail to get connection with server')
+        print('\nFail to get connection with server')
         sys.exit(0)
 
     # request command #
-    pipe = NetworkManager.getCmdPipe(conn, 'ls -lha')
+    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top')
     if not pipe:
-        print('Fail to get command pipe')
+        print('\nFail to get command pipe')
         sys.exit(0)
 
     # get data from server #
