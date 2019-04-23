@@ -11058,6 +11058,7 @@ class SystemManager(object):
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
+        # Int type #
         if isInt:
             try:
                 if abs(size) >= sizeTB:
@@ -11072,18 +11073,19 @@ class SystemManager(object):
                     return '%d' % (size)
             except:
                 return '?'
+        # Float type #
         else:
             try:
                 if abs(size) >= sizeTB:
-                    return '%.1fT' % ((size >> 30) / 1024)
+                    return '%.1fT' % ((size >> 30) / 1024.0)
                 elif abs(size) >= sizeGB:
-                    return '%.1fG' % ((size >> 20) / 1024)
+                    return '%.1fG' % ((size >> 20) / 1024.0)
                 elif abs(size) >= sizeMB:
-                    return '%.1fM' % ((size >> 10) / 1024)
+                    return '%.1fM' % ((size >> 10) / 1024.0)
                 elif abs(size) >= sizeKB:
-                    return '%.1fK' % (size / 1024)
+                    return '%.1fK' % (size / 1024.0)
                 else:
-                    return '%d' % (size)
+                    return '%.1f' % (size * 1.0)
             except:
                 return '?'
 
@@ -15610,6 +15612,8 @@ Copyright:
             SystemManager.savedMountTree[mid]['dev'] = d['dev']
             SystemManager.savedMountTree[mid]['filesystem'] = d['filesystem']
             SystemManager.savedMountTree[mid]['mount'] = d['mount']
+
+            # add block range info #
             try:
                 start, end = d['range'].split('-')
                 SystemManager.savedMountTree[mid]['start'] = int(start)
@@ -23187,23 +23191,31 @@ Copyright:
                 dev = key[key.rfind('/')+1:]
                 readSize = readTime = writeSize = writeTime = '?'
 
+                # get real device node #
                 if dev.find(':') > -1:
                     major, minor = dev.split(':')
                     for name, mp in self.diskInfo['prev'].items():
                         if mp['major'] == major and mp['minor'] == minor:
                             dev = name
+                elif not dev in self.diskInfo['prev'] and \
+                    not dev in self.diskInfo['next']:
+                    for k, v in self.diskInfo['next'].items():
+                        if val['major'] == v['major'] and \
+                            val['minor'] == v['minor']:
+                                dev = k
+                                break
 
                 beforeInfo = self.diskInfo['prev'][dev]
                 afterInfo = self.diskInfo['next'][dev]
 
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - \
-                    int(beforeInfo['sectorRead'])) << 9
+                        int(beforeInfo['sectorRead'])) << 9
                 readSize = SystemManager.convertSize2Unit(readSize)
 
                 write = writeSize = \
                     (int(afterInfo['sectorWrite']) - \
-                    int(beforeInfo['sectorWrite'])) << 9
+                        int(beforeInfo['sectorWrite'])) << 9
                 writeSize = SystemManager.convertSize2Unit(writeSize)
 
                 totalInfo['read'] += read
@@ -28583,6 +28595,8 @@ class ThreadAnalyzer(object):
                 return string
             return autopct
 
+        SystemManager.printStatus(r"start drawing charts...")
+
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
         if not matplotlib:
@@ -29788,6 +29802,9 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
 
+                        # ignore 0 #
+                        usage = list(map(lambda x: x if x != 0 else None, usage))
+
                         # get color #
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
@@ -29882,6 +29899,9 @@ class ThreadAnalyzer(object):
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
 
+                        # ignore 0 #
+                        usage = list(map(lambda x: x if x != 0 else None, usage))
+
                         # get color #
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
@@ -29935,6 +29955,9 @@ class ThreadAnalyzer(object):
 
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
+
+                        # ignore 0 #
+                        usage = list(map(lambda x: x if x != 0 else None, usage))
 
                         # get color #
                         color = plot(timeline, usage, '-', \
@@ -30179,6 +30202,8 @@ class ThreadAnalyzer(object):
             drawBottom(xtype, ax)
 
         #==================== body part ====================#
+
+        SystemManager.printStatus(r"start drawing graphs...")
 
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
