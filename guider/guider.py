@@ -10236,7 +10236,7 @@ class SystemManager(object):
     userRecordEnable = True
     userEnableWarn = True
     printEnable = True
-    jsonPrintEnable = False
+    jsonReportEnable = False
     powerEnable = False
     pipeEnable = False
     depEnable = False
@@ -16617,7 +16617,7 @@ Copyright:
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'J':
-                SystemManager.jsonPrintEnable = True
+                SystemManager.jsonReportEnable = True
 
             elif option == 'k':
                 if not SystemManager.isSendMode():
@@ -27410,6 +27410,8 @@ class ThreadAnalyzer(object):
 
 
     def __init__(self, file=None, onlyInstance=None):
+
+        self.jsonData = {}
 
         # thread mode #
         if file:
@@ -40182,16 +40184,58 @@ class ThreadAnalyzer(object):
         except:
             oomstr = ''
 
+        try:
+            nrCtxt = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+        except:
+            nrCtxt = 0
+
+        try:
+            nrTermThreads = abs(self.nrThread - nrNewThreads - self.nrPrevThread)
+        except:
+            nrTermThreads = 0
+
+        try:
+            nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
+        except:
+            nrIrq = 0
+
+        try:
+            memTotal = self.memData['MemTotal'] >> 10
+        except:
+            memTotal = 0
+
+        try:
+            swapTotal = self.memData['SwapTotal'] >> 10
+        except:
+            swapTotal = 0
+
+        # build json data #
+        if SystemManager.jsonReportEnable:
+            self.jsonData['uptime'] = SystemManager.uptime
+            self.jsonData['uptimeDiff'] = SystemManager.uptimeDiff
+            self.jsonData['nrCtxt'] = nrCtxt
+            self.jsonData['nrNewThreads'] = nrNewThreads
+            self.jsonData['nrTermThreads'] = nrTermThreads
+            self.jsonData['nrIrq'] = nrIrq
+            self.jsonData['nrCore'] = SystemManager.nrCore
+            self.jsonData['nrProcess'] = self.nrProcess
+            self.jsonData['nrThreads'] = self.nrThread
+            self.jsonData['load'] = loadavg
+            self.jsonData['memTotal'] = memTotal
+            self.jsonData['swapTotal'] = swapTotal
+            if len(oomstr) > 0:
+                self.jsonData['oomKill'] = oom_kill
+            print(self.jsonData)
+            return
+
         SystemManager.addPrint(\
             ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d] %s [IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
             (title, SystemManager.uptime, SystemManager.uptimeDiff, \
-            self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt'], \
-            nrNewThreads, abs(self.nrThread - nrNewThreads - self.nrPrevThread), \
-            oomstr, self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr'], \
+            nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq, \
             SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
-            self.memData['MemTotal'] >> 10, self.memData['SwapTotal'] >> 10))
+            memTotal, swapTotal))
 
 
 
