@@ -10175,6 +10175,7 @@ class SystemManager(object):
     systemInfoBuffer = ''
     kerSymTable = {}
     reportData = {}
+    jsonData = {}
     layout = None
 
     eventLogFile = None
@@ -11085,7 +11086,7 @@ class SystemManager(object):
                 elif abs(size) >= sizeKB:
                     return '%.1fK' % (size / 1024.0)
                 else:
-                    return '%.1f' % (size * 1.0)
+                    return '%d' % (size)
             except:
                 return '?'
 
@@ -16792,7 +16793,7 @@ Copyright:
 
                 if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
-                        "unrecognized option -%s for enable" % options)
+                        "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
             elif option == 'f' and SystemManager.isFunctionMode():
@@ -17107,7 +17108,7 @@ Copyright:
 
                 if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
-                        "unrecognized option -%s for enable" % options)
+                        "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
             elif option == 'g':
@@ -17309,7 +17310,7 @@ Copyright:
 
             else:
                 SystemManager.printError(\
-                    "unrecognized option -%s for record" % option)
+                    "unrecognized option -%s for recording" % option)
                 sys.exit(0)
 
 
@@ -27411,8 +27412,6 @@ class ThreadAnalyzer(object):
 
     def __init__(self, file=None, onlyInstance=None):
 
-        self.jsonData = {}
-
         # thread mode #
         if file:
             self.initThreadData()
@@ -27982,6 +27981,7 @@ class ThreadAnalyzer(object):
             self.nrPrevProcess = self.nrProcess
             self.nrThread = 0
             self.nrProcess = 0
+            SystemManager.jsonData = {}
 
             # run user custom command #
             SystemManager.writeRecordCmd('AFTER')
@@ -40209,24 +40209,25 @@ class ThreadAnalyzer(object):
         except:
             swapTotal = 0
 
-        # build json data #
+        # add json stats #
         if SystemManager.jsonReportEnable:
-            self.jsonData['uptime'] = SystemManager.uptime
-            self.jsonData['uptimeDiff'] = SystemManager.uptimeDiff
-            self.jsonData['nrCtxt'] = nrCtxt
-            self.jsonData['nrNewThreads'] = nrNewThreads
-            self.jsonData['nrTermThreads'] = nrTermThreads
-            self.jsonData['nrIrq'] = nrIrq
-            self.jsonData['nrCore'] = SystemManager.nrCore
-            self.jsonData['nrProcess'] = self.nrProcess
-            self.jsonData['nrThreads'] = self.nrThread
-            self.jsonData['load'] = loadavg
-            self.jsonData['memTotal'] = memTotal
-            self.jsonData['swapTotal'] = swapTotal
+            SystemManager.jsonData['system'] = dict()
+            jsonData = SystemManager.jsonData['system']
+
+            jsonData['uptime'] = SystemManager.uptime
+            jsonData['uptimeDiff'] = SystemManager.uptimeDiff
+            jsonData['nrCtxt'] = nrCtxt
+            jsonData['nrNewThreads'] = nrNewThreads
+            jsonData['nrTermThreads'] = nrTermThreads
+            jsonData['nrIrq'] = nrIrq
+            jsonData['nrCore'] = SystemManager.nrCore
+            jsonData['nrProcess'] = self.nrProcess
+            jsonData['nrThreads'] = self.nrThread
+            jsonData['load'] = loadavg
+            jsonData['memTotal'] = memTotal
+            jsonData['swapTotal'] = swapTotal
             if len(oomstr) > 0:
-                self.jsonData['oomKill'] = oom_kill
-            print(self.jsonData)
-            return
+                jsonData['oomKill'] = oom_kill
 
         SystemManager.addPrint(\
             ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
@@ -40247,6 +40248,10 @@ class ThreadAnalyzer(object):
         irqData = '%s [IRQ > ' % (' ' * nrIndent)
         lenIrq = len(irqData)
 
+        # add json stats #
+        if SystemManager.jsonReportEnable:
+            SystemManager.jsonData['irq'] = dict()
+
         for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
             self.irqData[e[0]] if not e[0] in self.prevIrqData \
             else e[1] - self.prevIrqData[e[0]], reverse=True):
@@ -40258,6 +40263,8 @@ class ThreadAnalyzer(object):
 
             if irqDiff <= 0:
                 break
+            elif SystemManager.jsonReportEnable:
+                SystemManager.jsonData['irq'][irq] = irqDiff
 
             nrIrq += 1
             newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
@@ -40282,6 +40289,16 @@ class ThreadAnalyzer(object):
         perfString = SystemManager.getPerfString(SystemManager.perfEventData)
         if len(perfString) > 0:
             SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
+
+            # add json stats #
+            if SystemManager.jsonReportEnable:
+                SystemManager.jsonData['PMU'] = dict()
+                jsonData = SystemManager.jsonData['PMU']
+
+                plist = perfString[1:-1].split(' / ')
+                for stat in plist:
+                    metric, value = stat.split(':')
+                    jsonData['PMU'][metric] = value.strip()
 
 
 
@@ -40312,6 +40329,11 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint('%s\n' % twoLine)
 
+        convertFunc = SystemManager.convertSize2Unit
+
+        if SystemManager.jsonReportEnable:
+            SystemManager.jsonData['network'] = dict()
+
         for dev, val in sorted(\
             SystemManager.sysInstance.networkInfo.items(), key=lambda e:e[0]):
             '''
@@ -40329,16 +40351,40 @@ class ThreadAnalyzer(object):
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
                         dev, ' ',\
-                        SystemManager.convertSize2Unit(rdiff[0]),\
-                        SystemManager.convertSize2Unit(rdiff[1]),\
-                        SystemManager.convertSize2Unit(rdiff[2]),\
-                        SystemManager.convertSize2Unit(rdiff[3]),\
-                        SystemManager.convertSize2Unit(rdiff[-1]),
-                        SystemManager.convertSize2Unit(tdiff[0]),\
-                        SystemManager.convertSize2Unit(tdiff[1]),\
-                        SystemManager.convertSize2Unit(tdiff[2]),\
-                        SystemManager.convertSize2Unit(tdiff[3]),\
-                        SystemManager.convertSize2Unit(tdiff[-1])))
+                        convertFunc(rdiff[0]),\
+                        convertFunc(rdiff[1]),\
+                        convertFunc(rdiff[2]),\
+                        convertFunc(rdiff[3]),\
+                        convertFunc(rdiff[-1]),
+                        convertFunc(tdiff[0]),\
+                        convertFunc(tdiff[1]),\
+                        convertFunc(tdiff[2]),\
+                        convertFunc(tdiff[3]),\
+                        convertFunc(tdiff[-1])))
+
+                if SystemManager.jsonReportEnable:
+                    SystemManager.jsonData['network'][dev] = dict()
+                    jsonData = SystemManager.jsonData['network'][dev]
+
+                    jsonData['trans'] = dict()
+                    jsonData['trans']['bytes'] = convertFunc(rdiff[0])
+                    jsonData['trans']['packets'] = convertFunc(rdiff[1])
+                    jsonData['trans']['errs'] = convertFunc(rdiff[2])
+                    jsonData['trans']['drop'] = convertFunc(rdiff[3])
+                    jsonData['trans']['fifo'] = convertFunc(rdiff[4])
+                    jsonData['trans']['frame'] = convertFunc(rdiff[5])
+                    jsonData['trans']['compressed'] = convertFunc(rdiff[6])
+                    jsonData['trans']['multicast'] = convertFunc(rdiff[7])
+
+                    jsonData['recv'] = dict()
+                    jsonData['recv']['bytes'] = convertFunc(tdiff[0])
+                    jsonData['recv']['packets'] = convertFunc(tdiff[1])
+                    jsonData['recv']['errs'] = convertFunc(tdiff[2])
+                    jsonData['recv']['drop'] = convertFunc(tdiff[3])
+                    jsonData['recv']['fifo'] = convertFunc(tdiff[4])
+                    jsonData['recv']['frame'] = convertFunc(tdiff[5])
+                    jsonData['recv']['compressed'] = convertFunc(tdiff[6])
+                    jsonData['recv']['multicast'] = convertFunc(tdiff[7])
             except:
                 pass
 
@@ -40367,6 +40413,9 @@ class ThreadAnalyzer(object):
 
         storageData = SystemManager.sysInstance.storageData
         prevStorageData = SystemManager.sysInstance.prevStorageData
+
+        if SystemManager.jsonReportEnable:
+            SystemManager.jsonData['storage'] = dict()
 
         printCnt = 0
         for dev, value in sorted(storageData.items(),\
@@ -40469,8 +40518,25 @@ class ThreadAnalyzer(object):
                 format(dev, busytime, avq, readSize, writeSize, free,\
                 freeDiff, '%s%%' % use, total, avail, fs, mountInfo[:51])
 
-            if SystemManager.checkCutCond():
+            if SystemManager.checkCutCond() and \
+                not SystemManager.jsonReportEnable:
                 return
+
+            if SystemManager.jsonReportEnable:
+                SystemManager.jsonData['storage'][dev] = dict()
+                jsonData = SystemManager.jsonData['storage'][dev]
+
+                jsonData['busy'] = busytime
+                jsonData['avq'] = avq
+                jsonData['readSize'] = readSize
+                jsonData['writeSize'] = writeSize
+                jsonData['free'] = free
+                jsonData['freeDiff'] = freeDiff
+                jsonData['use'] = use
+                jsonData['total'] = total
+                jsonData['avail'] = avail
+                jsonData['fs'] = fs
+                jsonData['mount'] = mountInfo
 
             SystemManager.addPrint(diskInfo)
 
