@@ -19681,6 +19681,9 @@ Copyright:
         if SystemManager.backgroundEnable:
             SystemManager.runBackgroundMode()
 
+        # ignore sigchld #
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
         # start tracing #
         try:
             if mode == 'syscall':
