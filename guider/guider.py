@@ -12599,6 +12599,25 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
+                # printsystem #
+                elif SystemManager.isPrintSystemMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show system info
+
+OPTIONS:
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print system info
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
                 # pstree #
                 elif SystemManager.isPstreeMode():
                     helpStr = '''
@@ -12938,6 +12957,7 @@ COMMAND:
                 setaffinity <affinity>
                 pstree      <tree>
                 printenv    <env>
+                printsystem <system>
                 readelf     <file>
                 addr2line   <symbol>
                 leaktrace   <leak>
@@ -17604,6 +17624,18 @@ Copyright:
 
 
     @staticmethod
+    def isPrintSystemMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'printsystem':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSetAffinityMode():
         if len(sys.argv) == 1:
             return False
@@ -17960,6 +17992,10 @@ Copyright:
         # PRINTENV MODE #
         elif SystemManager.isPrintEnvMode():
             SystemManager.doPrintEnv()
+
+        # PRINTSYSTEM MODE #
+        elif SystemManager.isPrintSystemMode():
+            SystemManager.doPrintSystem()
 
         # AFFINITY MODE #
         elif SystemManager.isSetAffinityMode():
@@ -19647,6 +19683,20 @@ Copyright:
             SystemManager.printPipe(env)
 
         SystemManager.printPipe('')
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doPrintSystem():
+        # print title #
+        SystemManager.printLogo(big=True, onlyFile=True)
+
+        SystemManager()
+        SystemManager.sysInstance.saveResourceSnapshot()
+
+        SystemManager.printInfoBuffer()
 
         sys.exit(0)
 
