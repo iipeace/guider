@@ -34,7 +34,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     # request command #
-    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top')
+    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -J')
     if not pipe:
         print('\nFail to get command pipe')
         sys.exit(0)

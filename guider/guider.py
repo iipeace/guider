@@ -10237,7 +10237,7 @@ class SystemManager(object):
     userRecordEnable = True
     userEnableWarn = True
     printEnable = True
-    jsonReportEnable = False
+    jsonPrintEnable = False
     powerEnable = False
     pipeEnable = False
     depEnable = False
@@ -10326,6 +10326,11 @@ class SystemManager(object):
         SystemManager.startTime = \
             SystemManager.startRunTime = \
                 SystemManager.uptime
+
+        # resource update time #
+        self.netUpdate = None
+        self.storageUpdate = None
+        self.ipcUpdate = None
 
         # save system info first #
         self.saveResourceSnapshot(False)
@@ -16012,24 +16017,28 @@ Copyright:
 
 
     @staticmethod
-    def topPrint():
+    def printTopStats():
+        # JSON mode #
+        if SystemManager.jsonPrintEnable:
+            # convert dict data to JSON-type string #
+            jsonObj = SystemManager.makeJsonString(SystemManager.jsonData)
+            if not jsonObj:
+                SystemManager.printWarning(\
+                    "Fail to convert report data to JSON type")
+            else:
+                SystemManager.printPipe(jsonObj)
         # realtime mode #
-        if not SystemManager.printFile:
+        elif not SystemManager.printFile:
             if not SystemManager.printStreamEnable:
                 SystemManager.clearScreen()
-            buf = SystemManager.bufferString
-            SystemManager.printPipe(buf)
-            SystemManager.clearPrint()
+            SystemManager.printPipe(SystemManager.bufferString)
         # pipe mode #
         elif SystemManager.pipeEnable:
-            buf = SystemManager.bufferString
-            SystemManager.printPipe(buf)
-            SystemManager.clearPrint()
+            SystemManager.printPipe(SystemManager.bufferString)
         # buffered mode #
         else:
             SystemManager.procBuffer[:0] = [SystemManager.bufferString]
             SystemManager.procBufferSize += len(SystemManager.bufferString)
-            SystemManager.clearPrint()
 
             while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
                 if not SystemManager.bufferOverflowed:
@@ -16047,11 +16056,15 @@ Copyright:
                 SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
                 SystemManager.procBuffer.pop(-1)
 
+        # flush buffer #
+        SystemManager.clearPrint()
+
 
 
     @staticmethod
     def checkCutCond(newline=0):
         if not SystemManager.printFile and \
+            not SystemManager.jsonPrintEnable and \
             SystemManager.bufferRows + newline >= \
             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
             not SystemManager.printFile and \
@@ -16206,7 +16219,7 @@ Copyright:
             ttyCols = SystemManager.ttyCols
 
             # cut output by terminal size #
-            if ttyCols == 0:
+            if ttyCols == 0 or SystemManager.jsonPrintEnable:
                 line = '\n'.join([nline for nline in line.split('\n')])
             else:
                 line = '\n'.join(\
@@ -16618,7 +16631,7 @@ Copyright:
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'J':
-                SystemManager.jsonReportEnable = True
+                SystemManager.jsonPrintEnable = True
 
             elif option == 'k':
                 if not SystemManager.isSendMode():
@@ -16834,7 +16847,7 @@ Copyright:
                 SystemManager.perCoreList = \
                     list(map(int, SystemManager.perCoreList))
 
-            elif option == 't' and SystemManager.isRecordMode() is False:
+            elif option == 't' and not SystemManager.isRecordMode():
                 SystemManager.syscallList = value.split(',')
                 SystemManager.removeEmptyValue(SystemManager.syscallList)
                 enabledSyscall = []
@@ -22583,6 +22596,12 @@ Copyright:
 
 
     def updateIPCInfo(self):
+        # check update time #
+        if self.ipcUpdate == SystemManager.uptime:
+            return
+        else:
+            self.ipcUpdate = SystemManager.uptime
+
         # shared memory #
         self.updateShmInfo()
 
@@ -22595,19 +22614,25 @@ Copyright:
 
 
     def updateNetworkInfo(self):
+        # check update time #
+        if self.netUpdate == SystemManager.uptime:
+            return
+        else:
+            self.netUpdate = SystemManager.uptime
+
         try:
+            SystemManager.netdevFd.seek(0)
+            data = SystemManager.netdevFd.readlines()[2:]
+        except:
             try:
-                SystemManager.netdevFd.seek(0)
+                devPath = '%s/net/dev' % SystemManager.procPath
+                SystemManager.netdevFd = open(devPath, 'r')
                 data = SystemManager.netdevFd.readlines()[2:]
             except:
-                try:
-                    devPath = '%s/net/dev' % SystemManager.procPath
-                    SystemManager.netdevFd = open(devPath, 'r')
-                    data = SystemManager.netdevFd.readlines()[2:]
-                except:
-                    SystemManager.printWarning('Fail to open %s' % devPath)
-                    return
+                SystemManager.printWarning('Fail to open %s' % devPath)
+                return
 
+        try:
             for line in data:
                 dev, stats = line.split(':')
 
@@ -22689,6 +22714,12 @@ Copyright:
 
 
     def updateStorageInfo(self, isGeneral=False):
+        # check update time #
+        if self.storageUpdate == SystemManager.uptime:
+            return
+        else:
+            self.storageUpdate = SystemManager.uptime
+
         # get device type #
         self.saveDevInfo()
 
@@ -37959,7 +37990,7 @@ class ThreadAnalyzer(object):
                 (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
-        SystemManager.topPrint()
+        SystemManager.printTopStats()
 
 
 
@@ -39435,7 +39466,9 @@ class ThreadAnalyzer(object):
                     pass
 
         # print CPU stat #
-        if SystemManager.cpuEnable:
+        if SystemManager.cpuEnable or \
+            SystemManager.reportEnable or \
+            SystemManager.jsonPrintEnable:
             percoreStats = {}
 
             if len(self.cpuData) > 0:
@@ -39726,7 +39759,7 @@ class ThreadAnalyzer(object):
                     continue
 
         # save report data #
-        if SystemManager.reportEnable:
+        if SystemManager.reportEnable or SystemManager.jsonPrintEnable:
             self.reportData = {}
 
             # timestamp #
@@ -39790,12 +39823,16 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['pgDirty'] = pgDirty
             self.reportData['mem']['pgRclmBg'] = pgRclmBg
             self.reportData['mem']['pgRclmFg'] = pgRclmFg
+            self.reportData['mem']['nrMinFlt'] = nrMinFault
+            self.reportData['mem']['pgMlock'] = pgMlock
 
             # swap #
             self.reportData['swap'] = {}
             self.reportData['swap']['total'] = swapTotal
             self.reportData['swap']['usage'] = swapUsage
             self.reportData['swap']['usageDiff'] = swapUsageDiff
+            self.reportData['swap']['swapin'] = swapInMem
+            self.reportData['swap']['swapout'] = swapOutMem
 
             # block #
             self.reportData['block'] = {}
@@ -39803,6 +39840,7 @@ class ThreadAnalyzer(object):
             self.reportData['block']['write'] = pgOutMemDiff
             self.reportData['block']['ioWait'] = ioUsage
             self.reportData['block']['nrMajFlt'] = nrMajFault
+            self.reportData['block']['nrTask'] = nrBlocked
 
             # task #
             self.reportData['task'] = {}
@@ -39816,23 +39854,44 @@ class ThreadAnalyzer(object):
             self.reportData['net']['inbound'] = netIn
             self.reportData['net']['outbound'] = netOut
 
-            if not SystemManager.networkEnable:
+            if SystemManager.networkEnable:
                 SystemManager.sysInstance.updateNetworkInfo()
 
             for dev, value in sorted(\
                 SystemManager.sysInstance.networkInfo.items()):
-                self.reportData['net'][dev] = {}
-                self.reportData['net'][dev]['recv'] = value['rdiff'][0]
-                self.reportData['net'][dev]['rpacket'] = value['rdiff'][1]
-                self.reportData['net'][dev]['rerror'] = value['rdiff'][2]
-                self.reportData['net'][dev]['rdrop'] = value['rdiff'][3]
-                self.reportData['net'][dev]['tran'] = value['tdiff'][0]
-                self.reportData['net'][dev]['tpacket'] = value['tdiff'][1]
-                self.reportData['net'][dev]['terror'] = value['tdiff'][2]
-                self.reportData['net'][dev]['tdrop'] = value['tdiff'][3]
+                # check value #
+                if not 'rdiff' in value or \
+                    not 'tdiff' in value:
+                    continue
+
+                self.reportData['net'][dev] = dict()
+                reportData = self.reportData['net'][dev]
+
+                rdiff = value['rdiff']
+                tdiff = value['tdiff']
+
+                reportData['trans'] = dict()
+                reportData['trans']['bytes'] = rdiff[0]
+                reportData['trans']['packets'] = rdiff[1]
+                reportData['trans']['errs'] = rdiff[2]
+                reportData['trans']['drop'] = rdiff[3]
+                reportData['trans']['fifo'] = rdiff[4]
+                reportData['trans']['frame'] = rdiff[5]
+                reportData['trans']['compressed'] = rdiff[6]
+                reportData['trans']['multicast'] = rdiff[7]
+
+                reportData['recv'] = dict()
+                reportData['recv']['bytes'] = tdiff[0]
+                reportData['recv']['packets'] = tdiff[1]
+                reportData['recv']['errs'] = tdiff[2]
+                reportData['recv']['drop'] = tdiff[3]
+                reportData['recv']['fifo'] = tdiff[4]
+                reportData['recv']['frame'] = tdiff[5]
+                reportData['recv']['compressed'] = tdiff[6]
+                reportData['recv']['multicast'] = tdiff[7]
 
             # storage #
-            if not SystemManager.diskEnable:
+            if SystemManager.diskEnable:
                 SystemManager.sysInstance.updateStorageInfo()
             else:
                 '''
@@ -39889,6 +39948,9 @@ class ThreadAnalyzer(object):
                     value['avq'] = value['iowtime'] / value['iotime']
                 except:
                     value['avq'] = 0
+
+            if SystemManager.jsonPrintEnable:
+                SystemManager.jsonData.update(self.reportData)
 
 
 
@@ -40210,22 +40272,17 @@ class ThreadAnalyzer(object):
             swapTotal = 0
 
         # add json stats #
-        if SystemManager.jsonReportEnable:
+        if SystemManager.jsonPrintEnable:
             SystemManager.jsonData['system'] = dict()
             jsonData = SystemManager.jsonData['system']
 
             jsonData['uptime'] = SystemManager.uptime
-            jsonData['uptimeDiff'] = SystemManager.uptimeDiff
+            jsonData['interval'] = SystemManager.uptimeDiff
             jsonData['nrCtxt'] = nrCtxt
             jsonData['nrNewThreads'] = nrNewThreads
             jsonData['nrTermThreads'] = nrTermThreads
-            jsonData['nrIrq'] = nrIrq
-            jsonData['nrCore'] = SystemManager.nrCore
             jsonData['nrProcess'] = self.nrProcess
             jsonData['nrThreads'] = self.nrThread
-            jsonData['load'] = loadavg
-            jsonData['memTotal'] = memTotal
-            jsonData['swapTotal'] = swapTotal
             if len(oomstr) > 0:
                 jsonData['oomKill'] = oom_kill
 
@@ -40249,7 +40306,7 @@ class ThreadAnalyzer(object):
         lenIrq = len(irqData)
 
         # add json stats #
-        if SystemManager.jsonReportEnable:
+        if SystemManager.jsonPrintEnable:
             SystemManager.jsonData['irq'] = dict()
 
         for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
@@ -40263,7 +40320,7 @@ class ThreadAnalyzer(object):
 
             if irqDiff <= 0:
                 break
-            elif SystemManager.jsonReportEnable:
+            elif SystemManager.jsonPrintEnable:
                 SystemManager.jsonData['irq'][irq] = irqDiff
 
             nrIrq += 1
@@ -40291,7 +40348,7 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
             # add json stats #
-            if SystemManager.jsonReportEnable:
+            if SystemManager.jsonPrintEnable:
                 SystemManager.jsonData['PMU'] = dict()
                 jsonData = SystemManager.jsonData['PMU']
 
@@ -40331,7 +40388,7 @@ class ThreadAnalyzer(object):
 
         convertFunc = SystemManager.convertSize2Unit
 
-        if SystemManager.jsonReportEnable:
+        if SystemManager.jsonPrintEnable:
             SystemManager.jsonData['network'] = dict()
 
         for dev, val in sorted(\
@@ -40361,30 +40418,6 @@ class ThreadAnalyzer(object):
                         convertFunc(tdiff[2]),\
                         convertFunc(tdiff[3]),\
                         convertFunc(tdiff[-1])))
-
-                if SystemManager.jsonReportEnable:
-                    SystemManager.jsonData['network'][dev] = dict()
-                    jsonData = SystemManager.jsonData['network'][dev]
-
-                    jsonData['trans'] = dict()
-                    jsonData['trans']['bytes'] = convertFunc(rdiff[0])
-                    jsonData['trans']['packets'] = convertFunc(rdiff[1])
-                    jsonData['trans']['errs'] = convertFunc(rdiff[2])
-                    jsonData['trans']['drop'] = convertFunc(rdiff[3])
-                    jsonData['trans']['fifo'] = convertFunc(rdiff[4])
-                    jsonData['trans']['frame'] = convertFunc(rdiff[5])
-                    jsonData['trans']['compressed'] = convertFunc(rdiff[6])
-                    jsonData['trans']['multicast'] = convertFunc(rdiff[7])
-
-                    jsonData['recv'] = dict()
-                    jsonData['recv']['bytes'] = convertFunc(tdiff[0])
-                    jsonData['recv']['packets'] = convertFunc(tdiff[1])
-                    jsonData['recv']['errs'] = convertFunc(tdiff[2])
-                    jsonData['recv']['drop'] = convertFunc(tdiff[3])
-                    jsonData['recv']['fifo'] = convertFunc(tdiff[4])
-                    jsonData['recv']['frame'] = convertFunc(tdiff[5])
-                    jsonData['recv']['compressed'] = convertFunc(tdiff[6])
-                    jsonData['recv']['multicast'] = convertFunc(tdiff[7])
             except:
                 pass
 
@@ -40414,7 +40447,7 @@ class ThreadAnalyzer(object):
         storageData = SystemManager.sysInstance.storageData
         prevStorageData = SystemManager.sysInstance.prevStorageData
 
-        if SystemManager.jsonReportEnable:
+        if SystemManager.jsonPrintEnable:
             SystemManager.jsonData['storage'] = dict()
 
         printCnt = 0
@@ -40518,25 +40551,8 @@ class ThreadAnalyzer(object):
                 format(dev, busytime, avq, readSize, writeSize, free,\
                 freeDiff, '%s%%' % use, total, avail, fs, mountInfo[:51])
 
-            if SystemManager.checkCutCond() and \
-                not SystemManager.jsonReportEnable:
+            if SystemManager.checkCutCond():
                 return
-
-            if SystemManager.jsonReportEnable:
-                SystemManager.jsonData['storage'][dev] = dict()
-                jsonData = SystemManager.jsonData['storage'][dev]
-
-                jsonData['busy'] = busytime
-                jsonData['avq'] = avq
-                jsonData['readSize'] = readSize
-                jsonData['writeSize'] = writeSize
-                jsonData['free'] = free
-                jsonData['freeDiff'] = freeDiff
-                jsonData['use'] = use
-                jsonData['total'] = total
-                jsonData['avail'] = avail
-                jsonData['fs'] = fs
-                jsonData['mount'] = mountInfo
 
             SystemManager.addPrint(diskInfo)
 
@@ -41642,7 +41658,7 @@ class ThreadAnalyzer(object):
                             "Duplicated %s:%d as remote address" % (ip, port))
 
                 elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
-                    if SystemManager.reportEnable is False:
+                    if not SystemManager.reportEnable:
                         SystemManager.printWarning(\
                             "Ignored %s request from %s:%d because no service" % \
                             (message, ip, port))
@@ -41684,7 +41700,7 @@ class ThreadAnalyzer(object):
 
 
     def reportSystemStat(self):
-        if SystemManager.reportEnable is False:
+        if not SystemManager.reportEnable:
             return
 
         # initialize report event list #
@@ -41891,7 +41907,7 @@ class ThreadAnalyzer(object):
                     "Fail to rename %s to %s" % \
                     SystemManager.inputFile, filePath)
 
-        # convert dict data to JSON data #
+        # convert dict data to JSON-type string #
         jsonObj = SystemManager.makeJsonString(self.reportData)
         if not jsonObj:
             SystemManager.printWarning(\
@@ -42193,7 +42209,7 @@ class ThreadAnalyzer(object):
                     else:
                         cli.ignore += 1
 
-        SystemManager.topPrint()
+        SystemManager.printTopStats()
 
 
 
