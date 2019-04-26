@@ -16397,7 +16397,7 @@ Copyright:
                     usedOpt[opt[0]] = True
                     raise Exception()
             except:
-                    continue
+                continue
 
             SystemManager.printError(\
                 "wrong -%s option because it is used more than once" % opt[0])
@@ -23326,6 +23326,8 @@ Copyright:
                 "Size", "Packet", "Error", "Drop", "Multicast"))
         SystemManager.infoBufferPrint(twoLine)
 
+        convertFunc = SystemManager.convertSize2Unit
+
         cnt = 1
         for dev, val in sorted(self.networkInfo.items(), key=lambda e:e[0]):
             try:
@@ -23350,16 +23352,12 @@ Copyright:
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
                         dev, 'DIFF',\
-                        SystemManager.convertSize2Unit(rdiff[0]), \
-                        SystemManager.convertSize2Unit(rdiff[1]),\
-                        SystemManager.convertSize2Unit(rdiff[2]), \
-                        SystemManager.convertSize2Unit(rdiff[3]), \
-                        SystemManager.convertSize2Unit(rdiff[-1]), \
-                        SystemManager.convertSize2Unit(tdiff[0]), \
-                        SystemManager.convertSize2Unit(tdiff[1]),\
-                        SystemManager.convertSize2Unit(tdiff[2]), \
-                        SystemManager.convertSize2Unit(tdiff[3]), \
-                        SystemManager.convertSize2Unit(tdiff[-1])))
+                        convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
+                        convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
+                        convertFunc(rdiff[-1]), \
+                        convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
+                        convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
+                        convertFunc(tdiff[-1])))
 
                 # total stats #
                 rlist = val['recv']
@@ -23370,16 +23368,12 @@ Copyright:
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
                     "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
                         ' ', 'TOTAL',\
-                        SystemManager.convertSize2Unit(rlist[0]), \
-                        SystemManager.convertSize2Unit(rlist[1]),\
-                        SystemManager.convertSize2Unit(rlist[2]), \
-                        SystemManager.convertSize2Unit(rlist[3]), \
-                        SystemManager.convertSize2Unit(rlist[-1]), \
-                        SystemManager.convertSize2Unit(tlist[0]), \
-                        SystemManager.convertSize2Unit(tlist[1]),\
-                        SystemManager.convertSize2Unit(tlist[2]), \
-                        SystemManager.convertSize2Unit(tlist[3]), \
-                        SystemManager.convertSize2Unit(tlist[-1])))
+                        convertFunc(rlist[0]), convertFunc(rlist[1]), \
+                        convertFunc(rlist[2]), convertFunc(rlist[3]), \
+                        convertFunc(rlist[-1]), \
+                        convertFunc(tlist[0]), convertFunc(tlist[1]), \
+                        convertFunc(tlist[2]), convertFunc(tlist[3]), \
+                        convertFunc(tlist[-1])))
 
                 if cnt < len(self.networkInfo):
                     SystemManager.infoBufferPrint(\
@@ -23388,8 +23382,6 @@ Copyright:
                 cnt += 1
 
                 if SystemManager.jsonPrintEnable:
-                    convertFunc = SystemManager.convertSize2Unit
-
                     jsonData[dev] = dict()
 
                     jsonData[dev]['recv'] = dict()
@@ -23471,8 +23463,8 @@ Copyright:
                     for k, v in self.diskInfo['next'].items():
                         if val['major'] == v['major'] and \
                             val['minor'] == v['minor']:
-                                dev = k
-                                break
+                            dev = k
+                            break
 
                 beforeInfo = self.diskInfo['prev'][dev]
                 afterInfo = self.diskInfo['next'][dev]
@@ -23688,7 +23680,7 @@ Copyright:
             "%10s %10s %10s %10s %10s") % \
             ("DESC ", "Memory", "Swap", "Buffer", "Cache", "Shared", \
             "Mapped", "Active", "Inactive", "PageTables", "Slab", \
-	    "SlabRclm", "SlabUnRclm", "Mlocked"))
+            "SlabRclm", "SlabUnRclm", "Mlocked"))
         SystemManager.infoBufferPrint(twoLine)
 
         SystemManager.infoBufferPrint("[ TOTAL] %10s %10s" % \
@@ -24698,7 +24690,7 @@ class Debugger(object):
                 onlySym = sym.split('@')[0]
                 if onlySym in SystemManager.customCmd:
                     SystemManager.waitUserInput(\
-                        wait=0, msg="Press any key...", newline=False)
+                        wait=0, msg="Press enter key...")
 
 
 
@@ -24789,7 +24781,7 @@ class Debugger(object):
             if SystemManager.customCmd and \
                 name in SystemManager.customCmd:
                 SystemManager.waitUserInput(\
-                    wait=0, msg="\nPress any key...", newline=False)
+                    wait=0, msg="\nPress enter key...", newline=False)
 
         # exit #
         elif status == 'exit':
@@ -25535,7 +25527,7 @@ class ElfAnalyzer(object):
         31:"ENCODING",
         32:"PREINIT_ARRAY",
         33:"PREINIT_ARRAYSZ",
-        34:"NUM	",
+        34:"NUM ",
         0x36:"PROCNUM",
         0x6000000d:"LOOS",
         0x6ffff000:"HIOS",
@@ -26605,15 +26597,15 @@ class ElfAnalyzer(object):
 
         /* Types for signed and unsigned 32-bit quantities.  */
         typedef uint32_t Elf32_Word;
-        typedef	int32_t  Elf32_Sword;
+        typedef int32_t  Elf32_Sword;
         typedef uint32_t Elf64_Word;
-        typedef	int32_t  Elf64_Sword;
+        typedef int32_t  Elf64_Sword;
 
         /* Types for signed and unsigned 64-bit quantities.  */
         typedef uint64_t Elf32_Xword;
-        typedef	int64_t  Elf32_Sxword;
+        typedef int64_t  Elf32_Sxword;
         typedef uint64_t Elf64_Xword;
-        typedef	int64_t  Elf64_Sxword;
+        typedef int64_t  Elf64_Sxword;
 
         /* Type of addresses.  */
         typedef uint32_t Elf32_Addr;
@@ -26633,116 +26625,116 @@ class ElfAnalyzer(object):
 
         typedef struct
         {
-          unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
-          Elf32_Half	e_type;			/* Object file type */
-          Elf32_Half	e_machine;		/* Architecture */
-          Elf32_Word	e_version;		/* Object file version */
-          Elf32_Addr	e_entry;		/* Entry point virtual address */
-          Elf32_Off	e_phoff;		/* Program header table file offset */
-          Elf32_Off	e_shoff;		/* Section header table file offset */
-          Elf32_Word	e_flags;		/* Processor-specific flags */
-          Elf32_Half	e_ehsize;		/* ELF header size in bytes */
-          Elf32_Half	e_phentsize;		/* Program header table entry size */
-          Elf32_Half	e_phnum;		/* Program header table entry count */
-          Elf32_Half	e_shentsize;		/* Section header table entry size */
-          Elf32_Half	e_shnum;		/* Section header table entry count */
-          Elf32_Half	e_shstrndx;		/* Section header string table index */
+          unsigned char e_ident[EI_NIDENT];     /* Magic number and other info */
+          Elf32_Half    e_type;                 /* Object file type */
+          Elf32_Half    e_machine;              /* Architecture */
+          Elf32_Word    e_version;              /* Object file version */
+          Elf32_Addr    e_entry;                /* Entry point virtual address */
+          Elf32_Off     e_phoff;                /* Program header table file offset */
+          Elf32_Off     e_shoff;                /* Section header table file offset */
+          Elf32_Word    e_flags;                /* Processor-specific flags */
+          Elf32_Half    e_ehsize;               /* ELF header size in bytes */
+          Elf32_Half    e_phentsize;            /* Program header table entry size */
+          Elf32_Half    e_phnum;                /* Program header table entry count */
+          Elf32_Half    e_shentsize;            /* Section header table entry size */
+          Elf32_Half    e_shnum;                /* Section header table entry count */
+          Elf32_Half    e_shstrndx;             /* Section header string table index */
         } Elf32_Ehdr;
 
         typedef struct
         {
-          unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
-          Elf64_Half	e_type;			/* Object file type */
-          Elf64_Half	e_machine;		/* Architecture */
-          Elf64_Word	e_version;		/* Object file version */
-          Elf64_Addr	e_entry;		/* Entry point virtual address */
-          Elf64_Off	e_phoff;		/* Program header table file offset */
-          Elf64_Off	e_shoff;		/* Section header table file offset */
-          Elf64_Word	e_flags;		/* Processor-specific flags */
-          Elf64_Half	e_ehsize;		/* ELF header size in bytes */
-          Elf64_Half	e_phentsize;		/* Program header table entry size */
-          Elf64_Half	e_phnum;		/* Program header table entry count */
-          Elf64_Half	e_shentsize;		/* Section header table entry size */
-          Elf64_Half	e_shnum;		/* Section header table entry count */
-          Elf64_Half	e_shstrndx;		/* Section header string table index */
+          unsigned char e_ident[EI_NIDENT];     /* Magic number and other info */
+          Elf64_Half    e_type;                 /* Object file type */
+          Elf64_Half    e_machine;              /* Architecture */
+          Elf64_Word    e_version;              /* Object file version */
+          Elf64_Addr    e_entry;                /* Entry point virtual address */
+          Elf64_Off     e_phoff;                /* Program header table file offset */
+          Elf64_Off     e_shoff;                /* Section header table file offset */
+          Elf64_Word    e_flags;                /* Processor-specific flags */
+          Elf64_Half    e_ehsize;               /* ELF header size in bytes */
+          Elf64_Half    e_phentsize;            /* Program header table entry size */
+          Elf64_Half    e_phnum;                /* Program header table entry count */
+          Elf64_Half    e_shentsize;            /* Section header table entry size */
+          Elf64_Half    e_shnum;                /* Section header table entry count */
+          Elf64_Half    e_shstrndx;             /* Section header string table index */
         } Elf64_Ehdr;
 
         typedef struct
         {
-          Elf32_Word	sh_name;		/* Section name (string tbl index) */
-          Elf32_Word	sh_type;		/* Section type */
-          Elf32_Word	sh_flags;		/* Section flags */
-          Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
-          Elf32_Off	sh_offset;		/* Section file offset */
-          Elf32_Word	sh_size;		/* Section size in bytes */
-          Elf32_Word	sh_link;		/* Link to another section */
-          Elf32_Word	sh_info;		/* Additional section information */
-          Elf32_Word	sh_addralign;		/* Section alignment */
-          Elf32_Word	sh_entsize;		/* Entry size if section holds table */
+          Elf32_Word    sh_name;                /* Section name (string tbl index) */
+          Elf32_Word    sh_type;                /* Section type */
+          Elf32_Word    sh_flags;               /* Section flags */
+          Elf32_Addr    sh_addr;                /* Section virtual addr at execution */
+          Elf32_Off     sh_offset;              /* Section file offset */
+          Elf32_Word    sh_size;                /* Section size in bytes */
+          Elf32_Word    sh_link;                /* Link to another section */
+          Elf32_Word    sh_info;                /* Additional section information */
+          Elf32_Word    sh_addralign;           /* Section alignment */
+          Elf32_Word    sh_entsize;             /* Entry size if section holds table */
         } Elf32_Shdr;
 
         typedef struct
         {
-          Elf64_Word	sh_name;		/* Section name (string tbl index) */
-          Elf64_Word	sh_type;		/* Section type */
-          Elf64_Xword	sh_flags;		/* Section flags */
-          Elf64_Addr	sh_addr;		/* Section virtual addr at execution */
-          Elf64_Off	sh_offset;		/* Section file offset */
-          Elf64_Xword	sh_size;		/* Section size in bytes */
-          Elf64_Word	sh_link;		/* Link to another section */
-          Elf64_Word	sh_info;		/* Additional section information */
-          Elf64_Xword	sh_addralign;		/* Section alignment */
-          Elf64_Xword	sh_entsize;		/* Entry size if section holds table */
+          Elf64_Word    sh_name;                /* Section name (string tbl index) */
+          Elf64_Word    sh_type;                /* Section type */
+          Elf64_Xword   sh_flags;               /* Section flags */
+          Elf64_Addr    sh_addr;                /* Section virtual addr at execution */
+          Elf64_Off     sh_offset;              /* Section file offset */
+          Elf64_Xword   sh_size;                /* Section size in bytes */
+          Elf64_Word    sh_link;                /* Link to another section */
+          Elf64_Word    sh_info;                /* Additional section information */
+          Elf64_Xword   sh_addralign;           /* Section alignment */
+          Elf64_Xword   sh_entsize;             /* Entry size if section holds table */
         } Elf64_Shdr;
 
         typedef struct
         {
-          Elf32_Word	p_type;			/* Segment type */
-          Elf32_Off	p_offset;		/* Segment file offset */
-          Elf32_Addr	p_vaddr;		/* Segment virtual address */
-          Elf32_Addr	p_paddr;		/* Segment physical address */
-          Elf32_Word	p_filesz;		/* Segment size in file */
-          Elf32_Word	p_memsz;		/* Segment size in memory */
-          Elf32_Word	p_flags;		/* Segment flags */
-          Elf32_Word	p_align;		/* Segment alignment */
+          Elf32_Word    p_type;                 /* Segment type */
+          Elf32_Off     p_offset;               /* Segment file offset */
+          Elf32_Addr    p_vaddr;                /* Segment virtual address */
+          Elf32_Addr    p_paddr;                /* Segment physical address */
+          Elf32_Word    p_filesz;               /* Segment size in file */
+          Elf32_Word    p_memsz;                /* Segment size in memory */
+          Elf32_Word    p_flags;                /* Segment flags */
+          Elf32_Word    p_align;                /* Segment alignment */
         } Elf32_Phdr;
 
         typedef struct
         {
-          Elf64_Word	p_type;			/* Segment type */
-          Elf64_Word	p_flags;		/* Segment flags */
-          Elf64_Off	p_offset;		/* Segment file offset */
-          Elf64_Addr	p_vaddr;		/* Segment virtual address */
-          Elf64_Addr	p_paddr;		/* Segment physical address */
-          Elf64_Xword	p_filesz;		/* Segment size in file */
-          Elf64_Xword	p_memsz;		/* Segment size in memory */
-          Elf64_Xword	p_align;		/* Segment alignment */
+          Elf64_Word    p_type;                 /* Segment type */
+          Elf64_Word    p_flags;                /* Segment flags */
+          Elf64_Off     p_offset;               /* Segment file offset */
+          Elf64_Addr    p_vaddr;                /* Segment virtual address */
+          Elf64_Addr    p_paddr;                /* Segment physical address */
+          Elf64_Xword   p_filesz;               /* Segment size in file */
+          Elf64_Xword   p_memsz;                /* Segment size in memory */
+          Elf64_Xword   p_align;                /* Segment alignment */
         } Elf64_Phdr;
 
         typedef struct
         {
-          Elf32_Word	st_name;		/* Symbol name (string tbl index) */
-          Elf32_Addr	st_value;		/* Symbol value */
-          Elf32_Word	st_size;		/* Symbol size */
-          unsigned char	st_info;		/* Symbol type and binding */
-          unsigned char	st_other;		/* Symbol visibility */
-          Elf32_Section	st_shndx;		/* Section index */
+          Elf32_Word    st_name;                /* Symbol name (string tbl index) */
+          Elf32_Addr    st_value;               /* Symbol value */
+          Elf32_Word    st_size;                /* Symbol size */
+          unsigned char st_info;                /* Symbol type and binding */
+          unsigned char st_other;               /* Symbol visibility */
+          Elf32_Section st_shndx;               /* Section index */
         } Elf32_Sym;
 
         typedef struct
         {
-          Elf64_Word	st_name;		/* Symbol name (string tbl index) */
-          unsigned char	st_info;		/* Symbol type and binding */
-          unsigned char st_other;		/* Symbol visibility */
-          Elf64_Section	st_shndx;		/* Section index */
-          Elf64_Addr	st_value;		/* Symbol value */
-          Elf64_Xword	st_size;		/* Symbol size */
+          Elf64_Word    st_name;                /* Symbol name (string tbl index) */
+          unsigned char st_info;                /* Symbol type and binding */
+          unsigned char st_other;               /* Symbol visibility */
+          Elf64_Section st_shndx;               /* Section index */
+          Elf64_Addr    st_value;               /* Symbol value */
+          Elf64_Xword   st_size;                /* Symbol size */
         } Elf64_Sym;
 
         typedef struct
         {
-          Elf32_Addr	r_offset;		/* Address */
-          Elf32_Word	r_info;			/* Relocation type and symbol index */
+          Elf32_Addr    r_offset;               /* Address */
+          Elf32_Word    r_info;                 /* Relocation type and symbol index */
         } Elf32_Rel;
 
         /* I have seen two different definitions of the Elf64_Rel and
@@ -26752,49 +26744,49 @@ class ElfAnalyzer(object):
 
         typedef struct
         {
-          Elf64_Addr	r_offset;		/* Address */
-          Elf64_Xword	r_info;			/* Relocation type and symbol index */
+          Elf64_Addr    r_offset;               /* Address */
+          Elf64_Xword   r_info;                 /* Relocation type and symbol index */
         } Elf64_Rel;
 
         /* Relocation table entry with addend (in section of type SHT_RELA).  */
 
         typedef struct
         {
-          Elf32_Addr	r_offset;		/* Address */
-          Elf32_Word	r_info;			/* Relocation type and symbol index */
-          Elf32_Sword	r_addend;		/* Addend */
+          Elf32_Addr    r_offset;               /* Address */
+          Elf32_Word    r_info;                 /* Relocation type and symbol index */
+          Elf32_Sword   r_addend;               /* Addend */
         } Elf32_Rela;
 
         typedef struct
         {
-          Elf64_Addr	r_offset;		/* Address */
-          Elf64_Xword	r_info;			/* Relocation type and symbol index */
-          Elf64_Sxword	r_addend;		/* Addend */
+          Elf64_Addr    r_offset;               /* Address */
+          Elf64_Xword   r_info;                 /* Relocation type and symbol index */
+          Elf64_Sxword  r_addend;               /* Addend */
         } Elf64_Rela;
 
         /* Version definition sections.  */
 
         typedef struct
         {
-          Elf32_Half	vd_version;		/* Version revision */
-          Elf32_Half	vd_flags;		/* Version information */
-          Elf32_Half	vd_ndx;			/* Version Index */
-          Elf32_Half	vd_cnt;			/* Number of associated aux entries */
-          Elf32_Word	vd_hash;		/* Version name hash value */
-          Elf32_Word	vd_aux;			/* Offset in bytes to verdaux array */
-          Elf32_Word	vd_next;		/* Offset in bytes to next verdef
+          Elf32_Half    vd_version;             /* Version revision */
+          Elf32_Half    vd_flags;               /* Version information */
+          Elf32_Half    vd_ndx;                 /* Version Index */
+          Elf32_Half    vd_cnt;                 /* Number of associated aux entries */
+          Elf32_Word    vd_hash;                /* Version name hash value */
+          Elf32_Word    vd_aux;                 /* Offset in bytes to verdaux array */
+          Elf32_Word    vd_next;                /* Offset in bytes to next verdef
                                entry */
         } Elf32_Verdef;
 
         typedef struct
         {
-          Elf64_Half	vd_version;		/* Version revision */
-          Elf64_Half	vd_flags;		/* Version information */
-          Elf64_Half	vd_ndx;			/* Version Index */
-          Elf64_Half	vd_cnt;			/* Number of associated aux entries */
-          Elf64_Word	vd_hash;		/* Version name hash value */
-          Elf64_Word	vd_aux;			/* Offset in bytes to verdaux array */
-          Elf64_Word	vd_next;		/* Offset in bytes to next verdef
+          Elf64_Half    vd_version;             /* Version revision */
+          Elf64_Half    vd_flags;               /* Version information */
+          Elf64_Half    vd_ndx;                 /* Version Index */
+          Elf64_Half    vd_cnt;                 /* Number of associated aux entries */
+          Elf64_Word    vd_hash;                /* Version name hash value */
+          Elf64_Word    vd_aux;                 /* Offset in bytes to verdaux array */
+          Elf64_Word    vd_next;                /* Offset in bytes to next verdef
                                entry */
         } Elf64_Verdef;
 
@@ -26802,15 +26794,15 @@ class ElfAnalyzer(object):
 
         typedef struct
         {
-          Elf32_Word	vda_name;		/* Version or dependency names */
-          Elf32_Word	vda_next;		/* Offset in bytes to next verdaux
+          Elf32_Word    vda_name;               /* Version or dependency names */
+          Elf32_Word    vda_next;               /* Offset in bytes to next verdaux
                                entry */
         } Elf32_Verdaux;
 
         typedef struct
         {
-          Elf64_Word	vda_name;		/* Version or dependency names */
-          Elf64_Word	vda_next;		/* Offset in bytes to next verdaux
+          Elf64_Word    vda_name;               /* Version or dependency names */
+          Elf64_Word    vda_next;               /* Offset in bytes to next verdaux
                                entry */
         } Elf64_Verdaux;
 
@@ -26819,23 +26811,23 @@ class ElfAnalyzer(object):
 
         typedef struct
         {
-          Elf32_Half	vn_version;		/* Version of structure */
-          Elf32_Half	vn_cnt;			/* Number of associated aux entries */
-          Elf32_Word	vn_file;		/* Offset of filename for this
+          Elf32_Half    vn_version;             /* Version of structure */
+          Elf32_Half    vn_cnt;                 /* Number of associated aux entries */
+          Elf32_Word    vn_file;                /* Offset of filename for this
                                dependency */
-          Elf32_Word	vn_aux;			/* Offset in bytes to vernaux array */
-          Elf32_Word	vn_next;		/* Offset in bytes to next verneed
+          Elf32_Word    vn_aux;                 /* Offset in bytes to vernaux array */
+          Elf32_Word    vn_next;                /* Offset in bytes to next verneed
                                entry */
         } Elf32_Verneed;
 
         typedef struct
         {
-          Elf64_Half	vn_version;		/* Version of structure */
-          Elf64_Half	vn_cnt;			/* Number of associated aux entries */
-          Elf64_Word	vn_file;		/* Offset of filename for this
+          Elf64_Half    vn_version;             /* Version of structure */
+          Elf64_Half    vn_cnt;                 /* Number of associated aux entries */
+          Elf64_Word    vn_file;                /* Offset of filename for this
                                dependency */
-          Elf64_Word	vn_aux;			/* Offset in bytes to vernaux array */
-          Elf64_Word	vn_next;		/* Offset in bytes to next verneed
+          Elf64_Word    vn_aux;                 /* Offset in bytes to vernaux array */
+          Elf64_Word    vn_next;                /* Offset in bytes to next verneed
                                entry */
         } Elf64_Verneed;
 
@@ -26843,21 +26835,21 @@ class ElfAnalyzer(object):
 
         typedef struct
         {
-          Elf32_Word	vna_hash;		/* Hash value of dependency name */
-          Elf32_Half	vna_flags;		/* Dependency specific information */
-          Elf32_Half	vna_other;		/* Unused */
-          Elf32_Word	vna_name;		/* Dependency name string offset */
-          Elf32_Word	vna_next;		/* Offset in bytes to next vernaux
+          Elf32_Word    vna_hash;               /* Hash value of dependency name */
+          Elf32_Half    vna_flags;              /* Dependency specific information */
+          Elf32_Half    vna_other;              /* Unused */
+          Elf32_Word    vna_name;               /* Dependency name string offset */
+          Elf32_Word    vna_next;               /* Offset in bytes to next vernaux
                                entry */
         } Elf32_Vernaux;
 
         typedef struct
         {
-          Elf64_Word	vna_hash;		/* Hash value of dependency name */
-          Elf64_Half	vna_flags;		/* Dependency specific information */
-          Elf64_Half	vna_other;		/* Unused */
-          Elf64_Word	vna_name;		/* Dependency name string offset */
-          Elf64_Word	vna_next;		/* Offset in bytes to next vernaux
+          Elf64_Word    vna_hash;               /* Hash value of dependency name */
+          Elf64_Half    vna_flags;              /* Dependency specific information */
+          Elf64_Half    vna_other;              /* Unused */
+          Elf64_Word    vna_name;               /* Dependency name string offset */
+          Elf64_Word    vna_next;               /* Offset in bytes to next vernaux
                                entry */
         } Elf64_Vernaux;
 
@@ -40541,17 +40533,20 @@ class ThreadAnalyzer(object):
             oomstr = ''
 
         try:
-            nrCtxt = self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+            nrCtxt = \
+                self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
         except:
             nrCtxt = 0
 
         try:
-            nrTermThreads = abs(self.nrThread - nrNewThreads - self.nrPrevThread)
+            nrTermThreads = \
+                abs(self.nrThread - nrNewThreads - self.nrPrevThread)
         except:
             nrTermThreads = 0
 
         try:
-            nrIrq = self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
+            nrIrq = \
+                self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
         except:
             nrIrq = 0
 
