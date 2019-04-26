@@ -23093,7 +23093,6 @@ Copyright:
 
         try:
             cgroupTree = self.getCgroupTree()
-            print(cgroupTree)
             if not cgroupTree:
                 return
         except:
