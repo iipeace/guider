@@ -40973,7 +40973,7 @@ class ThreadAnalyzer(object):
             "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "MemV", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
+            "VSS", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
             sid, pgrp, "FD", "LifeTime", etc, oneLine, twoLine, cl=cl, pd=pd), \
             newline = 3)
 
