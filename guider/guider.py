@@ -12232,6 +12232,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
+        -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
         -E  <FILE>                  set error log path
@@ -12245,6 +12246,9 @@ Examples:
 
     - Trace write systemcall with specific command
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - Trace systemcalls and pause when catching open systemcall
+        # {0:1} {1:1} -I "ls -al" -c open
                     '''.format(cmd, mode)
 
                 # utrace #
@@ -12266,6 +12270,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
+        -c  <EVENT>                 set breakpoint
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
@@ -12280,6 +12285,9 @@ Examples:
 
     - Trace user function calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
+
+    - Trace user function calls and pause when catching PLT function call
+        # {0:1} {1:1} -I "ls -al" -c PLT
                     '''.format(cmd, mode)
 
                 # mem #
@@ -18772,7 +18780,7 @@ Copyright:
 
 
     @staticmethod
-    def waitUserInput(wait=0):
+    def waitUserInput(wait=0, msg=None, newline=True):
         # check condition #
         if SystemManager.printFile or \
             SystemManager.isReportTopMode() or \
@@ -18785,13 +18793,18 @@ Copyright:
             SystemManager.selectEnable = False
             return
 
+        # set default message #
+        if not msg:
+            msg = ("[ Input command... "
+                    "( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
+
+        # wait for user input #
         try:
+            # there was user input #
             if selectObj.select(\
                 [sys.stdin], [], [], wait) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
-                SystemManager.printPipe((\
-                    "[ Input command... "
-                    "( Help / Filter / Kill / Sched / Affinity / Quit ) ]"))
+                SystemManager.printPipe(msg, newline=newline)
 
                 # flush buffered enter key #
                 sys.stdin.readline()
@@ -18801,6 +18814,9 @@ Copyright:
 
                 # process user input #
                 SystemManager.procUserInput(sys.stdin.readline())
+            elif wait == 0:
+                SystemManager.printPipe(msg, newline=newline)
+                sys.stdin.readline()
         except SystemExit:
             sys.exit(0)
         except:
@@ -24453,14 +24469,22 @@ class Debugger(object):
                 self.addCall(sym)
 
             # build call string #
-            sym = '%s%s' % (' ' * 4 * len(self.callstack), sym)
+            symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             SystemManager.printPipe(\
                 '%3.6f %s (%s) [%s + %s] [%s]' % \
-                (diff, sym, direction, fname, offset, hex(self.sp).rstrip('L')))
+                    (diff, symstr , direction, fname, \
+                        offset, hex(self.sp).rstrip('L')))
 
             # backup register #
             self.prevsp = self.sp
+
+            # check pause condition #
+            if SystemManager.customCmd:
+                onlySym = sym.split('@')[0]
+                if onlySym in SystemManager.customCmd:
+                    SystemManager.waitUserInput(\
+                        wait=0, msg="Press any key...", newline=False)
 
 
 
@@ -24546,6 +24570,12 @@ class Debugger(object):
             SystemManager.printPipe(\
                 '%3.6f %s(%s) ' % \
                 (diff, name, argText), newline=False, flush=True)
+
+            # check pause condition #
+            if SystemManager.customCmd and \
+                name in SystemManager.customCmd:
+                SystemManager.waitUserInput(\
+                    wait=0, msg="\nPress any key...", newline=False)
 
         # exit #
         elif status == 'exit':
@@ -40724,7 +40754,7 @@ class ThreadAnalyzer(object):
             "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
             "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
-            "{14:^3}({15:^4}/{16:^4}/{17:^5})|"
+            "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
             format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
             "MemV", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
@@ -41073,7 +41103,7 @@ class ThreadAnalyzer(object):
                 "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue), \
                 value['ttime'], value['utime'], value['stime'], dtime, \
