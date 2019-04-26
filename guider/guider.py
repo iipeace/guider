@@ -23072,6 +23072,7 @@ Copyright:
         for shmid, stats in sorted(\
             self.ipcData['shm'].items(), key=lambda e:e[1]['cpid']):
 
+            # get owner name #
             try:
                 pid = stats['cpid']
 
@@ -23082,7 +23083,7 @@ Copyright:
                     if comm is None:
                         raise Exception()
 
-                    owner = '%s (%s)[%s]' % (comm, pid, user)
+                    owner = '%s(%s)' % (comm, pid)
                 else:
                     owner = ''
             except:
@@ -23095,17 +23096,19 @@ Copyright:
 
                 try:
                     user = self.userData[stats['uid']]['name']
-                    owner = '%s [%s]' % (owner, user)
+                    owner = '%s[%s]' % (owner, user)
                 except:
                     pass
 
                 if cnt > 0:
                     SystemManager.infoBufferPrint(oneLine)
 
-                SystemManager.infoBufferPrint((\
-                    "{0:>26}   {1:^41}   {2:>6}   {3:>6}   "
-                    "{4:>6}   {5:>15}").format(\
-                        owner, '[ TOTAL: %s ]' % ownerData[pid]['count'], \
+                totalStat = '[ TOTAL: %s ]' % ownerData[pid]['count']
+                space = 70 - len(owner) - len(totalStat)
+                totalStr = '%s%s%s' % (owner, ' ' * space, totalStat)
+                SystemManager.infoBufferPrint(\
+                    "{0:>40}   {1:>6}   {2:>6}   {3:>6}   {4:>15}".format(\
+                        totalStr, \
                         convertSizeFunc(ownerData[pid]['size'], True), \
                         convertSizeFunc(ownerData[pid]['rss'], True), \
                         convertSizeFunc(ownerData[pid]['swap'], True), \
