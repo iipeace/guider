@@ -19712,7 +19712,16 @@ Copyright:
         SystemManager()
         SystemManager.sysInstance.saveResourceSnapshot()
 
-        SystemManager.printInfoBuffer()
+        if SystemManager.jsonPrintEnable:
+            # convert dict data to JSON-type string #
+            jsonObj = SystemManager.makeJsonString(SystemManager.jsonData)
+            if not jsonObj:
+                SystemManager.printWarning(\
+                    "Fail to convert report data to JSON type")
+            else:
+                SystemManager.printPipe(jsonObj)
+        else:
+            SystemManager.printInfoBuffer()
 
         sys.exit(0)
 
@@ -20102,7 +20111,7 @@ Copyright:
 
     @staticmethod
     def doPstree(isProcess=True):
-        SystemManager.printLogo(big=True)
+        SystemManager.printLogo(big=True, onlyFile=True)
 
         obj = ThreadAnalyzer(onlyInstance=True)
 
@@ -22152,6 +22161,13 @@ Copyright:
         if not self.osData and not self.devData:
             return
 
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['os'] = dict()
+            jsonData = SystemManager.jsonData['general']['os']
+
         SystemManager.infoBufferPrint('\n[System OS Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
@@ -22171,6 +22187,9 @@ Copyright:
                     replace('\n', '').replace(',', '')
                 SystemManager.infoBufferPrint(\
                     "{0:35} {1:<100}".format(name, value))
+
+                if SystemManager.jsonPrintEnable:
+                    jsonData[name] = value
         except:
             SystemManager.printWarning("Fail to parse osData")
 
@@ -22187,6 +22206,9 @@ Copyright:
                     replace('\n', '').replace(',', '')
                 SystemManager.infoBufferPrint(\
                     "{0:35} {1:<100}".format(name, value))
+
+                if SystemManager.jsonPrintEnable:
+                    jsonData[name] = value
         except:
             pass
 
@@ -22195,6 +22217,12 @@ Copyright:
 
 
     def printSystemInfo(self):
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            jsonData = SystemManager.jsonData['general']
+
         SystemManager.infoBufferPrint('\n\n[System General Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
@@ -22203,8 +22231,12 @@ Copyright:
 
         # launch option #
         try:
+            launchOption = '%s%s' % (' '.join(sys.argv), ' -')
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Launch', '# ' + '%s%s' % (' '.join(sys.argv), ' -')))
+                format('Launch', '# ' + launchOption))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['launch'] = launchOption
         except:
             pass
 
@@ -22212,6 +22244,9 @@ Copyright:
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Version', '%s' % __version__))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['version'] = __version__
         except:
             pass
 
@@ -22219,6 +22254,9 @@ Copyright:
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SystemManager.arch))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['arch'] = SystemManager.arch
         except:
             pass
 
@@ -22228,6 +22266,10 @@ Copyright:
                 (self.systemInfo['date'], self.systemInfo['time'])
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Date', timeInfo))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['date'] = self.systemInfo['date']
+                jsonData['time'] = self.systemInfo['time']
         except:
             pass
 
@@ -22235,6 +22277,9 @@ Copyright:
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('OS', self.systemInfo['osVer']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['os'] = self.systemInfo['osVer']
         except:
             pass
 
@@ -22244,6 +22289,9 @@ Copyright:
                 (self.systemInfo['osType'], self.systemInfo['kernelVer'])
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Kernel', kernelInfo))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['kernel'] = kernelInfo
         except:
             pass
 
@@ -22260,6 +22308,9 @@ Copyright:
 
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('User', self.userData[uid]['name']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['user'] = self.userData[uid]['name']
         except:
             pass
 
@@ -22268,6 +22319,9 @@ Copyright:
             uptime = SystemManager.convertTime(SystemManager.uptime)
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['uptime'] = uptime
         except:
             pass
 
@@ -22278,6 +22332,9 @@ Copyright:
             runtime = SystemManager.convertTime(runtime).strip()
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Runtime', runtime))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['runtime'] = runtime
         except:
             pass
 
@@ -22288,6 +22345,11 @@ Copyright:
                 str(int(float(self.loadData[0]) * 100)) + '%(1m)', \
                 str(int(float(self.loadData[1]) * 100)) + '%(5m)', \
                 str(int(float(self.loadData[2]) * 100)) + '%(15m)'))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['load1m'] = self.loadData[0]
+                jsonData['load5m'] = self.loadData[1]
+                jsonData['load15m'] = self.loadData[2]
         except:
             pass
 
@@ -22297,6 +22359,10 @@ Copyright:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<10}".format('Threads', \
                 '%s(running) / %s(total)' % (running, total)))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['nrRunTask'] = running
+                jsonData['nrTotalTask'] = total
         except:
             pass
 
@@ -22304,6 +22370,9 @@ Copyright:
         try:
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['lastPid'] = self.loadData[4]
         except:
             pass
 
@@ -22318,6 +22387,9 @@ Copyright:
                 SystemManager.infoBufferPrint(\
                     "{0:20} {1:<100}".format(title, string))
                 title = ''
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['cmdline'] = self.cmdlineData
         except:
             pass
 
@@ -22328,6 +22400,13 @@ Copyright:
     def printCpuCacheInfo(self):
         if len(self.cpuCacheInfo) == 0:
             return
+
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['cache'] = dict()
+            jsonData = SystemManager.jsonData['general']['cache']
 
         SystemManager.infoBufferPrint('\n[System CPU Cache Info]')
         SystemManager.infoBufferPrint(twoLine)
@@ -22341,8 +22420,11 @@ Copyright:
                 self.cpuCacheInfo.items(), key=lambda e: int(e[0][3:])):
                 try:
                     SystemManager.infoBufferPrint(\
-                        "{0:^20} {1:<100}".format(core[3:], info))
+                        "{0:^20} {1:<100}".format(core[3:], info.strip()))
                     cnt += 1
+
+                    if SystemManager.jsonPrintEnable:
+                        jsonData[core[3:]] = info.strip()
                 except:
                     pass
         except:
@@ -22368,6 +22450,13 @@ Copyright:
         else:
             return
 
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['cpu'] = dict()
+            jsonData = SystemManager.jsonData['general']['cpu']
+
         SystemManager.infoBufferPrint('\n[System CPU Info]')
         SystemManager.infoBufferPrint(twoLine)
         SystemManager.infoBufferPrint(\
@@ -22375,45 +22464,76 @@ Copyright:
         SystemManager.infoBufferPrint(twoLine)
 
         try:
+            physical = int(self.cpuInfo['physical id']) + 1
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Physical', int(self.cpuInfo['physical id']) + 1))
+                format('Physical', physical))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['physical'] = physical
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('CoresPerCPU', self.cpuInfo['cpu cores']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['corePerCPU'] = self.cpuInfo['cpu cores']
         except:
             pass
+
         try:
+            logical = int(self.cpuInfo['processor']) + 1
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Logical', int(self.cpuInfo['processor']) + 1))
+                format('Logical', logical))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['logical'] = logical
         except:
             pass
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Vendor', self.cpuInfo['vendor_id']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['vendor'] = self.cpuInfo['vendor_id']
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Model', self.cpuInfo['model name']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['model'] = self.cpuInfo['model name']
         except:
             pass
 
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Cache(L2)', self.cpuInfo['cache size']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['cacheL2'] = self.cpuInfo['cache size']
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Perf', self.cpuInfo['bogomips']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['perf'] = self.cpuInfo['bogomips']
         except:
             pass
+
         try:
             SystemManager.infoBufferPrint("{0:20} {1:<100}".\
                 format('Address', self.cpuInfo['address sizes']))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['address'] = self.cpuInfo['address sizes']
         except:
             pass
 
@@ -22973,6 +23093,7 @@ Copyright:
 
         try:
             cgroupTree = self.getCgroupTree()
+            print(cgroupTree)
             if not cgroupTree:
                 return
         except:
@@ -22983,6 +23104,12 @@ Copyright:
         SystemManager.infoBufferPrint(twoLine)
         printDirTree(cgroupTree, 0)
         SystemManager.infoBufferPrint(twoLine)
+
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['cgroup'] = cgroupTree
 
 
 
@@ -23178,6 +23305,13 @@ Copyright:
 
 
     def printNetworkInfo(self):
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['network'] = dict()
+            jsonData = SystemManager.jsonData['general']['network']
+
         # print network info #
         SystemManager.infoBufferPrint('\n[System Network Info]')
         SystemManager.infoBufferPrint(twoLine)
@@ -23253,6 +23387,31 @@ Copyright:
                         "{0:1}".format(oneLine))
 
                 cnt += 1
+
+                if SystemManager.jsonPrintEnable:
+                    convertFunc = SystemManager.convertSize2Unit
+
+                    jsonData[dev] = dict()
+
+                    jsonData[dev]['recv'] = dict()
+                    jsonData[dev]['recv']['bytes'] = convertFunc(rlist[0])
+                    jsonData[dev]['recv']['packets'] = convertFunc(rlist[1])
+                    jsonData[dev]['recv']['errs'] = convertFunc(rlist[2])
+                    jsonData[dev]['recv']['drop'] = convertFunc(rlist[3])
+                    jsonData[dev]['recv']['fifo'] = convertFunc(rlist[4])
+                    jsonData[dev]['recv']['frame'] = convertFunc(rlist[5])
+                    jsonData[dev]['recv']['compressed'] = convertFunc(rlist[6])
+                    jsonData[dev]['recv']['multicast'] = convertFunc(rlist[7])
+
+                    jsonData[dev]['trans'] = dict()
+                    jsonData[dev]['trans']['bytes'] = convertFunc(tlist[0])
+                    jsonData[dev]['trans']['packets'] = convertFunc(tlist[1])
+                    jsonData[dev]['trans']['errs'] = convertFunc(tlist[2])
+                    jsonData[dev]['trans']['drop'] = convertFunc(tlist[3])
+                    jsonData[dev]['trans']['fifo'] = convertFunc(tlist[4])
+                    jsonData[dev]['trans']['frame'] = convertFunc(tlist[5])
+                    jsonData[dev]['trans']['compressed'] = convertFunc(tlist[6])
+                    jsonData[dev]['trans']['multicast'] = convertFunc(tlist[7])
             except:
                 pass
 
@@ -23261,6 +23420,13 @@ Copyright:
 
 
     def printStorageInfo(self):
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['storage'] = dict()
+            jsonData = SystemManager.jsonData['general']['storage']
+
         # print storage info #
         SystemManager.infoBufferPrint('\n[System Storage Info]')
         SystemManager.infoBufferPrint(twoLine)
@@ -23404,6 +23570,22 @@ Copyright:
             except:
                 pass
 
+            try:
+                if SystemManager.jsonPrintEnable:
+                    jsonData[key] = dict()
+                    jsonData[key]['major'] = major
+                    jsonData[key]['minor'] = minor
+                    jsonData[key]['read'] = readSize
+                    jsonData[key]['write'] = writeSize
+                    jsonData[key]['total'] = total
+                    jsonData[key]['free'] = free
+                    jsonData[key]['use'] = use
+                    jsonData[key]['avail'] = avail
+                    jsonData[key]['fs'] = val['fs']
+                    jsonData[key]['mount'] = '%s %s' % (val['path'], val['option'])
+            except:
+                pass
+
         # print total I/O size #
         if outputCnt == 0:
             SystemManager.infoBufferPrint('\tN/A')
@@ -23444,6 +23626,13 @@ Copyright:
         if len(self.memData) != 2:
             return
 
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            if not 'general' in SystemManager.jsonData:
+                SystemManager.jsonData['general'] = dict()
+            SystemManager.jsonData['general']['mem'] = dict()
+            jsonData = SystemManager.jsonData['general']['mem']
+
         # parse data #
         time = 'prev'
         self.memInfo[time] = dict()
@@ -23470,16 +23659,19 @@ Copyright:
         except:
             before['Shmem'] = '0'
             after['Shmem'] = '0'
+
         try:
             before['SReclaimable']
         except:
             before['SReclaimable'] = '0'
             after['SReclaimable'] = '0'
+
         try:
             before['Sunreclaim']
         except:
             before['Sunreclaim'] = '0'
             after['Sunreclaim'] = '0'
+
         try:
             before['Mlocked']
         except:
@@ -23597,6 +23789,26 @@ Copyright:
                     int(before['Mlocked'])) << 10)))
 
         SystemManager.infoBufferPrint(twoLine)
+
+        if SystemManager.jsonPrintEnable:
+            jsonData['memTotal'] = convertFunc(int(after['MemTotal']) << 10)
+            jsonData['memFree'] = convertFunc(int(after['MemFree']) << 10)
+            if 'MemAvailable' in after:
+                jsonData['memAvailable'] = \
+                    convertFunc(int(after['MemAvailable']) << 10)
+            jsonData['swapTotal'] = convertFunc(int(after['SwapTotal']) << 10)
+            jsonData['swapFree'] = convertFunc(int(after['SwapFree']) << 10)
+            jsonData['buffer'] = convertFunc(int(after['Buffers']) << 10)
+            jsonData['cache'] = convertFunc(int(after['Cached']) << 10)
+            jsonData['shmem'] = convertFunc(int(after['Shmem']) << 10)
+            jsonData['mapped'] = convertFunc(int(after['Mapped']) << 10)
+            jsonData['active'] = convertFunc(int(after['Active']) << 10)
+            jsonData['inactive'] = convertFunc(int(after['Inactive']) << 10)
+            jsonData['pagetable'] = convertFunc(int(after['PageTables']) << 10)
+            jsonData['slab'] = convertFunc(int(after['Slab']) << 10)
+            jsonData['sreclaimable'] = convertFunc(int(after['SReclaimable']) << 10)
+            jsonData['sunreclaimable'] = convertFunc(int(after['SUnreclaim']) << 10)
+            jsonData['mlock'] = convertFunc(int(after['Mlocked']) << 10)
 
 
 
@@ -40354,9 +40566,10 @@ class ThreadAnalyzer(object):
         except:
             swapTotal = 0
 
-        # add json stats #
+        # add JSON stats #
         if SystemManager.jsonPrintEnable:
-            SystemManager.jsonData['system'] = dict()
+            if not 'system' in SystemManager.jsonData:
+                SystemManager.jsonData['system'] = dict()
             jsonData = SystemManager.jsonData['system']
 
             jsonData['uptime'] = SystemManager.uptime
@@ -40388,9 +40601,10 @@ class ThreadAnalyzer(object):
         irqData = '%s [IRQ > ' % (' ' * nrIndent)
         lenIrq = len(irqData)
 
-        # add json stats #
+        # add JSON stats #
         if SystemManager.jsonPrintEnable:
-            SystemManager.jsonData['irq'] = dict()
+            if not 'irq' in SystemManager.jsonData:
+                SystemManager.jsonData['irq'] = dict()
 
         for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
             self.irqData[e[0]] if not e[0] in self.prevIrqData \
@@ -40430,9 +40644,10 @@ class ThreadAnalyzer(object):
         if len(perfString) > 0:
             SystemManager.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
-            # add json stats #
+            # add JSON stats #
             if SystemManager.jsonPrintEnable:
-                SystemManager.jsonData['PMU'] = dict()
+                if not 'PMU' in SystemManager.jsonData:
+                    SystemManager.jsonData['PMU'] = dict()
                 jsonData = SystemManager.jsonData['PMU']
 
                 plist = perfString[1:-1].split(' / ')
@@ -40472,7 +40687,8 @@ class ThreadAnalyzer(object):
         convertFunc = SystemManager.convertSize2Unit
 
         if SystemManager.jsonPrintEnable:
-            SystemManager.jsonData['network'] = dict()
+            if not 'net' in SystemManager.jsonData:
+                SystemManager.jsonData['net'] = dict()
 
         for dev, val in sorted(\
             SystemManager.sysInstance.networkInfo.items(), key=lambda e:e[0]):
@@ -40491,15 +40707,11 @@ class ThreadAnalyzer(object):
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
                         dev, ' ',\
-                        convertFunc(rdiff[0]),\
-                        convertFunc(rdiff[1]),\
-                        convertFunc(rdiff[2]),\
-                        convertFunc(rdiff[3]),\
-                        convertFunc(rdiff[-1]),
-                        convertFunc(tdiff[0]),\
-                        convertFunc(tdiff[1]),\
-                        convertFunc(tdiff[2]),\
-                        convertFunc(tdiff[3]),\
+                        convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
+                        convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
+                        convertFunc(rdiff[-1]), \
+                        convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
+                        convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
                         convertFunc(tdiff[-1])))
             except:
                 pass
@@ -40531,7 +40743,8 @@ class ThreadAnalyzer(object):
         prevStorageData = SystemManager.sysInstance.prevStorageData
 
         if SystemManager.jsonPrintEnable:
-            SystemManager.jsonData['storage'] = dict()
+            if not 'storage' in SystemManager.jsonData:
+                SystemManager.jsonData['storage'] = dict()
 
         printCnt = 0
         for dev, value in sorted(storageData.items(),\
