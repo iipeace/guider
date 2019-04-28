@@ -34001,9 +34001,7 @@ class ThreadAnalyzer(object):
 
                 # check item #
                 if rcomm not in TA.lifecycleData:
-                    TA.lifecycleData[rcomm] = [0] * 4
-                    TA.lifecycleData[rcomm][2] = dict()
-                    TA.lifecycleData[rcomm][3] = dict()
+                    TA.lifecycleData[rcomm] = [0] * 6
 
                 # add died process to list #
                 if comm[1] == '-':
@@ -34019,11 +34017,17 @@ class ThreadAnalyzer(object):
                 elif comm[1] == '+':
                     TA.lifecycleData[rcomm][0] += 1
                 # add zomebie process to list #
-                elif comm[1] == 'Z':
-                    TA.lifecycleData[rcomm][2][pid] = 1
-                # add zomebie process to list #
-                elif comm[1] == 'T':
-                    TA.lifecycleData[rcomm][3][pid] = 1
+                elif comm[1].upper() == 'Z':
+                    TA.lifecycleData[rcomm][2] += 1
+                # add tracee process to list #
+                elif comm[1].upper() == 'T':
+                    TA.lifecycleData[rcomm][3] += 1
+                # add wait process to list #
+                elif comm[1].upper() == 'D':
+                    TA.lifecycleData[rcomm][4] += 1
+                # add paging process to list #
+                elif comm[1].upper() == 'W':
+                    TA.lifecycleData[rcomm][5] += 1
 
                 return
         except:
@@ -35000,16 +35004,22 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe("\n\tNone")
             return
 
-        SystemManager.printPipe(\
-            "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} {5:>15}\n{6:1}\n".\
-            format(twoLine, "Name", "Created", \
-            "Terminated", "Zombie", "Traced", oneLine))
+        convertFunc = SystemManager.convertSize2Unit
+
+        SystemManager.printPipe((\
+            "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} "
+            "{5:>15} {6:>15} {7:>15}\n{8:1}\n").\
+                format(twoLine, "Name", "Created", "Terminated", "Zombie", \
+                    "Traced", "Waiting", "Paging", oneLine))
 
         for comm, event in sorted(ThreadAnalyzer.lifecycleData.items(),\
             key=lambda e: e[1][0] + e[1][1], reverse=True):
             SystemManager.printPipe(\
-                "{0:^16} {1:>15} {2:>15} {3:>15} {4:>15} \n".\
-                format(comm, event[0], event[1], len(event[2]), len(event[3])))
+                "{0:^16} {1:>15} {2:>15} {3:>15} {4:>15} {5:>15} {6:>15}\n".\
+                    format(comm, convertFunc(event[0]), \
+                        convertFunc(event[1]), convertFunc(event[2]), \
+                        convertFunc(event[3]), convertFunc(event[4]), \
+                        convertFunc(event[5])))
 
         SystemManager.printPipe(oneLine)
 
