@@ -40926,16 +40926,16 @@ class ThreadAnalyzer(object):
         # get profile mode #
         if SystemManager.processEnable:
             mode = 'Process'
-            pid = 'PID'
-            ppid = 'PPID'
-            sid = 'SID'
-            pgrp = 'USER'
+            pidType = 'PID'
+            ppidType = 'PPID'
+            sidType = 'SID'
+            pgrpType = 'USER'
         else:
             mode = 'Thread'
-            pid = 'TID'
-            ppid = 'PID'
-            sid = 'Yld'
-            pgrp = 'Prmt'
+            pidType = 'TID'
+            ppidType = 'PID'
+            sidType = 'Yld'
+            pgrpType = 'Prmt'
 
         if not SystemManager.wfcEnable:
             dprop = 'Dly'
@@ -40960,16 +40960,25 @@ class ThreadAnalyzer(object):
         else:
             mem = 'RSS'
 
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            jtype = mode.lower()
+            if not jtype in SystemManager.jsonData:
+                SystemManager.jsonData[jtype] = dict()
+            jsonData = SystemManager.jsonData[jtype]
+
         SystemManager.addPrint((\
             "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
             "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
             "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
-            format(mode, pid, ppid, "Nr", "Pri", "CPU", "Usr", "Ker", dprop, \
-            "VSS", mem, "Txt", "Shr", "Swp", "Blk", "RD", "WR", "NrFlt",\
-            sid, pgrp, "FD", "LifeTime", etc, oneLine, twoLine, cl=cl, pd=pd), \
-            newline = 3)
+                format(mode, pidType, ppidType, "Nr", "Pri", \
+                    "CPU", "Usr", "Ker", dprop, \
+                    "VSS", mem, "Txt", "Shr", "Swp", \
+                    "Blk", "RD", "WR", "NrFlt",\
+                    sidType, pgrpType, "FD", "LifeTime", etc, \
+                    oneLine, twoLine, cl=cl, pd=pd), newline = 3)
 
         # set sort value #
         if SystemManager.sort == 'm':
@@ -41304,8 +41313,64 @@ class ThreadAnalyzer(object):
             except:
                 mems = 0
 
+            try:
+                sched = \
+                    SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue)
+            except:
+                sched = '?'
+
+            try:
+                vss = long(stat[self.vsizeIdx]) >> 20
+            except:
+                vss = 0
+
             # get memory details #
             memBuf, mems = self.getMemDetails(idx, value['maps'], mems)
+
+            # add JSON stats #
+            if SystemManager.jsonPrintEnable:
+                jsonData[idx] = dict()
+                jsonData[idx]['comm'] = comm
+                jsonData[idx][pidType] = pid
+
+                if SystemManager.processEnable:
+                    jsonData[idx][ppidType] = stat[self.ppidIdx]
+                else:
+                    jsonData[idx][ppidType] = value['mainID']
+
+                jsonData[idx]['nrThreads'] = stat[self.nrthreadIdx]
+                jsonData[idx]['sched'] = sched.replace(' ', '')
+                jsonData[idx]['ttime'] = value['ttime']
+                jsonData[idx]['utime'] = value['utime']
+                jsonData[idx]['stime'] = value['stime']
+
+                try:
+                    jsonData[idx]['dtime'] = int(dtime)
+                except:
+                    jsonData[idx]['dtime'] = 0
+
+                jsonData[idx]['vss'] = long(stat[self.vsizeIdx]) >> 20
+                jsonData[idx]['mem'] = mems >> 8
+                jsonData[idx]['code'] = codeSize
+                jsonData[idx]['shared'] = shr
+
+                try:
+                    jsonData[idx]['swap'] = int(vmswp)
+                except:
+                    jsonData[idx]['swap'] = 0
+
+                jsonData[idx]['btime'] = value['btime']
+
+                try:
+                    jsonData[idx]['bread'] = int(readSize)
+                    jsonData[idx]['bwrite'] = int(writeSize)
+                except:
+                    jsonData[idx]['bread'] = 0
+                    jsonData[idx]['bwrite'] = 0
+
+                jsonData[idx]['nrFlt'] = value['majflt']
+                jsonData[idx]['fd'] = value['fdsize']
+                jsonData[idx]['life'] = lifeTime.strip()
 
             # print stats of a process #
             SystemManager.addPrint(\
@@ -41315,9 +41380,8 @@ class ThreadAnalyzer(object):
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue), \
-                value['ttime'], value['utime'], value['stime'], dtime, \
-                long(stat[self.vsizeIdx]) >> 20, mems >> 8, codeSize, \
+                sched, value['ttime'], value['utime'], value['stime'], \
+                dtime, vss, mems >> 8, codeSize, \
                 shr, vmswp, value['btime'], readSize, writeSize, \
                 value['majflt'], yld, prtd, value['fdsize'], \
                 lifeTime, etc[:21], cl=cl, pd=pd))
