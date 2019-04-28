@@ -27851,6 +27851,7 @@ class ThreadAnalyzer(object):
             self.prevVmData = {}
             self.stackTable = {}
             self.prevSwaps = None
+            self.abnormalTaskList = {}
 
             # set index of attributes #
             self.majfltIdx = ConfigManager.STAT_ATTR.index("MAJFLT")
@@ -28221,6 +28222,7 @@ class ThreadAnalyzer(object):
             self.prevProcData = self.procData
             self.procData = {}
             self.fileData = {}
+            self.abnormalTaskList = {}
             self.nrThread = 0
             self.nrProcess = 0
             self.nrFd = 0
@@ -38443,12 +38445,12 @@ class ThreadAnalyzer(object):
                 SystemManager.printWarning('Fail to open %s' % cpuPath)
 
         if cpuBuf:
+            # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
             for line in cpuBuf:
                 STAT_ATTR = line.split()
                 cpuId = STAT_ATTR[0]
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
-                        # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
                         self.cpuData['all'] = \
                             {'user': long(STAT_ATTR[1]), \
                             'nice': long(STAT_ATTR[2]), \
@@ -38504,6 +38506,7 @@ class ThreadAnalyzer(object):
                 memList = line.split()
                 self.memData[memList[0][:-1]] = long(memList[1])
 
+        # save irq info #
         if SystemManager.irqEnable:
             self.saveIrqs()
 
@@ -38530,7 +38533,7 @@ class ThreadAnalyzer(object):
                 vmList = line.split()
                 self.vmData[vmList[0]] = long(vmList[1])
 
-        # save swaps info #
+        # save swap info #
         try:
             swapBuf = None
             SystemManager.swapFd.seek(0)
@@ -39071,7 +39074,7 @@ class ThreadAnalyzer(object):
                 self.procData.pop(tid, None)
                 return
 
-        # check change of stat #
+        # check stat change #
         self.procData[tid]['statOrig'] = statBuf
         if tid in self.prevProcData and \
             self.prevProcData[tid]['statOrig'] == statBuf:
@@ -39102,6 +39105,11 @@ class ThreadAnalyzer(object):
             STAT_ATTR[self.btimeIdx] = long(STAT_ATTR[self.btimeIdx])
             STAT_ATTR[self.cutimeIdx] = long(STAT_ATTR[self.cutimeIdx])
             STAT_ATTR[self.cstimeIdx] = long(STAT_ATTR[self.cstimeIdx])
+
+        # check task status #
+        tstat = self.procData[tid]['stat'][self.statIdx]
+        if tstat != 'S' and tstat != 'R':
+            self.abnormalTaskList[tid] = tstat
 
         # change sched priority #
         for item in SystemManager.schedFilter:
@@ -40853,134 +40861,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printProcUsage(self):
-        def printStackSamples(idx):
-            # set indent size including arrow #
-            initIndent = 42
-
-            try:
-                for stack, cnt in sorted(\
-                    self.stackTable[idx]['stack'].items(), \
-                    key=lambda e: e[1], reverse=True):
-
-                    line = ''
-                    fullstack = ''
-                    per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
-                    self.stackTable[idx]['stack'][stack] = 0
-
-                    if per == 0:
-                        continue
-
-                    indent = initIndent + 3
-
-                    newLine = 1
-                    for call in stack.split('\n'):
-                        try:
-                            astack = call.split()[1]
-
-                            if astack.startswith('0xffffffff'):
-                                if fullstack == line == '':
-                                    line = 'None'
-                                else:
-                                    line = line[:line.rfind('<-')]
-                                break
-
-                            lenLine = indent + len(line) + len(astack)
-                            if lenLine >= SystemManager.lineLength:
-                                indent = 0
-                                fullstack = '%s%s\n' % (fullstack, line)
-                                newLine += 1
-                                line = ' ' * initIndent
-
-                            line = '%s%s <- ' % (line, astack)
-                        except:
-                            pass
-
-                    fullstack = '%s%s' % (fullstack, line)
-
-                    if SystemManager.checkCutCond(newLine):
-                        return -1
-
-                    SystemManager.addPrint(\
-                        "{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-        # check return condition #
-        if SystemManager.uptimeDiff == 0 or \
-            SystemManager.checkCutCond():
-            return
-        elif len(self.procData) == 0:
-            SystemManager.addPrint(twoLine)
-            return
-
-        # set comm and pid size #
-        pd = SystemManager.pidDigit
-        cl = 26-(SystemManager.pidDigit*2)
-
-        # calculate resource usage of processes #
-        self.setProcUsage()
-
-        # get profile mode #
-        if SystemManager.processEnable:
-            mode = 'Process'
-            pidType = 'PID'
-            ppidType = 'PPID'
-            sidType = 'SID'
-            pgrpType = 'USER'
-        else:
-            mode = 'Thread'
-            pidType = 'TID'
-            ppidType = 'PID'
-            sidType = 'Yld'
-            pgrpType = 'Prmt'
-
-        if not SystemManager.wfcEnable:
-            dprop = 'Dly'
-        else:
-            dprop = 'WFC'
-
-        if SystemManager.pgnameEnable:
-            etc = 'Parent'
-        elif SystemManager.wchanEnable:
-            etc = 'WaitChannel'
-        elif SystemManager.affinityEnable:
-            etc = 'Affinity'
-        elif SystemManager.tgnameEnable:
-            etc = 'Process'
-        elif SystemManager.sigHandlerEnable or True:
-            etc = 'SignalHandler'
-
-        if SystemManager.pssEnable:
-            mem = 'PSS'
-        elif SystemManager.ussEnable:
-            mem = 'USS'
-        else:
-            mem = 'RSS'
-
-        # add JSON stats #
-        if SystemManager.jsonPrintEnable:
-            jtype = mode.lower()
-            if not jtype in SystemManager.jsonData:
-                SystemManager.jsonData[jtype] = dict()
-            jsonData = SystemManager.jsonData[jtype]
-
-        SystemManager.addPrint((\
-            "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-            "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
-            "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
-                format(mode, pidType, ppidType, "Nr", "Pri", \
-                    "CPU", "Usr", "Ker", dprop, \
-                    "VSS", mem, "Txt", "Shr", "Swp", \
-                    "Blk", "RD", "WR", "NrFlt",\
-                    sidType, pgrpType, "FD", "LifeTime", etc, \
-                    oneLine, twoLine, cl=cl, pd=pd), newline = 3)
-
-        # set sort value #
+    def getSortedProcData(self):
         if SystemManager.sort == 'm':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
@@ -41004,27 +40885,40 @@ class ThreadAnalyzer(object):
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['ttime'], reverse=True)
 
-        # make parent list #
-        if SystemManager.groupProcEnable:
-            plist = {}
-            for idx, value in sortedProcData:
-                for item in SystemManager.filterGroup:
-                    if value['stat'][self.commIdx].find(item) >= 0:
-                        if SystemManager.processEnable:
-                            plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
-                        else:
-                            plist[self.procData[idx]['mainID']] = 0
-                        break
+        return sortedProcData
 
-        # print process usage #
-        procCnt = 0
-        needLine = False
-        procData = self.procData
-        for idx, value in sortedProcData:
-            stat = value['stat']
 
-            # apply filter #
+
+    def printProcUsage(self):
+        def isBreakCond(value):
+            # get focus value #
+            if SystemManager.sort == 'c' or not SystemManager.sort:
+                focusVal = value['ttime']
+            elif SystemManager.sort == 'm':
+                focusVal = long(stat[self.rssIdx]) >> 8
+            elif SystemManager.sort == 'b':
+                focusVal = value['btime']
+            elif SystemManager.sort == 'w':
+                focusVal = value['cttime']
+            elif SystemManager.sort == 'p':
+                focusVal = idx
+            elif SystemManager.sort == 'n':
+                focusVal = value['new']
+            elif SystemManager.sort == 'r':
+                focusVal = value['runtime']
+            else:
+                focusVal = 1
+
+            if len(SystemManager.filterGroup) == 0 and \
+                not SystemManager.showAll and \
+                focusVal == 0:
+                return True
+            else:
+                return False
+
+        def isExceptTask(sortedProcData):
             exceptFlag = False
+
             for item in SystemManager.filterGroup:
                 exceptFlag = False
                 # group mode #
@@ -41084,8 +40978,170 @@ class ThreadAnalyzer(object):
                     else:
                         exceptFlag = True
 
+            return exceptFlag
+
+        def getParentList():
+            plist = {}
+            if not SystemManager.groupProcEnable:
+                return plist
+
+            for idx, value in sortedProcData:
+                for item in SystemManager.filterGroup:
+                    if value['stat'][self.commIdx].find(item) >= 0:
+                        if SystemManager.processEnable:
+                            plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
+                        else:
+                            plist[self.procData[idx]['mainID']] = 0
+                        break
+
+            return plist
+
+        def getTypes():
+            if SystemManager.processEnable:
+                mode = 'Process'
+                pidType = 'PID'
+                ppidType = 'PPID'
+                sidType = 'SID'
+                pgrpType = 'USER'
+            else:
+                mode = 'Thread'
+                pidType = 'TID'
+                ppidType = 'PID'
+                sidType = 'Yld'
+                pgrpType = 'Prmt'
+
+            if not SystemManager.wfcEnable:
+                dprop = 'Dly'
+            else:
+                dprop = 'WFC'
+
+            if SystemManager.pgnameEnable:
+                etc = 'Parent'
+            elif SystemManager.wchanEnable:
+                etc = 'WaitChannel'
+            elif SystemManager.affinityEnable:
+                etc = 'Affinity'
+            elif SystemManager.tgnameEnable:
+                etc = 'Process'
+            elif SystemManager.sigHandlerEnable or True:
+                etc = 'SignalHandler'
+
+            if SystemManager.pssEnable:
+                mem = 'PSS'
+            elif SystemManager.ussEnable:
+                mem = 'USS'
+            else:
+                mem = 'RSS'
+
+            return mode, pidType, ppidType, sidType, \
+                pgrpType, dprop, etc, mem
+
+        def printStackSamples(idx):
+            # set indent size including arrow #
+            initIndent = 42
+
+            newLine = 1
+            for stack, cnt in sorted(\
+                self.stackTable[idx]['stack'].items(), \
+                key=lambda e: e[1], reverse=True):
+
+                line = ''
+                fullstack = ''
+                per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
+                self.stackTable[idx]['stack'][stack] = 0
+
+                if per == 0:
+                    continue
+
+                indent = initIndent + 3
+
+                for call in stack.split('\n'):
+                    try:
+                        astack = call.split()[1]
+
+                        if astack.startswith('0xffffffff'):
+                            if fullstack == line == '':
+                                line = 'None'
+                            else:
+                                line = line[:line.rfind('<-')]
+                            break
+
+                        lenLine = indent + len(line) + len(astack)
+                        if lenLine >= SystemManager.lineLength:
+                            indent = 0
+                            fullstack = '%s%s\n' % (fullstack, line)
+                            newLine += 1
+                            line = ' ' * initIndent
+
+                        line = '%s%s <- ' % (line, astack)
+                    except:
+                        pass
+
+                fullstack = '%s%s' % (fullstack, line)
+
+                if SystemManager.checkCutCond(newLine):
+                    return -1
+
+                SystemManager.addPrint(\
+                    "{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+
+            return newLine
+
+        # check return condition #
+        if SystemManager.uptimeDiff == 0 or \
+            SystemManager.checkCutCond():
+            return
+        elif len(self.procData) == 0:
+            SystemManager.addPrint(twoLine)
+            return
+
+        # set comm and pid size #
+        pd = SystemManager.pidDigit
+        cl = 26-(SystemManager.pidDigit*2)
+
+        # calculate resource usage of processes #
+        self.setProcUsage()
+
+        # get types #
+        mode, pidType, ppidType, sidType, \
+            pgrpType, dprop, etc, mem = getTypes()
+
+        # add JSON stats #
+        if SystemManager.jsonPrintEnable:
+            jtype = mode.lower()
+            if not jtype in SystemManager.jsonData:
+                SystemManager.jsonData[jtype] = dict()
+            jsonData = SystemManager.jsonData[jtype]
+
+        # print menu #
+        SystemManager.addPrint((\
+            "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+            "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
+            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
+            "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
+            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
+                format(mode, pidType, ppidType, "Nr", "Pri", \
+                    "CPU", "Usr", "Ker", dprop, \
+                    "VSS", mem, "Txt", "Shr", "Swp", \
+                    "Blk", "RD", "WR", "NrFlt",\
+                    sidType, pgrpType, "FD", "LifeTime", etc, \
+                    oneLine, twoLine, cl=cl, pd=pd), newline = 3)
+
+        # set sort value #
+        sortedProcData = self.getSortedProcData()
+
+        # make parent list #
+        plist = getParentList()
+
+        # print resource usage of processes / threads #
+        procCnt = 0
+        needLine = False
+        procData = self.procData
+        for idx, value in sortedProcData:
+            stat = value['stat']
+
             # check exception flag #
-            if exceptFlag:
+            if isExceptTask(sortedProcData):
                 continue
 
             # set priority of this task #
@@ -41121,38 +41177,22 @@ class ThreadAnalyzer(object):
                         SystemManager.printWarning("Fail to open %s" % spath)
                         self.stackTable.pop(idx, None)
 
+            # check limit #
+            if isBreakCond(value):
+                break
+
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return
 
-            # set sort value #
-            if SystemManager.sort == 'c' or not SystemManager.sort:
-                targetValue = value['ttime']
-            elif SystemManager.sort == 'm':
-                targetValue = long(stat[self.rssIdx]) >> 8
-            elif SystemManager.sort == 'b':
-                targetValue = value['btime']
-            elif SystemManager.sort == 'w':
-                targetValue = value['cttime']
-            elif SystemManager.sort == 'p':
-                targetValue = idx
-            elif SystemManager.sort == 'n':
-                targetValue = value['new']
-            elif SystemManager.sort == 'r':
-                targetValue = value['runtime']
-
-            # check limit #
-            if SystemManager.filterGroup == [] and \
-                SystemManager.showAll is False and \
-                targetValue == 0:
-                break
-
+            # get comm #
             if value['new']:
                 comm = '*' + stat[self.commIdx][1:-1]
             else:
                 comm = stat[self.commIdx][1:-1]
 
+            # get parent id #
             if SystemManager.processEnable:
                 pid = stat[self.ppidIdx]
             else:
@@ -41188,9 +41228,9 @@ class ThreadAnalyzer(object):
 
             # swap #
             try:
-                vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
+                swapSize = long(value['status']['VmSwap'].split()[0]) >> 10
             except:
-                vmswp = '-'
+                swapSize = '-'
 
             # shared #
             try:
@@ -41355,7 +41395,7 @@ class ThreadAnalyzer(object):
                 jsonData[idx]['shared'] = shr
 
                 try:
-                    jsonData[idx]['swap'] = int(vmswp)
+                    jsonData[idx]['swap'] = int(swapSize)
                 except:
                     jsonData[idx]['swap'] = 0
 
@@ -41381,10 +41421,9 @@ class ThreadAnalyzer(object):
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 sched, value['ttime'], value['utime'], value['stime'], \
-                dtime, vss, mems >> 8, codeSize, \
-                shr, vmswp, value['btime'], readSize, writeSize, \
-                value['majflt'], yld, prtd, value['fdsize'], \
-                lifeTime, etc[:21], cl=cl, pd=pd))
+                dtime, vss, mems >> 8, codeSize, shr, swapSize, \
+                value['btime'], readSize, writeSize, value['majflt'], \
+                yld, prtd, value['fdsize'], lifeTime, etc[:21], cl=cl, pd=pd))
 
             # print PMU stats #
             if SystemManager.perfGroupEnable:
@@ -41414,45 +41453,52 @@ class ThreadAnalyzer(object):
                     SystemManager.addPrint('---more---')
                     return
 
-                if SystemManager.wssEnable:
-                    # split a long line #
-                    tstr = ''
-                    indent = 54
-                    indenta = 5
-                    lenItem = 7
-                    isFirstLined = True
-                    limit = SystemManager.lineLength - indent
-                    pstr = procData[idx]['wss'][mprop]
+                if not SystemManager.wssEnable:
+                    continue
 
-                    while len(pstr) > limit:
-                        slimit = len(pstr[:limit])
-                        des = '%s' % pstr[:slimit]
-                        tstr = '%s%s\n%s' % \
-                            (tstr, des, ' ' * (indent + indenta))
+                # split a long line #
+                tstr = ''
+                indent = 54
+                indenta = 5
+                lenItem = 7
+                isFirstLined = True
+                limit = SystemManager.lineLength - indent
+                pstr = procData[idx]['wss'][mprop]
 
-                        if isFirstLined:
-                            limit -= indenta + lenItem
-                            isFirstLined = False
+                while len(pstr) > limit:
+                    slimit = len(pstr[:limit])
+                    des = '%s' % pstr[:slimit]
+                    tstr = '%s%s\n%s' % \
+                        (tstr, des, ' ' * (indent + indenta))
 
-                        pstr = '%s' % pstr[slimit:]
-                    tstr = '%s%s' % (tstr, pstr)
+                    if isFirstLined:
+                        limit -= indenta + lenItem
+                        isFirstLined = False
 
-                    # count newlines #
-                    newline = tstr.count('\n')+1
+                    pstr = '%s' % pstr[slimit:]
+                tstr = '%s%s' % (tstr, pstr)
 
-                    # cut by rows of terminal #
-                    if SystemManager.checkCutCond(newline):
-                        SystemManager.addPrint('---more---')
-                        return
+                # count newlines #
+                newline = tstr.count('\n')+1
 
-                    SystemManager.addPrint(\
-                        "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
+                # cut by rows of terminal #
+                if SystemManager.checkCutCond(newline):
+                    SystemManager.addPrint('---more---')
+                    return
+
+                SystemManager.addPrint(\
+                    "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
-                if printStackSamples(idx) == -1:
-                    SystemManager.addPrint('---more---')
-                    return
+                try:
+                    if printStackSamples(idx) == -1:
+                        SystemManager.addPrint('---more---')
+                        return
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
                 try:
                     self.stackTable[idx]['total'] = 0
@@ -41475,268 +41521,108 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.addPrint("%s\n" % oneLine)
 
-        # print unusual processes #
-        if self.printSpecialProcess() == -1:
+        # print special processes #
+        if self.printSpecialTask('abnormal') == -1:
             return
-        if self.printNewProcess() == -1:
+        elif self.printSpecialTask('new') == -1:
             return
-        if self.printDieProcess() == -1:
+        elif self.printSpecialTask('die') == -1:
             return
 
 
 
-    def printSpecialProcess(self):
+    def printSpecialTask(self, taskType):
         # set comm and pid size #
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
+
+        if taskType == 'abnormal':
+            taskList = list(self.abnormalTaskList.keys())
+        elif taskType == 'new':
+            taskList = list(self.procData.keys() - self.prevProcData.keys())
+        elif taskType == 'die':
+            taskList = list(self.prevProcData.keys() - self.procData.keys())
 
         procCnt = 0
-        for idx, value in sorted(\
-            self.procData.items(), \
-            key=lambda e: e[1]['stat'][self.statIdx], reverse=True):
-
+        for idx in taskList:
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 return -1
 
-            stat = value['stat']
-            status = stat[self.statIdx]
+            # define stat variables #
+            if taskType == 'die':
+                value = self.prevProcData[idx]
+                stat = value['stat']
+            else:
+                if not idx in self.procData:
+                    return
+                value = self.procData[idx]
+                stat = value['stat']
 
-            if status != 'S' and status != 'R':
+            # set comm #
+            if taskType == 'new':
+                comm = ('[+]%s' % stat[self.commIdx][1:-1])[:16]
+            elif taskType == 'die':
+                comm = ('[-]%s' % stat[self.commIdx][1:-1])[:16]
+            elif taskType == 'abnormal':
                 comm = ('[%s]%s' % \
-                    (status, stat[self.commIdx][1:-1]))[:16]
+                    (self.abnormalTaskList[idx], \
+                        stat[self.commIdx][1:-1]))[:16]
 
-                if SystemManager.processEnable:
-                    pid = stat[self.ppidIdx]
-                else:
-                    pid = value['mainID']
-
-                codeSize = (long(stat[self.ecodeIdx]) - \
-                    long(stat[self.scodeIdx])) >> 20
-
-                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
-                else:
-                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
-
-                runtime = value['runtime'] + SystemManager.uptimeDiff
-                lifeTime = SystemManager.convertTime(runtime)
-
-                try:
-                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
-                except:
-                    vmswp = '-'
-                try:
-                    shr = long(value['statm'][self.shrIdx]) >> 8
-                except:
-                    shr = '-'
-
-                if SystemManager.blockEnable:
-                    readSize = value['read'] >> 20
-                    writeSize = value['write'] >> 20
-                else:
-                    readSize = '-'
-                    writeSize = '-'
-
-                # print new thread information #
-                SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                    str(schedValue), \
-                    int(value['ttime']), int(value['utime']), \
-                    int(value['stime']), '-', \
-                    long(stat[self.vsizeIdx]) >> 20, \
-                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
-                    int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
-                procCnt += 1
-
+            if SystemManager.processEnable:
+                pid = stat[self.ppidIdx]
             else:
-                if procCnt > 0:
-                    SystemManager.addPrint("%s\n" % oneLine)
-                break
+                pid = value['mainID']
 
+            codeSize = (long(stat[self.ecodeIdx]) - \
+                long(stat[self.scodeIdx])) >> 20
 
-
-    def printNewProcess(self):
-        # set comm and pid size #
-        pd = SystemManager.pidDigit
-        cl = 26-(SystemManager.pidDigit*2)
-
-        newCnt = 0
-        for idx, value in sorted(self.procData.items(), \
-            key=lambda e: e[1]['new'], reverse=True):
-
-            # cut by rows of terminal #
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return -1
-
-            stat = value['stat']
-
-            if value['new']:
-                comm = ('%s%s' % ('[+]', stat[self.commIdx][1:-1]))[:16]
-
-                if SystemManager.processEnable:
-                    pid = stat[self.ppidIdx]
-                else:
-                    pid = value['mainID']
-
-                codeSize = (long(stat[self.ecodeIdx]) - \
-                    long(stat[self.scodeIdx])) >> 20
-
-                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
-                else:
-                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
-
-                runtime = value['runtime'] + SystemManager.uptimeDiff
-                lifeTime = SystemManager.convertTime(runtime)
-
-                try:
-                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
-                except:
-                    vmswp = '-'
-                try:
-                    shr = long(value['statm'][self.shrIdx]) >> 8
-                except:
-                    shr = '-'
-
-                if SystemManager.blockEnable:
-                    readSize = value['read'] >> 20
-                    writeSize = value['write'] >> 20
-                else:
-                    readSize = '-'
-                    writeSize = '-'
-
-                # print new thread information #
-                SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                    str(schedValue), \
-                    int(value['ttime']), int(value['utime']), \
-                    int(value['stime']), '-', \
-                    long(stat[self.vsizeIdx]) >> 20, \
-                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
-                    int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
-                newCnt += 1
-
+            if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
             else:
-                if newCnt > 0:
-                    SystemManager.addPrint("%s\n" % oneLine)
-                break
+                schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
+            runtime = value['runtime'] + SystemManager.uptimeDiff
+            lifeTime = SystemManager.convertTime(runtime)
 
+            try:
+                swapSize = \
+                    long(value['status']['VmSwap'].split()[0]) >> 10
+            except:
+                swapSize = '-'
+            try:
+                shr = long(value['statm'][self.shrIdx]) >> 8
+            except:
+                shr = '-'
 
-    def printDieProcess(self):
-        # set comm and pid size #
-        pd = SystemManager.pidDigit
-        cl = 26-(SystemManager.pidDigit*2)
-
-        dieCnt = 0
-        for idx, value in sorted(\
-            self.prevProcData.items(), \
-            key=lambda e: e[1]['alive'], reverse=False):
-
-            # cut by rows of terminal #
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return -1
-
-            stat = value['stat']
-
-            if not value['alive']:
-                comm = ('%s%s' % ('[-]', stat[self.commIdx][1:-1]))[:16]
-
-                if SystemManager.processEnable:
-                    pid = stat[self.ppidIdx]
-                else:
-                    pid = value['mainID']
-
-                codeSize = (long(stat[self.ecodeIdx]) - \
-                    long(stat[self.scodeIdx])) >> 20
-
-                if ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                    schedValue = "%3d" % (int(stat[self.prioIdx]) - 20)
-                else:
-                    schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
-
-                runtime = value['runtime'] + SystemManager.uptimeDiff
-                lifeTime = SystemManager.convertTime(runtime)
-
-                try:
-                    vmswp = long(value['status']['VmSwap'].split()[0]) >> 10
-                except:
-                    vmswp = '-'
-                try:
-                    shr = long(value['statm'][self.shrIdx]) >> 8
-                except:
-                    shr = '-'
-
-                if SystemManager.blockEnable:
-                    readSize = value['read'] >> 20
-                    writeSize = value['write'] >> 20
-                else:
-                    readSize = '-'
-                    writeSize = '-'
-
-                # print terminated thread information #
-                SystemManager.addPrint(\
-                    ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                    "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
-                    "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                    "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
-                    "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
-                    format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                    ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                    str(schedValue), \
-                    int(value['ttime']), int(value['utime']), \
-                    int(value['stime']), '-', \
-                    long(stat[self.vsizeIdx]) >> 20, \
-                    long(stat[self.rssIdx]) >> 8, codeSize, shr, vmswp, \
-                    int(value['btime']), readSize, writeSize, value['majflt'],\
-                    '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
-                dieCnt += 1
-
-                # close fd that created by thread who already termiated #
-                # because of resource limitation #
-                try:
-                    value['statFd'].close()
-                except:
-                    pass
-                try:
-                    value['statusFd'].close()
-                except:
-                    pass
-                try:
-                    value['statmFd'].close()
-                except:
-                    pass
-                try:
-                    value['ioFd'].close()
-                except:
-                    pass
-                try:
-                    for fd in value['perfFds'].values():
-                        os.close(fd)
-                except:
-                    pass
+            if SystemManager.blockEnable:
+                readSize = value['read'] >> 20
+                writeSize = value['write'] >> 20
             else:
-                if dieCnt > 0:
-                    SystemManager.addPrint("%s\n" % oneLine)
-                return
+                readSize = '-'
+                writeSize = '-'
+
+            # print new thread information #
+            SystemManager.addPrint(\
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+                "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
+                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
+                "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
+                ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
+                str(schedValue), \
+                int(value['ttime']), int(value['utime']), \
+                int(value['stime']), '-', \
+                long(stat[self.vsizeIdx]) >> 20, \
+                long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
+                int(value['btime']), readSize, writeSize, value['majflt'],\
+                '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
+            procCnt += 1
+
+        if procCnt > 0:
+            SystemManager.addPrint("%s\n" % oneLine)
 
 
 
