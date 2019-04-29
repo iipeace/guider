@@ -28222,7 +28222,6 @@ class ThreadAnalyzer(object):
             self.prevProcData = self.procData
             self.procData = {}
             self.fileData = {}
-            self.abnormalTaskList = {}
             self.nrThread = 0
             self.nrProcess = 0
             self.nrFd = 0
@@ -41549,6 +41548,7 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
+        # get task list #
         if taskType == 'abnormal':
             taskList = list(self.abnormalTaskList.keys())
         elif taskType == 'new':
