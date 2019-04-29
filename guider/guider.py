@@ -15061,7 +15061,7 @@ Copyright:
                 try:
                     fsize = \
                         SystemManager.convertSize2Unit(\
-                        int(os.path.getsize(SystemManager.inputFile)))
+                            int(os.path.getsize(SystemManager.inputFile)))
                 except:
                     fsize = '?'
 
@@ -15131,7 +15131,7 @@ Copyright:
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
 
-            # close output file for sync #
+            # close an output file to sync #
             try:
                 SystemManager.fileForPrint.close()
             except:
@@ -15143,7 +15143,7 @@ Copyright:
             try:
                 fsize = \
                     SystemManager.convertSize2Unit(\
-                    int(os.path.getsize(SystemManager.inputFile)))
+                        int(os.path.getsize(SystemManager.inputFile)))
             except:
                 fsize = '?'
 
