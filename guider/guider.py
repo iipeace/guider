@@ -28226,6 +28226,7 @@ class ThreadAnalyzer(object):
             self.nrThread = 0
             self.nrProcess = 0
             self.nrFd = 0
+            SystemManager.jsonData = {}
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -28296,6 +28297,7 @@ class ThreadAnalyzer(object):
             del self.prevCpuData
             self.prevCpuData = self.cpuData
             self.cpuData = {}
+            self.abnormalTaskList = {}
             self.nrPrevThread = self.nrThread
             self.nrPrevProcess = self.nrProcess
             self.nrThread = 0
