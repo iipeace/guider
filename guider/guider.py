@@ -22316,7 +22316,7 @@ Copyright:
 
         # system uptime #
         try:
-            uptime = SystemManager.convertTime(SystemManager.uptime)
+            uptime = SystemManager.convertTime(SystemManager.uptime).strip()
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
 
@@ -28236,7 +28236,8 @@ class ThreadAnalyzer(object):
                 waitTime = SystemManager.intervalEnable - delayTime
 
             # wait for next interval #
-            if not SystemManager.waitUserInput(waitTime):
+            if not SystemManager.waitUserInput(\
+                waitTime, msg="Press enter key..."):
                 time.sleep(waitTime)
 
 
@@ -41996,7 +41997,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['kernel'] = data['stime']
                 evtdata[rank]['runtime'] = \
                     SystemManager.convertTime(\
-                    data['runtime']).replace(' ', '')
+                        data['runtime']).replace(' ', '')
 
                 rank += 1
 
@@ -42032,7 +42033,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['text'] = text
                 evtdata[rank]['runtime'] = \
                     SystemManager.convertTime(\
-                    data['runtime']).replace(' ', '')
+                        data['runtime']).replace(' ', '')
 
                 # swap #
                 try:
@@ -42089,7 +42090,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['iowait'] = data['btime']
                 evtdata[rank]['runtime'] = \
                     SystemManager.convertTime(\
-                    data['runtime']).replace(' ', '')
+                        data['runtime']).replace(' ', '')
 
                 rank += 1
 
@@ -42367,7 +42368,7 @@ class ThreadAnalyzer(object):
             processData['cpu']['total']['pct'] = data['ttime']
             processData['cpu']['runtime'] = \
                 SystemManager.convertTime(\
-                data['runtime']).replace(' ', '')
+                    data['runtime']).replace(' ', '')
 
             rss = long(data['stat'][self.rssIdx]) >> 8
 
