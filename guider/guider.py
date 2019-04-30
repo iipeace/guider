@@ -11401,6 +11401,36 @@ class SystemManager(object):
 
 
     @staticmethod
+    def setSortValue(value):
+        if value == 'c':
+            SystemManager.printInfo("sorted by CPU")
+        elif value == 'm':
+            SystemManager.printInfo("sorted by MEMORY")
+        elif value == 'b':
+            SystemManager.printInfo("sorted by BLOCK")
+        elif value == 'w':
+            SystemManager.wfcEnable = True
+            SystemManager.printInfo("sorted by CHILD")
+        elif value == 'p':
+            SystemManager.printInfo("sorted by PID")
+        elif value == 'n':
+            SystemManager.printInfo("sorted by NEW")
+        elif value == 'r':
+            SystemManager.printInfo("sorted by RUNTIME")
+        elif value == 'f':
+            SystemManager.printInfo("sorted by FILE")
+            SystemManager.fileTopEnable = True
+        else:
+            SystemManager.printError(\
+                "wrong option value '%s' for sort" % val)
+            return False
+
+        SystemManager.sort = value
+        return True
+
+
+
+    @staticmethod
     def checkEnv():
         # check os #
         if sys.platform.startswith('linux'):
@@ -16376,15 +16406,21 @@ Copyright:
 
 
     @staticmethod
-    def parseOption():
-        if SystemManager.optionList:
+    def parseOption(option=None):
+        if not option and SystemManager.optionList:
             return
 
         # parse options #
         parsedOpt = []
         previousIdx = 0
-        optList = sys.argv[1:]
 
+        # choose option #
+        if option:
+            optList = [sys.argv[1]] + option
+        else:
+            optList = sys.argv[1:]
+
+        # parse option string #
         for idx, opt in enumerate(optList):
             if opt.startswith('-'):
                 parsedOpt.append(''.join(optList[previousIdx:idx])[1:])
@@ -16413,7 +16449,7 @@ Copyright:
 
     @staticmethod
     def findOption(option):
-        if len(sys.argv) <= 2:
+        if len(sys.argv) <= 2 and not SystemManager.optionList:
             return False
 
         SystemManager.parseOption()
@@ -16430,7 +16466,7 @@ Copyright:
 
     @staticmethod
     def getOption(option):
-        if len(sys.argv) <= 2:
+        if len(sys.argv) <= 2 and not SystemManager.optionList:
             return None
 
         SystemManager.parseOption()
@@ -16538,9 +16574,9 @@ Copyright:
 
 
     @staticmethod
-    def parseAnalOption():
+    def parseAnalOption(option=None):
         # check call history #
-        if SystemManager.parsedAnalOption:
+        if not option and SystemManager.parsedAnalOption:
             return
         else:
             SystemManager.parsedAnalOption = True
@@ -16555,10 +16591,14 @@ Copyright:
                 SystemManager.cpuEnable = False
 
         # check argument count #
-        if len(sys.argv) <= 2:
+        if option:
+            optionList = option.split()
+        elif len(sys.argv) <= 2:
             return
+        else:
+            optionList = None
 
-        SystemManager.parseOption()
+        SystemManager.parseOption(optionList)
 
         for item in SystemManager.optionList:
             if item == '':
@@ -17008,30 +17048,8 @@ Copyright:
                 NetworkManager.setRemoteServer(value)
 
             elif option == 'S':
-                SystemManager.sort = value
-                if len(SystemManager.sort) > 0:
-                    if SystemManager.sort == 'c':
-                        SystemManager.printInfo("sorted by CPU")
-                    elif SystemManager.sort == 'm':
-                        SystemManager.printInfo("sorted by MEMORY")
-                    elif SystemManager.sort == 'b':
-                        SystemManager.printInfo("sorted by BLOCK")
-                    elif SystemManager.sort == 'w':
-                        SystemManager.wfcEnable = True
-                        SystemManager.printInfo("sorted by CHILD")
-                    elif SystemManager.sort == 'p':
-                        SystemManager.printInfo("sorted by PID")
-                    elif SystemManager.sort == 'n':
-                        SystemManager.printInfo("sorted by NEW")
-                    elif SystemManager.sort == 'r':
-                        SystemManager.printInfo("sorted by RUNTIME")
-                    elif SystemManager.sort == 'f':
-                        SystemManager.printInfo("sorted by FILE")
-                        SystemManager.fileTopEnable = True
-                    else:
-                        SystemManager.printError(\
-                            "wrong option value with -S option")
-                        sys.exit(0)
+                if not SystemManager.setSortValue(value):
+                    sys.exit(0)
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
@@ -18329,7 +18347,7 @@ Copyright:
             return False
         elif not SystemManager.getOption('g'):
             SystemManager.printError(\
-                "wrong option stack monitoring, "
+                "wrong option for stack monitoring, "
                 "use also -g option to show stacks")
             return False
         elif os.path.isfile('%s/self/stack' % SystemManager.procPath) is False:
@@ -18801,8 +18819,7 @@ Copyright:
 
         # set default message #
         if not msg:
-            msg = ("[ Input command... "
-                    "( Help / Filter / Kill / Sched / Affinity / Quit ) ]")
+            msg = "[ Input command... ( Help / Quit ) ]"
 
         # wait for user input #
         try:
@@ -18849,34 +18866,52 @@ Copyright:
             SystemManager.printPipe("[Affinity] {MASK} {PID}")
             SystemManager.printPipe("  exam) a f 123, 456\n")
 
+            SystemManager.printPipe("[Sort]     {VAL}")
+            SystemManager.printPipe("  exam) S p\n")
+
+            SystemManager.printPipe("[Option]   {VAL}")
+            SystemManager.printPipe("  exam) o -e bs -g task\n")
+
         ulist = uinput.split()
         if len(ulist) == 0:
             return
 
+        # help #
         if ulist[0].upper() == 'HELP' or \
             ulist[0].upper() == 'H':
             printHelp()
+        # kill #
         elif ulist[0].upper() == 'KILL' or \
-            ulist[0].upper() == 'K':
+            ulist[0] == 'k':
             if len(ulist) > 1:
                 SystemManager.sendSignalArgs(ulist[1:])
             else:
                 printHelp()
+        # sched #
         elif ulist[0].upper() == 'SCHED' or \
-            ulist[0].upper() == 'S':
+            ulist[0] == 's':
             if len(ulist) > 1:
                 SystemManager.parsePriorityOption((' '.join(ulist[1:])))
             else:
                 printHelp()
+        # sort #
+        elif ulist[0].upper() == 'SORT' or \
+            ulist[0] == 'S':
+            if len(ulist) > 1:
+                SystemManager.setSortValue(ulist[1])
+            else:
+                printHelp()
+        # affinity #
         elif ulist[0].upper() == 'AFFINITY' or \
-            ulist[0].upper() == 'A':
+            ulist[0] == 'a':
             if len(ulist) > 2:
                 SystemManager.setAffinity(\
                     ulist[1], (' '.join(ulist[2:])).split(','))
             else:
                 printHelp()
+        # filter #
         elif ulist[0].upper() == 'FILTER' or \
-            ulist[0].upper() == 'F':
+            ulist[0] == 'f':
             if len(ulist) == 1:
                 SystemManager.filterGroup = []
             else:
@@ -18891,6 +18926,14 @@ Copyright:
             SystemManager.printInfo(\
                 "only specific %s including [ %s ] are shown" % \
                 (mode, ', '.join(SystemManager.filterGroup)))
+        # option #
+        elif ulist[0].upper() == 'OPTION' or \
+            ulist[0] == 'o':
+            if len(ulist) > 1:
+                SystemManager.parseAnalOption(uinput[1:].strip())
+            else:
+                printHelp()
+        # quit #
         elif ulist[0].upper() == 'QUIT' or \
             ulist[0].upper() == 'Q':
             sys.exit(0)
@@ -28323,6 +28366,7 @@ class ThreadAnalyzer(object):
             if SystemManager.stackEnable and self.stackTable != {}:
                 # get stack of threads #
                 self.sampleStack(waitTime)
+                SystemManager.waitUserInput(0.001)
             else:
                 # wait for next interval #
                 if not SystemManager.waitUserInput(waitTime):
