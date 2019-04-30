@@ -94,9 +94,15 @@ class ConfigManager(object):
         'R': 'running',
         'S': 'sleep',
         'D': 'disk',
+        'T': 'stopped',
+        't': 'traced',
+        'X': 'dead',
+        'x': 'dead',
         'Z': 'zombie',
-        'T': 'traced',
-        'W': 'paging'
+        'K': 'wakekill',
+        'W': 'waking',
+        'P': 'parked',
+        'I': 'idle',
     }
 
     # Define socketcall attributes #
@@ -35277,7 +35283,7 @@ class ThreadAnalyzer(object):
             # verify log buffer #
             for idx, line in enumerate(buf):
                 # check system info #
-                if SystemManager.recordStatus is False:
+                if not SystemManager.recordStatus:
                     if line[0:-1] == SystemManager.magicString:
                         if start == -1:
                             start = idx
@@ -35318,10 +35324,14 @@ class ThreadAnalyzer(object):
                     SystemManager.startTime = d['time']
                     return d['time']
 
+                # check other mode #
+                if line.startswith('[Top '):
+                    return 0
+
             # check record status #
             if SystemManager.isDrawMode():
                 return 0
-            elif SystemManager.recordStatus is False:
+            elif not SystemManager.recordStatus:
                 SystemManager.printError("Fail to read because there is no log")
                 sys.exit(0)
 
@@ -39120,7 +39130,7 @@ class ThreadAnalyzer(object):
 
         # check task status #
         tstat = self.procData[tid]['stat'][self.statIdx]
-        if tstat != 'S' and tstat != 'R':
+        if tstat != 'S' and tstat != 'R' and tstat != 'I':
             self.abnormalTaskList[tid] = tstat
 
         # change sched priority #
@@ -40874,24 +40884,31 @@ class ThreadAnalyzer(object):
 
 
     def getSortedProcData(self):
+        # memory #
         if SystemManager.sort == 'm':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+        # block #
         elif SystemManager.sort == 'b':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['btime'], reverse=True)
+        # WFC #
         elif SystemManager.sort == 'w':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['cttime'], reverse=True)
+        # pid #
         elif SystemManager.sort == 'p':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: int(e[0]))
+        # new #
         elif SystemManager.sort == 'n':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['new'], reverse=True)
+        # runtime #
         elif SystemManager.sort == 'r':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['runtime'], reverse=True)
+        # CPU #
         else:
             # set cpu usage as default #
             sortedProcData = sorted(self.procData.items(), \
@@ -41550,11 +41567,13 @@ class ThreadAnalyzer(object):
 
         # get task list #
         if taskType == 'abnormal':
-            taskList = list(self.abnormalTaskList.keys())
+            taskList = set(self.abnormalTaskList.keys())
         elif taskType == 'new':
-            taskList = list(self.procData.keys() - self.prevProcData.keys())
+            taskList = \
+                set(self.procData.keys()) - set(self.prevProcData.keys())
         elif taskType == 'die':
-            taskList = list(self.prevProcData.keys() - self.procData.keys())
+            taskList = \
+                set(self.prevProcData.keys()) - set(self.procData.keys())
 
         procCnt = 0
         for idx in taskList:
