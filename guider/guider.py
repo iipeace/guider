@@ -10220,6 +10220,7 @@ class SystemManager(object):
     pssEnable = False
     ussEnable = False
     vssEnable = False
+    oomEnable = False
     leakEnable = False
     wssEnable = False
     diskEnable = False
@@ -11252,7 +11253,8 @@ class SystemManager(object):
             options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
             options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
-            options.rfind('d') >= 0 or options.rfind('E') >= 0:
+            options.rfind('d') >= 0 or options.rfind('o') >= 0 or \
+            options.rfind('E') >= 0:
             return True
         else:
             return False
@@ -11417,6 +11419,8 @@ class SystemManager(object):
             SystemManager.printInfo("sorted by NEW")
         elif value == 'r':
             SystemManager.printInfo("sorted by RUNTIME")
+        elif value == 'o':
+            SystemManager.printInfo("sorted by OOMScore")
         elif value == 'f':
             SystemManager.printInfo("sorted by FILE")
             SystemManager.fileTopEnable = True
@@ -11562,7 +11566,8 @@ Usage:
         -N  <REQ@IP:PORT>           set report address
         -S  <c:cpu/m:memory/p:pid/  sort by key
              b:block/w:wfc/n:new/
-             r:runtime/f:file>
+             r:runtime/f:file/
+             o:oomScore>
         -P                          group threads in same process
         -I  <DIR|FILE>              set input path
         -m  <ROWS:COLS>             set terminal size
@@ -11587,7 +11592,8 @@ OPTIONS:
                 t:thread | C:wfc | s:stack | w:wss | d:disk
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport | n:net | E:Elasticsearch
+                f:float | R:freport | n:net | o:oomScore
+                E:Elasticsearch
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print
                 t:truncate | G:gpu | a:memAvailable
@@ -14830,6 +14836,11 @@ Copyright:
                 else:
                     disableStat += 'WCHAN '
 
+                if SystemManager.oomEnable:
+                    enableStat += 'OOM '
+                else:
+                    disableStat += 'OOM '
+
                 if SystemManager.floatEnable:
                     enableStat += 'FLOAT '
                 else:
@@ -16816,20 +16827,31 @@ Copyright:
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
                     SystemManager.pgnameEnable = False
+                    SystemManager.oomEnable = False
 
-                if options.rfind('W') > -1:
-                    SystemManager.wchanEnable = True
+                if options.rfind('o') > -1:
                     SystemManager.affinityEnable = False
+                    SystemManager.wchanEnable = False
                     SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
                     SystemManager.pgnameEnable = False
+                    SystemManager.oomEnable = True
 
-                if options.rfind('h') > -1:
-                    SystemManager.sigHandlerEnable = True
-                    SystemManager.wchanEnable = False
+                if options.rfind('W') > -1:
                     SystemManager.affinityEnable = False
+                    SystemManager.wchanEnable = True
+                    SystemManager.sigHandlerEnable = False
                     SystemManager.tgnameEnable = False
                     SystemManager.pgnameEnable = False
+                    SystemManager.oomEnable = False
+
+                if options.rfind('h') > -1:
+                    SystemManager.affinityEnable = False
+                    SystemManager.wchanEnable = False
+                    SystemManager.sigHandlerEnable = True
+                    SystemManager.tgnameEnable = False
+                    SystemManager.pgnameEnable = False
+                    SystemManager.oomEnable = False
 
                 if options.rfind('f') > -1:
                     SystemManager.floatEnable = True
@@ -27871,10 +27893,9 @@ class ThreadAnalyzer(object):
                 'io': None, 'alive': False, 'runtime': float(0), \
                 'changed': True, 'new': bool(False), 'majflt': long(0), \
                 'ttime': float(0), 'cttime': float(0), 'utime': float(0), \
-                'stime': float(0), 'preempted': long(0), 'taskPath': None, \
-                'mainID': '', 'btime': float(0), 'read': long(0), \
-                'write': long(0), 'maps': None, 'status': None, \
-                'statm': None, 'yield': long(0), 'procComm': ''}
+                'stime': float(0), 'taskPath': None, 'statm': None, \
+                'mainID': '', 'btime': float(0), 'maps': None, 'status': None, \
+                'procComm': ''}
 
             self.init_cpuData = \
                 {'user': long(0), 'system': long(0), 'nice': long(0), \
@@ -39228,15 +39249,11 @@ class ThreadAnalyzer(object):
                 self.prevProcData[tid]['ioFd'].seek(0)
                 self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
                 ioBuf = self.procData[tid]['ioFd'].readlines()
-                self.prevProcData[tid]['alive'] = True
             except:
                 try:
                     ioPath = "%s/%s" % (path, 'io')
                     ioFd = self.procData[tid]['ioFd'] = open(ioPath, 'r')
                     ioBuf = ioFd.readlines()
-
-                    if tid in self.prevProcData:
-                        self.prevProcData[tid]['alive'] = True
 
                     # fd resource is about to run out #
                     if SystemManager.maxFd-16 < ioFd.fileno():
@@ -39265,6 +39282,31 @@ class ThreadAnalyzer(object):
                     self.prevProcData[tid]['perfFds']
             except:
                 pass
+
+        # save oom_score #
+        if SystemManager.oomEnable:
+            try:
+                self.prevProcData[tid]['oomFd'].seek(0)
+                self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
+                self.procData[tid]['oomScore'] = \
+                    long(self.procData[tid]['oomFd'].readline())
+            except:
+                try:
+                    oomPath = "%s/%s" % (path, 'oom_score')
+                    oomFd = self.procData[tid]['oomFd'] = open(oomPath, 'r')
+                    self.procData[tid]['oomScore'] = \
+                        long(self.procData[tid]['oomFd'].readline())
+
+                    # fd resource is about to run out #
+                    if SystemManager.maxFd-16 < oomFd.fileno():
+                        oomFd.close()
+                        self.procData[tid]['oomFd'] = None
+                        self.reclaimFds()
+                except:
+                    SystemManager.printWarning('Fail to open %s' % oomPath)
+                    self.procData.pop(tid, None)
+                    return
+
 
 
 
@@ -39309,6 +39351,13 @@ class ThreadAnalyzer(object):
             try:
                 val['statmFd'].close()
                 val['statmFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['oomFd'].close()
+                val['oomFd'] = None
                 nrRclm += 1
             except:
                 pass
@@ -40963,6 +41012,10 @@ class ThreadAnalyzer(object):
         elif SystemManager.sort == 'r':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['runtime'], reverse=True)
+        # oomscore #
+        elif SystemManager.sort == 'o':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['oomScore'], reverse=True)
         # CPU #
         else:
             # set cpu usage as default #
@@ -40984,18 +41037,16 @@ class ThreadAnalyzer(object):
                 focusVal = value['btime']
             elif SystemManager.sort == 'w':
                 focusVal = value['cttime']
-            elif SystemManager.sort == 'p':
-                focusVal = idx
             elif SystemManager.sort == 'n':
                 focusVal = value['new']
-            elif SystemManager.sort == 'r':
-                focusVal = value['runtime']
+            elif SystemManager.sort == 'o':
+                focusVal = value['oomScore']
             else:
                 focusVal = 1
 
             if len(SystemManager.filterGroup) == 0 and \
                 not SystemManager.showAll and \
-                focusVal == 0:
+                (focusVal == 0 or focusVal == False):
                 return True
             else:
                 return False
@@ -41099,6 +41150,7 @@ class ThreadAnalyzer(object):
             else:
                 dprop = 'WFC'
 
+            # check last field #
             if SystemManager.pgnameEnable:
                 etc = 'Parent'
             elif SystemManager.wchanEnable:
@@ -41107,6 +41159,8 @@ class ThreadAnalyzer(object):
                 etc = 'Affinity'
             elif SystemManager.tgnameEnable:
                 etc = 'Process'
+            elif SystemManager.oomEnable:
+                etc = 'OOMScore'
             elif SystemManager.sigHandlerEnable or True:
                 etc = 'SignalHandler'
 
@@ -41322,19 +41376,20 @@ class ThreadAnalyzer(object):
             except:
                 shr = '-'
 
-            # yield #
-            try:
-                value['yield'] = \
-                    value['status']['voluntary_ctxt_switches']
-            except:
-                value['yield'] = '-'
+            if not SystemManager.processEnable:
+                # yield #
+                try:
+                    value['yield'] = \
+                        value['status']['voluntary_ctxt_switches']
+                except:
+                    value['yield'] = '-'
 
-            # preempted #
-            try:
-                value['preempted'] = \
-                    value['status']['nonvoluntary_ctxt_switches']
-            except:
-                value['preempted'] = '-'
+                # preempted #
+                try:
+                    value['preempted'] = \
+                        value['status']['nonvoluntary_ctxt_switches']
+                except:
+                    value['preempted'] = '-'
 
             # user #
             try:
@@ -41401,7 +41456,7 @@ class ThreadAnalyzer(object):
             if SystemManager.wfcEnable:
                 dtime = int(value['cttime'])
 
-            # set additional info #
+            # set last field info #
             if SystemManager.pgnameEnable:
                 try:
                     pgid = procData[idx]['stat'][self.ppidIdx]
@@ -41411,7 +41466,7 @@ class ThreadAnalyzer(object):
                     etc = ''
             elif SystemManager.wchanEnable:
                 try:
-                    etc = value['wchan'][:21]
+                    etc = value['wchan']
                 except:
                     etc = ''
             elif SystemManager.affinityEnable:
@@ -41424,6 +41479,11 @@ class ThreadAnalyzer(object):
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
+                except:
+                    etc = ''
+            elif SystemManager.oomEnable:
+                try:
+                    etc = str(value['oomScore'])
                 except:
                     etc = ''
             elif SystemManager.sigHandlerEnable or True:
