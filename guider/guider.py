@@ -14775,6 +14775,7 @@ Copyright:
 
         # common options #
         enableStat += SystemManager.arch.upper() + ' '
+
         if SystemManager.warningEnable:
             enableStat += 'WARN '
         else:
@@ -15983,10 +15984,17 @@ Copyright:
 
     @staticmethod
     def drawText(lines):
+        print(type(lines))
         imageType = None
 
         # get textwrap object #
-        textwrap = SystemManager.getPkg('textwrap')
+        textwrap = SystemManager.getPkg('textwrap', False)
+        if not textwrap:
+            SystemManager.printWarning((\
+                "Fail to import python package: textwrap\n"
+                "\tTry to enter %s command to install the package") % \
+                    ("'pip install textwrap3'"), True)
+            sys.exit(0)
 
         # get PIL object #
         pilObj = SystemManager.getPkg('PIL', False)
@@ -15994,7 +16002,7 @@ Copyright:
             SystemManager.printWarning((\
                 "Fail to import python package: PIL\n"
                 "\tTry to enter %s command to install the package") % \
-                    ("'pip install pillow'"))
+                    ("'pip install pillow'"), True)
             sys.exit(0)
 
         from PIL import Image, ImageFont, ImageDraw
@@ -19524,8 +19532,6 @@ Copyright:
 
     @staticmethod
     def doConvert():
-        SystemManager.warningEnable = True
-
         # parse options #
         value = ' '.join(sys.argv[2:])
         if len(value) == 0:
@@ -43051,8 +43057,9 @@ def main(args=None):
                 sys.exit(0)
 
         # print profile option #
-        SystemManager.printProfileOption()
-        SystemManager.printProfileCmd()
+        if not SystemManager.isDrawMode():
+            SystemManager.printProfileOption()
+            SystemManager.printProfileCmd()
 
         # set handler for exit #
         SystemManager.setNormalSignal()
@@ -43072,7 +43079,7 @@ def main(args=None):
     # check log file is recoginizable #
     ThreadAnalyzer.getInitTime(SystemManager.inputFile)
 
-    if SystemManager.isRecordMode() is False:
+    if not SystemManager.isRecordMode():
         # apply launch option from data file #
         SystemManager.applyLaunchOption()
 
