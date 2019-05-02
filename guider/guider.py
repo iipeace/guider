@@ -12379,6 +12379,9 @@ Examples:
     - Draw graphs of cpu usage and memory chart
         # {0:1} {1:1} guider.out
 
+    - Draw graphs of cpu usage excluding chrome process and memory chart
+        # {0:1} {1:1} guider.out -g ^chrome
+
     - Draw graphs of cpu usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
                     '''.format(cmd, mode)
@@ -12420,6 +12423,9 @@ Description:
 Examples:
     - Draw graphs of memory(VSS) usage and memory chart
         # {0:1} {1:1} guider.out
+
+    - Draw graphs of memory(VSS) usage excluding chrome process and memory chart
+        # {0:1} {1:1} guider.out -g ^chrome
 
     - Draw graphs of memory(VSS) usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
@@ -12463,6 +12469,9 @@ Examples:
     - Draw graphs of memory(VSS) usage of processes suspected memory leak and memory chart
         # {0:1} {1:1} guider.out
 
+    - Draw graphs of memory(VSS) usage of processes suspected memory leak excluding chrome and memory chart
+        # {0:1} {1:1} guider.out -g ^chrome
+
     - Draw graphs of memory(VSS) usage of processes suspected memory leak with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
                     '''.format(cmd, mode)
@@ -12481,6 +12490,9 @@ Description:
 
                     helpStr +=  '''
 Examples:
+    - Draw graphs of I/O usage and memory chart
+        # {0:1} {1:1} guider.out
+
     - Draw graphs of I/O usage and memory chart
         # {0:1} {1:1} guider.out
 
@@ -28615,6 +28627,17 @@ class ThreadAnalyzer(object):
                         if SystemManager.filterGroup != []:
                             found = False
                             for idx in SystemManager.filterGroup:
+                                # check exclusion condition #
+                                if idx.startswith('^'):
+                                    cond = idx[1:]
+                                    if comm.find(cond) > -1 or d['pid'] == cond:
+                                        found=False
+                                        break
+                                    else:
+                                        found=True
+                                        continue
+
+                                # check inclusion condition #
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
@@ -28691,6 +28714,17 @@ class ThreadAnalyzer(object):
                         if SystemManager.filterGroup != []:
                             found = False
                             for idx in SystemManager.filterGroup:
+                                # check exclusion condition #
+                                if idx.startswith('^'):
+                                    cond = idx[1:]
+                                    if comm.find(cond) > -1 or d['pid'] == cond:
+                                        found=False
+                                        break
+                                    else:
+                                        found=True
+                                        continue
+
+                                # check inclusion condition #
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
@@ -28731,6 +28765,17 @@ class ThreadAnalyzer(object):
                         if SystemManager.filterGroup != []:
                             found = False
                             for idx in SystemManager.filterGroup:
+                                # check exclusion condition #
+                                if idx.startswith('^'):
+                                    cond = idx[1:]
+                                    if comm.find(cond) > -1 or d['pid'] == cond:
+                                        found=False
+                                        break
+                                    else:
+                                        found=True
+                                        continue
+
+                                # check inclusion condition #
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
@@ -28771,6 +28816,17 @@ class ThreadAnalyzer(object):
                         if SystemManager.filterGroup != []:
                             found = False
                             for idx in SystemManager.filterGroup:
+                                # check exclusion condition #
+                                if idx.startswith('^'):
+                                    cond = idx[1:]
+                                    if comm.find(cond) > -1 or d['pid'] == cond:
+                                        found=False
+                                        break
+                                    else:
+                                        found=True
+                                        continue
+
+                                # check inclusion condition #
                                 if comm.find(idx) > -1 or d['pid'] == idx:
                                     found = True
                                     break
