@@ -4337,7 +4337,7 @@ class FunctionAnalyzer(object):
                         pairId = '%s#%s' % (allocCall, freeCall)
 
                         try:
-                            kenrelData['pagePair'][pairId]
+                            KernelData['pagePair'][pairId]
                         except:
                             kernelData['pagePair'][pairId] = \
                                 dict(self.init_glueData)
@@ -11958,7 +11958,7 @@ Examples:
         # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
 
     - record default events including specific kernel function of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -K evt1:func1, evt2:0x1234
+        # {0:1} {1:1} -s . -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
 
     - record default events including specific kernel function with register values of all threads to ./guider.dat
         # {0:1} {1:1} -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
@@ -14019,7 +14019,7 @@ Copyright:
     def writeKernelCmd():
         effectiveCmd = []
 
-        if SystemManager.keventEnable is False:
+        if not SystemManager.keventEnable:
             return
         elif len(SystemManager.kernelCmd) == 0:
             SystemManager.printError(\
@@ -14183,7 +14183,7 @@ Copyright:
     def writeUserCmd():
         effectiveCmd = []
 
-        if SystemManager.ueventEnable is False:
+        if not SystemManager.ueventEnable:
             return
         elif len(SystemManager.userCmd) == 0:
             SystemManager.printError(\
@@ -14572,14 +14572,14 @@ Copyright:
                 disableStat += 'DEP '
 
             if SystemManager.ueventEnable:
-                enableStat += 'UEVENT '
+                enableStat += 'UEVT '
             else:
-                disableStat += 'UEVENT '
+                disableStat += 'UEVT '
 
             if SystemManager.keventEnable:
-                enableStat += 'KEVENT '
+                enableStat += 'KEVT '
             else:
-                disableStat += 'KEVENT '
+                disableStat += 'KEVT '
 
             if SystemManager.irqEnable:
                 enableStat += 'IRQ '
@@ -14924,27 +14924,27 @@ Copyright:
             else:
                 disableStat += 'GRAPH '
 
-                if SystemManager.cpuEnable is False:
+                if not SystemManager.cpuEnable:
                     disableStat += 'CPU '
                 else:
                     enableStat += 'CPU '
 
-                if SystemManager.memEnable is False:
+                if not SystemManager.memEnable:
                     disableStat += 'MEM '
                 else:
                     enableStat += 'MEM '
 
-                if SystemManager.heapEnable is False:
+                if not SystemManager.heapEnable:
                     disableStat += 'HEAP '
                 else:
                     enableStat += 'HEAP '
 
-                if SystemManager.blockEnable is False:
+                if not SystemManager.blockEnable:
                     disableStat += 'BLOCK '
                 else:
                     enableStat += 'BLOCK '
 
-                if SystemManager.userEnable is False:
+                if not SystemManager.userEnable:
                     disableStat += 'USER '
                 else:
                     enableStat += 'USER '
@@ -14974,7 +14974,7 @@ Copyright:
             SystemManager.printInfo("THREAD MODE")
             SystemManager.threadEnable = True
 
-            if SystemManager.cpuEnable is False:
+            if not SystemManager.cpuEnable:
                 disableStat += 'CPU '
             else:
                 enableStat += 'CPU '
@@ -15908,9 +15908,9 @@ Copyright:
             SystemManager.userCmd = str(filterList).split(',')
             SystemManager.removeEmptyValue(SystemManager.userCmd)
             SystemManager.printInfo("profiled user events [ %s ]" % \
-                ', '.join([ cmd for cmd in SystemManager.userCmd]))
+                ', '.join([ cmd.strip() for cmd in SystemManager.userCmd]))
             SystemManager.userEventList = \
-                [ cmd.split(':')[0] for cmd in SystemManager.userCmd]
+                [ cmd.split(':')[0].strip() for cmd in SystemManager.userCmd]
 
         # apply kernel event option #
         launchPosStart = SystemManager.launchBuffer.find(' -K')
@@ -15921,9 +15921,9 @@ Copyright:
             SystemManager.kernelCmd = str(filterList).split(',')
             SystemManager.removeEmptyValue(SystemManager.kernelCmd)
             SystemManager.printInfo("profiled kernel events [ %s ]" % \
-                ', '.join([ cmd for cmd in SystemManager.kernelCmd]))
+                ', '.join([ cmd.strip() for cmd in SystemManager.kernelCmd]))
             SystemManager.kernelEventList = \
-                [ cmd.split(':')[0] for cmd in SystemManager.kernelCmd]
+                [ cmd.split(':')[0].strip() for cmd in SystemManager.kernelCmd]
 
         # apply arch option #
         launchPosStart = SystemManager.launchBuffer.find(' -A')
@@ -31313,7 +31313,7 @@ class ThreadAnalyzer(object):
         # print kernel event history #
         if SystemManager.showAll and len(self.kernelEventData) > 0:
             SystemManager.clearPrint()
-            SystemManager.printPipe('\n[Thread Kenrel Event History]')
+            SystemManager.printPipe('\n[Thread Kernel Event History]')
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
                 "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
@@ -38151,7 +38151,7 @@ class ThreadAnalyzer(object):
 
             # kernel event #
             for name in SystemManager.kernelEventList:
-                if func.startswith(name) is False:
+                if not func.startswith(name):
                     continue
 
                 if not self.threadData[thread]['kernelEvent']:
