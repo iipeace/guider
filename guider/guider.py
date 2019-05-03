@@ -30185,7 +30185,7 @@ class ThreadAnalyzer(object):
                     ax.get_yaxis().set_visible(False)
                 else:
                     try:
-                        ax.set_ylim(ymin=0)
+                        ax.set_ylim(bottom=0)
                     except:
                         pass
             except:
@@ -30624,7 +30624,7 @@ class ThreadAnalyzer(object):
                 ymin = 0
             if ymin == 0:
                 try:
-                    ax.set_ylim(ymin=0)
+                    ax.set_ylim(bottom=0)
                 except:
                     pass
 
@@ -30842,6 +30842,17 @@ class ThreadAnalyzer(object):
             SystemManager.printError(\
                 "Fail to draw image caused by wrong file path %s" % outputFile)
             return
+
+        # backup an exist image file #
+        if os.path.isfile(outputFile):
+            try:
+                name, ext = os.path.splitext(outputFile)
+                newPath = '%s_old%s' % (name, ext)
+                os.rename(outputFile, newPath)
+                SystemManager.printInfo('%s is renamed to %s' % \
+                    (outputFile, newPath))
+            except:
+                pass
 
         # get pylab object #
         pylab = SystemManager.getPkg('pylab')
