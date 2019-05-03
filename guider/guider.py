@@ -11960,10 +11960,10 @@ Examples:
     - record default events including specific kernel function of all threads to ./guider.dat
         # {0:1} {1:1} -s . -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
 
-    - record default events including specific kernel function with args of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -K open:do_sys_open:dfd=%ax\ filename=%bx\ flags=%cx:NONE
+    - record default events including specific kernel function with args of all threads on x86 to ./guider.dat
+        # {0:1} {1:1} -s . -K open:do_sys_open:dfd=%ax\ filename=%bx\;u64\ flags=%cx\;s32\ mode=+4\(\$stack\):NONE
 
-    - record default events including specific kernel function with register values of all threads to ./guider.dat
+    - record default events including specific kernel function with register values of all threads on x86 to ./guider.dat
         # {0:1} {1:1} -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
     - record default events including specific kernel function with the return value of all threads to ./guider.dat
@@ -14075,6 +14075,9 @@ Copyright:
             try:
                 # parse argument option #
                 for rCmd in cmd[2].split('.'):
+                    # convert ; to : for type definition #
+                    rCmd = rCmd.replace(';', ':')
+
                     # check absolute argument #
                     if len(rCmd) == 0:
                         pass
