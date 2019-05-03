@@ -11466,13 +11466,15 @@ class SystemManager(object):
             if len(sys.argv) > 1 and \
                 not SystemManager.isClientMode() and \
                 not SystemManager.isDrawMode() and \
-                not SystemManager.isConvertMode():
+                not SystemManager.isConvertMode() and \
+                not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
                 else:
                     arg = sys.argv[1]
+
                 SystemManager.printError(\
-                    '%s platform is supported for %s command now' % \
+                    '%s platform is not supported for %s command now' % \
                         (sys.platform, arg))
                 sys.exit(0)
         else:
@@ -11518,10 +11520,7 @@ class SystemManager(object):
 
         # help #
         if len(sys.argv) <= 1 or \
-            '-help' in sys.argv or \
-            '--help' in sys.argv or \
-            '-h' in sys.argv:
-
+            SystemManager.isHelpMode():
             # enable help mode #
             SystemManager.helpEnable = True
 
@@ -11545,10 +11544,8 @@ Usage:
 
             # command help #
             if len(sys.argv) > 1 and \
-                ('-help' in sys.argv or \
-                '--help' in sys.argv or \
-                '-h' in sys.argv):
-
+                SystemManager.isHelpMode():
+                # get command #
                 mode = sys.argv[1]
 
                 # print small logo #
@@ -17546,6 +17543,17 @@ Copyright:
             return False
 
         if sys.argv[1] == 'server':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isHelpMode():
+        if '-help' in sys.argv or \
+            '--help' in sys.argv or \
+            '-h' in sys.argv:
             return True
         else:
             return False
