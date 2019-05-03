@@ -11960,6 +11960,9 @@ Examples:
     - record default events including specific kernel function of all threads to ./guider.dat
         # {0:1} {1:1} -s . -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
 
+    - record default events including specific kernel function with args of all threads to ./guider.dat
+        # {0:1} {1:1} -s . -K open:do_sys_open:dfd=%ax\ filename=%bx\ flags=%cx:NONE
+
     - record default events including specific kernel function with register values of all threads to ./guider.dat
         # {0:1} {1:1} -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
@@ -14223,7 +14226,7 @@ Copyright:
                 sys.exit(0)
 
             # symbol input #
-            if cmdFormat[1].startswith('0x') is False:
+            if not cmdFormat[1].startswith('0x'):
                 # symbol input with no objdump path #
                 if not SystemManager.objdumpPath:
                     # get address of symbol in binary #
