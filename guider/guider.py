@@ -11411,8 +11411,8 @@ class SystemManager(object):
         elif value == 'b':
             SystemManager.printInfo("sorted by BLOCK")
         elif value == 'w':
-            SystemManager.wfcEnable = True
             SystemManager.printInfo("sorted by CHILD")
+            SystemManager.wfcEnable = True
         elif value == 'p':
             SystemManager.printInfo("sorted by PID")
         elif value == 'n':
@@ -11421,12 +11421,13 @@ class SystemManager(object):
             SystemManager.printInfo("sorted by RUNTIME")
         elif value == 'o':
             SystemManager.printInfo("sorted by OOMScore")
+            ThreadAnalyzer.setLastField('oom')
         elif value == 'f':
             SystemManager.printInfo("sorted by FILE")
             SystemManager.fileTopEnable = True
         else:
             SystemManager.printError(\
-                "wrong option value '%s' for sort" % val)
+                "wrong option value '%s' for sort" % value)
             return False
 
         SystemManager.sort = value
@@ -16848,37 +16849,15 @@ Copyright:
                 if options.rfind('C') > -1:
                     SystemManager.wfcEnable = True
 
+                # check last field #
                 if options.rfind('a') > -1:
-                    SystemManager.affinityEnable = True
-                    SystemManager.wchanEnable = False
-                    SystemManager.sigHandlerEnable = False
-                    SystemManager.tgnameEnable = False
-                    SystemManager.pgnameEnable = False
-                    SystemManager.oomEnable = False
-
-                if options.rfind('o') > -1:
-                    SystemManager.affinityEnable = False
-                    SystemManager.wchanEnable = False
-                    SystemManager.sigHandlerEnable = False
-                    SystemManager.tgnameEnable = False
-                    SystemManager.pgnameEnable = False
-                    SystemManager.oomEnable = True
-
-                if options.rfind('W') > -1:
-                    SystemManager.affinityEnable = False
-                    SystemManager.wchanEnable = True
-                    SystemManager.sigHandlerEnable = False
-                    SystemManager.tgnameEnable = False
-                    SystemManager.pgnameEnable = False
-                    SystemManager.oomEnable = False
-
-                if options.rfind('h') > -1:
-                    SystemManager.affinityEnable = False
-                    SystemManager.wchanEnable = False
-                    SystemManager.sigHandlerEnable = True
-                    SystemManager.tgnameEnable = False
-                    SystemManager.pgnameEnable = False
-                    SystemManager.oomEnable = False
+                    ThreadAnalyzer.setLastField('affinity')
+                elif options.rfind('o') > -1:
+                    ThreadAnalyzer.setLastField('oom')
+                elif options.rfind('W') > -1:
+                    ThreadAnalyzer.setLastField('wchan')
+                elif options.rfind('h') > -1:
+                    ThreadAnalyzer.setLastField('signal')
 
                 if options.rfind('f') > -1:
                     SystemManager.floatEnable = True
@@ -33857,6 +33836,29 @@ class ThreadAnalyzer(object):
 
         except:
             return ('-', '-')
+
+
+
+    @staticmethod
+    def setLastField(option):
+        SystemManager.affinityEnable = False
+        SystemManager.wchanEnable = False
+        SystemManager.sigHandlerEnable = False
+        SystemManager.oomEnable = False
+        SystemManager.tgnameEnable = False
+        SystemManager.pgnameEnable = False
+
+        if option == 'affinity':
+            SystemManager.affinityEnable = True
+        elif option == 'wchan':
+            SystemManager.wchanEnable = True
+        elif option == 'signal':
+            SystemManager.sigHandlerEnable = True
+        elif option == 'oom':
+            SystemManager.oomEnable = True
+        else:
+            SystemManager.printError(\
+                "Fail to set '%s' as a last field" % option)
 
 
 
