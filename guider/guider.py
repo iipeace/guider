@@ -12274,6 +12274,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
+        -i  <SEC>                   set interval
         -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
@@ -12288,6 +12289,9 @@ Examples:
 
     - Trace write systemcall with specific command
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - Trace syscalls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g 1234 -i 2
 
     - Trace systemcalls and pause when catching open systemcall
         # {0:1} {1:1} -I "ls -al" -c open
@@ -12312,6 +12316,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
+        -i  <SEC>                   set interval
         -c  <EVENT>                 set breakpoint
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
@@ -12327,6 +12332,9 @@ Examples:
 
     - Trace user function calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
+
+    - Trace user function calls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g 1234 -i 2
 
     - Trace user function calls and pause when catching PLT function call
         # {0:1} {1:1} -I "ls -al" -c PLT
@@ -15984,7 +15992,6 @@ Copyright:
 
     @staticmethod
     def drawText(lines):
-        print(type(lines))
         imageType = None
 
         # get textwrap object #
@@ -24967,6 +24974,11 @@ class Debugger(object):
 
         # set start time #
         self.start = time.time()
+
+        # set timer #
+        if SystemManager.intervalEnable > 0:
+            signal.signal(signal.SIGALRM, SystemManager.exitHandler)
+            signal.alarm(SystemManager.intervalEnable)
 
         # select trap command #
         if mode == 'syscall':
