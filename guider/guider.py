@@ -12274,7 +12274,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
-        -i  <SEC>                   set interval
+        -R  <INTERVAL>              set interval
         -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
@@ -12290,8 +12290,8 @@ Examples:
     - Trace write systemcall with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
-    - Trace syscalls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g 1234 -i 2
+    - Trace syscalls for a specific thread only for 1 minute
+        # {0:1} {1:1} -g 1234 -R 1m
 
     - Trace systemcalls and pause when catching open systemcall
         # {0:1} {1:1} -I "ls -al" -c open
@@ -12316,7 +12316,7 @@ OPTIONS:
         -u                          run in the background
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
-        -i  <SEC>                   set interval
+        -R  <INTERVAL>              set interval
         -c  <EVENT>                 set breakpoint
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
@@ -12334,7 +12334,7 @@ Examples:
         # {0:1} {1:1} -g 1234 -H 10
 
     - Trace user function calls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g 1234 -i 2
+        # {0:1} {1:1} -g 1234 -R 2s
 
     - Trace user function calls and pause when catching PLT function call
         # {0:1} {1:1} -I "ls -al" -c PLT
@@ -30622,7 +30622,7 @@ class ThreadAnalyzer(object):
             ymin = int(min(ylist))
             if ymin < 0:
                 ymin = 0
-            if ymin == 0:
+            elif ymin == 0:
                 try:
                     ax.set_ylim(bottom=0)
                 except:
