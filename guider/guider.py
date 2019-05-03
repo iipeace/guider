@@ -24664,6 +24664,15 @@ class Debugger(object):
 
 
 
+    def printRegs(self):
+        SystemManager.printPipe(oneLine)
+        for reg, val in sorted(self.regs.getdict().items()):
+            SystemManager.printPipe(\
+                '%s: %x' % (reg, val))
+        SystemManager.printPipe(oneLine)
+
+
+
     def getNrSyscall(self):
         try:
             return self.regs.getdict()[self.sysreg]
@@ -24778,6 +24787,9 @@ class Debugger(object):
             if SystemManager.customCmd:
                 onlySym = sym.split('@')[0]
                 if onlySym in SystemManager.customCmd:
+                    # print register set #
+                    self.printRegs()
+
                     SystemManager.waitUserInput(\
                         wait=0, msg="Press enter key...")
 
