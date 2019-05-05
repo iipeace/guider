@@ -6503,7 +6503,7 @@ class FunctionAnalyzer(object):
         m = re.match((\
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
-            r'(?P<binName>.\S+)'), string)
+            r'(?P<binName>.+)'), string)
         if m:
             d = m.groupdict()
             self.mapData.append(\
@@ -12273,6 +12273,7 @@ OPTIONS:
         -d  <CHARACTER>             disable options
               e:encode
         -u                          run in the background
+        -a                          show all stats including registers
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
         -R  <INTERVAL>              set interval
@@ -12290,6 +12291,9 @@ Examples:
 
     - Trace write systemcall with specific command
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - Trace read systemcall with breakpoint including register info for a specific thread
+        # {0:1} {1:1} -g 1234 -c read -a
 
     - Trace syscalls for a specific thread only for 1 minute
         # {0:1} {1:1} -g 1234 -R 1m
@@ -12315,6 +12319,7 @@ OPTIONS:
         -d  <CHARACTER>             disable options
               e:encode
         -u                          run in the background
+        -a                          show all stats including registers
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
         -R  <INTERVAL>              set interval
@@ -12333,6 +12338,9 @@ Examples:
 
     - Trace user function calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
+
+    - Trace user function  with breakpoint including register info for a specific thread
+        # {0:1} {1:1} -g 1234 -c peace -a
 
     - Trace user function calls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g 1234 -R 2s
@@ -18861,15 +18869,21 @@ Copyright:
 
         # set default message #
         if not msg:
-            msg = "[ Input command... ( Help / Quit ) ]"
+            msg = "Input command... ( Help / Quit )"
 
         # wait for user input #
         try:
+            if newline:
+                suffix = '\n'
+            else:
+                suffix = ''
+
             # there was user input #
             if selectObj.select(\
                 [sys.stdin], [], [], wait) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SystemManager.ttyCols)
-                SystemManager.printPipe(msg, newline=newline)
+                sys.stdout.write(msg + suffix)
+                sys.stdout.flush()
 
                 # flush buffered enter key #
                 sys.stdin.readline()
@@ -18880,7 +18894,8 @@ Copyright:
                 # process user input #
                 SystemManager.procUserInput(sys.stdin.readline())
             elif wait == 0:
-                SystemManager.printPipe(msg, newline=newline)
+                sys.stdout.write(msg + suffix)
+                sys.stdout.flush()
                 sys.stdin.readline()
         except SystemExit:
             sys.exit(0)
@@ -18980,7 +18995,7 @@ Copyright:
             ulist[0].upper() == 'Q':
             sys.exit(0)
 
-        SystemManager.printPipe("[ Input ENTER to continue ]")
+        SystemManager.printPipe("Input ENTER to continue...")
         sys.stdin.readline()
 
 
@@ -24262,6 +24277,10 @@ class Debugger(object):
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
             SystemManager.printWarning('Fail to detach thread %s' % pid)
+
+            # continue the thread because of detach fail #
+            self.cont()
+
             return -1
         else:
             SystemManager.printInfo('Detached from thread %d' % pid)
@@ -24664,11 +24683,21 @@ class Debugger(object):
 
 
 
-    def printRegs(self):
-        SystemManager.printPipe(oneLine)
+    def printRegs(self, newline=False):
+        if newline:
+            prefix = '\n'
+        else:
+            prefix = ''
+
+        SystemManager.printPipe('%s%s' % (prefix, oneLine))
         for reg, val in sorted(self.regs.getdict().items()):
+            deref = self.readMem(val)
+            try:
+                deref = '"%s"' % deref.decode("utf-8")
+            except:
+                deref = hex(SystemManager.bstring2word(deref))
             SystemManager.printPipe(\
-                '%s: %x' % (reg, val))
+                '%s: %x [%s]' % (reg, val, deref))
         SystemManager.printPipe(oneLine)
 
 
@@ -24787,8 +24816,9 @@ class Debugger(object):
             if SystemManager.customCmd:
                 onlySym = sym.split('@')[0]
                 if onlySym in SystemManager.customCmd:
-                    # print register set #
-                    self.printRegs()
+                    if SystemManager.showAll:
+                        # print register set #
+                        self.printRegs()
 
                     SystemManager.waitUserInput(\
                         wait=0, msg="Press enter key...")
@@ -24881,8 +24911,12 @@ class Debugger(object):
             # check pause condition #
             if SystemManager.customCmd and \
                 name in SystemManager.customCmd:
+                if SystemManager.showAll:
+                    # print register set #
+                    self.printRegs(newline=True)
+
                 SystemManager.waitUserInput(\
-                    wait=0, msg="\nPress enter key...", newline=False)
+                    wait=0, msg="Press enter key...")
 
         # exit #
         elif status == 'exit':
