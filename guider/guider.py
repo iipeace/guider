@@ -10478,6 +10478,7 @@ class SystemManager(object):
     cmdFd = None
     diskStatsFd = None
     mountFd = None
+    nullFd = None
 
     irqEnable = False
     cpuEnable = True
@@ -10554,6 +10555,7 @@ class SystemManager(object):
     killFilter = []
     syscallList = []
     perCoreList = []
+    childList = {}
     pidFilter = None
 
 
@@ -19030,11 +19032,13 @@ Copyright:
 
 
     @staticmethod
-    def createProcess(cmd=None):
+    def createProcess(cmd=None, isDaemon=False, isMute=False):
         pid = os.fork()
 
         # parent #
         if pid > 0:
+            if not isDaemon:
+                SystemManager.childList[pid] = True
             return pid
         # child #
         elif pid == 0:
@@ -19043,6 +19047,18 @@ Copyright:
                 if type(cmd) is str:
                     cmd = cmd.split()
                 try:
+                    if isMute:
+                        if not SystemManager.nullFd:
+                            SystemManager.nullFd = open('/dev/null', 'w')
+
+                        # get null fd #
+                        nullFd = SystemManager.nullFd.fileno()
+
+                        # redirect stds to null #
+                        os.dup2(nullFd, sys.stdin.fileno())
+                        os.dup2(nullFd, sys.stdout.fileno())
+                        os.dup2(nullFd, sys.stderr.fileno())
+
                     os.execvp(cmd[0], cmd)
                 except:
                     err = SystemManager.getErrReason()
@@ -21503,6 +21519,19 @@ Copyright:
                     "%s/tracing/events/" % SystemManager.mountPath
                 return SystemManager.mountPath
         f.close()
+
+
+
+    @staticmethod
+    def killChilds():
+        SystemManager.terminateTasks(SystemManager.childList.keys())
+
+
+
+    @staticmethod
+    def releaseResource():
+        SystemManager.closeAllForPrint()
+        SystemManager.killChilds()
 
 
 
@@ -42784,7 +42813,7 @@ def main(args=None):
         sys.argv = ['guider'] + args.split()
 
     # register exit handler #
-    atexit.register(SystemManager.closeAllForPrint)
+    atexit.register(SystemManager.releaseResource)
 
     # print logo #
     SystemManager.printRawTitle(big=True)
@@ -43028,7 +43057,7 @@ def main(args=None):
 
     #==================== analysis part ====================#
     # register exit handler #
-    atexit.register(SystemManager.closeAllForPrint)
+    atexit.register(SystemManager.releaseResource)
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
