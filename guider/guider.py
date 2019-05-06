@@ -2605,6 +2605,191 @@ class ConfigManager(object):
 
 
 
+class UtilManager(object):
+    """ Manager for utilities """
+
+    @staticmethod
+    def word2bstring(word):
+        try:
+            return struct.pack('L', word)
+        except:
+            SystemManager.printError(\
+                "Fail to convert word %s to string" % word)
+            return None
+
+
+
+    @staticmethod
+    def bstring2word(bstring):
+        try:
+            return struct.unpack('L', bstring)[0]
+        except:
+            SystemManager.printError(\
+                "Fail to convert string %s to word" % bstring)
+            return None
+
+
+
+    @staticmethod
+    def convertSize2Unit(size, isInt=False):
+        sizeKB = 1024
+        sizeMB = sizeKB << 10
+        sizeGB = sizeMB << 10
+        sizeTB = sizeGB << 10
+
+        # Int type #
+        if isInt:
+            try:
+                if abs(size) >= sizeTB:
+                    return '%dT' % (size >> 40)
+                elif abs(size) >= sizeGB:
+                    return '%dG' % (size >> 30)
+                elif abs(size) >= sizeMB:
+                    return '%dM' % (size >> 20)
+                elif abs(size) >= sizeKB:
+                    return '%dK' % (size >> 10)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+        # Float type #
+        else:
+            try:
+                if abs(size) >= sizeTB:
+                    return '%.1fT' % ((size >> 30) / 1024.0)
+                elif abs(size) >= sizeGB:
+                    return '%.1fG' % ((size >> 20) / 1024.0)
+                elif abs(size) >= sizeMB:
+                    return '%.1fM' % ((size >> 10) / 1024.0)
+                elif abs(size) >= sizeKB:
+                    return '%.1fK' % (size / 1024.0)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+
+
+
+    @staticmethod
+    def convertTime(time):
+        def convertHour(size):
+            sizeK = 1000
+            sizeM = sizeK * 1000
+            sizeG = sizeM * 1000
+            sizeT = sizeG * 1000
+
+            try:
+                if size >= sizeT:
+                    return '%dT' % (size / sizeT)
+                elif size >= sizeG:
+                    return '%dG' % (size / sizeG)
+                elif size >= sizeM:
+                    return '%dM' % (size / sizeM)
+                elif size >= sizeK:
+                    return '%dK' % (size / sizeK)
+                else:
+                    return '%d' % (size)
+            except:
+                return '?'
+
+        try:
+            m, s = divmod(time, 60)
+            h, m = divmod(m, 60)
+            ctime = "%3s:%02d:%02d" % (convertHour(h), m, s)
+        except:
+            ctime = "%3s:%02s:%02s" % ('?', '?', '?')
+
+        return ctime
+
+
+
+    @staticmethod
+    def convertUnit2Size(value):
+        sizeKB = 1024
+        sizeMB = sizeKB << 10
+        sizeGB = sizeMB << 10
+        sizeTB = sizeGB << 10
+
+        if type(value) is int or type(value) is long:
+            return value
+        if value.isdigit():
+            return long(value)
+
+        # convert unit character to capital #
+        value = value.upper()
+
+        try:
+            if value.endswith('K'):
+                return long(float(value[:-1])) * sizeKB
+            if value.endswith('KB'):
+                return long(float(value[:-2])) * sizeKB
+            if value.endswith('M'):
+                return long(float(value[:-1])) * sizeMB
+            if value.endswith('MB'):
+                return long(float(value[:-2])) * sizeMB
+            if value.endswith('G'):
+                return long(float(value[:-1])) * sizeGB
+            if value.endswith('GB'):
+                return long(float(value[:-2])) * sizeGB
+            if value.endswith('T'):
+                return long(float(value[:-1])) * sizeTB
+            if value.endswith('TB'):
+                return long(float(value[:-2])) * sizeTB
+
+            raise Exception()
+        except:
+            return None
+
+
+
+    @staticmethod
+    def writeJsonObject(jsonObj, fd=None, trunc=False, path=None):
+        if fd:
+            try:
+                if trunc:
+                    fd.seek(0, 0)
+                    fd.truncate()
+
+                fd.write(jsonObj)
+
+                fd.flush()
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printWarning(\
+                    "Fail to write JSON format data because %s" % err)
+            return
+
+        # check write option #
+        if trunc:
+            perm = 'w'
+        else:
+            perm = 'a'
+
+        # open the file #
+        try:
+            with open(path, perm) as fd:
+                fd.write(jsonObj)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to write JSON format data to %s because %s" % \
+                    (path, err))
+            sys.exit(0)
+
+
+
+    @staticmethod
+    def makeJsonDict(strObj):
+        try:
+            strObj = strObj.replace("'", '"')
+            return SystemManager.getPkg('json').loads(strObj)
+        except:
+            return None
+
+
+
+
+
 class NetworkManager(object):
     """ Manager for remote communication """
 
@@ -2800,7 +2985,7 @@ class NetworkManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
                     (targetPath, \
-                    SystemManager.convertSize2Unit(os.path.getsize(targetPath)),
+                    UtilManager.convertSize2Unit(os.path.getsize(targetPath)),
                     targetIp, targetPort, origPath))
             except:
                 err = SystemManager.getErrReason()
@@ -2869,7 +3054,7 @@ class NetworkManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
                     (origPath, \
-                    SystemManager.convertSize2Unit(os.path.getsize(origPath)), \
+                    UtilManager.convertSize2Unit(os.path.getsize(origPath)), \
                     ':'.join(list(map(str, addr))), targetPath))
             except:
                 err = SystemManager.getErrReason()
@@ -8809,7 +8994,7 @@ class LeakAnalyzer(object):
         # Get file size #
         try:
             stat = os.stat(file)
-            size = SystemManager.convertSize2Unit(stat.st_size)
+            size = UtilManager.convertSize2Unit(stat.st_size)
         except:
             size = '??'
 
@@ -8853,7 +9038,7 @@ class LeakAnalyzer(object):
 
 
     def printLeakage(self):
-        convertFunc = SystemManager.convertSize2Unit
+        convertFunc = UtilManager.convertSize2Unit
 
         # function leakage info #
         title = 'Function Leakage Info'
@@ -10937,8 +11122,8 @@ class SystemManager(object):
         wIoMsTotal = curWIoMsTotal - prevWIoMsTotal
 
         retstr = '%s/%s' % (\
-            SystemManager.convertSize2Unit(readMsTotal),\
-            SystemManager.convertSize2Unit(writeMsTotal))
+            UtilManager.convertSize2Unit(readMsTotal),\
+            UtilManager.convertSize2Unit(writeMsTotal))
 
         return retstr
 
@@ -10991,67 +11176,6 @@ class SystemManager(object):
 
 
     @staticmethod
-    def word2bstring(word):
-        try:
-            return struct.pack('L', word)
-        except:
-            SystemManager.printError(\
-                "Fail to convert word %s to string" % word)
-            return None
-
-
-
-    @staticmethod
-    def bstring2word(bstring):
-        try:
-            return struct.unpack('L', bstring)[0]
-        except:
-            SystemManager.printError(\
-                "Fail to convert string %s to word" % bstring)
-            return None
-
-
-
-    @staticmethod
-    def convertUnit2Size(value):
-        sizeKB = 1024
-        sizeMB = sizeKB << 10
-        sizeGB = sizeMB << 10
-        sizeTB = sizeGB << 10
-
-        if type(value) is int or type(value) is long:
-            return value
-        if value.isdigit():
-            return long(value)
-
-        # convert unit character to capital #
-        value = value.upper()
-
-        try:
-            if value.endswith('K'):
-                return long(float(value[:-1])) * sizeKB
-            if value.endswith('KB'):
-                return long(float(value[:-2])) * sizeKB
-            if value.endswith('M'):
-                return long(float(value[:-1])) * sizeMB
-            if value.endswith('MB'):
-                return long(float(value[:-2])) * sizeMB
-            if value.endswith('G'):
-                return long(float(value[:-1])) * sizeGB
-            if value.endswith('GB'):
-                return long(float(value[:-2])) * sizeGB
-            if value.endswith('T'):
-                return long(float(value[:-1])) * sizeTB
-            if value.endswith('TB'):
-                return long(float(value[:-2])) * sizeTB
-
-            raise Exception()
-        except:
-            return None
-
-
-
-    @staticmethod
     def getMemStat(pid):
         try:
             statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
@@ -11061,79 +11185,6 @@ class SystemManager(object):
         except:
             SystemManager.printWarning('Fail to open %s' % statmPath)
             return
-
-
-
-    @staticmethod
-    def convertSize2Unit(size, isInt=False):
-        sizeKB = 1024
-        sizeMB = sizeKB << 10
-        sizeGB = sizeMB << 10
-        sizeTB = sizeGB << 10
-
-        # Int type #
-        if isInt:
-            try:
-                if abs(size) >= sizeTB:
-                    return '%dT' % (size >> 40)
-                elif abs(size) >= sizeGB:
-                    return '%dG' % (size >> 30)
-                elif abs(size) >= sizeMB:
-                    return '%dM' % (size >> 20)
-                elif abs(size) >= sizeKB:
-                    return '%dK' % (size >> 10)
-                else:
-                    return '%d' % (size)
-            except:
-                return '?'
-        # Float type #
-        else:
-            try:
-                if abs(size) >= sizeTB:
-                    return '%.1fT' % ((size >> 30) / 1024.0)
-                elif abs(size) >= sizeGB:
-                    return '%.1fG' % ((size >> 20) / 1024.0)
-                elif abs(size) >= sizeMB:
-                    return '%.1fM' % ((size >> 10) / 1024.0)
-                elif abs(size) >= sizeKB:
-                    return '%.1fK' % (size / 1024.0)
-                else:
-                    return '%d' % (size)
-            except:
-                return '?'
-
-
-
-    @staticmethod
-    def convertTime(time):
-        def convertHour(size):
-            sizeK = 1000
-            sizeM = sizeK * 1000
-            sizeG = sizeM * 1000
-            sizeT = sizeG * 1000
-
-            try:
-                if size >= sizeT:
-                    return '%dT' % (size / sizeT)
-                elif size >= sizeG:
-                    return '%dG' % (size / sizeG)
-                elif size >= sizeM:
-                    return '%dM' % (size / sizeM)
-                elif size >= sizeK:
-                    return '%dK' % (size / sizeK)
-                else:
-                    return '%d' % (size)
-            except:
-                return '?'
-
-        try:
-            m, s = divmod(time, 60)
-            h, m = divmod(m, 60)
-            ctime = "%3s:%02d:%02d" % (convertHour(h), m, s)
-        except:
-            ctime = "%3s:%02s:%02s" % ('?', '?', '?')
-
-        return ctime
 
 
 
@@ -11307,52 +11358,6 @@ class SystemManager(object):
             return False
         except:
             return False
-
-
-
-    @staticmethod
-    def writeJsonObject(jsonObj, fd=None, trunc=False, path=None):
-        if fd:
-            try:
-                if trunc:
-                    fd.seek(0, 0)
-                    fd.truncate()
-
-                fd.write(jsonObj)
-
-                fd.flush()
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printWarning(\
-                    "Fail to write JSON format data because %s" % err)
-            return
-
-        # check write option #
-        if trunc:
-            perm = 'w'
-        else:
-            perm = 'a'
-
-        # open the file #
-        try:
-            with open(path, perm) as fd:
-                fd.write(jsonObj)
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printError(\
-                "Fail to write JSON format data to %s because %s" % \
-                    (path, err))
-            sys.exit(0)
-
-
-
-    @staticmethod
-    def makeJsonDict(strObj):
-        try:
-            strObj = strObj.replace("'", '"')
-            return SystemManager.getPkg('json').loads(strObj)
-        except:
-            return None
 
 
 
@@ -13968,10 +13973,10 @@ Copyright:
         try:
             cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
             perfbuf = '%sCycle: %s / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(cpucycle))
+                (perfbuf, UtilManager.convertSize2Unit(cpucycle))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
             perfbuf = '%sInst: %s / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(inst))
+                (perfbuf, UtilManager.convertSize2Unit(inst))
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
         except:
@@ -13983,7 +13988,7 @@ Copyright:
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
             perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(cachemiss),\
+                (perfbuf, UtilManager.convertSize2Unit(cachemiss),\
                 cachemissrate)
         except:
             pass
@@ -13994,7 +13999,7 @@ Copyright:
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
             perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(branchmiss),\
+                (perfbuf, UtilManager.convertSize2Unit(branchmiss),\
                 branchmissrate)
         except:
             pass
@@ -14002,7 +14007,7 @@ Copyright:
         # CPU stats #
         try:
             perfbuf = '%sClk: %s / ' % \
-                (perfbuf, SystemManager.convertSize2Unit(\
+                (perfbuf, UtilManager.convertSize2Unit(\
                 value['PERF_COUNT_SW_CPU_CLOCK']))
         except:
             pass
@@ -15140,7 +15145,7 @@ Copyright:
 
                 try:
                     fsize = \
-                        SystemManager.convertSize2Unit(\
+                        UtilManager.convertSize2Unit(\
                             int(os.path.getsize(SystemManager.inputFile)))
                 except:
                     fsize = '?'
@@ -15222,7 +15227,7 @@ Copyright:
             # print output info #
             try:
                 fsize = \
-                    SystemManager.convertSize2Unit(\
+                    UtilManager.convertSize2Unit(\
                         int(os.path.getsize(SystemManager.inputFile)))
             except:
                 fsize = '?'
@@ -15297,7 +15302,7 @@ Copyright:
                             fw.write(fr.read())
 
                             try:
-                                fsize = SystemManager.convertSize2Unit(\
+                                fsize = UtilManager.convertSize2Unit(\
                                     int(os.path.getsize(output)))
                             except:
                                 fsize = '?'
@@ -15352,7 +15357,7 @@ Copyright:
             f.writelines(lines)
 
             try:
-                fsize = SystemManager.convertSize2Unit(\
+                fsize = UtilManager.convertSize2Unit(\
                     int(os.path.getsize(SystemManager.outputFile)))
             except:
                 fsize = '?'
@@ -16120,7 +16125,7 @@ Copyright:
 
         try:
             fsize = \
-                SystemManager.convertSize2Unit(\
+                UtilManager.convertSize2Unit(\
                 int(os.path.getsize(SystemManager.imagePath)))
         except:
             fsize = '?'
@@ -19165,7 +19170,7 @@ Copyright:
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
                         (targetPath, \
-                        SystemManager.convertSize2Unit(\
+                        UtilManager.convertSize2Unit(\
                             os.path.getsize(targetPath)), \
                         ':'.join(list(map(str, addr))), remotePath))
             except:
@@ -19227,7 +19232,7 @@ Copyright:
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
                     (targetPath, \
-                    SystemManager.convertSize2Unit(\
+                    UtilManager.convertSize2Unit(\
                         os.path.getsize(targetPath)), \
                     ':'.join(list(map(str, addr))), origPath))
             except:
@@ -20092,8 +20097,8 @@ Copyright:
             SystemManager.printInfo((\
                 'allocated %s of physical memory, '
                 'additionally used %s of physical memory for running') % \
-                (SystemManager.convertSize2Unit(len(buffer), True), \
-                SystemManager.convertSize2Unit(rssSize, True)))
+                (UtilManager.convertSize2Unit(len(buffer), True), \
+                UtilManager.convertSize2Unit(rssSize, True)))
 
             signal.pause()
 
@@ -20140,7 +20145,7 @@ Copyright:
             sys.exit(0)
 
         # convert meory size #
-        size = SystemManager.convertUnit2Size(size)
+        size = UtilManager.convertUnit2Size(size)
         if not size:
             SystemManager.printError(\
                 ("wrong option value to test memory allocation, "
@@ -21496,7 +21501,7 @@ Copyright:
             try:
                 SystemManager.fileForPrint.flush()
 
-                fsize = SystemManager.convertSize2Unit(\
+                fsize = UtilManager.convertSize2Unit(\
                     int(os.fstat(SystemManager.fileForPrint.fileno()).st_size))
 
                 SystemManager.printInfo(\
@@ -22420,7 +22425,7 @@ Copyright:
 
         # system uptime #
         try:
-            uptime = SystemManager.convertTime(SystemManager.uptime).strip()
+            uptime = UtilManager.convertTime(SystemManager.uptime).strip()
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
 
@@ -22433,7 +22438,7 @@ Copyright:
         try:
             runtime = \
                 long(SystemManager.uptime) - long(SystemManager.startRunTime)
-            runtime = SystemManager.convertTime(runtime).strip()
+            runtime = UtilManager.convertTime(runtime).strip()
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Runtime', runtime))
 
@@ -23277,8 +23282,8 @@ Copyright:
         cnt = 0
         prevOwner = None
         now = time.mktime(time.gmtime())
-        convertSizeFunc = SystemManager.convertSize2Unit
-        convertTimeFunc = SystemManager.convertTime
+        convertSizeFunc = UtilManager.convertSize2Unit
+        convertTimeFunc = UtilManager.convertTime
 
         # merge stats per-owner #
         ownerData = dict()
@@ -23430,7 +23435,7 @@ Copyright:
                 "Size", "Packet", "Error", "Drop", "Multicast"))
         SystemManager.infoBufferPrint(twoLine)
 
-        convertFunc = SystemManager.convertSize2Unit
+        convertFunc = UtilManager.convertSize2Unit
 
         cnt = 1
         for dev, val in sorted(self.networkInfo.items(), key=lambda e:e[0]):
@@ -23576,12 +23581,12 @@ Copyright:
                 read = readSize = \
                     (int(afterInfo['sectorRead']) - \
                         int(beforeInfo['sectorRead'])) << 9
-                readSize = SystemManager.convertSize2Unit(readSize)
+                readSize = UtilManager.convertSize2Unit(readSize)
 
                 write = writeSize = \
                     (int(afterInfo['sectorWrite']) - \
                         int(beforeInfo['sectorWrite'])) << 9
-                writeSize = SystemManager.convertSize2Unit(writeSize)
+                writeSize = UtilManager.convertSize2Unit(writeSize)
 
                 totalInfo['read'] += read
                 totalInfo['write'] += write
@@ -23610,9 +23615,9 @@ Copyright:
                 except:
                     pass
 
-                total = SystemManager.convertSize2Unit(total)
-                free = SystemManager.convertSize2Unit(free)
-                avail = SystemManager.convertSize2Unit(avail)
+                total = UtilManager.convertSize2Unit(total)
+                free = UtilManager.convertSize2Unit(free)
+                avail = UtilManager.convertSize2Unit(avail)
             except:
                 pass
 
@@ -23693,15 +23698,15 @@ Copyright:
                     usage = 0
 
                 totalInfo['total'] = \
-                    SystemManager.convertSize2Unit(totalInfo['total'])
+                    UtilManager.convertSize2Unit(totalInfo['total'])
                 totalInfo['free'] = \
-                    SystemManager.convertSize2Unit(totalInfo['free'])
+                    UtilManager.convertSize2Unit(totalInfo['free'])
                 totalInfo['favail'] = \
-                    SystemManager.convertSize2Unit(totalInfo['favail'])
+                    UtilManager.convertSize2Unit(totalInfo['favail'])
                 totalInfo['read'] = \
-                    SystemManager.convertSize2Unit(totalInfo['read'])
+                    UtilManager.convertSize2Unit(totalInfo['read'])
                 totalInfo['write'] = \
-                    SystemManager.convertSize2Unit(totalInfo['write'])
+                    UtilManager.convertSize2Unit(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
             except:
                 totalInfo['use'] = '?%'
@@ -23774,7 +23779,7 @@ Copyright:
             after['Mlocked'] = '0'
 
         # define convert function #
-        convertFunc = SystemManager.convertSize2Unit
+        convertFunc = UtilManager.convertSize2Unit
 
         # print memory info #
         SystemManager.infoBufferPrint('\n[System Memory Info]')
@@ -24330,7 +24335,7 @@ class Debugger(object):
                         break
                 return ret
             else:
-                data = SystemManager.word2bstring(data)
+                data = UtilManager.word2bstring(data)
 
                 # converting integer-type data #
                 if 0 <= size <= 1:
@@ -24382,7 +24387,7 @@ class Debugger(object):
 
         # convert type from bytes to word #
         for idx in xrange(0, len(fdata), wordSize):
-            data = SystemManager.bstring2word(fdata[idx:idx+wordSize])
+            data = UtilManager.bstring2word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret < 0:
@@ -24418,7 +24423,7 @@ class Debugger(object):
                 return
 
             # convert a word to a byte string #
-            word = SystemManager.word2bstring(word)
+            word = UtilManager.word2bstring(word)
             if not word:
                 return
 
@@ -24695,7 +24700,7 @@ class Debugger(object):
             try:
                 deref = '"%s"' % deref.decode("utf-8")
             except:
-                deref = hex(SystemManager.bstring2word(deref))
+                deref = hex(UtilManager.bstring2word(deref))
             SystemManager.printPipe(\
                 '%s: %x [%s]' % (reg, val, deref))
         SystemManager.printPipe(oneLine)
@@ -28940,11 +28945,11 @@ class ThreadAnalyzer(object):
                         busy, read, write, free = item.split('/')
                         busyList.append(busy)
                         readList.append(\
-                            SystemManager.convertUnit2Size(read) >> 10)
+                            UtilManager.convertUnit2Size(read) >> 10)
                         writeList.append(\
-                            SystemManager.convertUnit2Size(write) >> 10)
+                            UtilManager.convertUnit2Size(write) >> 10)
                         freeList.append(\
-                            SystemManager.convertUnit2Size(free) >> 10)
+                            UtilManager.convertUnit2Size(free) >> 10)
 
                     # save previous info #
                     storageUsage[sname]['busy'] = busyList
@@ -28970,9 +28975,9 @@ class ThreadAnalyzer(object):
                     for item in intervalList.split():
                         recv, tran = item.split('/')
                         recvList.append(\
-                            SystemManager.convertUnit2Size(recv) >> 10)
+                            UtilManager.convertUnit2Size(recv) >> 10)
                         tranList.append(\
-                            SystemManager.convertUnit2Size(tran) >> 10)
+                            UtilManager.convertUnit2Size(tran) >> 10)
 
                     # save previous info #
                     networkUsage[sname]['recv'] = recvList
@@ -29096,7 +29101,7 @@ class ThreadAnalyzer(object):
             def autopct(pct):
                 total = sum(values)
                 val = int(round(pct*total/100.0)) << 20
-                val = SystemManager.convertSize2Unit(val, True)
+                val = UtilManager.convertSize2Unit(val, True)
                 usage = '{v:s} ({p:.0f}%)'.format(p=pct,v=val)
                 line = '=' * 7
                 string = '{s:1}\n{l:1}{d:1}'.\
@@ -29169,23 +29174,23 @@ class ThreadAnalyzer(object):
                     value[propList.index('swap')])
 
                 # set private dirty size #
-                pdrt = SystemManager.convertSize2Unit(\
+                pdrt = UtilManager.convertSize2Unit(\
                     value[propList.index('pdirty')] << 10, True)
 
                 # set shared dirty size #
-                sdrt = SystemManager.convertSize2Unit(\
+                sdrt = UtilManager.convertSize2Unit(\
                     value[propList.index('sdirty')] << 10, True)
 
                 # set rss size #
-                rss = SystemManager.convertSize2Unit(\
+                rss = UtilManager.convertSize2Unit(\
                     value[propList.index('rss')] << 20, True)
 
                 # set swap size #
-                swap = SystemManager.convertSize2Unit(\
+                swap = UtilManager.convertSize2Unit(\
                     value[propList.index('swap')] << 20, True)
 
                 # set locked size #
-                locked = SystemManager.convertSize2Unit(\
+                locked = UtilManager.convertSize2Unit(\
                     value[propList.index('locked')] << 10, True)
 
                 self.details.append((\
@@ -29214,23 +29219,23 @@ class ThreadAnalyzer(object):
 
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            total = SystemManager.convertSize2Unit((rss+swap) << 20)
+            total = UtilManager.convertSize2Unit((rss+swap) << 20)
 
-            rss = SystemManager.convertSize2Unit(rss << 20)
-            swap = SystemManager.convertSize2Unit(swap << 20)
+            rss = UtilManager.convertSize2Unit(rss << 20)
+            swap = UtilManager.convertSize2Unit(swap << 20)
 
-            vmem = SystemManager.convertSize2Unit(\
+            vmem = UtilManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('vmem')] << 20)
 
-            pss = SystemManager.convertSize2Unit(\
+            pss = UtilManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('pss')] << 20)
 
-            lock = SystemManager.convertSize2Unit(\
+            lock = UtilManager.convertSize2Unit(\
                 item['[TOTAL]'][propList.index('locked')] << 10)
 
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            dirty = SystemManager.convertSize2Unit(dirty << 10)
+            dirty = UtilManager.convertSize2Unit(dirty << 10)
 
             totalList =\
                 [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
@@ -29641,7 +29646,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convertSize2Unit = SystemManager.convertSize2Unit
+            convertSize2Unit = UtilManager.convertSize2Unit
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -30237,7 +30242,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convertSize2Unit = SystemManager.convertSize2Unit
+            convertSize2Unit = UtilManager.convertSize2Unit
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -30903,7 +30908,7 @@ class ThreadAnalyzer(object):
             clf()
             try:
                 fsize = \
-                    SystemManager.convertSize2Unit(\
+                    UtilManager.convertSize2Unit(\
                     int(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
@@ -32789,8 +32794,8 @@ class ThreadAnalyzer(object):
 
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
-                    start = SystemManager.convertSize2Unit(optSize)
-                    end = SystemManager.convertSize2Unit(optSize << 1)
+                    start = UtilManager.convertSize2Unit(optSize)
+                    end = UtilManager.convertSize2Unit(optSize << 1)
                     SystemManager.printPipe(\
                         "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
                         format('', '', '', '[%7s - %7s]' % (start, end),\
@@ -34092,7 +34097,7 @@ class ThreadAnalyzer(object):
 
         # Get Storage resource usage #
         if len(tokenList) == 11 and tokenList[0][0] == '/':
-            convertUnit2Size = SystemManager.convertUnit2Size
+            convertUnit2Size = UtilManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
 
@@ -34165,7 +34170,7 @@ class ThreadAnalyzer(object):
                 tokenList[0].strip() == 'Dev':
                 return
 
-            convertUnit2Size = SystemManager.convertUnit2Size
+            convertUnit2Size = UtilManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('netdev', dict())
 
@@ -35025,7 +35030,7 @@ class ThreadAnalyzer(object):
     def printStorageInterval():
         TA = ThreadAnalyzer
 
-        convertSize2Unit = SystemManager.convertSize2Unit
+        convertSize2Unit = UtilManager.convertSize2Unit
 
         # Print title #
         SystemManager.printPipe('\n[Top Storage Info] (Unit: %)\n')
@@ -35101,7 +35106,7 @@ class ThreadAnalyzer(object):
     def printNetworkInterval():
         TA = ThreadAnalyzer
 
-        convertSize2Unit = SystemManager.convertSize2Unit
+        convertSize2Unit = UtilManager.convertSize2Unit
 
         # Print title #
         SystemManager.printPipe('\n[Top Network Info] (Unit: %)\n')
@@ -35230,7 +35235,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe("\n\tNone")
             return
 
-        convertFunc = SystemManager.convertSize2Unit
+        convertFunc = UtilManager.convertSize2Unit
 
         SystemManager.printPipe((\
             "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} "
@@ -39903,8 +39908,8 @@ class ThreadAnalyzer(object):
         # convert network usage #
         try:
             netIO = '%s/%s' % \
-                (SystemManager.convertSize2Unit(netIn, True), \
-                SystemManager.convertSize2Unit(netOut, True))
+                (UtilManager.convertSize2Unit(netIn, True), \
+                UtilManager.convertSize2Unit(netOut, True))
         except:
             netIO = '-/-'
 
@@ -40667,7 +40672,7 @@ class ThreadAnalyzer(object):
                     prop = 'Size:'
                     tmpstr = "%s%s%7s / " % \
                         (tmpstr, "VSS:", \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                 except:
                     tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
@@ -40675,7 +40680,7 @@ class ThreadAnalyzer(object):
                     prop = 'Rss:'
                     tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                     rss += item[prop]
                 except:
                     tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
@@ -40684,7 +40689,7 @@ class ThreadAnalyzer(object):
                     prop = 'Pss:'
                     tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                     pss += item[prop]
                 except:
                     tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
@@ -40693,7 +40698,7 @@ class ThreadAnalyzer(object):
                     prop = 'Swap:'
                     tmpstr = "%s%s%7s / " % \
                         (tmpstr, prop.upper(), \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                 except:
                     tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
 
@@ -40701,7 +40706,7 @@ class ThreadAnalyzer(object):
                     prop = 'AnonHugePages:'
                     tmpstr = "%s%s:%5s / " % \
                         (tmpstr, 'HUGE', \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        UtilManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%5s / " % (tmpstr, 'HUGE', 0)
 
@@ -40709,7 +40714,7 @@ class ThreadAnalyzer(object):
                     prop = 'Locked:'
                     tmpstr = "%s%s%6s / " % \
                         (tmpstr, 'LOCK:', \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        UtilManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s%6s / " % (tmpstr, 'LOCK:', 0)
 
@@ -40724,7 +40729,7 @@ class ThreadAnalyzer(object):
                     sss += item[prop]
                     tmpstr = "%s%s:%7s / " % \
                         (tmpstr, 'SDRT', \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                 except:
                     tmpstr = "%s%s:%7s / " % (tmpstr, 'SDRT', 0)
 
@@ -40732,7 +40737,7 @@ class ThreadAnalyzer(object):
                     prop = 'Private_Dirty:'
                     tmpstr = "%s%s:%7s" % \
                         (tmpstr, 'PDRT', \
-                        SystemManager.convertSize2Unit(item[prop] << 10))
+                        UtilManager.convertSize2Unit(item[prop] << 10))
                 except:
                     tmpstr = "%s%s:%7s" % (tmpstr, 'PDRT', 0)
 
@@ -40741,7 +40746,7 @@ class ThreadAnalyzer(object):
                     prop = 'NOPM'
                     tmpstr = "%s%s:%5s" % \
                         (tmpstr, prop, \
-                        SystemManager.convertSize2Unit(item[prop] << 10, True))
+                        UtilManager.convertSize2Unit(item[prop] << 10, True))
                 except:
                     tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
                 '''
@@ -40752,7 +40757,7 @@ class ThreadAnalyzer(object):
                 if SystemManager.wssEnable:
                     # get current WSS size #
                     try:
-                        wss =  SystemManager.convertSize2Unit(\
+                        wss =  UtilManager.convertSize2Unit(\
                             item['Referenced:'] << 10, False)
                     except:
                         wss =  0
@@ -40959,7 +40964,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint('%s\n' % twoLine)
 
-        convertFunc = SystemManager.convertSize2Unit
+        convertFunc = UtilManager.convertSize2Unit
 
         if SystemManager.jsonPrintEnable:
             if not 'net' in SystemManager.jsonData:
@@ -41004,7 +41009,7 @@ class ThreadAnalyzer(object):
         # update storage usage #
         SystemManager.sysInstance.updateStorageInfo()
 
-        convertSize2Unit = SystemManager.convertSize2Unit
+        convertSize2Unit = UtilManager.convertSize2Unit
 
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint((\
@@ -41492,7 +41497,7 @@ class ThreadAnalyzer(object):
             else:
                 schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
-            lifeTime = SystemManager.convertTime(value['runtime'])
+            lifeTime = UtilManager.convertTime(value['runtime'])
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
@@ -41878,7 +41883,7 @@ class ThreadAnalyzer(object):
                 schedValue = "%3d" % (abs(int(stat[self.prioIdx]) + 1))
 
             runtime = value['runtime'] + SystemManager.uptimeDiff
-            lifeTime = SystemManager.convertTime(runtime)
+            lifeTime = UtilManager.convertTime(runtime)
 
             try:
                 swapSize = \
@@ -42018,7 +42023,7 @@ class ThreadAnalyzer(object):
         # REPORT service #
         if data[0] == '{':
             # convert report data to dictionary type #
-            reportStat = SystemManager.makeJsonDict(data)
+            reportStat = UtilManager.makeJsonDict(data)
 
             # check converting result #
             if not reportStat:
@@ -42277,7 +42282,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['user'] = data['utime']
                 evtdata[rank]['kernel'] = data['stime']
                 evtdata[rank]['runtime'] = \
-                    SystemManager.convertTime(\
+                    UtilManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
                 rank += 1
@@ -42313,7 +42318,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['rss'] = rss
                 evtdata[rank]['text'] = text
                 evtdata[rank]['runtime'] = \
-                    SystemManager.convertTime(\
+                    UtilManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
                 # swap #
@@ -42370,7 +42375,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                 evtdata[rank]['iowait'] = data['btime']
                 evtdata[rank]['runtime'] = \
-                    SystemManager.convertTime(\
+                    UtilManager.convertTime(\
                         data['runtime']).replace(' ', '')
 
                 rank += 1
@@ -42425,7 +42430,7 @@ class ThreadAnalyzer(object):
                 os.rename(SystemManager.inputFile, filePath)
 
                 try:
-                    fsize = SystemManager.convertSize2Unit(\
+                    fsize = UtilManager.convertSize2Unit(\
                         int(os.path.getsize(filePath)))
                 except:
                     fsize = '?'
@@ -42648,7 +42653,7 @@ class ThreadAnalyzer(object):
             processData['cpu']['kernel']['pct'] = data['stime']
             processData['cpu']['total']['pct'] = data['ttime']
             processData['cpu']['runtime'] = \
-                SystemManager.convertTime(\
+                UtilManager.convertTime(\
                     data['runtime']).replace(' ', '')
 
             rss = long(data['stat'][self.rssIdx]) >> 8
@@ -42676,7 +42681,7 @@ class ThreadAnalyzer(object):
     def tranData(self, data):
         # report system status to file #
         if SystemManager.reportObject:
-            SystemManager.writeJsonObject(\
+            UtilManager.writeJsonObject(\
                 data, fd=SystemManager.reportObject, \
                 trunc=SystemManager.truncEnable)
 
