@@ -2608,6 +2608,15 @@ class ConfigManager(object):
 class UtilManager(object):
     """ Manager for utilities """
 
+    progressChar = {
+            0: '|',
+            1: '/',
+            2: '-',
+            3: '\\',
+    }
+
+
+
     @staticmethod
     def word2bstring(word):
         try:
@@ -2704,6 +2713,27 @@ class UtilManager(object):
 
 
     @staticmethod
+    def convertUnit2Time(data):
+        if type(data) is int or type(data) is long:
+            return data
+        elif data.isdigit():
+            ret = int(data)
+        elif data.upper().endswith('S'):
+            ret = int(data[:-1])
+        elif data.upper().endswith('M'):
+            ret = int(data[:-1]) * 60
+        elif data.upper().endswith('H'):
+            ret = int(data[:-1]) * 60 * 60
+        elif data.upper().endswith('D'):
+            ret = int(data[:-1]) * 60 * 60 * 24
+        else:
+            ret = data
+
+        return ret
+
+
+
+    @staticmethod
     def convertUnit2Size(value):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -2775,6 +2805,61 @@ class UtilManager(object):
                 "Fail to write JSON format data to %s because %s" % \
                     (path, err))
             sys.exit(0)
+
+
+
+    @staticmethod
+    def printProgress(current, dest):
+        try:
+            div = round((current / float(dest)) * 100, 1)
+        except:
+            div = 0
+
+        percent = int(div)
+
+        if div != percent:
+            return
+
+        mod = percent & 3
+
+        sys.stdout.write('%3d%% %s%s' % \
+            (percent, UtilManager.progressChar[mod], '\b' * 6))
+        sys.stdout.flush()
+
+
+
+    @staticmethod
+    def deleteProgress():
+        sys.stdout.write(' ' * 6)
+        sys.stdout.flush()
+
+
+
+    @staticmethod
+    def which(file):
+        pathList = []
+        for path in os.environ["PATH"].split(os.pathsep):
+            if os.path.exists(os.path.join(path, file)):
+                pathList.append(os.path.join(path, file))
+        if len(pathList) == 0:
+            return None
+        else:
+            return pathList
+
+
+
+    @staticmethod
+    def makeJsonString(dictObj):
+        try:
+            jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+        except:
+            return None
+
+        # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
+        if not SystemManager.encodeEnable:
+            jsonString = re.sub("\s", "", jsonString) + "\n"
+
+        return jsonString
 
 
 
@@ -2978,9 +3063,9 @@ class NetworkManager(object):
                             break
 
                         # print progress #
-                        SystemManager.printProgress(curSize, totalSize)
+                        UtilManager.printProgress(curSize, totalSize)
 
-                SystemManager.deleteProgress()
+                UtilManager.deleteProgress()
 
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
@@ -3039,7 +3124,7 @@ class NetworkManager(object):
                     buf = fd.read(SystemManager.packetSize)
                     while buf:
                         # print progress #
-                        SystemManager.printProgress(curSize, totalSize)
+                        UtilManager.printProgress(curSize, totalSize)
 
                         ret = sender.send(buf)
                         if not ret:
@@ -3049,7 +3134,7 @@ class NetworkManager(object):
 
                         buf = fd.read(SystemManager.packetSize)
 
-                SystemManager.deleteProgress()
+                UtilManager.deleteProgress()
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
@@ -4719,7 +4804,7 @@ class FunctionAnalyzer(object):
         # Merge call data by symbol or address #
         for val in self.userCallData:
             lineCnt += 1
-            SystemManager.printProgress(lineCnt, lastIdx - 1)
+            UtilManager.printProgress(lineCnt, lastIdx - 1)
 
             pos = val[0]
             stack = val[1]
@@ -4997,7 +5082,7 @@ class FunctionAnalyzer(object):
             else:
                 SystemManager.printWarning("Fail to recognize event %s" % event)
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         # Print summary about ignored events #
         self.printIgnoreEvents()
@@ -5045,7 +5130,7 @@ class FunctionAnalyzer(object):
             self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
             curIdx += 1
 
-            SystemManager.printProgress(curIdx, lastIdx)
+            UtilManager.printProgress(curIdx, lastIdx)
 
             # Handle thumbcode #
             if idx == '00c0ffee':
@@ -5101,7 +5186,7 @@ class FunctionAnalyzer(object):
             if self.getSymbolInfo(binPath, offsetList) == -1:
                 nrNoFile += 1
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         if nrNoFile > 0:
             SystemManager.printWarning(\
@@ -5213,7 +5298,7 @@ class FunctionAnalyzer(object):
                 pass
 
             # get system addr2line path #
-            addr2linePath = SystemManager.which('addr2line')
+            addr2linePath = UtilManager.which('addr2line')
 
             if not addr2linePath:
                 SystemManager.printError((\
@@ -5753,7 +5838,7 @@ class FunctionAnalyzer(object):
             SystemManager.dbgEventLine += 1
 
             ret = self.parseEventLog(liter, desc, plist)
-            SystemManager.printProgress(curIdx, lastIdx)
+            UtilManager.printProgress(curIdx, lastIdx)
 
             # Skip lines before first meaningful event #
             if not self.lastCore:
@@ -5779,7 +5864,7 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         # Save stack of last events per core #
         for idx in list(self.coreCtx.keys()):
@@ -9143,7 +9228,7 @@ class LeakAnalyzer(object):
         cnt = 0
         total = len(self.posData)
         for pos, val in self.posData.items():
-            SystemManager.printProgress(cnt, total)
+            UtilManager.printProgress(cnt, total)
             cnt += 1
 
             # merge by symbol #
@@ -9191,7 +9276,7 @@ class LeakAnalyzer(object):
 
             self.totalLeakSize += val['lastPosSize']
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
 
 
@@ -9201,7 +9286,7 @@ class LeakAnalyzer(object):
 
         # resolve all symbols #
         for pos, val in self.posData.items():
-            SystemManager.printProgress(cnt, total)
+            UtilManager.printProgress(cnt, total)
             cnt += 1
 
             ret = proc.getSymbolInfo(int(pos, 16))
@@ -9212,7 +9297,7 @@ class LeakAnalyzer(object):
 
         # resolve symbols in stacks #
         for pos, val in self.callData.items():
-            SystemManager.printProgress(cnt, total)
+            UtilManager.printProgress(cnt, total)
             cnt += 1
 
             if not 'stack' in val:
@@ -9232,7 +9317,7 @@ class LeakAnalyzer(object):
                 self.posData[posid]['callList'] = dict()
                 self.posData[posid]['callList'][pos] = None
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
 
 
@@ -9240,7 +9325,7 @@ class LeakAnalyzer(object):
         callinfo = {}
 
         for idx, line in enumerate(lines):
-            SystemManager.printProgress(idx, len(lines))
+            UtilManager.printProgress(idx, len(lines))
 
             items = line.split(', ')
 
@@ -9284,7 +9369,7 @@ class LeakAnalyzer(object):
 
             callinfo[time] = item
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         return callinfo
 
@@ -10457,12 +10542,6 @@ class SystemManager(object):
     repeatInterval = 0
     repeatCount = 0
     progressCnt = 0
-    progressChar = {
-            0: '|',
-            1: '/',
-            2: '-',
-            3: '\\',
-    }
 
     cmdList = {}
     rcmdList = {}
@@ -11161,21 +11240,6 @@ class SystemManager(object):
 
 
     @staticmethod
-    def makeJsonString(dictObj):
-        try:
-            jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
-        except:
-            return None
-
-        # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
-        if not SystemManager.encodeEnable:
-            jsonString = re.sub("\s", "", jsonString) + "\n"
-
-        return jsonString
-
-
-
-    @staticmethod
     def getMemStat(pid):
         try:
             statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
@@ -11503,19 +11567,6 @@ class SystemManager(object):
             return
         else:
             print('%s: %f' % (msg, SystemManager.timestamp - prev))
-
-
-
-    @staticmethod
-    def which(file):
-        pathList = []
-        for path in os.environ["PATH"].split(os.pathsep):
-            if os.path.exists(os.path.join(path, file)):
-                pathList.append(os.path.join(path, file))
-        if len(pathList) == 0:
-            return None
-        else:
-            return pathList
 
 
 
@@ -14252,7 +14303,7 @@ Copyright:
                     # use external objdump #
                     if not addr:
                         # get system objdump path #
-                        objdumpPath = SystemManager.which('objdump')
+                        objdumpPath = UtilManager.which('objdump')
 
                         if not objdumpPath:
                             SystemManager.printError((\
@@ -15508,33 +15559,6 @@ Copyright:
 
 
     @staticmethod
-    def printProgress(current, dest):
-        try:
-            div = round((current / float(dest)) * 100, 1)
-        except:
-            div = 0
-
-        percent = int(div)
-
-        if div != percent:
-            return
-
-        mod = percent & 3
-
-        sys.stdout.write('%3d%% %s%s' % \
-            (percent, SystemManager.progressChar[mod], '\b' * 6))
-        sys.stdout.flush()
-
-
-
-    @staticmethod
-    def deleteProgress():
-        sys.stdout.write(' ' * 6)
-        sys.stdout.flush()
-
-
-
-    @staticmethod
     def addPrint(string, newline=1):
         SystemManager.bufferString = \
             "%s%s" % (SystemManager.bufferString, string)
@@ -16140,7 +16164,7 @@ Copyright:
         # JSON mode #
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = SystemManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarning(\
                     "Fail to convert report data to JSON type")
@@ -16213,7 +16237,7 @@ Copyright:
                 SystemManager.printStreamEnable == False):
             try:
                 if sys.platform.startswith('linux'):
-                    if SystemManager.which('less'):
+                    if UtilManager.which('less'):
                         defopt = '-FRSXM'
 
                         # verify pager option support #
@@ -16227,7 +16251,7 @@ Copyright:
                         # run less as pager #
                         SystemManager.pipeForPrint = \
                             os.popen(poption, 'w')
-                    elif SystemManager.which('more'):
+                    elif UtilManager.which('more'):
                         SystemManager.pipeForPrint = \
                                 os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
@@ -16537,27 +16561,6 @@ Copyright:
 
 
     @staticmethod
-    def convertUnit2Time(data):
-        if type(data) is int or type(data) is long:
-            return data
-        elif data.isdigit():
-            ret = int(data)
-        elif data.upper().endswith('S'):
-            ret = int(data[:-1])
-        elif data.upper().endswith('M'):
-            ret = int(data[:-1]) * 60
-        elif data.upper().endswith('H'):
-            ret = int(data[:-1]) * 60 * 60
-        elif data.upper().endswith('D'):
-            ret = int(data[:-1]) * 60 * 60 * 24
-        else:
-            ret = data
-
-        return ret
-
-
-
-    @staticmethod
     def parseRuntimeOption(value):
         SystemManager.countEnable = True
 
@@ -16565,7 +16568,7 @@ Copyright:
         if len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
                 # get interval #
-                interval = SystemManager.convertUnit2Time(repeatParams[0])
+                interval = UtilManager.convertUnit2Time(repeatParams[0])
                 SystemManager.intervalEnable = interval
                 SystemManager.repeatInterval = interval
 
@@ -16590,7 +16593,7 @@ Copyright:
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
-                interval = SystemManager.convertUnit2Time(repeatParams[0])
+                interval = UtilManager.convertUnit2Time(repeatParams[0])
 
                 # check interval type #
                 int(interval)
@@ -19227,7 +19230,7 @@ Copyright:
                         else:
                             break
 
-                        #SystemManager.printProgress(curSize, totalSize)
+                        #UtilManager.printProgress(curSize, totalSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
@@ -19823,7 +19826,7 @@ Copyright:
 
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = SystemManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarning(\
                     "Fail to convert report data to JSON type")
@@ -20129,7 +20132,7 @@ Copyright:
 
         # convert time #
         try:
-            interval = SystemManager.convertUnit2Time(interval)
+            interval = UtilManager.convertUnit2Time(interval)
             count = int(count)
         except:
             SystemManager.printError(\
@@ -28139,7 +28142,7 @@ class ThreadAnalyzer(object):
 
         for idx, log in enumerate(lines):
             self.parse(log)
-            SystemManager.printProgress(idx, SystemManager.totalLine)
+            UtilManager.printProgress(idx, SystemManager.totalLine)
 
             # save last job per core #
             self.lastJob.setdefault(self.lastCore, dict(self.init_lastJob))
@@ -28150,7 +28153,7 @@ class ThreadAnalyzer(object):
             if self.stopFlag:
                 break
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         # update anonymous comm #
         for idx, val in self.threadData.items():
@@ -28515,7 +28518,7 @@ class ThreadAnalyzer(object):
         context = None
 
         while 1:
-            SystemManager.printProgress(finalLine, len(logBuf))
+            UtilManager.printProgress(finalLine, len(logBuf))
 
             line = logBuf[finalLine]
 
@@ -29009,7 +29012,7 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         # check output data #
         try:
@@ -34354,9 +34357,9 @@ class ThreadAnalyzer(object):
                 ThreadAnalyzer.parseProcLine(idx, line)
 
             idx += 1
-            SystemManager.printProgress(idx, len(SystemManager.procBuffer))
+            UtilManager.printProgress(idx, len(SystemManager.procBuffer))
 
-        SystemManager.deleteProgress()
+        UtilManager.deleteProgress()
 
         if idx == 0:
             return
@@ -41908,7 +41911,7 @@ class ThreadAnalyzer(object):
                 "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
                 "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
                 "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
-                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:^21}|\n").\
+                "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
                 str(schedValue), \
@@ -42447,7 +42450,7 @@ class ThreadAnalyzer(object):
                     SystemManager.inputFile, filePath)
 
         # convert dict data to JSON-type string #
-        jsonObj = SystemManager.makeJsonString(self.reportData)
+        jsonObj = UtilManager.makeJsonString(self.reportData)
         if not jsonObj:
             SystemManager.printWarning(\
                 "Fail to convert report data to JSON type")
@@ -42518,7 +42521,7 @@ class ThreadAnalyzer(object):
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
 
-        jstr = SystemManager.makeJsonString(reportCpuData)
+        jstr = UtilManager.makeJsonString(reportCpuData)
         if jstr:
             reportElasticData += jstr
 
@@ -42551,7 +42554,7 @@ class ThreadAnalyzer(object):
         reportMemoryData.update(beatFields)
         reportMemoryData.update(systemMemoryFields)
 
-        jstr = SystemManager.makeJsonString(reportMemoryData)
+        jstr = UtilManager.makeJsonString(reportMemoryData)
         if jstr:
             reportElasticData += jstr
 
@@ -42575,7 +42578,7 @@ class ThreadAnalyzer(object):
         reportNetworkData.update(beatFields)
         reportNetworkData.update(systemNetworkFields)
 
-        jstr = SystemManager.makeJsonString(reportNetworkData)
+        jstr = UtilManager.makeJsonString(reportNetworkData)
         if jstr:
             reportElasticData += jstr
 
@@ -42608,7 +42611,7 @@ class ThreadAnalyzer(object):
             reportDiskioData.update(beatFields)
             reportDiskioData.update(systemDiskioFields)
 
-            jstr = SystemManager.makeJsonString(reportDiskioData)
+            jstr = UtilManager.makeJsonString(reportDiskioData)
             if jstr:
                 reportElasticData += jstr
 
@@ -42669,7 +42672,7 @@ class ThreadAnalyzer(object):
             reportProcessData.update(beatFields)
             reportProcessData.update(systemProcessFields)
 
-            jstr = SystemManager.makeJsonString(reportProcessData)
+            jstr = UtilManager.makeJsonString(reportProcessData)
             if jstr:
                 reportElasticData += jstr
 
