@@ -19030,10 +19030,33 @@ Copyright:
 
 
     @staticmethod
-    def createProcess():
+    def createProcess(cmd=None):
         pid = os.fork()
-        SystemManager.pid = os.getpid()
-        return pid
+
+        # parent #
+        if pid > 0:
+            return pid
+        # child #
+        elif pid == 0:
+            # exec #
+            if cmd:
+                if type(cmd) is str:
+                    cmd = cmd.split()
+                try:
+                    os.execvp(cmd[0], cmd)
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printError(\
+                        'Fail to create process because %s' % err)
+            # Guider #
+            else:
+                SystemManager.pid = os.getpid()
+                return 0
+        # fail #
+        else:
+            SystemManager.printError(\
+                "Fail to create process")
+            return -1
 
 
 
