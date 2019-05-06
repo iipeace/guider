@@ -5286,7 +5286,7 @@ class FunctionAnalyzer(object):
         if not SystemManager.addr2linePath:
             try:
                 symbolList = list()
-                binObj = ElfAnalyzer.cachedFiles[binPath]
+                binObj = ElfAnalyzer.getElfObject(binPath)
                 for offset in offsetList:
                     symbol = binObj.getSymbolByOffset(offset)
 
@@ -6710,7 +6710,8 @@ class FunctionAnalyzer(object):
                         self.threadData[pid]['new'] = True
 
             # Save user event #
-            elif d['func'].startswith("tracing_mark_write") or d['func'] == '0:':
+            elif d['func'].startswith("tracing_mark_write") or \
+                d['func'] == '0:':
                 m = re.match(r'^\s*\S*: EVENT_(?P<event>\S+)', d['etc'])
                 if m:
                     gd = m.groupdict()
@@ -6846,7 +6847,7 @@ class FunctionAnalyzer(object):
             if syscallInfo != '':
                 outputCnt += 1
                 SystemManager.printPipe(threadInfo)
-                SystemManager.printPipe('%s\n%s' % (syscallInfo, oneLine))
+                SystemManager.printPipe('%s%s' % (syscallInfo, oneLine))
 
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
@@ -9722,9 +9723,6 @@ class FileAnalyzer(object):
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
             r'(?P<binName>.+)'), string)
         if not m:
-            if SystemManager.showAll:
-                SystemManager.printWarning(\
-                    "Fail to recognize '%s' line in maps" % string)
             return
 
         d = m.groupdict()
@@ -14443,12 +14441,7 @@ Copyright:
         if not objdumpPath:
             try:
                 offset = None
-
-                if binPath not in ElfAnalyzer.cachedFiles:
-                    ElfAnalyzer.cachedFiles[binPath] = ElfAnalyzer(binPath)
-
-                binObj = ElfAnalyzer.cachedFiles[binPath]
-
+                binObj = ElfAnalyzer.getElfObject(binPath)
                 offset = binObj.getOffsetBySymbol(symbol)
             except:
                 pass
@@ -24285,10 +24278,6 @@ class Debugger(object):
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
             SystemManager.printWarning('Fail to detach thread %s' % pid)
-
-            # continue the thread because of detach fail #
-            self.cont()
-
             return -1
         else:
             SystemManager.printInfo('Detached from thread %d' % pid)
@@ -24535,10 +24524,7 @@ class Debugger(object):
         vend = self.pmap[fname]['vend']
 
         # get elf object #
-        if fname not in ElfAnalyzer.cachedFiles:
-            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
-
-        fcache = ElfAnalyzer.cachedFiles[fname]
+        fcache = ElfAnalyzer.getElfObject(fname)
 
         ret = fcache.getAnonRangeByOffset(offset)
         if not ret:
@@ -24564,10 +24550,7 @@ class Debugger(object):
         vend = self.pmap[fname]['vend']
 
         # get elf object #
-        if fname not in ElfAnalyzer.cachedFiles:
-            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
-
-        fcache = ElfAnalyzer.cachedFiles[fname]
+        fcache = ElfAnalyzer.getElfObject(fname)
 
         ret = fcache.getRangeBySymbol(symbol)
         if not ret:
@@ -24637,10 +24620,7 @@ class Debugger(object):
             return None
 
         # get elf object #
-        if fname not in ElfAnalyzer.cachedFiles:
-            ElfAnalyzer.cachedFiles[fname] = ElfAnalyzer(fname)
-
-        fcache = ElfAnalyzer.cachedFiles[fname]
+        fcache = ElfAnalyzer.getElfObject(fname)
 
         # check executable type #
         if not ElfAnalyzer.isRelocFile(fname):
@@ -26319,6 +26299,7 @@ class ElfAnalyzer(object):
     }
 
     cachedFiles = {}
+    cachedHeaderFiles = {}
     stripedFiles = {}
 
 
@@ -26390,6 +26371,25 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def getElfHeaderObject(path):
+        if path not in ElfAnalyzer.cachedHeaderFiles:
+            ElfAnalyzer.cachedHeaderFiles[path] = \
+                ElfAnalyzer(path, onlyHeader=True)
+
+        return ElfAnalyzer.cachedHeaderFiles[path]
+
+
+
+    @staticmethod
+    def getElfObject(path):
+        if path not in ElfAnalyzer.cachedFiles:
+            ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+
+        return ElfAnalyzer.cachedFiles[path]
+
+
+
+    @staticmethod
     def demangleSymbol(symbol):
         if not SystemManager.demangleEnable:
             return symbol
@@ -26432,7 +26432,7 @@ class ElfAnalyzer(object):
             # declare free() args #
             SystemManager.libcObj.free.argtypes = [c_void_p]
 
-            # declare __cxa_demangle() return #
+            # declare __cxa_demangle() function pointer #
             funcp = getattr(SystemManager.libcppObj, '__cxa_demangle')
             funcp.restype = c_char_p
 
@@ -26470,7 +26470,7 @@ class ElfAnalyzer(object):
             # free demangled string array #
             #SystemManager.libcObj.free(ret)
 
-            return dmSymbol + version
+            return '%s%s' % (dmSymbol, version)
         except SystemExit:
             sys.exit(0)
         except:
@@ -26487,16 +26487,9 @@ class ElfAnalyzer(object):
     @staticmethod
     def isRelocFile(path):
         try:
-            if path not in ElfAnalyzer.cachedFiles:
-                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printWarning(\
-                "Fail to check relocatable format because %s" % err)
-            return False
+            cachedObject = ElfAnalyzer.getElfObject(path)
 
-        try:
-            etype = ElfAnalyzer.cachedFiles[path].attr['elfHeader']['type']
+            etype = cachedObject.attr['elfHeader']['type']
             if etype == 'Relocatable' or \
                 etype == 'Shared-object':
                 return True
@@ -26506,6 +26499,7 @@ class ElfAnalyzer(object):
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
                 "Fail to check relocatable format because %s" % err)
+            return False
 
         # check file name #
         if path.find('.so') < 0 and \
@@ -26734,7 +26728,7 @@ class ElfAnalyzer(object):
 
 
 
-    def __init__(self, path, debug=False, verbose=False):
+    def __init__(self, path, debug=False, verbose=False, onlyHeader=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -26923,7 +26917,7 @@ class ElfAnalyzer(object):
           Elf32_Word    vd_hash;                /* Version name hash value */
           Elf32_Word    vd_aux;                 /* Offset in bytes to verdaux array */
           Elf32_Word    vd_next;                /* Offset in bytes to next verdef
-                               entry */
+                                                   entry */
         } Elf32_Verdef;
 
         typedef struct
@@ -26935,7 +26929,7 @@ class ElfAnalyzer(object):
           Elf64_Word    vd_hash;                /* Version name hash value */
           Elf64_Word    vd_aux;                 /* Offset in bytes to verdaux array */
           Elf64_Word    vd_next;                /* Offset in bytes to next verdef
-                               entry */
+                                                   entry */
         } Elf64_Verdef;
 
         /* Auxialiary version information.  */
@@ -26944,14 +26938,14 @@ class ElfAnalyzer(object):
         {
           Elf32_Word    vda_name;               /* Version or dependency names */
           Elf32_Word    vda_next;               /* Offset in bytes to next verdaux
-                               entry */
+                                                   entry */
         } Elf32_Verdaux;
 
         typedef struct
         {
           Elf64_Word    vda_name;               /* Version or dependency names */
           Elf64_Word    vda_next;               /* Offset in bytes to next verdaux
-                               entry */
+                                                   entry */
         } Elf64_Verdaux;
 
 
@@ -26962,10 +26956,10 @@ class ElfAnalyzer(object):
           Elf32_Half    vn_version;             /* Version of structure */
           Elf32_Half    vn_cnt;                 /* Number of associated aux entries */
           Elf32_Word    vn_file;                /* Offset of filename for this
-                               dependency */
+                                                   dependency */
           Elf32_Word    vn_aux;                 /* Offset in bytes to vernaux array */
           Elf32_Word    vn_next;                /* Offset in bytes to next verneed
-                               entry */
+                                                   entry */
         } Elf32_Verneed;
 
         typedef struct
@@ -26973,7 +26967,7 @@ class ElfAnalyzer(object):
           Elf64_Half    vn_version;             /* Version of structure */
           Elf64_Half    vn_cnt;                 /* Number of associated aux entries */
           Elf64_Word    vn_file;                /* Offset of filename for this
-                               dependency */
+                                                   dependency */
           Elf64_Word    vn_aux;                 /* Offset in bytes to vernaux array */
           Elf64_Word    vn_next;                /* Offset in bytes to next verneed
                                entry */
@@ -26988,7 +26982,7 @@ class ElfAnalyzer(object):
           Elf32_Half    vna_other;              /* Unused */
           Elf32_Word    vna_name;               /* Dependency name string offset */
           Elf32_Word    vna_next;               /* Offset in bytes to next vernaux
-                               entry */
+                                                   entry */
         } Elf32_Vernaux;
 
         typedef struct
@@ -26998,7 +26992,7 @@ class ElfAnalyzer(object):
           Elf64_Half    vna_other;              /* Unused */
           Elf64_Word    vna_name;               /* Dependency name string offset */
           Elf64_Word    vna_next;               /* Offset in bytes to next vernaux
-                               entry */
+                                                   entry */
         } Elf64_Vernaux;
 
 
@@ -27150,6 +27144,10 @@ class ElfAnalyzer(object):
         self.attr['elfHeader']['shentsize'] = e_shentsize
         self.attr['elfHeader']['shnum'] = e_shnum
         self.attr['elfHeader']['shstrndx'] = e_shstrndx
+
+        # check onlyHeader flag #
+        if onlyHeader:
+            return
 
         # print header info #
         if debug:
