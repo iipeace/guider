@@ -19885,7 +19885,7 @@ Copyright:
 
         # convert comm to pid #
         pids = SystemManager.convertPidList(\
-            SystemManager.filterGroup, True)
+            SystemManager.filterGroup, True, True)
 
         # check tid #
         if SystemManager.sourceFile:
@@ -20475,10 +20475,10 @@ Copyright:
 
 
     @staticmethod
-    def convertPidList(procList, isThread=False):
+    def convertPidList(procList, isThread=False, exceptMe=False):
         targetList = []
 
-        if not procList:
+        if not procList and not exceptMe:
             procList = [__module__]
 
         # get pids from comm #
@@ -24153,17 +24153,29 @@ class Debugger(object):
         if not self.attached:
             return
 
-        # stop target #
+        # continue target if it is stopped #
+        self.cont()
+
+        # stop target for detaching #
         try:
             os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
         except:
             return
 
-        # resume target #
-        self.cont()
+        # wait for target to be ready #
+        try:
+            self.waitpid(self.pid)
+        except:
+            pass
 
         # detach target #
         self.detach()
+
+        # continue target #
+        try:
+            os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGCONT'))
+        except:
+            return
 
 
 
@@ -25069,6 +25081,8 @@ class Debugger(object):
                 # interprete current user function call #
                 if self.isRunning:
                     self.handleUsercall()
+            except SystemExit:
+                return
             except:
                 pass
         else:
