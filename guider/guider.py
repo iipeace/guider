@@ -6446,7 +6446,7 @@ class FunctionAnalyzer(object):
             if m:
                 b = m.groupdict()
 
-                if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
+                if b['sig'] == str(signal.SIGSEGV):
                     self.sigEnabled = True
 
                     self.saveEventParam('SIGSEGV_GEN', 0, 0)
@@ -6467,7 +6467,7 @@ class FunctionAnalyzer(object):
             if m:
                 b = m.groupdict()
 
-                if b['sig'] == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
+                if b['sig'] == str(signal.SIGSEGV):
                     self.sigEnabled = True
 
                     self.saveEventParam('SIGSEGV_DLV', 0, 0)
@@ -12332,7 +12332,7 @@ OPTIONS:
         -a                          show all stats including registers
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
-        -R  <INTERVAL>              set interval
+        -R  <TIME>                  set timer
         -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
@@ -12342,19 +12342,19 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Trace read systemcall for a specific thread
+    - Trace all read systemcalls for a specific thread
         # {0:1} {1:1} -g 1234 -t read
 
-    - Trace write systemcall with specific command
+    - Trace all write systemcalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
-    - Trace read systemcall with breakpoint including register info for a specific thread
+    - Trace all read systemcalls with breakpoint including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
 
-    - Trace syscalls for a specific thread only for 1 minute
+    - Trace all systemcalls for a specific thread only for 1 minute
         # {0:1} {1:1} -g 1234 -R 1m
 
-    - Trace systemcalls and pause when catching open systemcall
+    - Trace all systemcalls and pause when catching open systemcall
         # {0:1} {1:1} -I "ls -al" -c open
                     '''.format(cmd, mode)
 
@@ -12378,7 +12378,7 @@ OPTIONS:
         -a                          show all stats including registers
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
-        -R  <INTERVAL>              set interval
+        -R  <TIME:INTERVAL>         set timer
         -c  <EVENT>                 set breakpoint
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
@@ -12389,8 +12389,11 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Trace user function calls for a specific thread
+    - Trace user function calls for a specific thread in 100us cycles
         # {0:1} {1:1} -g 1234
+
+    - Trace user function calls for a specific thread in 10ms cycles
+        # {0:1} {1:1} -g 1234 -R 1h:10000
 
     - Trace user function calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
@@ -16559,7 +16562,9 @@ Copyright:
     def parseRuntimeOption(value):
         SystemManager.countEnable = True
 
+        # split params #
         repeatParams = value.split(':')
+
         if len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
                 # get interval #
@@ -16618,7 +16623,8 @@ Copyright:
                 "input INTERVAL:REPEAT in format"))
             sys.exit(0)
 
-        if SystemManager.intervalEnable < 1 or \
+        if not SystemManager.intervalEnable or \
+            SystemManager.intervalEnable < 1 or \
             SystemManager.repeatCount < 1:
             SystemManager.printError(\
                 "wrong option value with -R, input values bigger than 0")
@@ -17095,6 +17101,7 @@ Copyright:
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
+                SystemManager.runBackgroundMode()
 
             elif option == 'Q':
                 SystemManager.printStreamEnable = True
@@ -17168,6 +17175,7 @@ Copyright:
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
+                SystemManager.runBackgroundMode()
 
             elif option == 'y':
                 SystemManager.systemEnable = True
@@ -18030,10 +18038,6 @@ Copyright:
             # change priority of process #
             if not SystemManager.prio:
                 SystemManager.setPriority(SystemManager.pid, 'C', -20)
-
-            # run in the background #
-            if SystemManager.backgroundEnable:
-                SystemManager.runBackgroundMode()
 
             if SystemManager.isLimitCpuMode():
                 limitInfo = SystemManager.getLimitCpuInfo(\
@@ -19099,7 +19103,7 @@ Copyright:
 
     @staticmethod
     def runBackgroundMode():
-        pid = SystemManager.createProcess()
+        pid = SystemManager.createProcess(isDaemon=True)
 
         if pid > 0:
             # wait a minute for child message #
@@ -19469,10 +19473,6 @@ Copyright:
 
         # import select package #
         SystemManager.getPkg('select')
-
-        # get address value #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
 
         # get ip and port #
         if SystemManager.localServObj:
@@ -19910,10 +19910,6 @@ Copyright:
         else:
             pid = int(pids[0])
 
-        # run in the background #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
-
         # ignore sigchld #
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
@@ -19922,7 +19918,10 @@ Copyright:
             if mode == 'syscall':
                 Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
             elif mode == 'usercall':
-                Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
+                if SystemManager.funcDepth > 0:
+                    Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
+                else:
+                    Debugger(pid=pid, execCmd=execCmd).trace(mode='sample', wait=wait)
             else:
                 pass
         except SystemExit:
@@ -20131,7 +20130,7 @@ Copyright:
 
             SystemManager.printInfo((\
                 'allocated %s of physical memory, '
-                'additionally used %s of physical memory for running') % \
+                'used %s of additional physical memory for execution') % \
                 (UtilManager.convertSize2Unit(len(buffer), True), \
                 UtilManager.convertSize2Unit(rssSize, True)))
 
@@ -20272,8 +20271,6 @@ Copyright:
         CLK_PRECISION = 1000000
         MAX_BUCKET = CLK_PRECISION / 10000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
-        NR_SIGSTOP = ConfigManager.SIG_LIST.index('SIGSTOP')
-        NR_SIGCONT = ConfigManager.SIG_LIST.index('SIGCONT')
         COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
         UTIME_IDX = ConfigManager.STAT_ATTR.index("UTIME")
         STIME_IDX = ConfigManager.STAT_ATTR.index("STIME")
@@ -20425,7 +20422,7 @@ Copyright:
                         if val['running']:
                             for tid in val['group']:
                                 try:
-                                    os.kill(tid, NR_SIGSTOP)
+                                    os.kill(tid, signal.SIGSTOP)
                                 except:
                                     err = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
@@ -20438,7 +20435,7 @@ Copyright:
                         if val['running'] is False:
                             for tid in val['group']:
                                 try:
-                                    os.kill(tid, NR_SIGCONT)
+                                    os.kill(tid, signal.SIGCONT)
                                 except:
                                     err = map(str, sys.exc_info()[1].args)
                                     SystemManager.printError((
@@ -20454,7 +20451,7 @@ Copyright:
             for task, val in taskList.items():
                 for tid in val['group']:
                     try:
-                        os.kill(tid, NR_SIGCONT)
+                        os.kill(tid, signal.SIGCONT)
                     except:
                         err = map(str, sys.exc_info()[1].args)
                         SystemManager.printError(
@@ -20465,10 +20462,9 @@ Copyright:
 
     @staticmethod
     def terminateTasks(targetList):
-        SIGKILL = ConfigManager.SIG_LIST.index('SIGKILL')
         for pid in targetList:
             try:
-                os.kill(pid, SIGKILL)
+                os.kill(pid, signal.SIGKILL)
             except:
                 pass
 
@@ -21530,7 +21526,10 @@ Copyright:
 
     @staticmethod
     def releaseResource():
+        # close all files #
         SystemManager.closeAllForPrint()
+
+        # kill child tasks #
         SystemManager.killChilds()
 
 
@@ -21845,7 +21844,7 @@ Copyright:
             if not customCmd or \
                 True not in [True for evt in customCmd \
                 if evt.startswith('signal')]:
-                sigCmd = "sig == %d" % ConfigManager.SIG_LIST.index('SIGSEGV')
+                sigCmd = "sig == %d" % signal.SIGSEGV
                 SystemManager.writeCmd('signal/filter', sigCmd)
 
             # enable cpu events #
@@ -23969,7 +23968,7 @@ class Debugger(object):
         self.status = 'enter'
         self.attached = attach
         self.arch = arch = SystemManager.getArch()
-        self.iskip = 5
+        self.skipInst = 5
         self.syscall = ''
         self.mapFd = None
         self.pmap = None
@@ -24158,7 +24157,7 @@ class Debugger(object):
 
         # stop target for detaching #
         try:
-            os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGSTOP'))
+            self.stop()
         except:
             return
 
@@ -24173,7 +24172,7 @@ class Debugger(object):
 
         # continue target #
         try:
-            os.kill(self.pid, ConfigManager.SIG_LIST.index('SIGCONT'))
+            os.kill(self.pid, signal.SIGCONT)
         except:
             return
 
@@ -24283,6 +24282,26 @@ class Debugger(object):
 
 
 
+    def stop(self, pid=None):
+        if not pid:
+            pid = self.pid
+
+        if self.checkPid(pid) < 0:
+            SystemManager.printWarning('Fail to stop wrong thread %s' % pid)
+            return -1
+
+        try:
+            os.kill(pid, signal.SIGSTOP)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                'Fail to stop thread %s because %s' % (pid, err))
+            return -1
+
+        return 0
+
+
+
     def cont(self, pid=None):
         if not self.attached:
             return
@@ -24298,6 +24317,9 @@ class Debugger(object):
         try:
             os.kill(pid, 0)
         except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                'Fail to continue thread %s because %s' % (pid, err))
             return -1
 
         # attach the thread #
@@ -24305,7 +24327,9 @@ class Debugger(object):
         cmd = plist.index('PTRACE_CONT')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
-            SystemManager.printWarning('Fail to continue thread %s' % pid)
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                'Fail to continue thread %s because %s' % (pid, err))
             return -1
         else:
             return 0
@@ -24835,29 +24859,33 @@ class Debugger(object):
             # get diff time #
             diff = time.time() - self.start
 
-            self.updateCallstack(sym)
+            # update callstack #
+            if self.status == 'inst':
+                self.updateCallstack(sym)
 
-            # check call relationship #
-            if not self.sp or not self.prevsp:
-                direction = '??'
+                # check call relationship #
+                if not self.sp or not self.prevsp:
+                    direction = '(??)'
 
-                self.addCall(sym)
-            elif sym == 'PLT':
-                direction = '--'
+                    self.addCall(sym)
+                elif sym == 'PLT':
+                    direction = '(--)'
 
-                self.addCall(sym)
-            elif self.sp > self.prevsp:
-                direction = '<-'
+                    self.addCall(sym)
+                elif self.sp > self.prevsp:
+                    direction = '(<-)'
+                else:
+                    direction = '(->)'
+
+                    self.addCall(sym)
             else:
-                direction = '->'
-
-                self.addCall(sym)
+                direction = ''
 
             # build call string #
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             SystemManager.printPipe(\
-                '%3.6f %s (%s) [%s + %s] [%s]' % \
+                '%3.6f %s %s [%s + %s] [%s]' % \
                     (diff, symstr , direction, fname, \
                         offset, hex(self.sp).rstrip('L')))
 
@@ -25014,12 +25042,7 @@ class Debugger(object):
         regs = None
         arch = SystemManager.getArch()
         plist = ConfigManager.PTRACE_TYPE
-        sigTrapIdx = ConfigManager.SIG_LIST.index('SIGTRAP')
-        sigStopIdx = ConfigManager.SIG_LIST.index('SIGSTOP')
-        sigKillIdx = ConfigManager.SIG_LIST.index('SIGKILL')
-        sigSegvIdx = ConfigManager.SIG_LIST.index('SIGSEGV')
-        sigChldIdx = ConfigManager.SIG_LIST.index('SIGCHLD')
-        sigTrapFlag = sigTrapIdx | \
+        sigTrapFlag = signal.SIGTRAP | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
         self.wait = wait
@@ -25038,9 +25061,22 @@ class Debugger(object):
         # disable extended ascii #
         SystemManager.encodeEnable = False
 
-        # set sampling rate #
         if SystemManager.funcDepth > 0:
-            self.iskip = SystemManager.funcDepth
+            # set sampling rate for instruction #
+            self.skipInst = SystemManager.funcDepth
+
+            SystemManager.printInfo(\
+                'Do sampling every %s instrunctions' % \
+                    SystemManager.funcDepth)
+        else:
+            # set sampling rate to 100us #
+            if SystemManager.repeatCount > 0:
+                self.sampleTime = SystemManager.repeatCount / float(1000000)
+            else:
+                self.sampleTime = 0.0001
+
+            SystemManager.printInfo(\
+                'Do sampling every %s second' % self.sampleTime)
 
         # check the process is running #
         try:
@@ -25074,7 +25110,7 @@ class Debugger(object):
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
-        elif mode == 'inst':
+        elif mode == 'inst' or mode == 'sample':
             cmd = plist.index('PTRACE_SINGLESTEP')
 
             try:
@@ -25099,9 +25135,17 @@ class Debugger(object):
                 pass
             else:
                 # skip instructions for performance #
-                if mode == 'inst' and self.iskip > 0:
-                    for i in xrange(0, self.iskip ):
+                if mode == 'inst' and self.skipInst > 0:
+                    for i in xrange(0, self.skipInst ):
                         ret = self.ptrace(cmd, 0, 0)
+                # sample instructions #
+                elif mode == 'sample':
+                    self.cont()
+
+                    time.sleep(self.sampleTime)
+
+                    if self.stop() < 0:
+                        sys.exit(0)
                 else:
                     # setup trap #
                     ret = self.ptrace(cmd, 0, 0)
@@ -25118,7 +25162,8 @@ class Debugger(object):
                     raise Exception()
 
                 # trap #
-                if stat == sigTrapIdx:
+                if stat == signal.SIGTRAP or \
+                    (mode == 'sample' and stat == signal.SIGSTOP):
                     # after execve() #
                     if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
@@ -25126,9 +25171,9 @@ class Debugger(object):
                         self.status = 'enter'
                         continue
                     # inst #
-                    elif mode == 'inst':
+                    elif mode == 'inst' or mode == 'sample':
                         previous = self.status
-                        self.status = 'inst'
+                        self.status = mode
 
                         # interprete user function call #
                         self.handleUsercall()
@@ -25138,7 +25183,7 @@ class Debugger(object):
                         continue
 
                 # syscall #
-                elif stat == sigTrapIdx | 0x80:
+                elif stat == signal.SIGTRAP | 0x80:
                     # filter syscall #
                     if mode != 'syscall':
                         continue
@@ -25157,7 +25202,7 @@ class Debugger(object):
                     self.handleSyscall()
 
                 # stop signal #
-                elif stat == sigStopIdx:
+                elif stat == signal.SIGSTOP:
                     self.status = 'stop'
                     SystemManager.printWarning(\
                         'Blocked thread %s because of %s' % \
@@ -25169,7 +25214,7 @@ class Debugger(object):
                     continue
 
                 # kill signal #
-                elif stat == sigKillIdx or stat == sigSegvIdx:
+                elif stat == signal.SIGKILL or stat == signal.SIGSEGV:
                     SystemManager.printError(\
                         'Terminated thread %s because of %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
@@ -37493,7 +37538,7 @@ class ThreadAnalyzer(object):
 
             try:
                 # SIGCHLD #
-                if sig == str(ConfigManager.SIG_LIST.index('SIGCHLD')):
+                if sig == str(signal.SIGCHLD):
                     if self.threadData[pid]['waitStartAsParent'] > 0:
                         if self.threadData[pid]['waitPid'] == 0 or \
                             self.threadData[pid]['waitPid'] == int(thread):
@@ -37501,7 +37546,7 @@ class ThreadAnalyzer(object):
                                 self.threadData[pid]['waitStartAsParent']
                             self.threadData[thread]['waitParent'] = diff
                             self.threadData[pid]['waitChild'] += diff
-                elif sig == str(ConfigManager.SIG_LIST.index('SIGSEGV')):
+                elif sig == str(signal.SIGSEGV):
                     self.threadData[pid]['die'] = 'F'
             except:
                 return
@@ -42908,10 +42953,6 @@ def main(args=None):
         SystemManager.printProfileOption()
         SystemManager.printProfileCmd()
 
-        # run in the background #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
-
         # wait for signal #
         if SystemManager.waitEnable:
             SystemManager.printStatus(\
@@ -43203,6 +43244,7 @@ def main(args=None):
         elif SystemManager.isBgTopMode():
             if SystemManager.checkBgTopCond():
                 SystemManager.backgroundEnable = True
+                SystemManager.runBackgroundMode()
             else:
                 sys.exit(0)
 
@@ -43220,10 +43262,6 @@ def main(args=None):
 
         # set handler for exit #
         SystemManager.setNormalSignal()
-
-        # run in the background #
-        if SystemManager.backgroundEnable:
-            SystemManager.runBackgroundMode()
 
         # run top mode #
         ThreadAnalyzer()
