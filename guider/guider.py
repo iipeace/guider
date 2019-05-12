@@ -2640,6 +2640,12 @@ class UtilManager(object):
 
 
     @staticmethod
+    def convertNumber(number):
+        return '{:,}'.format(number)
+
+
+
+    @staticmethod
     def convertSize2Unit(size, isInt=False):
         sizeKB = 1024
         sizeMB = sizeKB << 10
@@ -9811,7 +9817,7 @@ class FileAnalyzer(object):
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
                 rsize = val['pageCnt'] * pageSize >> 10
-                rsize = "{:,}".format(rsize)
+                rsize = UtilManager.convertNumber(rsize)
             except:
                 pass
 
@@ -9858,12 +9864,12 @@ class FileAnalyzer(object):
                 per = 0
 
             try:
-                memSize = "{:,}".format(memSize)
+                memSize = UtilManager.convertNumber(memSize)
             except:
                 pass
 
             try:
-                fileSize = "{:,}".format(fileSize)
+                fileSize = UtilManager.convertNumber(fileSize)
             except:
                 pass
 
@@ -10395,8 +10401,10 @@ class SystemManager(object):
     perfEventChannel = {}
     perfTargetEvent = []
     perfEventData = {}
+
     impPkg = {}
     skipImpPkg = {}
+    exitFuncList = []
     guiderObj = None
     libcObj = None
     libcppObj = None
@@ -15204,7 +15212,7 @@ Copyright:
                     "%s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
 
-            SystemManager.closeAllForPrint()
+            SystemManager.releaseResource()
 
             if not SystemManager.isTerm:
                 SystemManager.progressCnt = 0
@@ -16427,8 +16435,7 @@ Copyright:
 
     @staticmethod
     def printError(line):
-        # prepare to exit #
-        SystemManager.closeAllForPrint()
+        SystemManager.flushAllForPrint()
 
         msg = ('\n%s%s%s%s\n' % \
             (ConfigManager.FAIL, '[Error] ', line, ConfigManager.ENDC))
@@ -19036,7 +19043,21 @@ Copyright:
 
 
     @staticmethod
-    def createProcess(cmd=None, isDaemon=False, isMute=False):
+    def executeProcess(cmd=None, mute=False):
+        try:
+            SystemManager.resetFileTable(mute)
+
+            os.execvp(cmd[0], cmd)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to execute '%s' because %s" % (' '.join(cmd), err))
+            return -1
+
+
+
+    @staticmethod
+    def createProcess(cmd=None, isDaemon=False, mute=False):
         pid = os.fork()
 
         # parent #
@@ -19046,32 +19067,20 @@ Copyright:
             return pid
         # child #
         elif pid == 0:
-            # exec #
-            if cmd:
-                if type(cmd) is str:
-                    cmd = cmd.split()
-                try:
-                    if isMute:
-                        if not SystemManager.nullFd:
-                            SystemManager.nullFd = open('/dev/null', 'w')
-
-                        # get null fd #
-                        nullFd = SystemManager.nullFd.fileno()
-
-                        # redirect stds to null #
-                        os.dup2(nullFd, sys.stdin.fileno())
-                        os.dup2(nullFd, sys.stdout.fileno())
-                        os.dup2(nullFd, sys.stderr.fileno())
-
-                    os.execvp(cmd[0], cmd)
-                except:
-                    err = SystemManager.getErrReason()
-                    SystemManager.printError(\
-                        'Fail to create process because %s' % err)
             # Guider #
-            else:
+            if not cmd:
                 SystemManager.pid = os.getpid()
                 return 0
+
+            # split command #
+            if type(cmd) is str:
+                cmd = cmd.split()
+
+            # execute #
+            SystemManager.executeProcess(cmd, mute)
+
+            # execute fail #
+            os._exit(0)
         # fail #
         else:
             SystemManager.printError(\
@@ -19081,23 +19090,30 @@ Copyright:
 
 
     @staticmethod
-    def setChildFd(mute=True):
-        # close all fds wighout standard #
-        for fd in range(3, SystemManager.maxFd):
-            try:
-                os.close(fd)
-            except:
-                pass
-
+    def resetFileTable(mute=True, closeAll=True):
         # redirect stdout and stderr to null #
         if mute:
             try:
-                fd = open('/dev/null', 'wb')
-                os.dup2(fd.fileno(), 1)
-                os.dup2(1, 2)
-                fd.close()
+                if not SystemManager.nullFd:
+                    SystemManager.nullFd = open('/dev/null', 'w')
+
+                # get null fd #
+                nullFd = SystemManager.nullFd.fileno()
+
+                # redirect stds to null #
+                os.dup2(nullFd, sys.stdin.fileno())
+                os.dup2(nullFd, sys.stdout.fileno())
+                os.dup2(nullFd, sys.stderr.fileno())
             except:
                 pass
+
+        # close all fds without standard #
+        if closeAll:
+            for fd in range(3, SystemManager.maxFd):
+                try:
+                    os.close(fd)
+                except:
+                    pass
 
 
 
@@ -19278,7 +19294,8 @@ Copyright:
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     'Fail to download %s from %s:%s because %s' % \
-                    (origPath, ':'.join(list(map(str, addr))), targetPath, err))
+                        (origPath, ':'.join(list(map(str, addr))), \
+                        targetPath, err))
             finally:
                 receiver.close()
 
@@ -19336,11 +19353,11 @@ Copyright:
 
                         # read output from pipe #
                         for robj in read:
-                            # connection closed #
+                            # check connection close #
                             if robj == pipeObj.socket:
                                 raise Exception()
 
-                            # data arrived #
+                            # handle data arrived #
                             while 1:
                                 output = robj.readline()
                                 if output and len(output) > 0:
@@ -19349,13 +19366,12 @@ Copyright:
                                         raise Exception()
                                 else:
                                     break
+                        print(error)
                     except:
                         break
 
                     # check process status #
-                    if procObj.poll() is None:
-                        pass
-                    else:
+                    if procObj.poll() != None:
                         break
 
                 SystemManager.printInfo(\
@@ -19919,9 +19935,11 @@ Copyright:
                 Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
             elif mode == 'usercall':
                 if SystemManager.funcDepth > 0:
-                    Debugger(pid=pid, execCmd=execCmd).trace(mode='inst', wait=wait)
+                    Debugger(pid=pid, execCmd=execCmd).\
+                        trace(mode='inst', wait=wait)
                 else:
-                    Debugger(pid=pid, execCmd=execCmd).trace(mode='sample', wait=wait)
+                    Debugger(pid=pid, execCmd=execCmd).\
+                        trace(mode='sample', wait=wait)
             else:
                 pass
         except SystemExit:
@@ -21514,6 +21532,7 @@ Copyright:
                 SystemManager.mountPath = \
                     "%s/tracing/events/" % SystemManager.mountPath
                 return SystemManager.mountPath
+
         f.close()
 
 
@@ -21525,12 +21544,51 @@ Copyright:
 
 
     @staticmethod
+    def addExitFunc(func, args=None):
+        SystemManager.exitFuncList.append([func, args])
+
+
+
+    @staticmethod
+    def doExit():
+        if not hasattr(SystemManager, 'exitFuncList'):
+            return
+
+        # call functions registered #
+        for func, args in SystemManager.exitFuncList:
+            func(args)
+
+        # destroy objects registered #
+        del SystemManager.exitFuncList
+
+        # release all resources #
+        SystemManager.releaseResource()
+
+
+
+    @staticmethod
     def releaseResource():
+        # kill child tasks #
+        SystemManager.killChilds()
+
         # close all files #
         SystemManager.closeAllForPrint()
 
-        # kill child tasks #
-        SystemManager.killChilds()
+
+
+    @staticmethod
+    def flushAllForPrint():
+        if SystemManager.pipeForPrint:
+            try:
+                SystemManager.pipeForPrint.flush()
+            except:
+                pass
+
+        if SystemManager.fileForPrint:
+            try:
+                SystemManager.fileForPrint.flush()
+            except:
+                pass
 
 
 
@@ -23964,6 +24022,8 @@ Copyright:
 class Debugger(object):
     """ Debugger for ptrace """
 
+    debugInstance = None
+
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.status = 'enter'
         self.attached = attach
@@ -24212,26 +24272,31 @@ class Debugger(object):
 
 
 
+    def setTraceme(self):
+        cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_TRACEME')
+        self.ptrace(cmd, 0, 0)
+
+
+
     def execute(self, execCmd):
         pid = SystemManager.createProcess()
         if pid == 0:
-            self.pid = SystemManager.pid
+            self.pid = os.getpid()
 
             # set tracee flag #
-            cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_TRACEME')
-            self.ptrace(cmd, 0, 0)
+            self.setTraceme()
 
-            # close most fds #
-            SystemManager.setChildFd()
+            # execute #
+            SystemManager.executeProcess(cmd=execCmd, mute=True)
 
-            # execute command #
-            os.execvp(execCmd[0], execCmd)
+            # execute fail #
+            os._exit(0)
         else:
             self.pid = pid
 
 
 
-    def delBreakpoint(self, addr):
+    def removeBreakpoint(self, addr):
         if addr not in self.breakList:
             SystemManager.printWarning(\
                 'No breakpoint registered with addr %s' % addr, True)
@@ -24804,6 +24869,17 @@ class Debugger(object):
 
 
 
+    def addSample(self, data, filename, current=None):
+        if self.mode != 'sample':
+            return
+
+        if not current:
+            current = time.time()
+
+        self.callList.append([data, current, filename])
+
+
+
     def handleUsercall(self):
         # get register set of target #
         if not self.getRegs():
@@ -24815,6 +24891,9 @@ class Debugger(object):
         if self.prevCallInfo and \
             self.pc >= self.prevCallInfo[2] and \
             self.pc <= self.prevCallInfo[3]:
+            # add sample #
+            if SystemManager.printFile:
+                self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
             return
 
         # get new symbol info from program counter of target #
@@ -24828,80 +24907,98 @@ class Debugger(object):
             fstart = '??'
             fend = '??'
 
-        # print current symbol #
-        if fname != '??':
-            # get filter addr #
-            try:
-                # symbol range #
-                if sym != '??':
-                    vstart, vend = self.getVrangeBySymbol(sym, fname)
-                # anon range #
-                else:
-                    vstart, vend = self.getAnonVrangeByOffset(offset, fname)
-            except:
-                vstart = vend = 0
+        # print unknown call address #
+        if fname == '??':
+            if SystemManager.printFile:
+                self.addSample('??', fname)
+            return
 
-            # check contiguous unknown symbol #
-            if self.prevCallInfo:
-                if self.prevCallInfo[0] == sym:
-                    # save current call info as previous call #
-                    self.prevCallInfo = [sym, fname, vstart, vend]
-                    return
-                elif self.prevCallInfo[0].startswith('mmap'):
-                    # enable memory update flag #
-                    self.needRescan = True
-
-            # save current call info as previous call #
-            self.prevCallInfo = [sym, fname, vstart, vend]
-
-            # toDo: add additional call stack info with lr #
-
-            # get diff time #
-            diff = time.time() - self.start
-
-            # update callstack #
-            if self.status == 'inst':
-                self.updateCallstack(sym)
-
-                # check call relationship #
-                if not self.sp or not self.prevsp:
-                    direction = '(??)'
-
-                    self.addCall(sym)
-                elif sym == 'PLT':
-                    direction = '(--)'
-
-                    self.addCall(sym)
-                elif self.sp > self.prevsp:
-                    direction = '(<-)'
-                else:
-                    direction = '(->)'
-
-                    self.addCall(sym)
+        # get filter addr #
+        try:
+            # symbol range #
+            if sym != '??':
+                vstart, vend = self.getVrangeBySymbol(sym, fname)
+            # anon range #
             else:
-                direction = ''
+                vstart, vend = self.getAnonVrangeByOffset(offset, fname)
+        except:
+            vstart = vend = 0
 
-            # build call string #
+        # check contiguous unknown symbol #
+        if self.prevCallInfo:
+            if self.prevCallInfo[0] == sym:
+                # save current call info as previous call #
+                self.prevCallInfo = [sym, fname, vstart, vend]
+                return
+            elif self.prevCallInfo[0].startswith('mmap'):
+                # enable memory update flag #
+                self.needRescan = True
+
+        # save current call info as previous call #
+        self.prevCallInfo = [sym, fname, vstart, vend]
+
+        # toDo: add additional call stack info #
+
+        # get time diff #
+        current = time.time()
+        diff = current - self.start
+
+        # update callstack #
+        if self.mode == 'inst':
+            self.updateCallstack(sym)
+
+            # check call relationship #
+            if not self.sp or not self.prevsp:
+                direction = '(??)'
+
+                self.addCall(sym)
+            elif sym == 'PLT':
+                direction = '(--)'
+
+                self.addCall(sym)
+            elif self.sp > self.prevsp:
+                direction = '(<-)'
+            else:
+                direction = '(->)'
+
+                self.addCall(sym)
+
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
+        else:
+            direction = ''
 
-            SystemManager.printPipe(\
-                '%3.6f %s %s [%s + %s] [%s]' % \
-                    (diff, symstr , direction, fname, \
-                        offset, hex(self.sp).rstrip('L')))
+            symstr = sym
 
-            # backup register #
-            self.prevsp = self.sp
+        # build call string #
+        callString = '%3.6f %s %s [%s + %s] [%s]' % \
+            (diff, symstr , direction, fname, \
+                offset, hex(self.sp).rstrip('L'))
 
-            # check pause condition #
-            if SystemManager.customCmd:
-                onlySym = sym.split('@')[0]
-                if onlySym in SystemManager.customCmd:
-                    if SystemManager.showAll:
-                        # print register set #
-                        self.printRegs()
+        # backup callString #
+        self.prevCallString = callString
 
-                    SystemManager.waitUserInput(\
-                        wait=0, msg="Press enter key...")
+        # print call info #
+        if SystemManager.printFile:
+            self.addSample(sym, fname, current)
+
+            if SystemManager.showAll:
+                self.callPrint.append(callString)
+        else:
+            SystemManager.printPipe(callString)
+
+        # backup register #
+        self.prevsp = self.sp
+
+        # check pause condition #
+        if SystemManager.customCmd:
+            onlySym = sym.split('@')[0]
+            if onlySym in SystemManager.customCmd:
+                if SystemManager.showAll:
+                    # print register set #
+                    self.printRegs()
+
+                SystemManager.waitUserInput(\
+                    wait=0, msg="Press enter key...")
 
 
 
@@ -25038,18 +25135,27 @@ class Debugger(object):
 
 
     def trace(self, mode='syscall', wait=None):
-        pid = self.pid
+        # default variables #
         regs = None
+        pid = self.pid
         arch = SystemManager.getArch()
         plist = ConfigManager.PTRACE_TYPE
         sigTrapFlag = signal.SIGTRAP | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
-        self.wait = wait
+        # context variables #
         self.start = 0
+        self.wait = wait
+        self.mode = mode
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.pbufsize = SystemManager.ttyCols >> 1
+
+        # sampling variables #
+        self.getRegsCost = 0
+        self.prevCallString = ''
+        self.callList = list()
+        self.callPrint = list()
 
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
@@ -25061,22 +25167,27 @@ class Debugger(object):
         # disable extended ascii #
         SystemManager.encodeEnable = False
 
-        if SystemManager.funcDepth > 0:
-            # set sampling rate for instruction #
-            self.skipInst = SystemManager.funcDepth
+        # register my instance #
+        SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
-            SystemManager.printInfo(\
-                'Do sampling every %s instrunctions' % \
-                    SystemManager.funcDepth)
-        else:
-            # set sampling rate to 100us #
-            if SystemManager.repeatCount > 0:
-                self.sampleTime = SystemManager.repeatCount / float(1000000)
+        if mode != 'syscall':
+            if SystemManager.funcDepth > 0:
+                # set sampling rate for instruction #
+                self.skipInst = SystemManager.funcDepth
+
+                SystemManager.printInfo(\
+                    'Do sampling every %s instrunctions' % \
+                        SystemManager.funcDepth)
             else:
-                self.sampleTime = 0.0001
+                # set sampling rate to 100us #
+                if SystemManager.repeatCount > 0:
+                    self.sampleTime = \
+                        SystemManager.repeatCount / float(1000000)
+                else:
+                    self.sampleTime = 0.0001
 
-            SystemManager.printInfo(\
-                'Do sampling every %s second' % self.sampleTime)
+                SystemManager.printInfo(\
+                    'Do sampling every %f second' % self.sampleTime)
 
         # check the process is running #
         try:
@@ -25111,6 +25222,9 @@ class Debugger(object):
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
         elif mode == 'inst' or mode == 'sample':
+            # register summary function #
+            SystemManager.addExitFunc(Debugger.printSummary, self)
+
             cmd = plist.index('PTRACE_SINGLESTEP')
 
             try:
@@ -25138,7 +25252,7 @@ class Debugger(object):
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst ):
                         ret = self.ptrace(cmd, 0, 0)
-                # sample instructions #
+                # wait to sample calls #
                 elif mode == 'sample':
                     self.cont()
 
@@ -25146,8 +25260,8 @@ class Debugger(object):
 
                     if self.stop() < 0:
                         sys.exit(0)
+                # setup trap #
                 else:
-                    # setup trap #
                     ret = self.ptrace(cmd, 0, 0)
 
             try:
@@ -25257,6 +25371,80 @@ class Debugger(object):
                     "Terminated tracing thread %s %s" % \
                     (pid, ereason))
                 break
+
+
+
+    @staticmethod
+    def destroyDebugger(instance):
+        try:
+            # this will not effective because the instance exists in exitFuncList #
+            del instance
+        except:
+            pass
+
+
+
+    @staticmethod
+    def printSummary(instance):
+        # check call sample #
+        if len(instance.callList) == 0:
+            return
+
+        callTable = dict()
+
+        SystemManager.printInfo(\
+            "Start analyze call samples...")
+
+        # iterate the list of call samples #
+        for idx, item in enumerate(instance.callList):
+            try:
+                symbol, timestamp, filename = item
+
+                try:
+                    callTable[symbol]['cnt'] += 1
+                except:
+                    callTable[symbol] = dict()
+                    callTable[symbol]['cnt'] = 1
+                    callTable[symbol]['path'] = filename
+
+                UtilManager.printProgress(idx, len(instance.callList))
+
+            except SystemExit:
+                UtilManager.deleteProgress()
+                return
+            except:
+                pass
+
+        UtilManager.deleteProgress()
+
+        # print summary table #
+        if instance.mode == 'syscall':
+            ctype = 'Syscall'
+        else:
+            ctype = 'Usercall'
+
+        nrTotal = float(len(instance.callList))
+        elapsed = instance.callList[-1][1] - instance.start
+        convert = UtilManager.convertNumber
+
+        SystemManager.printPipe(\
+            '\n[Trace %s Info] [Time: %f] [NrSamples: %s] [NrSymbols: %s]' % \
+                (ctype, elapsed, convert(long(nrTotal)), \
+                convert(len(callTable))))
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            '{0:^7} | {1:^64} | {2:^76}'.format(\
+                'Usage', 'Function', 'Path'))
+        SystemManager.printPipe(twoLine)
+
+        for sym, value in sorted(\
+            callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+            per = value['cnt'] / nrTotal * 100
+            SystemManager.printPipe(\
+                '{0:>7} | {1:^64} | {2:<76}'.format(\
+                    '%.1f%%' % per, sym, value['path']))
+
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -25372,6 +25560,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def getRegs(self):
+        if self.getRegsCost == 0:
+            start = time.time()
+
         pid = self.pid
         ctypes = SystemManager.getPkg('ctypes')
         arch = SystemManager.getArch()
@@ -25407,6 +25598,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
+
+        # measure the cost for copying register set of the target process #
+        if self.getRegsCost == 0:
+            self.getRegsCost = time.time() - start
 
         # check ret value #
         if ret >= 0:
@@ -26502,6 +26697,8 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def demangleSymbol(symbol):
+        symbol = symbol.replace('@@', '@')
+
         if not SystemManager.demangleEnable:
             return symbol
 
@@ -26510,8 +26707,8 @@ class ElfAnalyzer(object):
             return symbol
 
         # check including version #
-        if symbol.rfind('@@') > -1:
-            symbol, version = symbol.split('@@')
+        if symbol.rfind('@') > -1:
+            symbol, version = symbol.split('@')
             version = '@%s' % version
         else:
             version = ''
@@ -26756,10 +26953,11 @@ class ElfAnalyzer(object):
                     return '??'
 
                 # set symbol scope to size #
-                #maxAddr = addrTable[idx] + symTable[idx][1]
-
+                if True:
+                    maxAddr = addrTable[idx] + symTable[idx][1]
                 # set symbol scope to next one's start offset #
-                maxAddr = addrTable[idx+1]
+                else:
+                    maxAddr = addrTable[idx+1]
 
                 if offset >= addrTable[idx] and offset <= maxAddr:
                     return symTable[idx][0]
@@ -26812,10 +27010,14 @@ class ElfAnalyzer(object):
 
     def getString(self, strtable, start):
         idx = start
+        end = self.fileSize - start
 
         while 1:
             if strtable[idx:idx+1] == b'\x00':
                 break
+            elif idx >= end:
+                break
+
             idx += 1
 
         # pick symbol string #
@@ -27117,6 +27319,22 @@ class ElfAnalyzer(object):
         self.sortedAddrTable = []
         self.mergedSymTable = {}
 
+        # check debug file #
+        filename = os.path.basename(path)
+        dirname = os.path.dirname(path)
+        debugPath = '%s/.debug/%s' % (dirname, filename)
+        if os.path.isfile(debugPath):
+            SystemManager.printWarning(\
+                'Use %s instead of %s for debug symbols\n' % (debugPath, path))
+            path = debugPath
+        else:
+            debugPath = '/usr/lib/debug%s' % path
+            if os.path.isfile(debugPath):
+                SystemManager.printWarning(\
+                    'Use %s instead of %s for debug symbols\n' % (debugPath, path))
+                path = debugPath
+
+        # open file #
         try:
             fd = self.fd = open(path, 'rb')
         except:
@@ -27125,6 +27343,9 @@ class ElfAnalyzer(object):
             else:
                 SystemManager.printWarning("Fail to open %s" % path)
             raise Exception()
+
+        # get file size #
+        self.fileSize = os.stat(path).st_size
 
         # define default file type #
         e_type = e_class = 'dummpy'
@@ -27475,8 +27696,11 @@ Section header string table index: %d
         self.attr['dynsymList'] = list()
         self.attr['versionTable'] = dict()
 
+
         # parse .dynsym table #
-        if e_shdynsym >= 0 and e_shdynstr >= 0:
+        if e_shdynsym >= 0 and e_shdynstr >= 0 and \
+            self.attr['sectionHeader']['.dynsym']['type'] != 'NOBITS' and \
+            self.attr['sectionHeader']['.dynstr']['type'] != 'NOBITS':
             # get .dynstr section info #
             sh_name, sh_type, sh_flags, sh_addr, \
                 sh_offset, sh_size, sh_link, sh_info, \
@@ -27659,7 +27883,9 @@ Section header string table index: %d
         self.attr['symTable'] = dict()
 
         # parse .symtab table #
-        if e_shsymndx >= 0 and e_shstrndx >= 0:
+        if e_shsymndx >= 0 and e_shstrndx >= 0 and \
+            self.attr['sectionHeader']['.symtab']['type'] != 'NOBITS' and \
+            self.attr['sectionHeader']['.strtab']['type'] != 'NOBITS':
             # get .symtab section info #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -32473,14 +32699,14 @@ class ThreadAnalyzer(object):
             ftxMax = '%.3f' % float(value['ftxMax'])
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
-            ftxLockCall = '{:,}'.format(value['ftxLockCnt'])
-            ftxWaitCall = '{:,}'.format(value['ftxWaitCnt'])
+            ftxLockCall = UtilManager.convertNumber(value['ftxLockCnt'])
+            ftxWaitCall = UtilManager.convertNumber(value['ftxWaitCnt'])
 
             if SystemManager.cpuEnable:
                 ftxProcess = '%.3f' % float(value['ftxProcess'])
                 ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
                 ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
-                ftxBlockCall = '{:,}'.format(value['ftxBlockCnt'])
+                ftxBlockCall = UtilManager.convertNumber(value['ftxBlockCnt'])
                 ftxLSwitch = value['ftxLSwitch']
             else:
                 ftxProcess = '-'
@@ -32702,7 +32928,7 @@ class ThreadAnalyzer(object):
                         ('{0:1} {1:>30}({2:>3}) {3:>12} '
                         '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(\
                         '%s%s' % (syscallInfo, ' ' * len(threadInfo)), syscall, \
-                        sysId, '%.6f' % val['usage'],val['count'], val['err'], \
+                        sysId, '%.6f' % val['usage'], val['count'], val['err'], \
                         '%.6f' % val['min'], '%.6f' % val['max'], val['average'])
                 except:
                     pass
@@ -41013,7 +41239,8 @@ class ThreadAnalyzer(object):
                 SystemManager.jsonData['irq'][irq] = irqDiff
 
             nrIrq += 1
-            newIrq = '%s: %s / ' % (irq, '{:,}'.format(irqDiff))
+            newIrq = '%s: %s / ' % \
+                (irq, UtilManager.convertNumber(irqDiff))
             lenNewIrq = len(newIrq)
 
             if lenIrq + lenNewIrq >= len(oneLine):
@@ -42872,7 +43099,7 @@ def main(args=None):
         sys.argv = ['guider'] + args.split()
 
     # register exit handler #
-    atexit.register(SystemManager.releaseResource)
+    atexit.register(SystemManager.doExit)
 
     # print logo #
     SystemManager.printRawTitle(big=True)
@@ -43112,7 +43339,7 @@ def main(args=None):
 
     #==================== analysis part ====================#
     # register exit handler #
-    atexit.register(SystemManager.releaseResource)
+    atexit.register(SystemManager.doExit)
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
