@@ -2816,6 +2816,9 @@ class UtilManager(object):
 
     @staticmethod
     def printProgress(current, dest):
+        if not SystemManager.printEnable:
+            return
+
         try:
             div = round((current / float(dest)) * 100, 1)
         except:
@@ -2836,6 +2839,9 @@ class UtilManager(object):
 
     @staticmethod
     def deleteProgress():
+        if not SystemManager.printEnable:
+            return
+
         sys.stdout.write(' ' * 6)
         sys.stdout.flush()
 
@@ -31265,6 +31271,7 @@ class ThreadAnalyzer(object):
                 if key.endswith('nrCore') and len(val) > len(nrCore):
                     nrCore = val
 
+        # get effectProcList #
         effectProcList = [0] * len(timeline)
 
         if not SystemManager.layout:
