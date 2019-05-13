@@ -12356,6 +12356,9 @@ Examples:
     - Trace all write systemcalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
+    - Trace all read systemcalls for a specific thread and save summary tables, call history to ./guider.out
+        # {0:1} {1:1} -g 1234 -t read -o . -a
+
     - Trace all read systemcalls with breakpoint including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
 
@@ -12405,6 +12408,9 @@ Examples:
 
     - Trace user function calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
+
+    - Trace user function calls for a specific thread and save summary tables, call history to ./guider.out
+        # {0:1} {1:1} -g 1234 -o . -a
 
     - Trace user function  with breakpoint including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c peace -a
@@ -24870,9 +24876,6 @@ class Debugger(object):
 
 
     def addSample(self, data, filename, current=None):
-        if self.mode != 'sample':
-            return
-
         if not current:
             current = time.time()
 
@@ -24892,7 +24895,7 @@ class Debugger(object):
             self.pc >= self.prevCallInfo[2] and \
             self.pc <= self.prevCallInfo[3]:
             # add sample #
-            if SystemManager.printFile:
+            if self.mode == 'sample' and SystemManager.printFile:
                 self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
             return
 
@@ -25081,11 +25084,21 @@ class Debugger(object):
             argText = ', '.join(args)
 
             # get diff time #
-            diff = time.time() - self.start
+            current = time.time()
+            diff = current - self.start
 
-            SystemManager.printPipe(\
-                '%3.6f %s(%s) ' % \
-                (diff, name, argText), newline=False, flush=True)
+            # build call string #
+            callString = '%3.6f %s(%s) ' % (diff, name, argText)
+
+            # print call info #
+            if SystemManager.printFile:
+                self.addSample(name, '??', current)
+
+                if SystemManager.showAll:
+                    self.callPrint.append(callString)
+            else:
+                SystemManager.printPipe(\
+                    callString, newline=False, flush=True)
 
             # check pause condition #
             if SystemManager.customCmd and \
@@ -25126,7 +25139,16 @@ class Debugger(object):
             else:
                 err = ''
 
-            SystemManager.printPipe('= %s %s' % (retval, err), flush=True)
+            # build call string #
+            callString = '= %s %s' % (retval, err)
+
+            if SystemManager.printFile:
+                if SystemManager.showAll and \
+                    len(self.callPrint) > 0:
+                        self.callPrint[-1] = '%s%s' % \
+                            (self.callPrint[-1], callString)
+            else:
+                SystemManager.printPipe(callString, flush=True)
 
             self.clearArgs()
 
@@ -25147,6 +25169,7 @@ class Debugger(object):
 
         # context variables #
         self.start = 0
+        self.last = 0
         self.wait = wait
         self.mode = mode
         self.sysreg = ConfigManager.REG_LIST[arch]
@@ -25173,6 +25196,7 @@ class Debugger(object):
         SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
         if mode != 'syscall':
+            # inst #
             if SystemManager.funcDepth > 0:
                 # set sampling rate for instruction #
                 self.skipInst = SystemManager.funcDepth
@@ -25180,6 +25204,7 @@ class Debugger(object):
                 SystemManager.printInfo(\
                     'Do sampling every %s instrunctions' % \
                         SystemManager.funcDepth)
+            # sample #
             else:
                 # set sampling rate to 100us #
                 if SystemManager.repeatCount > 0:
@@ -25220,13 +25245,13 @@ class Debugger(object):
             signal.signal(signal.SIGALRM, SystemManager.exitHandler)
             signal.alarm(SystemManager.intervalEnable)
 
+        # register summary function #
+        SystemManager.addExitFunc(Debugger.printSummary, self)
+
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
         elif mode == 'inst' or mode == 'sample':
-            # register summary function #
-            SystemManager.addExitFunc(Debugger.printSummary, self)
-
             cmd = plist.index('PTRACE_SINGLESTEP')
 
             try:
@@ -25387,9 +25412,32 @@ class Debugger(object):
 
 
     @staticmethod
+    def printCallHistory(instance):
+        if len(instance.callPrint) == 0 or \
+            not SystemManager.showAll:
+                return
+
+        try:
+            elapsed = instance.callList[-1][1] - instance.start
+        except:
+            elapsed = instance.last - instance.start
+
+        SystemManager.printPipe(\
+            '\n[Trace History] [Time: %f] [Line: %s]' %
+                (elapsed, len(instance.callPrint)))
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe('\n'.join(instance.callPrint))
+        SystemManager.printPipe(oneLine)
+
+
+
+    @staticmethod
     def printSummary(instance):
+        instance.last = time.time()
+
         # check call sample #
         if len(instance.callList) == 0:
+            Debugger.printCallHistory(instance)
             return
 
         callTable = dict()
@@ -25415,14 +25463,17 @@ class Debugger(object):
                     callTable[symbol]['cnt'] = 1
                     callTable[symbol]['path'] = filename
 
+                UtilManager.printProgress(idx, len(instance.callList))
+
+                if instance.mode == 'syscall':
+                    continue
+
                 # add to file table #
                 try:
                     fileTable[filename]['cnt'] += 1
                 except:
                     fileTable[filename] = dict()
                     fileTable[filename]['cnt'] = 1
-
-                UtilManager.printProgress(idx, len(instance.callList))
 
             except SystemExit:
                 UtilManager.deleteProgress()
@@ -25435,19 +25486,22 @@ class Debugger(object):
         # print summary table #
         if instance.mode == 'syscall':
             ctype = 'Syscall'
+            addInfo = 'Count'
         else:
             ctype = 'Usercall'
+            addInfo = 'Path'
 
         # print call table #
         nrTotal = float(len(instance.callList))
         elapsed = instance.callList[-1][1] - instance.start
         convert = UtilManager.convertNumber
 
+        # get sample info #
         try:
             maxSample = elapsed / instance.sampleTime
             perSample = '%.1f' % (nrTotal / maxSample * 100)
         except:
-            perSample = '0%'
+            perSample = '0'
 
         SystemManager.printPipe((\
             '\n[Trace %s Info] [Time: %f] '
@@ -25457,7 +25511,7 @@ class Debugger(object):
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             '{0:^7} | {1:^64} | {2:^76}'.format(\
-                'Usage', 'Function', 'Path'))
+                'Usage', 'Function', addInfo))
         SystemManager.printPipe(twoLine)
 
         for sym, value in sorted(\
@@ -25467,13 +25521,19 @@ class Debugger(object):
 
             per = value['cnt'] / nrTotal * 100
 
+            if instance.mode == 'syscall':
+                addVal = convert(value['cnt'])
+            else:
+                addVal = value['path']
+
             SystemManager.printPipe(\
                 '{0:>7} | {1:^64} | {2:<76}'.format(\
-                    '%.1f%%' % per, sym, value['path']))
+                    '%.1f%%' % per, sym, addVal))
 
         SystemManager.printPipe(oneLine)
 
         if len(fileTable) == 0:
+            instance.printCallHistory(instance)
             return
 
         # print file table #
@@ -25495,6 +25555,8 @@ class Debugger(object):
                 '{0:>7} | {1:<143}'.format('%.1f%%' % per, filename))
 
         SystemManager.printPipe(oneLine)
+
+        instance.printCallHistory(instance)
 
 
 
