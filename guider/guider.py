@@ -5303,6 +5303,8 @@ class FunctionAnalyzer(object):
 
                     updateSymbol(offset, symbol, '??', relocated)
                 return
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -11099,6 +11101,8 @@ class SystemManager(object):
         # check cache #
         try:
             return SystemManager.impPkg[name]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -16402,6 +16406,8 @@ Copyright:
 
                 if flush or SystemManager.remoteRun:
                     sys.stdout.flush()
+            except SystemExit:
+                sys.exit(0)
             except:
                 if SystemManager.encodeEnable:
                     SystemManager.encodeEnable = False
@@ -20000,7 +20006,13 @@ Copyright:
 
         # print symbols from offset list #
         for offset in SystemManager.filterGroup:
-            symbol = binObj.getSymbolByOffset(offset)
+            try:
+                symbol = binObj.getSymbolByOffset(offset)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             if symbol == '??':
                 symbol = 'N/A'
 
@@ -24400,6 +24412,8 @@ class Debugger(object):
         # check the process is running #
         try:
             os.kill(pid, 0)
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
@@ -24801,6 +24815,8 @@ class Debugger(object):
         try:
             sym = fcache.getSymbolByOffset(offset)
             return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -24838,6 +24854,8 @@ class Debugger(object):
         try:
             idx = bisect_left(self.addrList, vaddr)
             return self.fileList[idx]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -25190,6 +25208,7 @@ class Debugger(object):
         self.pbufsize = SystemManager.ttyCols >> 1
 
         # sampling variables #
+        self.sampleTime = 0
         self.getRegsCost = 0
         self.prevCallString = ''
         self.callList = list()
@@ -25516,11 +25535,23 @@ class Debugger(object):
         except:
             perSample = '0'
 
+        if instance.sampleTime > 0:
+            samplingStr = '[Sampling: %f]' % instance.sampleTime
+        else:
+            samplingStr = ''
+
+        if instance.sampleTime > 0:
+            sampleRateStr = '(%s%%)' % perSample
+        else:
+            sampleRateStr = ''
+
         SystemManager.printPipe((\
-            '\n[Trace %s Info] [Time: %f] '
-            '[NrSamples: %s(%s%%)] [NrSymbols: %s]') % \
-                (ctype, elapsed, convert(long(nrTotal)), \
-                perSample, convert(len(callTable))))
+            '\n[Trace %s Info] [Time: %f] %s '
+            '[NrSamples: %s%s] [NrSymbols: %s]') % \
+                (ctype, elapsed, samplingStr, \
+                convert(long(nrTotal)), sampleRateStr, \
+                convert(len(callTable))))
+
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             '{0:^7} | {1:^64} | {2:^76}'.format(\
@@ -27036,6 +27067,8 @@ class ElfAnalyzer(object):
                 end = addrTable[idx + 1] - 1
 
             return [start, end]
+        except SystemExit:
+            sys.exit(0)
         except:
             return [0, 0]
 
@@ -27088,6 +27121,8 @@ class ElfAnalyzer(object):
                     return symTable[idx][0]
 
                 idx += 1
+        except SystemExit:
+            sys.exit(0)
         except:
             return '??'
 
