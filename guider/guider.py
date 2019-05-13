@@ -24921,6 +24921,8 @@ class Debugger(object):
             # anon range #
             else:
                 vstart, vend = self.getAnonVrangeByOffset(offset, fname)
+        except SystemExit:
+            sys.exit(0)
         except:
             vstart = vend = 0
 
@@ -25391,6 +25393,7 @@ class Debugger(object):
             return
 
         callTable = dict()
+        fileTable = dict()
 
         SystemManager.printInfo(\
             "Start analyze call samples...")
@@ -25400,12 +25403,24 @@ class Debugger(object):
             try:
                 symbol, timestamp, filename = item
 
+                # convert anonymous call to filename #
+                if symbol == '??':
+                    symbol = filename
+
+                # add to symbol table #
                 try:
                     callTable[symbol]['cnt'] += 1
                 except:
                     callTable[symbol] = dict()
                     callTable[symbol]['cnt'] = 1
                     callTable[symbol]['path'] = filename
+
+                # add to file table #
+                try:
+                    fileTable[filename]['cnt'] += 1
+                except:
+                    fileTable[filename] = dict()
+                    fileTable[filename]['cnt'] = 1
 
                 UtilManager.printProgress(idx, len(instance.callList))
 
@@ -25423,14 +25438,22 @@ class Debugger(object):
         else:
             ctype = 'Usercall'
 
+        # print call table #
         nrTotal = float(len(instance.callList))
         elapsed = instance.callList[-1][1] - instance.start
         convert = UtilManager.convertNumber
 
-        SystemManager.printPipe(\
-            '\n[Trace %s Info] [Time: %f] [NrSamples: %s] [NrSymbols: %s]' % \
+        try:
+            maxSample = elapsed / instance.sampleTime
+            perSample = '%.1f' % (nrTotal / maxSample * 100)
+        except:
+            perSample = '0%'
+
+        SystemManager.printPipe((\
+            '\n[Trace %s Info] [Time: %f] '
+            '[NrSamples: %s(%s%%)] [NrSymbols: %s]') % \
                 (ctype, elapsed, convert(long(nrTotal)), \
-                convert(len(callTable))))
+                perSample, convert(len(callTable))))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             '{0:^7} | {1:^64} | {2:^76}'.format(\
@@ -25439,10 +25462,37 @@ class Debugger(object):
 
         for sym, value in sorted(\
             callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+            if sym[0] == '/':
+                sym = '??'
+
             per = value['cnt'] / nrTotal * 100
+
             SystemManager.printPipe(\
                 '{0:>7} | {1:^64} | {2:<76}'.format(\
                     '%.1f%%' % per, sym, value['path']))
+
+        SystemManager.printPipe(oneLine)
+
+        if len(fileTable) == 0:
+            return
+
+        # print file table #
+        SystemManager.printPipe((\
+            '\n[Trace File Info] [Time: %f] '
+            '[NrSamples: %s(%s%%)] [NrFiles: %s]') % \
+                (elapsed, convert(long(nrTotal)), \
+                perSample, convert(len(fileTable))))
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            '{0:^7} | {1:^143}'.format('Usage', 'Path'))
+        SystemManager.printPipe(twoLine)
+
+        for filename, value in sorted(\
+            fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+            per = value['cnt'] / nrTotal * 100
+
+            SystemManager.printPipe(\
+                '{0:>7} | {1:<143}'.format('%.1f%%' % per, filename))
 
         SystemManager.printPipe(oneLine)
 
