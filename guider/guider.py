@@ -3109,6 +3109,8 @@ class NetworkManager(object):
             if not sender:
                 return
 
+            convert = UtilManager.convertSize2Unit
+
             try:
                 # receive file size #
                 stat = os.stat(origPath)
@@ -3144,14 +3146,14 @@ class NetworkManager(object):
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
-                    (origPath, \
-                    UtilManager.convertSize2Unit(os.path.getsize(origPath)), \
-                    ':'.join(list(map(str, addr))), targetPath))
+                        (origPath, convert(os.path.getsize(origPath)), \
+                            ':'.join(list(map(str, addr))), targetPath))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
                     "Fail to upload %s to %s:%s because %s" % \
-                    (origPath, ':'.join(list(map(str, addr))), err))
+                        (origPath, ':'.join(list(map(str, addr))), \
+                            targetPath, err))
             finally:
                 sender.close()
 
@@ -3266,7 +3268,7 @@ class NetworkManager(object):
 
             else:
                 SystemManager.printError(\
-                    "Fail to recognize '%s' request" % origReq)
+                    "Fail to recognize '%s' request" % req)
 
         elif not req:
             SystemManager.printError(\
@@ -3274,7 +3276,7 @@ class NetworkManager(object):
 
         else:
             SystemManager.printError(\
-                "received wrong reply '%s'" % origReq)
+                "received wrong reply '%s'" % req)
 
 
 
@@ -4520,12 +4522,13 @@ class FunctionAnalyzer(object):
                         freeCall = ''
 
                         try:
+                            tsym = val[subStackIndex][0]
                             allocCall = '%s [%s]' % \
                                 (val[subStackIndex][0], \
-                                self.userSymData[val[subStackIndex][0]]['origBin'])
+                                self.userSymData[tsym]['origBin'])
                             for usym in val[subStackIndex][1:]:
                                 allocCall = '%s <- %s [%s]' % \
-                                    (alocCall, usym, \
+                                    (allocCall, usym, \
                                     self.userSymData[sym]['origBin'])
                         except:
                             if allocCall == '':
@@ -4613,7 +4616,7 @@ class FunctionAnalyzer(object):
                         pairId = '%s#%s' % (allocCall, freeCall)
 
                         try:
-                            KernelData['pagePair'][pairId]
+                            kernelData['pagePair'][pairId]
                         except:
                             kernelData['pagePair'][pairId] = \
                                 dict(self.init_glueData)
@@ -5764,10 +5767,11 @@ class FunctionAnalyzer(object):
         try:
             self.heapTable[tid + '-ready']['size'] = size
             self.heapTable[tid + '-ready']['tid'] = tid
-            self.threadData[thread]['heapSize'] -= size
+            self.threadData[tid]['heapSize'] -= size
             SystemManager.printWarning(\
                 'Overwrite heap segment of %s(%s) at %s' % \
-                (self.threadData[tid]['comm'], tid, SystemManager.dbgEventLine))
+                    (self.threadData[tid]['comm'], tid, \
+                    SystemManager.dbgEventLine))
         except:
             self.heapTable[tid + '-ready'] = dict(self.init_heapSegData)
             self.heapTable[tid + '-ready']['size'] = size
@@ -5780,15 +5784,21 @@ class FunctionAnalyzer(object):
             self.heapRedEventCnt += 1
             self.heapRedSize += self.heapTable[addr]['size']
 
-            self.threadData[self.heapTable[addr]['tid']]['heapSize'] -= \
+            # get tid #
+            try:
+                tid = self.heapTable[addr]['tid']
+            except:
+                return
+
+            self.threadData[tid]['heapSize'] -= \
                 self.heapTable[addr]['size']
 
             self.heapTable.pop(addr, None)
         except:
             SystemManager.printWarning(\
                 'Fail to free heap segment %s of %s(%s) at %s' % \
-                (addr, self.threadData[tid]['comm'], tid, \
-                SystemManager.dbgEventLine))
+                    (addr, self.threadData[tid]['comm'], tid, \
+                    SystemManager.dbgEventLine))
 
 
 
@@ -5799,8 +5809,8 @@ class FunctionAnalyzer(object):
         except:
             SystemManager.printWarning(\
                 'Fail to set address of heap segment %s of %s(%s) at %s' % \
-                (addr, self.threadData[tid]['comm'], tid, \
-                SystemManager.dbgEventLine))
+                    (addr, self.threadData[tid]['comm'], tid, \
+                    SystemManager.dbgEventLine))
 
 
 
@@ -6312,8 +6322,8 @@ class FunctionAnalyzer(object):
 
                 # handle wrong syscall number #
                 if nr < 0:
-                    if td['lastNrSyscall'] >= 0:
-                        nr = td['lastNrSyscall']
+                    if self.threadData[tid]['lastNrSyscall'] >= 0:
+                        nr = self.threadData[tid]['lastNrSyscall']
 
                 # heap increasement event #
                 if nr == ConfigManager.getMmapId():
@@ -6341,7 +6351,7 @@ class FunctionAnalyzer(object):
                     addr = int(b['ret'])
 
                     try:
-                        pid = self.threadData[thread]['tgid']
+                        pid = self.threadData[tid]['tgid']
                         if pid == '-----':
                             pid = SystemManager.savedProcTree[tid]
                         self.threadData[pid]
@@ -9169,7 +9179,7 @@ class LeakAnalyzer(object):
             SystemManager.printPipe(oneLine)
 
         if count == 0:
-            SystemManager.printPipe('\tNone\n%s' % oneline)
+            SystemManager.printPipe('\tNone\n%s' % oneLine)
 
         # file leakage info #
         title = 'File Leakage Info'
@@ -9426,7 +9436,7 @@ class FileAnalyzer(object):
             if not ctypes:
                 sys.exit(0)
 
-            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte
+            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, cdll
 
             try:
                 # load standard libc library #
@@ -9451,7 +9461,7 @@ class FileAnalyzer(object):
             except:
                 SystemManager.libcObj = None
                 SystemManager.printError(\
-                    'Fail to find libc to call systemcall', True)
+                    'Fail to find libc to call systemcall')
                 sys.exit(0)
 
         # set system maximum fd number #
@@ -9524,10 +9534,11 @@ class FileAnalyzer(object):
         for fileData in self.intervalFileData:
             for fileName, fileStat in fileData.items():
                 try:
-                    if self.fileList[fileName]['pageCnt'] < fileStat['pageCnt']:
-                        self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
+                    fl = self.fileList[fileName]
+                    if fl['pageCnt'] < fileStat['pageCnt']:
+                        fl['pageCnt'] = fileStat['pageCnt']
                 except:
-                    self.fileList[fileName] = dict(FileAnalzyer.init_mapData)
+                    self.fileList[fileName] = dict(FileAnalyzer.init_mapData)
                     self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
                     self.fileList[fileName]['totalSize'] = fileStat['totalSize']
 
@@ -9806,8 +9817,8 @@ class FileAnalyzer(object):
             format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
         SystemManager.printPipe(twoLine)
 
-        procInfo = "{0:^16}({0:^5})|{1:12} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procInfo = "{0:^16}({0:^5})|{0:12} |".format('')
+        threadInfo = " {0:^16}({0:^5}) |".format('')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SystemManager.lineLength
@@ -13083,7 +13094,6 @@ COMMAND:
                 filetop     <file>
                 strace      <syscall>
                 utrace      <usercall>
-
     [profile]   record      <thread>
                 funcrecord  <function>
                 filerecord  <file>
@@ -13144,16 +13154,16 @@ OPTIONS:
                 helpStr = defStr + \
                     '''
 Author:
-    {1:1} ({2:1})
+    {0:1} ({1:1})
 
 Reporting bugs:
-    {2:1} or {3:1}/issues
+    {1:1} or {2:1}/issues
 
 Copyright:
-    {4:1}
-    License {5:1}.
+    {3:1}
+    License {4:1}.
     This is free software
-                    '''.format(cmd, __author__, __email__, \
+                    '''.format(__author__, __email__, \
                         __repository__, __copyright__, __license__)
 
                 printPipe(helpStr)
@@ -16057,8 +16067,8 @@ Copyright:
             sys.exit(0)
 
         # get PIL object #
-        pilObj = SystemManager.getPkg('PIL', False)
-        if not pilObj:
+        PIL = SystemManager.getPkg('PIL', False)
+        if not PIL:
             SystemManager.printWarning((\
                 "Fail to import python package: PIL\n"
                 "\tTry to enter %s command to install the package") % \
@@ -16415,9 +16425,12 @@ Copyright:
 
             if sys.version_info < (3, 0) and not SystemManager.encoding:
                 if not sys.getdefaultencoding().lower().startswith('utf'):
-                    reload(sys)
-                    sys.setdefaultencoding('utf-8')
-                    SystemManager.encoding = sys.getdefaultencoding()
+                    try:
+                        reload(sys)
+                        sys.setdefaultencoding('utf-8')
+                        SystemManager.encoding = sys.getdefaultencoding()
+                    except:
+                        pass
 
             return newline
         except:
@@ -24060,7 +24073,7 @@ class Debugger(object):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
         from ctypes import cdll, Structure, sizeof, addressof,\
-            c_ulong, c_int, c_uint, c_uint32, byref
+            c_ulong, c_int, c_uint, c_uint32, byref, c_ushort
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
@@ -24623,10 +24636,10 @@ class Debugger(object):
         if syscall == "socketcall":
             if argname == "call":
                 try:
-                    return SOCKETCALL[value]
+                    return ConfigManager.SOCKETCALL[value]
                 except:
                     return value
-            elif name == "args":
+            elif argname == "args":
                 # toDo: handle socket call args #
                 return value
         if syscall == "write" and argname == "buf":
@@ -24887,7 +24900,7 @@ class Debugger(object):
         # get register set of target #
         if not self.getRegs():
             SystemManager.printError(\
-                "Fail to get register values of thread %d" % pid)
+                "Fail to get register values of thread %d" % self.pid)
             return
 
         # check previous function boundary #
@@ -29858,6 +29871,7 @@ class ThreadAnalyzer(object):
                 blkWait = graphStats['%sblkWait' % fname][:lent]
                 blkProcUsage = graphStats['%sblkProcUsage' % fname]
                 gpuUsage = graphStats['%sgpuUsage' % fname]
+                nrCore = graphStats['%snrCore' % fname]
 
                 # set visible total usage flag #
                 if len(SystemManager.filterGroup) == 0:
@@ -31207,6 +31221,15 @@ class ThreadAnalyzer(object):
                 if key.endswith('timeline') and len(val) > len(timeline):
                     timeline = val
 
+        # get nrCore #
+        if 'nrCore' in graphStats:
+            nrCore = graphStats['nrCore']
+        else:
+            nrCore = []
+            for key, val in graphStats.items():
+                if key.endswith('nrCore') and len(val) > len(nrCore):
+                    nrCore = val
+
         effectProcList = [0] * len(timeline)
 
         if not SystemManager.layout:
@@ -31921,11 +31944,12 @@ class ThreadAnalyzer(object):
             self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
         SystemManager.printPipe(twoLine)
 
-        SystemManager.printPipe("{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-            format(title, "CPU Info", "SCHED Info", \
-            "BLOCK Info", "MEM Info"))
-        SystemManager.printPipe("{0:^32}|{1:^35}|{2:^22}|{3:^26}|{4:^34}|".\
-            format("", "", "", "", "", ""))
+        SystemManager.printPipe(\
+            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
+                format(title, "CPU Info", "SCHED Info", \
+                    "BLOCK Info", "MEM Info"))
+        SystemManager.printPipe(\
+            "{0:^32}|{0:^35}|{0:^22}|{0:^26}|{0:^34}|".format(""))
 
         SystemManager.printPipe((\
             "%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
@@ -33247,9 +33271,8 @@ class ThreadAnalyzer(object):
                     start = UtilManager.convertSize2Unit(optSize)
                     end = UtilManager.convertSize2Unit(optSize << 1)
                     SystemManager.printPipe(\
-                        "{0:^23} {1:^8} {2:^5} {3:>20} {4:>23} {5:^12} {6:^20}".\
-                        format('', '', '', '[%7s - %7s]' % (start, end),\
-                        format(cnt, ','), '', '', ''))
+                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:^20}".\
+                        format('', '[%7s - %7s]' % (start, end), cnt))
 
                 tcnt += 1
 
@@ -38780,24 +38803,24 @@ class ThreadAnalyzer(object):
 
 
     def compareThreadData(self):
-        for key, value in sorted(ti.threadData.items(), \
+        for key, value in sorted(self.threadData.items(), \
             key=lambda e: e[1]['usage'], reverse=True):
 
-            per = float(value['usage']) / float(ti.totalTime)
+            per = float(value['usage']) / float(self.totalTime)
             newPercent = round(per, 7) * 100
 
             try:
-                ti.threadDataOld[key]
+                self.threadDataOld[key]
             except:
                 if int(newPercent) < 1:
-                    del ti.threadData[key]
+                    del self.threadData[key]
                 continue
 
             oldPercent = \
-                round(float(ti.threadDataOld[key]['usage']) / \
-                float(ti.totalTimeOld), 7) * 100
+                round(float(self.threadDataOld[key]['usage']) / \
+                float(self.totalTimeOld), 7) * 100
             if int(oldPercent) >= int(newPercent) or int(newPercent) < 1:
-                del ti.threadData[key]
+                del self.threadData[key]
 
 
 
