@@ -21658,6 +21658,14 @@ Copyright:
 
 
 
+    @staticmethod
+    def clearTraceFilter():
+        SystemManager.writeCmd("../set_ftrace_filter", '')
+        SystemManager.writeCmd("../set_ftrace_pid", '')
+        SystemManager.writeCmd("../set_ftrace_notrace", '')
+
+
+
     def initCmdList(self):
         self.cmdList["sched/sched_switch"] = SystemManager.cpuEnable
         self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
@@ -21750,6 +21758,9 @@ Copyright:
 
         # clean up ring buffer for tracing #
         SystemManager.clearTraceBuffer()
+
+        # clear trace filter #
+        SystemManager.clearTraceFilter()
 
         # write command to start tracing #
         SystemManager.writeCmd('../tracing_on', '1')
