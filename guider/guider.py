@@ -9762,11 +9762,6 @@ class FileAnalyzer(object):
 
         try:
             savedOffset = procMap[fileName]['offset']
-
-            # handle overlapped area in a same file #
-            if savedOffset == 0:
-                return
-
             savedSize = procMap[fileName]['size']
             savedEnd = savedOffset + savedSize
 
@@ -9776,10 +9771,10 @@ class FileAnalyzer(object):
                 if savedEnd < newEnd:
                     procMap[fileName]['size'] += \
                         (newEnd - savedOffset - savedSize)
-                # ignore smaller end address then saved one #
+                # ignore lesser end address then saved one #
                 else:
                     pass
-            # smaller start address then saved one #
+            # lesser start address then saved one #
             else:
                 if savedEnd >= newEnd:
                     procMap[fileName]['size'] += (savedOffset - newOffset)
@@ -10072,10 +10067,10 @@ class FileAnalyzer(object):
                         if savedEnd < newEnd:
                             self.fileData[fileName]['size'] += \
                                 (newEnd - savedOffset - savedSize)
-                        # ignore smaller end address then saved one #
+                        # ignore lesser end address then saved one #
                         else:
                             pass
-                    # smaller start address then saved one #
+                    # lesser start address then saved one #
                     else:
                         if savedEnd >= newEnd:
                             self.fileData[fileName]['size'] += \
@@ -25588,9 +25583,9 @@ class Debugger(object):
 
         # print file table #
         SystemManager.printPipe((\
-            '\n[Trace File Info] [Time: %f] '
+            '\n[Trace File Info] [Time: %f] %s '
             '[NrSamples: %s(%s%%)] [NrFiles: %s]') % \
-                (elapsed, convert(long(nrTotal)), \
+                (elapsed, samplingStr, convert(long(nrTotal)), \
                 perSample, convert(len(fileTable))))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
