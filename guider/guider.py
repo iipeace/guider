@@ -25698,6 +25698,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if Debugger.checkPtraceScope() < 0:
             return
 
+        # remove myself #
+        try:
+            tlist.pop(tlist.index(str(SystemManager.pid)))
+        except:
+            pass
+
         # check thread list #
         if len(tlist) == 0:
             SystemManager.printError(\
@@ -25708,10 +25714,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         lastTid = 0
         try:
             for tid in tlist:
-                lastTid = tid
-                dlist.append(Debugger(int(tid)))
+                lastTid = int(tid)
+                SystemManager.sendSignalProcs(signal.SIGSTOP, [lastTid])
+                dlist.append(lastTid)
 
-                SystemManager.printInfo("paused thread %s" % tid)
+                SystemManager.printInfo("paused thread %s" % lastTid)
 
             SystemManager.waitEvent()
         except SystemExit:
@@ -25722,7 +25729,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 'Fail to pause thread %s because %s' % (lastTid, err))
         finally:
             for item in dlist:
-                del item
+                SystemManager.sendSignalProcs(signal.SIGCONT, [item])
 
 
 
