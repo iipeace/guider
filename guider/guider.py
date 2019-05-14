@@ -15547,7 +15547,7 @@ Copyright:
 
             SystemManager.printWarning(\
                 "Fail to use %s event, please check kernel configuration" % \
-                epath)
+                    epath)
             return -1
 
         # apply command #
@@ -16722,10 +16722,9 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'o':
-                # check output path #
-                if len(value) == 0:
-                    SystemManager.printError("no option value with -o option")
-                    sys.exit(0)
+                # apply default path #
+                if value == '':
+                    value = '.'
 
                 # check writable access #
                 if os.access(value, os.W_OK) is False and \
@@ -17277,6 +17276,10 @@ Copyright:
                         "Fail to save data because it is not in record mode")
                     sys.exit(0)
 
+                # apply default path #
+                if value == '':
+                    value = '.'
+
                 # change output path #
                 try:
                     if os.access(value, os.F_OK) or \
@@ -17410,6 +17413,10 @@ Copyright:
                 SystemManager.parseRuntimeOption(value)
 
             elif option == 'o':
+                # apply default path #
+                if value == '':
+                    value = '.'
+
                 SystemManager.printFile = str(value)
                 if len(SystemManager.printFile) == 0:
                     SystemManager.printError(\
@@ -21663,6 +21670,10 @@ Copyright:
         SystemManager.writeCmd("../set_ftrace_filter", '')
         SystemManager.writeCmd("../set_ftrace_pid", '')
         SystemManager.writeCmd("../set_ftrace_notrace", '')
+        SystemManager.writeCmd("../set_event", '')
+        SystemManager.writeCmd("../set_event_pid", '')
+        SystemManager.writeCmd("../set_graph_function", '')
+        SystemManager.writeCmd("../set_graph_notrace", '')
 
 
 
