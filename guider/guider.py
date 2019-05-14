@@ -9499,8 +9499,8 @@ class FileAnalyzer(object):
                 self.profFailedCnt = 0
 
                 # check exit condition for interval profile #
-                if SystemManager.condExit is False:
-                    signal.pause()
+                if not SystemManager.condExit:
+                    SystemManager.waitEvent()
                 else:
                     break
             else:
@@ -11457,6 +11457,15 @@ class SystemManager(object):
 
 
     @staticmethod
+    def waitEvent():
+        try:
+            signal.pause()
+        except:
+            pass
+
+
+
+    @staticmethod
     def getProcTree():
         procTree = {}
 
@@ -11828,10 +11837,10 @@ Examples:
         # {0:1} {1:1} -s . -c softirq_entry:vec==1
 
     - record specific function events including segmentation fault of all threads to ./guider.dat in real-time
-        # {0:1} {1:1} -s . -K segflt:bad_area -e p
+        # {0:1} {1:1} -s . -d c -K segflt:bad_area -e p
 
     - record specific function events including blocking of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -K block:schedule
+        # {0:1} {1:1} -s . -d c -K block:schedule
 
     - record default function events of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
@@ -12038,17 +12047,17 @@ Examples:
         # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
 
     - record default events including specific kernel function of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
+        # {0:1} {1:1} -s . -d c -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
 
     - record default events including specific kernel function with args of all threads on x86 to ./guider.dat
-        # {0:1} {1:1} -s . -K open:do_sys_open:dfd=%ax\ filename=%bx\;u64\ flags=%cx\;s32\ mode=+4\(\$stack\):NONE
+        # {0:1} {1:1} -s . -d c -K open:do_sys_open:dfd=%ax\ filename=%bx\;u64\ flags=%cx\;s32\ mode=+4\(\$stack\):NONE
 
     - record default events including specific kernel function with register values of all threads on x86 to ./guider.dat
-        # {0:1} {1:1} -s . -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
+        # {0:1} {1:1} -s . -d c -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
 
     - record default events including specific kernel function with the return value of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -K openfile:getname::*string, access:0x1234:NONE:*string
-        # {0:1} {1:1} -s . -K openfile:getname::**string, access:0x1234:NONE:*string
+        # {0:1} {1:1} -s . -d c -K openfile:getname::*string, access:0x1234:NONE:*string
+        # {0:1} {1:1} -s . -d c -K openfile:getname::**string, access:0x1234:NONE:*string
 
     - record default events of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
@@ -15258,6 +15267,8 @@ Copyright:
         SystemManager.printStatus(\
             'ready to save and analyze... [ STOP(ctrl + c) ]')
 
+        raise Exception()
+
 
 
     @staticmethod
@@ -17311,6 +17322,9 @@ Copyright:
 
             elif option == 'D':
                 SystemManager.depEnable = True
+
+            elif option == 'Q':
+                SystemManager.printStreamEnable = True
 
             elif option == 'H':
                 try:
@@ -20191,7 +20205,7 @@ Copyright:
                 (UtilManager.convertSize2Unit(len(buffer), True), \
                 UtilManager.convertSize2Unit(rssSize, True)))
 
-            signal.pause()
+            SystemManager.waitEvent()
 
             sys.exit(0)
 
@@ -20302,7 +20316,7 @@ Copyright:
 
         # wait for childs #
         if len(pidList) > 0:
-            signal.pause()
+            SystemManager.waitEvent()
 
         # terminate tasks #
         SystemManager.terminateTasks(pidList)
@@ -21505,12 +21519,17 @@ Copyright:
             SystemManager.printError("Fail to open %s" % filePath)
             sys.exit(0)
 
+        pageSize = SystemManager.pageSize
+
         while 1:
             try:
                 # read each 4k data through pipe #
-                buf = pd.read(SystemManager.pageSize)
+                buf = pd.read(pageSize)
 
                 fd.write(buf)
+
+                if SystemManager.printStreamEnable:
+                    SystemManager.printPipe(buf)
 
                 if SystemManager.recordStatus:
                     continue
@@ -25694,7 +25713,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
                 SystemManager.printInfo("paused thread %s" % tid)
 
-            signal.pause()
+            SystemManager.waitEvent()
         except SystemExit:
             return
         except:
@@ -43378,7 +43397,8 @@ def main(args=None):
         if SystemManager.waitEnable:
             SystemManager.printStatus(\
                 "wait for user input... [ START(ctrl + c) ]")
-            signal.pause()
+
+            SystemManager.waitEvent()
 
         # set signal #
         if SystemManager.repeatCount > 0 and \
@@ -43408,7 +43428,7 @@ def main(args=None):
             SystemManager.parseAnalOption()
 
             # wait for user input #
-            signal.pause()
+            SystemManager.waitEvent()
 
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
@@ -43516,7 +43536,9 @@ def main(args=None):
             while 1:
                 if SystemManager.recordStatus:
                     SystemManager.condExit = True
-                    signal.pause()
+
+                    SystemManager.waitEvent()
+
                     if SystemManager.condExit:
                         break
                 else:
