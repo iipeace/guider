@@ -24084,8 +24084,10 @@ Copyright:
             jsonData['inactive'] = convertFunc(int(after['Inactive']) << 10)
             jsonData['pagetable'] = convertFunc(int(after['PageTables']) << 10)
             jsonData['slab'] = convertFunc(int(after['Slab']) << 10)
-            jsonData['sreclaimable'] = convertFunc(int(after['SReclaimable']) << 10)
-            jsonData['sunreclaimable'] = convertFunc(int(after['SUnreclaim']) << 10)
+            jsonData['sreclaimable'] = \
+                convertFunc(int(after['SReclaimable']) << 10)
+            jsonData['sunreclaimable'] = \
+                convertFunc(int(after['SUnreclaim']) << 10)
             jsonData['mlock'] = convertFunc(int(after['Mlocked']) << 10)
 
 
@@ -25218,8 +25220,8 @@ class Debugger(object):
             if SystemManager.printFile:
                 if SystemManager.showAll and \
                     len(self.callPrint) > 0:
-                        self.callPrint[-1] = '%s%s' % \
-                            (self.callPrint[-1], callString)
+                    self.callPrint[-1] = '%s%s' % \
+                        (self.callPrint[-1], callString)
             else:
                 SystemManager.printPipe(callString, flush=True)
 
@@ -25489,7 +25491,7 @@ class Debugger(object):
     def printCallHistory(instance):
         if len(instance.callPrint) == 0 or \
             not SystemManager.showAll:
-                return
+            return
 
         try:
             elapsed = instance.callList[-1][1] - instance.start
