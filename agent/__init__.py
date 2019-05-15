@@ -1,38 +1,35 @@
-import os
-
-from flask import Flask
-
 '''
 $ cd guider
 $ export FLASK_APP=agent
-$ export FLASK_ENV=development
 $ flask run
 '''
+import os
+import sys
+import json
 
-def create_app(test_config=None):
-    # create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(
-        SECRET_KEY='dev',
-        DATABASE=os.path.join(app.instance_path, 'flaskr.sqlite'),
-    )
+from flask import Flask
+app = Flask(__name__)
 
-    if test_config is None:
-        # load the instance config, if it exists, when not testing
-        app.config.from_pyfile('config.py', silent=True)
-    else:
-        # load the test config if passed in
-        app.config.from_mapping(test_config)
+#add guider path here
+curDir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, '%s/../guider' % curDir)
 
-    # ensure the instance folder exists
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
+from guider import NetworkManager
 
-    # a simple page that says hello
-    @app.route('/hello')
-    def hello():
-        return 'Hello, World!'
+NetworkManager.prepareServerConn('127:0.0.1:5555', None)
 
-    return app
+# get connection with server #
+conn = NetworkManager.getServerConn()
+if not conn:
+    print('\nFail to get connection with server')
+    sys.exit(0)
+
+# request command #
+pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -j')
+if not pipe:
+    print('\nFail to get command pipe')
+    sys.exit(0)
+
+@app.route('/')
+def hello_world():
+    return pipe.getData() 
