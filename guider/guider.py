@@ -6794,20 +6794,6 @@ class FunctionAnalyzer(object):
 
 
 
-    def parseMapLine(self, string):
-        m = re.match((\
-            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
-            r'(?P<binName>.+)'), string)
-        if m:
-            d = m.groupdict()
-            self.mapData.append(\
-                {'startAddr': d['startAddr'], \
-                'endAddr': d['endAddr'], \
-                'binName': d['binName']})
-
-
-
     def getBinInfo(self, addr):
         for data in self.mapData:
             if int(data['startAddr'], 16) <= int(addr, 16) and \
@@ -6882,7 +6868,8 @@ class FunctionAnalyzer(object):
 
     def printUsage(self):
         targetCnt = 0
-        self.totalTime = float(self.finishTime) - float(SystemManager.startTime)
+        self.totalTime = \
+            float(self.finishTime) - float(SystemManager.startTime)
 
         SystemManager.printLogo(big=True)
 
@@ -9559,14 +9546,20 @@ class FileAnalyzer(object):
         # Print system information #
         SystemManager.printInfoBuffer()
 
+        # define alias #
+        pageSize = SystemManager.pageSize
+        convert = UtilManager.convertSize2Unit
+
         # Print process list #
         SystemManager.printPipe((\
-            "[%s] [ Process : %d ] [ LastRAM: %d(KB) ]"
+            "[%s] [ Process : %d ] [ LastRAM: %s ]"
             " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
-            ('File Process Info', len(self.procList), self.profPageCnt * 4))
+                ('File Process Info', len(self.procList), \
+                convert(self.profPageCnt * 4 << 10)))
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
-            format("Process", "Pid", "MaxRAM(KB)", "ThreadName", "Tid"))
+        SystemManager.printPipe(\
+            "{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
+            format("Process", "Pid", "MaxRAM", "ThreadName", "Tid"))
         SystemManager.printPipe(twoLine)
 
         procInfo = "{0:_^16}({1:^5})|{2:11} |".format('', '', '')
@@ -9579,11 +9572,12 @@ class FileAnalyzer(object):
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>5})|{2:>11} |".\
                 format(val['comm'], pid, \
-                val['pageCnt'] * SystemManager.pageSize >> 10)
+                convert(val['pageCnt'] * pageSize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = "{0:>16}({1:>5}) |".format(threadVal['comm'], tid)
+                threadInfo = \
+                    "{0:>16}({1:>5}) |".format(threadVal['comm'], tid)
 
                 linePos += threadLength
 
@@ -9599,18 +9593,19 @@ class FileAnalyzer(object):
 
         # Print file list #
         SystemManager.printPipe(\
-            "[%s] [ File: %d ] [ LastRAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileList), self.profPageCnt * 4))
+            "[%s] [ File: %d ] [ LastRAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
+                ('File Usage Info', len(self.fileList), \
+                convert(self.profPageCnt * 4 << 10)))
         SystemManager.printPipe(twoLine)
 
         printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format(\
-            "InitRAM(KB)", "File(KB)", "%")
+            "InitRAM", "File", "%")
 
         if len(self.intervalFileData) > 1:
             for idx in xrange(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
-        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM(KB)", "%")
+        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM", "%")
 
         lineLength = SystemManager.lineLength
 
@@ -9622,20 +9617,18 @@ class FileAnalyzer(object):
 
         SystemManager.printPipe(twoLine)
 
-        for fileName, val in sorted(\
-            self.fileList.items(), \
+        # print interval usage #
+        for fileName, val in sorted(self.fileList.items(), \
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
                 memSize = \
                     self.intervalFileData[0][fileName]['pageCnt'] * \
-                    SystemManager.pageSize >> 10
+                        pageSize
             except:
                 memSize = 0
             try:
-                pageSize = SystemManager.pageSize
                 idx = val['totalSize'] + pageSize - 1
-                fileSize = \
-                    (int(idx / pageSize) * pageSize) >> 10
+                fileSize = int(idx / pageSize) * pageSize
             except:
                 fileSize = 0
 
@@ -9650,11 +9643,12 @@ class FileAnalyzer(object):
             for fileData in reversed(self.intervalFileData):
                 if fileName in fileData and fileData[fileName]['isRep']:
                     printMsg = \
-                        "{0:>10} |{1:>7} |{2:>3}|".format(memSize, fileSize, per)
+                        "{0:>10} |{1:>7} |{2:>3}|".format(\
+                            convert(memSize), convert(fileSize), per)
                     isRep = True
                     break
 
-            if isRep is False:
+            if not isRep:
                 continue
 
             # calculate diff of on-memory file size #
@@ -9690,11 +9684,12 @@ class FileAnalyzer(object):
                                     elif nowFileMap[i] < prevFileMap[i]:
                                         diffDel += 1
 
-                    diffNew = diffNew * SystemManager.pageSize >> 10
-                    diffDel = diffDel * SystemManager.pageSize >> 10
-                    printMsg += "+%6d/-%6d|" % (diffNew, diffDel)
+                    diffNew = convert(diffNew * pageSize)
+                    diffDel = convert(diffDel * pageSize)
+                    printMsg += "+%6s/-%6s|" % (diffNew, diffDel)
 
-            totalMemSize = val['pageCnt'] * SystemManager.pageSize >> 10
+            finalData = self.intervalFileData[-1][fileName]
+            totalMemSize = finalData['pageCnt'] * pageSize
 
             if fileSize != 0:
                 per = int(int(totalMemSize) / float(fileSize) * 100)
@@ -9702,7 +9697,8 @@ class FileAnalyzer(object):
                 per = 0
 
             printMsg += \
-                "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
+                "{0:11}|{1:3}| {2:1}".format(\
+                    convert(totalMemSize), per, fileName)
 
             SystemManager.printPipe(printMsg)
 
@@ -9735,22 +9731,59 @@ class FileAnalyzer(object):
         # parse and merge lines in maps #
         fileMap = dict()
         for val in mapBuf:
-            FileAnalyzer.mergeMapLine(val, fileMap)
+            FileAnalyzer.mergeMapLine(val, fileMap, onlyExec=True)
 
         return fileMap
 
 
 
     @staticmethod
-    def mergeMapLine(string, procMap):
+    def addMapLine(dataObj, fileName, newOffset, newSize):
+        newEnd = newOffset + newSize
+
+        try:
+            savedOffset = dataObj[fileName]['offset']
+            savedSize = dataObj[fileName]['size']
+            savedEnd = savedOffset + savedSize
+
+            # bigger start address than saved one #
+            if savedOffset <= newOffset:
+                # merge bigger end address than saved one #
+                if savedEnd < newEnd:
+                    dataObj[fileName]['size'] += \
+                        (newEnd - savedOffset - savedSize)
+                # ignore lesser end address than saved one #
+                else:
+                    pass
+            # lesser start address than saved one #
+            else:
+                if savedEnd >= newEnd:
+                    dataObj[fileName]['size'] += (savedOffset - newOffset)
+                else:
+                    dataObj[fileName]['size'] = newSize
+
+                dataObj[fileName]['offset'] = newOffset
+        except:
+            dataObj[fileName] = dict(FileAnalyzer.init_mapData)
+            dataObj[fileName]['offset'] = newOffset
+            dataObj[fileName]['size'] = newSize
+
+
+
+    @staticmethod
+    def mergeMapLine(string, procMap, onlyExec=False):
         m = re.match((\
-            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<permission>.\S+) '
+            r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
             r'(?P<binName>.+)'), string)
         if not m:
             return
 
         d = m.groupdict()
+
+        # check execution permission #
+        if onlyExec and d['perm'][-2] == '-':
+            return
 
         fileName = d['binName']
         startAddr = int(d['startAddr'], 16)
@@ -9760,36 +9793,13 @@ class FileAnalyzer(object):
         newSize = endAddr - startAddr
         newEnd = newOffset + newSize
 
-        try:
-            savedOffset = procMap[fileName]['offset']
-            savedSize = procMap[fileName]['size']
-            savedEnd = savedOffset + savedSize
-
-            # bigger start address then saved one #
-            if savedOffset <= newOffset:
-                # merge bigger end address then saved one #
-                if savedEnd < newEnd:
-                    procMap[fileName]['size'] += \
-                        (newEnd - savedOffset - savedSize)
-                # ignore lesser end address then saved one #
-                else:
-                    pass
-            # lesser start address then saved one #
-            else:
-                if savedEnd >= newEnd:
-                    procMap[fileName]['size'] += (savedOffset - newOffset)
-                else:
-                    procMap[fileName]['size'] = newSize
-
-                procMap[fileName]['offset'] = newOffset
-        except:
-            procMap[fileName] = dict(FileAnalyzer.init_mapData)
-            procMap[fileName]['offset'] = newOffset
-            procMap[fileName]['size'] = newSize
+        # merge map line #
+        FileAnalyzer.addMapLine(procMap, fileName, newOffset, newSize)
 
         # set mapped addr #
         if newOffset == 0:
             procMap[fileName]['vstart'] = startAddr
+
         procMap[fileName]['vend'] = endAddr
 
 
@@ -9802,22 +9812,25 @@ class FileAnalyzer(object):
             SystemManager.printError('No file profiled')
             sys.exit(0)
 
-        pageSize = SystemManager.pageSize
-
         SystemManager.printLogo(big=True)
 
         # print system information #
         SystemManager.printInfoBuffer()
 
+        # define alias #
+        convert = UtilManager.convertSize2Unit
+        pageSize = SystemManager.pageSize
+
         # Print process list #
         SystemManager.printPipe((\
-            "[%s] [ Process : %d ] [ RAM: %d(KB) ]"
+            "[%s] [ Process : %d ] [ RAM: %s ]"
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
-            ('File Process Info', len(self.procData), self.profPageCnt * 4))
+                ('File Process Info', len(self.procData), \
+                convert(self.profPageCnt * 4 << 10)))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             "{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
-            format("Process", "Pid", "RAM(KB)", "Thread", "Tid"))
+            format("Process", "Pid", "RAM", "Thread", "Tid"))
         SystemManager.printPipe(twoLine)
 
         procInfo = "{0:^16}({0:^5})|{0:12} |".format('')
@@ -9830,12 +9843,12 @@ class FileAnalyzer(object):
             self.procData.items(), \
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
             try:
-                rsize = val['pageCnt'] * pageSize >> 10
-                rsize = UtilManager.convertNumber(rsize)
+                rsize = val['pageCnt'] * pageSize
             except:
                 pass
 
-            printMsg = "{0:>16}({1:>5})|{2:>12} |".format(val['comm'], pid, rsize)
+            printMsg = "{0:>16}({1:>5})|{2:>12} |".\
+                format(val['comm'], pid, convert(rsize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -9855,8 +9868,9 @@ class FileAnalyzer(object):
 
         # Print file list #
         SystemManager.printPipe(\
-            "[%s] [ File: %d ] [ RAM: %d(KB) ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileData), self.profPageCnt * 4))
+            "[%s] [ File: %d ] [ RAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('File Usage Info', len(self.fileData), \
+            convert(self.profPageCnt * 4 << 10)))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
             format("RAM(KB)", "File(KB)", "%", "Library & Process"))
@@ -9865,36 +9879,25 @@ class FileAnalyzer(object):
         for fileName, val in sorted(\
             self.fileData.items(), \
             key=lambda e: int(e[1]['pageCnt']), reverse=True):
-            memSize = val['pageCnt'] * pageSize >> 10
+            memSize = val['pageCnt'] * pageSize
 
             idx = val['totalSize'] + pageSize - 1
 
-            fileSize = \
-                (int(idx / pageSize) * pageSize) >> 10
+            fileSize = int(idx / pageSize) * pageSize
 
             if fileSize != 0:
                 per = int(int(memSize) / float(fileSize) * 100)
             else:
                 per = 0
 
-            try:
-                memSize = UtilManager.convertNumber(memSize)
-            except:
-                pass
-
-            try:
-                fileSize = UtilManager.convertNumber(fileSize)
-            except:
-                pass
-
-            if val['isRep'] is False:
+            if not val['isRep']:
                 continue
             else:
                 SystemManager.printPipe((\
                     "{0:>11} |{1:>9} |{2:>5} | {3:1} "
                     "[Proc: {4:1}] [Link: {5:1}]").\
-                    format(memSize, fileSize, per, fileName, \
-                    len(val['pids']), val['hardLink']))
+                    format(convert(memSize), convert(fileSize), per, \
+                    fileName, len(val['pids']), val['hardLink']))
 
             # prepare for printing process list #
             pidInfo = ''
@@ -10049,41 +10052,15 @@ class FileAnalyzer(object):
             for fileName, scope in val['procMap'].items():
                 newOffset = scope['offset']
                 newSize = scope['size']
-                newEnd = newOffset + newSize
 
-                # access fileData #
-                try:
-                    savedOffset = self.fileData[fileName]['offset']
-                    savedSize = self.fileData[fileName]['size']
-                    savedEnd = savedOffset + savedSize
+                # merge map line #
+                FileAnalyzer.addMapLine(\
+                    self.fileData, fileName, newOffset, newSize)
 
-                    # add pid into file info #
-                    if not pid in self.fileData[fileName]['pids']:
-                        self.fileData[fileName]['pids'][pid] = val['comm']
-
-                    # bigger start address then saved one #
-                    if savedOffset <= newOffset:
-                        # merge bigger end address then saved one #
-                        if savedEnd < newEnd:
-                            self.fileData[fileName]['size'] += \
-                                (newEnd - savedOffset - savedSize)
-                        # ignore lesser end address then saved one #
-                        else:
-                            pass
-                    # lesser start address then saved one #
-                    else:
-                        if savedEnd >= newEnd:
-                            self.fileData[fileName]['size'] += \
-                                (savedOffset - newOffset)
-                        else:
-                            self.fileData[fileName]['size'] = newSize
-
-                        self.fileData[fileName]['offset'] = newOffset
-                except:
-                    self.fileData[fileName] = dict(FileAnalyzer.init_mapData)
-                    self.fileData[fileName]['offset'] = newOffset
-                    self.fileData[fileName]['size'] = newSize
+                # add pid into file info #
+                if not self.fileData[fileName]['pids']:
                     self.fileData[fileName]['pids'] = dict()
+                if not pid in self.fileData[fileName]['pids']:
                     self.fileData[fileName]['pids'][pid] = val['comm']
 
 
@@ -24848,7 +24825,7 @@ class Debugger(object):
             SystemManager.printWarning(\
                 'Fail to get offset in %s via vaddr '
                 'because wrong memory map' % fname)
-            return None
+            return ['??', fname, '??', '??', '??']
 
         # get elf object #
         fcache = ElfAnalyzer.getElfObject(fname)
@@ -24863,7 +24840,7 @@ class Debugger(object):
         except SystemExit:
             sys.exit(0)
         except:
-            return None
+            return ['??', fname, '??', '??', '??']
 
 
 
@@ -25019,6 +24996,7 @@ class Debugger(object):
         self.prevCallInfo = [sym, fname, vstart, vend]
 
         # toDo: add additional call stack info #
+        pass
 
         # get time diff #
         current = time.time()
@@ -25286,7 +25264,7 @@ class Debugger(object):
                 # set sampling rate to 100us #
                 if SystemManager.repeatCount > 0:
                     self.sampleTime = \
-                        SystemManager.repeatCount / float(1000000)
+                        SystemManager.repeatCount / float(10000)
                 else:
                     self.sampleTime = 0.0001
 
@@ -25501,7 +25479,7 @@ class Debugger(object):
 
         SystemManager.printPipe(\
             '\n[Trace History] [Time: %f] [Line: %s]' %
-                (elapsed, len(instance.callPrint)))
+                (elapsed, UtilManager.convertNumber(len(instance.callPrint))))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe('\n'.join(instance.callPrint))
         SystemManager.printPipe(oneLine)
@@ -27543,7 +27521,8 @@ class ElfAnalyzer(object):
             debugPath = '/usr/lib/debug%s' % path
             if os.path.isfile(debugPath):
                 SystemManager.printWarning(\
-                    'Use %s instead of %s for debug symbols\n' % (debugPath, path))
+                    'Use %s instead of %s for debug symbols\n' % \
+                    (debugPath, path))
                 path = debugPath
 
         # open file #
