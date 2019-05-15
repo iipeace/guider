@@ -21528,8 +21528,9 @@ Copyright:
 
                 fd.write(buf)
 
+                # print to console #
                 if SystemManager.printStreamEnable:
-                    SystemManager.printPipe(buf)
+                    SystemManager.printPipe(buf, newline=False)
 
                 if SystemManager.recordStatus:
                     continue
