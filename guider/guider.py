@@ -2652,31 +2652,37 @@ class UtilManager(object):
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
+        # convert to ABS value #
+        try:
+            sizeAbs = abs(size)
+        except:
+            return '?'
+
         # Int type #
         if isInt:
             try:
-                if abs(size) >= sizeTB:
+                if sizeAbs >= sizeTB:
                     return '%dT' % (size >> 40)
-                elif abs(size) >= sizeGB:
+                elif sizeAbs >= sizeGB:
                     return '%dG' % (size >> 30)
-                elif abs(size) >= sizeMB:
+                elif sizeAbs >= sizeMB:
                     return '%dM' % (size >> 20)
-                elif abs(size) >= sizeKB:
+                elif sizeAbs >= sizeKB:
                     return '%dK' % (size >> 10)
                 else:
-                    return '%d' % (size)
+                    return '%d' % size
             except:
                 return '?'
         # Float type #
         else:
             try:
-                if abs(size) >= sizeTB:
+                if sizeAbs >= sizeTB:
                     return '%.1fT' % ((size >> 30) / 1024.0)
-                elif abs(size) >= sizeGB:
+                elif sizeAbs >= sizeGB:
                     return '%.1fG' % ((size >> 20) / 1024.0)
-                elif abs(size) >= sizeMB:
+                elif sizeAbs >= sizeMB:
                     return '%.1fM' % ((size >> 10) / 1024.0)
-                elif abs(size) >= sizeKB:
+                elif sizeAbs >= sizeKB:
                     return '%.1fK' % (size / 1024.0)
                 else:
                     return '%d' % (size)
@@ -2687,34 +2693,22 @@ class UtilManager(object):
 
     @staticmethod
     def convertTime(time):
-        def convertHour(size):
-            sizeK = 1000
-            sizeM = sizeK * 1000
-            sizeG = sizeM * 1000
-            sizeT = sizeG * 1000
-
-            try:
-                if size >= sizeT:
-                    return '%dT' % (size / sizeT)
-                elif size >= sizeG:
-                    return '%dG' % (size / sizeG)
-                elif size >= sizeM:
-                    return '%dM' % (size / sizeM)
-                elif size >= sizeK:
-                    return '%dK' % (size / sizeK)
-                else:
-                    return '%d' % (size)
-            except:
-                return '?'
-
+        # convert seconds to time #
         try:
             m, s = divmod(time, 60)
             h, m = divmod(m, 60)
-            ctime = "%3s:%02d:%02d" % (convertHour(h), m, s)
-        except:
-            ctime = "%3s:%02s:%02s" % ('?', '?', '?')
 
-        return ctime
+            if h > 24:
+                d = '%dd:' % (h / 24)
+                h = h % 24
+            else:
+                d = ''
+
+            ctime = "%s%02d:%02d:%02d" % (d, h, m, s)
+        except:
+            ctime = "%s%02d:%02s:%02s" % ('', '?', '?', '?')
+
+        return ctime.strip()
 
 
 
@@ -2730,8 +2724,14 @@ class UtilManager(object):
             ret = long(data[:-1]) * 60 * 60
         elif data.upper().endswith('D'):
             ret = long(data[:-1]) * 60 * 60 * 24
+        elif data.upper().endswith('W'):
+            ret = long(data[:-1]) * 60 * 60 * 24 * 7
+        elif data.isdigit():
+            ret = data
         else:
             ret = data
+            SystemManager.printError(\
+                "Fail to convert %s to seconds" % data)
 
         return ret
 
@@ -2743,6 +2743,7 @@ class UtilManager(object):
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
+        sizePB = sizeTB << 10
 
         if str(value).isdigit():
             return long(value)
@@ -2767,10 +2768,17 @@ class UtilManager(object):
                 return long(float(value[:-1])) * sizeTB
             if value.endswith('TB'):
                 return long(float(value[:-2])) * sizeTB
+            if value.endswith('P'):
+                return long(float(value[:-1])) * sizePB
+            if value.endswith('PB'):
+                return long(float(value[:-2])) * sizePB
+
+            SystemManager.printError(\
+                "Fail to convert %s to size" % value)
 
             raise Exception()
         except:
-            return None
+            return value
 
 
 
@@ -15413,19 +15421,24 @@ Copyright:
         if not SystemManager.outputFile:
             return
 
+        # backup data file already exist #
         try:
-            # backup data file alread exist #
             if os.path.isfile(SystemManager.outputFile):
                 backupFile = SystemManager.outputFile + '.old'
 
-                try:
-                    SystemManager.getPkg('shutil', False).move(\
-                        SystemManager.outputFile, backupFile)
-                    SystemManager.printInfo('%s is renamed to %s' % \
-                        (SystemManager.outputFile, backupFile))
-                except:
-                    pass
+                SystemManager.getPkg('shutil', False).move(\
+                    SystemManager.outputFile, backupFile)
+                SystemManager.printInfo(\
+                    '%s is renamed to %s' % \
+                    (SystemManager.outputFile, backupFile))
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to backup %s because %s" % \
+                (SystemManager.outputFile, err))
 
+        # save output to file #
+        try:
             f = open(SystemManager.outputFile, 'w')
 
             SystemManager.printInfo(\
@@ -15440,7 +15453,7 @@ Copyright:
 
             try:
                 fsize = UtilManager.convertSize2Unit(\
-                    int(os.path.getsize(SystemManager.outputFile)))
+                    long(os.path.getsize(SystemManager.outputFile)))
             except:
                 fsize = '?'
 
@@ -15448,9 +15461,10 @@ Copyright:
                 'finish saving trace data into %s [%s] successfully' % \
                 (SystemManager.outputFile, fsize))
         except:
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to write trace data to %s because %s" % \
-                (SystemManager.outputFile, sys.exc_info()[1]))
+                (SystemManager.outputFile, err))
 
         sys.exit(0)
 
@@ -17296,8 +17310,7 @@ Copyright:
                             SystemManager.outputFile = \
                                 '%s/guider.dat' % value
                         else:
-                            SystemManager.outputFile = \
-                                '%s.dat' % os.path.splitext(value)[0]
+                            SystemManager.outputFile = value
                     else:
                         raise Exception()
                 except:
@@ -17314,8 +17327,12 @@ Copyright:
                     SystemManager.findOption('F') or \
                     SystemManager.isSystemRecordMode() or \
                     SystemManager.findOption('y'):
-                    SystemManager.printFile = '%s.out' % \
-                        os.path.splitext(SystemManager.outputFile)[0]
+                        if SystemManager.outputFile.endswith('.dat'):
+                            SystemManager.printFile = '%s.out' % \
+                                os.path.splitext(SystemManager.outputFile)[0]
+                        else:
+                            SystemManager.printFile = \
+                                SystemManager.outputFile
 
             elif option == 'D':
                 SystemManager.depEnable = True
@@ -22395,9 +22412,10 @@ Copyright:
                     SystemManager.printError("Fail to write signal command")
             elif SystemManager.outputFile:
                 SystemManager.saveCmd =\
-                    'cat ' + SystemManager.mountPath + '../trace > ' +\
-                    SystemManager.outputFile + '\n'
+                    'cat %s../trace > %s\n' % \
+                        (SystemManager.mountPath, SystemManager.outputFile)
 
+        # start tracing #
         SystemManager.writeCmd('../tracing_on', '0')
 
         # disable all ftrace options registered #
@@ -22622,7 +22640,7 @@ Copyright:
 
         # system uptime #
         try:
-            uptime = UtilManager.convertTime(SystemManager.uptime).strip()
+            uptime = UtilManager.convertTime(SystemManager.uptime)
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
 
@@ -22635,7 +22653,7 @@ Copyright:
         try:
             runtime = \
                 long(SystemManager.uptime) - long(SystemManager.startRunTime)
-            runtime = UtilManager.convertTime(runtime).strip()
+            runtime = UtilManager.convertTime(runtime)
             SystemManager.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Runtime', runtime))
 
@@ -31507,11 +31525,15 @@ class ThreadAnalyzer(object):
             try:
                 name, ext = os.path.splitext(outputFile)
                 newPath = '%s_old%s' % (name, ext)
+                os.remove(newPath)
                 os.rename(outputFile, newPath)
                 SystemManager.printInfo('%s is renamed to %s' % \
                     (outputFile, newPath))
             except:
-                pass
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to backup %s because %s" % \
+                    (outputFile, err))
 
         # get pylab object #
         pylab = SystemManager.getPkg('pylab')
@@ -42335,7 +42357,7 @@ class ThreadAnalyzer(object):
                 sched, value['ttime'], value['utime'], value['stime'], \
                 dtime, vss, mems >> 8, codeSize, shr, swapSize, \
                 value['btime'], readSize, writeSize, value['majflt'], \
-                yld, prtd, value['fdsize'], lifeTime, etc[:21], cl=cl, pd=pd))
+                yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], cl=cl, pd=pd))
 
             # print PMU stats #
             if SystemManager.perfGroupEnable:
@@ -42518,7 +42540,7 @@ class ThreadAnalyzer(object):
                 readSize = '-'
                 writeSize = '-'
 
-            # print new thread information #
+            # print thread information #
             SystemManager.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
                 "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
@@ -42533,7 +42555,7 @@ class ThreadAnalyzer(object):
                 long(stat[self.vsizeIdx]) >> 20, \
                 long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
                 int(value['btime']), readSize, writeSize, value['majflt'],\
-                '-', '-', '-', lifeTime, '-', cl=cl, pd=pd))
+                '-', '-', '-', lifeTime[:9], '-', cl=cl, pd=pd))
             procCnt += 1
 
         if procCnt > 0:
@@ -42898,8 +42920,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['user'] = data['utime']
                 evtdata[rank]['kernel'] = data['stime']
                 evtdata[rank]['runtime'] = \
-                    UtilManager.convertTime(\
-                        data['runtime']).replace(' ', '')
+                    UtilManager.convertTime(data['runtime'])
 
                 rank += 1
 
@@ -42934,8 +42955,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['rss'] = rss
                 evtdata[rank]['text'] = text
                 evtdata[rank]['runtime'] = \
-                    UtilManager.convertTime(\
-                        data['runtime']).replace(' ', '')
+                    UtilManager.convertTime(data['runtime'])
 
                 # swap #
                 try:
@@ -42991,8 +43011,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                 evtdata[rank]['iowait'] = data['btime']
                 evtdata[rank]['runtime'] = \
-                    UtilManager.convertTime(\
-                        data['runtime']).replace(' ', '')
+                    UtilManager.convertTime(data['runtime'])
 
                 rank += 1
 
@@ -43269,8 +43288,7 @@ class ThreadAnalyzer(object):
             processData['cpu']['kernel']['pct'] = data['stime']
             processData['cpu']['total']['pct'] = data['ttime']
             processData['cpu']['runtime'] = \
-                UtilManager.convertTime(\
-                    data['runtime']).replace(' ', '')
+                UtilManager.convertTime(data['runtime'])
 
             rss = long(data['stat'][self.rssIdx]) >> 8
 
