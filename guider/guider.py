@@ -50,14 +50,14 @@ class ConfigManager(object):
     """ Manager for configuration """
 
     # Define logo #
-    # made by http://www.figlet.org #
+    # made by http://www.figlet.org, consider also jp2a #
     logo = '''
-                _      _
-   __ _  _   _ (_)  __| |  ___  _ __
-  / _` || | | || | / _` | / _ \| '__|
- | (_| || |_| || || (_| ||  __/| |
-  \__, | \__,_||_| \__,_| \___||_|   ver.%s
-   |___/
+   _____       _     _
+  / ____|     (_)   | |
+ | |  __ _   _ _  __| | ___ _ __
+ | | |_ | | | | |/ _` |/ _ \ '__|
+ | |__| | |_| | | (_| |  __/ |
+  \_____|\__,_|_|\__,_|\___|_|  ver.%s
     ''' % __version__
 
     # Define color #
@@ -5302,6 +5302,9 @@ class FunctionAnalyzer(object):
             try:
                 symbolList = list()
                 binObj = ElfAnalyzer.getElfObject(binPath)
+                if not binObj:
+                    raise Exception()
+
                 for offset in offsetList:
                     symbol = binObj.getSymbolByOffset(offset)
 
@@ -5312,7 +5315,11 @@ class FunctionAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                pass
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to get symbol from %s because %s" % \
+                        (binPath, err))
+                return None
 
             # get system addr2line path #
             addr2linePath = UtilManager.which('addr2line')
@@ -10731,6 +10738,9 @@ class SystemManager(object):
     @staticmethod
     def importNative():
         try:
+            # do not use native library to improve initialization time #
+            raise Exception
+
             import guider
             guider.check()
             SystemManager.guiderObj = guider
@@ -14459,9 +14469,13 @@ Copyright:
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath=None):
         if not objdumpPath:
+            offset = None
+
             try:
-                offset = None
                 binObj = ElfAnalyzer.getElfObject(binPath)
+                if not binObj:
+                    raise Exception()
+
                 offset = binObj.getOffsetBySymbol(symbol)
             except:
                 pass
@@ -15225,7 +15239,7 @@ Copyright:
                 SystemManager.progressCnt = 0
                 return
 
-            # for cProfile #
+            # enable for cProfile #
             #sys.exit(0)
 
             # do terminate #
@@ -19390,7 +19404,6 @@ Copyright:
                                         raise Exception()
                                 else:
                                     break
-                        print(error)
                     except:
                         break
 
@@ -24078,6 +24091,7 @@ class Debugger(object):
     debugInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True):
+        self.ctypes = None
         self.status = 'enter'
         self.attached = attach
         self.arch = arch = SystemManager.getArch()
@@ -24105,7 +24119,7 @@ class Debugger(object):
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
+        self.ctypes = ctypes = SystemManager.getPkg('ctypes')
         from ctypes import cdll, Structure, sizeof, addressof,\
             c_ulong, c_int, c_uint, c_uint32, byref, c_ushort
 
@@ -24387,7 +24401,7 @@ class Debugger(object):
             SystemManager.printWarning('Fail to attach wrong thread %s' % pid)
             return -1
 
-        # attach the thread #
+        # attach to the thread #
         plist = ConfigManager.PTRACE_TYPE
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
@@ -24420,7 +24434,7 @@ class Debugger(object):
 
 
 
-    def cont(self, pid=None):
+    def cont(self, pid=None, check=False):
         if not self.attached:
             return
 
@@ -24431,7 +24445,7 @@ class Debugger(object):
             SystemManager.printWarning('Fail to continue wrong thread %s' % pid)
             return -1
 
-        # check the process is running #
+        # check target is running #
         try:
             os.kill(pid, 0)
         except SystemExit:
@@ -24439,20 +24453,26 @@ class Debugger(object):
         except:
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
-                'Fail to continue thread %s because %s' % (pid, err))
+                'Fail to continue thread %s because it does not exist')
             return -1
 
-        # attach the thread #
-        plist = ConfigManager.PTRACE_TYPE
-        cmd = plist.index('PTRACE_CONT')
-        ret = self.ptrace(cmd, 0, 0)
+        # check target status #
+        if check:
+            while 1:
+                ret = self.ptrace(self.contCmd, 0, 0)
+                if ret != 0:
+                    continue
+                return 0
+
+        # continue target thread #
+        ret = self.ptrace(self.contCmd, 0, 0)
         if ret != 0:
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
                 'Fail to continue thread %s because %s' % (pid, err))
             return -1
-        else:
-            return 0
+
+        return 0
 
 
 
@@ -24733,6 +24753,8 @@ class Debugger(object):
 
         # get elf object #
         fcache = ElfAnalyzer.getElfObject(fname)
+        if not fcache:
+            return [0, 0]
 
         ret = fcache.getAnonRangeByOffset(offset)
         if not ret:
@@ -24759,6 +24781,8 @@ class Debugger(object):
 
         # get elf object #
         fcache = ElfAnalyzer.getElfObject(fname)
+        if not fcache:
+            return [0, 0]
 
         ret = fcache.getRangeBySymbol(symbol)
         if not ret:
@@ -24829,6 +24853,8 @@ class Debugger(object):
 
         # get elf object #
         fcache = ElfAnalyzer.getElfObject(fname)
+        if not fcache:
+            return ['??', fname, '??', '??', '??']
 
         # check executable type #
         if not ElfAnalyzer.isRelocFile(fname):
@@ -24947,10 +24973,12 @@ class Debugger(object):
         if self.prevCallInfo and \
             self.pc >= self.prevCallInfo[2] and \
             self.pc <= self.prevCallInfo[3]:
+            if self.mode == 'inst':
+                return
+
             # add sample #
-            if self.mode == 'sample' and SystemManager.printFile:
+            if SystemManager.printFile:
                 self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
-            return
 
         # get new symbol info from program counter of target #
         ret = self.getSymbolInfo(self.pc)
@@ -24983,7 +25011,7 @@ class Debugger(object):
             vstart = vend = 0
 
         # check contiguous unknown symbol #
-        if self.prevCallInfo:
+        if sym == '??' and self.prevCallInfo:
             if self.prevCallInfo[0] == sym:
                 # save current call info as previous call #
                 self.prevCallInfo = [sym, fname, vstart, vend]
@@ -25228,6 +25256,7 @@ class Debugger(object):
         self.mode = mode
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
+        self.contCmd = ConfigManager.PTRACE_TYPE.index('PTRACE_CONT')
         self.pbufsize = SystemManager.ttyCols >> 1
 
         # sampling variables #
@@ -25264,7 +25293,7 @@ class Debugger(object):
                 # set sampling rate to 100us #
                 if SystemManager.repeatCount > 0:
                     self.sampleTime = \
-                        SystemManager.repeatCount / float(10000)
+                        SystemManager.repeatCount / float(1000000)
                 else:
                     self.sampleTime = 0.0001
 
@@ -25336,7 +25365,7 @@ class Debugger(object):
                         ret = self.ptrace(cmd, 0, 0)
                 # wait to sample calls #
                 elif mode == 'sample':
-                    self.cont()
+                    self.cont(check=True)
 
                     time.sleep(self.sampleTime)
 
@@ -25750,7 +25779,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             start = time.time()
 
         pid = self.pid
-        ctypes = SystemManager.getPkg('ctypes')
+        ctypes = self.ctypes
         arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
@@ -26793,6 +26822,7 @@ class ElfAnalyzer(object):
     cachedFiles = {}
     cachedHeaderFiles = {}
     stripedFiles = {}
+    failedFiles = {}
 
 
 
@@ -26865,8 +26895,11 @@ class ElfAnalyzer(object):
     @staticmethod
     def getElfHeaderObject(path):
         if path not in ElfAnalyzer.cachedHeaderFiles:
-            ElfAnalyzer.cachedHeaderFiles[path] = \
-                ElfAnalyzer(path, onlyHeader=True)
+            try:
+                ElfAnalyzer.cachedHeaderFiles[path] = \
+                    ElfAnalyzer(path, onlyHeader=True)
+            except:
+                return None
 
         return ElfAnalyzer.cachedHeaderFiles[path]
 
@@ -26875,7 +26908,15 @@ class ElfAnalyzer(object):
     @staticmethod
     def getElfObject(path):
         if path not in ElfAnalyzer.cachedFiles:
-            ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+            # check black-list #
+            if path in ElfAnalyzer.failedFiles:
+                return None
+
+            try:
+                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+            except:
+                ElfanAlyzer.failedFiles[path] = True
+                return None
 
         return ElfAnalyzer.cachedFiles[path]
 
@@ -26982,6 +27023,8 @@ class ElfAnalyzer(object):
     def isRelocFile(path):
         try:
             cachedObject = ElfAnalyzer.getElfObject(path)
+            if not cachedObject:
+                raise Exception()
 
             etype = cachedObject.attr['elfHeader']['type']
             if etype == 'Relocatable' or \
