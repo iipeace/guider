@@ -10533,6 +10533,7 @@ class SystemManager(object):
     warningEnable = False
     ttyEnable = False
     selectEnable = True
+    cgroupEnable = False
     intervalEnable = 0
 
     functionEnable = False
@@ -11667,7 +11668,7 @@ OPTIONS:
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
                 f:float | R:freport | n:net | o:oomScore
-                E:Elasticsearch
+                c:cgroup | E:Elasticsearch
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print
                 t:truncate | G:gpu | a:memAvailable
@@ -11750,7 +11751,7 @@ OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
               m:memory | b:block | p:pipe | e:encode
-              h:heap | L:lock | g:graph
+              h:heap | L:lock | g:graph | c:cgroup
         -d  <CHARACTER>             disable options
               c:cpu | e:encode | a:all | u:user
         -s  <DIR|FILE>              save trace data
@@ -14894,6 +14895,11 @@ Copyright:
         else:
             disableStat += 'PRINT '
 
+        if SystemManager.cgroupEnable:
+            enableStat += 'CGROUP '
+        else:
+            disableStat += 'CGROUP '
+
         if SystemManager.encodeEnable:
             enableStat += 'ENCODE '
         else:
@@ -16960,6 +16966,9 @@ Copyright:
                 if options.rfind('E') > -1:
                     SystemManager.elasticEnable = True
 
+                if options.rfind('c') > -1:
+                    SystemManager.cgroupEnable = True
+
                 if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
                         "unrecognized option -%s to enable" % options)
@@ -17254,6 +17263,9 @@ Copyright:
 
                 if options.rfind('L') > -1:
                     SystemManager.lockEnable = True
+
+                if options.rfind('c') > -1:
+                    SystemManager.cgroupEnable = True
 
                 if not SystemManager.isEffectiveEnableOption(options):
                     SystemManager.printError(\
@@ -23368,6 +23380,10 @@ Copyright:
 
             if depth == 0:
                 SystemManager.infoBufferPrint(' ')
+
+        # check cgroup option #
+        if not SystemManager.cgroupEnable:
+            return
 
         try:
             cgroupTree = self.getCgroupTree()
