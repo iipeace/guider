@@ -2720,18 +2720,16 @@ class UtilManager(object):
 
     @staticmethod
     def convertUnit2Time(data):
-        if type(data) is int or type(data) is long:
-            return data
-        elif data.isdigit():
-            ret = int(data)
+        if str(data).isdigit():
+            ret = long(data)
         elif data.upper().endswith('S'):
-            ret = int(data[:-1])
+            ret = long(data[:-1])
         elif data.upper().endswith('M'):
-            ret = int(data[:-1]) * 60
+            ret = long(data[:-1]) * 60
         elif data.upper().endswith('H'):
-            ret = int(data[:-1]) * 60 * 60
+            ret = long(data[:-1]) * 60 * 60
         elif data.upper().endswith('D'):
-            ret = int(data[:-1]) * 60 * 60 * 24
+            ret = long(data[:-1]) * 60 * 60 * 24
         else:
             ret = data
 
@@ -2746,9 +2744,7 @@ class UtilManager(object):
         sizeGB = sizeMB << 10
         sizeTB = sizeGB << 10
 
-        if type(value) is int or type(value) is long:
-            return value
-        if value.isdigit():
+        if str(value).isdigit():
             return long(value)
 
         # convert unit character to capital #
@@ -16735,8 +16731,7 @@ Copyright:
                     value = '.'
 
                 # check writable access #
-                if os.access(value, os.W_OK) is False and \
-                    os.access(os.path.dirname(value), os.W_OK) is False:
+                if not SystemManager.isWritable(value):
                     SystemManager.printError(\
                         "wrong path %s with -o option" % value)
                     sys.exit(0)
@@ -17296,8 +17291,7 @@ Copyright:
 
                 # change output path #
                 try:
-                    if os.access(value, os.F_OK) or \
-                        os.access(os.path.dirname(value), os.W_OK):
+                    if SystemManager.isWritable(value):
                         if os.path.isdir(value):
                             SystemManager.outputFile = \
                                 '%s/guider.dat' % value
@@ -17320,8 +17314,8 @@ Copyright:
                     SystemManager.findOption('F') or \
                     SystemManager.isSystemRecordMode() or \
                     SystemManager.findOption('y'):
-                    SystemManager.printFile = \
-                        '%s.out' % os.path.splitext(SystemManager.outputFile)[0]
+                    SystemManager.printFile = '%s.out' % \
+                        os.path.splitext(SystemManager.outputFile)[0]
 
             elif option == 'D':
                 SystemManager.depEnable = True
@@ -17376,8 +17370,7 @@ Copyright:
 
                 # change output path #
                 try:
-                    if os.access(value, os.F_OK) or \
-                        os.access(os.path.dirname(value), os.W_OK):
+                    if SystemManager.isWritable(value):
                         if os.path.isdir(value):
                             SystemManager.cmdEnable = \
                                 '%s/guider.cmd' % value
@@ -17974,6 +17967,29 @@ Copyright:
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def isWritable(value):
+        # file exist #
+        if os.access(value, os.F_OK):
+            if not os.access(value, os.W_OK):
+                return False
+        # no file exist #
+        else:
+            dirPath = os.path.dirname(value)
+            if not dirPath:
+                dirPath = '.'
+
+            # no dir exist #
+            if not os.path.isdir(dirPath):
+                return False
+            # dir is not writable #
+            elif not os.access(dirPath, os.W_OK):
+                return False
+
+        return True
 
 
 
@@ -29559,7 +29575,7 @@ class ThreadAnalyzer(object):
                     recvList = list()
                     tranList = list()
 
-                    # convert previous stats #
+                    # convert previous stats e
                     for item in intervalList.split():
                         recv, tran = item.split('/')
                         recvList.append(\
