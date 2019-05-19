@@ -2819,6 +2819,62 @@ class UtilManager(object):
 
 
     @staticmethod
+    def saveObjectToFile(obj, path):
+        pickle = SystemManager.getPicklePkg(False)
+        if not pickle:
+            return
+
+        # compress by gzip #
+        compressor = SystemManager.getPkg('gzip', False)
+
+        # original object #
+        try:
+            if compressor:
+                with compressor.open(path, 'wb') as fd:
+                    pickle.dump(obj, fd, -1)
+            else:
+                with open(path, 'wb') as fd:
+                    pickle.dump(obj, fd, -1)
+            return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                "Fail to save elf cache to %s because %s" % \
+                (path, err))
+            return False
+
+
+
+    @staticmethod
+    def loadObjectFromFile(path):
+        # check object exists #
+        if not os.path.isfile(path):
+            return None
+
+        pickle = SystemManager.getPicklePkg(False)
+        if not pickle:
+            return None
+
+        # decompress by gzip #
+        decompressor = SystemManager.getPkg('gzip', False)
+
+        try:
+            if decompressor:
+                with decompressor.open(path, 'rb') as fd:
+                    return pickle.load(fd)
+            else:
+                with open(path, 'rb') as fd:
+                    return pickle.load(fd)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+
+
+    @staticmethod
     def printProgress(current, dest):
         if not SystemManager.printEnable:
             return
@@ -5305,7 +5361,7 @@ class FunctionAnalyzer(object):
         if not SystemManager.addr2linePath:
             try:
                 symbolList = list()
-                binObj = ElfAnalyzer.getElfObject(binPath)
+                binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
                     raise Exception()
 
@@ -10375,6 +10431,7 @@ class SystemManager(object):
     mountPath = None
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
+    elfCachePath = '/var/log/guider'
     pythonPath = sys.executable
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
@@ -11086,6 +11143,17 @@ class SystemManager(object):
         except:
             SystemManager.printWarning(\
                 'Fail to set comm because of prctl error in libc')
+
+
+
+    @staticmethod
+    def getPicklePkg(isExit=True):
+        pickle = SystemManager.getPkg('cPickle', isExit)
+        if not pickle:
+            pickle = SystemManager.getPkg('pickle', isExit)
+            if not pickle:
+                return None
+        return pickle
 
 
 
@@ -14477,7 +14545,7 @@ Copyright:
             offset = None
 
             try:
-                binObj = ElfAnalyzer.getElfObject(binPath)
+                binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
                     raise Exception()
 
@@ -18477,7 +18545,7 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to analyze block I/O")
             return False
-        elif os.path.isfile('%s/self/io' % procPath) is False:
+        elif not os.path.isfile('%s/self/io' % procPath):
             SystemManager.printError(\
                 "Fail to use bio event, please check kernel configuration")
             return False
@@ -18497,7 +18565,7 @@ Copyright:
                 "wrong option for stack monitoring, "
                 "use also -g option to show stacks")
             return False
-        elif os.path.isfile('%s/self/stack' % SystemManager.procPath) is False:
+        elif not os.path.isfile('%s/self/stack' % SystemManager.procPath):
             SystemManager.printError(\
                 "Fail to sample stack, please check kernel configuration")
             return False
@@ -19271,7 +19339,7 @@ Copyright:
                 return
 
             targetPath = src.strip()
-            if os.path.isfile(targetPath) is False:
+            if not os.path.isfile(targetPath):
                 SystemManager.printWarning(\
                     'Failed to find %s to transfer' % targetPath, True)
                 sendErrMsg(netObj, ip, port, \
@@ -19692,7 +19760,7 @@ Copyright:
                 ("No path to convert file, "
                 "input the path of a text file"))
             sys.exit(0)
-        elif os.path.isfile(value) is False:
+        elif not os.path.isfile(value):
             SystemManager.printError(\
                 "Wrong path %s to convert file" % value)
             sys.exit(0)
@@ -20052,8 +20120,14 @@ Copyright:
 
         # create elf object #
         try:
-            binObj = ElfAnalyzer(SystemManager.sourceFile, verbose=True)
+            binObj = ElfAnalyzer.getObject(SystemManager.sourceFile, True)
+            if not binObj:
+                err = SystemManager.getErrReason()
+                raise Exception(err)
         except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to load elf object because %s" % err)
             sys.exit(0)
 
         SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
@@ -24802,7 +24876,7 @@ class Debugger(object):
         vend = self.pmap[fname]['vend']
 
         # get elf object #
-        fcache = ElfAnalyzer.getElfObject(fname)
+        fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return [0, 0]
 
@@ -24830,7 +24904,7 @@ class Debugger(object):
         vend = self.pmap[fname]['vend']
 
         # get elf object #
-        fcache = ElfAnalyzer.getElfObject(fname)
+        fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return [0, 0]
 
@@ -24902,7 +24976,7 @@ class Debugger(object):
             return ['??', fname, '??', '??', '??']
 
         # get elf object #
-        fcache = ElfAnalyzer.getElfObject(fname)
+        fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return ['??', fname, '??', '??', '??']
 
@@ -26943,7 +27017,7 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getElfHeaderObject(path):
+    def getHeader(path):
         if path not in ElfAnalyzer.cachedHeaderFiles:
             try:
                 ElfAnalyzer.cachedHeaderFiles[path] = \
@@ -26956,17 +27030,76 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getElfObject(path):
+    def saveObject(obj, path):
+        if not os.path.isdir(SystemManager.elfCachePath):
+            try:
+                os.mkdir(SystemManager.elfCachePath)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printWarning(\
+                    'Fail to make %s directory because %s' % \
+                        (SystemManager.elfCachePath, err))
+
+        # build cache path #
+        cpath = '%s/%s' % \
+            (SystemManager.elfCachePath, path.replace('/', '_'))
+
+        # get file size #
+        try:
+            if obj.fileSize == os.stat(cpath).st_size:
+                return False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        return UtilManager.saveObjectToFile(obj, cpath)
+
+
+
+    @staticmethod
+    def loadObject(path):
+        # build cache path #
+        cpath = '%s/%s' % \
+            (SystemManager.elfCachePath, path.replace('/', '_'))
+
+        # load object from file #
+        obj = UtilManager.loadObjectFromFile(cpath)
+        if not obj:
+            return None
+
+        return obj
+
+
+
+    @staticmethod
+    def getObject(path, raiseExcept=False):
         if path not in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
                 return None
 
+            # try to load a object from a file #
+            fobj = ElfAnalyzer.loadObject(path)
+            if fobj:
+                ElfAnalyzer.cachedFiles[path] = fobj
+                return fobj
+
+            # create a new object #
             try:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
             except:
-                ElfanAlyzer.failedFiles[path] = True
-                return None
+                ElfAnalyzer.failedFiles[path] = True
+                if raiseExcept:
+                    err = SystemManager.getErrReason()
+                    raise Exception(err)
+                else:
+                    return None
+
+        # save object cache to file #
+        if not ElfAnalyzer.cachedFiles[path].saved:
+            ElfAnalyzer.cachedFiles[path].saved = True
+            ElfAnalyzer.saveObject(ElfAnalyzer.cachedFiles[path], path)
 
         return ElfAnalyzer.cachedFiles[path]
 
@@ -27072,7 +27205,7 @@ class ElfAnalyzer(object):
     @staticmethod
     def isRelocFile(path):
         try:
-            cachedObject = ElfAnalyzer.getElfObject(path)
+            cachedObject = ElfAnalyzer.getObject(path)
             if not cachedObject:
                 raise Exception()
 
@@ -27098,7 +27231,11 @@ class ElfAnalyzer(object):
 
 
 
-    def mergeSymTable(self):
+    def mergeSymTable(self, force=False):
+        # check already merged #
+        if len(self.mergedSymTable) > 0 and not force:
+            return
+
         # merge symbol tables #
         tempSymTable = copy.deepcopy(self.attr['symTable'])
         tempSymTable.update(self.attr['dynsymTable'])
@@ -27109,8 +27246,8 @@ class ElfAnalyzer(object):
             if pltinfo:
                 tempSymTable['PLT'] = {
                         'vis': 'DEFAULT', 'bind': 'GLOBAL', \
-                        'value': pltinfo['addr'], 'ndx': 17, 'type': 'OBJECT', \
-                        'size': pltinfo['size']}
+                        'value': pltinfo['addr'], 'ndx': 17, \
+                        'type': 'OBJECT', 'size': pltinfo['size']}
 
         self.mergedSymTable = tempSymTable
 
@@ -27324,7 +27461,7 @@ class ElfAnalyzer(object):
 
 
 
-    def __init__(self, path, debug=False, verbose=False, onlyHeader=False):
+    def __init__(self, path, debug=False, onlyHeader=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -27598,6 +27735,7 @@ class ElfAnalyzer(object):
         self.path = path
         self.attr = {}
         self.is32Bit = True
+        self.saved = False
         self.sortedSymTable = []
         self.sortedAddrTable = []
         self.mergedSymTable = {}
@@ -27620,13 +27758,15 @@ class ElfAnalyzer(object):
 
         # open file #
         try:
-            fd = self.fd = open(path, 'rb')
+            fd = open(path, 'rb')
         except:
-            if debug or verbose:
+            if debug:
                 SystemManager.printError("Fail to open %s" % path)
             else:
                 SystemManager.printWarning("Fail to open %s" % path)
-            raise Exception()
+
+            err = SystemManager.getErrReason()
+            raise Exception(err)
 
         # get file size #
         self.fileSize = os.stat(path).st_size
