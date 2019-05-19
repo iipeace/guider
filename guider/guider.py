@@ -23679,9 +23679,9 @@ Copyright:
                         convertSizeFunc(stats['rss'], True), \
                         convertSizeFunc(stats['swap'], True), \
                         stats['nattch'], stats['perms'], \
-                        convertTimeFunc(atime), \
-                        convertTimeFunc(dtime), \
-                        convertTimeFunc(ctime)))
+                        convertTimeFunc(atime)[:10], \
+                        convertTimeFunc(dtime)[:10], \
+                        convertTimeFunc(ctime)[:10]))
 
                 cnt += 1
             except:
