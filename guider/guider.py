@@ -10595,6 +10595,7 @@ class SystemManager(object):
     ttyEnable = False
     selectEnable = True
     cgroupEnable = False
+    cmdlineEnable = False
     intervalEnable = 0
 
     functionEnable = False
@@ -11101,6 +11102,9 @@ class SystemManager(object):
     @staticmethod
     def setOOMAdj(pri='-17'):
         if not sys.platform.startswith('linux'):
+            return
+
+        if not SystemManager.isRoot():
             return
 
         oomPath = '%s/self/oom_adj' % SystemManager.procPath
@@ -11740,7 +11744,7 @@ OPTIONS:
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
                 f:float | R:freport | n:net | o:oomScore
-                c:cgroup | E:Elasticsearch
+                c:cgroup | L:cmdline | E:Elasticsearch
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print
                 t:truncate | G:gpu | a:memAvailable
@@ -15050,6 +15054,11 @@ Copyright:
                 else:
                     disableStat += 'WFC '
 
+                if SystemManager.cmdlineEnable:
+                    enableStat += 'CMD '
+                else:
+                    disableStat += 'CMD '
+
                 if SystemManager.stackEnable:
                     enableStat += 'STACK '
 
@@ -16985,6 +16994,9 @@ Copyright:
 
                 if options.rfind('C') > -1:
                     SystemManager.wfcEnable = True
+
+                if options.rfind('L') > -1:
+                    SystemManager.cmdlineEnable = True
 
                 # check last field #
                 if options.rfind('a') > -1:
@@ -33929,39 +33941,41 @@ class ThreadAnalyzer(object):
             if SystemManager.cpuEnable is False:
                 break
 
-            if key[0:2] == '0[':
-                timeLine = ''
-                timeLineLen = titleLineLen
-                lval = int(float(self.totalTime) / intervalEnable) + 1
-                for icount in xrange(0, lval):
-                    try:
-                        # revise core usage in DVFS system #
-                        if self.threadData[key]['coreSchedCnt'] == 0 and \
-                            self.threadData[key]['offCnt'] > 0:
-                            raise Exception()
-                        else:
-                            per = (100 - self.intData[icount][key]['cpuPer'])
-                            timeLine += '%3d ' % per
-                    except:
-                        timeLine += '%3s ' % '0'
+            if key[0:2] != '0[':
+                continue
 
-                    if timeLineLen + 4 >= maxLineLen:
-                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                        timeLineLen = titleLineLen + 4
+            timeLine = ''
+            timeLineLen = titleLineLen
+            lval = int(float(self.totalTime) / intervalEnable) + 1
+            for icount in xrange(0, lval):
+                try:
+                    # revise core usage in DVFS system #
+                    if self.threadData[key]['coreSchedCnt'] == 0 and \
+                        self.threadData[key]['offCnt'] > 0:
+                        raise Exception()
                     else:
-                        timeLineLen += 4
+                        per = (100 - self.intData[icount][key]['cpuPer'])
+                        timeLine += '%3d ' % per
+                except:
+                    timeLine += '%3s ' % '0'
 
-                SystemManager.addPrint("%16s(%5s/%5s): " % \
-                    (value['comm'], '0', value['tgid']) + timeLine + '\n')
+                if timeLineLen + 4 >= maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
 
-                # make cpu usage list for graph #
-                if SystemManager.graphEnable and SystemManager.cpuEnable:
-                    timeLine = timeLine.replace('N', '')
-                    timeLine = timeLine.replace('D', '')
-                    timeLine = timeLine.replace('F', '')
-                    timeLineData = [int(n) for n in timeLine.split()]
-                    cpuUsageList.append(timeLineData)
-                    cpuLabelList.append('[' + value['comm'] + ']')
+            SystemManager.addPrint("%16s(%5s/%5s): " % \
+                (value['comm'], '0', value['tgid']) + timeLine + '\n')
+
+            # make cpu usage list for graph #
+            if SystemManager.graphEnable and SystemManager.cpuEnable:
+                timeLine = timeLine.replace('N', '')
+                timeLine = timeLine.replace('D', '')
+                timeLine = timeLine.replace('F', '')
+                timeLineData = [int(n) for n in timeLine.split()]
+                cpuUsageList.append(timeLineData)
+                cpuLabelList.append('[' + value['comm'] + ']')
 
         # total memory usage on timeline #
         timeLine = ''
@@ -34236,70 +34250,72 @@ class ThreadAnalyzer(object):
             self.threadData.items(), \
             key=lambda e: e[1]['usage'], reverse=True):
 
-            if key[0:2] != '0[':
-                timeLine = ''
-                timeLineLen = titleLineLen
-                lval = \
-                    int(float(self.totalTime) / intervalEnable) + 1
-                for icount in xrange(0, lval):
-                    newFlag = ' '
-                    dieFlag = ' '
+            if key[0:2] == '0[':
+                continue
 
-                    if timeLineLen + 4 > maxLineLen:
-                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                        timeLineLen = titleLineLen + 4
-                    else:
-                        timeLineLen += 4
+            timeLine = ''
+            timeLineLen = titleLineLen
+            lval = \
+                int(float(self.totalTime) / intervalEnable) + 1
+            for icount in xrange(0, lval):
+                newFlag = ' '
+                dieFlag = ' '
 
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    self.intData[icount][key]
+                except:
+                    timeLine += '%3d ' % 0
+                    continue
+
+                nowVal = self.intData[icount][key]
+
+                try:
+                    prevVal = self.intData[icount - 1][key]
+                except:
+                    prevVal = nowVal
+
+                if icount > 0:
                     try:
-                        self.intData[icount][key]
-                    except:
-                        timeLine += '%3d ' % 0
-                        continue
-
-                    nowVal = self.intData[icount][key]
-
-                    try:
-                        prevVal = self.intData[icount - 1][key]
-                    except:
-                        prevVal = nowVal
-
-                    if icount > 0:
-                        try:
-                            if nowVal['new'] != prevVal['new']:
-                                newFlag = nowVal['new']
-                        except:
+                        if nowVal['new'] != prevVal['new']:
                             newFlag = nowVal['new']
-                        try:
-                            if nowVal['die'] != prevVal['die']:
-                                dieFlag = nowVal['die']
-                        except:
+                    except:
+                        newFlag = nowVal['new']
+                    try:
+                        if nowVal['die'] != prevVal['die']:
                             dieFlag = nowVal['die']
-                    else:
-                        newFlag = self.intData[icount][key]['new']
-                        dieFlag = self.intData[icount][key]['die']
+                    except:
+                        dieFlag = nowVal['die']
+                else:
+                    newFlag = self.intData[icount][key]['new']
+                    dieFlag = self.intData[icount][key]['die']
 
-                    # Do not use 100% because of output format #
-                    cpuPer = str(int(self.intData[icount][key]['cpuPer']))
-                    if cpuPer == '100':
-                        cpuPer = '99'
+                # Do not use 100% because of output format #
+                cpuPer = str(int(self.intData[icount][key]['cpuPer']))
+                if cpuPer == '100':
+                    cpuPer = '99'
 
-                    timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
+                timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
 
-                SystemManager.addPrint("%16s(%5s/%5s): " % \
-                    (value['comm'], key, value['tgid']) + timeLine + '\n')
+            SystemManager.addPrint("%16s(%5s/%5s): " % \
+                (value['comm'], key, value['tgid']) + timeLine + '\n')
 
-                if SystemManager.graphEnable and SystemManager.cpuEnable:
-                    timeLine = timeLine.replace('N', '')
-                    timeLine = timeLine.replace('D', '')
-                    timeLine = timeLine.replace('F', '')
-                    cpuThrUsageList.append([int(n) for n in timeLine.split()])
-                    tinfo = '%s(%s)' % (value['comm'], key)
-                    cpuThrLabelList.append(tinfo)
+            if SystemManager.graphEnable and SystemManager.cpuEnable:
+                timeLine = timeLine.replace('N', '')
+                timeLine = timeLine.replace('D', '')
+                timeLine = timeLine.replace('F', '')
+                cpuThrUsageList.append([int(n) for n in timeLine.split()])
+                tinfo = '%s(%s)' % (value['comm'], key)
+                cpuThrLabelList.append(tinfo)
 
-                if SystemManager.showAll is False and \
-                    value['usage'] / float(self.totalTime) * 100 < 1:
-                    break
+            if not SystemManager.showAll and \
+                value['usage'] / float(self.totalTime) * 100 < 1:
+                break
 
         # draw cpu graph #
         if SystemManager.graphEnable and len(cpuUsageList) > 0:
@@ -34364,7 +34380,144 @@ class ThreadAnalyzer(object):
             if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
                 SystemManager.showAll is False:
                 break
-            elif key[0:2] != '0[':
+            elif key[0:2] == '0[':
+                continue
+
+            timeLine = ''
+            timeLineLen = titleLineLen
+            lval = int(float(self.totalTime) / intervalEnable) + 1
+            for icount in xrange(0, lval):
+                newFlag = ' '
+                dieFlag = ' '
+
+                if timeLineLen + 4 > maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+                try:
+                    self.intData[icount][key]
+                except:
+                    timeLine += '%3d ' % 0
+                    continue
+
+                nowVal = self.intData[icount][key]
+
+                try:
+                    prevVal = self.intData[icount - 1][key]
+                except:
+                    prevVal = nowVal
+
+                if icount > 0:
+                    try:
+                        if nowVal['new'] != prevVal['new']:
+                            newFlag = self.intData[icount][key]['new']
+                    except:
+                        newFlag = nowVal['new']
+                    try:
+                        if nowVal['die'] != prevVal['die']:
+                            dieFlag = nowVal['die']
+                    except:
+                        dieFlag = nowVal['die']
+                else:
+                    newFlag = nowVal['new']
+                    dieFlag = nowVal['die']
+
+                # Do not use 100% because of output format #
+                totalPrt = nowVal['preempted'] / float(intervalEnable)
+                prtPer = str(int(totalPrt * 100))
+                if prtPer == '100':
+                    prtPer = '99'
+
+                timeLine += '%4s' % (newFlag + prtPer + dieFlag)
+
+            SystemManager.addPrint("%16s(%5s/%5s): " % \
+                (value['comm'], key, value['tgid']) + timeLine + '\n')
+
+        if len(SystemManager.bufferString) > 0:
+            SystemManager.printPipe("%s# %s\n" % ('', 'Delay(%)'))
+            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.printPipe(oneLine)
+
+        # memory usage on timeline #
+        SystemManager.clearPrint()
+        if SystemManager.memEnable:
+            for key, value in sorted(\
+                self.threadData.items(), key=lambda e: e[1]['nrPages'], \
+                reverse=True):
+
+                if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
+                    SystemManager.showAll == False:
+                    break
+                elif key[0:2] == '0[':
+                    continue
+
+                timeLine = ''
+                timeLineLen = titleLineLen
+                lval = \
+                    int(float(self.totalTime) / intervalEnable) + 1
+                for icount in xrange(0, lval):
+                    newFlag = ' '
+                    dieFlag = ' '
+
+                    if timeLineLen + 4 > maxLineLen:
+                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
+
+                    try:
+                        self.intData[icount][key]
+                    except:
+                        timeLine += '%3d ' % 0
+                        continue
+
+                    nowVal = self.intData[icount][key]
+
+                    try:
+                        prevVal = self.intData[icount - 1][key]
+                    except:
+                        prevVal = nowVal
+
+                    if icount > 0:
+                        try:
+                            if nowVal['new'] != prevVal['new']:
+                                newFlag = self.intData[icount][key]['new']
+                        except:
+                            newFlag = nowVal['new']
+                        try:
+                            if nowVal['die'] != prevVal['die']:
+                                dieFlag = nowVal['die']
+                        except:
+                            dieFlag = nowVal['die']
+                    else:
+                        newFlag = nowVal['new']
+                        dieFlag = nowVal['die']
+
+                    memUsage = self.intData[icount][key]['memUsage'] >> 8
+                    kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
+                    timeLine += '%4s' % \
+                        (newFlag + str(memUsage + kmemUsage) + dieFlag)
+                SystemManager.addPrint("%16s(%5s/%5s): " % \
+                    (value['comm'], key, value['tgid']) + timeLine + '\n')
+
+            if len(SystemManager.bufferString) > 0:
+                SystemManager.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
+                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.printPipe(oneLine)
+
+        # block read usage on timeline #
+        SystemManager.clearPrint()
+        if SystemManager.blockEnable:
+            for key, value in sorted(\
+                self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
+
+                if value['readBlock'] < 1 and SystemManager.showAll == False:
+                    break
+                elif key[0:2] == '0[':
+                    continue
+
                 timeLine = ''
                 timeLineLen = titleLineLen
                 lval = int(float(self.totalTime) / intervalEnable) + 1
@@ -34406,143 +34559,12 @@ class ThreadAnalyzer(object):
                         newFlag = nowVal['new']
                         dieFlag = nowVal['die']
 
-                    # Do not use 100% because of output format #
-                    totalPrt = nowVal['preempted'] / float(intervalEnable)
-                    prtPer = str(int(totalPrt * 100))
-                    if prtPer == '100':
-                        prtPer = '99'
-
-                    timeLine += '%4s' % (newFlag + prtPer + dieFlag)
+                    timeLine += '%4s' % (newFlag + \
+                        str(int((self.intData[icount][key]['brUsage'] * \
+                        SystemManager.blockSize) >> 20)) + dieFlag)
 
                 SystemManager.addPrint("%16s(%5s/%5s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
-
-        if len(SystemManager.bufferString) > 0:
-            SystemManager.printPipe("%s# %s\n" % ('', 'Delay(%)'))
-            SystemManager.printPipe(SystemManager.bufferString)
-            SystemManager.printPipe(oneLine)
-
-        # memory usage on timeline #
-        SystemManager.clearPrint()
-        if SystemManager.memEnable:
-            for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['nrPages'], \
-                reverse=True):
-
-                if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
-                    SystemManager.showAll == False:
-                    break
-                elif key[0:2] != '0[':
-                    timeLine = ''
-                    timeLineLen = titleLineLen
-                    lval = \
-                        int(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
-                        newFlag = ' '
-                        dieFlag = ' '
-
-                        if timeLineLen + 4 > maxLineLen:
-                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                            timeLineLen = titleLineLen + 4
-                        else:
-                            timeLineLen += 4
-
-                        try:
-                            self.intData[icount][key]
-                        except:
-                            timeLine += '%3d ' % 0
-                            continue
-
-                        nowVal = self.intData[icount][key]
-
-                        try:
-                            prevVal = self.intData[icount - 1][key]
-                        except:
-                            prevVal = nowVal
-
-                        if icount > 0:
-                            try:
-                                if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
-                            except:
-                                newFlag = nowVal['new']
-                            try:
-                                if nowVal['die'] != prevVal['die']:
-                                    dieFlag = nowVal['die']
-                            except:
-                                dieFlag = nowVal['die']
-                        else:
-                            newFlag = nowVal['new']
-                            dieFlag = nowVal['die']
-
-                        memUsage = self.intData[icount][key]['memUsage'] >> 8
-                        kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
-                        timeLine += '%4s' % \
-                            (newFlag + str(memUsage + kmemUsage) + dieFlag)
-                    SystemManager.addPrint("%16s(%5s/%5s): " % \
-                        (value['comm'], key, value['tgid']) + timeLine + '\n')
-
-            if len(SystemManager.bufferString) > 0:
-                SystemManager.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
-                SystemManager.printPipe(oneLine)
-
-        # block read usage on timeline #
-        SystemManager.clearPrint()
-        if SystemManager.blockEnable:
-            for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
-
-                if value['readBlock'] < 1 and SystemManager.showAll == False:
-                    break
-                elif key[0:2] != '0[':
-                    timeLine = ''
-                    timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
-                        newFlag = ' '
-                        dieFlag = ' '
-
-                        if timeLineLen + 4 > maxLineLen:
-                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                            timeLineLen = titleLineLen + 4
-                        else:
-                            timeLineLen += 4
-
-                        try:
-                            self.intData[icount][key]
-                        except:
-                            timeLine += '%3d ' % 0
-                            continue
-
-                        nowVal = self.intData[icount][key]
-
-                        try:
-                            prevVal = self.intData[icount - 1][key]
-                        except:
-                            prevVal = nowVal
-
-                        if icount > 0:
-                            try:
-                                if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
-                            except:
-                                newFlag = nowVal['new']
-                            try:
-                                if nowVal['die'] != prevVal['die']:
-                                    dieFlag = nowVal['die']
-                            except:
-                                dieFlag = nowVal['die']
-                        else:
-                            newFlag = nowVal['new']
-                            dieFlag = nowVal['die']
-
-                        timeLine += '%4s' % (newFlag + \
-                            str(int((self.intData[icount][key]['brUsage'] * \
-                            SystemManager.blockSize) >> 20)) + dieFlag)
-
-                    SystemManager.addPrint("%16s(%5s/%5s): " % \
-                        (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_RD(MB)'))
@@ -34559,54 +34581,56 @@ class ThreadAnalyzer(object):
                 if value['reqWrBlock'] + (value['awriteBlock'] << 3) < 1 and \
                     SystemManager.showAll == False:
                     break
-                elif key[0:2] != '0[':
-                    timeLine = ''
-                    timeLineLen = titleLineLen
-                    lval = int(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
-                        newFlag = ' '
-                        dieFlag = ' '
+                elif key[0:2] == '0[':
+                    continue
 
-                        if timeLineLen + 4 > maxLineLen:
-                            timeLine += ('\n' + (' ' * (titleLineLen + 1)))
-                            timeLineLen = titleLineLen + 4
-                        else:
-                            timeLineLen += 4
+                timeLine = ''
+                timeLineLen = titleLineLen
+                lval = int(float(self.totalTime) / intervalEnable) + 1
+                for icount in xrange(0, lval):
+                    newFlag = ' '
+                    dieFlag = ' '
 
+                    if timeLineLen + 4 > maxLineLen:
+                        timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                        timeLineLen = titleLineLen + 4
+                    else:
+                        timeLineLen += 4
+
+                    try:
+                        self.intData[icount][key]
+                    except:
+                        timeLine += '%3d ' % 0
+                        continue
+
+                    nowVal = self.intData[icount][key]
+
+                    try:
+                        prevVal = self.intData[icount - 1][key]
+                    except:
+                        prevVal = nowVal
+
+                    if icount > 0:
                         try:
-                            self.intData[icount][key]
+                            if nowVal['new'] != prevVal['new']:
+                                newFlag = self.intData[icount][key]['new']
                         except:
-                            timeLine += '%3d ' % 0
-                            continue
-
-                        nowVal = self.intData[icount][key]
-
-                        try:
-                            prevVal = self.intData[icount - 1][key]
-                        except:
-                            prevVal = nowVal
-
-                        if icount > 0:
-                            try:
-                                if nowVal['new'] != prevVal['new']:
-                                    newFlag = self.intData[icount][key]['new']
-                            except:
-                                newFlag = nowVal['new']
-                            try:
-                                if nowVal['die'] != prevVal['die']:
-                                    dieFlag = nowVal['die']
-                            except:
-                                dieFlag = nowVal['die']
-                        else:
                             newFlag = nowVal['new']
+                        try:
+                            if nowVal['die'] != prevVal['die']:
+                                dieFlag = nowVal['die']
+                        except:
                             dieFlag = nowVal['die']
+                    else:
+                        newFlag = nowVal['new']
+                        dieFlag = nowVal['die']
 
-                        timeLine += '%4s' % (newFlag + \
-                            str(int((self.intData[icount][key]['bwUsage'] * \
-                            SystemManager.blockSize) >> 20)) + dieFlag)
+                    timeLine += '%4s' % (newFlag + \
+                        str(int((self.intData[icount][key]['bwUsage'] * \
+                        SystemManager.blockSize) >> 20)) + dieFlag)
 
-                    SystemManager.addPrint("%16s(%5s/%5s): " % \
-                        (value['comm'], key, value['tgid']) + timeLine + '\n')
+                SystemManager.addPrint("%16s(%5s/%5s): " % \
+                    (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_WR(MB)'))
@@ -34657,27 +34681,6 @@ class ThreadAnalyzer(object):
                     pass
         except:
             return (0, 0)
-
-
-
-    def convertNetworkUsage(self, inDiff, outDiff):
-        try:
-            recv = inDiff >> 20
-            if recv > 0:
-                recv = '%sM' % recv
-            else:
-                recv = '%sK' % (inDiff >> 10)
-
-            send = outDiff >> 20
-            if send > 0:
-                send = '%sM' % send
-            else:
-                send = '%sK' % (outDiff >> 10)
-
-            return (recv, send)
-
-        except:
-            return ('-', '-')
 
 
 
@@ -36145,115 +36148,117 @@ class ThreadAnalyzer(object):
             if not value['maps']:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
 
-            if value['maps']:
-                cnt += 1
+            if not value['maps']:
+                continue
 
-                totalCnt = 0
-                totalVmem = 0
-                totalRss = 0
-                totalPss = 0
-                totalSwap = 0
-                totalHuge = 0
-                totalLock = 0
-                totalPdirty = 0
-                totalSdirty = 0
-                totalRef = 0
-                totalNone = 0
+            cnt += 1
 
-                procInfo = ' '
-                procDetails = ''
+            totalCnt = 0
+            totalVmem = 0
+            totalRss = 0
+            totalPss = 0
+            totalSwap = 0
+            totalHuge = 0
+            totalLock = 0
+            totalPdirty = 0
+            totalSdirty = 0
+            totalRef = 0
+            totalNone = 0
 
-                for idx, item in sorted(value['maps'].items(), reverse=True):
-                    if len(item) == 0:
-                        continue
+            procInfo = ' '
+            procDetails = ''
 
-                    totalCnt += item['count']
+            for idx, item in sorted(value['maps'].items(), reverse=True):
+                if len(item) == 0:
+                    continue
 
-                    try:
-                        vmem = item['Size:'] >> 10
-                        totalVmem += vmem
-                    except:
-                        vmem = 0
+                totalCnt += item['count']
 
-                    try:
-                        rss = item['Rss:'] >> 10
-                        totalRss += rss
-                    except:
-                        rss = 0
+                try:
+                    vmem = item['Size:'] >> 10
+                    totalVmem += vmem
+                except:
+                    vmem = 0
 
-                    try:
-                        pss = item['Pss:'] >> 10
-                        totalPss += pss
-                    except:
-                        pss = 0
+                try:
+                    rss = item['Rss:'] >> 10
+                    totalRss += rss
+                except:
+                    rss = 0
 
-                    try:
-                        swap = item['Swap:'] >> 10
-                        totalSwap += swap
-                    except:
-                        swap = 0
+                try:
+                    pss = item['Pss:'] >> 10
+                    totalPss += pss
+                except:
+                    pss = 0
 
-                    try:
-                        huge = item['AnonHugePages:'] >> 10
-                        totalHuge += huge
-                    except:
-                        huge = 0
+                try:
+                    swap = item['Swap:'] >> 10
+                    totalSwap += swap
+                except:
+                    swap = 0
 
-                    try:
-                        lock = item['Locked:']
-                        totalLock += lock
-                    except:
-                        lock = 0
+                try:
+                    huge = item['AnonHugePages:'] >> 10
+                    totalHuge += huge
+                except:
+                    huge = 0
 
-                    try:
-                        pdirty = item['Private_Dirty:']
-                        totalPdirty += pdirty
-                    except:
-                        pdirty = 0
+                try:
+                    lock = item['Locked:']
+                    totalLock += lock
+                except:
+                    lock = 0
 
-                    try:
-                        sdirty = item['Shared_Dirty:']
-                        totalSdirty += sdirty
-                    except:
-                        sdirty = 0
+                try:
+                    pdirty = item['Private_Dirty:']
+                    totalPdirty += pdirty
+                except:
+                    pdirty = 0
 
-                    try:
-                        ref = item['Referenced:']
-                        totalRef += ref
-                    except:
-                        ref = 0
+                try:
+                    sdirty = item['Shared_Dirty:']
+                    totalSdirty += sdirty
+                except:
+                    sdirty = 0
 
-                    try:
-                        none = item['NOPM']
-                        totalNone += none
-                    except:
-                        none = 0
+                try:
+                    ref = item['Referenced:']
+                    totalRef += ref
+                except:
+                    ref = 0
 
-                    procDetails = \
-                        "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
-                        "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                        "{9:>12} | {10:>12} | {11:>12} |\n").\
-                        format(procInfo, idx, item['count'], \
-                        vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
+                try:
+                    none = item['NOPM']
+                    totalNone += none
+                except:
+                    none = 0
 
-                if SystemManager.processEnable:
-                    ppid = value['stat'][ppidIdx]
-                else:
-                    ppid = value['mainID']
-
-                procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
-                    format(value['stat'][commIdx][1:-1][:cl], \
-                    key, ppid, cl=cl, pd=pd)
-
-                SystemManager.printPipe(("{0:>30} | {1:>8} | {2:>5} | "
+                procDetails = \
+                    "%s%s" % (procDetails, ("{0:>30} | {1:>8} | {2:>5} | "
                     "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
-                    "{9:>12} | {10:>12} | {11:>12} |\n{12}").\
-                    format(procInfo, '[TOTAL]', totalCnt, \
-                    totalVmem, totalRss, totalPss, totalSwap, \
-                    totalHuge, totalLock, totalPdirty, totalSdirty, \
-                    totalNone, procDetails))
+                    "{9:>12} | {10:>12} | {11:>12} |\n").\
+                    format(procInfo, idx, item['count'], \
+                    vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
 
-                SystemManager.printPipe('%s\n' % oneLine)
+            if SystemManager.processEnable:
+                ppid = value['stat'][ppidIdx]
+            else:
+                ppid = value['mainID']
+
+            procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
+                format(value['stat'][commIdx][1:-1][:cl], \
+                key, ppid, cl=cl, pd=pd)
+
+            SystemManager.printPipe(("{0:>30} | {1:>8} | {2:>5} | "
+                "{3:>6} | {4:>6} | {5:>6} | {6:>6} | {7:>6} | {8:>10} | "
+                "{9:>12} | {10:>12} | {11:>12} |\n{12}").\
+                format(procInfo, '[TOTAL]', totalCnt, \
+                totalVmem, totalRss, totalPss, totalSwap, \
+                totalHuge, totalLock, totalPdirty, totalSdirty, \
+                totalNone, procDetails))
+
+            SystemManager.printPipe('%s\n' % oneLine)
 
         if cnt == 1:
             SystemManager.printPipe("\tNone\n%s\n" % oneLine)
@@ -39471,8 +39476,8 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarning('Fail to open %s' % cpuPath)
 
+        # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
-            # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
             for line in cpuBuf:
                 STAT_ATTR = line.split()
                 cpuId = STAT_ATTR[0]
@@ -39538,6 +39543,7 @@ class ThreadAnalyzer(object):
             self.saveIrqs()
 
         # save vmstat info #
+        # vmstat list from https://access.redhat.com/solutions/406773 #
         try:
             vmBuf = None
             SystemManager.vmstatFd.seek(0)
@@ -39547,7 +39553,6 @@ class ThreadAnalyzer(object):
                 vmstatPath = "%s/%s" % (SystemManager.procPath, 'vmstat')
                 SystemManager.vmstatFd = open(vmstatPath, 'r')
 
-                # vmstat list from https://access.redhat.com/solutions/406773 #
                 vmBuf = SystemManager.vmstatFd.readlines()
             except:
                 SystemManager.printWarning('Fail to open %s' % vmstatPath)
@@ -39781,8 +39786,9 @@ class ThreadAnalyzer(object):
         ptable = {'ANON': {}, 'FILE': {}, 'STACK': {}, 'ETC': {}, 'SHM': {}}
 
         checkCnt = 0
-        checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Clean:', 'Shared_Dirty:', \
-            'Private_Dirty:', 'Referenced:', 'AnonHugePages:', 'Swap:', 'Locked:']
+        checklist = ['Size:', 'Rss:', 'Pss:', 'Shared_Clean:', \
+            'Shared_Dirty:', 'Private_Dirty:', 'Referenced:', \
+            'AnonHugePages:', 'Swap:', 'Locked:']
 
         try:
             SystemManager.procInstance[tid]['maps'] = ptable
@@ -40006,6 +40012,50 @@ class ThreadAnalyzer(object):
         except:
             self.procData[tid]['execTime'] = 0
             self.procData[tid]['waitTime'] = 0
+
+
+
+    def isKernelThread(self, tid):
+        ppid = self.procData[tid]['stat'][self.ppidIdx]
+        if ppid == '2':
+            return True
+        else:
+            return False
+
+
+
+    def saveCmdlineData(self, path, tid):
+        if not SystemManager.cmdlineEnable:
+            return
+
+        # check kernel thread #
+        if self.isKernelThread(tid):
+            self.procData[tid]['cmdline'] = ''
+            return
+
+        # check main thread to remove redundant operation #
+        if SystemManager.isThreadTopMode():
+            mainID = self.procData[tid]['mainID']
+            if mainID in self.procData:
+                if 'cmdline' in self.procData[mainID]:
+                    self.procData[tid]['cmdline'] = \
+                        self.procData[mainID]['cmdline']
+                    return
+
+        # save cmdline info #
+        try:
+             cmdlinePath = "%s/cmdline" % path
+             with open(cmdlinePath, 'r') as fd:
+                 self.procData[tid]['cmdline'] = \
+                     fd.readline().split('\x00')[0]
+
+             if SystemManager.isThreadTopMode():
+                 if mainID in self.procData:
+                    self.procData[mainID]['cmdline'] = \
+                        self.procData[tid]['cmdline']
+        except:
+            SystemManager.printWarning('Fail to open %s' % cmdlinePath)
+            return
 
 
 
@@ -42108,12 +42158,12 @@ class ThreadAnalyzer(object):
             # set indent size including arrow #
             initIndent = 42
 
-            newLine = 1
             for stack, cnt in sorted(\
                 self.stackTable[idx]['stack'].items(), \
                 key=lambda e: e[1], reverse=True):
 
                 line = ''
+                newLine = 1
                 fullstack = ''
                 per = int((cnt / float(self.stackTable[idx]['total'])) * 100)
                 self.stackTable[idx]['stack'][stack] = 0
@@ -42279,6 +42329,9 @@ class ThreadAnalyzer(object):
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
+
+            # save cmdline info #
+            self.saveCmdlineData(value['taskPath'], idx)
 
             # save sched info to get delayed time  #
             if not SystemManager.wfcEnable:
@@ -42562,6 +42615,17 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint(\
                     "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
+
+            # print cmdline #
+            if SystemManager.cmdlineEnable and \
+                len(value['cmdline']) > 0:
+                # cut by rows of terminal #
+                if SystemManager.checkCutCond():
+                    SystemManager.addPrint('---more---')
+                    return
+
+                SystemManager.addPrint(\
+                    "{0:>39} | CMD: {1:1}\n".format(' ', value['cmdline']))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
