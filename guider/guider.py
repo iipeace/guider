@@ -40261,6 +40261,17 @@ class ThreadAnalyzer(object):
 
         # save oom_score #
         if SystemManager.oomEnable:
+            # check main thread to remove redundant operation #
+            if SystemManager.isThreadTopMode():
+                mainID = self.procData[tid]['mainID']
+                if mainID in self.procData:
+                    if 'oomScore' in self.procData[mainID]:
+                        self.procData[tid]['oomScore'] = \
+                            self.procData[mainID]['oomScore']
+                        self.procData[tid]['oomFd'] = \
+                            self.procData[mainID]['oomFd']
+                        return
+
             try:
                 self.prevProcData[tid]['oomFd'].seek(0)
                 self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
@@ -40278,6 +40289,12 @@ class ThreadAnalyzer(object):
                         oomFd.close()
                         self.procData[tid]['oomFd'] = None
                         self.reclaimFds()
+                    elif SystemManager.isThreadTopMode():
+                        if mainID in self.procData:
+                           self.procData[mainID]['oomScore'] = \
+                               self.procData[tid]['oomScore']
+                           self.procData[mainID]['oomFd'] = \
+                               self.procData[tid]['oomFd']
                 except:
                     SystemManager.printWarning('Fail to open %s' % oomPath)
                     self.procData.pop(tid, None)
