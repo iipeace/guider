@@ -10569,8 +10569,6 @@ class SystemManager(object):
     stackEnable = False
     wchanEnable = False
     sigHandlerEnable = False
-    pgnameEnable = True
-    tgnameEnable = False
     wfcEnable = False
     affinityEnable = False
     freeMemEnable = False
@@ -30055,7 +30053,7 @@ class ThreadAnalyzer(object):
 
     def drawGraph(self, graphStats, logFile):
 
-        #==================== define part ====================#
+        #==================== DEFINE PART ====================#
 
         def drawEvent(graphStats):
             # get minimum timeline #
@@ -31491,7 +31489,7 @@ class ThreadAnalyzer(object):
 
             drawBottom(xtype, ax)
 
-        #==================== body part ====================#
+        #==================== BODY PART ====================#
 
         SystemManager.printStatus(r"start drawing graphs...")
 
@@ -34690,8 +34688,6 @@ class ThreadAnalyzer(object):
         SystemManager.wchanEnable = False
         SystemManager.sigHandlerEnable = False
         SystemManager.oomEnable = False
-        SystemManager.tgnameEnable = False
-        SystemManager.pgnameEnable = False
 
         if option == 'affinity':
             SystemManager.affinityEnable = True
@@ -34718,7 +34714,8 @@ class ThreadAnalyzer(object):
                 r'\[Ctxt:\s*(?P<nrCtxt>[0-9]+)\].+'
                 r'\[IRQ:\s*(?P<nrIrq>[0-9]+)\].+'
                 r'\[Core:\s*(?P<nrCore>[0-9]+)\].+'
-                r'\[Task:\s*(?P<nrProc>[0-9]+)/(?P<nrThread>[0-9]+)'), procLine)
+                r'\[Task:\s*(?P<nrProc>[0-9]+)'
+                r'/(?P<nrThread>[0-9]+)'), procLine)
             if m:
                 d = m.groupdict()
                 TA.procIntData[index]['time'] = d['time']
@@ -42131,18 +42128,18 @@ class ThreadAnalyzer(object):
                 dprop = 'WFC'
 
             # check last field #
-            if SystemManager.pgnameEnable:
-                etc = 'Parent'
-            elif SystemManager.wchanEnable:
+            if SystemManager.wchanEnable:
                 etc = 'WaitChannel'
             elif SystemManager.affinityEnable:
                 etc = 'Affinity'
-            elif SystemManager.tgnameEnable:
-                etc = 'Process'
             elif SystemManager.oomEnable:
                 etc = 'OOMScore'
-            elif SystemManager.sigHandlerEnable or True:
+            elif SystemManager.sigHandlerEnable:
                 etc = 'SignalHandler'
+            elif SystemManager.isThreadTopMode():
+                etc = 'Process'
+            else:
+                etc = 'Parent'
 
             if SystemManager.pssEnable:
                 mem = 'PSS'
@@ -42440,14 +42437,7 @@ class ThreadAnalyzer(object):
                 dtime = int(value['cttime'])
 
             # set last field info #
-            if SystemManager.pgnameEnable:
-                try:
-                    pgid = procData[idx]['stat'][self.ppidIdx]
-                    etc = '%s(%s)' % \
-                        (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
-                except:
-                    etc = ''
-            elif SystemManager.wchanEnable:
+            if SystemManager.wchanEnable:
                 try:
                     etc = value['wchan']
                 except:
@@ -42457,23 +42447,30 @@ class ThreadAnalyzer(object):
                     etc = SystemManager.getAffinity(int(idx))
                 except:
                     etc = ''
-            elif SystemManager.tgnameEnable:
+            elif SystemManager.oomEnable:
+                try:
+                    etc = str(value['oomScore'])
+                except:
+                    etc = ''
+            elif SystemManager.sigHandlerEnable:
+                try:
+                    etc = value['status']['SigCgt'].lstrip('0')
+                except:
+                    etc = '-'
+            elif SystemManager.isThreadTopMode():
                 try:
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
                     etc = ''
-            elif SystemManager.oomEnable:
+            else:
                 try:
-                    etc = str(value['oomScore'])
+                    pgid = procData[idx]['stat'][self.ppidIdx]
+                    etc = '%s(%s)' % \
+                        (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
                     etc = ''
-            elif SystemManager.sigHandlerEnable or True:
-                try:
-                    etc = value['status']['SigCgt'].lstrip('0')
-                except:
-                    etc = '-'
 
             try:
                 mems = long(stat[self.rssIdx])
@@ -42550,7 +42547,8 @@ class ThreadAnalyzer(object):
                 sched, value['ttime'], value['utime'], value['stime'], \
                 dtime, vss, mems >> 8, codeSize, shr, swapSize, \
                 value['btime'], readSize, writeSize, value['majflt'], \
-                yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], cl=cl, pd=pd))
+                yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], \
+                cl=cl, pd=pd))
 
             # print PMU stats #
             if SystemManager.perfGroupEnable:
@@ -42559,6 +42557,11 @@ class ThreadAnalyzer(object):
                         SystemManager.collectProcPerfData(value['perfFds'])
                     perfString = SystemManager.getPerfString(perfData)
                     if len(perfString) > 0:
+                        # cut by rows of terminal #
+                        if SystemManager.checkCutCond():
+                            SystemManager.addPrint('---more---')
+                            return
+
                         SystemManager.addPrint(\
                             "{0:>40}| {1:1}\n".format(' ', perfString))
                         needLine = True
@@ -43648,7 +43651,7 @@ def main(args=None):
     # save system info first #
     SystemManager()
 
-    #==================== record part ====================#
+    #==================== RECORD PART ====================#
     if SystemManager.isRecordMode():
         # function #
         if SystemManager.isFuncRecordMode():
@@ -43839,7 +43842,7 @@ def main(args=None):
             # save system info #
             SystemManager.sysInstance.saveResourceSnapshot()
 
-    #==================== analysis part ====================#
+    #==================== ANALYSIS PART ====================#
     # register exit handler #
     atexit.register(SystemManager.doExit)
 
@@ -43890,11 +43893,6 @@ def main(args=None):
                     SystemManager.sourceFile.append(item)
                 else:
                     break
-
-    # set default expand option in threadtop mode #
-    if SystemManager.isThreadTopMode():
-        SystemManager.tgnameEnable = True
-        SystemManager.pgnameEnable = False
 
     # parse analysis option #
     SystemManager.parseAnalOption()
