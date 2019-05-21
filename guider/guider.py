@@ -58,7 +58,7 @@ class ConfigManager(object):
  | | |_ | | | | |/ _` |/ _ \ '__|
  | |__| | |_| | | (_| |  __/ |
   \_____|\__,_|_|\__,_|\___|_|  ver.%s
-    ''' % __version__
+''' % __version__
 
     # Define color #
     if sys.platform.startswith('linux') or \
@@ -2825,7 +2825,10 @@ class UtilManager(object):
             return
 
         # compress by gzip #
-        compressor = SystemManager.getPkg('gzip', False)
+        if SystemManager.compressEnable:
+            compressor = SystemManager.getPkg('gzip', False)
+        else:
+            compressor = None
 
         # original object #
         try:
@@ -2858,7 +2861,10 @@ class UtilManager(object):
             return None
 
         # decompress by gzip #
-        decompressor = SystemManager.getPkg('gzip', False)
+        if SystemManager.compressEnable:
+            decompressor = SystemManager.getPkg('gzip', False)
+        else:
+            decompressor = None
 
         try:
             if decompressor:
@@ -10438,6 +10444,7 @@ class SystemManager(object):
     addr2linePath = None
     objdumpPath = None
     demangleEnable = True
+    compressEnable = False
     rootPath = ''
     fontPath = None
     pipeForPrint = None
@@ -12209,6 +12216,46 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
+                # syscall top #
+                elif SystemManager.isSyscTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor syscalls for a specific thread
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor sycalls for a specific thread
+        # {0:1} {1:1} -g a.out
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
+                # usercall top #
+                elif SystemManager.isUserTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor usercalls for a specific thread
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor sycalls for a specific thread
+        # {0:1} {1:1} -g a.out
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
                 # sys top #
                 elif SystemManager.isSysTopMode():
                     helpStr = '''
@@ -13168,8 +13215,11 @@ COMMAND:
                 wsstop      <memory>
                 reptop      <JSON>
                 filetop     <file>
+                sysctop     <syscall>
+                usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
+
     [profile]   record      <thread>
                 funcrecord  <function>
                 filerecord  <file>
@@ -13200,7 +13250,7 @@ COMMAND:
                 addr2line   <symbol>
                 leaktrace   <leak>
 
-    [run]       list        <list>
+    [control]   list        <list>
                 start       <signal>
                 send        <signal>
                 event       <event>
@@ -16564,9 +16614,24 @@ Copyright:
 
 
     @staticmethod
-    def printInfo(line):
-        print('\n%s%s%s%s' % \
-            (ConfigManager.BOLD, '[Info] ', line, ConfigManager.ENDC))
+    def printInfo(line, prefix=True, suffix=True, notitle=False):
+        if notitle:
+            title = ''
+        else:
+            title = '[Info] '
+
+        if prefix:
+            prefix = '\n'
+        else:
+            prefix = ''
+
+        if suffix:
+            print('%s%s%s%s%s' % \
+                (prefix, ConfigManager.BOLD, title, line, ConfigManager.ENDC))
+        else:
+            sys.stdout.write('%s%s%s%s%s' % \
+                (prefix, ConfigManager.BOLD, title, line, ConfigManager.ENDC))
+            sys.stdout.flush()
 
 
 
@@ -18006,6 +18071,30 @@ Copyright:
 
 
     @staticmethod
+    def isUserTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'usertop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isSyscTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'sysctop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isNetTopMode():
         if len(sys.argv) == 1:
             return False
@@ -18105,6 +18194,8 @@ Copyright:
             SystemManager.isBgTopMode() or \
             SystemManager.isSysTopMode() or \
             SystemManager.isNetTopMode() or \
+            SystemManager.isUserTopMode() or \
+            SystemManager.isSyscTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -18165,7 +18256,7 @@ Copyright:
         elif SystemManager.isPauseMode():
             # convert comm to pid #
             targetList = SystemManager.convertPidList(\
-                SystemManager.filterGroup)
+                SystemManager.filterGroup, True, True)
 
             Debugger.pauseThreads(targetList)
 
@@ -18917,7 +19008,7 @@ Copyright:
                     if comm != name:
                         continue
 
-                    pidList.append(pid)
+                    pidList.append(tid)
 
                 continue
 
@@ -19231,6 +19322,8 @@ Copyright:
             # Guider #
             if not cmd:
                 SystemManager.pid = os.getpid()
+                if mute:
+                    SystemManager.closeStdFds(stderr=False)
                 return 0
 
             # split command #
@@ -19251,20 +19344,29 @@ Copyright:
 
 
     @staticmethod
+    def closeStdFds(stdin=True, stdout=True, stderr=True):
+        if not SystemManager.nullFd:
+            SystemManager.nullFd = open('/dev/null', 'w')
+
+        # get null fd #
+        nullFd = SystemManager.nullFd.fileno()
+
+        # redirect stds to null #
+        if stdin:
+            os.dup2(nullFd, sys.stdin.fileno())
+        if stdout:
+            os.dup2(nullFd, sys.stdout.fileno())
+        if stderr:
+            os.dup2(nullFd, sys.stderr.fileno())
+
+
+
+    @staticmethod
     def resetFileTable(mute=True, closeAll=True):
         # redirect stdout and stderr to null #
         if mute:
             try:
-                if not SystemManager.nullFd:
-                    SystemManager.nullFd = open('/dev/null', 'w')
-
-                # get null fd #
-                nullFd = SystemManager.nullFd.fileno()
-
-                # redirect stds to null #
-                os.dup2(nullFd, sys.stdin.fileno())
-                os.dup2(nullFd, sys.stdout.fileno())
-                os.dup2(nullFd, sys.stderr.fileno())
+                SystemManager.closeStdFds()
             except:
                 pass
 
@@ -20053,7 +20155,8 @@ Copyright:
         SystemManager.printLogo(big=True, onlyFile=True)
 
         # no use pager #
-        SystemManager.printStreamEnable = True
+        if not SystemManager.isTopMode():
+            SystemManager.printStreamEnable = True
 
         # define wait syscall #
         wait = None
@@ -20188,7 +20291,7 @@ Copyright:
 
         # convert comm to pid #
         pids = SystemManager.convertPidList(\
-            SystemManager.filterGroup)
+            SystemManager.filterGroup, False, True)
 
         if len(pids) == 0:
             SystemManager.printError("No %s process" % \
@@ -20672,7 +20775,8 @@ Copyright:
             if not pid.isdigit():
                 idlist = SystemManager.getPids(pid, isThread)
                 if len(idlist) > 0:
-                    targetList += idlist
+                    uniqueList = set(idlist) - set(targetList)
+                    targetList += list(uniqueList)
             else:
                 targetList.append(pid)
 
@@ -20709,14 +20813,7 @@ Copyright:
             pass
 
         # convert comm to pid #
-        targetList = SystemManager.convertPidList(argList)
-
-        # remove my pid #
-        if str(SystemManager.pid) in targetList:
-            try:
-                del targetList[targetList.index(str(SystemManager.pid))]
-            except:
-                pass
+        targetList = SystemManager.convertPidList(argList, False, True)
 
         # send signal #
         SystemManager.sendSignalProcs(sig, targetList)
@@ -24222,8 +24319,6 @@ Copyright:
 class Debugger(object):
     """ Debugger for ptrace """
 
-    debugInstance = None
-
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.ctypes = None
         self.status = 'enter'
@@ -24240,6 +24335,8 @@ class Debugger(object):
         self.fileList = []
         self.addrList = []
         self.callstack = []
+        self.totalCall = 0
+        self.callTable = {}
         self.breakList = {}
 
         self.pc = None
@@ -24650,7 +24747,10 @@ class Debugger(object):
     def checkPid(self, pid):
         if not pid:
             return -1
-        elif type(pid) is not int or pid <= 0:
+        elif type(pid) is not int and \
+            type(pid) is not long:
+            return -1
+        elif pid <= 0:
             return -1
         else:
             return 0
@@ -24868,6 +24968,82 @@ class Debugger(object):
 
 
 
+    def printIntervalSummary(self):
+        # update terminal size #
+        SystemManager.updateTty()
+
+        SystemManager.updateUptime()
+
+        if not SystemManager.printStreamEnable and \
+            not SystemManager.printFile:
+            SystemManager.clearScreen()
+
+        # set time #
+        current = time.time()
+        diff = current - self.last
+        self.last = current
+
+        # print summary table #
+        if self.mode == 'syscall':
+            ctype = 'Syscall'
+            addInfo = 'Count'
+        else:
+            ctype = 'Usercall'
+            addInfo = 'Path'
+
+        nrTotal = float(self.totalCall)
+        convert = UtilManager.convertNumber
+
+        SystemManager.addPrint((\
+            '[Top %s Info] [Time: %f] [Interval: %f] '
+            '[NrSamples: %s] [NrSymbols: %s]\n%s\n') % \
+                (ctype, SystemManager.uptime, diff, \
+                convert(self.totalCall), len(self.callTable), twoLine))
+
+        SystemManager.addPrint(\
+            '{0:^7} | {1:^64} | {2:^76}\n{3:<1}\n'.format(\
+                'Usage', 'Function', addInfo, twoLine))
+
+        for sym, value in sorted(\
+            self.callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+            if sym[0] == '/':
+                sym = '??'
+
+            try:
+                per = value['cnt'] / nrTotal * 100
+            except:
+                SystemManager.addPrint('\tNone\n')
+                break
+
+            if per < 1 and \
+                not SystemManager.showAll:
+                break
+
+            if self.mode == 'syscall':
+                addVal = convert(value['cnt'])
+            else:
+                addVal = value['path']
+
+            SystemManager.addPrint(\
+                '{0:>7} | {1:^64} | {2:<76}\n'.format(\
+                    '%.1f%%' % per, sym, addVal))
+
+            # cut by rows of terminal #
+            if SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                break
+
+        SystemManager.addPrint('%s\n' % oneLine)
+
+        SystemManager.printPipe(SystemManager.bufferString)
+
+        # reset data #
+        self.totalCall = 0
+        self.callTable = dict()
+        SystemManager.clearPrint()
+
+
+
     def addArg(self, type, name, value):
         self.args.append([type, name, value])
 
@@ -24931,6 +25107,15 @@ class Debugger(object):
             end = vstart + ret[1]
 
         return [start, end]
+
+
+
+    def loadSymbols(self):
+        # get list of process mapped files #
+        self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
+
+        for mfile in self.pmap.keys():
+            ElfAnalyzer.getObject(mfile)
 
 
 
@@ -25088,7 +25273,22 @@ class Debugger(object):
 
 
 
-    def addSample(self, data, filename, current=None):
+    def addSample(self, data, filename, current=None, topMode=False):
+        if topMode:
+            self.totalCall += 1
+
+            # add symbol table #
+            try:
+                self.callTable[data]['cnt'] += 1
+            except:
+                self.callTable[data] = dict()
+                self.callTable[data]['cnt'] = 1
+                self.callTable[data]['path'] = filename
+
+            # toDo: add file table #
+
+            return
+
         if not current:
             current = time.time()
 
@@ -25111,7 +25311,10 @@ class Debugger(object):
                 return
 
             # add sample #
-            if SystemManager.printFile:
+            if self.topMode:
+                self.addSample(\
+                    self.prevCallInfo[0], self.prevCallInfo[1], topMode=True)
+            elif SystemManager.printFile:
                 self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
 
         # get new symbol info from program counter of target #
@@ -25127,7 +25330,9 @@ class Debugger(object):
 
         # print unknown call address #
         if fname == '??':
-            if SystemManager.printFile:
+            if self.topMode:
+                self.addSample('??', fname, topMode=True)
+            elif SystemManager.printFile:
                 self.addSample('??', fname)
             return
 
@@ -25199,7 +25404,9 @@ class Debugger(object):
         self.prevCallString = callString
 
         # print call info #
-        if SystemManager.printFile:
+        if self.topMode:
+            self.addSample(sym, fname, current, topMode=True)
+        elif SystemManager.printFile:
             self.addSample(sym, fname, current)
 
             if SystemManager.showAll:
@@ -25307,7 +25514,9 @@ class Debugger(object):
             callString = '%3.6f %s(%s) ' % (diff, name, argText)
 
             # print call info #
-            if SystemManager.printFile:
+            if self.topMode:
+                self.addSample(name, '??', current, topMode=True)
+            elif SystemManager.printFile:
                 self.addSample(name, '??', current)
 
                 if SystemManager.showAll:
@@ -25363,6 +25572,8 @@ class Debugger(object):
                     len(self.callPrint) > 0:
                     self.callPrint[-1] = '%s%s' % \
                         (self.callPrint[-1], callString)
+            elif self.topMode:
+                pass
             else:
                 SystemManager.printPipe(callString, flush=True)
 
@@ -25371,6 +25582,18 @@ class Debugger(object):
         else:
             SystemManager.printError(\
                 'Fail to recognize syscall status')
+
+
+
+    def isExceedInterval(self):
+        if not self.topMode:
+            return False
+
+        totalTime = time.time() - self.last
+        if totalTime >= SystemManager.intervalEnable:
+            return True
+        else:
+            return False
 
 
 
@@ -25400,6 +25623,11 @@ class Debugger(object):
         self.callList = list()
         self.callPrint = list()
 
+        if SystemManager.isTopMode():
+            self.topMode = True
+        else:
+            self.topMode = False
+
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
         # Wait on all children, regardless of type #
@@ -25413,7 +25641,11 @@ class Debugger(object):
         # register my instance #
         SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
-        if mode != 'syscall':
+        # set depth and sampling interval #
+        if mode == 'syscall':
+            if self.topMode:
+                signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+        else:
             # inst #
             if SystemManager.funcDepth > 0:
                 # set sampling rate for instruction #
@@ -25456,15 +25688,7 @@ class Debugger(object):
             self.status = 'ready'
 
         # set start time #
-        self.start = time.time()
-
-        # set timer #
-        if SystemManager.intervalEnable > 0:
-            signal.signal(signal.SIGALRM, SystemManager.exitHandler)
-            signal.alarm(SystemManager.intervalEnable)
-
-        # register summary function #
-        SystemManager.addExitFunc(Debugger.printSummary, self)
+        self.start = self.last = time.time()
 
         # select trap command #
         if mode == 'syscall':
@@ -25475,6 +25699,7 @@ class Debugger(object):
             try:
                 # interprete current user function call #
                 if self.isRunning:
+                    self.loadSymbols()
                     self.handleUsercall()
             except SystemExit:
                 return
@@ -25484,6 +25709,20 @@ class Debugger(object):
             SystemManager.printError(\
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
+
+        # set timer #
+        if self.topMode:
+            if SystemManager.intervalEnable == 0:
+                SystemManager.intervalEnable = 1
+            if self.mode == 'syscall':
+                signal.alarm(SystemManager.intervalEnable)
+        else:
+            # register summary function #
+            SystemManager.addExitFunc(Debugger.printSummary, self)
+
+            if SystemManager.intervalEnable > 0:
+                signal.signal(signal.SIGALRM, SystemManager.exitHandler)
+                signal.alarm(SystemManager.intervalEnable)
 
         # enter trace loop #
         while 1:
@@ -25495,11 +25734,15 @@ class Debugger(object):
             else:
                 # skip instructions for performance #
                 if mode == 'inst' and self.skipInst > 0:
-                    for i in xrange(0, self.skipInst ):
+                    for i in xrange(0, self.skipInst):
                         ret = self.ptrace(cmd, 0, 0)
                 # wait to sample calls #
                 elif mode == 'sample':
                     self.cont(check=True)
+
+                    # check realtime report interval #
+                    if self.isExceedInterval():
+                        self.printIntervalSummary()
 
                     time.sleep(self.sampleTime)
 
@@ -25507,6 +25750,10 @@ class Debugger(object):
                         sys.exit(0)
                 # setup trap #
                 else:
+                    # check realtime report interval #
+                    if self.isExceedInterval():
+                        self.printIntervalSummary()
+
                     ret = self.ptrace(cmd, 0, 0)
 
             try:
@@ -25749,7 +25996,11 @@ class Debugger(object):
             if sym[0] == '/':
                 sym = '??'
 
-            per = value['cnt'] / nrTotal * 100
+            try:
+                per = value['cnt'] / nrTotal * 100
+            except:
+                SystemManager.printPipe('\tNone')
+                break
 
             if instance.mode == 'syscall':
                 addVal = convert(value['cnt'])
@@ -25779,7 +26030,11 @@ class Debugger(object):
 
         for filename, value in sorted(\
             fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
-            per = value['cnt'] / nrTotal * 100
+            try:
+                per = value['cnt'] / nrTotal * 100
+            except:
+                SystemManager.printPipe('\tNone')
+                break
 
             SystemManager.printPipe(\
                 '{0:>7} | {1:<143}'.format('%.1f%%' % per, filename))
@@ -25842,12 +26097,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if Debugger.checkPtraceScope() < 0:
             return
 
-        # remove myself #
-        try:
-            tlist.pop(tlist.index(str(SystemManager.pid)))
-        except:
-            pass
-
         # check thread list #
         if len(tlist) == 0:
             SystemManager.printError(\
@@ -25858,12 +26107,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         lastTid = 0
         try:
             for tid in tlist:
-                lastTid = int(tid)
-                SystemManager.sendSignalProcs(signal.SIGSTOP, [lastTid])
-                dlist.append(lastTid)
+                lastTid = long(tid)
+                ret = SystemManager.createProcess(mute=True)
+                if ret > 0:
+                    dlist.append(long(ret))
+                    SystemManager.printInfo("paused thread %s" % lastTid)
+                elif ret == 0:
+                    dobj = Debugger(pid=lastTid)
+                    SystemManager.waitEvent()
+                    sys.exit(0)
+                else:
+                    SystemManager.printError(\
+                        'Fail to create process to pause %s thread' % tid)
+                    sys.exit(0)
 
-                SystemManager.printInfo("paused thread %s" % lastTid)
-
+            # wait for user event to continue threads #
             SystemManager.waitEvent()
         except SystemExit:
             return
@@ -25872,8 +26130,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             SystemManager.printError(\
                 'Fail to pause thread %s because %s' % (lastTid, err))
         finally:
-            for item in dlist:
-                SystemManager.sendSignalProcs(signal.SIGCONT, [item])
+            for pid in dlist:
+                os.kill(pid, signal.SIGINT)
 
 
 
@@ -27089,17 +27347,23 @@ class ElfAnalyzer(object):
             if path in ElfAnalyzer.failedFiles:
                 return None
 
+            SystemManager.printInfo(\
+                "Start loading %s... " % path, prefix=False, suffix=False)
+
             # try to load a object from a file #
             fobj = ElfAnalyzer.loadObject(path)
             if fobj:
                 ElfAnalyzer.cachedFiles[path] = fobj
+                SystemManager.printInfo("Done", prefix=False, notitle=True)
                 return fobj
 
             # create a new object #
             try:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+                SystemManager.printInfo("Done", prefix=False, notitle=True)
             except:
                 ElfAnalyzer.failedFiles[path] = True
+                SystemManager.printInfo("Fail", prefix=False, notitle=True)
                 if raiseExcept:
                     err = SystemManager.getErrReason()
                     raise Exception(err)
@@ -29849,8 +30113,9 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to draw graph while setting property")
+                "Fail to draw graph while setting property because %s" % err)
             return
 
         # draw charts #
@@ -29859,8 +30124,9 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to draw chart while setting property")
+                "Fail to draw chart while setting property because %s" % err)
             return
 
 
@@ -31635,55 +31901,31 @@ class ThreadAnalyzer(object):
     def saveImage(self, logFile, itype):
         try:
             # build output file name #
-            outputFile = logFile
-
-            # check path including slash #
-            dirPos = logFile.rfind('/')
-            if dirPos < 0:
-                expandPos = logFile.rfind('.')
-                if expandPos < 0:
-                    outputFile = '%s_%s.png' % (logFile, itype)
-                else:
-                    outputFile = '%s_%s.png' % (outputFile[:expandPos], itype)
-            else:
-                dirPath = outputFile[:dirPos + 1]
-                fileName = outputFile[dirPos + 1:]
-
-                expandPos = fileName.rfind('.')
-                if expandPos < 0:
-                    outputFile = '%s%s_%s.png' % \
-                        (dirPath, fileName, itype)
-                else:
-                    outputFile = '%s%s_%s.png' % \
-                        (dirPath, fileName[:expandPos], itype)
-
             if SystemManager.printFile:
-                dirPath = os.path.dirname(SystemManager.printFile)
-                if dirPath == '':
-                    outputFile = '%s/%s' % \
-                        (SystemManager.printFile, os.path.basename(outputFile))
-                else:
-                    outputFile = '%s/%s' % \
-                        (dirPath, os.path.basename(outputFile))
-        except:
-            SystemManager.printError(\
-                "Fail to draw image caused by wrong file path %s" % outputFile)
-            return
+                outputFile = os.path.normpath(SystemManager.printFile)
+            else:
+                outputFile = os.path.normpath(logFile)
 
-        # backup an exist image file #
-        if os.path.isfile(outputFile):
-            try:
+            # convert output path #
+            name, ext = os.path.splitext(outputFile)
+            outputFile = '%s_%s.png' % (name, itype)
+
+            # backup an exist image file #
+            if os.path.isfile(outputFile):
                 name, ext = os.path.splitext(outputFile)
-                newPath = '%s_old%s' % (name, ext)
-                os.remove(newPath)
-                os.rename(outputFile, newPath)
-                SystemManager.printInfo('%s is renamed to %s' % \
-                    (outputFile, newPath))
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printError(\
-                    "Fail to backup %s because %s" % \
-                    (outputFile, err))
+
+                oldPath = '%s_old%s' % (name, ext)
+                if os.path.isfile(oldPath):
+                    os.remove(oldPath)
+
+                os.rename(outputFile, oldPath)
+
+                SystemManager.printInfo(\
+                    '%s is renamed to %s' % (outputFile, oldPath))
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to backup %s because %s" % (outputFile, err))
 
         # get pylab object #
         pylab = SystemManager.getPkg('pylab')
@@ -31693,16 +31935,21 @@ class ThreadAnalyzer(object):
             # save graph #
             savefig(outputFile, dpi=(300))
             clf()
+
+            # get output size #
             try:
                 fsize = \
                     UtilManager.convertSize2Unit(\
                     int(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
+
             SystemManager.printStatus(\
                 "write resource %s into %s [%s]" % (itype, outputFile, fsize))
         except:
-            SystemManager.printError("Fail to draw image because of exception")
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to draw image to %s because %s" % (outputFile, err))
             return
 
 
@@ -43979,6 +44226,14 @@ def main(args=None):
                 SystemManager.sort = 'b'
             else:
                 sys.exit(0)
+
+        # usercall #
+        elif SystemManager.isUserTopMode():
+            SystemManager.doTrace('usercall')
+
+        # syscall #
+        elif SystemManager.isSyscTopMode():
+            SystemManager.doTrace('syscall')
 
         # network #
         elif SystemManager.isNetTopMode():
