@@ -12228,8 +12228,11 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor sycalls for a specific thread
+    - Monitor syscalls for a specific thread
         # {0:1} {1:1} -g a.out
+
+    - Monitor CPU usage on whole system of syscalls for a specific thread
+        # {0:1} {1:1} -g a.out -e c
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -12248,8 +12251,11 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor sycalls for a specific thread
+    - Monitor usercalls for a specific thread
         # {0:1} {1:1} -g a.out
+
+    - Monitor CPU usage on whole system of usercalls for a specific thread
+        # {0:1} {1:1} -g a.out -e c
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -16330,6 +16336,32 @@ Copyright:
 
 
     @staticmethod
+    def addProcBuffer(data):
+        SystemManager.procBuffer.insert(0, data)
+        SystemManager.procBufferSize += len(data)
+
+        bufferSize = SystemManager.bufferSize
+
+        while SystemManager.procBufferSize > bufferSize > 0:
+            if not SystemManager.bufferOverflowed:
+                SystemManager.printWarning((\
+                    "New data is going to be overwritten to the buffer"
+                    " because of buffer overflow\n"
+                    "\tIncrease Buffer size (%dKB) with -b option"
+                    " if you want to prevent data loss") % \
+                        (SystemManager.bufferSize >> 10), True)
+                SystemManager.bufferOverflowed = True
+
+            if len(SystemManager.procBuffer) == 1:
+                break
+
+            SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
+
+            SystemManager.procBuffer.pop(-1)
+
+
+
+    @staticmethod
     def printTopStats():
         # JSON mode #
         if SystemManager.jsonPrintEnable:
@@ -16344,30 +16376,14 @@ Copyright:
         elif not SystemManager.printFile:
             if not SystemManager.printStreamEnable:
                 SystemManager.clearScreen()
+
             SystemManager.printPipe(SystemManager.bufferString)
         # pipe mode #
         elif SystemManager.pipeEnable:
             SystemManager.printPipe(SystemManager.bufferString)
         # buffered mode #
         else:
-            SystemManager.procBuffer[:0] = [SystemManager.bufferString]
-            SystemManager.procBufferSize += len(SystemManager.bufferString)
-
-            while SystemManager.procBufferSize > SystemManager.bufferSize > 0:
-                if not SystemManager.bufferOverflowed:
-                    SystemManager.printWarning((\
-                        "New data is going to be overwritten to the buffer"
-                        " because of buffer overflow\n"
-                        "\tIncrease Buffer size (%dKB) with -b option"
-                        " if you want to prevent data loss") % \
-                            (SystemManager.bufferSize >> 10), True)
-                    SystemManager.bufferOverflowed = True
-
-                if len(SystemManager.procBuffer) == 1:
-                    break
-
-                SystemManager.procBufferSize -= len(SystemManager.procBuffer[-1])
-                SystemManager.procBuffer.pop(-1)
+            SystemManager.addProcBuffer(SystemManager.bufferString)
 
         # flush buffer #
         SystemManager.clearPrint()
@@ -24969,14 +24985,19 @@ class Debugger(object):
 
 
     def printIntervalSummary(self):
+        def checkInterval():
+            if SystemManager.repeatCount == 0:
+                return
+
+            SystemManager.progressCnt += 1
+            if SystemManager.repeatCount <= SystemManager.progressCnt:
+                sys.exit(0)
+
         # update terminal size #
-        SystemManager.updateTty()
+        if not SystemManager.printFile:
+            SystemManager.updateTty()
 
         SystemManager.updateUptime()
-
-        if not SystemManager.printStreamEnable and \
-            not SystemManager.printFile:
-            SystemManager.clearScreen()
 
         # set time #
         current = time.time()
@@ -24994,25 +25015,35 @@ class Debugger(object):
         nrTotal = float(self.totalCall)
         convert = UtilManager.convertNumber
 
+        # get cpu Usage #
+        cpuUsage = self.getCpuUsage()
+        cpuUsage = cpuUsage / diff
+
+        if SystemManager.cpuEnable:
+            floatUsage = cpuUsage / 100
+        else:
+            floatUsage = 1
+
         SystemManager.addPrint((\
-            '[Top %s Info] [Time: %f] [Interval: %f] '
-            '[NrSamples: %s] [NrSymbols: %s]\n%s\n') % \
+            '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
+            '[NrSymbols: %s] [CPU: %.1f%%] [SampleTime: %f]\n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
-                convert(self.totalCall), len(self.callTable), twoLine))
+                convert(self.totalCall), len(self.callTable), \
+                cpuUsage, self.sampleTime, twoLine))
 
         SystemManager.addPrint(\
             '{0:^7} | {1:^64} | {2:^76}\n{3:<1}\n'.format(\
                 'Usage', 'Function', addInfo, twoLine))
 
+        cnt = 0
         for sym, value in sorted(\
             self.callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
             if sym[0] == '/':
                 sym = '??'
 
             try:
-                per = value['cnt'] / nrTotal * 100
+                per = value['cnt'] / nrTotal * 100 * floatUsage
             except:
-                SystemManager.addPrint('\tNone\n')
                 break
 
             if per < 1 and \
@@ -25028,14 +25059,30 @@ class Debugger(object):
                 '{0:>7} | {1:^64} | {2:<76}\n'.format(\
                     '%.1f%%' % per, sym, addVal))
 
+            cnt += 1
+
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
                 break
 
+        if cnt == 0:
+            SystemManager.addPrint('\tNone\n')
+
         SystemManager.addPrint('%s\n' % oneLine)
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        # realtime mode #
+        if not SystemManager.printFile:
+            if not SystemManager.printStreamEnable:
+                SystemManager.clearScreen()
+
+            SystemManager.printPipe(SystemManager.bufferString)
+        # buffered mode #
+        else:
+            SystemManager.addProcBuffer(SystemManager.bufferString)
+
+        # check and update repeat count #
+        checkInterval()
 
         # reset data #
         self.totalCall = 0
@@ -25273,17 +25320,17 @@ class Debugger(object):
 
 
 
-    def addSample(self, data, filename, current=None, topMode=False):
-        if topMode:
+    def addSample(self, sym, filename, current=None, realtime=False):
+        if realtime:
             self.totalCall += 1
 
             # add symbol table #
             try:
-                self.callTable[data]['cnt'] += 1
+                self.callTable[sym]['cnt'] += 1
             except:
-                self.callTable[data] = dict()
-                self.callTable[data]['cnt'] = 1
-                self.callTable[data]['path'] = filename
+                self.callTable[sym] = dict()
+                self.callTable[sym]['cnt'] = 1
+                self.callTable[sym]['path'] = filename
 
             # toDo: add file table #
 
@@ -25292,7 +25339,7 @@ class Debugger(object):
         if not current:
             current = time.time()
 
-        self.callList.append([data, current, filename])
+        self.callList.append([sym, current, filename])
 
 
 
@@ -25311,9 +25358,9 @@ class Debugger(object):
                 return
 
             # add sample #
-            if self.topMode:
+            if self.isRealtime:
                 self.addSample(\
-                    self.prevCallInfo[0], self.prevCallInfo[1], topMode=True)
+                    self.prevCallInfo[0], self.prevCallInfo[1], realtime=True)
             elif SystemManager.printFile:
                 self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
 
@@ -25330,8 +25377,8 @@ class Debugger(object):
 
         # print unknown call address #
         if fname == '??':
-            if self.topMode:
-                self.addSample('??', fname, topMode=True)
+            if self.isRealtime:
+                self.addSample('??', fname, realtime=True)
             elif SystemManager.printFile:
                 self.addSample('??', fname)
             return
@@ -25404,8 +25451,8 @@ class Debugger(object):
         self.prevCallString = callString
 
         # print call info #
-        if self.topMode:
-            self.addSample(sym, fname, current, topMode=True)
+        if self.isRealtime:
+            self.addSample(sym, fname, current, realtime=True)
         elif SystemManager.printFile:
             self.addSample(sym, fname, current)
 
@@ -25514,8 +25561,8 @@ class Debugger(object):
             callString = '%3.6f %s(%s) ' % (diff, name, argText)
 
             # print call info #
-            if self.topMode:
-                self.addSample(name, '??', current, topMode=True)
+            if self.isRealtime:
+                self.addSample(name, '??', current, realtime=True)
             elif SystemManager.printFile:
                 self.addSample(name, '??', current)
 
@@ -25572,7 +25619,7 @@ class Debugger(object):
                     len(self.callPrint) > 0:
                     self.callPrint[-1] = '%s%s' % \
                         (self.callPrint[-1], callString)
-            elif self.topMode:
+            elif self.isRealtime:
                 pass
             else:
                 SystemManager.printPipe(callString, flush=True)
@@ -25586,7 +25633,7 @@ class Debugger(object):
 
 
     def isExceedInterval(self):
-        if not self.topMode:
+        if not self.isRealtime:
             return False
 
         totalTime = time.time() - self.last
@@ -25597,12 +25644,74 @@ class Debugger(object):
 
 
 
+    def getCpuUsage(self):
+        try:
+            self.statFd.seek(0)
+            stat = self.statFd.readlines()[0]
+        except:
+            try:
+                statPath = "%s/%s/task/%s/stat" % \
+                    (SystemManager.procPath, self.pid, self.pid)
+                self.statFd = open(statPath, 'r')
+                stat = self.statFd.readlines()[0]
+            except:
+                SystemManager.printWarning('Fail to open %s' % statPath)
+
+        # check stat change #
+        if self.prevStat == stat:
+            return 0
+
+        self.prevStat = stat
+
+        # convert string to list #
+        STAT_ATTR = stat.split()
+
+        # merge comm parts that splited by space #
+        commIndex = self.commIdx
+        if STAT_ATTR[commIndex][-1] != ')':
+            idx = commIndex + 1
+            while 1:
+                tmpStr = str(STAT_ATTR[idx])
+                STAT_ATTR[commIndex] = \
+                    "%s %s" % (STAT_ATTR[commIndex], tmpStr)
+                STAT_ATTR.pop(idx)
+                if tmpStr.rfind(')') > -1:
+                    break
+
+        # get total cpu time #
+        utime = long(STAT_ATTR[self.utimeIdx])
+        stime = long(STAT_ATTR[self.stimeIdx])
+        usage = utime + stime
+
+        prevUsage = self.prevCpuStat
+
+        if self.prevCpuStat == None:
+            ret = 0
+        else:
+            ret = usage - prevUsage
+
+        self.prevCpuStat = usage
+
+        return ret
+
+
+
     def trace(self, mode='syscall', wait=None):
-        # default variables #
+        # Don't wait on children of other threads in this group #
+        __WNOTHREAD = 0x20000000
+        # Wait on all children, regardless of type #
+        __WALL = 0x40000000
+        # Wait only on non-SIGCHLD children #
+        __WCLONE = 0x80000000
+
+       # default variables #
         regs = None
         pid = self.pid
         arch = SystemManager.getArch()
         plist = ConfigManager.PTRACE_TYPE
+        self.commIdx = ConfigManager.STAT_ATTR.index("COMM")
+        self.utimeIdx = ConfigManager.STAT_ATTR.index("UTIME")
+        self.stimeIdx = ConfigManager.STAT_ATTR.index("STIME")
         sigTrapFlag = signal.SIGTRAP | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
 
@@ -25611,6 +25720,9 @@ class Debugger(object):
         self.last = 0
         self.wait = wait
         self.mode = mode
+        self.statFd = None
+        self.prevStat = None
+        self.prevCpuStat = None
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.contCmd = ConfigManager.PTRACE_TYPE.index('PTRACE_CONT')
@@ -25623,48 +25735,51 @@ class Debugger(object):
         self.callList = list()
         self.callPrint = list()
 
-        if SystemManager.isTopMode():
-            self.topMode = True
-        else:
-            self.topMode = False
-
-        # Don't wait on children of other threads in this group #
-        __WNOTHREAD = 0x20000000
-        # Wait on all children, regardless of type #
-        __WALL = 0x40000000
-        # Wait only on non-SIGCHLD children #
-        __WCLONE = 0x80000000
-
         # disable extended ascii #
         SystemManager.encodeEnable = False
+
+        # check realtime mode #
+        if SystemManager.isTopMode():
+            self.isRealtime = True
+        else:
+            self.isRealtime = False
 
         # register my instance #
         SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
-        # set depth and sampling interval #
+        # set tracing attribute #
         if mode == 'syscall':
-            if self.topMode:
+            if self.isRealtime:
                 signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+        # inst #
+        elif SystemManager.funcDepth > 0:
+            # set sampling rate for instruction #
+            self.skipInst = SystemManager.funcDepth
+
+            SystemManager.printInfo(\
+                'Do sampling every %s instrunctions' % \
+                    SystemManager.funcDepth)
+        # sample #
         else:
-            # inst #
-            if SystemManager.funcDepth > 0:
-                # set sampling rate for instruction #
-                self.skipInst = SystemManager.funcDepth
+            if self.isRealtime:
+                self.getCpuUsage()
 
-                SystemManager.printInfo(\
-                    'Do sampling every %s instrunctions' % \
-                        SystemManager.funcDepth)
-            # sample #
+            # set sampling rate to 100us #
+            if SystemManager.repeatCount > 0:
+                self.sampleTime = \
+                    SystemManager.repeatCount / float(1000000)
             else:
-                # set sampling rate to 100us #
-                if SystemManager.repeatCount > 0:
-                    self.sampleTime = \
-                        SystemManager.repeatCount / float(1000000)
-                else:
-                    self.sampleTime = 0.0001
+                self.sampleTime = 0.0001
 
-                SystemManager.printInfo(\
-                    'Do sampling every %f second' % self.sampleTime)
+            SystemManager.printInfo(\
+                'Do sampling every %f second' % self.sampleTime)
+
+        # set trap event type #
+        if self.isRunning:
+            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+        else:
+            self.ptraceEvent('PTRACE_O_TRACEEXEC')
+            self.status = 'ready'
 
         # check the process is running #
         try:
@@ -25675,17 +25790,6 @@ class Debugger(object):
                 SystemManager.printError(\
                     'Fail to trace thread %s because %s' % (pid, ereason))
             sys.exit(0)
-
-        # print message #
-        SystemManager.printInfo(\
-            "Start tracing %s of thread %d\n" % (mode, pid))
-
-        # set trap event type #
-        if self.isRunning:
-            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-        else:
-            self.ptraceEvent('PTRACE_O_TRACEEXEC')
-            self.status = 'ready'
 
         # set start time #
         self.start = self.last = time.time()
@@ -25710,16 +25814,21 @@ class Debugger(object):
                 "Fail to recognize trace mode '%s'" % mode)
             sys.exit(0)
 
+        # register summary function #
+        SystemManager.addExitFunc(Debugger.printSummary, self)
+
+        SystemManager.printInfo(\
+            "Start profiling thread %d\n" % pid)
+
         # set timer #
-        if self.topMode:
+        if self.isRealtime:
+            # set default interval #
             if SystemManager.intervalEnable == 0:
                 SystemManager.intervalEnable = 1
+
             if self.mode == 'syscall':
                 signal.alarm(SystemManager.intervalEnable)
         else:
-            # register summary function #
-            SystemManager.addExitFunc(Debugger.printSummary, self)
-
             if SystemManager.intervalEnable > 0:
                 signal.signal(signal.SIGALRM, SystemManager.exitHandler)
                 signal.alarm(SystemManager.intervalEnable)
@@ -25898,7 +26007,26 @@ class Debugger(object):
 
     @staticmethod
     def printSummary(instance):
+        def printSystemStat():
+            SystemManager()
+            SystemManager.sysInstance.saveResourceSnapshot()
+            SystemManager.printInfoBuffer()
+
         instance.last = time.time()
+
+        # check realtime mode #
+        if instance.isRealtime and SystemManager.printFile:
+            # print System Info #
+            printSystemStat()
+
+            # print detailed statistics #
+            msg = ' Detailed Statistics '
+            stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
+            SystemManager.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, msg, stars))
+            if SystemManager.procBuffer == []:
+                SystemManager.printPipe("\n\tNone")
+            else:
+                SystemManager.printPipe(SystemManager.procBuffer)
 
         # check call sample #
         if len(instance.callList) == 0:
@@ -25907,6 +26035,9 @@ class Debugger(object):
 
         callTable = dict()
         fileTable = dict()
+
+        # print System Info #
+        printSystemStat()
 
         SystemManager.printInfo(\
             "Start analyze call samples...")
@@ -25980,7 +26111,7 @@ class Debugger(object):
 
         SystemManager.printPipe((\
             '\n[Trace %s Info] [Time: %f] %s '
-            '[NrSamples: %s%s] [NrSymbols: %s]') % \
+            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %f]') % \
                 (ctype, elapsed, samplingStr, \
                 convert(long(nrTotal)), sampleRateStr, \
                 convert(len(callTable))))
@@ -25991,6 +26122,7 @@ class Debugger(object):
                 'Usage', 'Function', addInfo))
         SystemManager.printPipe(twoLine)
 
+        cnt = 0
         for sym, value in sorted(\
             callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
             if sym[0] == '/':
@@ -25999,7 +26131,6 @@ class Debugger(object):
             try:
                 per = value['cnt'] / nrTotal * 100
             except:
-                SystemManager.printPipe('\tNone')
                 break
 
             if instance.mode == 'syscall':
@@ -26010,6 +26141,11 @@ class Debugger(object):
             SystemManager.printPipe(\
                 '{0:>7} | {1:^64} | {2:<76}'.format(\
                     '%.1f%%' % per, sym, addVal))
+
+            cnt += 1
+
+        if cnt == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
 
@@ -26028,16 +26164,21 @@ class Debugger(object):
             '{0:^7} | {1:^143}'.format('Usage', 'Path'))
         SystemManager.printPipe(twoLine)
 
+        cnt = 0
         for filename, value in sorted(\
             fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
             try:
                 per = value['cnt'] / nrTotal * 100
             except:
-                SystemManager.printPipe('\tNone')
                 break
 
             SystemManager.printPipe(\
                 '{0:>7} | {1:<143}'.format('%.1f%%' % per, filename))
+
+            cnt += 1
+
+        if cnt == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
 
@@ -27348,22 +27489,22 @@ class ElfAnalyzer(object):
                 return None
 
             SystemManager.printInfo(\
-                "Start loading %s... " % path, prefix=False, suffix=False)
+                "Start loading %s... " % path, suffix=False)
 
             # try to load a object from a file #
             fobj = ElfAnalyzer.loadObject(path)
             if fobj:
                 ElfAnalyzer.cachedFiles[path] = fobj
-                SystemManager.printInfo("Done", prefix=False, notitle=True)
+                SystemManager.printInfo("[Cached]", prefix=False, notitle=True)
                 return fobj
 
             # create a new object #
             try:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
-                SystemManager.printInfo("Done", prefix=False, notitle=True)
+                SystemManager.printInfo("[Done]", prefix=False, notitle=True)
             except:
                 ElfAnalyzer.failedFiles[path] = True
-                SystemManager.printInfo("Fail", prefix=False, notitle=True)
+                SystemManager.printInfo("[Fail]", prefix=False, notitle=True)
                 if raiseExcept:
                     err = SystemManager.getErrReason()
                     raise Exception(err)
@@ -43105,7 +43246,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-        if type(data) is not str:
+        if type(data) is not str and type(data) is not unicode:
             SystemManager.printError("Fail to recognize data from server")
             return
 
@@ -43160,32 +43301,14 @@ class ThreadAnalyzer(object):
             if not SystemManager.printFile:
                 if not SystemManager.printStreamEnable:
                     SystemManager.clearScreen()
+
                 SystemManager.printPipe(data)
-                SystemManager.clearPrint()
             # buffered mode #
             else:
-                SystemManager.procBuffer.insert(0, data)
-                SystemManager.procBufferSize += len(data)
+                SystemManager.addProcBuffer(data)
+
+                # flush buffer #
                 SystemManager.clearPrint()
-
-                bufferSize = SystemManager.bufferSize
-
-                while SystemManager.procBufferSize > bufferSize > 0:
-                    if not SystemManager.bufferOverflowed:
-                        SystemManager.printWarning((\
-                            "New data is going to be overwritten to the buffer"
-                            " because of buffer overflow\n"
-                            "\tIncrease Buffer size (%dKB) with -b option"
-                            " if you want to prevent data loss") % \
-                                (SystemManager.bufferSize >> 10), True)
-                        SystemManager.bufferOverflowed = True
-
-                    if len(SystemManager.procBuffer) == 1:
-                        break
-
-                    SystemManager.procBufferSize -= \
-                        len(SystemManager.procBuffer[-1])
-                    SystemManager.procBuffer.pop(-1)
 
 
 
