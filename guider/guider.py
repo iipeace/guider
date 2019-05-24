@@ -2629,6 +2629,56 @@ class UtilManager(object):
 
 
     @staticmethod
+    def isString(value):
+        if isinstance(value, str):
+            return True
+        elif sys.version_info >= (3,0,0):
+            if isinstance(value, bytes):
+                return True
+        else:
+            if isinstance(value, unicode):
+                return True
+        return False
+
+
+
+    @staticmethod
+    def isNumber(value):
+        if type(value) is int or \
+            type(value) is long:
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def convertPath(value, retStr=True, isExit=False, separator=' '):
+        glob = SystemManager.getPkg('glob', False)
+        if glob:
+            res = glob.glob(value)
+            if len(res) == 0 and isExit:
+                SystemManager.printError(\
+                    "Fail to find a file matching '%s'" % value)
+                sys.exit(0)
+
+            # str #
+            if retStr:
+                return separator.join(res)
+            # list #
+            else:
+                return res
+        else:
+            # str #
+            if retStr:
+                return value
+            # list #
+            else:
+                return [value]
+
+
+
+    @staticmethod
     def bstring2word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
@@ -3363,7 +3413,7 @@ class NetworkManager(object):
             return False
 
         # encode message #
-        if type(message) is str:
+        if UtilManager.isString(message):
             message = message.encode()
 
         try:
@@ -3399,7 +3449,7 @@ class NetworkManager(object):
             return False
 
         # encode message #
-        if type(message) is str:
+        if UtilManager.isString(message):
             message = message.encode()
 
         try:
@@ -3567,7 +3617,7 @@ class NetworkManager(object):
         ip = None
         port = None
 
-        if type(value) is not str:
+        if not UtilManager.isString(value):
             return (service, ip, port)
 
         # get request and address #
@@ -10991,7 +11041,7 @@ class SystemManager(object):
             return
 
         # check pid list #
-        if type(pids) is int or type(pids) is long:
+        if UtilManager.isNumber(pids):
             pids = list(pids)
         elif type(pids) is list:
             for pid in pids:
@@ -11638,6 +11688,8 @@ class SystemManager(object):
                 not SystemManager.isClientMode() and \
                 not SystemManager.isDrawMode() and \
                 not SystemManager.isConvertMode() and \
+                not SystemManager.isReadelfMode() and \
+                not SystemManager.isAddr2lineMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -12613,7 +12665,7 @@ Examples:
         # {0:1} {1:1} guider.out -g ^chrome
 
     - Draw graphs of cpu usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
+        # {0:1} {1:1} guider*.out worstcase.out
                     '''.format(cmd, mode)
 
                 # memory draw #
@@ -13404,10 +13456,10 @@ Copyright:
                 SystemManager.libcObj = \
                     cdll.LoadLibrary(SystemManager.libcPath)
 
-            if type(syscall) is int:
+            if UtilManager.isNumber(syscall):
                 nrSyscall = syscall
                 nmSyscall = ConfigManager.sysList[nrSyscall]
-            elif type(syscall) is str:
+            elif UtilManager.isString(syscall):
                 val = syscall.lower()
                 if val[0:4] == 'sys_':
                     nmSyscall = val
@@ -16441,8 +16493,9 @@ Copyright:
                         SystemManager.pipeForPrint = \
                                 os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
-                    SystemManager.pipeForPrint = \
-                        os.popen('more', 'w')
+                    if UtilManager.which('more'):
+                        SystemManager.pipeForPrint = \
+                            os.popen('more', 'w')
                 else:
                     # no supported OS #
                     SystemManager.pipeForPrint = False
@@ -19343,7 +19396,7 @@ Copyright:
                 return 0
 
             # split command #
-            if type(cmd) is str:
+            if UtilManager.isString(cmd):
                 cmd = cmd.split()
 
             # execute #
@@ -20857,7 +20910,8 @@ Copyright:
                 try:
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
-                        "sent signal %s to %s process" % (SIG_LIST[nrSig], pid))
+                        "sent signal %s to %s process" % \
+                        (SIG_LIST[nrSig], pid))
                 except:
                     SystemManager.printError(\
                         "Fail to send signal %s to %s because %s" % \
@@ -24763,8 +24817,7 @@ class Debugger(object):
     def checkPid(self, pid):
         if not pid:
             return -1
-        elif type(pid) is not int and \
-            type(pid) is not long:
+        elif not UtilManager.isNumber(pid):
             return -1
         elif pid <= 0:
             return -1
@@ -24794,7 +24847,7 @@ class Debugger(object):
         offset = addr % wordSize
 
         # handle interger-type data #
-        if type(data) is int or type(data) is long:
+        if UtilManager.isNumber(data):
             if offset == 0:
                 if size == 0:
                     size = 1
@@ -24815,7 +24868,7 @@ class Debugger(object):
                     size *= wordSize
 
         # convert string to bytes #
-        if type(data) is str:
+        if UtilManager.isString(data):
             data = data.encode()
         elif type(data) is not bytes:
             SystemManager.printError((\
@@ -25533,7 +25586,7 @@ class Debugger(object):
                             text = arg[2]
 
                         # define start index by encoding type #
-                        if type(arg[2]) is str:
+                        if UtilManager.isString(arg[2]):
                             start = 2
                         else:
                             start = 1
@@ -25873,7 +25926,7 @@ class Debugger(object):
                 stat = Debugger.getStatus(ret[1])
 
                 # check status of process #
-                if type(stat) is not int:
+                if not UtilManager.isNumber(stat):
                     raise Exception()
 
                 # trap #
@@ -27716,7 +27769,7 @@ class ElfAnalyzer(object):
             self.mergeSymTable()
 
         try:
-            if type(offset) is str:
+            if UtilManager.isString(offset):
                 try:
                     offset = int(offset, 16)
                 except:
@@ -27767,7 +27820,7 @@ class ElfAnalyzer(object):
             self.mergeSymTable()
 
         try:
-            if type(offset) is str:
+            if UtilManager.isString(offset):
                 try:
                     offset = int(offset, 16)
                 except:
@@ -30244,7 +30297,10 @@ class ThreadAnalyzer(object):
 
             # parse stats from multiple files #
             for lfile in flist:
-                gstats, cstats = self.getDrawStats(lfile)
+                try:
+                    gstats, cstats = self.getDrawStats(lfile)
+                except:
+                    continue
                 for key, val in gstats.items():
                     graphStats['%s:%s' % (lfile, key)] = val
 
@@ -36727,7 +36783,8 @@ class ThreadAnalyzer(object):
             if SystemManager.isDrawMode():
                 return 0
             elif not SystemManager.recordStatus:
-                SystemManager.printError("Fail to read because there is no log")
+                SystemManager.printError(\
+                    "Fail to read because there is no log")
                 sys.exit(0)
 
 
@@ -43246,7 +43303,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-        if type(data) is not str and type(data) is not unicode:
+        if not UtilManager.isString(data):
             SystemManager.printError("Fail to recognize data from server")
             return
 
@@ -43374,8 +43431,7 @@ class ThreadAnalyzer(object):
                     message = ret[0]
 
                 # check message type #
-                if type(message) is not str and \
-                    type(message) is not unicode:
+                if not UtilManager.isString(message):
                     return
 
                 try:
@@ -43984,7 +44040,7 @@ class ThreadAnalyzer(object):
 
 def main(args=None):
     # update arguments #
-    if type(args) is str:
+    if UtilManager.isString(args):
         sys.argv = ['guider'] + args.split()
 
     # register exit handler #
@@ -44241,6 +44297,12 @@ def main(args=None):
 
         SystemManager.graphEnable = True
 
+        # apply regular expression for first path #
+        flist = UtilManager.convertPath(sys.argv[2], retStr=False)
+        if type(flist) is list and \
+            len(flist) > 0:
+            sys.argv = sys.argv[:2] + flist + sys.argv[3:]
+
         # thread mode #
         if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
@@ -44271,15 +44333,23 @@ def main(args=None):
             elif SystemManager.isIoDrawMode():
                 SystemManager.layout = 'IO'
 
-            # modify args #
+            # modify args for drawing multiple input files #
             sys.argv[1] = 'top'
             args = sys.argv[2:]
             SystemManager.sourceFile = list()
             for item in args:
-                if not item.startswith('-'):
-                    SystemManager.sourceFile.append(item)
-                else:
+                if item.startswith('-'):
                     break
+
+                # apply regular expression for path #
+                ilist = UtilManager.convertPath(item, retStr=False)
+                if UtilManager.isString(ilist):
+                    SystemManager.sourceFile.append(ilist)
+                elif type(ilist) is list:
+                    SystemManager.sourceFile += ilist
+
+            # remove redundant files #
+            SystemManager.sourceFile = list(set(SystemManager.sourceFile))
 
     # parse analysis option #
     SystemManager.parseAnalOption()
