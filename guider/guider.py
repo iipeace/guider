@@ -19101,7 +19101,7 @@ Copyright:
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
-        gSTAT_ATTR = ConfigManager.STAT_ATTR
+        gstatList = ConfigManager.STAT_ATTR
 
         # update uptime #
         SystemManager.updateUptime()
@@ -19133,21 +19133,21 @@ Copyright:
             try:
                 statPath = "%s/%s" % (procPath, 'stat')
                 with open(statPath, 'r') as fd:
-                    STAT_ATTR = fd.readlines()[0].split()
+                    statList = fd.readlines()[0].split()
 
-                commIndex = gSTAT_ATTR.index("COMM")
-                if STAT_ATTR[commIndex][-1] != ')':
-                    idx = gSTAT_ATTR.index("COMM") + 1
+                commIndex = gstatList.index("COMM")
+                if statList[commIndex][-1] != ')':
+                    idx = gstatList.index("COMM") + 1
                     while 1:
-                        tmpStr = str(STAT_ATTR[idx])
-                        STAT_ATTR[commIndex] = \
-                            "%s %s" % (STAT_ATTR[commIndex], tmpStr)
-                        STAT_ATTR.pop(idx)
+                        tmpStr = str(statList[idx])
+                        statList[commIndex] = \
+                            "%s %s" % (statList[commIndex], tmpStr)
+                        statList.pop(idx)
                         if tmpStr.rfind(')') > -1:
                             break
 
                 procStart = \
-                    float(STAT_ATTR[gSTAT_ATTR.index("STARTTIME")]) / 100
+                    float(statList[gstatList.index("STARTTIME")]) / 100
 
                 runtime = int(SystemManager.uptime - procStart)
             except:
@@ -19920,8 +19920,8 @@ Copyright:
         nrCore = 0
         if cpuBuf:
             for line in cpuBuf:
-                STAT_ATTR = line.split()
-                cpuId = STAT_ATTR[0]
+                statList = line.split()
+                cpuId = statList[0]
                 if cpuId != 'cpu' and cpuId.startswith('cpu'):
                     nrCore += 1
 
@@ -20672,21 +20672,21 @@ Copyright:
                 return None
 
             # convert string to list #
-            STAT_ATTR = statBuf.split()
+            statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            if STAT_ATTR[COMM_IDX][-1] != ')':
+            if statList[COMM_IDX][-1] != ')':
                 idx = COMM_IDX + 1
                 while 1:
-                    tmpStr = str(STAT_ATTR[idx])
-                    STAT_ATTR[COMM_IDX] = \
-                        "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
-                    STAT_ATTR.pop(idx)
+                    tmpStr = str(statList[idx])
+                    statList[COMM_IDX] = \
+                        "%s %s" % (statList[COMM_IDX], tmpStr)
+                    statList.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
 
-            comm = STAT_ATTR[COMM_IDX][1:-1]
-            cputime = long(STAT_ATTR[UTIME_IDX]) + long(STAT_ATTR[STIME_IDX])
+            comm = statList[COMM_IDX][1:-1]
+            cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
             return (comm, cputime)
 
         # initialize task list #
@@ -23713,20 +23713,20 @@ Copyright:
                 return None
 
             # convert string to list #
-            STAT_ATTR = statBuf.split()
+            statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            if STAT_ATTR[COMM_IDX][-1] != ')':
+            if statList[COMM_IDX][-1] != ')':
                 idx = COMM_IDX + 1
                 while 1:
-                    tmpStr = str(STAT_ATTR[idx])
-                    STAT_ATTR[COMM_IDX] = \
-                        "%s %s" % (STAT_ATTR[COMM_IDX], tmpStr)
-                    STAT_ATTR.pop(idx)
+                    tmpStr = str(statList[idx])
+                    statList[COMM_IDX] = \
+                        "%s %s" % (statList[COMM_IDX], tmpStr)
+                    statList.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
 
-            comm = STAT_ATTR[COMM_IDX][1:-1]
+            comm = statList[COMM_IDX][1:-1]
             return comm
 
         # check shm data #
@@ -24392,6 +24392,7 @@ class Debugger(object):
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.ctypes = None
         self.status = 'enter'
+        self.runStatus = False
         self.attached = attach
         self.arch = arch = SystemManager.getArch()
         self.skipInst = 5
@@ -25377,6 +25378,10 @@ class Debugger(object):
         if realtime:
             self.totalCall += 1
 
+            if self.mode != 'syscall' and \
+                not self.runStatus:
+                sym = 'WAIT@%s' % sym
+
             # add symbol table #
             try:
                 self.callTable[sym]['cnt'] += 1
@@ -25697,6 +25702,31 @@ class Debugger(object):
 
 
 
+    def isInRun(self):
+        try:
+            self.statFd.seek(0)
+            stat = self.statFd.readlines()[0]
+        except:
+            try:
+                statPath = "%s/%s/task/%s/stat" % \
+                    (SystemManager.procPath, self.pid, self.pid)
+                self.statFd = open(statPath, 'r')
+                stat = self.statFd.readlines()[0]
+            except:
+                SystemManager.printWarning('Fail to open %s' % statPath)
+
+        # convert string to list #
+        statList = stat.split(')')[1].split()
+
+        # check status #
+        if statList[0] == 'R' or \
+            statList[0] == 't':
+            return True
+        else:
+            return False
+
+
+
     def getCpuUsage(self):
         try:
             self.statFd.seek(0)
@@ -25717,23 +25747,11 @@ class Debugger(object):
         self.prevStat = stat
 
         # convert string to list #
-        STAT_ATTR = stat.split()
-
-        # merge comm parts that splited by space #
-        commIndex = self.commIdx
-        if STAT_ATTR[commIndex][-1] != ')':
-            idx = commIndex + 1
-            while 1:
-                tmpStr = str(STAT_ATTR[idx])
-                STAT_ATTR[commIndex] = \
-                    "%s %s" % (STAT_ATTR[commIndex], tmpStr)
-                STAT_ATTR.pop(idx)
-                if tmpStr.rfind(')') > -1:
-                    break
+        statList = stat.split(')')[1].split()
 
         # get total cpu time #
-        utime = long(STAT_ATTR[self.utimeIdx])
-        stime = long(STAT_ATTR[self.stimeIdx])
+        utime = long(statList[self.utimeIdx-2])
+        stime = long(statList[self.stimeIdx-2])
         usage = utime + stime
 
         prevUsage = self.prevCpuStat
@@ -25900,14 +25918,20 @@ class Debugger(object):
                         ret = self.ptrace(cmd, 0, 0)
                 # wait to sample calls #
                 elif mode == 'sample':
+                    # continue target thread #
                     self.cont(check=True)
 
                     # check realtime report interval #
                     if self.isExceedInterval():
                         self.printIntervalSummary()
 
+                    # wait for sampling time #
                     time.sleep(self.sampleTime)
 
+                    # check run status #
+                    self.runStatus = self.isInRun()
+
+                    # stop target thread #
                     if self.stop() < 0:
                         sys.exit(0)
                 # setup trap #
@@ -33515,7 +33539,8 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             "{0:^32}|{1:^10}|{2:^12}|{3:^10}|{4:^10}|{5:^10}|".\
-            format("Module", "LoadCnt", "LoadTime", "FreeCnt", "GetCnt", "PutCnt"))
+            format("Module", "LoadCnt", "LoadTime", \
+            "FreeCnt", "GetCnt", "PutCnt"))
         SystemManager.printPipe(twoLine)
 
         printCnt = 0
@@ -33542,10 +33567,12 @@ class ThreadAnalyzer(object):
 
         SystemManager.printPipe('\n[Thread Dependency Info]')
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
+        SystemManager.printPipe(\
+            "\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
             ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
+        SystemManager.printPipe(\
+            "%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
 
         for icount in xrange(0, len(self.depData)):
             SystemManager.addPrint(self.depData[icount] + '\n')
@@ -33567,16 +33594,17 @@ class ThreadAnalyzer(object):
             float(self.totalTime))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe((\
-            '{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} {6:>8} {7:>10} ' + \
+            '{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} {6:>8} {7:>10} '
             '{8:>10} {9:>10} {10:>8} {11:>8} {12:>10} {13:>8} {14:>10}').\
-            format('Name', 'Tid', 'Pid', 'Elapsed', 'Process', 'Block', 'NrBlock',\
-                'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait', 'LBlock',\
-                'NrLBlock', 'LastStat'))
+            format('Name', 'Tid', 'Pid', 'Elapsed', 'Process', 'Block', \
+            'NrBlock', 'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait', \
+            'LBlock', 'NrLBlock', 'LastStat'))
         SystemManager.printPipe(twoLine)
 
         # print futex info of threads #
         for key, value in sorted(self.threadData.items(), \
-            key=lambda e: e[1]['ftxLockCnt'] + e[1]['ftxWaitCnt'], reverse=True):
+            key=lambda e: e[1]['ftxLockCnt'] + e[1]['ftxWaitCnt'], \
+            reverse=True):
             if key[0:2] == '0[':
                 continue
             elif value['ftxTotal'] == 0:
@@ -36537,7 +36565,7 @@ class ThreadAnalyzer(object):
         if not SystemManager.procInstance:
             return
 
-        STAT_ATTR = ConfigManager.STAT_ATTR
+        statList = ConfigManager.STAT_ATTR
 
         # set comm and pid size #
         pd = SystemManager.pidDigit
@@ -36557,12 +36585,12 @@ class ThreadAnalyzer(object):
 
         cnt = 1
         limitProcCnt = 6
-        commIdx = STAT_ATTR.index("COMM")
-        ppidIdx = STAT_ATTR.index("PPID")
+        commIdx = statList.index("COMM")
+        ppidIdx = statList.index("PPID")
 
         try:
             sortedList = sorted(SystemManager.procInstance.items(), \
-                key=lambda e: long(e[1]['stat'][STAT_ATTR.index("RSS")]), \
+                key=lambda e: long(e[1]['stat'][statList.index("RSS")]), \
                 reverse=True)
         except:
             SystemManager.printWarning(\
@@ -39921,31 +39949,31 @@ class ThreadAnalyzer(object):
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
             for line in cpuBuf:
-                STAT_ATTR = line.split()
-                cpuId = STAT_ATTR[0]
+                statList = line.split()
+                cpuId = statList[0]
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
                         self.cpuData['all'] = \
-                            {'user': long(STAT_ATTR[1]), \
-                            'nice': long(STAT_ATTR[2]), \
-                            'system': long(STAT_ATTR[3]), \
-                            'idle': long(STAT_ATTR[4]), \
-                            'iowait': long(STAT_ATTR[5]), \
-                            'irq': long(STAT_ATTR[6]), \
-                            'softirq': long(STAT_ATTR[7])}
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 elif cpuId.rfind('cpu') == 0:
                     if not int(cpuId[3:]) in self.cpuData:
                         self.cpuData[int(cpuId[3:])] = \
-                            {'user': long(STAT_ATTR[1]), \
-                            'nice': long(STAT_ATTR[2]), \
-                            'system': long(STAT_ATTR[3]), \
-                            'idle': long(STAT_ATTR[4]), \
-                            'iowait': long(STAT_ATTR[5]), \
-                            'irq': long(STAT_ATTR[6]), \
-                            'softirq': long(STAT_ATTR[7])}
+                            {'user': long(statList[1]), \
+                            'nice': long(statList[2]), \
+                            'system': long(statList[3]), \
+                            'idle': long(statList[4]), \
+                            'iowait': long(statList[5]), \
+                            'irq': long(statList[6]), \
+                            'softirq': long(statList[7])}
                 else:
                     if not cpuId in self.cpuData:
-                        self.cpuData[cpuId] = {cpuId: long(STAT_ATTR[1])}
+                        self.cpuData[cpuId] = {cpuId: long(statList[1])}
 
             # set the number of core #
             SystemManager.nrCore = 0
@@ -40602,28 +40630,28 @@ class ThreadAnalyzer(object):
             self.procData[tid]['changed'] = False
         else:
             # convert string to list #
-            STAT_ATTR = statBuf.split()
+            statList = statBuf.split()
 
             # merge comm parts that splited by space #
             commIndex = self.commIdx
-            if STAT_ATTR[commIndex][-1] != ')':
+            if statList[commIndex][-1] != ')':
                 idx = commIndex + 1
                 while 1:
-                    tmpStr = str(STAT_ATTR[idx])
-                    STAT_ATTR[commIndex] = \
-                        "%s %s" % (STAT_ATTR[commIndex], tmpStr)
-                    STAT_ATTR.pop(idx)
+                    tmpStr = str(statList[idx])
+                    statList[commIndex] = \
+                        "%s %s" % (statList[commIndex], tmpStr)
+                    statList.pop(idx)
                     if tmpStr.rfind(')') > -1:
                         break
 
             # convert type of values #
-            self.procData[tid]['stat'] = STAT_ATTR
-            STAT_ATTR[self.majfltIdx] = long(STAT_ATTR[self.majfltIdx])
-            STAT_ATTR[self.utimeIdx] = long(STAT_ATTR[self.utimeIdx])
-            STAT_ATTR[self.stimeIdx] = long(STAT_ATTR[self.stimeIdx])
-            STAT_ATTR[self.btimeIdx] = long(STAT_ATTR[self.btimeIdx])
-            STAT_ATTR[self.cutimeIdx] = long(STAT_ATTR[self.cutimeIdx])
-            STAT_ATTR[self.cstimeIdx] = long(STAT_ATTR[self.cstimeIdx])
+            self.procData[tid]['stat'] = statList
+            statList[self.majfltIdx] = long(statList[self.majfltIdx])
+            statList[self.utimeIdx] = long(statList[self.utimeIdx])
+            statList[self.stimeIdx] = long(statList[self.stimeIdx])
+            statList[self.btimeIdx] = long(statList[self.btimeIdx])
+            statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
+            statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
         # check task status #
         tstat = self.procData[tid]['stat'][self.statIdx]
