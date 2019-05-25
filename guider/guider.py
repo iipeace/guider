@@ -12269,7 +12269,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # syscall top #
-                elif SystemManager.isSyscTopMode():
+                elif SystemManager.isSysTopMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -12314,8 +12314,8 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
-                # sys top #
-                elif SystemManager.isSysTopMode():
+                # system top #
+                elif SystemManager.isSystemTopMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -13263,7 +13263,7 @@ OPTIONS:
 COMMAND:
     [monitor]   top         <process>
                 threadtop   <thread>
-                systop      <system>
+                systemtop   <system>
                 bgtop       <background>
                 stacktop    <stack>
                 perftop     <PMU>
@@ -13273,7 +13273,7 @@ COMMAND:
                 wsstop      <memory>
                 reptop      <JSON>
                 filetop     <file>
-                sysctop     <syscall>
+                systop     <syscall>
                 usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
@@ -18116,11 +18116,11 @@ Copyright:
 
 
     @staticmethod
-    def isSysTopMode():
+    def isSystemTopMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'systop':
+        if sys.argv[1] == 'systemtop':
             return True
         else:
             return False
@@ -18152,11 +18152,11 @@ Copyright:
 
 
     @staticmethod
-    def isSyscTopMode():
+    def isSysTopMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'sysctop':
+        if sys.argv[1] == 'systop':
             return True
         else:
             return False
@@ -18261,10 +18261,10 @@ Copyright:
             SystemManager.isWssTopMode() or \
             SystemManager.isReportTopMode() or \
             SystemManager.isBgTopMode() or \
-            SystemManager.isSysTopMode() or \
+            SystemManager.isSystemTopMode() or \
             SystemManager.isNetTopMode() or \
             SystemManager.isUserTopMode() or \
-            SystemManager.isSyscTopMode() or \
+            SystemManager.isSysTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -25380,7 +25380,7 @@ class Debugger(object):
 
             if self.mode != 'syscall' and \
                 not self.runStatus:
-                sym = 'WAIT@%s' % sym
+                sym = 'WAIT(%s)' % sym
 
             # add symbol table #
             try:
@@ -40111,8 +40111,8 @@ class ThreadAnalyzer(object):
         if SystemManager.gpuEnable:
             self.saveGpuData()
 
-        # check systop mode #
-        if SystemManager.isSysTopMode():
+        # check systemtop mode #
+        if SystemManager.isSystemTopMode():
             return
 
         # get process list #
@@ -44453,7 +44453,7 @@ def main(args=None):
             SystemManager.doTrace('usercall')
 
         # syscall #
-        elif SystemManager.isSyscTopMode():
+        elif SystemManager.isSysTopMode():
             SystemManager.doTrace('syscall')
 
         # network #
